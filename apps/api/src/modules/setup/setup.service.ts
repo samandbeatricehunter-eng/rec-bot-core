@@ -218,6 +218,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     core_attributes: input.coreAttributes ?? [],
     core_attribute_cap_overrides: input.coreAttributeCapOverrides ?? {},
     non_core_attribute_cap_overrides: input.nonCoreAttributeCapOverrides ?? {},
+    purchase_deadlines: input.purchaseDeadlines ?? {},
 
     streaming_requirement: input.regularSeasonStreamingRequirement,
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
@@ -486,6 +487,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     core_attributes: input.coreAttributes ?? [],
     core_attribute_cap_overrides: input.coreAttributeCapOverrides ?? {},
     non_core_attribute_cap_overrides: input.nonCoreAttributeCapOverrides ?? {},
+    purchase_deadlines: input.purchaseDeadlines ?? {},
     streaming_requirement: input.regularSeasonStreamingRequirement,
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
     postseason_streaming_requirement: input.postseasonStreamingRequirement,
@@ -624,6 +626,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     coreAttributes: Array.isArray(c.core_attributes) ? c.core_attributes.filter((code: unknown) => typeof code === "string") : [],
     coreAttributeCapOverrides: c.core_attribute_cap_overrides && typeof c.core_attribute_cap_overrides === "object" && !Array.isArray(c.core_attribute_cap_overrides) ? c.core_attribute_cap_overrides : {},
     nonCoreAttributeCapOverrides: c.non_core_attribute_cap_overrides && typeof c.non_core_attribute_cap_overrides === "object" && !Array.isArray(c.non_core_attribute_cap_overrides) ? c.non_core_attribute_cap_overrides : {},
+    purchaseDeadlines: c.purchase_deadlines && typeof c.purchase_deadlines === "object" && !Array.isArray(c.purchase_deadlines) ? c.purchase_deadlines : {},
     streamingRequirement: c.streaming_requirement ?? "recommended",
     regularSeasonStreamingRequirement: c.regular_season_streaming_requirement ?? "recommended",
     postseasonStreamingRequirement: c.postseason_streaming_requirement ?? "required",

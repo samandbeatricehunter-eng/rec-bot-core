@@ -6,6 +6,7 @@ import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.servi
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { assertPurchaseDeadlineOpen } from "./purchase-deadlines.js";
 
 // purchase_type → the rec_league_configuration columns that gate it. seasonCap null means the
 // type uses a more specific cap model handled elsewhere (attributes use per-attribute caps).
@@ -121,7 +122,7 @@ export async function createPurchaseRequest(input: {
   const attrSelect = input.purchaseType === "attribute"
     ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
     : [];
-  const selectCols = ["coin_economy_enabled", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
+  const selectCols = ["coin_economy_enabled", "purchase_deadlines", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
     .from("rec_league_configuration")
     .select(selectCols)
@@ -133,6 +134,12 @@ export async function createPurchaseRequest(input: {
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
   await assertEconomyPayoutsActive(leagueId);
   if (!cfgRow[cfg.enabled]) throw new ApiError(400, `${label} purchases are not enabled for this league.`);
+  assertPurchaseDeadlineOpen({
+    purchaseType: input.purchaseType,
+    deadlines: cfgRow.purchase_deadlines,
+    currentStage: String(context.rec_leagues?.season_stage ?? "regular_season"),
+    currentWeek: Number(context.rec_leagues?.current_week ?? 1),
+  });
 
   const seasonNumber = resolveSeasonNumber(context);
   if (context.rec_leagues?.game === "cfb_27" && seasonNumber < 2 && CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES.includes(input.purchaseType)) {

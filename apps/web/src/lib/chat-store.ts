@@ -17,7 +17,7 @@ import type { ChatAttachment } from "../types/api.js";
 
 // Database-triggered WebSocket events perform immediate reconciliation. This slow poll is
 // only a recovery net for a disconnected socket, not the primary synchronization path.
-const POLL_INTERVAL_MS = 120_000;
+const POLL_INTERVAL_MS = 10 * 60_000;
 
 export type ReactionPill = { emojiKey: string; count: number; mine: boolean };
 

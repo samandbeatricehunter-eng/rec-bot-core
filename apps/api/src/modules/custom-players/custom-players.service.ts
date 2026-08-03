@@ -27,6 +27,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
+import { assertPurchaseDeadlineOpen } from "../purchases/purchase-deadlines.js";
 
 type Identity = {
   firstName: string; lastName: string; jerseyNumber: number; handedness: string;
@@ -121,6 +122,12 @@ export async function submitCustomPlayer(input: {
   const config = await getCustomPlayerConfig(input.guildId, input.discordId);
   if (!config.enabled) throw new ApiError(400, "Custom-player purchases are disabled for this league.");
   if (config.seasonCap > 0 && config.seasonUsed >= config.seasonCap) throw new ApiError(409, "You have reached this season's custom-player cap.");
+  assertPurchaseDeadlineOpen({
+    purchaseType: "custom_player",
+    deadlines: config.purchaseDeadlines,
+    currentStage: String(context.rec_leagues.season_stage ?? "regular_season"),
+    currentWeek: Number(context.rec_leagues.current_week ?? 1),
+  });
   const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey, developmentTrait: input.developmentTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
   const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);

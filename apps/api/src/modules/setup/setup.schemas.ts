@@ -94,6 +94,10 @@ export const CreateLeagueSchema = z.object({
   coreAttributes: z.array(z.string()).default([]),
   coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
   nonCoreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
+  purchaseDeadlines: z.record(z.object({
+    stage: z.string().trim().min(1).max(80),
+    week: z.number().int().min(1).max(30),
+  })).default({}),
 
   streamingRequirement: streamingRequirement.default("recommended"),
   regularSeasonStreamingRequirement: streamingRequirement.default("recommended"),
