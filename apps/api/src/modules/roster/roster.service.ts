@@ -2,6 +2,10 @@ import { CFB_POSITION_GROUPS, normalizeCfbPosition, overallToGrade } from "@rec/
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { assertGuildPermission } from "../../lib/user-auth.js";
+
+export const ROSTER_DEPARTURE_STATUSES = ["drafted", "transferred_out", "retired", "graduated"] as const;
+export type RosterDepartureStatus = (typeof ROSTER_DEPARTURE_STATUSES)[number];
 
 async function userIdForDiscord(discordId: string) {
   const result = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
@@ -109,4 +113,127 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     players: rows,
     positionGroups: groups,
   };
+}
+
+/** True if the requester may manage this team's roster — its own coach, or a co-commissioner+. */
+async function assertCanManageTeamRoster(guildId: string, discordId: string, leagueId: string, userId: string, teamId: string) {
+  const isCommish = await assertGuildPermission(guildId, discordId, "co_commissioner").then(() => true).catch(() => false);
+  if (isCommish) return;
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to check team assignment.", assignment.error);
+  if (assignment.data?.team_id !== teamId) {
+    throw new ApiError(403, "Only that team's coach or a commissioner can manage this roster.");
+  }
+}
+
+/** Mark a departing player drafted/transferred out/retired/graduated — never touches active
+ * roster math destructively, just flips roster_status so the roster viewer (and later, editorial
+ * signals) can tell who's still on the team. */
+export async function setPlayerDeparture(input: {
+  guildId: string;
+  discordId: string;
+  playerId: string;
+  status: RosterDepartureStatus;
+  note?: string | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const player = await supabase.from("rec_players").select("id,team_id,league_id").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
+
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
+
+  const updated = await supabase
+    .from("rec_players")
+    .update({ roster_status: input.status, status_changed_at: new Date().toISOString(), status_note: input.note?.trim() || null })
+    .eq("id", input.playerId)
+    .select("id,full_name,roster_status")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to update player status.", updated.error);
+  return updated.data;
+}
+
+/** Reinstate a player accidentally marked as departed, or one who "stayed another year" after
+ * being logged as entering the portal — back to active with no status note. */
+export async function reinstatePlayer(input: { guildId: string; discordId: string; playerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const player = await supabase.from("rec_players").select("id,team_id").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
+
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
+
+  const updated = await supabase
+    .from("rec_players")
+    .update({ roster_status: "active", status_changed_at: new Date().toISOString(), status_note: null })
+    .eq("id", input.playerId)
+    .select("id,full_name,roster_status")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to reinstate player.", updated.error);
+  return updated.data;
+}
+
+/** Log an incoming transfer — a brand-new rec_players row, never a baseline/default player
+ * (is_default_player stays false), so it's naturally exempt from the default-player purchase
+ * restriction that's planned for the attribute-upgrade flow. */
+export async function addTransferInPlayer(input: {
+  guildId: string;
+  discordId: string;
+  teamId: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+  classYear?: string | null;
+  overallRating?: number | null;
+  note?: string | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, input.teamId);
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  if (!firstName || !lastName) throw new ApiError(400, "First and last name are required.");
+  const position = input.position.trim().toUpperCase();
+  if (!position) throw new ApiError(400, "Position is required.");
+
+  const inserted = await supabase
+    .from("rec_players")
+    .insert({
+      league_id: leagueId,
+      team_id: input.teamId,
+      madden_player_id: `transfer:${leagueId}:${crypto.randomUUID()}`,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: `${firstName} ${lastName}`,
+      position,
+      class_year: input.classYear ?? null,
+      overall_rating: input.overallRating ?? null,
+      is_free_agent: false,
+      is_default_player: false,
+      roster_status: "transferred_in",
+      status_changed_at: new Date().toISOString(),
+      status_note: input.note?.trim() || null,
+      raw_payload: {},
+    })
+    .select("id,full_name,roster_status")
+    .single();
+  if (inserted.error) throw new ApiError(500, "Failed to log incoming transfer.", inserted.error);
+  return inserted.data;
 }

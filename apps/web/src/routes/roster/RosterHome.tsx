@@ -6,6 +6,7 @@ import type { RosterPlayer, TeamRosterResponse } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
+import { RosterMovesPanel } from "./RosterMovesPanel.js";
 
 type ViewMode = "grid" | "list";
 
@@ -26,15 +27,21 @@ export function RosterHome() {
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [statsPlayer, setStatsPlayer] = useState<RosterPlayer | null>(null);
 
-  useEffect(() => {
+  function load() {
     recApi
       .getTeamRoster({ guildId })
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
-  }, [guildId]);
+  }
+
+  useEffect(load, [guildId]);
 
   const rosteredPlayers = useMemo(
     () => (data?.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus)),
+    [data],
+  );
+  const departedPlayers = useMemo(
+    () => (data?.players ?? []).filter((p) => !ROSTER_ACTIVE_STATUSES.has(p.rosterStatus)),
     [data],
   );
 
@@ -63,6 +70,14 @@ export function RosterHome() {
           </button>
         </div>
       </div>
+
+      <RosterMovesPanel
+        guildId={guildId}
+        teamId={data.team.id}
+        activePlayers={rosteredPlayers}
+        departedPlayers={departedPlayers}
+        onChanged={load}
+      />
 
       {view === "grid" ? (
         <div className="hub-roster-grade-grid">

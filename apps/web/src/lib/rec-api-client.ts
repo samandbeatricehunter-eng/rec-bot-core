@@ -52,6 +52,8 @@ import type {
   WagerOptionsResponse,
   WeekWagerLinesResponse,
   TeamRosterResponse,
+  RosterDepartureStatus,
+  RosterLifecycleResult,
   PeerWagerBoardResponse,
   MyWagersResponse,
   ChallengeableCoachesResponse,
@@ -218,6 +220,12 @@ export const recApi = {
     recApiFetch<WeekWagerLinesResponse>("/v1/wagers/week-lines", { method: "POST", body: JSON.stringify(input) }),
   getTeamRoster: (input: { guildId: string; teamId?: string | null }) =>
     recApiFetch<TeamRosterResponse>("/v1/roster/team", { method: "POST", body: JSON.stringify(input) }),
+  setPlayerDeparture: (input: { guildId: string; playerId: string; status: RosterDepartureStatus; note?: string | null }) =>
+    recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/departure", { method: "POST", body: JSON.stringify(input) }),
+  reinstatePlayer: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/reinstate", { method: "POST", body: JSON.stringify(input) }),
+  addTransferInPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; classYear?: string | null; overallRating?: number | null; note?: string | null }) =>
+    recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/transfer-in", { method: "POST", body: JSON.stringify(input) }),
   placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
     recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
   placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>

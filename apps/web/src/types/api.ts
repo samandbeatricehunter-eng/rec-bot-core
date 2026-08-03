@@ -660,6 +660,8 @@ export type TeamRosterResponse = {
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
 };
+export type RosterDepartureStatus = "drafted" | "transferred_out" | "retired" | "graduated";
+export type RosterLifecycleResult = { id: string; full_name: string; roster_status: string };
 export type WeekWagerLinesResponse = {
   lines: Array<{
     gameId: string;
