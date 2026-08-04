@@ -1,7 +1,8 @@
-import { CFB_POSITION_GROUPS, normalizeCfbPosition, overallToGrade } from "@rec/shared";
+import { CFB_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, gameplaySeasonStages, isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { listDraftPicksForTeam } from "../draft-picks/draft-picks.service.js";
 
@@ -116,6 +117,10 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     ? [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }]
     : groups;
 
+  // CFB-only offseason gate — see the identical check in setPlayerDeparture. Exposed here so
+  // the roster UI can show/hide the per-player status selector without a failed round trip.
+  const canEditRosterStatus = isCfb(context.rec_leagues.game) && !gameplaySeasonStages(context.rec_leagues.game).has(String(context.rec_leagues.season_stage ?? "regular_season"));
+
   return {
     team: {
       id: team.data.id,
@@ -125,6 +130,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     players: rows,
     positionGroups,
     draftPicks,
+    canEditRosterStatus,
   };
 }
 
@@ -167,6 +173,19 @@ export async function setPlayerDeparture(input: {
 
   await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
 
+  // CFB-only: roster status changes (Went Pro / Graduated-Retired / Transferred) are an
+  // offseason activity in real college football — only open while the league is out of its
+  // regular-season/postseason game-playing stages (end_of_season_recap through preseason).
+  if (isCfb(context.rec_leagues?.game)) {
+    const stage = String(context.rec_leagues?.season_stage ?? "regular_season");
+    if (gameplaySeasonStages(context.rec_leagues?.game).has(stage)) {
+      throw new ApiError(400, "Roster status changes open once the season ends — not during the regular season or postseason.");
+    }
+  }
+  if (input.status === "transferred_out" && !input.note?.trim()) {
+    throw new ApiError(400, "Enter the school this player transferred to.");
+  }
+
   const updated = await supabase
     .from("rec_players")
     .update({ roster_status: input.status, status_changed_at: new Date().toISOString(), status_note: input.note?.trim() || null })
@@ -174,7 +193,27 @@ export async function setPlayerDeparture(input: {
     .select("id,full_name,roster_status")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to update player status.", updated.error);
+
+  if (input.status === "drafted") {
+    await incrementPlayersGoneProCounters(leagueId, userId, resolveSeasonNumber(context));
+  }
+
   return updated.data;
+}
+
+async function incrementPlayersGoneProCounters(leagueId: string, userId: string, seasonNumber: number) {
+  const season = await supabase.from("rec_season_user_records").select("id,players_gone_pro").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("user_id", userId).maybeSingle();
+  if (season.data) {
+    await supabase.from("rec_season_user_records").update({ players_gone_pro: Number(season.data.players_gone_pro ?? 0) + 1, updated_at: new Date().toISOString() }).eq("id", season.data.id);
+  } else {
+    await supabase.from("rec_season_user_records").insert({ league_id: leagueId, season_number: seasonNumber, user_id: userId, players_gone_pro: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  }
+  const global = await supabase.from("rec_global_user_records").select("user_id,players_gone_pro_career").eq("user_id", userId).maybeSingle();
+  if (global.data) {
+    await supabase.from("rec_global_user_records").update({ players_gone_pro_career: Number(global.data.players_gone_pro_career ?? 0) + 1, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  } else {
+    await supabase.from("rec_global_user_records").insert({ user_id: userId, players_gone_pro_career: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  }
 }
 
 /** Reinstate a player accidentally marked as departed, or one who "stayed another year" after

@@ -10,6 +10,73 @@ import { RosterMovesPanel } from "./RosterMovesPanel.js";
 
 type ViewMode = "grid" | "list";
 
+type RosterUiStatus = "no_change" | "drafted" | "graduated" | "transferred_out";
+const STATUS_OPTIONS: Array<{ value: RosterUiStatus; label: string }> = [
+  { value: "no_change", label: "No Change" },
+  { value: "drafted", label: "Went Pro" },
+  { value: "graduated", label: "Graduated/Retired" },
+  { value: "transferred_out", label: "Transferred" },
+];
+
+// Per-player offseason status change — only rendered when canEditRosterStatus is true
+// (CFB leagues, outside the regular season/postseason). "No Change" just reinstates a
+// player back to active if they'd previously been marked departed; the other three call
+// setPlayerDeparture, which removes the player from the active roster view. Transferred
+// requires a destination school, captured as the departure note.
+function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; player: RosterPlayer; onChanged: () => void }) {
+  const current: RosterUiStatus = player.rosterStatus === "drafted" || player.rosterStatus === "graduated" || player.rosterStatus === "retired" || player.rosterStatus === "transferred_out"
+    ? (player.rosterStatus === "retired" ? "graduated" : (player.rosterStatus as RosterUiStatus))
+    : "no_change";
+  const [pending, setPending] = useState<RosterUiStatus | null>(null);
+  const [destination, setDestination] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function apply(status: RosterUiStatus, note?: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (status === "no_change") {
+        await recApi.reinstatePlayer({ guildId, playerId: player.id });
+      } else {
+        await recApi.setPlayerDeparture({ guildId, playerId: player.id, status, note: note ?? null });
+      }
+      setPending(null);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update status.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleChange(next: RosterUiStatus) {
+    if (next === "transferred_out") {
+      setPending("transferred_out");
+      setDestination("");
+      return;
+    }
+    void apply(next);
+  }
+
+  return (
+    <div className="hub-roster-status-cell">
+      {error && <span className="hub-roster-status-error">{error}</span>}
+      {pending === "transferred_out" ? (
+        <div className="hub-roster-status-transfer">
+          <input className="form-input" placeholder="Transferred to…" value={destination} onChange={(event) => setDestination(event.target.value)} />
+          <button type="button" className="btn btn-secondary btn-compact" disabled={busy || !destination.trim()} onClick={() => void apply("transferred_out", destination)}>Save</button>
+          <button type="button" className="btn btn-ghost btn-compact" onClick={() => setPending(null)}>Cancel</button>
+        </div>
+      ) : (
+        <select className="form-select" value={current} disabled={busy} onChange={(event) => handleChange(event.target.value as RosterUiStatus)}>
+          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";
   const feet = Math.floor(inches / 12);
@@ -165,6 +232,7 @@ export function RosterHome() {
                     <th>Class</th>
                     <th>OVR</th>
                     <th />
+                    {data.canEditRosterStatus && <th>Status</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -186,11 +254,12 @@ export function RosterHome() {
                           Add Stats
                         </button>
                       </td>
+                      {data.canEditRosterStatus && <td><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
                     </tr>
                   ))}
                   {filteredPlayers.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="hub-empty">
+                      <td colSpan={data.canEditRosterStatus ? 7 : 6} className="hub-empty">
                         No players in this group.
                       </td>
                     </tr>

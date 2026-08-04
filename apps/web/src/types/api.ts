@@ -745,6 +745,7 @@ export type TeamRosterResponse = {
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
   draftPicks: TeamDraftPick[];
+  canEditRosterStatus: boolean;
 };
 export type TurnoverKind = "interceptions_thrown" | "fumbles_lost" | "interceptions_made" | "forced_fumble";
 export type AssignableBoxScoreStats = {
