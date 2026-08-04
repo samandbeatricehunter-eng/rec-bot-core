@@ -11,6 +11,7 @@ import {
   type SiteLeagueSummary,
   type SiteOpenTeam,
 } from "../lib/site-api.js";
+import { CreateLeagueWizard } from "../components/CreateLeagueWizard.js";
 
 type Tab = "search" | "mine";
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
@@ -620,6 +621,12 @@ export function LeaguesPage() {
   const tab = (params.get("tab") === "mine" ? "mine" : "search") as Tab;
 
   const [memberTier, setMemberTier] = useState<EntitlementSummary["tier"]>("none");
+  const [canCreateLeague, setCanCreateLeague] = useState(false);
+  const [createWizardOpen, setCreateWizardOpen] = useState(false);
+
+  useEffect(() => {
+    siteApi.getLeagueCreatorStatus().then((res) => setCanCreateLeague(res.allowed)).catch(() => setCanCreateLeague(false));
+  }, []);
   const [q, setQ] = useState(params.get("q") ?? "");
   const [game, setGame] = useState(() => {
     const raw = params.get("game") ?? "";
@@ -808,6 +815,11 @@ export function LeaguesPage() {
           <h1>Leagues</h1>
           <p>Find open leagues by settings, or jump into one you already play.</p>
         </div>
+        {canCreateLeague && (
+          <button type="button" className="site-btn site-btn-primary" onClick={() => setCreateWizardOpen(true)}>
+            Create League
+          </button>
+        )}
         <div className="site-leagues-tabs" role="tablist" aria-label="League views">
           <button
             type="button"
@@ -1089,6 +1101,15 @@ export function LeaguesPage() {
           </section>
         </div>
       ) : null}
+      {createWizardOpen && (
+        <CreateLeagueWizard
+          onClose={() => setCreateWizardOpen(false)}
+          onCreated={() => {
+            setCreateWizardOpen(false);
+            setParams((current) => { const next = new URLSearchParams(current); next.set("tab", "mine"); return next; });
+          }}
+        />
+      )}
     </div>
   );
 }

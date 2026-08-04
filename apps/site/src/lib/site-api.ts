@@ -698,6 +698,12 @@ export const siteApi = {
   getAdminStatus() {
     return request<{ isAdmin: boolean }>("/v1/admin/whoami", {});
   },
+  getLeagueCreatorStatus() {
+    return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
+  },
+  createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean }) {
+    return request<{ league: { id: string; name: string; game: string } }>("/v1/site-leagues/create", input);
+  },
   getAdminStats() {
     return request<AdminStats>("/v1/admin/stats", {});
   },

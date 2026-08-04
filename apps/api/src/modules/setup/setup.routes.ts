@@ -13,6 +13,7 @@ const DeleteLeagueSchema = z.object({
 });
 import { createLeagueForServer } from "./setup-season.service.js";
 import { publishRecGuideFromApi } from "../server-config/rec-guide-publisher.service.js";
+import { isAllowedLeagueCreator, requireSiteLeagueCreator, resolveSiteLeagueCreator } from "../../lib/site-league-creator.js";
 import {
   registerServer,
   updateServerRoutes,
@@ -20,8 +21,17 @@ import {
   updateLeagueConfig,
   deleteLeagueData,
   getLeagueTeamConferences,
-  updateTeamConference
+  updateTeamConference,
+  createUnclaimedLeague
 } from "./setup.service.js";
+
+const CreateUnclaimedLeagueSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  game: z.enum(["madden_26", "madden_27", "cfb_27"]),
+  leagueType: z.string().optional(),
+  activeRostersEnabled: z.boolean().optional(),
+  trackRostersEnabled: z.boolean().optional(),
+});
 
 export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/setup/server/register", async (request, reply) => {
@@ -42,6 +52,21 @@ export async function setupRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/site-leagues/create/whoami", async (request, reply) => {
+    try {
+      const resolved = await resolveSiteLeagueCreator(request);
+      return reply.send({ allowed: isAllowedLeagueCreator(resolved?.discordUsername) });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/site-leagues/create", async (request, reply) => {
+    try {
+      const body = CreateUnclaimedLeagueSchema.parse(request.body);
+      const { userId } = await requireSiteLeagueCreator(request);
+      return reply.send(await createUnclaimedLeague({ ...body, requestedByUserId: userId }));
+    } catch (error) { return sendError(reply, error); }
   });
 
   app.patch("/v1/setup/server/routes", async (request, reply) => {

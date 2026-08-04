@@ -3,7 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
+import { createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
@@ -380,6 +380,71 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     defaultScheduleSeed: defaultTeams.defaultScheduleSeed,
     baselineSeed,
   };
+}
+
+/**
+ * Site-first league creation, no Discord server required — the league lands in the same
+ * "not yet connected" state the pre-existing ConnectDiscordCard flow (apps/site's My Leagues
+ * list) already handles for leagues that predate Discord linking: owner_user_id set,
+ * discord_bot_enabled false, no rec_server_league_links row at all. Only the minimal set of
+ * fields FirstTimeSetupHome.tsx (the web hub's own minimal wizard) already treats as
+ * genuinely required — name, game, and the game-appropriate roster-type flags — everything
+ * else rides on rec_league_configuration's column defaults and is one Settings edit away
+ * once the commissioner is ready, same as any other league.
+ */
+export async function createUnclaimedLeague(input: {
+  requestedByUserId: string;
+  name: string;
+  game: "madden_26" | "madden_27" | "cfb_27";
+  leagueType?: string;
+  activeRostersEnabled?: boolean;
+  trackRostersEnabled?: boolean;
+}) {
+  const name = input.name.trim();
+  if (!name) throw new ApiError(400, "Enter a league name.");
+  await assertCanCreateLeague(input.requestedByUserId, input.game);
+
+  const isCfbGame = input.game === "cfb_27";
+  const leagueType = input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm");
+
+  const leagueFields = {
+    name,
+    game: input.game,
+    league_type: leagueType,
+    owner_user_id: input.requestedByUserId,
+    discord_bot_enabled: false,
+    current_phase: "preseason",
+    season_stage: isCfbGame ? "preseason" : "preseason_training_camp",
+    season_number: 1,
+    current_week: 1,
+    trust_mode: "manual",
+    fantasy_draft_status: "not_applicable",
+  };
+
+  const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
+  if (league.error) throw new ApiError(500, "Failed to create league.", league.error);
+
+  const configurationPayload = {
+    league_id: league.data.id,
+    roster_type: leagueType,
+    active_rosters_enabled: isCfbGame ? (input.activeRostersEnabled ?? true) : null,
+    track_rosters_enabled: isCfbGame ? (input.trackRostersEnabled ?? true) : null,
+  };
+  const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
+  if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
+
+  const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+
+  await writeAuditLog({
+    action: "league.created_unclaimed",
+    entityType: "rec_leagues",
+    entityId: league.data.id,
+    newValue: { league: league.data, configuration: configuration.data },
+    reason: "League created from the site, before any Discord server was connected.",
+    source: "manual_admin_entry",
+  });
+
+  return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams };
 }
 
 /**

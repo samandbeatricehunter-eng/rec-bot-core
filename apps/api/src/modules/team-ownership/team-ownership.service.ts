@@ -49,6 +49,31 @@ function isSchedulePlaceholderTeam(team: { name?: string | null; abbreviation?: 
   return normalizedAbbr === "FCS" || normalizedName === "FCS TEAM" || normalizedName === "FCS";
 }
 
+// Guild-free variant for a league created from the site before any Discord server is
+// connected (see setup.service.ts's createUnclaimedLeague) — same team-catalog insert as
+// createDefaultTeamsForGuild, minus the guild-scoped audit log and default-schedule seed
+// (both depend on a real guildId; schedule seeding can be triggered later once Discord is
+// linked, via the existing Reset Default Teams action in League Mgmt).
+export async function createDefaultTeamsForLeague(leagueId: string, game: string | null | undefined) {
+  const isCfbGame = game === "cfb_27";
+  const catalog = getDefaultTeamCatalog(game);
+  const rows = catalog.map((team) => ({
+    league_id: leagueId,
+    name: team.name,
+    abbreviation: team.abbreviation,
+    conference: team.conference,
+    division: team.division,
+    display_city: isCfbGame ? cfbDisplayCity(team as CfbTeamOption) : null,
+    display_nick: isCfbGame ? (team as CfbTeamOption).mascot : null,
+    source: "manual_admin_entry",
+    primary_color: isCfbGame ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF",
+  }));
+  const result = await supabase.from("rec_teams").insert(rows).select("*");
+  if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
+  await ensureLeagueRivalries(leagueId, game ?? null);
+  return { teams: result.data };
+}
+
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
   const isCfb = league.game === "cfb_27";
