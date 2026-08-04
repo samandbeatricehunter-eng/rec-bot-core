@@ -54,7 +54,7 @@ export function LateSubmissionsModal({
   const eligibleWeeks = useMemo(() => {
     if (!schedule || !highlightCounts) return [];
     return schedule.weeks.filter((week) => {
-      if (!week.alreadyConfirmed || week.confirmedMatchupType !== "h2h" || week.isBye || !week.gameId) return false;
+      if (!week.alreadyConfirmed || !week.confirmedMatchupType || week.isBye || !week.gameId) return false;
       if (week.weekNumber > currentWeek) return false;
       const missingBoxScore = !week.boxScoreSubmissionId;
       const missingHighlight = (highlightCounts[week.weekNumber] ?? 0) < 2;
