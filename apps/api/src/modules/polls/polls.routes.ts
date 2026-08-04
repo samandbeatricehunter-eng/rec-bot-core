@@ -1,12 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
-import { cancelCommissionerPoll, closeCommissionerPoll, createCommissionerPoll, listCommissionerPolls } from "./commissioner-polls.service.js";
+import { ApiError, sendError } from "../../lib/errors.js";
+import { cancelCommissionerPoll, closeCommissionerPoll, createCommissionerPoll, listCommissionerPolls, voteOnCommissionerPoll } from "./commissioner-polls.service.js";
 
 export async function pollsRoutes(app: FastifyInstance) {
-  // Commissioner "Create Poll" on the Media page — posts a native single-select Discord poll
-  // to the league's voting-polls channel. Discord's own platform enforces one vote per member.
+  // Commissioner "Create Poll" on the Media page — site-first: the poll is fully votable from
+  // the website with no Discord link required. If a voting-polls channel is configured, an
+  // informational (non-interactive) embed mirrors it there, but the site vote is canonical.
   app.post("/v1/polls/create", async (request, reply) => {
     try {
       const body = z.object({
@@ -27,8 +28,19 @@ export async function pollsRoutes(app: FastifyInstance) {
   app.post("/v1/polls/list", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      return reply.send(await listCommissionerPolls(body));
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await listCommissionerPolls({ ...body, discordId: auth.mode === "user" ? auth.discordId : undefined }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/polls/vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid(), optionId: z.number().int() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Voting is website-only.");
+      return reply.send(await voteOnCommissionerPoll({ ...body, discordId: auth.discordId }));
     } catch (error) {
       return sendError(reply, error);
     }

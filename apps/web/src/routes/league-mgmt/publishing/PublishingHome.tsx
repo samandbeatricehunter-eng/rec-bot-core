@@ -58,8 +58,8 @@ function CommissionerPollsCard() {
   return <Card>
     <h2>Commissioner Polls</h2>
     <p className="form-hint">
-      Posts a native single-select Discord poll to the league's voting-polls channel — Discord itself blocks a member from
-      voting twice, so results always reflect one vote per person.
+      Posts to the Media page for every member to vote on directly — no Discord link required.
+      If a voting-polls channel is configured, an informational mirror posts there too.
     </p>
     {error && <ErrorState message={error} />}
     <div className="form-field"><label className="form-label">Question</label><input className="form-input" maxLength={300} value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="What should we vote on?" /></div>
@@ -81,16 +81,15 @@ function CommissionerPollsCard() {
 
     {polls === null ? <p className="form-hint">Loading polls…</p> : polls.length === 0 ? <p className="form-hint">No polls yet.</p> : <div style={{ marginTop: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
       {polls.map((poll) => {
-        const counts = poll.results?.answerCounts ?? [];
-        const totalVotes = counts.reduce((sum, c) => sum + c.count, 0);
+        const totalVotes = poll.totalVotes;
         return <div key={poll.id} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)", alignItems: "baseline" }}>
             <strong>{poll.question}</strong>
             <span className="form-hint" style={{ margin: 0 }}>{poll.status === "open" ? "Open" : poll.status === "closed" ? "Closed" : "Cancelled"}</span>
           </div>
           <div style={{ marginTop: "var(--space-2)", display: "flex", flexDirection: "column", gap: 6 }}>
-            {poll.options.map((option) => {
-              const count = counts.find((c) => c.id === option.id)?.count ?? 0;
+            {poll.tally.map((option) => {
+              const count = option.votes;
               const pct = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
               return <div key={option.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)" }}><span>{option.text}</span><span>{count} vote{count === 1 ? "" : "s"} ({pct}%)</span></div>

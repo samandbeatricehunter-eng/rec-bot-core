@@ -17,6 +17,7 @@ type SetServerConfigInput = {
   commissionerRoleId?: string | null;
   compCommitteeRoleId?: string | null;
   tradeBlockChannelId?: string | null;
+  votingPollsChannelId?: string | null;
 };
 
 function compactDefined(input: Record<string, unknown>) {

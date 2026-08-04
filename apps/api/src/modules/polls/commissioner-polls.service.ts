@@ -3,12 +3,12 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
-import { postDiscordChannelMessage, deleteDiscordMessage, getDiscordPollResults, expireDiscordPoll } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 10;
 const MIN_DURATION_HOURS = 1;
-const MAX_DURATION_HOURS = 24 * 30; // Discord's own poll duration cap is 32 days; 30 gives headroom.
+const MAX_DURATION_HOURS = 24 * 30;
 
 type PollOption = { id: number; text: string };
 
@@ -22,21 +22,22 @@ function normalizeOptions(raw: string[]): string[] {
   return cleaned;
 }
 
-// Re-reads a still-open poll's live Discord tallies and, if Discord has finalized it (duration
-// elapsed), flips our row to closed with the final counts. Best-effort: a Discord fetch failure
-// just leaves the cached row as-is rather than failing the whole list/detail call.
-async function refreshPollIfOpen(poll: any): Promise<any> {
-  if (poll.status !== "open" || !poll.discord_channel_id || !poll.discord_message_id) return poll;
-  const live = await getDiscordPollResults(poll.discord_channel_id, poll.discord_message_id).catch(() => null);
-  if (!live) return poll;
+async function tallyFor(pollId: string, options: PollOption[]) {
+  const votes = await supabase.from("rec_commissioner_poll_votes").select("option_id,voter_discord_id").eq("poll_id", pollId);
+  if (votes.error) throw new ApiError(500, "Failed to load poll votes.", votes.error);
+  const rows = votes.data ?? [];
+  const tally = options.map((opt) => ({ ...opt, votes: rows.filter((v) => v.option_id === opt.id).length }));
+  return { tally, totalVotes: rows.length, voterRows: rows };
+}
+
+// Site is canonical: this only flips a still-open poll to closed once its time limit has
+// passed (no cron job — same lazy-on-read pattern used elsewhere in this app), it never reads
+// Discord vote state as a source of truth.
+async function closeIfExpired(poll: any): Promise<any> {
+  if (poll.status !== "open" || !poll.closes_at || new Date(poll.closes_at).getTime() > Date.now()) return poll;
   const now = new Date().toISOString();
-  const patch: Record<string, unknown> = { results: live, updated_at: now };
-  if (live.isFinalized) {
-    patch.status = "closed";
-    patch.closed_at = now;
-  }
-  const updated = await supabase.from("rec_commissioner_polls").update(patch).eq("id", poll.id).select("*").single();
-  return updated.error ? { ...poll, ...patch } : updated.data;
+  const updated = await supabase.from("rec_commissioner_polls").update({ status: "closed", closed_at: now, updated_at: now }).eq("id", poll.id).eq("status", "open").select("*").maybeSingle();
+  return updated.data ?? poll;
 }
 
 export async function createCommissionerPoll(input: { guildId: string; discordId: string; question: string; options: string[]; durationHours: number }) {
@@ -46,29 +47,9 @@ export async function createCommissionerPoll(input: { guildId: string; discordId
   if (!question) throw new ApiError(400, "Enter a poll question.");
   const options = normalizeOptions(input.options);
   const durationHours = Math.min(MAX_DURATION_HOURS, Math.max(MIN_DURATION_HOURS, Math.round(input.durationHours)));
-
-  const channelId = String((context.routes as any)?.voting_polls_channel_id ?? "");
-  if (!channelId) throw new ApiError(400, "No voting polls channel is configured for this league — set one in Server Setup first.");
+  const optionRows: PollOption[] = options.map((text, index) => ({ id: index + 1, text }));
 
   const creator = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
-
-  const sent = await postDiscordChannelMessage(channelId, {
-    content: "@everyone",
-    poll: {
-      question: { text: question },
-      answers: options.map((text) => ({ poll_media: { text } })),
-      duration: durationHours,
-      allow_multiselect: false,
-      layout_type: 1,
-    },
-    allowed_mentions: { parse: ["everyone"] },
-  });
-  if (!sent) throw new ApiError(502, "Discord rejected the poll post. Double-check the voting polls channel still exists.");
-
-  const answers: PollOption[] = (sent.poll?.answers ?? []).map((a: any, index: number) => ({
-    id: a.answer_id ?? index + 1,
-    text: options[index] ?? String(a.poll_media?.text ?? ""),
-  }));
 
   const now = new Date().toISOString();
   const id = randomUUID();
@@ -77,20 +58,37 @@ export async function createCommissionerPoll(input: { guildId: string; discordId
     league_id: context.leagueId,
     season_number: seasonNumber,
     question,
-    options: answers.length ? answers : options.map((text, index) => ({ id: index + 1, text })),
+    options: optionRows,
     status: "open",
-    discord_channel_id: channelId,
-    discord_message_id: sent.id,
     created_by_user_id: creator.data?.user_id ?? null,
     closes_at: new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString(),
     created_at: now,
     updated_at: now,
   }).select("*").single();
-  if (inserted.error) throw new ApiError(500, "Poll was posted to Discord but failed to save.", inserted.error);
-  return inserted.data;
+  if (inserted.error) throw new ApiError(500, "Failed to create poll.", inserted.error);
+
+  // Discord is an optional mirror, not the vote surface — post an informational (non-
+  // interactive) embed if a channel is configured; skip silently if not, since the poll is
+  // already fully usable from the site with no Discord link required.
+  const channelId = String((context.routes as any)?.voting_polls_channel_id ?? "");
+  if (channelId) {
+    void postDiscordChannelMessage(channelId, {
+      content: "@everyone",
+      embeds: [{
+        title: "New Commissioner Poll",
+        color: 0xd9a521,
+        description: `**${question}**\n\n${options.map((o) => `• ${o}`).join("\n")}\n\nVote on the site — open the Media page.`,
+      }],
+      allowed_mentions: { parse: ["everyone"] },
+    }).then((sent) => {
+      if (sent?.id) void supabase.from("rec_commissioner_polls").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", id);
+    }).catch((err) => console.error("[ERROR] Failed to post poll to Discord (non-fatal):", err));
+  }
+
+  return { ...inserted.data, tally: optionRows.map((o) => ({ ...o, votes: 0 })), totalVotes: 0, myVoteOptionId: null };
 }
 
-export async function listCommissionerPolls(input: { guildId: string }) {
+export async function listCommissionerPolls(input: { guildId: string; discordId?: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const rows = await supabase
     .from("rec_commissioner_polls")
@@ -100,8 +98,14 @@ export async function listCommissionerPolls(input: { guildId: string }) {
     .order("created_at", { ascending: false })
     .limit(25);
   if (rows.error) throw new ApiError(500, "Failed to load polls.", rows.error);
-  const refreshed = await Promise.all((rows.data ?? []).map((poll) => refreshPollIfOpen(poll)));
-  return { polls: refreshed };
+  const closed = await Promise.all((rows.data ?? []).map((poll) => closeIfExpired(poll)));
+  const polls = await Promise.all(closed.map(async (poll) => {
+    const options = Array.isArray(poll.options) ? (poll.options as PollOption[]) : [];
+    const { tally, totalVotes, voterRows } = await tallyFor(poll.id, options);
+    const myVote = input.discordId ? voterRows.find((v) => v.voter_discord_id === input.discordId) : undefined;
+    return { ...poll, tally, totalVotes, hasVoted: Boolean(myVote), myVoteOptionId: myVote?.option_id ?? null };
+  }));
+  return { polls };
 }
 
 async function loadOwnedPoll(leagueId: string, pollId: string) {
@@ -111,26 +115,43 @@ async function loadOwnedPoll(leagueId: string, pollId: string) {
   return poll.data;
 }
 
+export async function voteOnCommissionerPoll(input: { guildId: string; discordId: string; pollId: string; optionId: number }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const poll = await loadOwnedPoll(context.leagueId, input.pollId);
+  const resolved = await closeIfExpired(poll);
+  if (resolved.status !== "open") throw new ApiError(400, "Voting is closed for this poll.");
+  const options = Array.isArray(resolved.options) ? (resolved.options as PollOption[]) : [];
+  if (!options.some((o) => o.id === input.optionId)) throw new ApiError(400, "Invalid option.");
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  const { error } = await supabase.from("rec_commissioner_poll_votes").upsert(
+    { poll_id: input.pollId, voter_user_id: account.data?.user_id ?? null, voter_discord_id: input.discordId, option_id: input.optionId, updated_at: new Date().toISOString() },
+    { onConflict: "poll_id,voter_discord_id" },
+  );
+  if (error) throw new ApiError(500, "Failed to record vote.", error);
+  return { ok: true as const };
+}
+
 export async function closeCommissionerPoll(input: { guildId: string; pollId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const poll = await loadOwnedPoll(context.leagueId, input.pollId);
   if (poll.status !== "open") throw new ApiError(400, "Poll is already closed.");
 
-  if (poll.discord_channel_id && poll.discord_message_id) {
-    await expireDiscordPoll(poll.discord_channel_id, poll.discord_message_id).catch(() => undefined);
-  }
-  const live = poll.discord_channel_id && poll.discord_message_id
-    ? await getDiscordPollResults(poll.discord_channel_id, poll.discord_message_id).catch(() => null)
-    : null;
-
   const now = new Date().toISOString();
-  const updated = await supabase
-    .from("rec_commissioner_polls")
-    .update({ status: "closed", results: live ?? poll.results, closed_at: now, updated_at: now })
-    .eq("id", poll.id)
-    .select("*")
-    .single();
+  const updated = await supabase.from("rec_commissioner_polls").update({ status: "closed", closed_at: now, updated_at: now }).eq("id", poll.id).select("*").single();
   if (updated.error) throw new ApiError(500, "Failed to close poll.", updated.error);
+
+  if (poll.discord_channel_id && poll.discord_message_id) {
+    const options = Array.isArray(poll.options) ? (poll.options as PollOption[]) : [];
+    const { tally, totalVotes } = await tallyFor(poll.id, options);
+    void postDiscordChannelMessage(poll.discord_channel_id, {
+      embeds: [{
+        title: "Poll Closed",
+        color: 0x2fb86a,
+        description: `**${poll.question}**\n\n${tally.map((t) => `${t.text}: ${t.votes}`).join("\n")}\n\n${totalVotes} total vote${totalVotes === 1 ? "" : "s"}.`,
+      }],
+    }).catch((err) => console.error("[ERROR] Failed to post poll results to Discord (non-fatal):", err));
+  }
   return updated.data;
 }
 

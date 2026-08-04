@@ -404,12 +404,15 @@ export type CommissionerPoll = {
   status: "open" | "closed" | "cancelled";
   discord_channel_id: string | null;
   discord_message_id: string | null;
-  results: CommissionerPollResults;
   created_by_user_id: string | null;
   closes_at: string | null;
   closed_at: string | null;
   created_at: string;
   updated_at: string;
+  tally: Array<{ id: number; text: string; votes: number }>;
+  totalVotes: number;
+  hasVoted?: boolean;
+  myVoteOptionId?: number | null;
 };
 export type MyEosPayoutProgress = {
   seasonNumber: number;

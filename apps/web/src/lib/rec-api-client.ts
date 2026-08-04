@@ -195,6 +195,8 @@ export const recApi = {
     recApiFetch<CommissionerPoll>("/v1/polls/close", { method: "POST", body: JSON.stringify(input) }),
   cancelCommissionerPoll: (input: { guildId: string; pollId: string }) =>
     recApiFetch<CommissionerPoll>("/v1/polls/cancel", { method: "POST", body: JSON.stringify(input) }),
+  voteOnCommissionerPoll: (input: { guildId: string; pollId: string; optionId: number }) =>
+    recApiFetch<{ ok: true }>("/v1/polls/vote", { method: "POST", body: JSON.stringify(input) }),
   publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>
     recApiFetch<{ published: true; id: string }>("/v1/hub/stories/publish", { method: "POST", body: JSON.stringify(input) }),
   uploadHubMediaImage: (guildId: string, file: File) => {
