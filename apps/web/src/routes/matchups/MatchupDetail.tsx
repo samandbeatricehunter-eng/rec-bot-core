@@ -392,6 +392,20 @@ export function MatchupDetailPage() {
     }
   }
 
+  async function reopenGotwVoting() {
+    const gotw = detail?.gotw;
+    if (!gotw) return;
+    setGotwActionBusy(true);
+    try {
+      await recApi.reopenGameOfWeekVoting({ guildId, pollId: gotw.pollId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to reopen GOTW voting.");
+    } finally {
+      setGotwActionBusy(false);
+    }
+  }
+
   async function cancelGotwVoting() {
     const gotw = detail?.gotw;
     if (!gotw) return;
@@ -778,6 +792,11 @@ export function MatchupDetailPage() {
                   {gotw.status === "open" && (
                     <Button variant="ghost" size="compact" disabled={gotwActionBusy} onClick={() => void closeGotwVoting()}>
                       Close Voting
+                    </Button>
+                  )}
+                  {gotw.status === "closed" && (
+                    <Button variant="ghost" size="compact" disabled={gotwActionBusy} onClick={() => void reopenGotwVoting()}>
+                      Reopen Voting
                     </Button>
                   )}
                   <Button variant="ghost" size="compact" disabled={gotwActionBusy} onClick={() => void cancelGotwVoting()}>

@@ -995,6 +995,12 @@ export function HubHome() {
     setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
   }
 
+  async function reopenGotw(pollId: string) {
+    if (auth.status !== "ready" || !matchupSchedule) return;
+    await recApi.reopenGameOfWeekVoting({ guildId: auth.guildId, pollId });
+    setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
+  }
+
   async function openWager(game: HubMatchupSchedule["games"][number]) {
     if (auth.status !== "ready") return;
     const label = `${game.awayTeamName} at ${game.homeTeamName}`;
@@ -1605,9 +1611,13 @@ export function HubHome() {
                     <small>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</small>
                   </button>
                 </div>
-                {hub.canManageLeague && matchupSchedule.gotw.status === "open" ? (
+                {hub.canManageLeague ? (
                   <div className="hub-matchup-admin-slot">
-                    <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
+                    {matchupSchedule.gotw.status === "open" ? (
+                      <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
+                    ) : (
+                      <Button variant="tactical" size="compact" onClick={() => void reopenGotw(matchupSchedule.gotw!.pollId)}>Reopen Voting</Button>
+                    )}
                   </div>
                 ) : null}
                 {(() => {
@@ -1715,7 +1725,7 @@ export function HubHome() {
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                     </div>
-                    {game.gotw && hub.canManageLeague && game.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button></div>}
+                    {game.gotw && hub.canManageLeague && <div className="hub-matchup-admin-slot">{game.gotw.status === "open" ? <Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button> : <Button variant="tactical" size="compact" onClick={() => void reopenGotw(game.gotw!.pollId)}>Reopen Voting</Button>}</div>}
                     {game.gotw && (() => { const total = game.gotw.awayVotes + game.gotw.homeVotes; const away = total ? Math.round(game.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {

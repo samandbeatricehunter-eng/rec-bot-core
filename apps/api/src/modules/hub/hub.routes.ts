@@ -12,6 +12,7 @@ import {
   addHubStoryComment,
   cancelGameOfWeekVoting,
   closeGameOfWeekVoting,
+  reopenGameOfWeekVoting,
   createCommissionerMediaArticle,
   getHub,
   getHubMatchupSchedule,
@@ -380,6 +381,14 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "GOTW close requires a user session.");
       return reply.send(await closeGameOfWeekVoting({ ...body, closedByDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/gotw/reopen", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await reopenGameOfWeekVoting(body));
     } catch (error) { return sendError(reply, error); }
   });
 

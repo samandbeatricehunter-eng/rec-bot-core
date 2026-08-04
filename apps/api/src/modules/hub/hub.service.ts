@@ -1788,6 +1788,17 @@ export async function closeGameOfWeekVoting(input: { guildId: string; pollId: st
   return { closed: true };
 }
 
+// Undo an accidental close — brings a "closed" poll back to "open" so voting can continue.
+// Doesn't apply to "cancelled" polls (cancel is a hard void, not a pause); use a fresh poll
+// for those instead.
+export async function reopenGameOfWeekVoting(input: { guildId: string; pollId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const reopened = await supabase.from("rec_game_of_week_polls").update({ status: "open", closed_at: null, updated_at: new Date().toISOString() }).eq("id", input.pollId).eq("league_id", context.leagueId).eq("status", "closed").select("id").maybeSingle();
+  if (reopened.error) throw new ApiError(500, "Failed to reopen GOTW voting.", reopened.error);
+  if (!reopened.data) throw new ApiError(400, "Only a closed GOTW poll can be reopened.");
+  return { reopened: true };
+}
+
 // Distinct from closeGameOfWeekVoting: cancelling voids the poll entirely (no settlement, no
 // payout, disappears from the matchup page) rather than just freezing the current tally — for
 // when the game itself won't be played as a real head-to-head (a Fair Sim or Force Win), so
