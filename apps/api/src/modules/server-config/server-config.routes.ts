@@ -26,7 +26,9 @@ const SetConfigSchema = z.object({
   commissionerRoleId: z.string().optional().nullable(),
   compCommitteeRoleId: z.string().optional().nullable(),
   tradeBlockChannelId: z.string().optional().nullable(),
-  votingPollsChannelId: z.string().optional().nullable()
+  votingPollsChannelId: z.string().optional().nullable(),
+  mainChatChannelId: z.string().optional().nullable(),
+  headlinesChannelId: z.string().optional().nullable()
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
@@ -77,8 +79,19 @@ export async function serverConfigRoutes(app: FastifyInstance) {
     try {
       const body = SetConfigSchema.parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      const before = await getServerConfig(body.guildId).catch(() => null);
+      const previousGuideChannelId = (before?.routes as Record<string, unknown> | null)?.rec_guide_channel_id ?? null;
       const config = await setServerConfig(body);
-      const guide = await publishRecGuideFromApi(body.guildId, body.recGuideChannelId ?? undefined);
+      // Only republish the guide when its channel actually changed — the settings form
+      // resubmits every route field on every save, so comparing against undefined/present
+      // would re-purge-and-repost the guide on unrelated channel edits.
+      let guide: { posted: number; channelId: string } | null = null;
+      if (body.recGuideChannelId !== undefined && body.recGuideChannelId !== previousGuideChannelId) {
+        guide = await publishRecGuideFromApi(body.guildId, body.recGuideChannelId ?? undefined).catch((error) => {
+          console.error("[ERROR] Failed to refresh REC guide after settings save (non-fatal):", error);
+          return null;
+        });
+      }
       return reply.send({ ...config, guide });
     } catch (error) {
       return sendError(reply, error);

@@ -288,7 +288,10 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   weeklySubmissionsChannelId: text("weekly_submissions_channel_id"),
   recGuideChannelId: text("rec_guide_channel_id"),
   weeklySubmissionsPanelMessageId: text("weekly_submissions_panel_message_id"),
-  powerRankingsChannelId: text("power_rankings_channel_id")
+  powerRankingsChannelId: text("power_rankings_channel_id"),
+  headlinesChannelId: text("headlines_channel_id"),
+  tradeBlockChannelId: text("trade_block_channel_id"),
+  votingPollsChannelId: text("voting_polls_channel_id")
 });
 
 export const recServerAdminRoles = pgTable("rec_server_admin_roles", {

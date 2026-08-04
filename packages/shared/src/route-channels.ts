@@ -57,6 +57,9 @@ export const REC_ROUTE_CHANNELS = {
     defaultName: "trade-block",
     inputField: "tradeBlockChannelId",
     dbField: "trade_block_channel_id",
+    // Madden-only feature — trades don't exist in CFB leagues, so the field shouldn't
+    // even be offered there.
+    madden_only: true,
   },
   voting_polls: {
     label: "Voting Polls (optional Discord mirror)",
