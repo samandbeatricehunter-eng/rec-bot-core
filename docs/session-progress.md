@@ -1,5 +1,93 @@
 # Session Progress Log (2026-08-03 marathon session)
 
+## Newly reported (2026-08-04 evening, session 3 — pick up here)
+Session 3 shipped #19-24 from the backlog below (wagers team-total O/U + board
+dedupe, GOTW reopen, moneyline favorite label, 4 settings bugs, EOS award
+poll Discord/site vote unification, Stripe 7-day trials) — all committed and
+pushed to main (`aab6602`..`9e34eef`). Mid-fix on the settings-bugs item, a
+schema change went out ahead of its own migration and 500'd every "open a
+league" request in production; caught live and fixed same-session
+(`24132f2`) by applying the missing `ALTER TABLE`s directly. Flagging here in
+case anything downstream still looks off from that ~10-minute window.
+
+Then the user reported four more issues, none fixed yet — all investigated
+enough to know the exact cause/file, not yet implemented:
+
+- [ ] **Quick Actions panel never actually replaced the My Team page's old buttons.**
+  The Campus Buzz Quick Actions panel (`apps/web/src/routes/hub/HubHome.tsx:1474-1484`,
+  `subTab === "buzz"`) is a *different, separate* block from the old
+  `.hub-my-team-shortcuts` row still living on the My Team page
+  (`section === "team"`, `HubHome.tsx:1203-1210` — Submit Article, Coach
+  Interview, Confirmed Commit, Full Season Schedule, Add Player(s) to Watch,
+  Late Submissions). Earlier session notes claimed this replacement was done;
+  it wasn't — the old block was never removed/merged with the new one. Needs:
+  decide which button set is canonical (probably merge them, since they
+  overlap on Interview/Schedule but each has buttons the other lacks — Buzz
+  has Manage Team/Trade Center/My Matchup/Recruiting, My Team has Submit
+  Article/Confirmed Commit/Add Player to Watch/Late Submissions) and remove
+  the duplicate.
+
+- [ ] **Full Season Schedule modal missing Box Score/Highlight buttons for CPU games.**
+  Root cause: `eligibleForActions` in `ScheduleWeekList` (`HubHome.tsx:321-323`)
+  requires `week.confirmedMatchupType === "h2h"`, which excludes `"cpu"` games
+  entirely (`TeamScheduleManualState["weeks"][number]["confirmedMatchupType"]`
+  is `"h2h" | "cpu" | null` — `apps/web/src/types/api.ts:19`). User wants both
+  upload buttons available for CPU games too, not just H2H. Fix is widening
+  that condition to `(confirmedMatchupType === "h2h" || confirmedMatchupType === "cpu")`
+  — but verify the API route the buttons call (`UploadBoxScoreModal`,
+  `HighlightUploadModal`) doesn't itself reject CPU games server-side.
+
+- [ ] **Full Season Schedule (and Recruiting Board) modals poorly sized on desktop.**
+  Root cause: the generic `.modal-panel` rule caps every modal at
+  `max-width: 480px` (`apps/web/src/styles/surfaces.css:97`), with no
+  per-modal override for either `.hub-my-schedule` (wraps
+  `.hub-schedule-week-list`, opened from `HubHome.tsx:1919`) or the
+  Recruiting Board modal. Compare to the overrides that already exist for
+  other modals needing more room:
+  `.modal-panel:has(.hub-media-modal) { max-width: 640px; }` and
+  `.modal-panel:has(.roundtable-story) { max-width: min(900px, calc(100vw - 32px)); ... }`
+  (`apps/web/src/styles/hub.css:343-344`). Needs a similar `:has()` override
+  for both modals, sized appropriately for desktop, verified against mobile
+  too (check `responsive.css` for whether these need their own mobile
+  breakpoint rule, or whether removing the fixed cap is enough since the
+  overlay already has `padding: var(--space-4)`).
+
+- [ ] **Recruiting Board "Available Recruits" needs a position-group filter.**
+  No filter UI exists at all today in
+  `apps/web/src/components/hub/RecruitingBoardModal.tsx` — net-new: a
+  dropdown (ALL or a specific position) filtering `listToShow` in the "pool"
+  view (component reads `recruit.position` already, so this is a pure
+  frontend filter, no API change needed).
+
+- [ ] **Recruiting Board: any member can change any OTHER user's logged recruit's status.**
+  `RecruitingBoardModal.tsx:229-236` renders the status `<select>` for every
+  recruit in the pool view unconditionally — the code comment even says this
+  was intentional ("everyone sees and can log activity on it"), but the user
+  now wants it restricted to the recruit's own submitter, or a commissioner
+  acting through League Mgmt tools. Good news: the backend already tracks
+  ownership — `rec_recruiting_profiles` has `submitted_by_user_id` and
+  `submitted_by_discord_id` columns (verified live in prod), they're just not
+  selected into the API response (`SELECT_COLUMNS` in
+  `apps/api/src/modules/recruiting/recruiting.service.ts`) or exposed on the
+  frontend `Recruit` type (`apps/web/src/types/api.ts:192-196`). Fix: add
+  `submittedByUserId` to the API select + `Recruit` type, then gate the
+  status `<select>` in the pool view to
+  `recruit.submittedByUserId === viewerUserId || hub.canManageLeague`
+  (viewer's own user id needs to reach this component — check what
+  `HubResponse`/auth context already exposes before adding a new prop).
+
+- [ ] **Spotlight/Highlight Reel playback controls (pause, rewind, mute) still don't do anything.**
+  User confirmed this is still broken after the session-2 fix referenced
+  above (`useStreamPlayerControls` hook + custom control bar, commit
+  `08f3b72`, item #52/#53 below) — that fix either didn't ship correctly or
+  doesn't cover all the surfaces the buttons appear on. Needs a fresh look
+  at `apps/web/src/routes/hub/HubHome.tsx` and the equivalent in `apps/site`
+  (the swipe-catcher overlay + Cloudflare Stream Player SDK wiring) — check
+  whether the SDK player object is actually attached/ready before the button
+  handlers fire, and whether apps/site has its own separate (possibly
+  divergent) copy of this control bar that the web fix didn't reach.
+
+
 This file tracks the large backlog from the 2026-08-03 session so work can be
 picked up at any point. Update the checkboxes as items land; add new items
 under "Newly reported" as they come in mid-turn.
