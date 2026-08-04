@@ -1569,16 +1569,6 @@ export function HubHome() {
       {subTab === "matchups" && (
         <>
 
-          <SectionFrame eyebrow="Live market" title="Wager Board" action={<Button variant="primary" size="compact" onClick={() => setWagerGamePickerOpen(true)}><Plus size={16} /> Place Wager</Button>}>
-            {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
-            <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading wagers...</p> : wagersBoard.length ? <>
-              <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
-              {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><span className="hub-wager-kicker">{isActive ? "Active Wager" : "Open Challenge"}</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pickLabel}</p><p className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</p><div><b><CoinAmount amount={wager.stake} /> stake</b><small>Potential payout <CoinAmount amount={wager.potentialPayout} /></small></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}{wager.canEdit && <Button variant="secondary" size="compact" disabled={wagersBoardBusy} onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}>Edit</Button>}</div></article>; })()}
-              <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
-              <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
-            </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open or Active Wagers</strong><p>User challenges appear here automatically.</p></div>}</div>
-          </SectionFrame>
-
           {matchupSchedule?.gotw ? (
             <SectionFrame
               title="Game of the Week"

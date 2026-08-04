@@ -2,7 +2,7 @@
 // supplies the live inputs (win probabilities from power rankings, lines from
 // season stat averages) and these helpers turn them into odds/payouts.
 
-export type WagerMarketKind = "moneyline" | "spread" | "total";
+export type WagerMarketKind = "moneyline" | "spread" | "total" | "team_total";
 
 export type WagerMarket = {
   key: string;
@@ -13,12 +13,16 @@ export type WagerMarket = {
   /** For totals: the logical stat the over/under line sits on. */
   statKey?: string;
   unit?: string;
+  /** For team_total: which side of the matchup this O/U line applies to. */
+  team?: "home" | "away";
 };
 
 export const WAGER_MARKETS: WagerMarket[] = [
   { key: "moneyline", label: "Moneyline (Winner)", kind: "moneyline", requiresBoxScore: false },
   { key: "spread", label: "Spread", kind: "spread", requiresBoxScore: false, unit: "pts" },
   { key: "total_points", label: "Total Points O/U", kind: "total", requiresBoxScore: false, statKey: "points", unit: "pts" },
+  { key: "team_total_points_home", label: "Home Team Total Points O/U", kind: "team_total", requiresBoxScore: false, statKey: "points", unit: "pts", team: "home" },
+  { key: "team_total_points_away", label: "Away Team Total Points O/U", kind: "team_total", requiresBoxScore: false, statKey: "points", unit: "pts", team: "away" },
   { key: "total_yards", label: "Total Yards O/U", kind: "total", requiresBoxScore: true, statKey: "total_yards", unit: "yds" },
   { key: "rushing_yards", label: "Rushing Yards O/U", kind: "total", requiresBoxScore: true, statKey: "rush_yards", unit: "yds" },
   { key: "passing_yards", label: "Passing Yards O/U", kind: "total", requiresBoxScore: true, statKey: "pass_yards", unit: "yds" },

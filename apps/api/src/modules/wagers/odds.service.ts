@@ -150,6 +150,21 @@ function totalLine(statKey: string, homeAvg: any, awayAvg: any): number {
   return Math.round(h + a);
 }
 
+// Same matchup-adjusted expectation as totalLine, but for a single team's side of it
+// instead of the combined game total — powers the team_total markets (e.g. "Yellow
+// Jackets Over/Under 24.5").
+function teamTotalLine(statKey: string, homeAvg: any, awayAvg: any, team: "home" | "away"): number {
+  const baseline = (LEAGUE_BASELINE as any)[statKey] ?? 0;
+  const defenseKey = DEFENSE_COUNTERPART[statKey];
+  const expected =
+    team === "home"
+      ? matchupExpected(homeAvg?.[statKey], awayAvg?.[defenseKey], baseline)
+      : matchupExpected(awayAvg?.[statKey], homeAvg?.[defenseKey], baseline);
+  if (statKey === "redzone_off" || statKey === "redzone_def") return Math.round(expected * 10) / 10;
+  if (statKey === "turnovers") return Math.max(MIN_TURNOVER_LINE, Math.round(expected * 2) / 2);
+  return Math.round(expected);
+}
+
 export async function getGameWagerOptions(guildId: string, gameId: string): Promise<GameWagerOptions> {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
@@ -206,6 +221,16 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
         sides: [
           { pick: game.away_team_id ?? "away", label: `${awayLabel} ${awayLine > 0 ? "+" : ""}${awayLine}`, odds: spreadOrTotalOdds() },
           { pick: game.home_team_id ?? "home", label: `${homeLabel} ${homeLine > 0 ? "+" : ""}${homeLine}`, odds: spreadOrTotalOdds() },
+        ],
+      });
+    } else if (def.kind === "team_total") {
+      const line = teamTotalLine(def.statKey ?? "points", homeAvg, awayAvg, def.team ?? "home");
+      const teamLabel = def.team === "away" ? awayLabel : homeLabel;
+      markets.push({
+        market: def.key, label: `${teamLabel} Total Points O/U`, kind: def.kind, line, unit: def.unit,
+        sides: [
+          { pick: "over", label: `Over ${line}${def.unit ? ` ${def.unit}` : ""}`, odds: spreadOrTotalOdds() },
+          { pick: "under", label: `Under ${line}${def.unit ? ` ${def.unit}` : ""}`, odds: spreadOrTotalOdds() },
         ],
       });
     } else {

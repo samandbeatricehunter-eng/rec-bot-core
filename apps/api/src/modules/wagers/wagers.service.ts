@@ -799,10 +799,17 @@ export async function listMyWagers(guildId: string, discordId: string) {
 // stores the winning team's UUID; resolve it to a team abbreviation for display instead of
 // showing the raw id. Total markets already store a human-readable "over"/"under".
 function pickLabelFor(w: any, gameById: Map<string, any>): string {
-  const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
+  const def = WAGER_MARKET_BY_KEY.get(w.market);
+  const kind = def?.kind;
   if (kind === "total") {
     const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
     return w.line != null ? `${side} ${w.line}` : side;
+  }
+  if (kind === "team_total") {
+    const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
+    const game = gameById.get(w.game_id);
+    const teamLabel = game ? teamAbbr(def?.team === "away" ? game.away_team : game.home_team) : "";
+    return `${teamLabel ? `${teamLabel} ` : ""}${side}${w.line != null ? ` ${w.line}` : ""}`;
   }
   const game = gameById.get(w.game_id);
   if (!game) return String(w.pick ?? "");
@@ -856,8 +863,10 @@ export async function placeParlay(input: PlaceParlayInput) {
   const gameMarketSeen = new Set<string>();
   for (const leg of input.legs) {
     const definition = WAGER_MARKET_BY_KEY.get(leg.market);
-    if (definition?.kind !== "total" || !definition.statKey || definition.statKey === "points") {
-      throw new ApiError(400, "3-pick parlays only allow player/team stat-line over-under markets.");
+    const isStatLineTotal = definition?.kind === "total" && Boolean(definition.statKey) && definition.statKey !== "points";
+    const isTeamTotal = definition?.kind === "team_total";
+    if (!isStatLineTotal && !isTeamTotal) {
+      throw new ApiError(400, "3-pick parlays only allow player/team stat-line or team-total over-under markets.");
     }
     const key = `${leg.gameId}:${leg.market}`;
     if (gameMarketSeen.has(key)) throw new ApiError(400, "Each parlay leg must be a different game+market.");
@@ -1012,6 +1021,22 @@ async function resolveOutcome(leagueId: string, wager: { game_id: string | null;
     const adjusted = margin + Number(wager.line ?? 0);
     if (adjusted === 0) return "push";
     return adjusted > 0 ? "won" : "lost";
+  }
+
+  if (def.kind === "team_total") {
+    const line = Number(wager.line ?? 0);
+    let actual: number | null = null;
+    if (def.statKey === "points") {
+      actual = def.team === "away" ? awayScore : homeScore;
+    } else {
+      const stat = await loadTeamGameStat(leagueId, wager.game_id, def.statKey ?? "");
+      if (!stat) return null; // box-score stat not logged yet
+      actual = def.team === "away" ? stat.away : stat.home;
+    }
+    if (actual == null) return null;
+    if (actual === line) return "push";
+    const isOver = actual > line;
+    return (wager.pick === "over" && isOver) || (wager.pick === "under" && !isOver) ? "won" : "lost";
   }
 
   // Totals.
