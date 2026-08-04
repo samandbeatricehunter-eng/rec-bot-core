@@ -110,10 +110,10 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
       .eq("user_id", wallet.user_id)
       .eq("league_id", input.leagueId)
       .eq("transaction_type", "savings_interest")
-      .filter("source_reference->>idempotencyKey", "eq", idempotencyKey)
-      .maybeSingle();
+      .contains("source_reference", { idempotencyKey })
+      .limit(1);
     if (existing.error) throw new ApiError(500, "Failed to check savings interest idempotency.", existing.error);
-    if (existing.data?.id) continue;
+    if ((existing.data ?? []).length) continue;
 
     const updated = await supabase
       .from("rec_wallets")
