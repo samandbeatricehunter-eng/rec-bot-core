@@ -460,8 +460,16 @@ export const recApi = {
   // Recruiting tracker
   listRecruits: (guildId: string) =>
     recApiFetch<{ recruits: Recruit[] }>("/v1/recruiting/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  createRecruit: (input: { guildId: string; playerName: string; position: string; homeCity?: string | null; homeState?: string | null; starRating: number }) =>
+  createRecruit: (input: { guildId: string; playerName: string; position: string; homeCity?: string | null; homeState?: string | null; starRating: number; heightInches?: number | null; weightLbs?: number | null }) =>
     recApiFetch<{ recruit: Recruit }>("/v1/recruiting/create", { method: "POST", body: JSON.stringify(input) }),
+  listRecruitingTeams: (guildId: string) =>
+    recApiFetch<Array<{ id: string; name: string; abbreviation: string }>>("/v1/recruiting/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listRecruitingBoard: (input: { guildId: string; teamId?: string }) =>
+    recApiFetch<{ recruits: Recruit[] }>("/v1/recruiting/board/list", { method: "POST", body: JSON.stringify(input) }),
+  addRecruitToBoard: (input: { guildId: string; recruitId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/recruiting/board/add", { method: "POST", body: JSON.stringify(input) }),
+  removeRecruitFromBoard: (input: { guildId: string; recruitId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/recruiting/board/remove", { method: "POST", body: JSON.stringify(input) }),
   updateRecruitStatus: (input: { guildId: string; id: string; status: RecruitStatus; committedTeamId?: string | null; committedTeamExternal?: string | null; commitDate?: string | null }) =>
     recApiFetch<{ recruit: Recruit }>("/v1/recruiting/update-status", { method: "POST", body: JSON.stringify(input) }),
   updateRecruitDetails: (input: { guildId: string; id: string; playerName: string; position: string; starRating: number; homeCity?: string | null; homeState?: string | null }) =>

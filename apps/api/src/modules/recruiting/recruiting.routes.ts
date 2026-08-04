@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { CFB_POSITIONS } from "@rec/shared";
-import { createRecruit, deleteRecruit, listRecruits, RECRUIT_STATUSES, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
+import { addRecruitToBoard, createRecruit, deleteRecruit, listRecruits, listRecruitingBoard, listRecruitingTeams, RECRUIT_STATUSES, removeRecruitFromBoard, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
 
 // list/create/update-status are member-permission — recruiting is a shared, league-wide board
 // (a prospect isn't owned by one team until committed), so any coach needs to see it and log
@@ -59,6 +59,41 @@ export async function recruitingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), id: z.string().uuid(), playerName: z.string().trim().min(3).max(80), position: z.enum(CFB_POSITIONS), starRating: z.number().int().min(1).max(5), homeCity: z.string().trim().max(80).optional().nullable(), homeState: z.string().trim().max(40).optional().nullable() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await updateRecruitDetails(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/teams", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await listRecruitingTeams(body.guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/board/list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), teamId: z.string().uuid().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Recruiting board is website-only.");
+      return reply.send(await listRecruitingBoard({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/board/add", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), recruitId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Recruiting board is website-only.");
+      return reply.send(await addRecruitToBoard({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/board/remove", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), recruitId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Recruiting board is website-only.");
+      return reply.send(await removeRecruitFromBoard({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

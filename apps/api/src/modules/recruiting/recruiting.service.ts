@@ -23,18 +23,18 @@ function isCommitStatus(status: RecruitStatus): boolean {
 export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
-  commitDate: string | null; storyId: string | null;
+  commitDate: string | null; storyId: string | null; heightInches: number | null; weightLbs: number | null;
 };
 
 function mapRow(row: any): Recruit {
   return {
     id: row.id, playerName: row.player_name, position: row.position, homeCity: row.home_city ?? null, homeState: row.home_state ?? null,
     starRating: row.star_rating, status: row.status, committedTeamId: row.committed_team_id ?? null, committedTeamExternal: row.committed_team_external ?? null,
-    commitDate: row.commit_date ?? null, storyId: row.story_id ?? null,
+    commitDate: row.commit_date ?? null, storyId: row.story_id ?? null, heightInches: row.height_inches ?? null, weightLbs: row.weight_lbs ?? null,
   };
 }
 
-const SELECT_COLUMNS = "id,player_name,position,home_city,home_state,star_rating,status,committed_team_id,committed_team_external,commit_date,story_id";
+const SELECT_COLUMNS = "id,player_name,position,home_city,home_state,star_rating,status,committed_team_id,committed_team_external,commit_date,story_id,height_inches,weight_lbs";
 
 export async function listRecruits(guildId: string): Promise<{ recruits: Recruit[] }> {
   const context = await getCurrentLeagueContext(guildId);
@@ -43,7 +43,74 @@ export async function listRecruits(guildId: string): Promise<{ recruits: Recruit
   return { recruits: (result.data ?? []).map(mapRow) };
 }
 
-export async function createRecruit(input: { guildId: string; discordId: string; playerName: string; position: string; homeCity?: string | null; homeState?: string | null; starRating: number }): Promise<{ recruit: Recruit }> {
+async function userIdFromDiscord(discordId: string) {
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  return account.data?.user_id ?? null;
+}
+
+async function teamForUser(leagueId: string, userId: string) {
+  const assignment = await supabase.from("rec_team_assignments").select("team_id")
+    .eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).limit(1).maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to load your team.", assignment.error);
+  if (!assignment.data?.team_id) throw new ApiError(403, "A linked league team is required.");
+  return String(assignment.data.team_id);
+}
+
+export async function listRecruitingTeams(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const teams = await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", context.leagueId).order("name");
+  if (teams.error) throw new ApiError(500, "Failed to load teams.", teams.error);
+  return (teams.data ?? []).map((t: any) => ({ id: t.id, name: t.name, abbreviation: t.display_abbr || t.abbreviation }));
+}
+
+// My team's saved watch-list — pre-commit prospects a coach has explicitly added to track,
+// distinct from the full recruit pool. `teamId` lets a coach view another team's board (the
+// "toggle another team" dropdown); defaults to their own.
+export async function listRecruitingBoard(input: { guildId: string; discordId: string; teamId?: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  let teamId = input.teamId;
+  if (!teamId) {
+    const userId = await userIdFromDiscord(input.discordId);
+    if (!userId) return { recruits: [] as Recruit[] };
+    teamId = await teamForUser(context.leagueId, userId);
+  }
+  const entries = await supabase.from("rec_recruiting_board_entries").select("recruit_id").eq("league_id", context.leagueId).eq("team_id", teamId);
+  if (entries.error) throw new ApiError(500, "Failed to load the recruiting board.", entries.error);
+  const recruitIds = (entries.data ?? []).map((e) => e.recruit_id);
+  if (!recruitIds.length) return { recruits: [] as Recruit[] };
+  const recruits = await supabase.from("rec_recruiting_profiles").select(SELECT_COLUMNS).in("id", recruitIds);
+  if (recruits.error) throw new ApiError(500, "Failed to load board recruits.", recruits.error);
+  return { recruits: (recruits.data ?? []).map(mapRow) };
+}
+
+export async function addRecruitToBoard(input: { guildId: string; discordId: string; recruitId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  if (!userId) throw new ApiError(404, "REC account not found.");
+  const teamId = await teamForUser(context.leagueId, userId);
+  const recruit = await supabase.from("rec_recruiting_profiles").select("id,league_id").eq("id", input.recruitId).maybeSingle();
+  if (recruit.error) throw new ApiError(500, "Failed to load recruit.", recruit.error);
+  if (!recruit.data || recruit.data.league_id !== context.leagueId) throw new ApiError(404, "Recruit not found.");
+  const { error } = await supabase.from("rec_recruiting_board_entries").upsert(
+    { league_id: context.leagueId, team_id: teamId, recruit_id: input.recruitId, added_by_user_id: userId },
+    { onConflict: "team_id,recruit_id" },
+  );
+  if (error) throw new ApiError(500, "Failed to add recruit to your board.", error);
+  return { ok: true as const };
+}
+
+export async function removeRecruitFromBoard(input: { guildId: string; discordId: string; recruitId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  if (!userId) throw new ApiError(404, "REC account not found.");
+  const teamId = await teamForUser(context.leagueId, userId);
+  const { error } = await supabase.from("rec_recruiting_board_entries").delete().eq("team_id", teamId).eq("recruit_id", input.recruitId);
+  if (error) throw new ApiError(500, "Failed to remove recruit from your board.", error);
+  return { ok: true as const };
+}
+
+export async function createRecruit(input: { guildId: string; discordId: string; playerName: string; position: string; homeCity?: string | null; homeState?: string | null; starRating: number; heightInches?: number | null; weightLbs?: number | null }): Promise<{ recruit: Recruit }> {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
   const now = new Date().toISOString();
@@ -52,6 +119,7 @@ export async function createRecruit(input: { guildId: string; discordId: string;
     player_name: input.playerName.trim(), position: input.position.trim(),
     home_city: input.homeCity?.trim() || null, home_state: input.homeState?.trim() || null,
     star_rating: input.starRating, status: "undecided", created_by_discord_id: input.discordId, created_at: now, updated_at: now,
+    height_inches: input.heightInches ?? null, weight_lbs: input.weightLbs ?? null,
   };
   const result = await supabase.from("rec_recruiting_profiles").insert(row).select(SELECT_COLUMNS).single();
   if (result.error) throw new ApiError(500, "Failed to add the recruit.", result.error);

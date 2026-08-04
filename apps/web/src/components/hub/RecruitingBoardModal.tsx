@@ -28,29 +28,54 @@ const STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = {
 // These stages mean "committed to a REC team in this league" — pick which one.
 const IN_LEAGUE_COMMIT_STATUSES = new Set<RecruitStatus>(["verbal_commit", "hard_commit", "signed"]);
 
-// A coach-facing view of the same league-wide recruiting board RecruitingHome (League Mgmt)
-// manages — recruiting is shared across every team (a prospect isn't owned by one team until
-// committed), so any coach can see it and log/update their own team's activity here.
+function formatHeight(inches: number | null): string | null {
+  if (inches == null) return null;
+  return `${Math.floor(inches / 12)}'${inches % 12}"`;
+}
+
+// Two views: "Available Recruits" is the full league-wide pool (a prospect isn't owned by one
+// team until committed, so everyone sees and can log activity on it). "My Board" is a per-team
+// saved watch-list — pre-commit prospects a coach has flagged to track, viewable for any team
+// via the dropdown but only editable for your own.
 export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; onClose: () => void }) {
+  const [view, setView] = useState<"pool" | "board">("board");
   const [recruits, setRecruits] = useState<Recruit[] | null>(null);
+  const [board, setBoard] = useState<Recruit[] | null>(null);
+  const [boardIds, setBoardIds] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<ScheduleTeam[] | null>(null);
+  const [recruitingTeams, setRecruitingTeams] = useState<Array<{ id: string; name: string; abbreviation: string }>>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ playerName: "", position: "", homeCity: "", homeState: "", starRating: 3 });
+  const [draft, setDraft] = useState({ playerName: "", position: "", homeCity: "", homeState: "", starRating: 3, heightInches: "", weightLbs: "" });
   const [busy, setBusy] = useState(false);
   const [teamPickerId, setTeamPickerId] = useState<string | null>(null);
   const [pickedStatus, setPickedStatus] = useState<RecruitStatus>("verbal_commit");
   const [pickedTeamId, setPickedTeamId] = useState("");
 
-  function load() {
+  function loadPool() {
     recApi.listRecruits(guildId).then((res) => setRecruits(res.recruits)).catch((err) => setError(err instanceof Error ? err.message : "Failed to load the recruiting board."));
   }
+  function loadBoard(teamId?: string) {
+    recApi.listRecruitingBoard({ guildId, teamId: teamId || undefined }).then((res) => {
+      setBoard(res.recruits);
+      setBoardIds(new Set(res.recruits.map((r) => r.id)));
+    }).catch((err) => setError(err instanceof Error ? err.message : "Failed to load your board."));
+  }
   useEffect(() => {
-    load();
+    loadPool();
+    loadBoard();
     recApi.listScheduleTeams(guildId).then((res) => setTeams(res.teams)).catch(() => setTeams([]));
+    recApi.listRecruitingTeams(guildId).then(setRecruitingTeams).catch(() => setRecruitingTeams([]));
   }, [guildId]);
 
+  useEffect(() => {
+    if (view === "board") loadBoard(selectedTeamId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeamId, view]);
+
   const teamName = (id: string | null) => teams?.find((team) => team.id === id)?.name ?? null;
+  const viewingOtherTeam = selectedTeamId && recruitingTeams.length ? true : false;
 
   async function addRecruit() {
     if (!draft.playerName.trim() || !draft.position.trim()) {
@@ -60,10 +85,13 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
     setBusy(true);
     setError(null);
     try {
-      await recApi.createRecruit({ guildId, ...draft, homeCity: draft.homeCity || null, homeState: draft.homeState || null });
+      await recApi.createRecruit({
+        guildId, ...draft, homeCity: draft.homeCity || null, homeState: draft.homeState || null,
+        heightInches: draft.heightInches ? Number(draft.heightInches) : null, weightLbs: draft.weightLbs ? Number(draft.weightLbs) : null,
+      });
       setAdding(false);
-      setDraft({ playerName: "", position: "", homeCity: "", homeState: "", starRating: 3 });
-      load();
+      setDraft({ playerName: "", position: "", homeCity: "", homeState: "", starRating: 3, heightInches: "", weightLbs: "" });
+      loadPool();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add the recruit.");
     } finally {
@@ -82,7 +110,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
     setError(null);
     try {
       await recApi.updateRecruitStatus({ guildId, id, status });
-      load();
+      loadPool();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status.");
     } finally {
@@ -96,7 +124,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
     try {
       await recApi.updateRecruitStatus({ guildId, id, status: pickedStatus, committedTeamId: pickedTeamId || null });
       setTeamPickerId(null);
-      load();
+      loadPool();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status.");
     } finally {
@@ -104,15 +132,57 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
     }
   }
 
+  async function toggleBoard(recruitId: string, onBoard: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (onBoard) await recApi.removeRecruitFromBoard({ guildId, recruitId });
+      else await recApi.addRecruitToBoard({ guildId, recruitId });
+      loadBoard(selectedTeamId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update your board.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function recruitMeta(recruit: Recruit): string {
+    const parts = [recruit.position, `${recruit.starRating}★`];
+    const height = formatHeight(recruit.heightInches);
+    if (height && recruit.weightLbs) parts.push(`${height}, ${recruit.weightLbs} lbs`);
+    else if (height) parts.push(height);
+    else if (recruit.weightLbs) parts.push(`${recruit.weightLbs} lbs`);
+    if (recruit.homeCity) parts.push(`${recruit.homeCity}, ${recruit.homeState}`);
+    if (recruit.committedTeamId) parts.push(teamName(recruit.committedTeamId) ?? "committed");
+    else if (recruit.committedTeamExternal) parts.push(recruit.committedTeamExternal);
+    return parts.join(" · ");
+  }
+
+  const listToShow = view === "board" ? board : recruits;
+
   return (
     <Modal title="Recruiting Board" onClose={onClose}>
       {error && <ErrorState message={error} />}
-      {!adding && (
+
+      <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)", flexWrap: "wrap", alignItems: "center" }}>
+        <div className="segmented">
+          <Button variant={view === "board" ? "primary" : "secondary"} size="compact" onClick={() => setView("board")}>My Board</Button>
+          <Button variant={view === "pool" ? "primary" : "secondary"} size="compact" onClick={() => setView("pool")}>Available Recruits</Button>
+        </div>
+        {view === "board" && recruitingTeams.length > 0 && (
+          <select className="form-select" value={selectedTeamId} onChange={(event) => setSelectedTeamId(event.target.value)} style={{ maxWidth: 220 }}>
+            <option value="">My team</option>
+            {recruitingTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {view === "pool" && !adding && (
         <Button variant="secondary" onClick={() => setAdding(true)} style={{ marginBottom: "var(--space-3)" }}>
           <Plus size={16} /> Add Prospect
         </Button>
       )}
-      {adding && (
+      {view === "pool" && adding && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-3)", padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
           <label className="form-field" style={{ margin: 0 }}><span className="form-label">Name</span><input className="form-input" value={draft.playerName} onChange={(e) => setDraft({ ...draft, playerName: e.target.value })} /></label>
           <label className="form-field" style={{ margin: 0 }}><span className="form-label">Position</span><input className="form-input" value={draft.position} onChange={(e) => setDraft({ ...draft, position: e.target.value })} /></label>
@@ -122,31 +192,31 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
             <label className="form-field" style={{ margin: 0 }}><span className="form-label">Stars</span><select className="form-select" value={draft.starRating} onChange={(e) => setDraft({ ...draft, starRating: Number(e.target.value) })}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <label className="form-field" style={{ margin: 0, flex: 1 }}><span className="form-label">Height (in)</span><input className="form-input" type="number" min={60} max={84} value={draft.heightInches} onChange={(e) => setDraft({ ...draft, heightInches: e.target.value })} /></label>
+            <label className="form-field" style={{ margin: 0, flex: 1 }}><span className="form-label">Weight (lbs)</span><input className="form-input" type="number" min={140} max={400} value={draft.weightLbs} onChange={(e) => setDraft({ ...draft, weightLbs: e.target.value })} /></label>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
             <Button variant="primary" disabled={busy} onClick={() => void addRecruit()}>{busy ? "Adding…" : "Add"}</Button>
             <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
           </div>
         </div>
       )}
 
-      {!recruits ? (
+      {!listToShow ? (
         <p className="hub-empty">Loading…</p>
-      ) : recruits.length === 0 ? (
-        <p className="hub-empty">No prospects tracked yet.</p>
+      ) : listToShow.length === 0 ? (
+        <p className="hub-empty">{view === "board" ? "Nothing on this board yet — add prospects from Available Recruits." : "No prospects tracked yet."}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {recruits.map((recruit) => (
+          {listToShow.map((recruit) => (
             <div key={recruit.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", padding: "var(--space-2) var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
               <div style={{ minWidth: 0 }}>
                 <strong>{recruit.playerName}</strong>{" "}
-                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-                  {recruit.position} · {"★".repeat(recruit.starRating)}
-                  {recruit.homeCity ? ` · ${recruit.homeCity}, ${recruit.homeState}` : ""}
-                  {recruit.committedTeamId ? ` · ${teamName(recruit.committedTeamId) ?? "committed"}` : recruit.committedTeamExternal ? ` · ${recruit.committedTeamExternal}` : ""}
-                </span>
+                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{recruitMeta(recruit)}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexShrink: 0 }}>
                 <Badge status={STATUS_BADGE[recruit.status]}>{STATUS_OPTIONS.find((o) => o.value === recruit.status)?.label ?? recruit.status}</Badge>
-                {teamPickerId === recruit.id ? (
+                {view === "pool" && (teamPickerId === recruit.id ? (
                   <>
                     <select className="form-select" value={pickedTeamId} onChange={(e) => setPickedTeamId(e.target.value)}>
                       <option value="">Select a team…</option>
@@ -164,6 +234,14 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
                   >
                     {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                ))}
+                {view === "pool" && (
+                  <Button variant="secondary" size="compact" disabled={busy} onClick={() => void toggleBoard(recruit.id, boardIds.has(recruit.id))}>
+                    {boardIds.has(recruit.id) ? "On Board" : "Add to Board"}
+                  </Button>
+                )}
+                {view === "board" && !viewingOtherTeam && (
+                  <Button variant="ghost" size="compact" disabled={busy} onClick={() => void toggleBoard(recruit.id, true)}>Remove</Button>
                 )}
               </div>
             </div>
