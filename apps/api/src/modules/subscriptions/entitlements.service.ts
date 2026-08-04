@@ -1,5 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 
 export const PLATINUM_OWN_LIMIT = 5;
 export const PLATINUM_JOIN_LIMIT = 20;
@@ -743,5 +744,6 @@ export async function ensureRecUserForAuthUser(
     if (raced) return raced;
     throw new ApiError(500, "Failed to create REC user for site account.", created.error);
   }
+  void grantWelcomeBonus(String(created.data.id));
   return String(created.data.id);
 }

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { getServerConfig, setServerConfig } from "./server-config.service.js";
+import { getServerConfig, setServerConfig, isGuildLinkedToLeague } from "./server-config.service.js";
 import { createGuildChannel, listGuildChannels } from "../../lib/discord-guild.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getRecRouteChannel } from "@rec/shared";
@@ -30,6 +30,15 @@ const SetConfigSchema = z.object({
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
+  app.post("/v1/discord-servers/link-status", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId } = ViewConfigSchema.parse(request.body);
+      return reply.send({ linked: await isGuildLinkedToLeague(guildId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   app.post("/v1/server-config/rec-guide/refresh", async (request, reply) => {
     try {
       const { guildId } = ViewConfigSchema.parse(request.body);

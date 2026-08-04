@@ -36,6 +36,8 @@ export const recApi = {
     recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
   ingestGameChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>
     recFetch<{ ingested: boolean }>("/v1/game-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
+  getGuildLinkStatus: (guildId: string) =>
+    recFetch<{ linked: boolean }>("/v1/discord-servers/link-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   claimLeagueInvite: (input: { token: string; guildId: string; serverName?: string; requestedByDiscordId?: string }) =>
     recFetch<{ league: any; server: any }>("/v1/subscriptions/bot/claim-invite", { method: "POST", body: JSON.stringify(input) }),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),

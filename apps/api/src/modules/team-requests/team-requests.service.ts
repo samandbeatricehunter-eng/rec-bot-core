@@ -6,6 +6,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { createDiscordChannelInvite } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -23,6 +24,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     const createdUser = await supabase.from("rec_users").insert({ display_name: input.discordId, status: "active" }).select("id").single();
     if (createdUser.error) throw new ApiError(500, "Failed to create REC user.", createdUser.error);
     userId = createdUser.data.id;
+    void grantWelcomeBonus(String(userId));
     const createdAccount = await supabase
       .from("rec_discord_accounts")
       .insert({

@@ -477,11 +477,45 @@ client.on("error", (error) => {
   console.error("Discord client error", error);
 });
 
+const UNLINKED_GUILD_GRACE_PERIOD_MS = 15 * 60 * 1000;
+
+// The bot should never sit in a server that isn't tied to a league. Every legitimate join comes
+// from the site's "Enable Discord bot" invite link followed by the owner running /claim-league,
+// which creates the rec_discord_servers row. If that row never shows up within the grace period
+// (stale/reused invite link, bot added to the wrong server, or added without ever starting the
+// site flow), leave — staying around would let an unlinked server treat this as a live league bot.
+function scheduleUnlinkedGuildCheck(guildId: string, guildName: string) {
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const { linked } = await recApi.getGuildLinkStatus(guildId);
+        if (linked) return;
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return;
+        console.warn(`Leaving guild ${guildId} (${guildName}) — no league claimed via /claim-league within the grace period.`);
+        try {
+          const owner = await guild.fetchOwner();
+          await owner.send(
+            "This server was never linked to a REC league (no `/claim-league` was run within 15 minutes of adding the bot), so I'm leaving. " +
+              "Start a league from the REC site and use its Discord invite link to add me back once you're ready to link this server."
+          ).catch(() => {});
+        } catch {
+          // Owner not fetchable or DMs closed — leaving is still the right move.
+        }
+        await guild.leave();
+      } catch (error) {
+        console.error(`Failed to run unlinked-guild check for ${guildId}`, error);
+      }
+    })();
+  }, UNLINKED_GUILD_GRACE_PERIOD_MS);
+}
+
 client.on("guildCreate", async (guild) => {
   await registerGuildCommands(guild.id).catch((error) => {
     console.error(`Failed to register commands for newly joined guild ${guild.id}`, error);
   });
   await syncRecentHighlightMessages(guild).catch((error) => console.error(`Failed to reconcile highlights for newly joined guild ${guild.id}`, error));
+  scheduleUnlinkedGuildCheck(guild.id, guild.name);
 });
 
 async function registerCommandsForVisibleGuilds() {

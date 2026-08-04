@@ -36,6 +36,15 @@ function routePayload(input: Record<string, unknown>) {
   return payload;
 }
 
+// Used by the bot's post-join grace-period check: a guild the bot sits in without a
+// rec_discord_servers row means /claim-league was never run (invite went stale, wrong server,
+// or someone added the bot without ever creating/claiming a league). The bot should never
+// linger in a server it has no league link to.
+export async function isGuildLinkedToLeague(guildId: string): Promise<boolean> {
+  const result = await supabase.from("rec_discord_servers").select("id").eq("discord_guild_id", guildId).maybeSingle();
+  return Boolean(result.data);
+}
+
 export async function getServerConfig(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const configuration = await supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle();
