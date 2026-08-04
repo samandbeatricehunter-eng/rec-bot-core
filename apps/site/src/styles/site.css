@@ -3041,11 +3041,13 @@ h1, h2, h3, .site-wordmark {
   background-size: contain;
 }
 .site-select,
-.site-hub-inprocess-content .form-select {
+.site-hub-inprocess-content .form-select,
+.site-hub-inprocess-content .form-input {
   background: transparent;
 }
 .site-select option,
-.site-hub-inprocess-content .form-select option {
+.site-hub-inprocess-content .form-select option,
+.site-hub-inprocess-content .form-input option {
   color: #111;
   background: #fff;
 }

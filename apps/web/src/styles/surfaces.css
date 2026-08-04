@@ -140,6 +140,7 @@
   font-size: var(--text-sm);
   font-family: var(--font-sans);
 }
+.form-input option,
 .form-select option {
   color: #111;
   background: #fff;
