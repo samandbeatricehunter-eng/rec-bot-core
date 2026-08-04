@@ -219,6 +219,21 @@ export async function listPendingReviewTrades(guildId: string) {
   return { trades: trades.data ?? [] };
 }
 
+export async function listTradeableTeams(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const teams = await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", context.leagueId).order("name");
+  if (teams.error) throw new ApiError(500, "Failed to load teams.", teams.error);
+  const assignments = await supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null);
+  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+  const userByTeam = new Map((assignments.data ?? []).map((a: any) => [a.team_id, a.user_id]));
+  return (teams.data ?? []).map((t: any) => ({
+    id: t.id,
+    name: t.name,
+    abbreviation: t.display_abbr || t.abbreviation,
+    isCpu: !userByTeam.has(t.id),
+  }));
+}
+
 export async function getTradeDetail(guildId: string, tradeId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const trade = await supabase.from("rec_trades").select("*").eq("id", tradeId).eq("league_id", context.leagueId).maybeSingle();

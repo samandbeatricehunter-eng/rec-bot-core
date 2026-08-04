@@ -705,6 +705,19 @@ export type RosterPositionGroup = {
   avgOverall: number | null;
   playerCount: number;
 };
+export type TradeLegInput = { type: "player"; playerId: string } | { type: "pick"; draftPickId: string };
+export type TradeStatus = "pending_response" | "accepted" | "pending_review" | "applied" | "declined" | "withdrawn" | "rejected";
+export type TradeLeg = { id: string; leg_type: "player" | "pick"; player_id: string | null; draft_pick_id: string | null; from_team_id: string; to_team_id: string };
+export type Trade = {
+  id: string; league_id: string; season_number: number;
+  proposing_team_id: string; proposing_user_id: string;
+  receiving_team_id: string; receiving_user_id: string;
+  proposing_coins: number; receiving_coins: number;
+  status: TradeStatus; approval_policy_snapshot: string;
+  reviewed_by_discord_id: string | null; review_note: string | null;
+  proposed_at: string; accepted_at: string | null; applied_at: string | null;
+  declined_at: string | null; withdrawn_at: string | null; rejected_at: string | null;
+};
 export type DraftPickChainLink = { fromTeamId: string | null; toTeamId: string | null; reason: string | null; at: string };
 export type TeamDraftPick = {
   id: string;

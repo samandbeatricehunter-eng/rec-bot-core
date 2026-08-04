@@ -68,6 +68,9 @@ import type {
   OpenTeamsResponse,
   RoleMgmtMember,
   TeamLinkMatrix,
+  Trade,
+  TradeLeg,
+  TradeLegInput,
   RoleMgmtRoleKey,
   ScheduleTeam,
   TeamManagementSummary,
@@ -271,6 +274,24 @@ export const recApi = {
     recApiFetch<OpenWagersForCommissionerResponse>("/v1/wagers/open", { method: "POST", body: JSON.stringify({ guildId }) }),
   commissionerCancelWager: (input: { guildId: string; wagerId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/wagers/commissioner-cancel", { method: "POST", body: JSON.stringify(input) }),
+  listLeagueDraftPicks: (guildId: string) =>
+    recApiFetch<Array<{ id: string; league_id: string; season_number: number; round: number; original_team_id: string; current_team_id: string; pick_number: number | null }>>("/v1/draft-picks/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  proposeTrade: (input: { guildId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
+    recApiFetch<{ status: string } | Trade>("/v1/trades/propose", { method: "POST", body: JSON.stringify(input) }),
+  respondToTrade: (input: { guildId: string; tradeId: string; action: "accept" | "decline" }) =>
+    recApiFetch<{ status: string }>("/v1/trades/respond", { method: "POST", body: JSON.stringify(input) }),
+  withdrawTrade: (input: { guildId: string; tradeId: string }) =>
+    recApiFetch<{ status: string }>("/v1/trades/withdraw", { method: "POST", body: JSON.stringify(input) }),
+  reviewTrade: (input: { guildId: string; tradeId: string; action: "approve" | "reject"; note?: string }) =>
+    recApiFetch<{ status: string }>("/v1/trades/review", { method: "POST", body: JSON.stringify(input) }),
+  getMyTrades: (guildId: string) =>
+    recApiFetch<{ trades: Trade[] }>("/v1/trades/mine", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getPendingReviewTrades: (guildId: string) =>
+    recApiFetch<{ trades: Trade[] }>("/v1/trades/pending-review", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getTradeDetail: (input: { guildId: string; tradeId: string }) =>
+    recApiFetch<{ trade: Trade; legs: TradeLeg[] }>("/v1/trades/detail", { method: "POST", body: JSON.stringify(input) }),
+  listTradeableTeams: (guildId: string) =>
+    recApiFetch<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>("/v1/trades/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: {

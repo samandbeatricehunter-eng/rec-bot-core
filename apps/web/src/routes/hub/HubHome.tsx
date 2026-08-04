@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
@@ -31,6 +31,7 @@ import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.
 import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
+import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
@@ -60,11 +61,11 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
 };
 type Story = HubResponse["headlines"][number];
-type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules";
+type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "trades" | "openTeams" | "schedules";
 type LeagueSubTab = "buzz" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
-const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules"]);
+const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "trades", "openTeams", "schedules"]);
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -476,7 +477,7 @@ export function HubHome() {
     if (rawSub === "rankings" || searchParams.get("matchupView") === "rankings") {
       setMatchupView("rankings");
     }
-    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "openTeams" || nextSection === "schedules") {
+    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "trades" || nextSection === "openTeams" || nextSection === "schedules") {
       setSection(nextSection);
     } else if (nextSection === "league" || nextSubTab) {
       setSection("league");
@@ -1327,7 +1328,7 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
-    </section> : section === "roster" ? <RosterHome /> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <RosterHome /> : section === "trades" ? <TradeCenterHome /> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
@@ -1424,6 +1425,7 @@ export function HubHome() {
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+            {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
             {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}

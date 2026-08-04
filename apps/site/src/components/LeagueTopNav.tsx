@@ -10,6 +10,7 @@ import {
   IconRoster,
   IconStore,
   IconTeam,
+  IconTrade,
   IconWager,
 } from "./icons.js";
 
@@ -35,12 +36,18 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
 
   const isCommissioner = hub.selectedLeague?.isCommissioner ?? false;
   const game = hub.selectedLeague?.game;
+  const isMadden = game?.startsWith("madden") ?? false;
 
   const items = [
     { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
     { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
     { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
-    { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
+    // Madden leagues trade players/picks between rosters, so Trade Center takes Store's
+    // nav slot there; Store moves into the League menu instead. CFB has no trade concept
+    // (recruiting/transfer portal fill that role), so it keeps Store in the main bar.
+    isMadden
+      ? { key: "trades", label: "Trade Center", to: `/l/${leagueId}/trades`, icon: <IconTrade /> }
+      : { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
     { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
     { key: "roster", label: "Roster", to: `/l/${leagueId}/roster`, icon: <IconRoster /> },
   ];
@@ -98,6 +105,16 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
             onClick={() => setMenuOpen(false)}
           />
           <div className="site-league-menu-panel">
+            {isMadden ? (
+              <NavLink
+                to={`/l/${leagueId}/store`}
+                role="menuitem"
+                className="site-account-menu-item"
+                onClick={() => setMenuOpen(false)}
+              >
+                <IconStore /> Store
+              </NavLink>
+            ) : null}
             {isCommissioner ? (
               <NavLink
                 to={`/l/${leagueId}/mgmt`}

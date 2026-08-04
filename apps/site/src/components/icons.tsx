@@ -188,6 +188,16 @@ export function IconRoster(props: IconProps) {
   );
 }
 
+export function IconTrade(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M4 8h13l-3-3.5" />
+      <path d="M20 16H7l3 3.5" />
+    </>,
+  );
+}
+
 export function IconWager(props: IconProps) {
   return base(
     props,
