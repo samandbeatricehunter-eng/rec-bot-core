@@ -58,23 +58,42 @@ export function evalTeamStat(statKey: string, rows: any[]) {
   if (statKey === "points_allowed_per_game") return games ? sum("points_against") / games : 0;
   // CFB-only: a team's defensive INTs = its opponent's interceptions_thrown, which
   // recordTeamGameStats already mirrors into this team's defensive_stats JSONB.
-  if (statKey === "team_interceptions") return jsonSum("defensive_stats", "interceptions_thrown");
-  if (statKey === "total_yards_allowed") return sum("yards_allowed");
-  if (statKey === "turnover_differential") return sum("generated_turnovers") - sum("turnovers_committed");
-  if (statKey === "total_offense_yards") return sum("total_yards_gained") || sum("off_yards_gained");
+  // Per-game so teams are comparable regardless of how many games are logged.
+  if (statKey === "team_interceptions") return games ? jsonSum("defensive_stats", "interceptions_thrown") / games : 0;
+  // Per-game rates keep teams comparable while box scores are logged at uneven rates.
+  // A team whose opponents' yardage was never parsed reads as 0 for every game; treat
+  // an all-zero season as missing rather than an (impossible) flawless defense.
+  if (statKey === "total_yards_allowed") {
+    const values = rows.map((row) => num(row.yards_allowed));
+    return games && values.some((value) => value > 0) ? values.reduce((total, value) => total + value, 0) / games : Number.POSITIVE_INFINITY;
+  }
+  if (statKey === "turnover_differential") return games ? (sum("generated_turnovers") - sum("turnovers_committed")) / games : 0;
+  if (statKey === "total_offense_yards") {
+    const total = sum("total_yards_gained");
+    const fallback = sum("off_yards_gained");
+    return games ? (total || fallback) / games : 0;
+  }
   if (statKey === "red_zone_td_rate") {
     const values = rows.map((row) => row.red_zone_off_percentage).filter((value) => value != null).map(num);
     return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
   }
   if (statKey === "red_zone_td_rate_allowed") {
     const values = rows.map((row) => row.red_zone_def_percentage).filter((value) => value != null).map(num);
-    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+    // No tracked red-zone data must never read as a 0% allowed (perfect) rate — that would
+    // hand teams with missing OCR data the S tier. Report a value that can't qualify instead.
+    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : Number.POSITIVE_INFINITY;
   }
   if (statKey === "avg_time_of_possession_seconds") {
     const values = rows.map((row) => jsonClockSeconds(row.offensive_stats, "time_of_possession")).filter((v): v is number => v != null);
     return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
   }
-  if (statKey === "total_penalties") return jsonSum("offensive_stats", "penalties");
+  // Per-game so teams are comparable regardless of games logged. A team whose box scores
+  // never recorded penalties reads as 0 every game; treat an all-zero season as missing
+  // rather than a (suspicious) flawless record.
+  if (statKey === "total_penalties") {
+    const values = rows.map((row) => jsonNum(row.offensive_stats, "penalties"));
+    return games && values.some((value) => value > 0) ? values.reduce((total, value) => total + value, 0) / games : Number.POSITIVE_INFINITY;
+  }
   if (statKey === "red_zone_td_finish_rate") {
     const tds = jsonSum("offensive_stats", "red_zone_tds");
     const fgs = jsonSum("offensive_stats", "red_zone_fgs");
@@ -85,7 +104,9 @@ export function evalTeamStat(statKey: string, rows: any[]) {
     const tds = jsonSum("offensive_stats", "off_rush_tds");
     const yardsPerRushValues = rows.map((row) => jsonNum(row.offensive_stats, "yards_per_rush")).filter((v) => v > 0);
     const avgYardsPerRush = yardsPerRushValues.length ? yardsPerRushValues.reduce((total, v) => total + v, 0) / yardsPerRushValues.length : 0;
-    return attempts / 25 + avgYardsPerRush * 8 + tds * 4;
+    // Per-game volume (attempts/TDs) so the composite is fair regardless of games logged;
+    // avgYardsPerRush is already a per-game rate.
+    return games ? attempts / games / 25 + avgYardsPerRush * 8 + (tds / games) * 4 : 0;
   }
   if (statKey === "defense_identity_score") {
     const redZoneDefPct = (() => {
@@ -106,10 +127,15 @@ export function evalTeamStat(statKey: string, rows: any[]) {
     const oppThirdPct = oppThirdAttempts > 0 ? (oppThirdMade / oppThirdAttempts) * 100 : null;
     const oppFourthPct = oppFourthAttempts > 0 ? (oppFourthMade / oppFourthAttempts) * 100 : null;
 
-    const redZoneTerm = (redZoneDefPct / 10) * 5;
-    const takeawayTerm = games ? ((oppIntsThrown / games) + (oppFumblesLost / games)) * 10 : 0;
-    const thirdDownTerm = oppThirdPct != null ? (100 - oppThirdPct) * 10 : 0;
-    const fourthDownTerm = oppFourthPct != null ? (100 - oppFourthPct) * 10 : 0;
+    // 0-100 composite; the S tier (>= 80) is meant to be an elite, identity-worthy
+    // defense. Each term contributes at most 25 and a floor of 0, so missing or extreme
+    // single-game data can't inflate the score the way the old (100 - pct) * 10 terms
+    // did — on that scale even a below-average defense scored 300+, and every team
+    // in the league cleared the threshold.
+    const redZoneTerm = redZoneDefPct > 0 ? Math.min(25, Math.max(0, ((95 - redZoneDefPct) * 25) / 45)) : 0;
+    const takeawayTerm = games ? Math.min(25, ((oppIntsThrown + oppFumblesLost) / games) * 10) : 0;
+    const thirdDownTerm = oppThirdPct != null ? Math.min(25, Math.max(0, 65 - oppThirdPct)) : 0;
+    const fourthDownTerm = oppFourthPct != null ? Math.min(25, Math.max(0, 70 - oppFourthPct)) : 0;
     return redZoneTerm + takeawayTerm + thirdDownTerm + fourthDownTerm;
   }
   return 0;
@@ -381,7 +407,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
     return {
       key: definition.key,
       label: definition.label,
-      currentValue: Math.round(value * 100) / 100,
+      currentValue: Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
       progress: computeTierProgress(value, definition.tiers, definition.direction),
     };
   });

@@ -44,7 +44,7 @@ under "Newly reported" as they come in mid-turn.
 ## In progress / pending (backlog from earlier messages)
 - [x] #41 CFB roster-seed advisory + "roll every player forward one season" commissioner maintenance action. New `getCfbRosterSeedStatus` + `rollForwardCfbRosterOneSeason` in `apps/api/src/modules/cfb-baseline/cfb-baseline.service.ts`; new guild-scoped routes `POST /v1/cfb-baseline/league-status` (member), `/apply` (commissioner, auto-selects the approved+active dataset), `/roll-forward` (commissioner, FR→SO→JR→SR + seniors graduate). New `CfbRosterMaintenance.tsx` card on Settings → Maintenance. NOTE: the pre-existing `POST /v1/cfb-baseline/apply-to-league` route passes a league UUID to `resolveGuildId` (broken for site sessions — guild membership check runs against a UUID) — the new `/apply` route is the correct guild-scoped path; the old route was left as-is since nothing in the web app calls it.
 - [x] #42 Non-seeded-league purchase fallback: free-text name + position group + rating/tier input. The custom-player wizard's replacement-player step is now optional when a team's roster is empty (unseeded league) — the config exposes `replacementRequired`, the wizard hides the "Replace active player" select and submits `replacementPlayerId: null`, `submitCustomPlayer` only accepts a null replacement when the team has zero active/transferred-in players, and `apply_custom_player_build` is made null-safe (skips the active-replacement check + delete when `replacement_player_id` is null) via new migration `supabase/migrations/20260804120000_custom_player_no_replacement.sql`. NOTE: that migration must be applied to the remote DB (Supabase MCP / SQL editor) before the no-replacement approval path works in production.
-- [ ] #43 Research Madden 27 default roster + 2026-27 NFL schedule availability; seed if available.
+- [x] #43 Research Madden 27 default roster + 2026-27 NFL schedule availability; seed if available. Schedule half DONE: `packages/shared/src/nfl-schedule-2026.ts` (272 games, 18 weeks), wired for `madden_27` via `getDefaultNflScheduleForGame`. Madden 27 roster seeding DEFERRED — no `rec_madden_roster_datasets`-style infrastructure exists (CFB-only today) and web research was unavailable (search transport errors), so real-roster sourcing is blocked; revisit when research is reachable.
 - [ ] #44 Madden trade block system (mirror in-game UI; move View Roster to More, add Trades nav item).
 
 ## Newly reported (this message)
@@ -53,6 +53,15 @@ under "Newly reported" as they come in mid-turn.
 - [ ] #52 Highlight reel: swipe to next/previous not working on mobile.
 - [ ] #53 Highlight reel / Spotlight: no playback controls (pause, rewind, unmute).
 - [ ] #54 Daily spotlight refresh cron job failing every morning — needs investigation + fix.
+
+## EOS payout selectivity pass (2026-08-03)
+- [x] Retuned "This Defense Needs a Name" (`defense_identity_score`) to a 0-100 composite with capped per-game terms (red-zone, takeaways, 3rd/4th-down allowed rates); missing attempts data now skips the term instead of reading as 0% allowed. Verified vs production REC OG: 2/12 teams qualify (Red Wolves 82.78, Tigers 80) vs 12/12 before.
+- [x] Fixed `red_zone_td_rate_allowed` missing-data-as-perfect bug in `evalTeamStat` (`apps/api/src/modules/league-week/eos-payouts.service.ts`): all-null red-zone data now returns Infinity (cannot qualify) instead of 0 (was S tier).
+- [x] New read-only audit script `apps/api/scripts/eos-categories-audit.ts` evaluating every team-scope EOS category against real production data (uses prod `evalTeamStat` + `evaluatePayoutTier`, filters to regular-season weeks like the real EOS batch).
+- [x] Converted all cumulative-total categories to per-game rates (user-approved) so teams stay comparable while box scores upload at uneven rates: `team_interceptions`, `total_yards_allowed`, `turnover_differential`, `total_offense_yards`, `total_penalties`, `rb_workhorse_score` in `evalTeamStat`. Missing-data guards: all-zero yards-allowed and all-zero penalties return Infinity (cannot qualify) rather than reading as flawless.
+- [x] Retuned all tier ladders in `packages/shared/src/economy.ts` against the audit spread (2026-08-03). Final REC OG distribution: PPG 7/12, opp PPG 5/12, INTs 5/12, yards allowed 8/12, turnover diff 6/12, total offense 8/12, off RZ 6/12, def RZ 8/12, ToP 2/12 (data-limited), penalties 6/12, RZ finish 9/12 (small-sample noise, S bar now 90), RB workhorse 2/12, defense 2/12.
+- [x] Guarded `getMyEosPayoutProgress` so Infinity (missing-data sentinel) never reaches the hub progress-bar UI — emits 0 instead. Payout items never store Infinity (`buildTeamStatItems` skips tierless values).
+- [x] Shared rebuilt + `@rec/api` typecheck clean. Audit re-run confirms distributions above.
 
 ## Notes
 - Trunk-based workflow: commit + push directly to main in small verified batches, `git fetch` before each push, typecheck before pushing.
