@@ -154,17 +154,20 @@ async function settleEosAwardPoll(client: Client, context: EosAwardFlowContext, 
   // message.poll reflects the same final results.
   const ended = await (message.poll as any).end().catch(() => null);
   const poll = ended?.poll ?? message.poll;
-  const voteCounts: Record<string, number> = {};
   const voterDiscordIds: Record<string, string[]> = {};
   for (let index = 0; index < 10; index += 1) {
     const answer = poll.answers?.get(index + 1);
     if (!answer) continue;
     const voters = await answer.fetchVoters().catch(() => null);
-    voteCounts[String(index)] = voters?.size ?? 0;
     voterDiscordIds[String(index)] = voters ? [...voters.values()].map((voter: any) => voter.id) : [];
   }
-  const settled = await recApi.settleEosAwardPoll({ pollId: input.pollId, voteCounts, voterDiscordIds, discordMessageId: input.messageId });
-  if (!settled?.alreadySettled && !settled?.skipped) await maybePostSeasonAwardsAnnouncement(guild, context, input.guildId);
+  // Merge Discord voters into the same rec_eos_award_votes table the site writes to
+  // (last vote per person wins, same as changing a pick on the site), then settle from
+  // that single tally — a Discord vote and a site vote can never double count, and a
+  // Discord-only voter's pick still lands in the real count.
+  await recApi.recordEosAwardPollVotesFromDiscord({ pollId: input.pollId, discordMessageId: input.messageId, votesByNomineeIndex: voterDiscordIds }).catch((error) => console.error("[ERROR] Failed to record Discord EOS award votes:", error));
+  const settled = await recApi.settleEosAwardPollById({ guildId: input.guildId, pollId: input.pollId });
+  if (settled?.settled) await maybePostSeasonAwardsAnnouncement(guild, context, input.guildId);
 }
 
 async function maybePostSeasonAwardsAnnouncement(guild: Guild, context: EosAwardFlowContext, guildId: string) {

@@ -327,6 +327,12 @@ export const recApi = {
   settleEosAwardPoll: (input: { pollId: string; voteCounts: Record<string, number>; voterDiscordIds?: Record<string, string[]>; discordMessageId?: string | null }) =>
     recFetch<any>("/v1/league-week/eos-awards/settle", { method: "POST", body: JSON.stringify(input) }),
 
+  recordEosAwardPollVotesFromDiscord: (input: { pollId: string; discordMessageId: string; votesByNomineeIndex: Record<string, string[]> }) =>
+    recFetch<{ recorded: number }>("/v1/league-week/eos-awards/record-discord-votes", { method: "POST", body: JSON.stringify(input) }),
+
+  settleEosAwardPollById: (input: { guildId: string; pollId: string }) =>
+    recFetch<{ settled: boolean }>("/v1/league-week/eos-awards/settle-by-id", { method: "POST", body: JSON.stringify(input) }),
+
   listSettledEosAwards: (input: { guildId: string; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/league-week/eos-awards/settled", { method: "POST", body: JSON.stringify(input) }),
 

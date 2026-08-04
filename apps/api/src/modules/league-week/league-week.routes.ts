@@ -6,7 +6,7 @@ import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceJump, completeAdvanceWeek, getAdvanceJumpPlan, getAdvanceJumpTargets, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
-import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
+import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
@@ -679,6 +679,34 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         await assertEosAwardPollInSessionGuild(auth.guildId, existing.poll.league_id);
       }
       return reply.send(await settleEosAwardPoll(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot-only: merges Discord native-poll voters into rec_eos_award_votes so a Discord
+  // vote and a site vote count through the same tally instead of two separate ones.
+  app.post("/v1/league-week/eos-awards/record-discord-votes", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        pollId: z.string().uuid(),
+        discordMessageId: z.string().min(1),
+        votesByNomineeIndex: z.record(z.string(), z.array(z.string())),
+      }).parse(request.body);
+      return reply.send(await recordEosAwardPollVotesFromDiscord(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot-only: settles a single poll by id from rec_eos_award_votes — replaces the bot
+  // tallying its own Discord native-poll results and settling independently.
+  app.post("/v1/league-week/eos-awards/settle-by-id", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      return reply.send(await closeAndSettleEosAwardPollById(body.guildId, body.pollId));
     } catch (error) {
       return sendError(reply, error);
     }

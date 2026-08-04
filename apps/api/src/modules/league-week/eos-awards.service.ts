@@ -627,7 +627,49 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
   return { poll: updated.data, winner, amount, votes: topRawVotes, tiebreakerNeeded };
 }
 
-/** Tallies real web votes and settles every open poll for the league — call when the league advances OUT of the first offseason stage. Posts one headline per award. */
+// Tallies rec_eos_award_votes for one poll and settles it — the single source of truth
+// for both voting surfaces. Discord native-poll voters are merged into rec_eos_award_votes
+// (see recordEosAwardPollVotesFromDiscord) before this ever runs, so it never needs to know
+// which surface a given vote came from.
+async function settlePollFromWebVotes(guildId: string, poll: any): Promise<boolean> {
+  const votes = await supabase.from("rec_eos_award_votes").select("voter_user_id,nominee_user_id").eq("poll_id", poll.id);
+  if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
+  const nominees = Array.isArray(poll.nominee_payloads) ? poll.nominee_payloads : [];
+  const voteCounts: Record<string, number> = {};
+  const voterDiscordIds: Record<string, string[]> = {};
+
+  const voterUserIds = [...new Set((votes.data ?? []).map((v: any) => v.voter_user_id))];
+  const accounts = voterUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", voterUserIds)
+    : { data: [], error: null };
+  const discordIdByUserId = new Map((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+
+  nominees.forEach((nominee: any, index: number) => {
+    const nomineeVotes = (votes.data ?? []).filter((v: any) => v.nominee_user_id === nominee.userId);
+    voteCounts[String(index)] = nomineeVotes.length;
+    voterDiscordIds[String(index)] = nomineeVotes.map((v: any) => discordIdByUserId.get(v.voter_user_id)).filter(Boolean) as string[];
+  });
+  // No votes cast at all: fall back to the underlying stat metric (already on each
+  // nominee) rather than leaving the award unpaid — someone still earned the nomination.
+  if (Object.values(voteCounts).every((count) => count === 0)) {
+    let bestIndex = 0;
+    nominees.forEach((nominee: any, index: number) => { if (Number(nominee.metric ?? 0) > Number(nominees[bestIndex]?.metric ?? -Infinity)) bestIndex = index; });
+    voteCounts[String(bestIndex)] = 1;
+  }
+  const result = await settleEosAwardPoll({ pollId: poll.id, voteCounts, voterDiscordIds });
+  if ("winner" in result && result.winner) {
+    await publishTransitionStory({
+      guildId,
+      headline: `${poll.category_label}: ${result.winner.teamName ?? "A program"}`,
+      body: `${poll.category_label} goes to ${result.winner.teamName ?? "the winner"}${result.tiebreakerNeeded ? " after a tiebreaker" : ""} — ${formatCoins(result.amount)}.`,
+      primaryAngle: "eos_award",
+    }).catch((error) => console.error(`[ERROR] Failed to publish ${poll.category_label} headline (non-fatal):`, error));
+    return true;
+  }
+  return false;
+}
+
+/** Tallies real votes and settles every open poll for the league — call when the league advances OUT of the first offseason stage. Posts one headline per award. */
 export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ settled: number }> {
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = resolveSeasonNumber(context);
@@ -636,32 +678,58 @@ export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ s
 
   let settled = 0;
   for (const poll of openPolls.data ?? []) {
-    const votes = await supabase.from("rec_eos_award_votes").select("nominee_user_id").eq("poll_id", poll.id);
-    if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
-    const nominees = Array.isArray(poll.nominee_payloads) ? poll.nominee_payloads : [];
-    const voteCounts: Record<string, number> = {};
-    nominees.forEach((nominee: any, index: number) => {
-      voteCounts[String(index)] = (votes.data ?? []).filter((v) => v.nominee_user_id === nominee.userId).length;
-    });
-    // No votes cast at all: fall back to the underlying stat metric (already on each
-    // nominee) rather than leaving the award unpaid — someone still earned the nomination.
-    if (Object.values(voteCounts).every((count) => count === 0)) {
-      let bestIndex = 0;
-      nominees.forEach((nominee: any, index: number) => { if (Number(nominee.metric ?? 0) > Number(nominees[bestIndex]?.metric ?? -Infinity)) bestIndex = index; });
-      voteCounts[String(bestIndex)] = 1;
-    }
-    const result = await settleEosAwardPoll({ pollId: poll.id, voteCounts });
-    if ("winner" in result && result.winner) {
-      await publishTransitionStory({
-        guildId,
-        headline: `${poll.category_label}: ${result.winner.teamName ?? "A program"}`,
-        body: `${poll.category_label} goes to ${result.winner.teamName ?? "the winner"}${result.tiebreakerNeeded ? " after a tiebreaker" : ""} — ${formatCoins(result.amount)}.`,
-        primaryAngle: "eos_award",
-      }).catch((error) => console.error(`[ERROR] Failed to publish ${poll.category_label} headline (non-fatal):`, error));
-      settled += 1;
-    }
+    if (await settlePollFromWebVotes(guildId, poll)) settled += 1;
   }
   return { settled };
+}
+
+// Settles a single poll by id — used by the bot's per-poll close timer instead of it
+// tallying the Discord native poll itself, so there's exactly one settlement path (this
+// one) reading exactly one vote source (rec_eos_award_votes) regardless of which surface
+// each vote was cast on.
+export async function closeAndSettleEosAwardPollById(guildId: string, pollId: string): Promise<{ settled: boolean }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", pollId).eq("league_id", context.leagueId).eq("status", "open").maybeSingle();
+  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (!poll.data) return { settled: false };
+  return { settled: await settlePollFromWebVotes(guildId, poll.data) };
+}
+
+// Merges Discord native-poll voters into rec_eos_award_votes (the single vote table both
+// surfaces share) so a Discord vote and a site vote from the same person can't double count
+// — and so a Discord-only user's pick lands in the same tally site voters use. Upserts on
+// (poll_id, voter_user_id) exactly like castEosAwardVote, so whichever surface someone voted
+// on last wins if they voted twice, same as changing your pick on the site.
+export async function recordEosAwardPollVotesFromDiscord(input: { pollId: string; discordMessageId: string; votesByNomineeIndex: Record<string, string[]> }): Promise<{ recorded: number }> {
+  const poll = await supabase.from("rec_eos_award_polls").select("id,status,discord_message_id,nominee_user_ids").eq("id", input.pollId).maybeSingle();
+  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
+  if (poll.data.status !== "open") return { recorded: 0 };
+  if (poll.data.discord_message_id !== input.discordMessageId) return { recorded: 0 };
+  const nomineeIds: string[] = Array.isArray(poll.data.nominee_user_ids) ? poll.data.nominee_user_ids : [];
+
+  const allDiscordIds = [...new Set(Object.values(input.votesByNomineeIndex).flat())];
+  if (!allDiscordIds.length) return { recorded: 0 };
+  const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("discord_id", allDiscordIds);
+  if (accounts.error) throw new ApiError(500, "Failed to resolve Discord voters.", accounts.error);
+  const userIdByDiscordId = new Map((accounts.data ?? []).map((row: any) => [row.discord_id, row.user_id]));
+
+  const now = new Date().toISOString();
+  let recorded = 0;
+  for (const [indexStr, discordIds] of Object.entries(input.votesByNomineeIndex)) {
+    const nomineeUserId = nomineeIds[Number(indexStr)];
+    if (!nomineeUserId) continue;
+    for (const discordId of discordIds) {
+      const voterUserId = userIdByDiscordId.get(discordId);
+      if (!voterUserId) continue; // voter has no linked site account — nothing to attribute the vote to
+      const upserted = await supabase.from("rec_eos_award_votes").upsert(
+        { poll_id: input.pollId, voter_user_id: voterUserId, nominee_user_id: nomineeUserId, updated_at: now },
+        { onConflict: "poll_id,voter_user_id" },
+      );
+      if (!upserted.error) recorded += 1;
+    }
+  }
+  return { recorded };
 }
 
 export async function listSettledEosAwards(input: { guildId: string; seasonNumber?: number | null }) {
