@@ -152,6 +152,23 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
   return { message: sentMessage };
 }
 
+// No cron job flips a topic to "closed" when its time limit runs out — piggyback on the next
+// list read instead (same lazy pattern as purgeOldMessages above), flipping status in the DB
+// and posting the result to commissioner chat so the league hears about it even if nobody
+// happens to reopen that specific poll card. Fire-and-forget: doesn't delay the read.
+function closeAndAnnounceExpiredTopics(guildId: string, topics: Array<{ id: string; guild_id?: string; title: string; options: unknown; status: string; closes_at: string | null }>): void {
+  const expired = topics.filter((t) => t.status === "open" && t.closes_at && new Date(t.closes_at).getTime() <= Date.now());
+  if (!expired.length) return;
+  void (async () => {
+    for (const topic of expired) {
+      const updated = await supabase.from("rec_commissioner_chat_topics").update({ status: "closed", updated_at: new Date().toISOString() })
+        .eq("id", topic.id).eq("status", "open").select("id").maybeSingle();
+      if (updated.error || !updated.data) continue; // already closed by a concurrent read
+      await announceTopicResult({ id: topic.id, guild_id: guildId, title: topic.title, options: topic.options });
+    }
+  })().catch((err) => console.error("[ERROR] Failed to auto-close expired poll(s) (non-fatal):", err));
+}
+
 export async function listChatTopics(guildId: string) {
   const { data: topics, error } = await supabase
     .from("rec_commissioner_chat_topics")
@@ -160,6 +177,7 @@ export async function listChatTopics(guildId: string) {
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw new ApiError(500, "Failed to load voting topics.", error);
+  closeAndAnnounceExpiredTopics(guildId, topics ?? []);
 
   const topicIds = (topics ?? []).map((t) => t.id);
   const votes = topicIds.length
@@ -222,7 +240,47 @@ export async function createChatTopic(input: {
     .select("*")
     .single();
   if (error) throw new ApiError(500, "Failed to create voting topic.", error);
+  // Commissioner-only polls need a push, unlike public polls (which surface passively on
+  // Campus Buzz for anyone browsing) — a co-commissioner has no other reason to know a vote
+  // is waiting on them.
+  if ((input.audience ?? "commissioners") === "commissioners") {
+    void (async () => {
+      const mentionable = await getMentionableCommissioners(input.guildId);
+      const recipients = mentionable.members.map((m) => m.discordId).filter((id) => id !== input.discordId);
+      if (!recipients.length) return;
+      const message = `A new commissioner poll needs your vote: **${title}**\n\nOpen League Management → Commissioner's Office to vote.`;
+      await Promise.allSettled(recipients.map((discordId) => sendDiscordDirectMessage(discordId, message)));
+    })().catch((err) => console.error("[ERROR] Failed to notify commissioners of new poll (non-fatal):", err));
+  }
   return { topic: data };
+}
+
+// Fired once a topic actually closes (manual close, or lazily discovered past its closes_at
+// on the next list read — see listChatTopics/listPublicPolls) so the league always hears the
+// result somewhere, not just from whoever happens to reopen the poll card. Posted as a plain
+// system message (no author_discord_id) rather than routed through postChatMessage, since
+// this isn't attributable to any one commissioner and shouldn't trigger @mention DMs.
+async function announceTopicResult(topic: { id: string; guild_id: string; title: string; options: unknown }) {
+  const votes = await supabase.from("rec_commissioner_chat_topic_votes").select("option_index").eq("topic_id", topic.id);
+  if (votes.error) { console.error("[ERROR] Failed to load votes for topic result announcement:", votes.error); return; }
+  const options = Array.isArray(topic.options) ? (topic.options as string[]) : [];
+  const tally = options.map((_, index) => (votes.data ?? []).filter((v) => v.option_index === index).length);
+  const totalVotes = tally.reduce((sum, n) => sum + n, 0);
+  let body: string;
+  if (!totalVotes) {
+    body = `📊 **Poll closed — no votes cast:** ${topic.title}`;
+  } else {
+    const maxVotes = Math.max(...tally);
+    const winners = options.filter((_, i) => tally[i] === maxVotes);
+    const winnerLine = winners.length > 1 ? `Tied: ${winners.join(", ")}` : `Winner: **${winners[0]}**`;
+    const breakdown = options.map((opt, i) => `${opt}: ${tally[i]}`).join(" · ");
+    body = `📊 **Poll closed:** ${topic.title}\n${winnerLine} (${totalVotes} vote${totalVotes === 1 ? "" : "s"})\n${breakdown}`;
+  }
+  const posted = await supabase.from("rec_commissioner_chat_messages").insert({
+    guild_id: topic.guild_id, author_user_id: null, author_discord_id: "rec-bot", body,
+  }).select("id,body,created_at").maybeSingle();
+  if (posted.error) { console.error("[ERROR] Failed to post poll result to commissioner chat:", posted.error); return; }
+  if (posted.data) broadcastChatEvent("commissioner", topic.guild_id, { kind: "message", row: { ...posted.data, author_discord_id: "rec-bot", author_display_name: "REC Bot" } });
 }
 
 // League-wide (audience:"league") polls — same table/tally mechanics as the staff-only topics
@@ -238,6 +296,7 @@ export async function listPublicPolls(guildId: string, discordId: string) {
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw new ApiError(500, "Failed to load polls.", error);
+  closeAndAnnounceExpiredTopics(guildId, topics ?? []);
 
   const topicIds = (topics ?? []).map((t) => t.id);
   const votes = topicIds.length
@@ -316,9 +375,11 @@ export async function closeChatTopic(input: { guildId: string; topicId: string }
     .update({ status: "closed", updated_at: new Date().toISOString() })
     .eq("id", input.topicId)
     .eq("guild_id", input.guildId)
-    .select("id")
+    .eq("status", "open")
+    .select("id,title,options")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to close topic.", error);
-  if (!data) throw new ApiError(404, "Topic not found.");
+  if (!data) throw new ApiError(404, "Topic not found, or already closed.");
+  await announceTopicResult({ id: data.id, guild_id: input.guildId, title: data.title, options: data.options });
   return { ok: true };
 }

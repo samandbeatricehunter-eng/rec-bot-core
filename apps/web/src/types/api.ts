@@ -499,6 +499,7 @@ export type ChatTopic = {
   tally: number[];
   totalVotes: number;
   voters: { voterDiscordId: string; optionIndex: number }[];
+  audience?: "commissioners" | "league";
 };
 export type PublicPoll = {
   id: string;
