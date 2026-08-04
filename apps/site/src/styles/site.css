@@ -3080,6 +3080,10 @@ h1, h2, h3, .site-wordmark {
 .site-home-panel-head h2,
 .site-page-card > h1,
 .site-page-card > h2 { text-align: center; }
+.site-card h1,.site-card h2,.site-card h3,
+.site-auth-card h1,.site-auth-card h2,.site-auth-card h3,
+.site-league-search-card h1,.site-league-search-card h2,.site-league-search-card h3,
+.site-league-card h1,.site-league-card h2,.site-league-card h3 { text-align: center; }
 .site-account-game-block summary {
   cursor: pointer;
   font-weight: 700;
