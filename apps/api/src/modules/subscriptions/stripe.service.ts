@@ -111,7 +111,7 @@ export async function createCheckoutSession(input: {
   const stripe = getStripe();
   const existing = await supabase
     .from("rec_users")
-    .select("stripe_subscription_id,billing_status")
+    .select("stripe_subscription_id,billing_status,trial_used_at")
     .eq("id", input.userId)
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to check the current subscription.", existing.error);
@@ -134,6 +134,11 @@ export async function createCheckoutSession(input: {
       interval,
     },
     subscription_data: {
+      // Checkout Sessions don't apply Dashboard-configured Trial Offers — those only kick
+      // in when creating subscriptions via the Subscriptions API directly. This is the
+      // Checkout-compatible equivalent, applied once per account (trial_used_at gets set
+      // by the webhook the first time a subscription actually enters "trialing").
+      ...(existing.data?.trial_used_at ? {} : { trial_period_days: 7 }),
       metadata: {
         rec_user_id: input.userId,
         tier: input.tier,
@@ -162,6 +167,10 @@ export async function createPublicCheckoutSession(input: {
     success_url: `${base}/signup/complete?checkout_session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/pricing?checkout=cancel`,
     metadata: { tier: input.tier, interval },
+    // No rec_users row exists yet on the guest path, so there's nothing to check
+    // trial_used_at against here — this is the pre-signup entry point, always a first
+    // trial for whoever completes it.
+    subscription_data: { trial_period_days: 7 },
   });
   return { url: session.url, sessionId: session.id };
 }
@@ -270,6 +279,9 @@ async function applyActiveSubscription(userId: string, subscription: Stripe.Subs
     subscription_current_period_end: periodEnd,
     updated_at: now,
   };
+  if (subscription.status === "trialing") {
+    update.trial_used_at = now;
+  }
 
   if (billingStatus === "active") {
     update.subscription_grace_until = null;
