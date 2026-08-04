@@ -152,7 +152,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   await assertEconomyPayoutsActive(leagueId);
 
   const stake = Math.floor(Number(input.stake));
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
   await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
 
   const marketDef = WAGER_MARKET_BY_KEY.get(input.market);
@@ -274,7 +274,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
 
 // Shared placement validation + line/odds resolution for house and peer wagers.
 async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number, customLine?: number | null) {
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
   const marketDef = WAGER_MARKET_BY_KEY.get(market);
   if (!marketDef) throw new ApiError(400, "Unknown wager market.");
 
@@ -865,7 +865,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   }
 
   const stake = Math.floor(Number(input.stake));
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
   await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);

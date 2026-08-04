@@ -508,7 +508,7 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
   const session = getSession(interaction.user.id);
   const stake = parseInt(interaction.fields.getTextInputValue(WAGER_CUSTOM_IDS.stakeInput).replace(/[^0-9]/g, ""), 10);
   if (!Number.isFinite(stake) || stake <= 0) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("Enter a positive whole-dollar stake.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("Enter a positive whole-coin stake.")], components: [] });
   }
 
   if (session.mode === "parlay") {
