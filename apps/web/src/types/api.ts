@@ -705,10 +705,24 @@ export type RosterPositionGroup = {
   avgOverall: number | null;
   playerCount: number;
 };
+export type DraftPickChainLink = { fromTeamId: string | null; toTeamId: string | null; reason: string | null; at: string };
+export type TeamDraftPick = {
+  id: string;
+  seasonNumber: number;
+  round: number;
+  pickNumber: number | null;
+  originalTeamId: string;
+  originalTeamName: string;
+  isOwnPick: boolean;
+  manualLock: boolean;
+  adminNotes: string | null;
+  tradeChain: DraftPickChainLink[];
+};
 export type TeamRosterResponse = {
   team: { id: string; name: string | null; abbreviation: string | null };
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
+  draftPicks: TeamDraftPick[];
 };
 export type TurnoverKind = "interceptions_thrown" | "fumbles_lost" | "interceptions_made" | "forced_fumble";
 export type AssignableBoxScoreStats = {

@@ -49,6 +49,7 @@ export function RosterHome() {
     () => (groupFilter === "ALL" ? rosteredPlayers : rosteredPlayers.filter((p) => p.positionGroup === groupFilter)),
     [rosteredPlayers, groupFilter],
   );
+  const showingDraftPicks = groupFilter === "Draft Picks";
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState label="Loading your roster…" />;
@@ -110,51 +111,94 @@ export function RosterHome() {
                   {group}
                 </option>
               ))}
+              {data.draftPicks.length > 0 && <option value="Draft Picks">Draft Picks</option>}
             </select>
           </label>
-          <div className="hub-roster-table-wrap">
-            <table className="hub-roster-table">
-              <thead>
-                <tr>
-                  <th>Player</th>
-                  <th>Ht</th>
-                  <th>Wt</th>
-                  <th>Class</th>
-                  <th>OVR</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlayers.map((player) => (
-                  <tr key={player.id}>
-                    <td>
-                      <strong>{player.fullName}</strong>
-                      <span className="hub-roster-pos">{player.position}</span>
-                    </td>
-                    <td>{formatHeight(player.heightInches)}</td>
-                    <td>{player.weightLbs != null ? `${player.weightLbs} lbs` : "—"}</td>
-                    <td>{player.classYear ?? "—"}</td>
-                    <td>
-                      {player.overallRating ?? "—"}
-                      {player.recentIncrease ? <span className="hub-roster-increase">+{player.recentIncrease}</span> : null}
-                    </td>
-                    <td>
-                      <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
-                        Add Stats
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredPlayers.length === 0 && (
+          {showingDraftPicks ? (
+            <div className="hub-roster-table-wrap">
+              <table className="hub-roster-table">
+                <thead>
                   <tr>
-                    <td colSpan={6} className="hub-empty">
-                      No players in this group.
-                    </td>
+                    <th>Year</th>
+                    <th>Round</th>
+                    <th>Pick #</th>
+                    <th>Original owner</th>
+                    <th>History</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.draftPicks.map((pick) => (
+                    <tr key={pick.id}>
+                      <td>Season {pick.seasonNumber}</td>
+                      <td>Round {pick.round}</td>
+                      <td>{pick.pickNumber ?? "TBD"}</td>
+                      <td>{pick.isOwnPick ? "Own pick" : pick.originalTeamName}</td>
+                      <td>
+                        {pick.tradeChain.length === 0 ? (
+                          "—"
+                        ) : (
+                          <span className="hub-roster-pick-chain">
+                            {pick.tradeChain.length} trade{pick.tradeChain.length === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {data.draftPicks.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="hub-empty">
+                        No draft picks logged yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="hub-roster-table-wrap">
+              <table className="hub-roster-table">
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Ht</th>
+                    <th>Wt</th>
+                    <th>Class</th>
+                    <th>OVR</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPlayers.map((player) => (
+                    <tr key={player.id}>
+                      <td>
+                        <strong>{player.fullName}</strong>
+                        <span className="hub-roster-pos">{player.position}</span>
+                      </td>
+                      <td>{formatHeight(player.heightInches)}</td>
+                      <td>{player.weightLbs != null ? `${player.weightLbs} lbs` : "—"}</td>
+                      <td>{player.classYear ?? "—"}</td>
+                      <td>
+                        {player.overallRating ?? "—"}
+                        {player.recentIncrease ? <span className="hub-roster-increase">+{player.recentIncrease}</span> : null}
+                      </td>
+                      <td>
+                        <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
+                          Add Stats
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredPlayers.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="hub-empty">
+                        No players in this group.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 

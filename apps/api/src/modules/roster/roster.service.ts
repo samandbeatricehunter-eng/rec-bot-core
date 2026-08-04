@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
+import { listDraftPicksForTeam } from "../draft-picks/draft-picks.service.js";
 
 export const ROSTER_DEPARTURE_STATUSES = ["drafted", "transferred_out", "retired", "graduated"] as const;
 export type RosterDepartureStatus = (typeof ROSTER_DEPARTURE_STATUSES)[number];
@@ -104,6 +105,15 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     };
   });
 
+  // Draft picks are a Madden-only asset (CFB leagues use recruiting/transfer portal instead)
+  // shown as their own "position group" alongside the real position groups, per how coaches
+  // already browse rosters here.
+  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
+  const draftPicks = isMadden ? await listDraftPicksForTeam(input.guildId, teamId) : [];
+  const positionGroups = isMadden
+    ? [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }]
+    : groups;
+
   return {
     team: {
       id: team.data.id,
@@ -111,7 +121,8 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
       abbreviation: team.data.display_abbr || team.data.abbreviation,
     },
     players: rows,
-    positionGroups: groups,
+    positionGroups,
+    draftPicks,
   };
 }
 
