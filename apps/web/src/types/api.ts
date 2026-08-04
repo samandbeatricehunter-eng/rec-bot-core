@@ -732,7 +732,7 @@ export type PeerWagerBoardResponse = {
   wagers: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; marketLabel: string; pick: string; pickLabel: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; placedByName: string; acceptedByName: string | null; isMine: boolean; canAccept: boolean; canEdit: boolean; createdAt: string; status?: string; boardState?: "open" | "active" }>;
 };
 export type MyWagersResponse = {
-  wagers: Array<{ id: string; gameId: string | null; gameLabel: string; weekNumber: number; wagerKind: string; challengeType: string | null; market: string; marketLabel: string; pickLabel: string; stake: number; potentialPayout: number; status: string; boardState: "open" | "active" | "settled"; placedByName: string; acceptedByName: string | null; isMine: boolean; canEdit: boolean; settledAt: string | null; createdAt: string }>;
+  wagers: Array<{ id: string; gameId: string | null; gameLabel: string; weekNumber: number; wagerKind: string; challengeType: string | null; market: string; marketLabel: string; pickLabel: string; stake: number; potentialPayout: number; status: string; boardState: "open" | "active" | "settled"; placedByName: string; acceptedByName: string | null; isMine: boolean; canEdit: boolean; canCancel: boolean; settledAt: string | null; createdAt: string }>;
 };
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;

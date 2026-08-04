@@ -757,7 +757,7 @@ export async function listMyWagers(guildId: string, discordId: string) {
 
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
   const games = gameIds.length
-    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    ? await supabase.from("rec_games").select("id,status,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
     : { data: [] };
   const gameById = new Map<string, any>((games.data ?? []).map((game: any) => [game.id, game]));
   const gameLabelById = new Map((games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]));
@@ -785,6 +785,10 @@ export async function listMyWagers(guildId: string, discordId: string) {
       acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
       isMine: w.placed_by_user_id === viewerUserId,
       canEdit: w.status === "awaiting_accept" && w.placed_by_user_id === viewerUserId,
+      canCancel:
+        ["awaiting_accept", "pending", "confirmed"].includes(w.status) &&
+        w.placed_by_user_id === viewerUserId &&
+        (!w.game_id || gameById.get(w.game_id)?.status === "scheduled"),
       settledAt: w.settled_at,
       createdAt: w.created_at,
     })),

@@ -1301,9 +1301,9 @@ export function HubHome() {
                   <small>{wager.status === "won" ? `Won ` : "Payout "}<CoinAmount amount={wager.potentialPayout} /></small>
                   <StatusChip status={wager.status === "won" ? "approved" : wager.status === "lost" ? "denied" : wager.status === "refunded" ? "info" : wager.boardState === "open" ? "pending" : "locked"} label={displayLabel(wager.status)} />
                 </div>
-                {wager.canEdit && (
+                {(wager.canEdit || wager.canCancel) && (
                   <div className="hub-my-wager-row-actions">
-                    {wager.wagerKind !== "house" && (
+                    {wager.canEdit && wager.wagerKind !== "house" && (
                       <button
                         className="hub-icon-action"
                         title="Edit wager terms"
@@ -1317,7 +1317,9 @@ export function HubHome() {
                         <Pencil size={17} />
                       </button>
                     )}
-                    <button className="hub-icon-action danger" title="Cancel wager" aria-label="Cancel wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>
+                    {wager.canCancel && (
+                      <button className="hub-icon-action danger" title="Cancel wager" aria-label="Cancel wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>
+                    )}
                   </div>
                 )}
               </article>
