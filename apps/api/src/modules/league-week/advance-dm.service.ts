@@ -1,4 +1,4 @@
-import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, formatCoins, type RecEndSeasonPayoutDefinition } from "@rec/shared";
+import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, formatCoins, type RecEndSeasonPayoutDefinition, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
@@ -279,7 +279,7 @@ function tierTarget(def: RecEndSeasonPayoutDefinition, value: number): string {
 
 function buildEosProgressSection(rows: any[], game: string | null | undefined): string | null {
   if (!rows.length) return null;
-  const lines = TEAM_DEFINITIONS.filter((def) => isPayoutEligibleForGame(def, game)).map((def) => tierTarget(def, evalTeamStat(def.statKey, rows)));
+  const lines = TEAM_DEFINITIONS.filter((def) => isPayoutEligibleForGame(def, game)).map((def) => tierTarget(def, evalTeamStat(def.statKey, rows, game as LeagueGame)));
   if (!lines.length) return null;
   return lines.join("\n").slice(0, 1024);
 }

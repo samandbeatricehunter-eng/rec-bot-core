@@ -50,7 +50,19 @@ function jsonMadeAttempts(raw: unknown, key: string): [number, number | null] {
   return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [num(value), null];
 }
 
-export function evalTeamStat(statKey: string, rows: any[]) {
+// A team's per-game-rate composite (rb_workhorse_score, defense_identity_score) is too
+// noisy to trust on a handful of box scores — a single big or bad game swings the whole
+// average. Stepped against a full CFB regular season (12 games across 14 weeks, byes
+// included): >=6 games logged (half a season) is enough of a sample to trust in full;
+// 4-5 games gets a mild discount; 3 or fewer (a game or two) gets a heavy one, since one
+// fluke performance can otherwise carry the whole average.
+function coverageMultiplier(games: number, _game: LeagueGame) {
+  if (games >= 6) return 1;
+  if (games > 3) return 0.75;
+  return 0.4;
+}
+
+export function evalTeamStat(statKey: string, rows: any[], game: LeagueGame) {
   const games = rows.length;
   const sum = (key: string) => rows.reduce((total, row) => total + num(row[key]), 0);
   const jsonSum = (sourceKey: string, key: string) => rows.reduce((total, row) => total + jsonNum(row[sourceKey], key), 0);
@@ -104,9 +116,14 @@ export function evalTeamStat(statKey: string, rows: any[]) {
     const tds = jsonSum("offensive_stats", "off_rush_tds");
     const yardsPerRushValues = rows.map((row) => jsonNum(row.offensive_stats, "yards_per_rush")).filter((v) => v > 0);
     const avgYardsPerRush = yardsPerRushValues.length ? yardsPerRushValues.reduce((total, v) => total + v, 0) / yardsPerRushValues.length : 0;
-    // Per-game volume (attempts/TDs) so the composite is fair regardless of games logged;
-    // avgYardsPerRush is already a per-game rate.
-    return games ? attempts / games / 25 + avgYardsPerRush * 8 + (tds / games) * 4 : 0;
+    if (!games) return 0;
+    // "Workhorse" means carries (usage), not just per-carry efficiency — the old weights
+    // (attempts/games/25 vs avgYardsPerRush*8) made volume nearly worthless: a 28-carry/game
+    // grinder scored ~1 point for that workload while a single 16-yard-per-carry outlier game
+    // scored 130+. Attempts/games is now the dominant term; ypr and TDs still matter but can no
+    // longer let one huge game outscore genuine bell-cow usage. Coverage-penalized below.
+    const raw = (attempts / games) * 2 + avgYardsPerRush * 3 + (tds / games) * 8;
+    return raw * coverageMultiplier(games, game);
   }
   if (statKey === "defense_identity_score") {
     const redZoneDefPct = (() => {
@@ -119,8 +136,12 @@ export function evalTeamStat(statKey: string, rows: any[]) {
     for (const row of rows) {
       const [tm, ta] = jsonMadeAttempts(row.defensive_stats, "third_down_conversions");
       const [fm, fa] = jsonMadeAttempts(row.defensive_stats, "fourth_down_conversions");
-      oppThirdMade += tm; if (ta != null) oppThirdAttempts += ta;
-      oppFourthMade += fm; if (fa != null) oppFourthAttempts += fa;
+      // A game whose OCR only recovered the makes (no "X-Y" attempts format, e.g. a bare "3")
+      // must be excluded entirely, not just from the attempts side — counting its makes into
+      // the numerator while dropping its attempts from the denominator inflates the opponent's
+      // conversion rate, understating the defense (this silently zeroed real S-tier defenses).
+      if (ta != null) { oppThirdMade += tm; oppThirdAttempts += ta; }
+      if (fa != null) { oppFourthMade += fm; oppFourthAttempts += fa; }
     }
     // No recoverable attempts data must never read as a 0% (perfect) allowed rate —
     // that would reward missing OCR data with the max bonus. Skip the term instead.
@@ -136,7 +157,8 @@ export function evalTeamStat(statKey: string, rows: any[]) {
     const takeawayTerm = games ? Math.min(25, ((oppIntsThrown + oppFumblesLost) / games) * 10) : 0;
     const thirdDownTerm = oppThirdPct != null ? Math.min(25, Math.max(0, 65 - oppThirdPct)) : 0;
     const fourthDownTerm = oppFourthPct != null ? Math.min(25, Math.max(0, 70 - oppFourthPct)) : 0;
-    return redZoneTerm + takeawayTerm + thirdDownTerm + fourthDownTerm;
+    const raw = redZoneTerm + takeawayTerm + thirdDownTerm + fourthDownTerm;
+    return raw * coverageMultiplier(games, game);
   }
   return 0;
 }
@@ -243,7 +265,7 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
   for (const [userId, rows] of byUser.entries()) {
     const teamId = rows.find((row) => row.team_id)?.team_id ?? null;
     for (const definition of TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game))) {
-      const value = evalTeamStat(definition.statKey, rows);
+      const value = evalTeamStat(definition.statKey, rows, game);
       const tier = evaluatePayoutTier(value, definition.tiers);
       if (!tier) continue;
       items.push({
@@ -403,7 +425,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   const rows = statsRows.data ?? [];
 
   const teamStats: EosPayoutProgressCard[] = TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
-    const value = evalTeamStat(definition.statKey, rows);
+    const value = evalTeamStat(definition.statKey, rows, game);
     return {
       key: definition.key,
       label: definition.label,

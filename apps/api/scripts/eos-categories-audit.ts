@@ -57,7 +57,7 @@ async function run() {
       let none = 0;
       const perTeam: Array<{ team: string; tier: string; value: number }> = [];
       for (const [userId, rows] of byUser.entries()) {
-        const value = evalTeamStat(definition.statKey, rows);
+        const value = evalTeamStat(definition.statKey, rows, game as any);
         const tier = evaluatePayoutTier(value, definition.tiers);
         const teamId = rows.find((r: any) => r.team_id)?.team_id ?? null;
         const team = teamId ? (teamNameById.get(teamId) ?? teamId.slice(0, 8)) : userId.slice(0, 8);
