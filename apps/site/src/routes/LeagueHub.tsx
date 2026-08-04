@@ -131,8 +131,27 @@ class HubErrorBoundary extends Component<
   }
 }
 
-/** Sync /l/:id/{buzz|matchups|team|store} into HubHome search params (parent BrowserRouter). */
-function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
+const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt">, string> = {
+  buzz: "buzz", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
+};
+
+function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt"> | null {
+  if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
+  if (section === "team") return "team";
+  if (section === "store") return "store";
+  if (section === "wagers") return "wagers";
+  if (section === "roster") return "roster";
+  if (section === "trades") return "trades";
+  if (section === "league") return "buzz";
+  return null;
+}
+
+/** Sync /l/:id/{buzz|matchups|team|store} into HubHome search params (parent BrowserRouter).
+ * Bidirectional: a quick-action button inside HubHome that only changes `?section=` (never
+ * touches the path) used to get instantly reverted back to whatever the current path implied —
+ * navigate to the matching path instead of stomping the query string when that happens. */
+function HubHomeBridge({ view, leagueId }: { view: Exclude<HubView, "mgmt">; leagueId: string }) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const desired = useMemo(() => {
     if (view === "matchups") return { section: "league", subTab: "matchups" };
@@ -153,11 +172,17 @@ function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
         ? subTab == null || subTab === ""
         : subTab === desired.subTab;
     if (sectionOk && subOk) return;
+
+    const impliedView = viewFromQuery(section, subTab);
+    if (impliedView && impliedView !== view) {
+      navigate(`/l/${leagueId}/${VIEW_PATH_SEGMENT[impliedView]}`, { replace: true });
+      return;
+    }
     const next = new URLSearchParams();
     next.set("section", desired.section);
     if (desired.subTab) next.set("subTab", desired.subTab);
     setSearchParams(next, { replace: true });
-  }, [desired, searchParams, setSearchParams]);
+  }, [desired, searchParams, setSearchParams, navigate, leagueId, view]);
 
   return <HubHome />;
 }
@@ -319,7 +344,7 @@ export function LeagueHubPage() {
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />
                   ) : (
-                    <HubHomeBridge view={view} />
+                    <HubHomeBridge view={view} leagueId={leagueId} />
                   )}
                 </HubErrorBoundary>
                 <UniversalChatDrawer guildId={context.guildId} discordId={context.discordId} />
