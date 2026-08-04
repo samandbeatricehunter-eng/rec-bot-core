@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { ANALYST_META, type AnalystVoice } from "./roundtable-take-bank.js";
+import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
 const GAME_LABELS: Record<string, string> = { cfb_27: "CFB 27", madden_26: "Madden 26", madden_27: "Madden 27" };
 function gameLabelFor(game: string): string {
@@ -70,8 +71,12 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
     // Power rankings are supplementary context — a failure here shouldn't block the prompt.
   }
 
+  const hostOverrides = await loadHostOverridesForLeague(context.leagueId);
   const cast = (Object.keys(ANALYST_META) as AnalystVoice[])
-    .map((voice) => `- ${ANALYST_META[voice].speaker} (${ANALYST_META[voice].role}): ${ASSIGNMENTS[voice]}`)
+    .map((voice) => {
+      const meta = hostOverrides[voice] ?? ANALYST_META[voice];
+      return `- ${meta.speaker} (${meta.role}): ${ASSIGNMENTS[voice]}`;
+    })
     .join("\n");
 
   const prompt = [

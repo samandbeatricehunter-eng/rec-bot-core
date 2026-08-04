@@ -1,4 +1,4 @@
-import { selectRoundtableTakes } from "./roundtable-take-bank.js";
+import { selectRoundtableTakes, type AnalystMetaOverrides } from "./roundtable-take-bank.js";
 
 export type RoundtablePanelist = { speaker: string; role: string; take: string };
 
@@ -11,6 +11,7 @@ export function buildRoundtableDiscussion(input: {
   body: string;
   notes?: string[];
   statsSummary?: string[];
+  hostOverrides?: AnalystMetaOverrides;
 }): RoundtablePanelist[] {
   const corpus = [
     input.headline,
@@ -20,5 +21,5 @@ export function buildRoundtableDiscussion(input: {
   ]
     .filter(Boolean)
     .join(" ");
-  return selectRoundtableTakes(corpus);
+  return selectRoundtableTakes(corpus, input.hostOverrides);
 }

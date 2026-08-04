@@ -234,7 +234,84 @@ export function PublishingHome() {
           </div>
         )}
       </Card>
+      <RoundtableHostsCard />
       <CommissionerPollsCard />
     </div>
   </div>;
+}
+
+function RoundtableHostsCard() {
+  const { guildId } = useReadyAuth();
+  const [hosts, setHosts] = useState<Array<{ voice: string; displayName: string; role: string; personalityKey: string | null; isCustom: boolean }> | null>(null);
+  const [personalities, setPersonalities] = useState<Array<{ key: string; label: string; description: string }>>([]);
+  const [drafts, setDrafts] = useState<Record<string, { displayName: string; personalityKey: string }>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const result = await recApi.getRoundtableHostConfig(guildId);
+      setHosts(result.hosts);
+      setPersonalities(result.personalities);
+      setDrafts(Object.fromEntries(result.hosts.map((h) => [h.voice, { displayName: h.displayName, personalityKey: h.personalityKey ?? result.personalities[0]?.key ?? "" }])));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to load roundtable hosts."); }
+  }
+
+  useEffect(() => { void load(); }, [guildId]);
+
+  async function save(voice: string) {
+    setBusy(voice); setError(null);
+    try {
+      const draft = drafts[voice];
+      await recApi.updateRoundtableHost({ guildId, voice, displayName: draft.displayName, personalityKey: draft.personalityKey });
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to save host."); }
+    finally { setBusy(null); }
+  }
+
+  async function reset(voice: string) {
+    setBusy(voice); setError(null);
+    try { await recApi.resetRoundtableHost({ guildId, voice }); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to reset host."); }
+    finally { setBusy(null); }
+  }
+
+  async function randomizeName(voice: string) {
+    setBusy(voice); setError(null);
+    try {
+      const result = await recApi.generateRoundtableHostName({ guildId, seed: `${voice}:${Date.now()}` });
+      setDrafts((current) => ({ ...current, [voice]: { ...current[voice], displayName: result.fullName } }));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to generate a name."); }
+    finally { setBusy(null); }
+  }
+
+  if (!hosts) return null;
+  return <Card>
+    <h2>Roundtable Hosts</h2>
+    <p className="form-hint">
+      Rename any of the 4 roundtable voices and assign them a personality — real-world sports analyst names are blocked.
+      Their underlying take style stays the same; only the byline and persona label change.
+    </p>
+    {error && <ErrorState message={error} />}
+    <div style={{ display: "grid", gap: "var(--space-3)" }}>
+      {hosts.map((host) => {
+        const draft = drafts[host.voice] ?? { displayName: host.displayName, personalityKey: "" };
+        return <div key={host.voice} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", gap: "var(--space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="form-field" style={{ minWidth: 180 }}>
+            <label className="form-label">Name ({host.voice})</label>
+            <input className="form-input" maxLength={60} value={draft.displayName} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, displayName: event.target.value } }))} />
+          </div>
+          <div className="form-field" style={{ minWidth: 220 }}>
+            <label className="form-label">Personality</label>
+            <select className="form-select" value={draft.personalityKey} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, personalityKey: event.target.value } }))}>
+              {personalities.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+            </select>
+          </div>
+          <Button variant="secondary" disabled={busy === host.voice} onClick={() => void randomizeName(host.voice)}>Random Name</Button>
+          <Button variant="tactical" disabled={busy === host.voice || !draft.displayName.trim()} onClick={() => void save(host.voice)}>{busy === host.voice ? "Saving…" : "Save"}</Button>
+          {host.isCustom && <Button variant="secondary" disabled={busy === host.voice} onClick={() => void reset(host.voice)}>Reset to Default</Button>}
+        </div>;
+      })}
+    </div>
+  </Card>;
 }

@@ -10,6 +10,8 @@ export * from "./league-stage.js";
 export * from "./discord-roles.js";
 export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
+export * from "./roundtable-personalities.js";
+export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
 export * from "./madden/index.js";
 

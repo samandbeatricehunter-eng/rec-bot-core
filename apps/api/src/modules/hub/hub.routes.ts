@@ -7,6 +7,7 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getMatchupPreview } from "./matchup-preview.service.js";
 import { buildArticlePromptDigest } from "./article-prompt.service.js";
+import { generateRoundtableHostName, getRoundtableHostConfig, resetRoundtableHost, updateRoundtableHost } from "./roundtable-hosts.service.js";
 import {
   addHubStoryComment,
   cancelGameOfWeekVoting,
@@ -170,6 +171,39 @@ export async function hubRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), weekFrom: z.number().int().min(0), weekTo: z.number().int().min(0) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await buildArticlePromptDigest(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/roundtable-hosts", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(await getRoundtableHostConfig(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/roundtable-hosts/update", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), voice: z.enum(["caleb", "maya", "theo", "nina"]), displayName: z.string().min(1).max(60), personalityKey: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Roundtable host management requires a website session.");
+      return reply.send(await updateRoundtableHost({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/roundtable-hosts/reset", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), voice: z.enum(["caleb", "maya", "theo", "nina"]) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await resetRoundtableHost(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/roundtable-hosts/generate-name", async (request, reply) => {
+    try {
+      const { guildId, seed } = z.object({ guildId: z.string().min(1), seed: z.string().min(1).max(200) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(generateRoundtableHostName(seed));
     } catch (error) { return sendError(reply, error); }
   });
 

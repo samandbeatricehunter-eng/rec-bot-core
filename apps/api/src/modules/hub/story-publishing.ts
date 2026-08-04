@@ -5,6 +5,7 @@ import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { formatInterviewBody } from "./interview-headlines.js";
+import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
 // Mirrors an auto-generated headline/article to the guild's configured Headlines channel
 // (Platinum Discord-bot add-on). Shared by every generated-story path in this file.
@@ -40,7 +41,8 @@ export async function publishTransitionStory(input: {
   const season = Number(context.rec_leagues.season_number ?? 1);
   const week = Number(context.rec_leagues.current_week ?? 1);
   const storyType = input.storyType ?? "headline";
-  const roundtable = storyType === "article" ? buildRoundtableDiscussion({ headline: input.headline, body: input.body }) : null;
+  const hostOverrides = storyType === "article" ? await loadHostOverridesForLeague(context.leagueId) : undefined;
+  const roundtable = storyType === "article" ? buildRoundtableDiscussion({ headline: input.headline, body: input.body, hostOverrides }) : null;
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(), league_id: context.leagueId, season, week, game_id: null,
     primary_angle: input.primaryAngle, headline: input.headline, body: input.body,
@@ -58,14 +60,16 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     submission.submission_type === "interview" && interviewAnswers.length
       ? formatInterviewBody(interviewAnswers)
       : submission.body;
+  const hostOverrides = await loadHostOverridesForLeague(submission.league_id);
   const roundtable =
     submission.submission_type === "interview"
       ? buildRoundtableDiscussion({
           headline: submission.title,
           body,
           notes: interviewAnswers.map((a) => a.answer),
+          hostOverrides,
         })
-      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
+      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body, hostOverrides });
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,

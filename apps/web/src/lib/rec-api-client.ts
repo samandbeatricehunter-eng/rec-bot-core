@@ -187,6 +187,14 @@ export const recApi = {
     recApiFetch<{ recorded: true }>("/v1/hub/announcements/publish", { method: "POST", body: JSON.stringify(input) }),
   getArticlePromptDigest: (input: { guildId: string; weekFrom: number; weekTo: number }) =>
     recApiFetch<{ prompt: string; resultCount: number }>("/v1/hub/publishing/article-prompt", { method: "POST", body: JSON.stringify(input) }),
+  getRoundtableHostConfig: (guildId: string) =>
+    recApiFetch<{ hosts: Array<{ voice: string; displayName: string; role: string; personalityKey: string | null; isCustom: boolean }>; personalities: Array<{ key: string; label: string; description: string }> }>("/v1/hub/publishing/roundtable-hosts", { method: "POST", body: JSON.stringify({ guildId }) }),
+  updateRoundtableHost: (input: { guildId: string; voice: string; displayName: string; personalityKey: string }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/publishing/roundtable-hosts/update", { method: "POST", body: JSON.stringify(input) }),
+  resetRoundtableHost: (input: { guildId: string; voice: string }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/publishing/roundtable-hosts/reset", { method: "POST", body: JSON.stringify(input) }),
+  generateRoundtableHostName: (input: { guildId: string; seed: string }) =>
+    recApiFetch<{ fullName: string }>("/v1/hub/publishing/roundtable-hosts/generate-name", { method: "POST", body: JSON.stringify(input) }),
   createCommissionerPoll: (input: { guildId: string; discordId: string; question: string; options: string[]; durationHours: number }) =>
     recApiFetch<CommissionerPoll>("/v1/polls/create", { method: "POST", body: JSON.stringify(input) }),
   listCommissionerPolls: (input: { guildId: string }) =>
