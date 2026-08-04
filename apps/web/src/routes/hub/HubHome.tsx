@@ -211,9 +211,12 @@ function DefenseNicknamePrompt() {
   </div>;
 }
 
+const TIER_ORDER = ["S", "A", "B", "C", "D"] as const;
+
 function EosPayoutProgressPanel() {
   const { guildId, discordId } = useReadyAuth();
   const [progress, setProgress] = useState<MyEosPayoutProgress | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     recApi.getMyEosPayoutProgress({ guildId, discordId }).then(setProgress).catch(() => setProgress(null));
@@ -226,13 +229,31 @@ function EosPayoutProgressPanel() {
     {cards.map((card) => {
       const tierLabel = card.progress.currentTier ? `Tier ${card.progress.currentTier} · ${coinsNumber(card.progress.currentAmount)}` : "No tier yet";
       const nextLabel = card.progress.nextTier ? `Next: Tier ${card.progress.nextTier.tier} (${coinsNumber(card.progress.nextTier.amount)})` : "Top tier reached";
-      return <article key={card.key} className="hub-eos-progress-card">
+      const expanded = expandedKey === card.key;
+      const sortedTiers = [...card.tiers].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+      return <article key={card.key} className="hub-eos-progress-card" onClick={() => setExpandedKey(expanded ? null : card.key)} role="button" tabIndex={0}>
         <div className="hub-eos-progress-card-head">
           <strong>{card.label}</strong>
           <span>{"rank" in card && card.rank != null ? `Rank ${card.rank}` : card.currentValue}</span>
         </div>
         <div className="hub-eos-progress-bar"><div className="hub-eos-progress-bar-fill" style={{ width: `${card.progress.percent}%` }} /></div>
         <div className="hub-eos-progress-card-foot"><span>{tierLabel}</span><span>{nextLabel}</span></div>
+        {expanded && <div className="hub-eos-progress-tiers" onClick={(event) => event.stopPropagation()}>
+          <table>
+            <thead><tr><th>Tier</th><th>Threshold</th><th>Payout</th></tr></thead>
+            <tbody>
+              {sortedTiers.map((tier) => (
+                <tr key={tier.tier} className={card.progress.currentTier === tier.tier ? "hub-eos-progress-tier-active" : ""}>
+                  <td>{tier.tier}</td>
+                  <td>{tier.operator === "greater_or_equal" ? "≥ " : tier.operator === "less_or_equal" ? "≤ " : "< "}{tier.threshold}</td>
+                  <td><CoinAmount amount={tier.amount} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {card.triggerNote && <p className="hub-eos-progress-note">{card.triggerNote}</p>}
+          {card.currentAwardedName !== undefined && card.currentAwardedName && <p className="hub-eos-progress-note">Currently named: <strong>{card.currentAwardedName}</strong></p>}
+        </div>}
       </article>;
     })}
   </div>;

@@ -1,10 +1,10 @@
-import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress } from "@rec/shared";
+import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress, type RecPayoutTierRule } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
-import { qualifyDefenseNickname } from "./defense-nicknames.service.js";
+import { qualifyDefenseNickname, getMyDefenseNicknameStatus } from "./defense-nicknames.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 
@@ -399,6 +399,10 @@ export type EosPayoutProgressCard = {
   label: string;
   currentValue: number;
   progress: RecTierProgress;
+  tiers: RecPayoutTierRule[];
+  direction: "higher_is_better" | "lower_is_better";
+  triggerNote?: string;
+  currentAwardedName?: string | null;
 };
 
 // Per-coach, always-on (not postseason-gated) view of where they currently stand against each
@@ -424,6 +428,8 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   if (statsRows.error) throw new ApiError(500, "Failed to load your season stats.", statsRows.error);
   const rows = statsRows.data ?? [];
 
+  const defenseNickname = await getMyDefenseNicknameStatus(input.guildId, input.discordId).catch(() => null);
+
   const teamStats: EosPayoutProgressCard[] = TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
     const value = evalTeamStat(definition.statKey, rows, game);
     return {
@@ -431,6 +437,10 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
       label: definition.label,
       currentValue: Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
       progress: computeTierProgress(value, definition.tiers, definition.direction),
+      tiers: definition.tiers,
+      direction: definition.direction,
+      triggerNote: definition.triggerNote,
+      currentAwardedName: definition.key === "defense_needs_a_name" ? (defenseNickname?.nickname ?? null) : undefined,
     };
   });
 
@@ -446,6 +456,8 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
         label: RANK_DEFINITION.label,
         currentValue: rank,
         progress: computeTierProgress(rank, RANK_DEFINITION.tiers, RANK_DEFINITION.direction),
+        tiers: RANK_DEFINITION.tiers,
+        direction: RANK_DEFINITION.direction,
         rank,
       };
     }

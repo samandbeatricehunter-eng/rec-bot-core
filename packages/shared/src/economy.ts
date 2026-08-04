@@ -19,6 +19,9 @@ export type RecEndSeasonPayoutDefinition = {
   tiers: RecPayoutTierRule[];
   /** Games this category applies to. Omit for shared/game-agnostic categories. */
   games?: string[];
+  /** Extra qualification note shown in the payout tooltip — e.g. a category with a special
+   * one-time trigger/side-effect beyond just clearing the tier bar. */
+  triggerNote?: string;
 };
 
 /** True if `definition` applies to `game` — no `games` list means shared across every game. */
@@ -95,7 +98,7 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // rb_workhorse_score is per-game (converted 2026-08-03), so its bar was recalibrated from 140
   // (a season-total scale) down to 85 for a per-game scale.
   { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 85, amount: 200, operator: "greater_or_equal" }] },
-  { key: "defense_needs_a_name", label: "This Defense Needs a Name", scope: "team", direction: "higher_is_better", statKey: "defense_identity_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" }] },
+  { key: "defense_needs_a_name", label: "This Defense Needs a Name", scope: "team", direction: "higher_is_better", statKey: "defense_identity_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" }], triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying." },
 ];
 
 function tierMatches(rule: RecPayoutTierRule, value: number): boolean {
