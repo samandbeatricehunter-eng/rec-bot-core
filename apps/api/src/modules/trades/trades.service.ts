@@ -1,8 +1,10 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { publishTransitionStory } from "../hub/story-publishing.js";
 
 const MAX_LEGS_PER_SIDE = 7;
 
@@ -32,6 +34,24 @@ async function userForTeam(leagueId: string, teamId: string) {
 async function walletBalance(userId: string) {
   const wallet = await supabase.from("rec_wallets").select("wallet_balance").eq("user_id", userId).maybeSingle();
   return Number(wallet.data?.wallet_balance ?? 0);
+}
+
+// Best-effort — a trade/listing must never fail because the commissioner hasn't set up a
+// trade-block channel, or because Discord is briefly unreachable.
+async function postToTradeBlockChannel(leagueId: string, payload: Record<string, unknown>) {
+  try {
+    const linked = await findServerRoutesForLeague(leagueId);
+    const channelId = linked?.routes?.trade_block_channel_id as string | null | undefined;
+    if (!channelId) return;
+    await postDiscordChannelMessage(channelId, payload);
+  } catch (err) {
+    console.error("[ERROR] Failed to post to trade block channel (non-fatal):", err);
+  }
+}
+
+async function teamLabel(leagueId: string, teamId: string) {
+  const team = await supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("league_id", leagueId).eq("id", teamId).maybeSingle();
+  return team.data?.name ?? team.data?.display_abbr ?? team.data?.abbreviation ?? "A team";
 }
 
 async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) {
@@ -120,6 +140,17 @@ export async function proposeTrade(input: {
 
   await supabase.from("rec_trade_audit_log").insert({ trade_id: trade.data.id, action: "proposed", actor_user_id: userId, actor_discord_id: input.discordId, next_status: "pending_response" });
 
+  {
+    const [proposingName, receivingName] = await Promise.all([teamLabel(context.leagueId, proposingTeamId), teamLabel(context.leagueId, input.receivingTeamId)]);
+    void postToTradeBlockChannel(context.leagueId, {
+      embeds: [{
+        title: "Trade Proposed",
+        color: 0x2f8fdb,
+        description: `**${proposingName}** proposed a trade with **${receivingName}**${receivingUserId ? "" : " (CPU)"}.`,
+      }],
+    });
+  }
+
   // No GM on the other side to respond — a CPU-side proposal skips straight to review/auto-apply.
   if (!receivingUserId) {
     return finalizeAcceptedTrade(trade.data.id, effectivePolicy, input.guildId, context.leagueId);
@@ -151,12 +182,41 @@ export async function respondToTrade(input: { guildId: string; discordId: string
   return finalizeAcceptedTrade(trade.data.id, trade.data.approval_policy_snapshot, input.guildId, context.leagueId);
 }
 
+// Fires once, at the moment a trade actually moves players/picks — not on propose/accept —
+// so the league only hears about deals that are actually final. Best-effort: a failure here
+// must never undo an already-applied trade.
+async function announceAppliedTrade(guildId: string, leagueId: string, tradeId: string) {
+  try {
+    const trade = await supabase.from("rec_trades").select("proposing_team_id,receiving_team_id").eq("id", tradeId).maybeSingle();
+    if (!trade.data) return;
+    const legs = await supabase.from("rec_trade_legs").select("leg_type,player_id,draft_pick_id,from_team_id,to_team_id").eq("trade_id", tradeId);
+    const [proposingName, receivingName] = await Promise.all([
+      teamLabel(leagueId, trade.data.proposing_team_id),
+      teamLabel(leagueId, trade.data.receiving_team_id),
+    ]);
+    const playerIds = (legs.data ?? []).filter((l: any) => l.leg_type === "player").map((l: any) => l.player_id);
+    const players = playerIds.length ? await supabase.from("rec_players").select("id,full_name").in("id", playerIds) : { data: [] as any[] };
+    const nameByPlayer = new Map((players.data ?? []).map((p: any) => [p.id, p.full_name]));
+    const toLine = (l: any) => {
+      const label = l.leg_type === "player" ? (nameByPlayer.get(l.player_id) ?? "a player") : "a draft pick";
+      return `${label} (${l.from_team_id === trade.data!.proposing_team_id ? proposingName : receivingName} → ${l.to_team_id === trade.data!.proposing_team_id ? proposingName : receivingName})`;
+    };
+    const lines = (legs.data ?? []).map(toLine);
+    const body = lines.length ? `Trade confirmed between **${proposingName}** and **${receivingName}**:\n\n${lines.map((l) => `- ${l}`).join("\n")}` : `Trade confirmed between **${proposingName}** and **${receivingName}**.`;
+    await publishTransitionStory({ guildId, headline: `${proposingName} and ${receivingName} agree to a trade`, body, primaryAngle: "trade" });
+    void postToTradeBlockChannel(leagueId, { embeds: [{ title: "Trade Confirmed", color: 0x2fb86a, description: body.slice(0, 4096) }] });
+  } catch (err) {
+    console.error("[ERROR] Failed to announce applied trade (non-fatal):", err);
+  }
+}
+
 async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, guildId: string, leagueId: string) {
   const now = new Date().toISOString();
   if (approvalPolicy === "no_approval_required") {
     await supabase.from("rec_trades").update({ status: "accepted", accepted_at: now, updated_at: now }).eq("id", tradeId);
     const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: "Auto-applied — no approval required" });
     if (applied.error) throw new ApiError(500, "Trade was accepted but could not be applied.", applied.error);
+    void announceAppliedTrade(guildId, leagueId, tradeId);
     return { status: "applied" };
   }
   await supabase.from("rec_trades").update({ status: "pending_review", accepted_at: now, updated_at: now }).eq("id", tradeId);
@@ -199,7 +259,58 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: trade.data.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note ?? null });
   if (applied.error) throw new ApiError(500, "Failed to apply trade.", applied.error);
+  void announceAppliedTrade(input.guildId, context.leagueId, trade.data.id);
   return { status: "applied" };
+}
+
+export async function listTradeBlockPlayers(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const players = await supabase.from("rec_players").select("id,full_name,position,overall_rating,team_id,trade_block_note,trade_block_listed_at")
+    .eq("league_id", context.leagueId).eq("on_trade_block", true).order("trade_block_listed_at", { ascending: false });
+  if (players.error) throw new ApiError(500, "Failed to load the trade block.", players.error);
+  const teamIds = [...new Set((players.data ?? []).map((p: any) => p.team_id).filter(Boolean))] as string[];
+  const names = teamIds.length ? await teamNames(context.leagueId, teamIds) : new Map<string, string>();
+  return (players.data ?? []).map((p: any) => ({
+    id: p.id, fullName: p.full_name, position: p.position, overallRating: p.overall_rating,
+    teamId: p.team_id, teamName: names.get(p.team_id) ?? "Unassigned",
+    note: p.trade_block_note, listedAt: p.trade_block_listed_at,
+  }));
+}
+
+async function teamNames(leagueId: string, teamIds: string[]) {
+  const teams = await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", leagueId).in("id", teamIds);
+  return new Map((teams.data ?? []).map((t: any) => [t.id, t.name ?? t.display_abbr ?? t.abbreviation]));
+}
+
+export async function setPlayerTradeBlock(input: { guildId: string; discordId: string; playerId: string; listed: boolean; note?: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  const player = await supabase.from("rec_players").select("id,team_id,full_name,roster_status").eq("id", input.playerId).eq("league_id", context.leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
+  if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
+  const myTeamId = await teamForUser(context.leagueId, userId ?? "");
+  if (player.data.team_id !== myTeamId) throw new ApiError(403, "Only that player's own coach can manage their trade-block listing.");
+
+  const now = new Date().toISOString();
+  const updated = await supabase.from("rec_players").update({
+    on_trade_block: input.listed,
+    trade_block_note: input.listed ? (input.note?.trim() || null) : null,
+    trade_block_listed_at: input.listed ? now : null,
+  }).eq("id", input.playerId).select("id,full_name").single();
+  if (updated.error) throw new ApiError(500, "Failed to update trade-block listing.", updated.error);
+
+  if (input.listed) {
+    const label = await teamLabel(context.leagueId, player.data.team_id);
+    void postToTradeBlockChannel(context.leagueId, {
+      embeds: [{
+        title: "Player Added to Trade Block",
+        color: 0xd9a521,
+        description: `**${player.data.full_name}** (${label})${input.note ? ` — ${input.note}` : ""}`,
+      }],
+    });
+  }
+  return updated.data;
 }
 
 export async function listMyTrades(guildId: string, discordId: string) {

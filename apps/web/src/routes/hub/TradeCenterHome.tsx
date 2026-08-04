@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { Trade, TradeLegInput, TeamRosterResponse } from "../../types/api.js";
+import type { Trade, TradeLegInput, TeamRosterResponse, RosterPlayer } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 
@@ -75,6 +75,71 @@ function statusLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+type TradeBlockEntry = { id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null };
+
+function TradeBlockSection({
+  guildId,
+  myTeamId,
+  myPlayers,
+  tradeBlock,
+  busy,
+  onRemove,
+  onChanged,
+}: {
+  guildId: string;
+  myTeamId: string;
+  myPlayers: RosterPlayer[];
+  tradeBlock: TradeBlockEntry[] | null;
+  busy: boolean;
+  onRemove: (playerId: string) => void;
+  onChanged: () => void;
+}) {
+  const [listing, setListing] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const listedIds = new Set((tradeBlock ?? []).filter((p) => p.teamId === myTeamId).map((p) => p.id));
+
+  async function add(playerId: string) {
+    await recApi.setPlayerTradeBlock({ guildId, playerId, listed: true, note: note.trim() || undefined });
+    setListing(null);
+    setNote("");
+    onChanged();
+  }
+
+  return (
+    <section className="hub-trade-block">
+      <h3>Trade Block ({(tradeBlock ?? []).length})</h3>
+      {(tradeBlock ?? []).length === 0 && <p className="hub-empty">No players on the trade block right now.</p>}
+      {(tradeBlock ?? []).map((player) => (
+        <div key={player.id} className="hub-trade-row">
+          <span><strong>{player.fullName}</strong> · {player.position} · {player.overallRating ?? "—"} OVR · {player.teamName}{player.note ? ` — ${player.note}` : ""}</span>
+          {player.teamId === myTeamId && (
+            <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => onRemove(player.id)}>Remove</button>
+          )}
+        </div>
+      ))}
+
+      <h4>Put one of your players on the block</h4>
+      <div className="hub-trade-asset-list">
+        {myPlayers.filter((p) => !listedIds.has(p.id)).map((player) => (
+          <div key={player.id} className="hub-trade-asset-row">
+            <span>{player.fullName}</span>
+            <span className="hub-trade-asset-meta">{player.position} · {player.overallRating ?? "—"} OVR</span>
+            {listing === player.id ? (
+              <>
+                <input className="form-input" placeholder="Optional note" value={note} onChange={(event) => setNote(event.target.value)} style={{ maxWidth: 160 }} />
+                <button type="button" className="btn btn-secondary btn-compact" onClick={() => void add(player.id)}>Confirm</button>
+                <button type="button" className="btn btn-secondary btn-compact" onClick={() => { setListing(null); setNote(""); }}>Cancel</button>
+              </>
+            ) : (
+              <button type="button" className="btn btn-secondary btn-compact" onClick={() => setListing(player.id)}>List</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function TradeCenterHome() {
   const { guildId } = useReadyAuth();
   const hub = useHubChrome();
@@ -90,6 +155,7 @@ export function TradeCenterHome() {
   const [requestedCoins, setRequestedCoins] = useState(0);
   const [myTrades, setMyTrades] = useState<Trade[] | null>(null);
   const [reviewTrades, setReviewTrades] = useState<Trade[] | null>(null);
+  const [tradeBlock, setTradeBlock] = useState<Array<{ id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null }> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -98,6 +164,7 @@ export function TradeCenterHome() {
     recApi.getTeamRoster({ guildId }).then(setMyRoster).catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
     recApi.listTradeableTeams(guildId).then(setTeams).catch(() => undefined);
     recApi.getMyTrades(guildId).then((r) => setMyTrades(r.trades)).catch(() => undefined);
+    recApi.listTradeBlockPlayers(guildId).then(setTradeBlock).catch(() => undefined);
     if (isCommissioner) recApi.getPendingReviewTrades(guildId).then((r) => setReviewTrades(r.trades)).catch(() => undefined);
   }
 
@@ -183,6 +250,18 @@ export function TradeCenterHome() {
     }
   }
 
+  async function removeFromTradeBlock(playerId: string) {
+    setBusy(true);
+    try {
+      await recApi.setPlayerTradeBlock({ guildId, playerId, listed: false });
+      loadCore();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update trade-block listing.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error && !myRoster) return <ErrorState message={error} />;
   if (!myRoster) return <LoadingState label="Loading Trade Center…" />;
 
@@ -237,6 +316,8 @@ export function TradeCenterHome() {
           Propose Trade
         </button>
       </section>
+
+      <TradeBlockSection guildId={guildId} myTeamId={myRoster.team.id} myPlayers={myRoster.players.filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in")} tradeBlock={tradeBlock} busy={busy} onRemove={removeFromTradeBlock} onChanged={loadCore} />
 
       {isCommissioner && reviewTrades && reviewTrades.length > 0 && (
         <section className="hub-trade-review">

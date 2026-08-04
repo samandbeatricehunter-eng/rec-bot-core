@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { getTradeDetail, listMyTrades, listPendingReviewTrades, listTradeableTeams, proposeTrade, respondToTrade, reviewTrade, withdrawTrade } from "./trades.service.js";
+import { getTradeDetail, listMyTrades, listPendingReviewTrades, listTradeableTeams, listTradeBlockPlayers, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade } from "./trades.service.js";
 
 const LegSchema = z.union([
   z.object({ type: z.literal("player"), playerId: z.string().uuid() }),
@@ -72,6 +72,23 @@ export async function tradesRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
       return reply.send(await listTradeableTeams(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/trade-block/list", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await listTradeBlockPlayers(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/trade-block/set", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), playerId: z.string().uuid(), listed: z.boolean(), note: z.string().max(200).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Trade-block management is website-only.");
+      return reply.send(await setPlayerTradeBlock({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

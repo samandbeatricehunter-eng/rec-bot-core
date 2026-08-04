@@ -52,6 +52,12 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "gameChannelsCategoryId",
     dbField: "game_channels_category_id",
   },
+  trade_block: {
+    label: "Trade Block (Madden)",
+    defaultName: "trade-block",
+    inputField: "tradeBlockChannelId",
+    dbField: "trade_block_channel_id",
+  },
 } as const;
 
 export type RecRouteChannelKey = keyof typeof REC_ROUTE_CHANNELS;

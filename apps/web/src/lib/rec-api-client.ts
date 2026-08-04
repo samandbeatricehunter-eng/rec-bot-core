@@ -292,6 +292,10 @@ export const recApi = {
     recApiFetch<{ trade: Trade; legs: TradeLeg[] }>("/v1/trades/detail", { method: "POST", body: JSON.stringify(input) }),
   listTradeableTeams: (guildId: string) =>
     recApiFetch<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>("/v1/trades/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listTradeBlockPlayers: (guildId: string) =>
+    recApiFetch<Array<{ id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null; listedAt: string | null }>>("/v1/trades/trade-block/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setPlayerTradeBlock: (input: { guildId: string; playerId: string; listed: boolean; note?: string }) =>
+    recApiFetch<{ id: string; full_name: string }>("/v1/trades/trade-block/set", { method: "POST", body: JSON.stringify(input) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: {

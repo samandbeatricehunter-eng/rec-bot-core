@@ -24,7 +24,8 @@ const SetConfigSchema = z.object({
   highlightsChannelId: z.string().optional().nullable(),
   announcementsChannelId: z.string().optional().nullable(),
   commissionerRoleId: z.string().optional().nullable(),
-  compCommitteeRoleId: z.string().optional().nullable()
+  compCommitteeRoleId: z.string().optional().nullable(),
+  tradeBlockChannelId: z.string().optional().nullable()
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
