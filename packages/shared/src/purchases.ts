@@ -27,19 +27,54 @@ export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
 export const REC_LEGEND_PRICE = 2000;
 
-export type RecDevTier = "normal" | "star" | "superstar" | "xfactor";
-export const REC_DEV_TIER_ORDER: RecDevTier[] = ["normal", "star", "superstar", "xfactor"];
+// Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
+// CFB's stored dev_trait values order normal < impact < star < elite (matches
+// REC_DEV_TRAITS.CFB in packages/shared/src/player-builder/catalog.ts, the custom-player
+// builder's source of truth for these same tier keys).
+export type RecDevTier = "normal" | "star" | "superstar" | "xfactor" | "impact" | "elite";
+export const REC_DEV_TIER_ORDER_BY_GAME: Record<"CFB" | "MADDEN", RecDevTier[]> = {
+  CFB: ["normal", "impact", "star", "elite"],
+  MADDEN: ["normal", "star", "superstar", "xfactor"],
+};
 export const REC_DEV_TIER_LABELS: Record<RecDevTier, string> = {
   normal: "Normal",
   star: "Star",
   superstar: "Superstar",
   xfactor: "X-Factor",
+  impact: "Impact",
+  elite: "Elite",
 };
-// Price to upgrade INTO a tier (one tier per purchase).
-export const REC_DEV_UPGRADE_PRICE: Record<Exclude<RecDevTier, "normal">, number> = {
-  star: 250,
-  superstar: 750,
-  xfactor: 1000,
+export function devTierOrderForGame(game: string): RecDevTier[] {
+  return REC_DEV_TIER_ORDER_BY_GAME[game === "cfb_27" ? "CFB" : "MADDEN"];
+}
+/** @deprecated Madden-only — use devTierOrderForGame(game) instead. */
+export const REC_DEV_TIER_ORDER: RecDevTier[] = REC_DEV_TIER_ORDER_BY_GAME.MADDEN;
+
+// A single-tier step costs 500 coins; the final step into the top tier (X-Factor/Elite)
+// costs 1500. Multi-tier purchases (e.g. Normal straight to Elite) compound: sum every step
+// crossed in one purchase.
+const DEV_UPGRADE_STEP_PRICE = 500;
+const DEV_UPGRADE_TOP_TIER_STEP_PRICE = 1500;
+
+/** Coin cost to go from `fromTier` to `toTier` in one purchase, compounding every step
+ * crossed. Returns 0 if the tiers are equal or `toTier` isn't higher than `fromTier`. */
+export function priceForDevUpgradeSteps(game: string, fromTier: RecDevTier, toTier: RecDevTier): number {
+  const order = devTierOrderForGame(game);
+  const fromIndex = order.indexOf(fromTier);
+  const toIndex = order.indexOf(toTier);
+  if (fromIndex === -1 || toIndex === -1 || toIndex <= fromIndex) return 0;
+  let total = 0;
+  for (let i = fromIndex + 1; i <= toIndex; i++) {
+    total += i === order.length - 1 ? DEV_UPGRADE_TOP_TIER_STEP_PRICE : DEV_UPGRADE_STEP_PRICE;
+  }
+  return total;
+}
+/** @deprecated Madden-only flat per-target-tier price — kept only for any stale callers still
+ * reading it directly; use priceForDevUpgradeSteps(game, fromTier, toTier) instead. */
+export const REC_DEV_UPGRADE_PRICE: Record<Exclude<RecDevTier, "normal" | "impact" | "elite">, number> = {
+  star: 500,
+  superstar: 500,
+  xfactor: 1500,
 };
 
 export type RecContractVariant = "salary_bonus_reduction" | "extension";
@@ -53,7 +88,7 @@ export const REC_CONTRACT_PRICE: Record<RecContractVariant, number> = {
 };
 
 // Flat per-point attribute prices.
-export const REC_ATTRIBUTE_POINT_PRICE = { core: 100, non_core: 50 } as const;
+export const REC_ATTRIBUTE_POINT_PRICE = { core: 200, non_core: 100 } as const;
 
 export type RecCustomPlayerPackage = "bronze" | "silver" | "gold";
 export const REC_CUSTOM_PLAYER_PACKAGE_LABELS: Record<RecCustomPlayerPackage, string> = {
@@ -85,7 +120,8 @@ export type RecAttributeAllocation = { code: string; points: number; core: boole
 // can't be derived (caller should treat that as a configuration error).
 export function priceForPurchase(
   purchaseType: RecPurchaseType,
-  details: Record<string, unknown> = {}
+  details: Record<string, unknown> = {},
+  game?: string,
 ): number {
   switch (purchaseType) {
     case "age_reset":
@@ -95,8 +131,12 @@ export function priceForPurchase(
     case "legend":
       return REC_LEGEND_PRICE;
     case "dev_upgrade": {
+      const fromTier = details.fromTier as RecDevTier | undefined;
+      const toTier = details.toTier as RecDevTier | undefined;
+      if (fromTier && toTier && game) return priceForDevUpgradeSteps(game, fromTier, toTier);
+      // Legacy shape fallback (flat price to a single target tier, Madden vocabulary only).
       const target = details.targetTier as RecDevTier | undefined;
-      return target && target !== "normal" ? REC_DEV_UPGRADE_PRICE[target] ?? 0 : 0;
+      return target && target !== "normal" ? REC_DEV_UPGRADE_PRICE[target as Exclude<RecDevTier, "normal" | "impact" | "elite">] ?? 0 : 0;
     }
     case "contract": {
       const variant = details.variant as RecContractVariant | undefined;

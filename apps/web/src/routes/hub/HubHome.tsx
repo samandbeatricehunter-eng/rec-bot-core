@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_TIER_LABELS, devTierOrderForGame, priceForDevUpgradeSteps, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { ArrowLeftRight, Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
@@ -9,7 +9,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamRosterResponse, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -54,7 +54,7 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
 };
 const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   age_reset: coinsNumber(REC_AGE_RESET_PRICE),
-  dev_upgrade: `${coinsNumber(REC_DEV_UPGRADE_PRICE.star)}-${coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}`,
+  dev_upgrade: `${coinsNumber(500)}-${coinsNumber(1500)}/tier`,
   contract: coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction),
   player_trait: coinsNumber(REC_PLAYER_TRAIT_PRICE),
   attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
@@ -454,6 +454,7 @@ export function HubHome() {
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
+  const [devUpgradeRoster, setDevUpgradeRoster] = useState<TeamRosterResponse | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
@@ -836,6 +837,10 @@ export function HubHome() {
     if (auth.status !== "ready" || storeContext) return;
     try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
   }
+  async function loadDevUpgradeRoster() {
+    if (auth.status !== "ready" || devUpgradeRoster) return;
+    try { setDevUpgradeRoster(await recApi.getTeamRoster({ guildId: auth.guildId })); } catch { /* player picker just stays empty */ }
+  }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
     selectSection("openTeams");
@@ -1214,7 +1219,7 @@ export function HubHome() {
           const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
           const used = storeContext?.seasonActive[product.type];
           const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
-          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); void loadStoreContext(); }}>
+          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); void loadStoreContext(); if (product.type === "dev_upgrade") void loadDevUpgradeRoster(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
             <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
@@ -1242,11 +1247,31 @@ export function HubHome() {
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           */}
 
-          {purchaseType === "dev_upgrade" && <>
-            <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · {coinsNumber(REC_DEV_UPGRADE_PRICE.star)}</option><option value="superstar">Superstar · {coinsNumber(REC_DEV_UPGRADE_PRICE.superstar)}</option><option value="xfactor">X-Factor · {coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}</option></select></label>
-            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
-            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.targetTier ? REC_DEV_UPGRADE_PRICE[purchaseDetails.targetTier as keyof typeof REC_DEV_UPGRADE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.targetTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-          </>}
+          {purchaseType === "dev_upgrade" && (() => {
+            const order = devTierOrderForGame(hub.league.game) as string[];
+            const tierOf = (devTrait: string | null) => (devTrait && order.includes(devTrait) ? devTrait : "normal") as keyof typeof REC_DEV_TIER_LABELS;
+            const players = (devUpgradeRoster?.players ?? []).filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in");
+            const selectedPlayer = players.find((p) => p.id === purchaseDetails.playerId);
+            const fromTier = tierOf(selectedPlayer?.devTrait ?? null);
+            const fromIndex = order.indexOf(fromTier);
+            const availableTargets = order.filter((_, index) => index > fromIndex) as Array<keyof typeof REC_DEV_TIER_LABELS>;
+            const total = purchaseDetails.playerId && purchaseDetails.toTier ? priceForDevUpgradeSteps(hub.league.game, fromTier, purchaseDetails.toTier as any) : 0;
+            return <>
+              <label className="form-field"><span className="form-label">Player</span>
+                <select className="form-input" value={purchaseDetails.playerId ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerId: event.target.value, toTier: "" }))}>
+                  <option value="">{devUpgradeRoster ? "Select a player" : "Loading roster…"}</option>
+                  {players.map((p) => <option key={p.id} value={p.id}>{p.fullName} · {REC_DEV_TIER_LABELS[tierOf(p.devTrait)]}</option>)}
+                </select>
+              </label>
+              <label className="form-field"><span className="form-label">Upgrade to</span>
+                <select className="form-input" value={purchaseDetails.toTier ?? ""} disabled={!purchaseDetails.playerId} onChange={(event) => setPurchaseDetails((current) => ({ ...current, toTier: event.target.value }))}>
+                  <option value="">Select tier</option>
+                  {availableTargets.map((tier) => <option key={tier} value={tier}>{REC_DEV_TIER_LABELS[tier]} · {coinsNumber(priceForDevUpgradeSteps(hub.league.game, fromTier as any, tier as any))}</option>)}
+                </select>
+              </label>
+              <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={total} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerId || !purchaseDetails.toTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+            </>;
+          })()}
 
           {purchaseType === "contract" && <>
             <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>

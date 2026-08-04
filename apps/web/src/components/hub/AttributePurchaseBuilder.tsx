@@ -6,7 +6,7 @@ import { CoinAmount } from "../ui/CoinAmount.js";
 
 // Multi-attribute purchase builder: every one of the 53 Madden attributes gets its own
 // +/- counter starting at 0, priced live from the league's configured core-attribute set
-// (core = 100/pt, non-core = 50/pt — REC_ATTRIBUTE_POINT_PRICE). Caps and the final
+// (core = 200/pt, non-core = 100/pt — REC_ATTRIBUTE_POINT_PRICE). Caps and the final
 // core/non-core split are re-derived authoritatively server-side on submit; this is a
 // best-effort preview so the coach never submits something they can't afford or that's
 // already capped out.

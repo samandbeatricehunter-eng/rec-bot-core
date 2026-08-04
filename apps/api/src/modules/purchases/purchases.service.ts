@@ -1,4 +1,4 @@
-import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, type RecPurchaseType } from "@rec/shared";
+import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -106,6 +106,44 @@ async function enforceAttributeCaps(args: {
   }
 }
 
+// Re-derives fromTier from the player's actual current dev_trait (never trust the client for
+// this) and validates toTier is a real forward step on this league's game-family tier ladder.
+async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leagueId: string, game: string, userId: string): Promise<Record<string, unknown>> {
+  const playerId = String((details as any).playerId ?? "");
+  if (!playerId) throw new ApiError(400, "Select a player to upgrade.");
+  const player = await supabase.from("rec_players").select("id,team_id,full_name,dev_trait,roster_status").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
+  const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only upgrade your own team's players.");
+
+  const order = devTierOrderForGame(game);
+  const fromTier = (order.includes(player.data.dev_trait as RecDevTier) ? player.data.dev_trait : "normal") as RecDevTier;
+  const toTier = String((details as any).toTier ?? "") as RecDevTier;
+  if (order.indexOf(toTier) <= order.indexOf(fromTier)) {
+    throw new ApiError(400, `${player.data.full_name} is already at or above that tier.`);
+  }
+  return { playerId, playerName: player.data.full_name, fromTier, toTier };
+}
+
+// Enforces one of two league-configured cap modes for dev upgrades: a flat count of purchase
+// actions per season (reuses the generic seasonCap path below), or a cap on how many DISTINCT
+// players a team can upgrade in a season — once a player has an active dev_upgrade purchase
+// this season they're already "in", so further purchases on that same player never consume a
+// new slot (they can climb as many tiers as they want once chosen).
+async function enforceDevUpgradePlayerCap(args: { leagueId: string; userId: string; seasonNumber: number; playerId: string; cap: number }) {
+  if (args.cap <= 0) return;
+  const existing = await supabase.from("rec_purchases").select("details")
+    .eq("league_id", args.leagueId).eq("user_id", args.userId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
+    .in("status", ACTIVE_STATUSES as unknown as string[]);
+  if (existing.error) throw new ApiError(500, "Failed to check dev upgrade player cap.", existing.error);
+  const distinctPlayerIds = new Set((existing.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
+  if (distinctPlayerIds.has(args.playerId)) return;
+  if (distinctPlayerIds.size >= args.cap) {
+    throw new ApiError(409, `This league limits dev upgrades to ${args.cap} player(s) per team per season — you've already chosen your ${args.cap}.`);
+  }
+}
+
 export async function createPurchaseRequest(input: {
   guildId: string;
   discordId: string;
@@ -121,7 +159,9 @@ export async function createPurchaseRequest(input: {
 
   const attrSelect = input.purchaseType === "attribute"
     ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
-    : [];
+    : input.purchaseType === "dev_upgrade"
+      ? ["dev_upgrade_cap_mode", "dev_upgrades_player_cap"]
+      : [];
   const selectCols = ["coin_economy_enabled", "purchase_deadlines", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
     .from("rec_league_configuration")
@@ -146,21 +186,25 @@ export async function createPurchaseRequest(input: {
     throw new ApiError(400, `${label} purchases open in Season 2 — Season 1 rosters are locked while dynasties get established.`);
   }
 
-  // Attributes carry an allocation list; normalize core-ness server-side (authoritative) so
-  // pricing and cap enforcement can't be spoofed by the client.
+  const baseline = await getUserBaselineByDiscordId(input.discordId);
+  const userId = baseline.user.id;
+  await assertSiteAccountForEconomy(userId);
+
+  // Attributes carry an allocation list; dev upgrades carry a player + target tier — both
+  // get normalized server-side (authoritative) so pricing and cap enforcement can't be
+  // spoofed by client-supplied core/tier flags.
   let details: Record<string, unknown> = input.details ?? {};
   if (input.purchaseType === "attribute") {
     details = normalizeAttributeAllocations(details, cfgRow);
+  } else if (input.purchaseType === "dev_upgrade") {
+    details = await normalizeDevUpgradeDetails(details, leagueId, String(context.rec_leagues?.game ?? "madden_27"), userId);
   }
 
-  const price = priceForPurchase(input.purchaseType, details);
+  const price = priceForPurchase(input.purchaseType, details, String(context.rec_leagues?.game ?? ""));
   if (!Number.isFinite(price) || price <= 0) {
     throw new ApiError(400, "Could not determine a price for this purchase.");
   }
 
-  const baseline = await getUserBaselineByDiscordId(input.discordId);
-  const userId = baseline.user.id;
-  await assertSiteAccountForEconomy(userId);
   const walletBalance = Number(baseline.wallet?.wallet_balance ?? 0);
   if (walletBalance < price) {
     throw new ApiError(400, `Insufficient wallet balance. This costs ${formatCoins(price)} and you have ${formatCoins(walletBalance)}.`);
@@ -168,7 +212,13 @@ export async function createPurchaseRequest(input: {
 
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  if (input.purchaseType === "attribute") {
+  if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
+    await enforceDevUpgradePlayerCap({
+      leagueId, userId, seasonNumber,
+      playerId: String((details as any).playerId),
+      cap: Number(cfgRow.dev_upgrades_player_cap ?? 0),
+    });
+  } else if (input.purchaseType === "attribute") {
     await enforceAttributeCaps({
       leagueId,
       userId,

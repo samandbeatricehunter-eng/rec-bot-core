@@ -47,6 +47,7 @@ export type RosterPlayer = {
   rosterStatus: string;
   isDefaultPlayer: boolean;
   recentIncrease: null;
+  devTrait: string | null;
 };
 
 export type RosterPositionGroup = {
@@ -67,7 +68,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
 
   const players = await supabase
     .from("rec_players")
-    .select("id,full_name,position,height_inches,weight_lbs,class_year,overall_rating,roster_status,is_default_player")
+    .select("id,full_name,position,height_inches,weight_lbs,class_year,overall_rating,roster_status,is_default_player,dev_trait")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
     .order("position", { ascending: true })
@@ -88,6 +89,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     // Recorded OVR/attribute increases aren't logged yet (self-report + commissioner-approve
     // flow is a separate, not-yet-built feature) — always null until that lands.
     recentIncrease: null,
+    devTrait: p.dev_trait ?? null,
   }));
 
   const activeRows = rows.filter((r) => r.rosterStatus === "active" || r.rosterStatus === "transferred_in");

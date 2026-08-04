@@ -77,7 +77,9 @@ export const CreateLeagueSchema = z.object({
 
   customPlayersSeasonCap: z.number().int().min(0).max(5).default(0),
   legendsSeasonCap: z.number().int().min(0).max(5).default(0),
-  devUpgradesSeasonCap: z.number().int().min(0).max(5).default(0),
+  devUpgradeCapMode: z.enum(["total_purchases", "players_per_season"]).default("total_purchases"),
+  devUpgradesSeasonCap: z.number().int().min(0).max(20).default(0),
+  devUpgradesPlayerCap: z.number().int().min(0).max(20).default(0),
   ageResetsSeasonCap: z.number().int().min(0).max(5).default(0),
   playerTraitPurchasesSeasonCap: z.number().int().min(0).max(10).default(0),
   contractPurchasesSeasonCap: z.number().int().min(0).max(5).default(0),

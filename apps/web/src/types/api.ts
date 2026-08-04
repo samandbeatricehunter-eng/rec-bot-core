@@ -706,6 +706,7 @@ export type RosterPlayer = {
   rosterStatus: string;
   isDefaultPlayer: boolean;
   recentIncrease: number | null;
+  devTrait: string | null;
 };
 export type RosterPositionGroup = {
   group: string;
