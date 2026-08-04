@@ -212,7 +212,11 @@ export function MatchupPreview({
                 <div className="matchup-preview__wager-head">
                   <b>{market.label}</b>
                   <small>
-                    {market.line == null ? "No line" : "Line " + String(market.line)}
+                    {market.line != null
+                      ? "Line " + String(market.line)
+                      : market.kind === "moneyline" && market.sides.length
+                        ? "Favorite " + market.sides.reduce((fav, side) => (side.odds < fav.odds ? side : fav)).label
+                        : "No line"}
                   </small>
                 </div>
                 <div className="matchup-preview__wager-sides">
