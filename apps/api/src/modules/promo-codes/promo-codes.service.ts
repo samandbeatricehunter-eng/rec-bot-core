@@ -158,14 +158,6 @@ export async function redeemPromoCode(input: { userId: string; code: string }): 
     throw new ApiError(400, "That promo code has reached its redemption limit.");
   }
 
-  const existingRedemption = await supabase
-    .from("rec_promo_code_redemptions")
-    .select("id")
-    .eq("promo_code_id", row.id)
-    .eq("user_id", input.userId)
-    .maybeSingle();
-  if (existingRedemption.data) throw new ApiError(400, "You've already redeemed that promo code.");
-
   const inserted = await supabase
     .from("rec_promo_code_redemptions")
     .insert({ promo_code_id: row.id, user_id: input.userId })
@@ -176,11 +168,20 @@ export async function redeemPromoCode(input: { userId: string; code: string }): 
     throw new ApiError(500, "Failed to record promo code redemption.", inserted.error);
   }
 
+  // Atomic conditional increment — the earlier redemption_count read is now just an early-exit
+  // hint, not the actual enforcement. Without this, two concurrent redemptions near the cap
+  // could both pass the pre-check against the same stale count and over-redeem a capped code.
+  const capped = await supabase.rpc("increment_promo_code_redemption", { p_promo_code_id: row.id });
+  if (capped.error) throw new ApiError(500, "Failed to record promo code redemption.", capped.error);
+  if (!capped.data) {
+    // Cap was hit by a concurrent request between our read and this increment — undo the
+    // redemption row so the user isn't left with a "redeemed" record for an effect they
+    // never actually got.
+    await supabase.from("rec_promo_code_redemptions").delete().eq("promo_code_id", row.id).eq("user_id", input.userId);
+    throw new ApiError(400, "That promo code has reached its redemption limit.");
+  }
+
   await applyPromoEffect(input.userId, row);
-  await supabase
-    .from("rec_promo_codes")
-    .update({ redemption_count: row.redemption_count + 1, updated_at: new Date().toISOString() })
-    .eq("id", row.id);
 
   return { effectType: row.effect_type, description: row.description };
 }

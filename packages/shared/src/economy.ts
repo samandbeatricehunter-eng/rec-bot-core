@@ -79,12 +79,16 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // stay comparable while box scores are uploaded at uneven rates — a season total would
   // reward whoever happened to have the most games logged. Rate categories (red-zone %,
   // ToP, finish rate) were already game-agnostic.
-  { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 44, 200], ["A", 40, 150], ["B", 34, 100], ["C", 31, 75], ["D", 28, 50]]) },
+  // Recalibrated 2026-08-05 — 44 PPG for S tier was unreachable outside inflated sim scoring
+  // (a real 40+ PPG season, which the old ladder only paid Tier A, is already elite). Shifted
+  // the whole ladder down ~10% while keeping the same relative spacing.
+  { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 40, 200], ["A", 36, 150], ["B", 32, 100], ["C", 28, 75], ["D", 25, 50]]) },
   { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 16, 200], ["A", 19, 150], ["B", 22, 100], ["C", 25, 75], ["D", 28, 50]]) },
   { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27"], tiers: higher([["S", 2.5, 200], ["A", 2.0, 150], ["B", 1.6, 100], ["C", 1.3, 75], ["D", 1.2, 50]]) },
   { key: "team_def_yards_allowed", label: "Defensive Yards Allowed (per game)", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 300, 200], ["A", 340, 150], ["B", 380, 100], ["C", 430, 75], ["D", 500, 50]]) },
   { key: "turnover_diff", label: "Turnover Differential (per game)", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 1.4, 200], ["A", 1.0, 150], ["B", 0.7, 100], ["C", 0.4, 75], ["D", 0.15, 50]]) },
-  { key: "team_total_offense", label: "Team Total Offense (per game)", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 480, 200], ["A", 450, 150], ["B", 430, 100], ["C", 410, 75], ["D", 390, 50]]) },
+  // Recalibrated 2026-08-05 alongside team_ppg — same inflation pattern, same ~-20yd shift.
+  { key: "team_total_offense", label: "Team Total Offense (per game)", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 460, 200], ["A", 430, 150], ["B", 410, 100], ["C", 390, 75], ["D", 370, 50]]) },
   { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 80, 200], ["A", 75, 150], ["B", 70, 100], ["C", 65, 75], ["D", 60, 50]]) },
   { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 35, 200], ["A", 40, 150], ["B", 45, 100], ["C", 50, 75], ["D", 55, 50]]) },
 
@@ -94,11 +98,36 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18.5 * 60, 200], ["A", 18 * 60, 150], ["B", 17.5 * 60, 100], ["C", 17 * 60, 75], ["D", 16.5 * 60, 50]]) },
   { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27"], tiers: lower([["S", 1.2, 200], ["A", 2, 150], ["B", 3, 100], ["C", 4, 75], ["D", 5, 50]]) },
   { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27"], tiers: higher([["S", 90, 200], ["A", 72, 150], ["B", 65, 100], ["C", 58, 75], ["D", 50, 50]]) },
-  // Single-tier bonuses — either the composite score clears the bar or it doesn't, no partial credit.
-  // rb_workhorse_score is per-game (converted 2026-08-03), so its bar was recalibrated from 140
-  // (a season-total scale) down to 85 for a per-game scale.
-  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 85, amount: 200, operator: "greater_or_equal" }] },
-  { key: "defense_needs_a_name", label: "This Defense Needs a Name", scope: "team", direction: "higher_is_better", statKey: "defense_identity_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" }], triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying." },
+  // Recalibrated 2026-08-05 from a single all-or-nothing S tier (threshold 85) to a full
+  // ladder with partial credit — 85 required near-max carries AND near-max yards/carry
+  // simultaneously, which real bell-cow backs (high volume, merely good efficiency — heavy
+  // usage against stacked boxes usually caps ypc) rarely hit together. Formula unchanged
+  // (evalTeamStat in eos-payouts.service.ts): (attempts/games)*2 + avgYardsPerRush*3 + (rushTDs/games)*8.
+  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: higher([["S", 75, 200], ["A", 65, 150], ["B", 55, 100], ["C", 45, 75], ["D", 35, 50]]) },
+  // Recalibrated 2026-08-05: was a single S-tier-only composite (red-zone D 25% + takeaways
+  // 25% + 3rd-down stops 25% + 4th-down stops 25%, threshold 80) with no yards/points-allowed
+  // signal at all despite those being core defensive-dominance stats, and no partial credit.
+  // Now a full ladder; formula reworked in evalTeamStat (eos-payouts.service.ts) to 5 terms of
+  // 20 pts each — red-zone D, takeaways (weight increased so 3+ takeaways/game alone can supply
+  // most of a tier), yards allowed, points allowed, 3rd-down stops. Dropped 4th-down stops (too
+  // low-sample per game to reliably carry 20-25% of the score). Only the S tier still unlocks
+  // naming the defense — A-D pay out without that privilege.
+  {
+    key: "defense_needs_a_name",
+    label: "This Defense Needs a Name",
+    scope: "team",
+    direction: "higher_is_better",
+    statKey: "defense_identity_score",
+    games: ["cfb_27"],
+    tiers: [
+      { tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" },
+      { tier: "A", threshold: 68, amount: 150, operator: "greater_or_equal" },
+      { tier: "B", threshold: 56, amount: 100, operator: "greater_or_equal" },
+      { tier: "C", threshold: 44, amount: 75, operator: "greater_or_equal" },
+      { tier: "D", threshold: 32, amount: 50, operator: "greater_or_equal" },
+    ],
+    triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying.",
+  },
 ];
 
 function tierMatches(rule: RecPayoutTierRule, value: number): boolean {

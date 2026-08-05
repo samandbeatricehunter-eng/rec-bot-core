@@ -132,32 +132,41 @@ export function evalTeamStat(statKey: string, rows: any[], game: LeagueGame) {
     })();
     const oppIntsThrown = jsonSum("defensive_stats", "interceptions_thrown");
     const oppFumblesLost = jsonSum("defensive_stats", "fumbles_lost");
-    let oppThirdMade = 0, oppThirdAttempts = 0, oppFourthMade = 0, oppFourthAttempts = 0;
+    let oppThirdMade = 0, oppThirdAttempts = 0;
     for (const row of rows) {
       const [tm, ta] = jsonMadeAttempts(row.defensive_stats, "third_down_conversions");
-      const [fm, fa] = jsonMadeAttempts(row.defensive_stats, "fourth_down_conversions");
       // A game whose OCR only recovered the makes (no "X-Y" attempts format, e.g. a bare "3")
       // must be excluded entirely, not just from the attempts side — counting its makes into
       // the numerator while dropping its attempts from the denominator inflates the opponent's
       // conversion rate, understating the defense (this silently zeroed real S-tier defenses).
       if (ta != null) { oppThirdMade += tm; oppThirdAttempts += ta; }
-      if (fa != null) { oppFourthMade += fm; oppFourthAttempts += fa; }
     }
     // No recoverable attempts data must never read as a 0% (perfect) allowed rate —
     // that would reward missing OCR data with the max bonus. Skip the term instead.
     const oppThirdPct = oppThirdAttempts > 0 ? (oppThirdMade / oppThirdAttempts) * 100 : null;
-    const oppFourthPct = oppFourthAttempts > 0 ? (oppFourthMade / oppFourthAttempts) * 100 : null;
 
-    // 0-100 composite; the S tier (>= 80) is meant to be an elite, identity-worthy
-    // defense. Each term contributes at most 25 and a floor of 0, so missing or extreme
-    // single-game data can't inflate the score the way the old (100 - pct) * 10 terms
-    // did — on that scale even a below-average defense scored 300+, and every team
-    // in the league cleared the threshold.
-    const redZoneTerm = redZoneDefPct > 0 ? Math.min(25, Math.max(0, ((95 - redZoneDefPct) * 25) / 45)) : 0;
-    const takeawayTerm = games ? Math.min(25, ((oppIntsThrown + oppFumblesLost) / games) * 10) : 0;
-    const thirdDownTerm = oppThirdPct != null ? Math.min(25, Math.max(0, 65 - oppThirdPct)) : 0;
-    const fourthDownTerm = oppFourthPct != null ? Math.min(25, Math.max(0, 70 - oppFourthPct)) : 0;
-    const raw = redZoneTerm + takeawayTerm + thirdDownTerm + fourthDownTerm;
+    // Points/yards allowed give missing OCR data the same "skip the term, don't reward it"
+    // treatment as the rate-based terms above — an all-zero season reads as no data, not a
+    // flawless defense.
+    const pointsAllowedPerGame = games ? sum("points_against") / games : 0;
+    const yardsAllowedValues = rows.map((row) => num(row.yards_allowed));
+    const hasYardsData = yardsAllowedValues.some((value) => value > 0);
+    const yardsAllowedPerGame = games && hasYardsData ? yardsAllowedValues.reduce((total, value) => total + value, 0) / games : null;
+
+    // 0-100 composite (recalibrated 2026-08-05); five terms of 20 points each, replacing the
+    // old four-of-25 split that had no yards/points-allowed signal at all despite those being
+    // core defensive-dominance stats. Takeaway weight increased so 3+ forced turnovers/game
+    // alone can carry most of a tier on its own, per design intent that a high-turnover
+    // defense should be a major driver here. 4th-down stops dropped — too low-sample per game
+    // to reliably carry a fifth of the score. Scales mirror the opp_ppg_allowed (16-28) and
+    // team_def_yards_allowed (300-500) categories so this stays internally consistent with
+    // the rest of the payout ladder.
+    const redZoneTerm = redZoneDefPct > 0 ? Math.min(20, Math.max(0, ((95 - redZoneDefPct) * 20) / 45)) : 0;
+    const takeawayTerm = games ? Math.min(20, ((oppIntsThrown + oppFumblesLost) / games) * 14) : 0;
+    const thirdDownTerm = oppThirdPct != null ? Math.min(20, Math.max(0, 65 - oppThirdPct)) : 0;
+    const pointsAllowedTerm = pointsAllowedPerGame > 0 ? Math.min(20, Math.max(0, (20 * (28 - pointsAllowedPerGame)) / 12)) : 0;
+    const yardsAllowedTerm = yardsAllowedPerGame != null ? Math.min(20, Math.max(0, (20 * (500 - yardsAllowedPerGame)) / 200)) : 0;
+    const raw = redZoneTerm + takeawayTerm + thirdDownTerm + pointsAllowedTerm + yardsAllowedTerm;
     return raw * coverageMultiplier(games, game);
   }
   return 0;
