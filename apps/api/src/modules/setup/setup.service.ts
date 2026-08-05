@@ -392,13 +392,220 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
  * else rides on rec_league_configuration's column defaults and is one Settings edit away
  * once the commissioner is ready, same as any other league.
  */
+function buildConfigurationPayload(leagueId: string, input: Record<string, unknown>, isCfbGame: boolean) {
+  return {
+    league_id: leagueId,
+    league_password: input.leaguePassword ?? null,
+    roster_type: input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm"),
+    dynasty_type: isCfbGame ? (input.dynastyType ?? "real") : null,
+    recruiting_difficulty: isCfbGame ? (input.recruitingDifficulty ?? "normal") : null,
+    active_rosters_enabled: isCfbGame ? (input.activeRostersEnabled ?? true) : null,
+    track_rosters_enabled: isCfbGame ? (input.trackRostersEnabled ?? false) : null,
+    transfer_portal_enabled: isCfbGame ? (input.transferPortalEnabled ?? true) : null,
+    coach_carousel_enabled: isCfbGame ? (input.coachCarouselEnabled ?? true) : null,
+    conference_realignment: isCfbGame ? (input.conferenceRealignment ?? "locked") : null,
+    home_field_advantage_enabled: isCfbGame ? (input.homeFieldAdvantageEnabled ?? true) : null,
+    stadium_pulse_enabled: isCfbGame ? (input.stadiumPulseEnabled ?? true) : null,
+    team_builder_allowed: isCfbGame ? (input.teamBuilderAllowed ?? false) : null,
+    coin_economy_enabled: input.coinEconomyEnabled ?? false,
+    custom_players_enabled: input.customPlayersEnabled ?? false,
+    legends_enabled: input.legendsEnabled ?? false,
+    dev_upgrades_enabled: input.devUpgradesEnabled ?? false,
+    age_resets_enabled: input.ageResetsEnabled ?? false,
+    attribute_purchases_enabled: input.attributePurchasesEnabled ?? false,
+    player_trait_purchases_enabled: input.playerTraitPurchasesEnabled ?? false,
+    contract_adjustment_purchases_enabled: input.contractAdjustmentPurchasesEnabled ?? false,
+    media_features_enabled: input.mediaFeaturesEnabled ?? true,
+    custom_players_season_cap: input.customPlayersSeasonCap ?? 0,
+    legends_season_cap: input.legendsSeasonCap ?? 0,
+    dev_upgrade_cap_mode: input.devUpgradeCapMode ?? "total_purchases",
+    dev_upgrades_season_cap: input.devUpgradesSeasonCap ?? 0,
+    dev_upgrades_player_cap: input.devUpgradesPlayerCap ?? 0,
+    age_resets_season_cap: input.ageResetsSeasonCap ?? 0,
+    player_trait_purchases_season_cap: input.playerTraitPurchasesSeasonCap ?? 0,
+    contract_purchases_season_cap: input.contractPurchasesSeasonCap ?? 0,
+    core_attribute_purchases_season_cap: input.coreAttributePurchasesSeasonCap ?? 0,
+    core_attribute_group_cap: input.coreAttributeGroupCap ?? 0,
+    non_core_attribute_purchases_season_cap: input.nonCoreAttributePurchasesSeasonCap ?? 0,
+    core_attributes: input.coreAttributes ?? [],
+    core_attribute_cap_overrides: input.coreAttributeCapOverrides ?? {},
+    non_core_attribute_cap_overrides: input.nonCoreAttributeCapOverrides ?? {},
+    purchase_deadlines: input.purchaseDeadlines ?? {},
+    streaming_requirement: input.regularSeasonStreamingRequirement ?? "recommended",
+    regular_season_streaming_requirement: input.regularSeasonStreamingRequirement ?? "recommended",
+    postseason_streaming_requirement: input.postseasonStreamingRequirement ?? "required",
+    gotw_streaming_requirement: input.gotwStreamingRequirement ?? "recommended",
+    streaming_scope: input.streamingScope ?? "every_game",
+    streaming_side: input.regularSeasonStreamingSide ?? "either",
+    regular_season_streaming_side: input.regularSeasonStreamingSide ?? "either",
+    postseason_streaming_side: input.postseasonStreamingSide ?? "either",
+    gotw_streaming_side: input.gotwStreamingSide ?? "either",
+    fourth_down_rule_type: input.fourthDownRuleTypeRegular ?? "standard_rec",
+    custom_fourth_down_rule: input.customFourthDownRuleRegular ?? null,
+    fourth_down_rule_type_regular: input.fourthDownRuleTypeRegular ?? "standard_rec",
+    fourth_down_rule_type_playoff: input.fourthDownRuleTypePlayoff ?? "standard_rec",
+    custom_fourth_down_rule_regular: input.customFourthDownRuleRegular ?? null,
+    custom_fourth_down_rule_playoff: input.customFourthDownRulePlayoff ?? null,
+    custom_rules: input.customRules ?? [],
+    position_change_policy: input.positionChangePolicy ?? "restricted",
+    position_change_policy_description: input.positionChangePolicyDescription ?? "Position changes must remain realistic. Major body-type changes are prohibited unless approved by commissioners.",
+    custom_coaches_required: input.customCoachesRequired ?? false,
+    custom_playbooks_allowed: input.customPlaybooksAllowed ?? false,
+    coach_abilities_restricted: input.coachAbilitiesRestricted ?? false,
+    coach_abilities_restriction_notes: input.coachAbilitiesRestrictionNotes ?? null,
+    trade_approval_policy: input.tradeApprovalPolicy ?? "competition_committee_review",
+    cpu_trading_policy: input.cpuTradingPolicy ?? "allowed",
+    cpu_trading_restriction: input.cpuTradingRestriction ?? null,
+    cpu_free_agency_policy: "disabled",
+    injury_policy: input.injuryPolicy ?? "on_standard",
+    difficulty: input.difficulty ?? "all_madden",
+    cfb_difficulty: isCfbGame ? (input.cfbDifficulty ?? "heisman") : null,
+    sliders_adjusted: input.slidersAdjusted ?? false,
+    difficulty_custom_settings: input.difficultyCustomSettings ?? null,
+    coach_xp_setting: isCfbGame ? (input.coachXpSetting ?? "casual") : null,
+    quarter_length_minutes: input.quarterLengthMinutes ?? 8,
+    accelerated_clock_enabled: input.acceleratedClockEnabled ?? true,
+    accelerated_clock_minimum_seconds: input.acceleratedClockMinimumSeconds ?? 20,
+    salary_cap_enabled: input.salaryCapEnabled ?? false,
+    trade_deadline_enabled: input.tradeDeadlineEnabled ?? false,
+    abilities_enabled: input.abilitiesEnabled ?? true,
+    wear_and_tear_enabled: input.wearAndTearEnabled ?? true,
+    advance_timing: input.advanceTiming ?? "24hr",
+    advance_timing_other: (input.advanceTiming ?? "24hr") === "other" ? (input.advanceTimingOther ?? null) : null,
+    coach_firing_policy: input.coachFiringPolicy ?? "on",
+    preorder_bonuses_enabled: input.preorderBonusesEnabled ?? true,
+    coach_mode_enabled: input.coachModeEnabled ?? false,
+    coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled ?? false,
+    coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled ?? false,
+    coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled ?? false,
+    coach_mode_recruit_flipping_enabled: isCfbGame ? (input.coachModeRecruitFlippingEnabled ?? false) : null,
+    coach_mode_auto_recruiting_enabled: isCfbGame ? (input.coachModeAutoRecruitingEnabled ?? false) : null,
+    coach_mode_auto_progress_players_enabled: isCfbGame ? (input.coachModeAutoProgressPlayersEnabled ?? false) : null,
+    coach_mode_user_auto_progression_enabled: isCfbGame ? (input.coachModeUserAutoProgressionEnabled ?? false) : null,
+    coach_mode_cpu_manage_budget_enabled: isCfbGame ? (input.coachModeCpuManageBudgetEnabled ?? false) : null,
+    coach_mode_cpu_manage_staff_enabled: isCfbGame ? (input.coachModeCpuManageStaffEnabled ?? false) : null,
+    coach_mode_cpu_manage_facilities_enabled: isCfbGame ? (input.coachModeCpuManageFacilitiesEnabled ?? false) : null,
+    ball_hawk: input.ballHawk ?? "keep_individual",
+    heat_seeker: input.heatSeeker ?? "keep_individual",
+    switch_assist: input.switchAssist ?? "keep_individual",
+    offensive_play_call_limits_enabled: input.offensivePlayCallLimitsEnabled ?? false,
+    offensive_play_call_limit: input.offensivePlayCallLimit ?? null,
+    offensive_play_call_cooldown_enabled: input.offensivePlayCallCooldownEnabled ?? false,
+    offensive_play_call_cooldown: input.offensivePlayCallCooldown ?? null,
+    defensive_play_call_limits_enabled: input.defensivePlayCallLimitsEnabled ?? false,
+    defensive_play_call_limit: input.defensivePlayCallLimit ?? null,
+    defensive_play_call_cooldown_enabled: input.defensivePlayCallCooldownEnabled ?? false,
+    defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
+    fair_sim_requirements: input.fairSimRequirements ?? null,
+    force_win_requirements: input.forceWinRequirements ?? null,
+  };
+}
+
 export async function createUnclaimedLeague(input: {
   requestedByUserId: string;
   name: string;
   game: "madden_26" | "madden_27" | "cfb_27";
+  leaguePassword?: string | null;
   leagueType?: string;
   activeRostersEnabled?: boolean;
   trackRostersEnabled?: boolean;
+  dynastyType?: string;
+  recruitingDifficulty?: string;
+  transferPortalEnabled?: boolean;
+  coachCarouselEnabled?: boolean;
+  homeFieldAdvantageEnabled?: boolean;
+  stadiumPulseEnabled?: boolean;
+  conferenceRealignment?: string;
+  teamBuilderAllowed?: boolean;
+  seasonNumber?: number;
+  seasonStage?: string;
+  currentWeek?: number;
+  currentPhase?: string;
+  regularSeasonStreamingRequirement?: string;
+  postseasonStreamingRequirement?: string;
+  gotwStreamingRequirement?: string;
+  streamingScope?: string;
+  regularSeasonStreamingSide?: string;
+  postseasonStreamingSide?: string;
+  gotwStreamingSide?: string;
+  fourthDownRuleTypeRegular?: string;
+  fourthDownRuleTypePlayoff?: string;
+  customFourthDownRuleRegular?: string | null;
+  customFourthDownRulePlayoff?: string | null;
+  customRules?: Array<{ id: string; category: string; title: string; text: string; sortOrder?: number; createdAt?: string; updatedAt?: string }>;
+  coinEconomyEnabled?: boolean;
+  customPlayersEnabled?: boolean;
+  legendsEnabled?: boolean;
+  devUpgradesEnabled?: boolean;
+  ageResetsEnabled?: boolean;
+  attributePurchasesEnabled?: boolean;
+  playerTraitPurchasesEnabled?: boolean;
+  contractAdjustmentPurchasesEnabled?: boolean;
+  customPlayersSeasonCap?: number;
+  legendsSeasonCap?: number;
+  devUpgradeCapMode?: string;
+  devUpgradesSeasonCap?: number;
+  devUpgradesPlayerCap?: number;
+  ageResetsSeasonCap?: number;
+  playerTraitPurchasesSeasonCap?: number;
+  contractPurchasesSeasonCap?: number;
+  coreAttributePurchasesSeasonCap?: number;
+  coreAttributeGroupCap?: number;
+  nonCoreAttributePurchasesSeasonCap?: number;
+  coreAttributes?: string[];
+  coreAttributeCapOverrides?: Record<string, number>;
+  nonCoreAttributeCapOverrides?: Record<string, number>;
+  purchaseDeadlines?: Record<string, { stage: string; week: number }>;
+  customCoachesRequired?: boolean;
+  customPlaybooksAllowed?: boolean;
+  coachAbilitiesRestricted?: boolean;
+  coachAbilitiesRestrictionNotes?: string | null;
+  positionChangePolicy?: string;
+  positionChangePolicyDescription?: string | null;
+  tradeApprovalPolicy?: string;
+  cpuTradingPolicy?: string;
+  cpuTradingRestriction?: string | null;
+  injuryPolicy?: string;
+  difficulty?: string;
+  cfbDifficulty?: string;
+  slidersAdjusted?: boolean;
+  difficultyCustomSettings?: string | null;
+  coachXpSetting?: string | null;
+  quarterLengthMinutes?: number;
+  acceleratedClockEnabled?: boolean;
+  acceleratedClockMinimumSeconds?: number;
+  salaryCapEnabled?: boolean;
+  tradeDeadlineEnabled?: boolean;
+  abilitiesEnabled?: boolean;
+  wearAndTearEnabled?: boolean;
+  advanceTiming?: string;
+  advanceTimingOther?: string | null;
+  coachFiringPolicy?: string;
+  preorderBonusesEnabled?: boolean;
+  coachModeEnabled?: boolean;
+  coachModeAutoPassEnabled?: boolean;
+  coachModeAutoSnapEnabled?: boolean;
+  coachModeCoachSuggestionsEnabled?: boolean;
+  coachModeRecruitFlippingEnabled?: boolean;
+  coachModeAutoRecruitingEnabled?: boolean;
+  coachModeAutoProgressPlayersEnabled?: boolean;
+  coachModeUserAutoProgressionEnabled?: boolean;
+  coachModeCpuManageBudgetEnabled?: boolean;
+  coachModeCpuManageStaffEnabled?: boolean;
+  coachModeCpuManageFacilitiesEnabled?: boolean;
+  ballHawk?: string;
+  heatSeeker?: string;
+  switchAssist?: string;
+  offensivePlayCallLimitsEnabled?: boolean;
+  offensivePlayCallLimit?: number | null;
+  offensivePlayCallCooldownEnabled?: boolean;
+  offensivePlayCallCooldown?: number | null;
+  defensivePlayCallLimitsEnabled?: boolean;
+  defensivePlayCallLimit?: number | null;
+  defensivePlayCallCooldownEnabled?: boolean;
+  defensivePlayCallCooldown?: number | null;
+  fairSimRequirements?: string | null;
+  forceWinRequirements?: string | null;
 }) {
   const name = input.name.trim();
   if (!name) throw new ApiError(400, "Enter a league name.");
@@ -406,6 +613,7 @@ export async function createUnclaimedLeague(input: {
 
   const isCfbGame = input.game === "cfb_27";
   const leagueType = input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm");
+  const seasonNumber = input.seasonNumber ?? 1;
 
   const leagueFields = {
     name,
@@ -413,23 +621,18 @@ export async function createUnclaimedLeague(input: {
     league_type: leagueType,
     owner_user_id: input.requestedByUserId,
     discord_bot_enabled: false,
-    current_phase: "preseason",
-    season_stage: isCfbGame ? "preseason" : "preseason_training_camp",
-    season_number: 1,
-    current_week: 1,
+    current_phase: input.currentPhase ?? (seasonNumber > 1 ? "regular_season" : "preseason"),
+    season_stage: input.seasonStage ?? (isCfbGame ? "preseason" : "preseason_training_camp"),
+    season_number: seasonNumber,
+    current_week: input.currentWeek ?? 1,
     trust_mode: "manual",
-    fantasy_draft_status: "not_applicable",
+    fantasy_draft_status: leagueType === "fantasy_draft" ? "pending" : "not_applicable",
   };
 
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
   if (league.error) throw new ApiError(500, "Failed to create league.", league.error);
 
-  const configurationPayload = {
-    league_id: league.data.id,
-    roster_type: leagueType,
-    active_rosters_enabled: isCfbGame ? (input.activeRostersEnabled ?? true) : null,
-    track_rosters_enabled: isCfbGame ? (input.trackRostersEnabled ?? true) : null,
-  };
+  const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
   const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
   if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
 
@@ -445,6 +648,114 @@ export async function createUnclaimedLeague(input: {
   });
 
   return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams };
+}
+
+export async function updateSiteLeagueConfig(input: { requestedByUserId: string; leagueId: string; [key: string]: unknown }) {
+  const league = await supabase.from("rec_leagues").select("*").eq("id", input.leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (!league.data) throw new ApiError(404, "League not found.");
+  if (league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league creator can update settings.");
+
+  const isCfbGame = league.data.game === "cfb_27";
+  const configurationPayload = buildConfigurationPayload(input.leagueId, input, isCfbGame);
+
+  const previous = await supabase.from("rec_league_configuration").select("*").eq("league_id", input.leagueId).maybeSingle();
+
+  const { data, error } = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
+  if (error) throw new ApiError(500, "Failed to update league configuration.", error);
+
+  await writeAuditLog({
+    action: "league.configuration.updated",
+    entityType: "rec_league_configuration",
+    entityId: input.leagueId,
+    previousValue: previous.data ?? undefined,
+    newValue: data,
+    reason: "League configuration updated from site wizard.",
+    source: "manual_admin_entry",
+  });
+
+  return { configuration: data };
+}
+
+export async function checkLeagueLinked(leagueId: string) {
+  const link = await supabase
+    .from("rec_server_league_links")
+    .select("id, server_id, is_primary, rec_discord_servers:server_id(guild_id, name)")
+    .eq("league_id", leagueId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (link.error) throw new ApiError(500, "Failed to check league link status.", link.error);
+  const server = link.data?.rec_discord_servers as { guild_id: string; name: string } | null;
+  return {
+    linked: Boolean(link.data && server),
+    guildId: server?.guild_id ?? null,
+    serverName: server?.name ?? null,
+  };
+}
+
+export async function completeWizard(input: {
+  requestedByUserId: string;
+  leagueId: string;
+  teamId?: string;
+  guildId?: string;
+  discordId?: string;
+}) {
+  const league = await supabase.from("rec_leagues").select("*").eq("id", input.leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (!league.data) throw new ApiError(404, "League not found.");
+
+  // Assign team if provided
+  if (input.teamId) {
+    const team = await supabase.from("rec_teams").select("*").eq("id", input.teamId).eq("league_id", input.leagueId).maybeSingle();
+    if (team.error || !team.data) throw new ApiError(404, "Team not found in this league.");
+
+    // Upsert league membership as commissioner
+    await supabase.from("rec_league_memberships").upsert(
+      { league_id: input.leagueId, user_id: input.requestedByUserId, status: "active", role: "commissioner" },
+      { onConflict: "league_id,user_id" },
+    );
+
+    // Deactivate any existing assignment for this user in this league
+    await supabase.from("rec_team_assignments")
+      .update({ assignment_status: "replaced", ended_at: new Date().toISOString() })
+      .eq("league_id", input.leagueId)
+      .eq("user_id", input.requestedByUserId)
+      .is("ended_at", null);
+
+    // Create new team assignment
+    const assignment = await supabase.from("rec_team_assignments").insert({
+      league_id: input.leagueId,
+      team_id: input.teamId,
+      user_id: input.requestedByUserId,
+      assignment_status: "active",
+      source: "manual_admin_entry",
+      notes: "Authority: commissioner",
+      discord_joined_at: new Date().toISOString(),
+    }).select("*").single();
+    if (assignment.error) throw new ApiError(500, "Failed to assign team.", assignment.error);
+
+    // Update Discord nickname if guild + discord ID provided
+    if (input.guildId && input.discordId) {
+      const isCfb = league.data.game === "cfb_27";
+      const teamName = team.data.name ?? team.data.abbreviation ?? "";
+      const nickname = isCfb
+        ? `${teamName} (Commish)`
+        : `${teamName} (Commish)`;
+      const { setGuildMemberNickname } = await import("../../lib/discord-guild.js");
+      await setGuildMemberNickname(input.guildId, input.discordId, nickname, "REC league wizard — head commissioner assignment").catch(() => undefined);
+
+      // Also ensure commissioner role is granted
+      const { ensureManagedRoleId, addMemberRole } = await import("../../lib/discord-guild.js");
+      try {
+        const roleId = await ensureManagedRoleId(input.guildId, "commissioner");
+        await addMemberRole(input.guildId, input.discordId, roleId, "REC league wizard — head commissioner assignment");
+      } catch { /* role hierarchy may block — non-fatal */ }
+    }
+
+    return { ok: true, team: team.data, assignment: assignment.data };
+  }
+
+  return { ok: true, team: null, assignment: null };
 }
 
 /**

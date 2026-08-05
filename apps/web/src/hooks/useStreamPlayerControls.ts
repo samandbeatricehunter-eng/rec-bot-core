@@ -25,7 +25,16 @@ function loadStreamSdk(): Promise<void> {
     const script = document.createElement("script");
     script.src = "https://embed.cloudflarestream.com/embed/sdk.latest.js";
     script.async = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      // The SDK may need a tick to initialise after the script finishes downloading.
+      // Poll briefly for the global Stream constructor before giving up.
+      let attempts = 0;
+      const check = () => {
+        if (window.Stream || attempts++ > 20) { resolve(); return; }
+        setTimeout(check, 50);
+      };
+      check();
+    };
     script.onerror = () => resolve(); // fail open — control bar becomes inert, video still autoplays
     document.head.appendChild(script);
   });
@@ -51,14 +60,56 @@ export function useStreamPlayerControls(resetKey: string | number | undefined) {
     setIsMuted(true);
   }, [resetKey]);
 
+  // Attach the SDK player once the iframe mounts and the SDK is ready. Uses a short
+  // retry loop to handle the case where onLoad fires before the iframe's internal
+  // player is fully initialised.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    let cancelled = false;
+    let attempts = 0;
+    const tryAttach = () => {
+      if (cancelled || !iframeRef.current) return;
+      void loadStreamSdk().then(() => {
+        if (cancelled || !window.Stream || !iframeRef.current) return;
+        // Even after the SDK script loads, the iframe's internal player may not be
+        // ready yet. The Stream() constructor returns null when the iframe isn't ready.
+        let player: StreamPlayer | null = null;
+        try { player = window.Stream(iframeRef.current); } catch { /* not ready */ }
+        if (player) {
+          playerRef.current = player;
+          player.addEventListener("play", () => setIsPaused(false));
+          player.addEventListener("pause", () => setIsPaused(true));
+        } else if (attempts++ < 30) {
+          setTimeout(tryAttach, 100);
+        }
+      });
+    };
+    tryAttach();
+    return () => { cancelled = true; };
+  }, [resetKey]);
+
   const attach = useCallback(() => {
-    void loadStreamSdk().then(() => {
-      if (!iframeRef.current || !window.Stream) return;
-      const player = window.Stream(iframeRef.current);
-      playerRef.current = player;
-      player.addEventListener("play", () => setIsPaused(false));
-      player.addEventListener("pause", () => setIsPaused(true));
-    });
+    // Manual attach call (e.g. from onLoad) — also retries in case the iframe isn't ready.
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    let attempts = 0;
+    const tryAttach = () => {
+      if (!iframeRef.current) return;
+      void loadStreamSdk().then(() => {
+        if (!window.Stream || !iframeRef.current) return;
+        let player: StreamPlayer | null = null;
+        try { player = window.Stream(iframeRef.current); } catch { /* not ready */ }
+        if (player) {
+          playerRef.current = player;
+          player.addEventListener("play", () => setIsPaused(false));
+          player.addEventListener("pause", () => setIsPaused(true));
+        } else if (attempts++ < 10) {
+          setTimeout(tryAttach, 100);
+        }
+      });
+    };
+    tryAttach();
   }, []);
 
   function togglePlay() {

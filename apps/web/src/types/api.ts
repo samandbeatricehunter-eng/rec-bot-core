@@ -193,6 +193,7 @@ export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
   commitDate: string | null; storyId: string | null; heightInches: number | null; weightLbs: number | null;
+  submittedByUserId: string | null;
 };
 
 // Transfer portal tracker

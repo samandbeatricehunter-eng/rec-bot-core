@@ -309,12 +309,11 @@ button.poty:disabled {
 .hub-shortcut-card.hub-quick-action .icon-well { flex: 0 0 auto; width: 28px; height: 28px; }
 .hub-shortcut-card.hub-quick-action strong { font-size: 12px; line-height: 1.05; }
 .hub-shortcut-card.hub-quick-action span { margin-top: 3px; font-size: 9px; line-height: 1.15; }
-.hub-my-team-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
+.hub-my-team-quick-actions .hub-quick-actions-row { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .hub-shortcut-card { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); border-radius: var(--radius-md); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), rgba(255,255,255,.02)); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard); }
 .hub-shortcut-card:hover { border-color: var(--gold); transform: translateY(-2px); }
 .hub-shortcut-card strong { display: block; font-family: var(--font-display); letter-spacing: .01em; }
 .hub-shortcut-card span { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--text-xs); }
-.hub-my-team-shortcuts, .hub-my-team-shortcuts * { text-align: left; }
 .hub-my-team > .hub-section-heading,
 .hub-wagers-section > .hub-section-heading { display:flex; justify-content:center; width:100%; text-align:center; }
 .hub-my-team > .hub-section-heading > div,
@@ -328,11 +327,9 @@ button.poty:disabled {
 .hub-rich-text-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
 .hub-section-heading h2, .hub-section-heading p { overflow-wrap: anywhere; word-break: break-word; }
 @media (max-width: 600px) {
-  .hub-my-team-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .hub-shortcut-card { width: 100%; padding: var(--space-3) var(--space-2); flex-direction: column; text-align: center; gap: 6px; }
   .hub-shortcut-card strong { font-size: var(--text-sm); }
   .hub-shortcut-card span { font-size: 10px; }
-  .hub-my-team-shortcuts, .hub-my-team-shortcuts * { text-align: center; }
   .hub-quick-actions-card { margin-inline: -4px; padding: 10px 8px; overflow: hidden; }
   .hub-quick-actions-row { display: flex; gap: 7px; overflow-x: auto; padding: 1px 1px 7px; scroll-snap-type: x proximity; scrollbar-width: thin; }
   .hub-shortcut-card.hub-quick-action { flex: 0 0 126px; width: 126px; min-height: 62px; padding: 8px; flex-direction: row; text-align: left; scroll-snap-align: start; }
@@ -342,6 +339,8 @@ button.poty:disabled {
 .hub-media-modal { display: flex; flex-direction: column; gap: var(--space-3); }
 .modal-panel:has(.hub-media-modal) { max-width: 640px; }
 .modal-panel:has(.roundtable-story) { max-width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.modal-panel:has(.hub-my-schedule) { max-width: min(720px, calc(100vw - 32px)); }
+.modal-panel:has(.recruiting-board) { max-width: min(720px, calc(100vw - 32px)); }
 .hub-article-modal { max-width:min(900px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
 @media (max-width:700px) {
   .hub-article-modal-overlay { align-items:stretch; padding:0; overflow:hidden; }

@@ -152,7 +152,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   await assertEconomyPayoutsActive(leagueId);
 
   const stake = Math.floor(Number(input.stake));
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
 
   const marketDef = WAGER_MARKET_BY_KEY.get(input.market);
@@ -274,7 +274,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
 
 // Shared placement validation + line/odds resolution for house and peer wagers.
 async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number, customLine?: number | null) {
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   const marketDef = WAGER_MARKET_BY_KEY.get(market);
   if (!marketDef) throw new ApiError(400, "Unknown wager market.");
 
@@ -685,7 +685,7 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
   });
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
   const games = gameIds.length
-    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
     : { data: [] };
   const gameById = new Map<string, any>((games.data ?? []).map((game: any) => [game.id, game]));
   const gameLabelById = new Map(
@@ -705,32 +705,40 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
   );
 
   return {
-    wagers: rows.map((w: any) => ({
-      id: w.id,
-      gameId: w.game_id,
-      gameLabel: gameLabelById.get(w.game_id) ?? "Scheduled game",
-      challengeType: w.challenge_type,
-      market: w.market,
-      marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
-      pick: w.pick,
-      pickLabel: pickLabelFor(w, gameById),
-      line: w.line,
-      odds: w.odds,
-      stake: Number(w.stake ?? 0),
-      potentialPayout: Number(w.potential_payout ?? 0),
-      status: w.status,
-      boardState: w.status === "awaiting_accept" ? "open" : "active",
-      placedByDiscordId: w.placed_by_discord_id,
-      placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
-      acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
-      isMine: w.placed_by_user_id === viewerUserId,
-      canAccept:
-        w.status === "awaiting_accept" &&
-        w.placed_by_user_id !== viewerUserId &&
-        (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
-      canEdit: w.status === "awaiting_accept" && w.placed_by_user_id === viewerUserId,
-      createdAt: w.created_at,
-    })),
+    wagers: rows.map((w: any) => {
+      const game = w.game_id ? gameById.get(w.game_id) : null;
+      const gameScheduled = !game || game.status === "scheduled";
+      const isPlacer = w.placed_by_user_id === viewerUserId;
+      return {
+        id: w.id,
+        gameId: w.game_id,
+        gameLabel: gameLabelById.get(w.game_id) ?? "Scheduled game",
+        challengeType: w.challenge_type,
+        market: w.market,
+        marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
+        pick: w.pick,
+        pickLabel: pickLabelFor(w, gameById),
+        line: w.line,
+        odds: w.odds,
+        stake: Number(w.stake ?? 0),
+        potentialPayout: Number(w.potential_payout ?? 0),
+        status: w.status,
+        boardState: w.status === "awaiting_accept" ? "open" : "active",
+        placedByDiscordId: w.placed_by_discord_id,
+        placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
+        acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
+        isMine: isPlacer,
+        canAccept:
+          w.status === "awaiting_accept" &&
+          !isPlacer &&
+          (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
+        canEdit: isPlacer && (
+          w.status === "awaiting_accept" ||
+          (w.status === "pending" && gameScheduled)
+        ),
+        createdAt: w.created_at,
+      };
+    }),
   };
 }
 
@@ -757,7 +765,7 @@ export async function listMyWagers(guildId: string, discordId: string) {
 
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
   const games = gameIds.length
-    ? await supabase.from("rec_games").select("id,status,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
     : { data: [] };
   const gameById = new Map<string, any>((games.data ?? []).map((game: any) => [game.id, game]));
   const gameLabelById = new Map((games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]));
@@ -767,31 +775,35 @@ export async function listMyWagers(guildId: string, discordId: string) {
   const nameByUserId = new Map((users.data ?? []).map((u: any) => [u.id, u.display_name ?? u.username ?? "REC Member"]));
 
   return {
-    wagers: rows.map((w: any) => ({
-      id: w.id,
-      gameId: w.game_id,
-      gameLabel: w.game_id ? gameLabelById.get(w.game_id) ?? "Scheduled game" : "House line",
-      weekNumber: Number(w.week_number ?? 0),
-      wagerKind: w.wager_kind,
-      challengeType: w.challenge_type,
-      market: w.market,
-      marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
-      pickLabel: pickLabelFor(w, gameById),
-      stake: Number(w.stake ?? 0),
-      potentialPayout: Number(w.potential_payout ?? 0),
-      status: w.status,
-      boardState: w.status === "awaiting_accept" ? "open" : ["pending", "confirmed"].includes(w.status) ? "active" : "settled",
-      placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
-      acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
-      isMine: w.placed_by_user_id === viewerUserId,
-      canEdit: w.status === "awaiting_accept" && w.placed_by_user_id === viewerUserId,
-      canCancel:
-        ["awaiting_accept", "pending", "confirmed"].includes(w.status) &&
-        w.placed_by_user_id === viewerUserId &&
-        (!w.game_id || gameById.get(w.game_id)?.status === "scheduled"),
-      settledAt: w.settled_at,
-      createdAt: w.created_at,
-    })),
+    wagers: rows.map((w: any) => {
+      const game = w.game_id ? gameById.get(w.game_id) : null;
+      const gameScheduled = !game || game.status === "scheduled";
+      const isPlacer = w.placed_by_user_id === viewerUserId;
+      return {
+        id: w.id,
+        gameId: w.game_id,
+        gameLabel: w.game_id ? gameLabelById.get(w.game_id) ?? "Scheduled game" : "House line",
+        weekNumber: Number(w.week_number ?? 0),
+        wagerKind: w.wager_kind,
+        challengeType: w.challenge_type,
+        market: w.market,
+        marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
+        pickLabel: pickLabelFor(w, gameById),
+        stake: Number(w.stake ?? 0),
+        potentialPayout: Number(w.potential_payout ?? 0),
+        status: w.status,
+        boardState: w.status === "awaiting_accept" ? "open" : ["pending", "confirmed"].includes(w.status) ? "active" : "settled",
+        placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
+        acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
+        isMine: isPlacer,
+        canEdit: isPlacer && (
+          w.status === "awaiting_accept" ||
+          (["pending", "confirmed"].includes(w.status) && gameScheduled)
+        ),
+        settledAt: w.settled_at,
+        createdAt: w.created_at,
+      };
+    }),
   };
 }
 
@@ -799,17 +811,10 @@ export async function listMyWagers(guildId: string, discordId: string) {
 // stores the winning team's UUID; resolve it to a team abbreviation for display instead of
 // showing the raw id. Total markets already store a human-readable "over"/"under".
 function pickLabelFor(w: any, gameById: Map<string, any>): string {
-  const def = WAGER_MARKET_BY_KEY.get(w.market);
-  const kind = def?.kind;
+  const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
   if (kind === "total") {
     const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
     return w.line != null ? `${side} ${w.line}` : side;
-  }
-  if (kind === "team_total") {
-    const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
-    const game = gameById.get(w.game_id);
-    const teamLabel = game ? teamAbbr(def?.team === "away" ? game.away_team : game.home_team) : "";
-    return `${teamLabel ? `${teamLabel} ` : ""}${side}${w.line != null ? ` ${w.line}` : ""}`;
   }
   const game = gameById.get(w.game_id);
   if (!game) return String(w.pick ?? "");
@@ -863,10 +868,8 @@ export async function placeParlay(input: PlaceParlayInput) {
   const gameMarketSeen = new Set<string>();
   for (const leg of input.legs) {
     const definition = WAGER_MARKET_BY_KEY.get(leg.market);
-    const isStatLineTotal = definition?.kind === "total" && Boolean(definition.statKey) && definition.statKey !== "points";
-    const isTeamTotal = definition?.kind === "team_total";
-    if (!isStatLineTotal && !isTeamTotal) {
-      throw new ApiError(400, "3-pick parlays only allow player/team stat-line or team-total over-under markets.");
+    if (definition?.kind !== "total" || !definition.statKey || definition.statKey === "points") {
+      throw new ApiError(400, "3-pick parlays only allow player/team stat-line over-under markets.");
     }
     const key = `${leg.gameId}:${leg.market}`;
     if (gameMarketSeen.has(key)) throw new ApiError(400, "Each parlay leg must be a different game+market.");
@@ -874,7 +877,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   }
 
   const stake = Math.floor(Number(input.stake));
-  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-coin stake.");
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
@@ -1021,22 +1024,6 @@ async function resolveOutcome(leagueId: string, wager: { game_id: string | null;
     const adjusted = margin + Number(wager.line ?? 0);
     if (adjusted === 0) return "push";
     return adjusted > 0 ? "won" : "lost";
-  }
-
-  if (def.kind === "team_total") {
-    const line = Number(wager.line ?? 0);
-    let actual: number | null = null;
-    if (def.statKey === "points") {
-      actual = def.team === "away" ? awayScore : homeScore;
-    } else {
-      const stat = await loadTeamGameStat(leagueId, wager.game_id, def.statKey ?? "");
-      if (!stat) return null; // box-score stat not logged yet
-      actual = def.team === "away" ? stat.away : stat.home;
-    }
-    if (actual == null) return null;
-    if (actual === line) return "push";
-    const isOver = actual > line;
-    return (wager.pick === "over" && isOver) || (wager.pick === "under" && !isOver) ? "won" : "lost";
   }
 
   // Totals.

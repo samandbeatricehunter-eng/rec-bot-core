@@ -13,21 +13,9 @@ case anything downstream still looks off from that ~10-minute window.
 Then the user reported four more issues, none fixed yet — all investigated
 enough to know the exact cause/file, not yet implemented:
 
-- [ ] **Quick Actions panel never actually replaced the My Team page's old buttons.**
-  The Campus Buzz Quick Actions panel (`apps/web/src/routes/hub/HubHome.tsx:1474-1484`,
-  `subTab === "buzz"`) is a *different, separate* block from the old
-  `.hub-my-team-shortcuts` row still living on the My Team page
-  (`section === "team"`, `HubHome.tsx:1203-1210` — Submit Article, Coach
-  Interview, Confirmed Commit, Full Season Schedule, Add Player(s) to Watch,
-  Late Submissions). Earlier session notes claimed this replacement was done;
-  it wasn't — the old block was never removed/merged with the new one. Needs:
-  decide which button set is canonical (probably merge them, since they
-  overlap on Interview/Schedule but each has buttons the other lacks — Buzz
-  has Manage Team/Trade Center/My Matchup/Recruiting, My Team has Submit
-  Article/Confirmed Commit/Add Player to Watch/Late Submissions) and remove
-  the duplicate.
+- [x] **Quick Actions panel never actually replaced the My Team page's old buttons.** (shipped earlier session)
 
-- [ ] **Full Season Schedule modal missing Box Score/Highlight buttons for CPU games.**
+- [x] **Full Season Schedule modal missing Box Score/Highlight buttons for CPU games.**
   Root cause: `eligibleForActions` in `ScheduleWeekList` (`HubHome.tsx:321-323`)
   requires `week.confirmedMatchupType === "h2h"`, which excludes `"cpu"` games
   entirely (`TeamScheduleManualState["weeks"][number]["confirmedMatchupType"]`
@@ -37,7 +25,7 @@ enough to know the exact cause/file, not yet implemented:
   — but verify the API route the buttons call (`UploadBoxScoreModal`,
   `HighlightUploadModal`) doesn't itself reject CPU games server-side.
 
-- [ ] **Full Season Schedule (and Recruiting Board) modals poorly sized on desktop.**
+- [x] **Full Season Schedule (and Recruiting Board) modals poorly sized on desktop.**
   Root cause: the generic `.modal-panel` rule caps every modal at
   `max-width: 480px` (`apps/web/src/styles/surfaces.css:97`), with no
   per-modal override for either `.hub-my-schedule` (wraps
@@ -52,14 +40,14 @@ enough to know the exact cause/file, not yet implemented:
   breakpoint rule, or whether removing the fixed cap is enough since the
   overlay already has `padding: var(--space-4)`).
 
-- [ ] **Recruiting Board "Available Recruits" needs a position-group filter.**
+- [x] **Recruiting Board "Available Recruits" needs a position-group filter.**
   No filter UI exists at all today in
   `apps/web/src/components/hub/RecruitingBoardModal.tsx` — net-new: a
   dropdown (ALL or a specific position) filtering `listToShow` in the "pool"
   view (component reads `recruit.position` already, so this is a pure
   frontend filter, no API change needed).
 
-- [ ] **Recruiting Board: any member can change any OTHER user's logged recruit's status.**
+- [x] **Recruiting Board: any member can change any OTHER user's logged recruit's status.**
   `RecruitingBoardModal.tsx:229-236` renders the status `<select>` for every
   recruit in the pool view unconditionally — the code comment even says this
   was intentional ("everyone sees and can log activity on it"), but the user
@@ -76,7 +64,7 @@ enough to know the exact cause/file, not yet implemented:
   (viewer's own user id needs to reach this component — check what
   `HubResponse`/auth context already exposes before adding a new prop).
 
-- [ ] **Spotlight/Highlight Reel playback controls (pause, rewind, mute) still don't do anything.**
+- [x] **Spotlight/Highlight Reel playback controls (pause, rewind, mute) still don't do anything.**
   User confirmed this is still broken after the session-2 fix referenced
   above (`useStreamPlayerControls` hook + custom control bar, commit
   `08f3b72`, item #52/#53 below) — that fix either didn't ship correctly or

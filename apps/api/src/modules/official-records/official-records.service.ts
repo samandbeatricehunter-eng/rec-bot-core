@@ -1,4 +1,4 @@
-import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { isChampionshipWeek, isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
 // Every source a game result can legitimately be logged from — box-score OCR,
@@ -342,9 +342,13 @@ export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumbe
     if (row.home_user_id) userIds.add(row.home_user_id);
     if (row.away_user_id) userIds.add(row.away_user_id);
   }
-  // Season record wins/losses are regular-season-only (playoffs shown separately via
-  // their own playoff_wins/playoff_losses columns, computed from the full result set).
-  const regularSeasonResults = results.filter((row) => !isPlayoffWeek(row.week_number, game));
+  // Season record wins/losses are regular-season-only for NFL (playoffs shown separately
+  // via their own playoff_wins/playoff_losses columns, computed from the full result set).
+  // CFB counts its full season including the postseason — a finished "9-4" season is the
+  // real convention there, and the playoff/superbowl columns remain an additional breakdown.
+  const regularSeasonResults = isCfb(game)
+    ? results
+    : results.filter((row) => !isPlayoffWeek(row.week_number, game));
 
   const now = new Date().toISOString();
   const creditByUser = await loadActiveStatsCreditStarts(leagueId, [...userIds]);

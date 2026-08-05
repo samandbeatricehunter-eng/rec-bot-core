@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_TIER_LABELS, devTierOrderForGame, priceForDevUpgradeSteps, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { ArrowLeftRight, Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
@@ -9,7 +9,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamRosterResponse, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -20,7 +20,6 @@ import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js
 import { InterviewBody } from "../../components/hub/InterviewBody.js";
 import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
 import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
-import { CommissionerPollsVotingBlock } from "../../components/hub/CommissionerPollsVotingBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useStreamPlayerControls } from "../../hooks/useStreamPlayerControls.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
@@ -32,7 +31,6 @@ import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.
 import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
-import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
@@ -54,7 +52,7 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
 };
 const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   age_reset: coinsNumber(REC_AGE_RESET_PRICE),
-  dev_upgrade: `${coinsNumber(500)}-${coinsNumber(1500)}/tier`,
+  dev_upgrade: `${coinsNumber(REC_DEV_UPGRADE_PRICE.star)}-${coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}`,
   contract: coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction),
   player_trait: coinsNumber(REC_PLAYER_TRAIT_PRICE),
   attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
@@ -62,11 +60,11 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
 };
 type Story = HubResponse["headlines"][number];
-type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "trades" | "openTeams" | "schedules";
+type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules";
 type LeagueSubTab = "buzz" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
-const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "trades", "openTeams", "schedules"]);
+const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules"]);
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -211,12 +209,9 @@ function DefenseNicknamePrompt() {
   </div>;
 }
 
-const TIER_ORDER = ["S", "A", "B", "C", "D"] as const;
-
 function EosPayoutProgressPanel() {
   const { guildId, discordId } = useReadyAuth();
   const [progress, setProgress] = useState<MyEosPayoutProgress | null>(null);
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     recApi.getMyEosPayoutProgress({ guildId, discordId }).then(setProgress).catch(() => setProgress(null));
@@ -229,31 +224,13 @@ function EosPayoutProgressPanel() {
     {cards.map((card) => {
       const tierLabel = card.progress.currentTier ? `Tier ${card.progress.currentTier} · ${coinsNumber(card.progress.currentAmount)}` : "No tier yet";
       const nextLabel = card.progress.nextTier ? `Next: Tier ${card.progress.nextTier.tier} (${coinsNumber(card.progress.nextTier.amount)})` : "Top tier reached";
-      const expanded = expandedKey === card.key;
-      const sortedTiers = [...card.tiers].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
-      return <article key={card.key} className="hub-eos-progress-card" onClick={() => setExpandedKey(expanded ? null : card.key)} role="button" tabIndex={0}>
+      return <article key={card.key} className="hub-eos-progress-card">
         <div className="hub-eos-progress-card-head">
           <strong>{card.label}</strong>
           <span>{"rank" in card && card.rank != null ? `Rank ${card.rank}` : card.currentValue}</span>
         </div>
         <div className="hub-eos-progress-bar"><div className="hub-eos-progress-bar-fill" style={{ width: `${card.progress.percent}%` }} /></div>
         <div className="hub-eos-progress-card-foot"><span>{tierLabel}</span><span>{nextLabel}</span></div>
-        {expanded && <div className="hub-eos-progress-tiers" onClick={(event) => event.stopPropagation()}>
-          <table>
-            <thead><tr><th>Tier</th><th>Threshold</th><th>Payout</th></tr></thead>
-            <tbody>
-              {sortedTiers.map((tier) => (
-                <tr key={tier.tier} className={card.progress.currentTier === tier.tier ? "hub-eos-progress-tier-active" : ""}>
-                  <td>{tier.tier}</td>
-                  <td>{tier.operator === "greater_or_equal" ? "≥ " : tier.operator === "less_or_equal" ? "≤ " : "< "}{tier.threshold}</td>
-                  <td><CoinAmount amount={tier.amount} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {card.triggerNote && <p className="hub-eos-progress-note">{card.triggerNote}</p>}
-          {card.currentAwardedName !== undefined && card.currentAwardedName && <p className="hub-eos-progress-note">Currently named: <strong>{card.currentAwardedName}</strong></p>}
-        </div>}
       </article>;
     })}
   </div>;
@@ -454,7 +431,6 @@ export function HubHome() {
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
-  const [devUpgradeRoster, setDevUpgradeRoster] = useState<TeamRosterResponse | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
@@ -500,7 +476,7 @@ export function HubHome() {
     if (rawSub === "rankings" || searchParams.get("matchupView") === "rankings") {
       setMatchupView("rankings");
     }
-    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "trades" || nextSection === "openTeams" || nextSection === "schedules") {
+    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "openTeams" || nextSection === "schedules") {
       setSection(nextSection);
     } else if (nextSection === "league" || nextSubTab) {
       setSection("league");
@@ -837,10 +813,6 @@ export function HubHome() {
     if (auth.status !== "ready" || storeContext) return;
     try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
   }
-  async function loadDevUpgradeRoster() {
-    if (auth.status !== "ready" || devUpgradeRoster) return;
-    try { setDevUpgradeRoster(await recApi.getTeamRoster({ guildId: auth.guildId })); } catch { /* player picker just stays empty */ }
-  }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
     selectSection("openTeams");
@@ -992,12 +964,6 @@ export function HubHome() {
   async function closeGotw(pollId: string) {
     if (auth.status !== "ready" || !matchupSchedule) return;
     await recApi.closeGameOfWeekVoting({ guildId: auth.guildId, pollId });
-    setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
-  }
-
-  async function reopenGotw(pollId: string) {
-    if (auth.status !== "ready" || !matchupSchedule) return;
-    await recApi.reopenGameOfWeekVoting({ guildId: auth.guildId, pollId });
     setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
   }
 
@@ -1200,13 +1166,22 @@ export function HubHome() {
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
       {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
-      <div className="hub-my-team-shortcuts">
-        <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
-        <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${coinsNumber(50)} on approval`}</span></div></button>
-        {hub.league.game === "cfb_27" && <button className="hub-shortcut-card" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
-        <button className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
-        <button className="hub-shortcut-card" onClick={() => setMyWatchedPlayersModalOpen(true)}><IconWell size="sm" icon={<UserPlus size={18} />} /><div><strong>Add Player(s) to Watch</strong><span>Track performances by name</span></div></button>
-        <button className="hub-shortcut-card" onClick={() => setLateSubmissionsOpen(true)}><IconWell size="sm" icon={<Clock size={18} />} /><div><strong>Late Submissions</strong><span>Missed a box score or highlight?</span></div></button>
+      <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
+        <p className="hub-eyebrow">Quick actions</p>
+        <div className="hub-gameday-actions hub-quick-actions-row">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
+          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${coinsNumber(50)} on approval`}</span></div></button>
+          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMyWatchedPlayersModalOpen(true)}><IconWell size="sm" icon={<UserPlus size={16} />} /><div><strong>Add Player(s) to Watch</strong><span>Track performances by name</span></div></button>
+        </div>
       </div>
       <div className="hub-stat-grid">
       <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
@@ -1225,7 +1200,7 @@ export function HubHome() {
           const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
           const used = storeContext?.seasonActive[product.type];
           const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
-          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); void loadStoreContext(); if (product.type === "dev_upgrade") void loadDevUpgradeRoster(); }}>
+          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
             <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
@@ -1253,31 +1228,11 @@ export function HubHome() {
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           */}
 
-          {purchaseType === "dev_upgrade" && (() => {
-            const order = devTierOrderForGame(hub.league.game) as string[];
-            const tierOf = (devTrait: string | null) => (devTrait && order.includes(devTrait) ? devTrait : "normal") as keyof typeof REC_DEV_TIER_LABELS;
-            const players = (devUpgradeRoster?.players ?? []).filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in");
-            const selectedPlayer = players.find((p) => p.id === purchaseDetails.playerId);
-            const fromTier = tierOf(selectedPlayer?.devTrait ?? null);
-            const fromIndex = order.indexOf(fromTier);
-            const availableTargets = order.filter((_, index) => index > fromIndex) as Array<keyof typeof REC_DEV_TIER_LABELS>;
-            const total = purchaseDetails.playerId && purchaseDetails.toTier ? priceForDevUpgradeSteps(hub.league.game, fromTier, purchaseDetails.toTier as any) : 0;
-            return <>
-              <label className="form-field"><span className="form-label">Player</span>
-                <select className="form-input" value={purchaseDetails.playerId ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerId: event.target.value, toTier: "" }))}>
-                  <option value="">{devUpgradeRoster ? "Select a player" : "Loading roster…"}</option>
-                  {players.map((p) => <option key={p.id} value={p.id}>{p.fullName} · {REC_DEV_TIER_LABELS[tierOf(p.devTrait)]}</option>)}
-                </select>
-              </label>
-              <label className="form-field"><span className="form-label">Upgrade to</span>
-                <select className="form-input" value={purchaseDetails.toTier ?? ""} disabled={!purchaseDetails.playerId} onChange={(event) => setPurchaseDetails((current) => ({ ...current, toTier: event.target.value }))}>
-                  <option value="">Select tier</option>
-                  {availableTargets.map((tier) => <option key={tier} value={tier}>{REC_DEV_TIER_LABELS[tier]} · {coinsNumber(priceForDevUpgradeSteps(hub.league.game, fromTier as any, tier as any))}</option>)}
-                </select>
-              </label>
-              <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={total} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerId || !purchaseDetails.toTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-            </>;
-          })()}
+          {purchaseType === "dev_upgrade" && <>
+            <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · {coinsNumber(REC_DEV_UPGRADE_PRICE.star)}</option><option value="superstar">Superstar · {coinsNumber(REC_DEV_UPGRADE_PRICE.superstar)}</option><option value="xfactor">X-Factor · {coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}</option></select></label>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.targetTier ? REC_DEV_UPGRADE_PRICE[purchaseDetails.targetTier as keyof typeof REC_DEV_UPGRADE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.targetTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
 
           {purchaseType === "contract" && <>
             <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>
@@ -1355,9 +1310,9 @@ export function HubHome() {
                   <small>{wager.status === "won" ? `Won ` : "Payout "}<CoinAmount amount={wager.potentialPayout} /></small>
                   <StatusChip status={wager.status === "won" ? "approved" : wager.status === "lost" ? "denied" : wager.status === "refunded" ? "info" : wager.boardState === "open" ? "pending" : "locked"} label={displayLabel(wager.status)} />
                 </div>
-                {(wager.canEdit || wager.canCancel) && (
+                {wager.canEdit && (
                   <div className="hub-my-wager-row-actions">
-                    {wager.canEdit && wager.wagerKind !== "house" && (
+                    {wager.wagerKind !== "house" && (
                       <button
                         className="hub-icon-action"
                         title="Edit wager terms"
@@ -1371,9 +1326,7 @@ export function HubHome() {
                         <Pencil size={17} />
                       </button>
                     )}
-                    {wager.canCancel && (
-                      <button className="hub-icon-action danger" title="Cancel wager" aria-label="Cancel wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>
-                    )}
+                    <button className="hub-icon-action danger" title="Cancel wager" aria-label="Cancel wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>
                   </div>
                 )}
               </article>
@@ -1381,7 +1334,7 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
-    </section> : section === "roster" ? <RosterHome /> : section === "trades" ? <TradeCenterHome /> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <RosterHome /> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
@@ -1478,7 +1431,6 @@ export function HubHome() {
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
-            {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
             {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
@@ -1489,7 +1441,6 @@ export function HubHome() {
 
         <EosAwardVotingBlock />
         <PublicPollsBlock />
-        <CommissionerPollsVotingBlock />
         <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {(() => {
@@ -1575,6 +1526,16 @@ export function HubHome() {
       {subTab === "matchups" && (
         <>
 
+          <SectionFrame eyebrow="Live market" title="Wager Board" action={<Button variant="primary" size="compact" onClick={() => setWagerGamePickerOpen(true)}><Plus size={16} /> Place Wager</Button>}>
+            {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+            <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading wagers...</p> : wagersBoard.length ? <>
+              <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
+              {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><span className="hub-wager-kicker">{isActive ? "Active Wager" : "Open Challenge"}</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pickLabel}</p><p className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</p><div><b><CoinAmount amount={wager.stake} /> stake</b><small>Potential payout <CoinAmount amount={wager.potentialPayout} /></small></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}{wager.canEdit && <Button variant="secondary" size="compact" disabled={wagersBoardBusy} onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}>Edit</Button>}{wager.canEdit && <Button variant="danger" size="compact" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}>Cancel</Button>}</div></article>; })()}
+              <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
+              <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
+            </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open or Active Wagers</strong><p>User challenges appear here automatically.</p></div>}</div>
+          </SectionFrame>
+
           {matchupSchedule?.gotw ? (
             <SectionFrame
               title="Game of the Week"
@@ -1611,13 +1572,9 @@ export function HubHome() {
                     <small>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</small>
                   </button>
                 </div>
-                {hub.canManageLeague ? (
+                {hub.canManageLeague && matchupSchedule.gotw.status === "open" ? (
                   <div className="hub-matchup-admin-slot">
-                    {matchupSchedule.gotw.status === "open" ? (
-                      <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
-                    ) : (
-                      <Button variant="tactical" size="compact" onClick={() => void reopenGotw(matchupSchedule.gotw!.pollId)}>Reopen Voting</Button>
-                    )}
+                    <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
                   </div>
                 ) : null}
                 {(() => {
@@ -1725,7 +1682,7 @@ export function HubHome() {
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                     </div>
-                    {game.gotw && hub.canManageLeague && <div className="hub-matchup-admin-slot">{game.gotw.status === "open" ? <Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button> : <Button variant="tactical" size="compact" onClick={() => void reopenGotw(game.gotw!.pollId)}>Reopen Voting</Button>}</div>}
+                    {game.gotw && hub.canManageLeague && game.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button></div>}
                     {game.gotw && (() => { const total = game.gotw.awayVotes + game.gotw.homeVotes; const away = total ? Math.round(game.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {

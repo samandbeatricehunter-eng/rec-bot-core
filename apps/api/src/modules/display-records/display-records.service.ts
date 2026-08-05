@@ -1,4 +1,4 @@
-import { regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { DISPLAY_ADVANCE_SOURCE, OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 
@@ -100,10 +100,14 @@ export async function rebuildSeasonDisplayRecords(leagueId: string, seasonNumber
 
   const game = (leagueRow?.game as LeagueGame) ?? "madden_26";
   const lastRegularWeek = regularSeasonWeeks(game);
-  // Team Record is regular-season-only — postseason games don't count toward it.
-  const regularSeasonResults = (results ?? []).filter((row) => Number(row.week_number ?? 0) <= lastRegularWeek);
+  // Team Record counts the full season for CFB (postseason included — a real-CFB
+  // team's final record after a bowl/playoff run is one number, e.g. 9-4). For NFL
+  // leagues it stays regular-season-only; playoff wins/losses are surfaced separately.
+  const seasonResults = (results ?? []).filter(
+    (row) => isCfb(game) || Number(row.week_number ?? 0) <= lastRegularWeek,
+  );
 
-  const displayRows = mergeDisplayResults(regularSeasonResults);
+  const displayRows = mergeDisplayResults(seasonResults);
   const aggregate = new Map<string, { wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number; teamId: string | null }>();
   for (const row of displayRows) ingestResultRow(aggregate, row);
 

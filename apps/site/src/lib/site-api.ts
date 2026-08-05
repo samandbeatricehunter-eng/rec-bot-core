@@ -701,8 +701,17 @@ export const siteApi = {
   getLeagueCreatorStatus() {
     return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
   },
-  createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean }) {
+  createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; [key: string]: unknown }) {
     return request<{ league: { id: string; name: string; game: string } }>("/v1/site-leagues/create", input);
+  },
+  updateLeagueConfig(leagueId: string, config: Record<string, unknown>) {
+    return request<{ configuration: unknown }>("/v1/site-leagues/update-config", { leagueId, ...config });
+  },
+  checkLeagueLinked(leagueId: string) {
+    return request<{ linked: boolean; guildId: string | null; serverName: string | null }>("/v1/site-leagues/check-linked", { leagueId });
+  },
+  completeWizard(input: { leagueId: string; teamId?: string; guildId?: string; discordId?: string }) {
+    return request<{ ok: boolean; team: any | null; assignment: any | null }>("/v1/site-leagues/complete-wizard", input);
   },
   getAdminStats() {
     return request<AdminStats>("/v1/admin/stats", {});

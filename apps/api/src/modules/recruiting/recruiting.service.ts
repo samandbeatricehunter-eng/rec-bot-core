@@ -24,6 +24,7 @@ export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
   commitDate: string | null; storyId: string | null; heightInches: number | null; weightLbs: number | null;
+  submittedByUserId: string | null;
 };
 
 function mapRow(row: any): Recruit {
@@ -31,10 +32,11 @@ function mapRow(row: any): Recruit {
     id: row.id, playerName: row.player_name, position: row.position, homeCity: row.home_city ?? null, homeState: row.home_state ?? null,
     starRating: row.star_rating, status: row.status, committedTeamId: row.committed_team_id ?? null, committedTeamExternal: row.committed_team_external ?? null,
     commitDate: row.commit_date ?? null, storyId: row.story_id ?? null, heightInches: row.height_inches ?? null, weightLbs: row.weight_lbs ?? null,
+    submittedByUserId: row.submitted_by_user_id ?? null,
   };
 }
 
-const SELECT_COLUMNS = "id,player_name,position,home_city,home_state,star_rating,status,committed_team_id,committed_team_external,commit_date,story_id,height_inches,weight_lbs";
+const SELECT_COLUMNS = "id,player_name,position,home_city,home_state,star_rating,status,committed_team_id,committed_team_external,commit_date,story_id,height_inches,weight_lbs,submitted_by_user_id";
 
 export async function listRecruits(guildId: string): Promise<{ recruits: Recruit[] }> {
   const context = await getCurrentLeagueContext(guildId);

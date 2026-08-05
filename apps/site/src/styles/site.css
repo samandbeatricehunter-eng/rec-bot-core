@@ -1790,6 +1790,84 @@ h1, h2, h3, .site-wordmark {
 .site-field-checkbox input {
   width: auto;
 }
+.site-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+  z-index: 2;
+}
+.site-modal-close:hover { color: var(--text); }
+.site-modal-wide {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(720px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: var(--space-5);
+  border: var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+}
+.site-modal-wide h2 { margin: 0; font-size: 22px; }
+.site-modal-wide p { margin: 0; color: var(--text-muted); }
+.site-input { width: 100%; padding: 8px 12px; border: var(--card-border); border-radius: var(--radius-md); background: var(--input-bg, var(--card-bg)); color: var(--text); font-size: 14px; }
+.site-input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.site-input-sm { padding: 4px 8px; font-size: 13px; }
+.site-select { width: 100%; padding: 8px 12px; border: var(--card-border); border-radius: var(--radius-md); background: var(--input-bg, var(--card-bg)); color: var(--text); font-size: 14px; }
+.site-field-label { font-weight: 600; font-size: 14px; }
+.site-btn-secondary { background: var(--card-bg); border: var(--card-border); color: var(--text); padding: 8px 16px; border-radius: var(--radius-md); cursor: pointer; font-size: 14px; }
+.site-btn-secondary:hover { background: var(--hover-bg, rgba(255,255,255,0.05)); }
+.site-btn-sm { padding: 4px 8px; font-size: 12px; }
+.site-btn-danger { color: #e74c3c; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+/* —— Wizard styles —— */
+.wizard-warning { text-align: center; padding: var(--space-3) 0; }
+.wizard-warning-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--gold, #d4a843); color: #000; font-size: 24px; font-weight: 800; display: inline-grid; place-items: center; margin-bottom: var(--space-2); }
+.wizard-warning h3 { margin: 0 0 var(--space-2); font-size: 18px; }
+.wizard-warning p { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: 14px; }
+.wizard-game-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.wizard-game-card { padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); cursor: pointer; text-align: center; font-size: 16px; font-weight: 600; transition: border-color 0.15s; }
+.wizard-game-card:hover { border-color: var(--gold, #d4a843); }
+.wizard-game-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.wizard-option-card { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); cursor: pointer; transition: border-color 0.15s; }
+.wizard-option-card:hover { border-color: var(--gold, #d4a843); }
+.wizard-option-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.wizard-option-card strong { font-size: 14px; }
+.wizard-option-card .site-muted { font-size: 12px; }
+.wizard-section { padding: var(--space-2) 0; border-bottom: 1px solid var(--card-border); }
+.wizard-section:last-child { border-bottom: none; }
+.wizard-section-title { margin: 0 0 var(--space-2); font-size: 15px; font-weight: 700; }
+.wizard-notice { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); font-size: 13px; color: var(--text-muted); margin: var(--space-2) 0; }
+.wizard-notice-warn { border-color: var(--gold, #d4a843); background: rgba(212,168,67,0.08); }
+.wizard-tooltip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,0.1); font-size: 10px; font-weight: 700; }
+.wizard-rules-list { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0; }
+.wizard-rule-item { padding: var(--space-2); border: var(--card-border); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); }
+.wizard-rule-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); flex-wrap: wrap; }
+.wizard-rule-number { font-weight: 700; font-size: 14px; min-width: 24px; }
+.wizard-rule-actions { display: flex; gap: 4px; margin-left: auto; }
+.wizard-rule-meta { display: flex; gap: var(--space-2); font-size: 11px; color: var(--text-muted); margin-top: var(--space-1); }
+.wizard-rule-add { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.wizard-rule-add-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.wizard-autocomplete { position: absolute; top: 100%; left: 0; right: 0; z-index: 10; background: var(--card-bg); border: var(--card-border); border-radius: var(--radius-md); max-height: 150px; overflow-y: auto; box-shadow: var(--shadow-card); }
+.wizard-autocomplete-item { display: block; width: 100%; padding: 6px 10px; background: none; border: none; color: var(--text); text-align: left; font-size: 13px; cursor: pointer; }
+.wizard-autocomplete-item:hover { background: rgba(255,255,255,0.06); }
+.wizard-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-2); }
+.wizard-team-card { padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); cursor: pointer; text-align: center; transition: border-color 0.15s; display: flex; flex-direction: column; gap: 4px; }
+.wizard-team-card:hover { border-color: var(--gold, #d4a843); }
+.wizard-team-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.wizard-team-card strong { font-size: 14px; }
+.wizard-team-card .site-muted { font-size: 12px; }
 .site-sidebar-nav-btn.is-active span {
   font-weight: 800;
 }

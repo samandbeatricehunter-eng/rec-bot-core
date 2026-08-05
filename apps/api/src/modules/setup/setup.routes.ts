@@ -22,15 +22,144 @@ import {
   deleteLeagueData,
   getLeagueTeamConferences,
   updateTeamConference,
-  createUnclaimedLeague
+  createUnclaimedLeague,
+  updateSiteLeagueConfig,
+  checkLeagueLinked,
+  completeWizard,
 } from "./setup.service.js";
 
 const CreateUnclaimedLeagueSchema = z.object({
   name: z.string().trim().min(1).max(80),
   game: z.enum(["madden_26", "madden_27", "cfb_27"]),
+  leaguePassword: z.string().optional().nullable(),
   leagueType: z.string().optional(),
   activeRostersEnabled: z.boolean().optional(),
   trackRostersEnabled: z.boolean().optional(),
+  dynastyType: z.string().optional(),
+  recruitingDifficulty: z.string().optional(),
+  transferPortalEnabled: z.boolean().optional(),
+  coachCarouselEnabled: z.boolean().optional(),
+  homeFieldAdvantageEnabled: z.boolean().optional(),
+  stadiumPulseEnabled: z.boolean().optional(),
+  conferenceRealignment: z.string().optional(),
+  teamBuilderAllowed: z.boolean().optional(),
+  seasonNumber: z.number().int().min(1).optional(),
+  seasonStage: z.string().optional(),
+  currentWeek: z.number().int().min(1).max(30).optional(),
+  currentPhase: z.string().optional(),
+  streamingRequirement: z.string().optional(),
+  regularSeasonStreamingRequirement: z.string().optional(),
+  postseasonStreamingRequirement: z.string().optional(),
+  gotwStreamingRequirement: z.string().optional(),
+  streamingScope: z.string().optional(),
+  streamingSide: z.string().optional(),
+  regularSeasonStreamingSide: z.string().optional(),
+  postseasonStreamingSide: z.string().optional(),
+  gotwStreamingSide: z.string().optional(),
+  fourthDownRuleType: z.string().optional(),
+  fourthDownRuleTypeRegular: z.string().optional(),
+  fourthDownRuleTypePlayoff: z.string().optional(),
+  customFourthDownRule: z.string().optional().nullable(),
+  customFourthDownRuleRegular: z.string().optional().nullable(),
+  customFourthDownRulePlayoff: z.string().optional().nullable(),
+  customRules: z.array(z.object({
+    id: z.string().min(1).max(80),
+    category: z.string().trim().min(1).max(80),
+    title: z.string().trim().min(1).max(160),
+    text: z.string().trim().min(1).max(4000),
+    sortOrder: z.number().int().min(0).optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })).max(200).optional(),
+  coinEconomyEnabled: z.boolean().optional(),
+  customPlayersEnabled: z.boolean().optional(),
+  legendsEnabled: z.boolean().optional(),
+  devUpgradesEnabled: z.boolean().optional(),
+  ageResetsEnabled: z.boolean().optional(),
+  attributePurchasesEnabled: z.boolean().optional(),
+  playerTraitPurchasesEnabled: z.boolean().optional(),
+  contractAdjustmentPurchasesEnabled: z.boolean().optional(),
+  mediaFeaturesEnabled: z.boolean().optional(),
+  customPlayersSeasonCap: z.number().int().min(0).max(5).optional(),
+  legendsSeasonCap: z.number().int().min(0).max(5).optional(),
+  devUpgradeCapMode: z.string().optional(),
+  devUpgradesSeasonCap: z.number().int().min(0).max(20).optional(),
+  devUpgradesPlayerCap: z.number().int().min(0).max(20).optional(),
+  ageResetsSeasonCap: z.number().int().min(0).max(5).optional(),
+  playerTraitPurchasesSeasonCap: z.number().int().min(0).max(10).optional(),
+  contractPurchasesSeasonCap: z.number().int().min(0).max(5).optional(),
+  coreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).optional(),
+  coreAttributeGroupCap: z.number().int().min(0).max(99).optional(),
+  nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).optional(),
+  coreAttributes: z.array(z.string()).optional(),
+  coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).optional(),
+  nonCoreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).optional(),
+  purchaseDeadlines: z.record(z.object({ stage: z.string().trim().min(1).max(80), week: z.number().int().min(1).max(30) })).optional(),
+  customCoachesRequired: z.boolean().optional(),
+  customPlaybooksAllowed: z.boolean().optional(),
+  coachAbilitiesRestricted: z.boolean().optional(),
+  coachAbilitiesRestrictionNotes: z.string().optional().nullable(),
+  positionChangePolicy: z.string().optional(),
+  positionChangePolicyDescription: z.string().optional().nullable(),
+  tradeApprovalPolicy: z.string().optional(),
+  cpuTradingPolicy: z.string().optional(),
+  cpuTradingRestriction: z.string().optional().nullable(),
+  injuryPolicy: z.string().optional(),
+  difficulty: z.string().optional(),
+  cfbDifficulty: z.string().optional(),
+  slidersAdjusted: z.boolean().optional(),
+  difficultyCustomSettings: z.string().optional().nullable(),
+  coachXpSetting: z.string().optional().nullable(),
+  quarterLengthMinutes: z.number().int().min(1).max(15).optional(),
+  acceleratedClockEnabled: z.boolean().optional(),
+  acceleratedClockMinimumSeconds: z.number().int().min(0).max(40).optional(),
+  salaryCapEnabled: z.boolean().optional(),
+  tradeDeadlineEnabled: z.boolean().optional(),
+  abilitiesEnabled: z.boolean().optional(),
+  wearAndTearEnabled: z.boolean().optional(),
+  advanceTiming: z.string().optional(),
+  advanceTimingOther: z.string().max(120).optional().nullable(),
+  coachFiringPolicy: z.string().optional(),
+  preorderBonusesEnabled: z.boolean().optional(),
+  coachModeEnabled: z.boolean().optional(),
+  coachModeAutoPassEnabled: z.boolean().optional(),
+  coachModeAutoSnapEnabled: z.boolean().optional(),
+  coachModeCoachSuggestionsEnabled: z.boolean().optional(),
+  coachModeRecruitFlippingEnabled: z.boolean().optional(),
+  coachModeAutoRecruitingEnabled: z.boolean().optional(),
+  coachModeAutoProgressPlayersEnabled: z.boolean().optional(),
+  coachModeUserAutoProgressionEnabled: z.boolean().optional(),
+  coachModeCpuManageBudgetEnabled: z.boolean().optional(),
+  coachModeCpuManageStaffEnabled: z.boolean().optional(),
+  coachModeCpuManageFacilitiesEnabled: z.boolean().optional(),
+  ballHawk: z.string().optional(),
+  heatSeeker: z.string().optional(),
+  switchAssist: z.string().optional(),
+  offensivePlayCallLimitsEnabled: z.boolean().optional(),
+  offensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  offensivePlayCallCooldownEnabled: z.boolean().optional(),
+  offensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
+  defensivePlayCallLimitsEnabled: z.boolean().optional(),
+  defensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  defensivePlayCallCooldownEnabled: z.boolean().optional(),
+  defensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
+  fairSimRequirements: z.string().optional().nullable(),
+  forceWinRequirements: z.string().optional().nullable(),
+});
+
+const UpdateSiteLeagueConfigSchema = z.object({
+  leagueId: z.string().uuid(),
+}).passthrough();
+
+const CheckLeagueLinkedSchema = z.object({
+  leagueId: z.string().uuid(),
+});
+
+const CompleteWizardSchema = z.object({
+  leagueId: z.string().uuid(),
+  teamId: z.string().uuid().optional(),
+  guildId: z.string().optional(),
+  discordId: z.string().optional(),
 });
 
 export async function setupRoutes(app: FastifyInstance) {
@@ -142,5 +271,29 @@ export async function setupRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/site-leagues/check-linked", async (request, reply) => {
+    try {
+      const { leagueId } = CheckLeagueLinkedSchema.parse(request.body);
+      await requireSiteLeagueCreator(request);
+      return reply.send(await checkLeagueLinked(leagueId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/site-leagues/update-config", async (request, reply) => {
+    try {
+      const body = UpdateSiteLeagueConfigSchema.parse(request.body);
+      const { userId } = await requireSiteLeagueCreator(request);
+      return reply.send(await updateSiteLeagueConfig({ ...body, requestedByUserId: userId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/site-leagues/complete-wizard", async (request, reply) => {
+    try {
+      const body = CompleteWizardSchema.parse(request.body);
+      const { userId } = await requireSiteLeagueCreator(request);
+      return reply.send(await completeWizard({ ...body, requestedByUserId: userId }));
+    } catch (error) { return sendError(reply, error); }
   });
 }

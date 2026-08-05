@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { Recruit, RecruitStatus, ScheduleTeam } from "../../types/api.js";
@@ -37,7 +37,7 @@ function formatHeight(inches: number | null): string | null {
 // team until committed, so everyone sees and can log activity on it). "My Board" is a per-team
 // saved watch-list — pre-commit prospects a coach has flagged to track, viewable for any team
 // via the dropdown but only editable for your own.
-export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; onClose: () => void }) {
+export function RecruitingBoardModal({ guildId, viewerUserId, canManageLeague, onClose }: { guildId: string; viewerUserId: string | null; canManageLeague: boolean; onClose: () => void }) {
   const [view, setView] = useState<"pool" | "board">("board");
   const [recruits, setRecruits] = useState<Recruit[] | null>(null);
   const [board, setBoard] = useState<Recruit[] | null>(null);
@@ -52,6 +52,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
   const [teamPickerId, setTeamPickerId] = useState<string | null>(null);
   const [pickedStatus, setPickedStatus] = useState<RecruitStatus>("verbal_commit");
   const [pickedTeamId, setPickedTeamId] = useState("");
+  const [positionFilter, setPositionFilter] = useState<string>("ALL");
 
   function loadPool() {
     recApi.listRecruits(guildId).then((res) => setRecruits(res.recruits)).catch((err) => setError(err instanceof Error ? err.message : "Failed to load the recruiting board."));
@@ -160,8 +161,23 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
 
   const listToShow = view === "board" ? board : recruits;
 
+  const poolPositions = useMemo(() => {
+    if (!recruits) return [];
+    const seen = new Set<string>();
+    return recruits.map((r) => r.position).filter((p) => { if (seen.has(p)) return false; seen.add(p); return true; }).sort();
+  }, [recruits]);
+
+  const filteredPool = useMemo(() => {
+    if (!recruits) return null;
+    if (positionFilter === "ALL") return recruits;
+    return recruits.filter((r) => r.position === positionFilter);
+  }, [recruits, positionFilter]);
+
+  const displayList = view === "board" ? board : filteredPool;
+
   return (
     <Modal title="Recruiting Board" onClose={onClose}>
+      <div className="recruiting-board">
       {error && <ErrorState message={error} />}
 
       <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)", flexWrap: "wrap", alignItems: "center" }}>
@@ -202,13 +218,28 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
         </div>
       )}
 
-      {!listToShow ? (
+      {view === "pool" && poolPositions.length > 1 && (
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <label className="form-field" style={{ margin: 0, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <span className="form-label" style={{ whiteSpace: "nowrap" }}>Position</span>
+            <select className="form-select" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} style={{ maxWidth: 180 }}>
+              <option value="ALL">All positions</option>
+              {poolPositions.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {!displayList ? (
         <p className="hub-empty">Loading…</p>
-      ) : listToShow.length === 0 ? (
-        <p className="hub-empty">{view === "board" ? "Nothing on this board yet — add prospects from Available Recruits." : "No prospects tracked yet."}</p>
+      ) : displayList.length === 0 ? (
+        <p className="hub-empty">{view === "board" ? "Nothing on this board yet — add prospects from Available Recruits." : positionFilter !== "ALL" ? `No ${positionFilter} prospects found.` : "No prospects tracked yet."}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {listToShow.map((recruit) => (
+          {displayList.map((recruit) => {
+            const isOwner = viewerUserId != null && recruit.submittedByUserId === viewerUserId;
+            const canEditStatus = isOwner || canManageLeague;
+            return (
             <div key={recruit.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", padding: "var(--space-2) var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
               <div style={{ minWidth: 0 }}>
                 <strong>{recruit.playerName}</strong>{" "}
@@ -225,7 +256,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
                     <Button variant="primary" size="compact" disabled={busy} onClick={() => void confirmCommit(recruit.id)}>Save</Button>
                     <Button variant="ghost" size="compact" onClick={() => setTeamPickerId(null)}>Cancel</Button>
                   </>
-                ) : (
+                ) : canEditStatus ? (
                   <select
                     className="form-select"
                     value={recruit.status}
@@ -234,7 +265,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
                   >
                     {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                ))}
+                ) : null)}
                 {view === "pool" && (
                   <Button variant="secondary" size="compact" disabled={busy} onClick={() => void toggleBoard(recruit.id, boardIds.has(recruit.id))}>
                     {boardIds.has(recruit.id) ? "On Board" : "Add to Board"}
@@ -245,9 +276,11 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
                 )}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
+      </div>
     </Modal>
   );
 }

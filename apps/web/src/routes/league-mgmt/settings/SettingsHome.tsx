@@ -114,7 +114,7 @@ export function SettingsHome() {
   const purchaseDeadlines = draft.purchaseDeadlines && typeof draft.purchaseDeadlines === "object" && !Array.isArray(draft.purchaseDeadlines)
     ? draft.purchaseDeadlines as Record<string, { stage?: string; week?: number }>
     : {};
-  const customRules = Array.isArray(draft.customRules) ? draft.customRules as Array<{ id:string; category:string; title:string; text:string }> : [];
+  const customRules = Array.isArray(draft.customRules) ? draft.customRules as Array<{ id:string; category:string; title:string; text:string; sortOrder?:number; createdAt?:string; updatedAt?:string }> : [];
 
   return (
     <div>
@@ -199,14 +199,48 @@ export function SettingsHome() {
             })}
             {activeCategory === "rules" ? <div className="form-field">
               <label className="form-label">Custom league rules</label>
-              <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view and the REC Guide.</p>
-              {customRules.map((rule, index) => <div className="attribute-cap-row" key={rule.id}>
-                <input className="form-input" aria-label="Rule category" value={rule.category} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} />
-                <input className="form-input" aria-label="Rule title" value={rule.title} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))} />
-                <textarea className="form-input" aria-label="Rule text" rows={2} value={rule.text} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} />
-                <Button variant="danger" size="compact" onClick={() => setField("customRules", customRules.filter((_, itemIndex) => itemIndex !== index))}>Remove</Button>
+              <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view and the REC Guide. Use the arrows to reorder rules.</p>
+              {customRules.map((rule, index) => <div key={rule.id} style={{ border: "1px solid var(--card-border)", borderRadius: "var(--radius-md)", padding: "var(--space-2)", marginBottom: "var(--space-2)", background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 700, minWidth: 24 }}>{index + 1}.</span>
+                  <input className="form-input" aria-label="Rule category" placeholder="Category" style={{ flex: 1, minWidth: 100 }} value={rule.category} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value, updatedAt: new Date().toISOString() } : item))} />
+                  <input className="form-input" aria-label="Rule title" placeholder="Title" style={{ flex: 1, minWidth: 100 }} value={rule.title} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value, updatedAt: new Date().toISOString() } : item))} />
+                  <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+                    <Button variant="secondary" size="compact" disabled={index === 0} onClick={() => { const updated = [...customRules]; [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]]; updated.forEach((r, i) => { r.sortOrder = i; r.updatedAt = new Date().toISOString(); }); setField("customRules", updated); }}>&uarr;</Button>
+                    <Button variant="secondary" size="compact" disabled={index === customRules.length - 1} onClick={() => { const updated = [...customRules]; [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]]; updated.forEach((r, i) => { r.sortOrder = i; r.updatedAt = new Date().toISOString(); }); setField("customRules", updated); }}>&darr;</Button>
+                    <Button variant="danger" size="compact" onClick={() => setField("customRules", customRules.filter((_, itemIndex) => itemIndex !== index))}>Remove</Button>
+                  </div>
+                </div>
+                <textarea className="form-input" aria-label="Rule text" rows={2} value={rule.text} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value, updatedAt: new Date().toISOString() } : item))} />
+                <div style={{ display: "flex", gap: "var(--space-2)", fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                  <span>Created: {new Date(rule.createdAt ?? Date.now()).toLocaleString()}</span>
+                  {rule.updatedAt && rule.updatedAt !== rule.createdAt && <span>Edited: {new Date(rule.updatedAt).toLocaleString()}</span>}
+                </div>
               </div>)}
-              <div className="attribute-cap-row"><input className="form-input" placeholder="Category" value={newRuleCategory} onChange={(event) => setNewRuleCategory(event.target.value)} /><input className="form-input" placeholder="Rule title" value={newRuleTitle} onChange={(event) => setNewRuleTitle(event.target.value)} /><textarea className="form-input" rows={2} placeholder="Rule details" value={newRuleText} onChange={(event) => setNewRuleText(event.target.value)} /><Button variant="secondary" size="compact" disabled={!newRuleCategory.trim() || !newRuleTitle.trim() || !newRuleText.trim()} onClick={() => { setField("customRules", [...customRules, { id: crypto.randomUUID(), category: newRuleCategory.trim(), title: newRuleTitle.trim(), text: newRuleText.trim() }]); setNewRuleCategory(""); setNewRuleTitle(""); setNewRuleText(""); }}>Add rule</Button></div>
+              <div style={{ border: "1px dashed var(--card-border)", borderRadius: "var(--radius-md)", padding: "var(--space-2)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+                  <div style={{ position: "relative" }}>
+                    <input className="form-input" placeholder="Category" value={newRuleCategory} onChange={(event) => setNewRuleCategory(event.target.value)} />
+                    {newRuleCategory.trim() && (() => {
+                      const existingCats = [...new Set(customRules.map((r) => r.category))].filter((c) => c.toLowerCase().includes(newRuleCategory.toLowerCase()));
+                      return existingCats.length > 0 ? (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--card-bg)", border: "var(--card-border)", borderRadius: "var(--radius-md)", maxHeight: 120, overflowY: "auto", boxShadow: "var(--shadow-card)" }}>
+                          {existingCats.map((cat) => <button key={cat} type="button" style={{ display: "block", width: "100%", padding: "4px 8px", background: "none", border: "none", color: "var(--text)", textAlign: "left", fontSize: 13, cursor: "pointer" }} onClick={() => setNewRuleCategory(cat)}>{cat}</button>)}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                  <input className="form-input" placeholder="Rule title" value={newRuleTitle} onChange={(event) => setNewRuleTitle(event.target.value)} />
+                </div>
+                <textarea className="form-input" rows={2} placeholder="Rule details" value={newRuleText} onChange={(event) => setNewRuleText(event.target.value)} />
+                <div style={{ marginTop: "var(--space-2)" }}>
+                  <Button variant="secondary" size="compact" disabled={!newRuleCategory.trim() || !newRuleTitle.trim() || !newRuleText.trim()} onClick={() => {
+                    const now = new Date().toISOString();
+                    setField("customRules", [...customRules, { id: crypto.randomUUID(), category: newRuleCategory.trim(), title: newRuleTitle.trim(), text: newRuleText.trim(), sortOrder: customRules.length, createdAt: now, updatedAt: now }]);
+                    setNewRuleCategory(""); setNewRuleTitle(""); setNewRuleText("");
+                  }}>Add rule</Button>
+                </div>
+              </div>
             </div> : null}
             {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
               <div className="form-field">
