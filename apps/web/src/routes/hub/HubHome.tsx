@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
@@ -172,6 +172,57 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
 }
 
+// Shared search + pagination for the four ranking-style lists (Power Rankings, Coach Ratings,
+// User Ratings, SOS) — all four used to hard-truncate to the first 16 entries with no way to
+// reach the rest on a league bigger than that. Self-contained per call site (own query/page
+// state), so four independent instances on the same page don't share state.
+function RankingListSearch<T>({
+  items,
+  getSearchText,
+  renderItem,
+  emptyLabel,
+  pageSize = 16,
+}: {
+  items: T[];
+  getSearchText: (item: T) => string;
+  // Must return an already-keyed element (e.g. <article key={item.id}>...</article>) — these
+  // render as direct children of the .hub-power-rankings CSS grid, so no wrapper element here.
+  renderItem: (item: T) => ReactElement;
+  emptyLabel: string;
+  pageSize?: number;
+}) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? items.filter((item) => getSearchText(item).toLowerCase().includes(q)) : items;
+  }, [items, query]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const clampedPage = Math.min(page, totalPages - 1);
+  const pageItems = filtered.slice(clampedPage * pageSize, clampedPage * pageSize + pageSize);
+
+  return <>
+    {items.length > pageSize && (
+      <input
+        className="form-input hub-ranking-search"
+        placeholder="Search by name..."
+        value={query}
+        onChange={(event) => { setQuery(event.target.value); setPage(0); }}
+      />
+    )}
+    {pageItems.length ? (
+      <div className="hub-power-rankings">{pageItems.map(renderItem)}</div>
+    ) : <p className="hub-empty">{query.trim() ? "No matches." : emptyLabel}</p>}
+    {totalPages > 1 && (
+      <div className="hub-ranking-pager">
+        <button type="button" disabled={clampedPage === 0} onClick={() => setPage(clampedPage - 1)}>‹ Prev</button>
+        <span>Page {clampedPage + 1} of {totalPages} · {filtered.length} total</span>
+        <button type="button" disabled={clampedPage >= totalPages - 1} onClick={() => setPage(clampedPage + 1)}>Next ›</button>
+      </div>
+    )}
+  </>;
+}
+
 function DefenseNicknamePrompt() {
   const { guildId, discordId } = useReadyAuth();
   const [status, setStatus] = useState<{ teamId: string; nickname: string | null; needsName: boolean } | null>(null);
@@ -313,21 +364,48 @@ function FinancialLedger({ summary }: { summary: any }) {
   </div>;
 }
 
-function LegacyBadgeShelf({ title, badges }: { title: string; badges: any[] }) {
-  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => { const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0); const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`]; if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`); const tooltip = tooltipParts.join(" · "); return <article key={badge.badge_key} className={`badge-key-${String(badge.badge_key).replace(/_/g, "-")} badge-tier-${String(badge.tier ?? "normal").replace(/_/g, "-")}`} data-tooltip={tooltip} aria-label={badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")} tabIndex={0} />; })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
-}
-
+// Badge tiles are decorative/informational (hover reveals a tooltip via CSS), not individually
+// interactive — giving every one of them tabIndex={0} forced keyboard users to tab through
+// potentially 100+ stops just to get past a badge shelf. Tiles are no longer focusable
+// themselves (role="img" + aria-label instead, so screen readers still get each one during
+// linear reading); a single "List details" toggle per shelf gives keyboard users one tab stop
+// that expands the same tooltip text as a real, readable list instead.
 function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
-  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => {
+  const [listOpen, setListOpen] = useState(false);
+  if (!badges?.length) return <div className="hub-badge-group"><h4>{title}</h4><p className="hub-empty">None earned yet.</p></div>;
+
+  const entries = badges.map((badge) => {
     const key = String(badge.badge_key ?? "badge");
     const label = String(badge.badge_label ?? displayLabel(key));
     const tier = String(badge.tier ?? "normal").replace(/_/g, "-");
     const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0);
     const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`];
     if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`);
-    const tooltip = tooltipParts.join(" · ");
-    return <article key={`${key}-${tier}`} className={`badge-key-${key.replace(/_/g, "-")} badge-tier-${tier}`} style={{ backgroundImage: `url("${bakedBadgeAsset(key, label, tier)}")` }} data-badge-label={label} data-tooltip={tooltip} aria-label={label} tabIndex={0} />;
-  })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
+    return { key, label, tier, tooltip: tooltipParts.join(" · ") };
+  });
+
+  return <div className="hub-badge-group">
+    <div className="hub-badge-group-head">
+      <h4>{title}</h4>
+      <button type="button" className="hub-badge-list-toggle" aria-expanded={listOpen} onClick={() => setListOpen((open) => !open)}>
+        {listOpen ? "Hide details" : "List details"}
+      </button>
+    </div>
+    <div className="hub-badge-shelf">{entries.map((entry) => (
+      <article
+        key={`${entry.key}-${entry.tier}`}
+        className={`badge-key-${entry.key.replace(/_/g, "-")} badge-tier-${entry.tier}`}
+        style={{ backgroundImage: `url("${bakedBadgeAsset(entry.key, entry.label, entry.tier)}")` }}
+        data-badge-label={entry.label}
+        data-tooltip={entry.tooltip}
+        role="img"
+        aria-label={`${entry.label}: ${entry.tooltip}`}
+      />
+    ))}</div>
+    {listOpen && <ul className="hub-badge-list">{entries.map((entry) => (
+      <li key={`${entry.key}-${entry.tier}-list`}><strong>{entry.label}</strong><span>{entry.tooltip}</span></li>
+    ))}</ul>}
+  </div>;
 }
 
 function ScheduleWeekList({
@@ -1651,35 +1729,67 @@ export function HubHome() {
                       ))}
                     </div>
                   ) : (
-                    <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                      <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
-                    </article>)}</div>
+                    <RankingListSearch
+                      items={hub.powerRankings.teams}
+                      getSearchText={(team) => team.teamName}
+                      emptyLabel="Power rankings will appear after the first completed slate."
+                      renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
+                        <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                      </article>}
+                    />
                   )
                 ) : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
               </SectionFrame>
 
               <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">
-                {hub.coachRatings?.teams?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.coachRatings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
-                  <strong>#{team.rank}</strong>
-                  <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
-                  <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
-                </article>)}</div> : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
+                {hub.coachRatings?.teams?.length ? (
+                  <div className="hub-coach-ratings">
+                    <RankingListSearch
+                      items={hub.coachRatings.teams}
+                      getSearchText={(team) => team.teamName}
+                      emptyLabel="Coach ratings will appear after the first completed slate."
+                      renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
+                        <strong>#{team.rank}</strong>
+                        <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
+                        <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
+                      </article>}
+                    />
+                  </div>
+                ) : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
               </SectionFrame>
 
               <SectionFrame eyebrow="Individual skill, separate from win/loss record" title="User Ratings">
-                {hub.userRatings?.users?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.userRatings.users.slice(0, 16).map((user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
-                  <strong>#{user.rank}</strong>
-                  <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
-                  <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
-                </article>)}</div> : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
+                {hub.userRatings?.users?.length ? (
+                  <div className="hub-coach-ratings">
+                    <RankingListSearch
+                      items={hub.userRatings.users}
+                      getSearchText={(user) => user.displayName}
+                      emptyLabel="User ratings will appear after the first completed slate."
+                      renderItem={(user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
+                        <strong>#{user.rank}</strong>
+                        <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
+                        <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
+                      </article>}
+                    />
+                  </div>
+                ) : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
               </SectionFrame>
 
               <SectionFrame eyebrow="Toughest schedules this season" title="Strength of Schedule">
-                {hub.sos?.teams?.length ? <div className="hub-power-rankings hub-sos-rankings">{hub.sos.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
-                  <strong>#{team.rank}</strong>
-                  <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
-                  <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
-                </article>)}</div> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
+                {hub.sos?.teams?.length ? (
+                  <div className="hub-sos-rankings">
+                    <RankingListSearch
+                      items={hub.sos.teams}
+                      getSearchText={(team) => team.teamName}
+                      emptyLabel="Strength of schedule will appear once the season's slate is logged."
+                      renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
+                        <strong>#{team.rank}</strong>
+                        <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
+                        <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
+                      </article>}
+                    />
+                  </div>
+                ) : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
               </SectionFrame>
             </>
           ) : (
