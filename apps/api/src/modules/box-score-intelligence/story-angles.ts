@@ -21,7 +21,13 @@ export interface GameStory {
   angleScores: Record<string, number>;
 }
 
-// The 20 required story angles (blueprint §9).
+// The original 20 required story angles (blueprint §9), plus 12 more added 2026-08-05 drawing
+// on tracked stats none of the original 20 touched: game stakes/context (playoff/SB/conf
+// champ/divisional round), and CFB-only fields (time of possession, yards/play, penalties,
+// punting, rush/pass TDs) that were sitting unused. CFB-only scorers null-guard every field —
+// Madden's box score leaves those null, which must score 0, not silently pass a `null <= x`
+// comparison (JS coerces null to 0 in numeric comparisons, which would wrongly fire "disciplined
+// game" for every Madden game with no penalty data at all).
 export const STORY_ANGLES = [
   "ground_control",
   "air_raid",
@@ -43,6 +49,18 @@ export const STORY_ANGLES = [
   "two_point_specialist",
   "home_fortress",
   "road_warrior",
+  "championship_moment",
+  "conference_statement",
+  "divisional_grit",
+  "playoff_grit",
+  "clock_control",
+  "big_play_offense",
+  "disciplined_execution",
+  "field_position_king",
+  "ground_and_pound_tds",
+  "air_strike_tds",
+  "yardage_gap",
+  "stone_wall_defense",
 ] as const;
 
 export type StoryAngle = (typeof STORY_ANGLES)[number];
@@ -72,6 +90,26 @@ const ANGLE_SCORERS: Record<StoryAngle, Scorer> = {
   two_point_specialist: (w) => (w.twoPointConversions >= 2 ? 70 : 0),
   home_fortress: (w) => (w.homeAway === "home" && w.margin >= 10 ? 55 : 0),
   road_warrior: (w) => (w.homeAway === "away" && w.margin >= 10 ? 65 : 0),
+
+  // Stakes-based — scored well above regular-season angles so the biggest available stage
+  // always wins the framing (highest-score-wins already handles the overlap: isPlayoff is
+  // true for every later round too, but championship/conference/divisional score higher and
+  // naturally take priority without needing explicit exclusions).
+  championship_moment: (w) => (w.isSuperBowl ? 150 : 0),
+  conference_statement: (w) => (w.isConferenceChampionshipGame ? 130 : 0),
+  divisional_grit: (w) => (w.isDivisionalRound ? 115 : 0),
+  playoff_grit: (w) => (w.isPlayoff ? 58 : 0),
+
+  // CFB-only (null on Madden games — every comparison null-guards first so a missing stat
+  // scores 0, never a false positive from JS coercing null to 0 in `<=`/`>=` comparisons).
+  clock_control: (w) => (w.timeOfPossessionSeconds != null && w.timeOfPossessionSeconds >= 1980 ? 75 : w.timeOfPossessionSeconds != null && w.timeOfPossessionSeconds >= 1800 ? 45 : 0),
+  big_play_offense: (w) => (w.yardsPerPlay != null && w.yardsPerPlay >= 7.5 ? 80 : w.yardsPerPlay != null && w.yardsPerPlay >= 6.5 ? 50 : 0),
+  disciplined_execution: (w) => (w.penalties != null && w.penalties <= 3 ? 40 : 0),
+  field_position_king: (w) => (w.puntAvgYards != null && w.puntAvgYards >= 45 ? 65 : w.puntAvgYards != null && w.puntAvgYards >= 42 ? 40 : 0),
+  ground_and_pound_tds: (w) => (w.rushTDs != null && w.rushTDs >= 4 ? 85 : w.rushTDs != null && w.rushTDs >= 3 ? 50 : 0),
+  air_strike_tds: (w) => (w.passTDs != null && w.passTDs >= 4 ? 85 : w.passTDs != null && w.passTDs >= 3 ? 50 : 0),
+  yardage_gap: (w, l) => (w.totalYards - l.totalYards >= 200 ? 75 : w.totalYards - l.totalYards >= 150 ? 45 : 0),
+  stone_wall_defense: (w) => (w.yardsAllowed <= 250 ? 75 : w.yardsAllowed <= 300 ? 45 : 0),
 };
 
 type Template = (ctx: StoryContext) => { headline: string; body: string };
@@ -158,6 +196,54 @@ const TEMPLATES: Record<StoryAngle, Template> = {
   road_warrior: ({ winner, winnerName, loserName }) => ({
     headline: `${winnerName} Go on the Road and Take Down ${loserName}`,
     body: `${winnerName} silenced the home crowd, going into ${loserName}'s building and winning by ${ABS(winner.margin)}.`,
+  }),
+  championship_moment: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Are Champions, Defeating ${loserName}`,
+    body: `${winnerName} closed it out on the sport's biggest stage, beating ${loserName} ${winner.pointsFor}-${winner.pointsAgainst} to claim the title.`,
+  }),
+  conference_statement: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Punch Their Ticket, Topping ${loserName}`,
+    body: `${winnerName} took care of business in the conference championship, beating ${loserName} ${winner.pointsFor}-${winner.pointsAgainst} to advance.`,
+  }),
+  divisional_grit: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Survive the Divisional Round Against ${loserName}`,
+    body: `${winnerName} kept the run alive with a ${ABS(winner.margin)}-point win over ${loserName} in the divisional round.`,
+  }),
+  playoff_grit: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Advance Past ${loserName} in the Playoffs`,
+    body: `${winnerName} did what they needed to in win-or-go-home football, beating ${loserName} ${winner.pointsFor}-${winner.pointsAgainst}.`,
+  }),
+  clock_control: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Own the Clock Against ${loserName}`,
+    body: `${winnerName} controlled the ball for over ${Math.floor((winner.timeOfPossessionSeconds ?? 0) / 60)} minutes, keeping ${loserName}'s offense off the field in a ${ABS(winner.margin)}-point win.`,
+  }),
+  big_play_offense: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Strike Big Against ${loserName}`,
+    body: `${winnerName} averaged ${winner.yardsPerPlay?.toFixed(1)} yards every time they snapped it, an explosive-play clinic in a ${ABS(winner.margin)}-point win over ${loserName}.`,
+  }),
+  disciplined_execution: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Play Clean to Beat ${loserName}`,
+    body: `${winnerName} stayed disciplined with just ${winner.penalties} penalties, avoiding the self-inflicted mistakes in a ${ABS(winner.margin)}-point win over ${loserName}.`,
+  }),
+  field_position_king: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Win the Field Position Battle vs ${loserName}`,
+    body: `${winnerName}'s punting unit flipped the field all day, averaging ${winner.puntAvgYards?.toFixed(1)} yards per punt to help seal a ${ABS(winner.margin)}-point win over ${loserName}.`,
+  }),
+  ground_and_pound_tds: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Pound It In Again and Again on ${loserName}`,
+    body: `${winnerName} punched it in on the ground ${winner.rushTDs} times, wearing down ${loserName} in a ${ABS(winner.margin)}-point win.`,
+  }),
+  air_strike_tds: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName} Rain Touchdowns on ${loserName}`,
+    body: `${winnerName} threw for ${winner.passTDs} touchdowns, picking apart ${loserName}'s defense in a ${ABS(winner.margin)}-point win.`,
+  }),
+  yardage_gap: ({ winner, loser, winnerName, loserName }) => ({
+    headline: `${winnerName} Outgain ${loserName} by a Mile`,
+    body: `${winnerName} out-gained ${loserName} ${winner.totalYards}-${loser.totalYards} total yards, a lopsided battle in the trenches that produced a ${ABS(winner.margin)}-point win.`,
+  }),
+  stone_wall_defense: ({ winner, winnerName, loserName }) => ({
+    headline: `${winnerName}'s Defense Shuts Down ${loserName}`,
+    body: `${winnerName} held ${loserName} to just ${winner.yardsAllowed} total yards, a stone-wall defensive performance in a ${ABS(winner.margin)}-point win.`,
   }),
 };
 
