@@ -1086,6 +1086,7 @@ export function HubHome() {
 
   async function removeWager(wagerId: string) {
     if (auth.status !== "ready") return;
+    if (!window.confirm("Cancel this wager? Your held stake will be refunded.")) return;
     setWagersBoardBusy(true);
     try {
       await recApi.cancelMyWager({ guildId: auth.guildId, wagerId });
@@ -1517,7 +1518,7 @@ export function HubHome() {
         </SectionFrame>
         <SectionFrame eyebrow="Community clips" title="Highlight Reel" className="hub-highlight-section">
           {activeHighlight ? <div className="hub-highlight-carousel">
-            {highlightCount > 1 && <button className="hub-highlight-arrow previous" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
+            {highlightCount > 1 && <button className="hub-highlight-arrow previous" aria-label="Previous highlight" title="Previous highlight" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
             <article
               className="hub-highlight hub-highlight-embed swipe-card-surface"
               style={{
@@ -1546,7 +1547,7 @@ export function HubHome() {
                 <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => (activeHighlight.myReactions ?? []).includes(key)) ? " active" : ""}`} disabled={potyOwnHighlight} title={potyOwnHighlight ? "You can't nominate your own highlight" : "Nominate for Play of the Year"} onClick={() => { if (potyOwnHighlight) return; setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => (activeHighlight.myReactions ?? []).includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + (activeHighlight.reactionCounts?.[key] ?? 0), 0) || ""}</small></button>
                 <button aria-label="Dislike" className={(activeHighlight.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts?.dislike || ""}</small></button>
               </div>
-            </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
+            </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" aria-label="Next highlight" title="Next highlight" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>
         </>
       </>}

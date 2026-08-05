@@ -172,6 +172,7 @@ function TickerPanel() {
   }
 
   async function remove(id: string) {
+    if (!window.confirm("Delete this ticker item?")) return;
     setBusy(true);
     setError(null);
     try {
@@ -289,6 +290,7 @@ function LeaguesPanel() {
 
   async function removeMember(userId: string) {
     if (!selected) return;
+    if (!window.confirm("Remove this member from the league?")) return;
     setBusy(true);
     setError(null);
     try {
@@ -484,6 +486,7 @@ function PromoCodesPanel() {
   }
 
   async function remove(id: string) {
+    if (!window.confirm("Delete this promo code? Anyone who hasn't redeemed it yet won't be able to.")) return;
     setBusy(true);
     setError(null);
     try {

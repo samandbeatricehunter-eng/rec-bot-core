@@ -343,6 +343,12 @@ button.poty:disabled {
   .hub-shortcut-card.hub-quick-action { flex: 0 0 126px; width: 126px; min-height: 62px; padding: 8px; flex-direction: row; text-align: left; scroll-snap-align: start; }
   .hub-shortcut-card.hub-quick-action strong { font-size: 11px; }
   .hub-shortcut-card.hub-quick-action span { font-size: 9px; }
+  /* Higher specificity than the desktop-only .hub-quick-actions-row-compact rules (which
+     would otherwise still win here despite this being inside the mobile media query) —
+     those set an 8px label size for the 8-column desktop layout; this row switches to
+     horizontal scroll below 600px and needs the same readable size as the non-compact cards. */
+  .hub-quick-actions-row-compact .hub-shortcut-card.hub-quick-action strong { font-size: 11px; }
+  .hub-quick-actions-row-compact .hub-shortcut-card.hub-quick-action span { font-size: 9px; }
 }
 .hub-media-modal { display: flex; flex-direction: column; gap: var(--space-3); }
 .modal-panel:has(.hub-media-modal) { max-width: 640px; }
@@ -477,7 +483,7 @@ button.poty:disabled {
 .hub-final-score { display: inline-flex; width: fit-content; margin-top: var(--space-1); padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--text-primary); font-size: var(--text-xs); }
 .hub-wager-modal { display: grid; gap: var(--space-4); }
 .hub-wager-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; border: 1px solid var(--border); border-radius: 999px; background: rgba(0,0,0,.3); }
-.hub-wager-mode button, .hub-wager-lines button, .hub-wager-sides button { border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--text-secondary); font-weight: 800; cursor: pointer; padding: 9px 12px; }
+.hub-wager-mode button, .hub-wager-lines button, .hub-wager-sides button { border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--text-secondary); font-weight: 800; cursor: pointer; padding: 9px 12px; min-height: 40px; }
 .hub-wager-mode button.active, .hub-wager-lines button.active, .hub-wager-sides button.active { background: var(--gold); color: var(--text-on-gold); }
 .hub-wager-lines { display: grid; gap: var(--space-2); max-height: 340px; overflow-y: auto; }
 .hub-wager-lines article { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.04); }
@@ -499,7 +505,7 @@ button.poty:disabled {
 .hub-wager-carousel > p { grid-column: 1 / -1; margin: 0; color: var(--text-muted); text-align: center; font-size: var(--text-xs); }
 .hub-wager-carousel .hub-highlight-arrow { position: static; }
 .hub-wager-card-actions { display: flex; align-items: center; gap: var(--space-2); }
-.hub-icon-action { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; }
+.hub-icon-action { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; }
 .hub-icon-action.danger { color: var(--danger); }
 .hub-wagers-subhead { margin: var(--space-5) 0 var(--space-3); font-family: var(--font-display); letter-spacing: .01em; color: var(--gold); }
 .hub-wagers-subhead:first-of-type { margin-top: var(--space-4); }

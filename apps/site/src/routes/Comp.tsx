@@ -369,7 +369,7 @@ function MatchupQueueTab() {
       {boxScoreOpen ? (
         <div className="site-modal-backdrop" onMouseDown={() => !busy && setBoxScoreOpen(false)}>
           <section className="site-modal site-comp-box-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-            <button type="button" className="site-modal-close" onClick={() => setBoxScoreOpen(false)}>×</button>
+            <button type="button" className="site-modal-close" aria-label="Close" onClick={() => setBoxScoreOpen(false)}>×</button>
             <h3>Submit H2H Comp Box Score</h3>
             <div className="site-comp-shot-examples">
               <div><strong>1. Top screenshot</strong><span>Show the final score, teams, and scoring summary.</span></div>
