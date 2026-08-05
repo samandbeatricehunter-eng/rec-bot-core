@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CFB_27_TEAMS, NFL_TEAMS } from "@rec/shared";
 import { useAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
@@ -62,51 +62,19 @@ const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
 ];
 
-// The league owner's one-time Discord bot setup — invites the bot, then walks through the
-// server-owner-only /claim-league step that actually links the invited server to this
-// league (running /claim-league in the wrong server, or as someone other than that
-// server's owner, is the most common way this flow goes wrong, hence spelling it out).
-function ConnectDiscordCard({ league, onConnected }: { league: SiteLeagueSummary; onConnected: () => Promise<unknown> }) {
-  const [state, setState] = useState<{ inviteUrl: string; token: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function connect() {
-    setBusy(true);
-    setError(null);
-    try {
-      const [enabled, invite] = await Promise.all([siteApi.enableLeagueBot(league.id), siteApi.getBotInviteUrl()]);
-      setState({ inviteUrl: invite.inviteUrl, token: enabled.league.discord_bot_invite_token ?? "" });
-      await onConnected();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to enable the Discord bot.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!state) {
-    return (
-      <div className="site-league-card-discord" onClick={(e) => e.stopPropagation()}>
-        {error && <p className="site-auth-error">{error}</p>}
-        <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void connect()}>
-          {busy ? "Enabling..." : "Connect a Discord Server"}
-        </button>
-      </div>
-    );
-  }
-
+// The league owner's one-time Discord bot setup — the /discord-guild-picker page grants a
+// fresh "guilds" OAuth scope to list servers the user can actually install the bot into (so
+// they pick the right one from a dropdown), pre-targets the invite link at that server, then
+// walks through the server-owner-only /claim-league step that actually links it to this league.
+function ConnectDiscordCard({ league }: { league: SiteLeagueSummary }) {
   return (
     <div className="site-league-card-discord" onClick={(e) => e.stopPropagation()}>
-      <p className="site-muted">Finish linking this league to a Discord server:</p>
-      <ol className="site-muted">
-        <li>
-          <a href={state.inviteUrl} target="_blank" rel="noreferrer">Invite the REC bot to your Discord server</a> — you must be that server's owner.
-        </li>
-        <li>In that server, run <code>/claim-league</code> and paste this token when prompted:</li>
-      </ol>
-      <code className="site-league-card-token">{state.token}</code>
-      <p className="site-muted">Only the Discord server's owner can run /claim-league — anyone else running it will be rejected.</p>
+      <Link
+        className="site-btn site-btn-ghost"
+        to={`/discord-guild-picker?leagueId=${league.id}&next=${encodeURIComponent("/leagues?tab=mine")}`}
+      >
+        Connect a Discord Server
+      </Link>
     </div>
   );
 }
@@ -871,7 +839,7 @@ export function LeaguesPage() {
                     </span>
                   </button>
                   {league.commissionerRole === "head" && !league.discordBotEnabled && (
-                    <ConnectDiscordCard league={league} onConnected={hub.refreshLeagues} />
+                    <ConnectDiscordCard league={league} />
                   )}
                 </div>
               ))}

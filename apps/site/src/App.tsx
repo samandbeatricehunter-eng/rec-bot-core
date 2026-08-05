@@ -23,6 +23,7 @@ import { Help } from "./routes/Help.js";
 import { Privacy } from "./routes/Privacy.js";
 import { Terms } from "./routes/Terms.js";
 import { DevBypass } from "./routes/DevBypass.js";
+import { DiscordGuildPicker } from "./routes/DiscordGuildPicker.js";
 
 function LegacyCommissionerInboxRedirect() {
   const { leagueId = "" } = useParams();
@@ -226,6 +227,7 @@ function Routed() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/badges" element={<BadgesPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
+        <Route path="/discord-guild-picker" element={<DiscordGuildPicker />} />
         <Route path="/comp" element={<CompPage />} />
         <Route path="/account" element={<Account />} />
         <Route path="/admin" element={<AdminPage />} />

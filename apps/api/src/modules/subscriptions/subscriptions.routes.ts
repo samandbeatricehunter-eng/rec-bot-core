@@ -255,10 +255,16 @@ export async function subscriptionRoutes(app: FastifyInstance) {
   // Public — a bot invite link carries no per-league secret (the Discord application/bot user
   // ID is public information anyway); the actual league correlation happens via the invite
   // token + /claim-league, not via this URL.
-  app.post("/v1/subscriptions/bot/invite-url", async (_request, reply) => {
+  app.post("/v1/subscriptions/bot/invite-url", async (request, reply) => {
     try {
+      const body = z.object({ guildId: z.string().min(1).optional() }).parse(request.body ?? {});
       const botUserId = await getBotUserId();
-      const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botUserId}&permissions=8&scope=bot%20applications.commands`;
+      let inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botUserId}&permissions=8&scope=bot%20applications.commands`;
+      // Pre-targets Discord's own authorize screen at the chosen server (from the guild picker)
+      // and locks the server dropdown there, so the commissioner doesn't have to find it again.
+      if (body.guildId) {
+        inviteUrl += `&guild_id=${encodeURIComponent(body.guildId)}&disable_guild_select=true`;
+      }
       return reply.send({ inviteUrl });
     } catch (error) {
       return sendError(reply, error);

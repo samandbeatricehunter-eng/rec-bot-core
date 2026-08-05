@@ -16,6 +16,7 @@ type AuthContextValue = AuthState & {
   ) => Promise<{ error: string | null }>;
   signInWithDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
   linkDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
+  pickDiscordGuild: (returnPath: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -95,13 +96,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  // A fresh Discord OAuth round-trip specifically to read the "guilds" list — not identity
+  // linking. Supabase only hands back session.provider_token (the short-lived Discord access
+  // token the guild picker needs) right when an OAuth flow completes, so this always re-runs
+  // sign-in with prompt=consent to force Discord to re-issue one, even if Discord was already
+  // linked ages ago. Safe to use signInWithOAuth (not linkIdentity) here even for an
+  // already-linked account: the same Discord identity resolves back to the same site account.
+  // returnPath is the literal /discord-guild-picker?... URL to land back on (that page handles
+  // both the "before" and "after OAuth" states itself), not a downstream destination.
+  async function pickDiscordGuild(returnPath: string) {
+    const redirectTo = `${sitePublicUrl() || window.location.origin}${returnPath}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: {
+        redirectTo,
+        scopes: "identify guilds",
+        queryParams: { prompt: "consent" },
+      },
+    });
+    return { error: error?.message ?? null };
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setKeepLoggedIn(false);
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, linkDiscord, signOut }}>
+    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, linkDiscord, pickDiscordGuild, signOut }}>
       {children}
     </AuthContext.Provider>
   );

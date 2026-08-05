@@ -399,11 +399,17 @@ export const siteApi = {
   getRegistrationGate() {
     return publicRequest<RegistrationGate>("/v1/subscriptions/registration-gate");
   },
-  getBotInviteUrl() {
+  getBotInviteUrl(guildId?: string) {
     return publicRequest<{ inviteUrl: string }>("/v1/subscriptions/bot/invite-url", {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify(guildId ? { guildId } : {}),
     });
+  },
+  listDiscordGuilds(providerToken: string) {
+    return request<{ guilds: Array<{ id: string; name: string; icon: string | null }> }>(
+      "/v1/site-auth/discord-guilds",
+      { providerToken },
+    );
   },
   enableLeagueBot(leagueId: string) {
     return request<{

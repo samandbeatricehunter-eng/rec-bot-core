@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
+import { listInstallableDiscordGuilds } from "../../lib/discord-oauth.js";
 import {
   checkSiteUsername,
   getSiteLinkProfile,
@@ -17,6 +18,19 @@ export async function siteAuthRoutes(app: FastifyInstance) {
     try {
       const session = await requireSiteUserSession(request);
       return reply.send(await getSiteLinkProfile({ authUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Called right after a "guilds"-scoped Discord OAuth round-trip completes (see
+  // apps/site/src/routes/DiscordGuildPicker.tsx) — the provider token is short-lived and never
+  // persisted server-side, so this must be called immediately with a fresh one.
+  app.post("/v1/site-auth/discord-guilds", async (request, reply) => {
+    try {
+      await requireSiteUserSession(request);
+      const body = z.object({ providerToken: z.string().min(1) }).parse(request.body ?? {});
+      return reply.send({ guilds: await listInstallableDiscordGuilds(body.providerToken) });
     } catch (error) {
       return sendError(reply, error);
     }
