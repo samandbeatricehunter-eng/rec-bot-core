@@ -11,6 +11,7 @@ export function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [discordBusy, setDiscordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +19,21 @@ export function SignUp() {
 
   if (auth.status === "signed-in") return <Navigate to={next} replace />;
 
+  // Read by AuthCallback once the session actually exists (email confirmation and Discord
+  // OAuth both leave this page before a session is available to redeem against).
+  function stashPromoCode() {
+    const trimmed = promoCode.trim();
+    if (trimmed) sessionStorage.setItem("rec_pending_promo_code", trimmed);
+    else sessionStorage.removeItem("rec_pending_promo_code");
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (password !== confirmPassword) { setError("Passwords don't match."); return; }
     setBusy(true);
+    stashPromoCode();
     const result = await auth.signUp(email, password);
     setBusy(false);
     if (result.error) { setError(result.error); return; }
@@ -33,6 +43,7 @@ export function SignUp() {
   async function handleDiscord() {
     setError(null);
     setDiscordBusy(true);
+    stashPromoCode();
     const result = await auth.signInWithDiscord(next);
     setDiscordBusy(false);
     if (result.error) setError(result.error);
@@ -55,6 +66,10 @@ export function SignUp() {
       <form className="site-auth-card" onSubmit={handleSubmit}>
         <h1>Create your account</h1>
         {error && <p className="site-auth-error">{error}</p>}
+        <label className="site-field">
+          <span>Promo code (optional)</span>
+          <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Have a code? Enter it here" />
+        </label>
         <button
           className="site-btn site-btn-primary site-btn-lg"
           type="button"

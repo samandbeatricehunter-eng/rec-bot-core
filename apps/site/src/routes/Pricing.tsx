@@ -114,6 +114,7 @@ export function Pricing() {
             Pick a subscription to unlock the REC League hub. Cancel anytime from
             Manage billing.
           </p>
+          {!subscribed && <p className="site-trial-badge">New subscribers get a 7-day free trial — no charge until it ends.</p>}
           <div className="site-billing-interval" role="tablist" aria-label="Billing interval">
             <button
               type="button"

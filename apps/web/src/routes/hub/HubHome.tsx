@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, Volume2, VolumeX, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
@@ -21,7 +21,6 @@ import { InterviewBody } from "../../components/hub/InterviewBody.js";
 import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
 import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
-import { useStreamPlayerControls } from "../../hooks/useStreamPlayerControls.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModal.js";
@@ -296,7 +295,7 @@ function ScheduleWeekList({
     {weeks.map((week) => {
       const resultLabel = scheduleResultLabel(week);
       const eligibleForActions =
-        week.alreadyConfirmed && week.confirmedMatchupType === "h2h" && !week.isBye && Boolean(week.gameId) &&
+        week.alreadyConfirmed && !week.isBye && Boolean(week.gameId) &&
         (currentWeek == null || week.weekNumber <= currentWeek);
       const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
       const missingHighlight = eligibleForActions && (highlightCounts?.[week.weekNumber] ?? 0) < 2;
@@ -439,7 +438,6 @@ export function HubHome() {
   const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
   const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
-  const highlightPlayer = useStreamPlayerControls(activeHighlightIndex);
   useEffect(() => { setDeadHighlightIds([]); setHighlightIndex(0); }, [hub?.league?.id]);
   // Advance highlight reel only when Cloudflare reports the clip ended — no wall-clock fallback
   // (a 90s timer was cutting longer clips short).
@@ -1497,11 +1495,7 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <><iframe ref={highlightPlayer.iframeRef} key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => { void recordView(activeHighlight.id); highlightPlayer.attach(); }} />{/* A cross-origin iframe swallows pointer gestures before they ever reach the parent's swipe handler — this transparent catcher sits above it purely so drags bubble to the carousel instead of vanishing into the iframe's own document. That also means the iframe's own native play/pause/mute controls can never be clicked again, so the button row below drives the embed directly through the Stream Player SDK instead. */}<div className="hub-video-frame-swipe-catcher" /><div className="hub-video-controls" onPointerDown={(event) => event.stopPropagation()}>
-                <button type="button" aria-label={highlightPlayer.isPaused ? "Play" : "Pause"} onClick={highlightPlayer.togglePlay}>{highlightPlayer.isPaused ? <Play size={16} /> : <Pause size={16} />}</button>
-                <button type="button" aria-label="Rewind 10 seconds" onClick={() => highlightPlayer.rewind(10)}><RotateCcw size={16} /></button>
-                <button type="button" aria-label={highlightPlayer.isMuted ? "Unmute" : "Mute"} onClick={highlightPlayer.toggleMute}>{highlightPlayer.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>
-              </div></> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} onError={() => { setDeadHighlightIds((ids) => ids.includes(activeHighlight.id) ? ids : [...ids, activeHighlight.id]); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
+              <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} onError={() => { setDeadHighlightIds((ids) => ids.includes(activeHighlight.id) ? ids : [...ids, activeHighlight.id]); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta">
                 <div className="hub-highlight-meta-title">
                   <strong>{activeHighlight.matchupLabel ?? activeHighlight.team?.name ?? activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong>
@@ -1800,7 +1794,7 @@ export function HubHome() {
     {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={(submissionId) => { setScheduleBoxScoreWeek(null); setAssignStatsSubmissionId(submissionId); setMySchedule(null); void viewMySchedule(); }} />}
     {assignStatsSubmissionId && auth.status === "ready" && <AssignBoxScoreStatsModal guildId={auth.guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
-    {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} onClose={() => setRecruitingBoardOpen(false)} />}
+    {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} viewerUserId={hub.userRatings?.viewerUserId ?? null} canManageLeague={hub.canManageLeague} onClose={() => setRecruitingBoardOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
       {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>
       <label className="form-field"><span className="form-label">Player</span><select className="form-input" value={playerStatsDraft.watchedPlayerId} onChange={(event) => { const player = myWatchedPlayers?.find((item) => item.id === event.target.value); setPlayerStatsDraft((current) => ({ ...current, watchedPlayerId: event.target.value, playerName: player?.playerName ?? "" })); }}><option value="">Enter a new player</option>{(myWatchedPlayers ?? []).map((player) => <option key={player.id} value={player.id}>{player.playerName} - {player.position}</option>)}</select></label>

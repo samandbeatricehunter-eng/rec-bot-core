@@ -726,8 +726,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               )}
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(2)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => saveConfigAndAdvance(4)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => saveConfigAndAdvance(4)}>Next</button>
             </div>
           </>
         )}
@@ -735,15 +735,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         {step === 4 && (
           <>
             <Section title="Discord Server Link (Optional)">
-              <p className="site-muted">Link a Discord server to enable bot features, streaming announcements, draft scheduling, and more. You can skip this and link later from League Settings.</p>
+              <p className="site-muted">You can link a Discord server for bot features, streaming announcements, draft scheduling, and more from League Settings once your league is created.</p>
               <div className="wizard-notice">
-                If you skip this step, you can still configure everything on the site. Discord features become available once the bot is invited to your server.
+                Discord features become available once the bot is invited to your server — that's a separate step after this wizard, from the league's "Connect a Discord Server" option.
               </div>
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(3)}>Back</button>
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => saveConfigAndAdvance(5)}>Skip for Now</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => saveConfigAndAdvance(5)}>Link Server</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(3)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => saveConfigAndAdvance(5)}>Continue</button>
             </div>
           </>
         )}
@@ -1088,8 +1087,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               )}
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(6)}>Back</button>
-              <button type="button" className="site-btn site-btn-ghost" onClick={finishWizard}>Skip for Now</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={finishWizard}>Skip for Now</button>
               <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={finishWizard}>
                 {busy ? "Finishing..." : "Assign Team &amp; Finish"}
               </button>

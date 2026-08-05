@@ -126,7 +126,7 @@ export async function maddenCompanionRoutes(app: FastifyInstance) {
         })
         .parse(request.body);
 
-      const { connectionToken } = await rotateCompanionToken(body.connection_id, auth.discordId);
+      const { connectionToken } = await rotateCompanionToken(body.connection_id, body.league_id);
 
       return reply.send({ connection_token: connectionToken });
     } catch (error) {

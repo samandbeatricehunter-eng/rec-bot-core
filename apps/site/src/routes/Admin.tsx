@@ -8,15 +8,18 @@ import {
   type AdminLeagueSummary,
   type AdminStats,
   type AdminUserSummary,
+  type PromoCode,
+  type PromoCodeEffectType,
 } from "../lib/site-api.js";
 
-type AdminTab = "stats" | "ticker" | "leagues" | "impersonate";
+type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes";
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "stats", label: "Stats" },
   { id: "ticker", label: "Ticker" },
   { id: "leagues", label: "Leagues" },
   { id: "impersonate", label: "View As" },
+  { id: "promo-codes", label: "Promo Codes" },
 ];
 
 const EMPTY_DRAFT = {
@@ -391,6 +394,221 @@ function LeaguesPanel() {
   );
 }
 
+const PROMO_EFFECT_LABELS: Record<PromoCodeEffectType, string> = {
+  lifetime_platinum: "Free lifetime Platinum",
+  lifetime_gold: "Free lifetime Gold",
+  bonus_coins: "Coin bonus",
+};
+
+const EMPTY_PROMO_DRAFT = {
+  code: "",
+  description: "",
+  effectType: "lifetime_platinum" as PromoCodeEffectType,
+  coinAmount: "1000",
+  reusable: true,
+  hasExpiration: false,
+  endsAt: "",
+};
+
+function PromoCodesPanel() {
+  const [codes, setCodes] = useState<PromoCode[]>([]);
+  const [draft, setDraft] = useState(EMPTY_PROMO_DRAFT);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function reload() {
+    return siteApi.listPromoCodes().then((res) => setCodes(res.codes));
+  }
+
+  useEffect(() => {
+    reload().catch((err) => setError(err instanceof Error ? err.message : "Could not load promo codes."));
+  }, []);
+
+  function startEdit(promo: PromoCode) {
+    setEditingId(promo.id);
+    setDraft({
+      code: promo.code,
+      description: promo.description ?? "",
+      effectType: promo.effectType,
+      coinAmount: String(promo.effectValue ?? 1000),
+      reusable: promo.maxRedemptions == null,
+      hasExpiration: promo.endsAt != null,
+      endsAt: promo.endsAt ? promo.endsAt.slice(0, 16) : "",
+    });
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setDraft(EMPTY_PROMO_DRAFT);
+  }
+
+  async function save() {
+    if (!draft.code.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = {
+        code: draft.code.trim(),
+        description: draft.description.trim() || null,
+        effectType: draft.effectType,
+        effectValue: draft.effectType === "bonus_coins" ? Number(draft.coinAmount) || 0 : null,
+        maxRedemptions: draft.reusable ? null : 1,
+        endsAt: draft.hasExpiration && draft.endsAt ? new Date(draft.endsAt).toISOString() : null,
+      };
+      if (editingId) {
+        await siteApi.updatePromoCode({ id: editingId, ...payload });
+      } else {
+        await siteApi.createPromoCode(payload);
+      }
+      await reload();
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save promo code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(promo: PromoCode) {
+    setBusy(true);
+    setError(null);
+    try {
+      await siteApi.updatePromoCode({ id: promo.id, active: !promo.active });
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update promo code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await siteApi.deletePromoCode(id);
+      await reload();
+      if (editingId === id) resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete promo code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="site-billing-panel">
+      <h2>{editingId ? "Edit promo code" : "New promo code"}</h2>
+      {error && <p className="site-auth-error">{error}</p>}
+      <label className="site-field">
+        <span>Code</span>
+        <input
+          value={draft.code}
+          onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))}
+          placeholder="e.g. LAUNCH2026"
+        />
+      </label>
+      <label className="site-field">
+        <span>Description (internal note, optional)</span>
+        <input value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
+      </label>
+      <label className="site-field">
+        <span>Triggers</span>
+        <select
+          className="site-select"
+          value={draft.effectType}
+          onChange={(e) => setDraft((d) => ({ ...d, effectType: e.target.value as PromoCodeEffectType }))}
+        >
+          {(Object.keys(PROMO_EFFECT_LABELS) as PromoCodeEffectType[]).map((key) => (
+            <option key={key} value={key}>{PROMO_EFFECT_LABELS[key]}</option>
+          ))}
+        </select>
+      </label>
+      {draft.effectType === "bonus_coins" ? (
+        <label className="site-field">
+          <span>Coin amount</span>
+          <input
+            type="number"
+            min={1}
+            value={draft.coinAmount}
+            onChange={(e) => setDraft((d) => ({ ...d, coinAmount: e.target.value }))}
+          />
+        </label>
+      ) : null}
+      <label className="site-field-checkbox">
+        <input
+          type="checkbox"
+          checked={draft.reusable}
+          onChange={(e) => setDraft((d) => ({ ...d, reusable: e.target.checked }))}
+        />
+        <span>Reusable (unchecked = one-time use, then no one else can redeem it)</span>
+      </label>
+      <label className="site-field-checkbox">
+        <input
+          type="checkbox"
+          checked={draft.hasExpiration}
+          onChange={(e) => setDraft((d) => ({ ...d, hasExpiration: e.target.checked }))}
+        />
+        <span>Set an expiration (unchecked = active indefinitely until deleted/deactivated)</span>
+      </label>
+      {draft.hasExpiration ? (
+        <label className="site-field">
+          <span>Expires at</span>
+          <input
+            type="datetime-local"
+            value={draft.endsAt}
+            onChange={(e) => setDraft((d) => ({ ...d, endsAt: e.target.value }))}
+          />
+        </label>
+      ) : null}
+      <div className="site-profile-actions">
+        <button className="site-btn site-btn-primary" type="button" disabled={busy} onClick={() => void save()}>
+          {busy ? "Saving…" : editingId ? "Save changes" : "Create promo code"}
+        </button>
+        {editingId ? (
+          <button className="site-btn site-btn-ghost" type="button" disabled={busy} onClick={resetForm}>
+            Cancel
+          </button>
+        ) : null}
+      </div>
+
+      <h3>Existing codes</h3>
+      {codes.length === 0 ? (
+        <p className="site-muted">No promo codes yet.</p>
+      ) : (
+        <ul className="site-account-notif-list">
+          {codes.map((promo) => (
+            <li key={promo.id}>
+              <strong>
+                {promo.code} {promo.active ? "" : "(inactive)"}
+              </strong>
+              <span>
+                {PROMO_EFFECT_LABELS[promo.effectType]}
+                {promo.effectType === "bonus_coins" ? ` · ${promo.effectValue ?? 0} coins` : ""}
+                {" · "}
+                {promo.maxRedemptions == null ? "Reusable" : `One-time (${promo.redemptionCount}/${promo.maxRedemptions} used)`}
+                {promo.endsAt ? ` · Expires ${new Date(promo.endsAt).toLocaleString()}` : " · No expiration"}
+              </span>
+              <div className="site-profile-actions">
+                <button className="site-btn site-btn-ghost" type="button" onClick={() => startEdit(promo)}>
+                  Edit
+                </button>
+                <button className="site-btn site-btn-ghost" type="button" disabled={busy} onClick={() => void toggleActive(promo)}>
+                  {promo.active ? "Deactivate" : "Activate"}
+                </button>
+                <button className="site-btn site-btn-ghost" type="button" disabled={busy} onClick={() => void remove(promo.id)}>
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ImpersonatePanel() {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -505,6 +723,7 @@ export function AdminPage() {
       {tab === "ticker" ? <TickerPanel /> : null}
       {tab === "leagues" ? <LeaguesPanel /> : null}
       {tab === "impersonate" ? <ImpersonatePanel /> : null}
+      {tab === "promo-codes" ? <PromoCodesPanel /> : null}
     </div>
   );
 }

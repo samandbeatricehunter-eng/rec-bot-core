@@ -112,10 +112,13 @@ export function Landing() {
           tip of your fingers. Time to lock in.
         </p>
         {auth.status !== "signed-in" && (
-          <div className="site-profile-actions">
-            <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
-            <a className="site-btn site-btn-ghost site-btn-lg" href="#plans">View plans</a>
-          </div>
+          <>
+            <p className="site-trial-badge">Start with a 7-day free trial — no charge until it ends, cancel anytime.</p>
+            <div className="site-profile-actions">
+              <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
+              <a className="site-btn site-btn-ghost site-btn-lg" href="#plans">View plans</a>
+            </div>
+          </>
         )}
       </main>
 
@@ -151,6 +154,7 @@ export function Landing() {
           <button type="button" role="tab" aria-selected={interval === "month"} className={interval === "month" ? "is-active" : ""} onClick={() => setIntervalValue("month")}>Monthly</button>
           <button type="button" role="tab" aria-selected={interval === "year"} className={interval === "year" ? "is-active" : ""} onClick={() => setIntervalValue("year")}>Annual</button>
         </div>
+        <p className="site-trial-badge site-landing-plans-trial">Every new subscription starts with a 7-day free trial.</p>
         {checkoutError && <p className="site-auth-error">{checkoutError}</p>}
         <div className="site-pricing-grid">
           {PLANS.map((plan) => (

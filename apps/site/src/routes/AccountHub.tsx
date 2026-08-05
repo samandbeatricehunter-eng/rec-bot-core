@@ -116,6 +116,8 @@ export function AccountHub({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [discordLinkBusy, setDiscordLinkBusy] = useState(false);
+  const [discordLinkError, setDiscordLinkError] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
@@ -266,6 +268,17 @@ export function AccountHub({
     }
   }
 
+  async function linkDiscordAccount() {
+    setDiscordLinkBusy(true);
+    setDiscordLinkError(null);
+    const { error } = await auth.linkDiscord("/account?tab=profile");
+    if (error) {
+      setDiscordLinkError(error);
+      setDiscordLinkBusy(false);
+    }
+    // On success the browser navigates away to Discord's OAuth page, so nothing else to do here.
+  }
+
   async function sendReset() {
     if (!email) {
       setResetNotice(
@@ -364,8 +377,19 @@ export function AccountHub({
               {linked.discordUsername ? (
                 <p className="site-muted">Discord · {linked.discordUsername}</p>
               ) : (
-                <p className="site-muted">Discord not linked</p>
+                <p className="site-muted">
+                  Discord not linked ·{" "}
+                  <button
+                    type="button"
+                    className="site-text-link"
+                    disabled={discordLinkBusy}
+                    onClick={() => void linkDiscordAccount()}
+                  >
+                    {discordLinkBusy ? "Redirecting…" : "Link Discord"}
+                  </button>
+                </p>
               )}
+              {discordLinkError ? <p className="site-auth-error">{discordLinkError}</p> : null}
             </div>
             {isAdmin ? (
               <Link className="site-btn site-btn-ghost" to="/admin" style={{ marginLeft: "auto" }}>

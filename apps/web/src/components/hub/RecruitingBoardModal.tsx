@@ -27,6 +27,14 @@ const STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = {
 };
 // These stages mean "committed to a REC team in this league" — pick which one.
 const IN_LEAGUE_COMMIT_STATUSES = new Set<RecruitStatus>(["verbal_commit", "hard_commit", "signed"]);
+// Any of these means the recruit has committed somewhere in some form — once true, they're
+// off the market and shouldn't be addable to a fresh watch-list.
+const COMMITTED_STATUSES = new Set<RecruitStatus>(["verbal_commit", "hard_commit", "signed", "committed_elsewhere"]);
+
+const POSITION_ORDER = [
+  "ATH", "QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT",
+  "LEDGE", "REDGE", "DT", "MIKE", "SAM", "WILL", "CB", "FS", "SS", "K", "P",
+];
 
 function formatHeight(inches: number | null): string | null {
   if (inches == null) return null;
@@ -161,11 +169,7 @@ export function RecruitingBoardModal({ guildId, viewerUserId, canManageLeague, o
 
   const listToShow = view === "board" ? board : recruits;
 
-  const poolPositions = useMemo(() => {
-    if (!recruits) return [];
-    const seen = new Set<string>();
-    return recruits.map((r) => r.position).filter((p) => { if (seen.has(p)) return false; seen.add(p); return true; }).sort();
-  }, [recruits]);
+  const poolPositions = POSITION_ORDER;
 
   const filteredPool = useMemo(() => {
     if (!recruits) return null;
@@ -218,7 +222,7 @@ export function RecruitingBoardModal({ guildId, viewerUserId, canManageLeague, o
         </div>
       )}
 
-      {view === "pool" && poolPositions.length > 1 && (
+      {view === "pool" && (
         <div style={{ marginBottom: "var(--space-3)" }}>
           <label className="form-field" style={{ margin: 0, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
             <span className="form-label" style={{ whiteSpace: "nowrap" }}>Position</span>
@@ -266,7 +270,7 @@ export function RecruitingBoardModal({ guildId, viewerUserId, canManageLeague, o
                     {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 ) : null)}
-                {view === "pool" && (
+                {view === "pool" && (boardIds.has(recruit.id) || !COMMITTED_STATUSES.has(recruit.status)) && (
                   <Button variant="secondary" size="compact" disabled={busy} onClick={() => void toggleBoard(recruit.id, boardIds.has(recruit.id))}>
                     {boardIds.has(recruit.id) ? "On Board" : "Add to Board"}
                   </Button>

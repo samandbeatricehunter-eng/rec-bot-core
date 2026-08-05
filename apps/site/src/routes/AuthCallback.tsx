@@ -42,6 +42,19 @@ export function AuthCallback() {
           // Email/password users without Discord identity are fine — Account handles subscribe.
         }
         if (cancelled) return;
+
+        const pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");
+        if (pendingPromoCode) {
+          sessionStorage.removeItem("rec_pending_promo_code");
+          setMessage("Applying your promo code…");
+          try {
+            await siteApi.redeemPromoCode(pendingPromoCode);
+          } catch {
+            // Invalid/expired/already-used codes shouldn't block sign-in — just skip silently.
+          }
+          if (cancelled) return;
+        }
+
         setMessage("You're in. Taking you to REC Leagues…");
         navigate(next, { replace: true });
       } catch (cause) {

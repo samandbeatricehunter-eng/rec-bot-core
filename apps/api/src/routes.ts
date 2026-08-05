@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { webSessionRoutes } from "./modules/web-session/web-session.routes.js";
 import { adminEconomyRoutes } from "./modules/admin-economy/admin-economy.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
+import { promoCodeRoutes } from "./modules/promo-codes/promo-codes.routes.js";
 import { rankingsRoutes } from "./modules/rankings/rankings.routes.js";
 import { compRoutes } from "./modules/comp/comp.routes.js";
 import { moderationRoutes } from "./modules/moderation/moderation.routes.js";
@@ -112,6 +113,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await draftPicksRoutes(app);
   await tradesRoutes(app);
   await adminRoutes(app);
+  await promoCodeRoutes(app);
   await rankingsRoutes(app);
   await compRoutes(app);
   await moderationRoutes(app);

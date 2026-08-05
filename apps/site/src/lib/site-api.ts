@@ -766,6 +766,39 @@ export const siteApi = {
       { userId },
     );
   },
+  listPromoCodes() {
+    return request<{ codes: PromoCode[] }>("/v1/admin/promo-codes/list", {});
+  },
+  createPromoCode(input: {
+    code: string;
+    description?: string | null;
+    effectType: PromoCodeEffectType;
+    effectValue?: number | null;
+    maxRedemptions?: number | null;
+    startsAt?: string | null;
+    endsAt?: string | null;
+  }) {
+    return request<PromoCode>("/v1/admin/promo-codes/create", input);
+  },
+  updatePromoCode(input: {
+    id: string;
+    code?: string;
+    description?: string | null;
+    effectType?: PromoCodeEffectType;
+    effectValue?: number | null;
+    maxRedemptions?: number | null;
+    active?: boolean;
+    startsAt?: string | null;
+    endsAt?: string | null;
+  }) {
+    return request<PromoCode>("/v1/admin/promo-codes/update", input);
+  },
+  deletePromoCode(id: string) {
+    return request<{ ok: true }>("/v1/admin/promo-codes/delete", { id });
+  },
+  redeemPromoCode(code: string) {
+    return request<{ effectType: PromoCodeEffectType; description: string | null }>("/v1/promo-codes/redeem", { code });
+  },
   listRankedGames() {
     return request<{ games: Array<{ game: string; label: string; dynastyLabel: string }> }>("/v1/rankings/games", {});
   },
@@ -909,6 +942,23 @@ export type AdminAnnouncement = {
   ends_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PromoCodeEffectType = "lifetime_platinum" | "lifetime_gold" | "bonus_coins";
+
+export type PromoCode = {
+  id: string;
+  code: string;
+  description: string | null;
+  effectType: PromoCodeEffectType;
+  effectValue: number | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AdminLeagueSummary = {

@@ -186,7 +186,7 @@ export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/site-leagues/create/whoami", async (request, reply) => {
     try {
       const resolved = await resolveSiteLeagueCreator(request);
-      return reply.send({ allowed: isAllowedLeagueCreator(resolved?.discordUsername) });
+      return reply.send({ allowed: isAllowedLeagueCreator(resolved?.email) });
     } catch (error) { return sendError(reply, error); }
   });
 

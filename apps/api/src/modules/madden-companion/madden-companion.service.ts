@@ -220,16 +220,19 @@ export async function registerCompanionConnection(
  */
 export async function rotateCompanionToken(
   connectionId: string,
-  requestedByUserId: string
+  leagueId: string,
 ): Promise<{ connectionToken: string }> {
   const connectionToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(connectionToken).digest("hex");
 
-  // Fetch current config, update token_hash, then update
+  // Scoped to leagueId too — without it, a commissioner of *any* league could rotate another
+  // league's token by guessing/enumerating a connection UUID (the caller's session is only
+  // verified as commissioner of leagueId, not as owning this specific connectionId).
   const { data: current, error: fetchError } = await supabase
     .from("rec_import_connections")
     .select("config")
     .eq("id", connectionId)
+    .eq("league_id", leagueId)
     .single();
 
   if (fetchError) throw new Error(`Failed to fetch connection: ${fetchError.message}`);
@@ -245,7 +248,8 @@ export async function rotateCompanionToken(
       config: updatedConfig,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", connectionId);
+    .eq("id", connectionId)
+    .eq("league_id", leagueId);
 
   if (error) throw new Error(`Failed to rotate token: ${error.message}`);
 

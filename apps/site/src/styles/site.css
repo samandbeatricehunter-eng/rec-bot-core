@@ -1911,6 +1911,21 @@ h1, h2, h3, .site-wordmark {
   letter-spacing: 0.02em;
   color: var(--accent-bright);
 }
+.site-trial-badge {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-bright);
+  background: color-mix(in srgb, var(--accent-bright) 14%, transparent);
+  color: var(--accent-bright);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.site-landing-plans-trial {
+  margin-bottom: 16px;
+}
 .site-plan-savings {
   margin: -8px 0 0;
   font-size: 12px;
@@ -2587,13 +2602,6 @@ h1, h2, h3, .site-wordmark {
   object-fit: contain;
   background: #000;
 }
-.site-spotlight-video-swipe-catcher { position: absolute; inset: 0; z-index: 1; background: transparent; }
-/* Sits above the swipe catcher (which otherwise blocks every pointer event meant for the
-   Cloudflare iframe's own native controls) so play/pause/mute/rewind stay reachable. */
-.site-spotlight-video-controls { position: absolute; left: 50%; bottom: 10px; z-index: 2; display: flex; gap: 8px; transform: translateX(-50%); }
-.site-spotlight-video-controls button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; background: rgba(5,6,5,.78); color: var(--accent-bright); cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); touch-action: manipulation; }
-.site-spotlight-video-controls button:hover { border-color: var(--accent-bright); }
-.site-spotlight-video-controls button:active { transform: translateY(1px); }
 .site-spotlight-meta {
   display: flex;
   flex-direction: column;

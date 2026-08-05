@@ -15,6 +15,7 @@ type AuthContextValue = AuthState & {
     keepLoggedIn?: boolean,
   ) => Promise<{ error: string | null }>;
   signInWithDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
+  linkDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -78,13 +79,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  // Adds a Discord identity onto the *currently signed-in* account (email/password users
+  // linking Discord later from My Account) rather than starting a fresh OAuth sign-in —
+  // signInWithOAuth here would risk landing on a different auth user's session entirely.
+  // Requires "Manual linking" enabled in Supabase Auth settings.
+  async function linkDiscord(nextPath = "/account") {
+    const redirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const { error } = await supabase.auth.linkIdentity({
+      provider: "discord",
+      options: {
+        redirectTo,
+        scopes: "identify email",
+      },
+    });
+    return { error: error?.message ?? null };
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setKeepLoggedIn(false);
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, signOut }}>
+    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, linkDiscord, signOut }}>
       {children}
     </AuthContext.Provider>
   );

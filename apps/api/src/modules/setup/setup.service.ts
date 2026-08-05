@@ -345,11 +345,13 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
 
-  // CFB 27 only: when Track Rosters is on, seed the league's initial rosters from the active,
-  // approved baseline dataset. Runs after default teams exist — applyCfbBaselineToLeague matches
-  // baseline teams to them by abbreviation, so no duplicate teams are created.
+  // CFB 27 only: when "seed active rosters" is on, seed the league's initial rosters from the
+  // active, approved baseline dataset. Runs after default teams exist — applyCfbBaselineToLeague
+  // matches baseline teams to them by abbreviation, so no duplicate teams are created.
+  // activeRostersEnabled (this toggle) and trackRostersEnabled (ongoing dynasty tracking —
+  // recruiting/portal/progression) are independent settings; seeding must key off the former.
   let baselineSeed: Awaited<ReturnType<typeof applyCfbBaselineToLeague>> | null = null;
-  if (input.game === "cfb_27" && input.trackRostersEnabled) {
+  if (input.game === "cfb_27" && input.activeRostersEnabled) {
     const activeDataset = await supabase
       .from("rec_cfb_roster_datasets")
       .select("id")
@@ -458,7 +460,7 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy ?? "on_standard",
-    difficulty: input.difficulty ?? "all_madden",
+    difficulty: isCfbGame ? null : (input.difficulty ?? "all_madden"),
     cfb_difficulty: isCfbGame ? (input.cfbDifficulty ?? "heisman") : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
@@ -498,6 +500,10 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
     fair_sim_requirements: input.fairSimRequirements ?? null,
     force_win_requirements: input.forceWinRequirements ?? null,
+    // Madden season-1 leagues auto-seed the NFL schedule once linked to Discord (see
+    // schedule.service.ts's default_schedule_seed_requested gate); CFB schedules are always
+    // manual. Wizard-created leagues always start at season 1, so this can key off game alone.
+    default_schedule_seed_requested: isCfbGame ? false : true,
   };
 }
 
