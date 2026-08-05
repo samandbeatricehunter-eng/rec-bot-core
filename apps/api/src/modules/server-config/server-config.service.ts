@@ -62,6 +62,9 @@ function normalizeRouteAliases(routes: Record<string, any>) {
 
 export async function setServerConfig(input: SetServerConfigInput) {
   const context = await getCurrentLeagueContext(input.guildId);
+  if (!context.serverId) {
+    throw new ApiError(400, "This league has no linked Discord server — channel routing is a Discord-only feature.");
+  }
   const updatePayload = compactDefined({
     pending_economy_channel_id: input.pendingEconomyChannelId,
     ...routePayload(input),

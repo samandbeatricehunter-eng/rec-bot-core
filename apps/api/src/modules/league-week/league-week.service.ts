@@ -63,7 +63,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
   const savingsInterest = await applyAdvanceSavingsInterest({
     leagueId: context.leagueId,
-    serverId: context.rec_discord_servers.id,
+    serverId: context.serverId,
     seasonNumber,
     previousWeek,
     previousStage,

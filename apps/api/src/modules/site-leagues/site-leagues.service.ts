@@ -6,6 +6,8 @@ import { buildWebHubUrl } from "../web-session/web-session.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
 import { getGameWagerOptions } from "../wagers/odds.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { siteOnlyDiscordId } from "../../lib/user-auth.js";
 
 const CFB_DEFAULT_CONFERENCE = new Map(
   CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
@@ -484,12 +486,13 @@ export async function openSiteLeagueHubContext(input: {
     [input.recUserId],
   );
   const row = profile.rows[0] as { username: string | null; discord_id: string | null } | undefined;
-  if (!row?.discord_id) {
-    throw new ApiError(403, "Link your Discord identity on Account before opening a league hub.");
-  }
-  if (!row.username) {
+  if (!row?.username) {
     throw new ApiError(403, "Choose a username on Account before opening a league hub.");
   }
+  // Discord is optional: a user without a linked Discord account, or a league never linked to
+  // a Discord server, both fall back to a synthetic identity that resolves through the same
+  // discordId/guildId-keyed hub plumbing (see league-context.service.ts / lib/user-auth.ts).
+  const discordId = row.discord_id ?? siteOnlyDiscordId(input.recUserId);
 
   const guild = await getPgPool().query(
     `
@@ -502,12 +505,9 @@ export async function openSiteLeagueHubContext(input: {
     `,
     [input.leagueId],
   );
-  const guildId = (guild.rows[0] as { guild_id: string } | undefined)?.guild_id;
-  if (!guildId) {
-    throw new ApiError(404, "This league is not linked to a Discord server yet.");
-  }
+  const guildId = (guild.rows[0] as { guild_id: string } | undefined)?.guild_id ?? siteOnlyGuildId(input.leagueId);
 
-  return { guildId, discordId: row.discord_id, leagueId: input.leagueId };
+  return { guildId, discordId, leagueId: input.leagueId };
 }
 
 export type SiteLeagueTickerItem = {

@@ -9,7 +9,7 @@ const INTEREST_DISABLE_MS = 24 * 60 * 60 * 1000;
 
 type LeagueAdvanceContext = {
   leagueId: string;
-  serverId: string;
+  serverId: string | null;
   seasonNumber: number;
   previousWeek: number;
   previousStage: string;

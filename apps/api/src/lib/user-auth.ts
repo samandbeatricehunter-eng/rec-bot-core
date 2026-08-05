@@ -8,7 +8,16 @@ import { hasValidInternalApiKey, requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
 import { supabase } from "./supabase.js";
 import { verifySupabaseAccessToken } from "./supabase-jwt.js";
-import { getCurrentLeagueContext } from "../modules/league-context/league-context.service.js";
+import {
+  getCurrentLeagueContext,
+  isSiteOnlyDiscordId,
+  isSiteOnlyGuildId,
+  recUserIdFromSiteOnlyDiscordId,
+  siteOnlyDiscordId,
+  SITE_ONLY_PREFIX,
+} from "../modules/league-context/league-context.service.js";
+
+export { isSiteOnlyDiscordId, siteOnlyDiscordId };
 
 // Per-browser auth for hub APIs — Discord Activity JWT and/or site Supabase session.
 // Bot-to-API calls still use requireInternalApiKey / x-rec-api-key unchanged.
@@ -69,8 +78,11 @@ async function trySiteDiscordSession(token: string): Promise<{ discordId: string
     .select("discord_id")
     .eq("user_id", user.data.id)
     .maybeSingle();
-  if (account.error || !account.data?.discord_id) return null;
-  return { discordId: account.data.discord_id };
+  if (account.error) return null;
+  // No Discord linked — still a valid site session. Fall back to a stable synthetic discordId
+  // so this user resolves through the same discordId-keyed hub plumbing every other session
+  // type already uses, instead of failing the whole session.
+  return { discordId: account.data?.discord_id ?? siteOnlyDiscordId(user.data.id) };
 }
 
 export async function requireUserSession(request: FastifyRequest): Promise<UserSession> {
@@ -103,11 +115,51 @@ export async function resolveUserSessionFromToken(token: string, guildIdHint: st
 
 export type GuildPermission = "member" | "co_commissioner" | "commissioner";
 
+// A league with no linked Discord server has no guild roles to check — permission comes from
+// our own membership/ownership data instead. Mirrors the role semantics already used by
+// site-leagues.service.ts's league list (owner or role='commissioner' -> head commissioner,
+// role='co_commissioner' -> co, active membership -> member).
+async function assertSiteNativePermission(leagueId: string, discordId: string, required: GuildPermission): Promise<void> {
+  const userId = isSiteOnlyDiscordId(discordId)
+    ? recUserIdFromSiteOnlyDiscordId(discordId)
+    : (await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle()).data?.user_id ?? null;
+  if (!userId) throw new ApiError(403, "Not a member of this league");
+
+  const league = await supabase.from("rec_leagues").select("owner_user_id").eq("id", leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  const isOwner = league.data?.owner_user_id === userId;
+
+  const membership = await supabase
+    .from("rec_league_memberships")
+    .select("role,status")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  const role = membership.data?.role ?? null;
+  const isCommissioner = isOwner || role === "commissioner";
+  const isCoCommissioner = role === "co_commissioner";
+
+  if (required === "member") {
+    if (!isOwner && !membership.data) throw new ApiError(403, "Not a member of this league");
+    return;
+  }
+  if (required === "commissioner") {
+    if (!isCommissioner) throw new ApiError(403, "Insufficient permission");
+    return;
+  }
+  if (!isCommissioner && !isCoCommissioner) throw new ApiError(403, "Insufficient permission");
+}
+
 // Mirrors apps/bot/src/lib/admin.ts's isFullLeagueAdminInteraction/isCoCommissionerInteraction:
 // role-name match OR Administrator/ManageGuild permission bits OR guild ownership (folded
 // into resolveMemberPermissionBits) counts as commissioner-level; co-commissioner adds the
 // co-commissioner role names on top of that same fallback.
 export async function assertGuildPermission(guildId: string, discordId: string, required: GuildPermission): Promise<void> {
+  if (isSiteOnlyGuildId(guildId)) {
+    return assertSiteNativePermission(guildId.slice(SITE_ONLY_PREFIX.length), discordId, required);
+  }
+
   const roleNames = await getGuildMemberRoleNames(guildId, discordId);
   if (roleNames === null) throw new ApiError(403, "Not a member of this guild");
   if (required === "member") return;

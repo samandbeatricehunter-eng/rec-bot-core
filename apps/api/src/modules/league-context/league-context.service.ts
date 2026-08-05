@@ -9,17 +9,73 @@ import { isGuildOwner } from "../../lib/discord-guild.js";
 import type { RecDiscordServer, RecLeague, RecServerLeagueLink } from "../../db/schema.js";
 
 export type CurrentLeagueContext = {
-  serverId: string;
+  // null for a standalone league with no linked Discord server (see isSiteOnlyGuildId) — several
+  // tables' server_id columns are nullable uuid FKs for exactly this case, so this must stay a
+  // real uuid-or-null, never a synthetic "site:" string (which isn't valid uuid input).
+  serverId: string | null;
   leagueId: string;
-  server: RecDiscordServer;
+  server: RecDiscordServer | null;
   league: RecLeague;
-  link: RecServerLeagueLink;
+  link: RecServerLeagueLink | null;
   routes: Record<string, unknown> | null;
   rec_discord_servers: any;
   rec_leagues: any;
 };
 
+// Prefix marking a synthetic identity for a league/user with no real Discord counterpart —
+// Discord is an optional add-on, not the identity backbone, so the hub must resolve a league
+// (and a user, see user-auth.ts) purely from site data when neither is Discord-linked. Mirrors
+// the same "site:" convention already used in site-leagues.service.ts's requestSiteLeagueTeam.
+export const SITE_ONLY_PREFIX = "site:";
+
+export function isSiteOnlyGuildId(guildId: string): boolean {
+  return guildId.startsWith(SITE_ONLY_PREFIX);
+}
+
+export function siteOnlyGuildId(leagueId: string): string {
+  return `${SITE_ONLY_PREFIX}${leagueId}`;
+}
+
+// Same convention for the per-user side (see lib/user-auth.ts) — lives here rather than there
+// to keep this the single source of truth for the "site:" prefix and avoid a circular import
+// between league-context.service.ts and user-auth.ts.
+export function isSiteOnlyDiscordId(discordId: string): boolean {
+  return discordId.startsWith(SITE_ONLY_PREFIX);
+}
+
+export function siteOnlyDiscordId(recUserId: string): string {
+  return `${SITE_ONLY_PREFIX}${recUserId}`;
+}
+
+export function recUserIdFromSiteOnlyDiscordId(discordId: string): string {
+  return discordId.slice(SITE_ONLY_PREFIX.length);
+}
+
+async function findStandaloneLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
+  const leagueId = guildId.slice(SITE_ONLY_PREFIX.length);
+  const db = getDrizzleDb();
+  const league = await db.query.recLeagues.findFirst({ where: eq(recLeagues.id, leagueId) });
+  if (!league?.id) return null;
+
+  // No real server/link row — null all the way through (see the CurrentLeagueContext comment).
+  // Every Discord-specific feature (bot messages, channel routes) already gates on routes being
+  // configured, and routes stays null here exactly like an unconfigured real server, so those
+  // features no-op the same way for a standalone site-only league.
+  return {
+    serverId: null,
+    leagueId: league.id,
+    server: null,
+    league,
+    link: null,
+    routes: null,
+    rec_discord_servers: null,
+    rec_leagues: toSnakeRow(league),
+  };
+}
+
 export async function findCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
+  if (isSiteOnlyGuildId(guildId)) return findStandaloneLeagueContext(guildId);
+
   const db = getDrizzleDb();
   const server = await db.query.recDiscordServers.findFirst({
     where: eq(recDiscordServers.guildId, guildId)
@@ -95,6 +151,12 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
 
+  // A synthetic guildId has no real Discord guild to ask — "owner" here means the league's
+  // owner_user_id instead (site-native equivalent of Discord server ownership).
+  const ownerCheck = isSiteOnlyGuildId(guildId)
+    ? Promise.resolve(context.rec_leagues.owner_user_id === (isSiteOnlyDiscordId(discordId) ? recUserIdFromSiteOnlyDiscordId(discordId) : null))
+    : isGuildOwner(guildId, discordId);
+
   const [totalRes, linkedRes, isOwner] = await Promise.all([
     supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
     supabase
@@ -103,7 +165,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
-    isGuildOwner(guildId, discordId),
+    ownerCheck,
   ]);
   if (totalRes.error) throw new ApiError(500, "Failed to count league teams.", totalRes.error);
   if (linkedRes.error) throw new ApiError(500, "Failed to count linked teams.", linkedRes.error);
