@@ -114,6 +114,11 @@ export function Landing() {
         {auth.status !== "signed-in" && (
           <>
             <p className="site-trial-badge">Start with a 7-day free trial — no charge until it ends, cancel anytime.</p>
+            <p className="site-muted site-trial-note">
+              During the trial: Gold can join 1 league per game; Platinum can join 1 and create 1
+              league per game. Full limits (join up to 5/20, create up to 5) unlock once the
+              trial ends or you subscribe.
+            </p>
             <div className="site-profile-actions">
               <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
               <a className="site-btn site-btn-ghost site-btn-lg" href="#plans">View plans</a>
@@ -155,6 +160,10 @@ export function Landing() {
           <button type="button" role="tab" aria-selected={interval === "year"} className={interval === "year" ? "is-active" : ""} onClick={() => setIntervalValue("year")}>Annual</button>
         </div>
         <p className="site-trial-badge site-landing-plans-trial">Every new subscription starts with a 7-day free trial.</p>
+        <p className="site-muted site-trial-note">
+          Trial accounts are capped at 1 league joined per game (Platinum: also 1 created per
+          game) until the trial ends or converts to a full subscription.
+        </p>
         {checkoutError && <p className="site-auth-error">{checkoutError}</p>}
         <div className="site-pricing-grid">
           {PLANS.map((plan) => (

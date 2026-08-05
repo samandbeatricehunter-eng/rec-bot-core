@@ -712,24 +712,23 @@ export async function recordEosAwardPollVotesFromDiscord(input: { pollId: string
   if (!allDiscordIds.length) return { recorded: 0 };
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("discord_id", allDiscordIds);
   if (accounts.error) throw new ApiError(500, "Failed to resolve Discord voters.", accounts.error);
-  const userIdByDiscordId = new Map((accounts.data ?? []).map((row: any) => [row.discord_id, row.user_id]));
+  const userIdByDiscordId = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.discord_id, row.user_id]));
 
   const now = new Date().toISOString();
-  let recorded = 0;
+  const rows: Array<{ poll_id: string; voter_user_id: string; nominee_user_id: string; updated_at: string }> = [];
   for (const [indexStr, discordIds] of Object.entries(input.votesByNomineeIndex)) {
     const nomineeUserId = nomineeIds[Number(indexStr)];
     if (!nomineeUserId) continue;
     for (const discordId of discordIds) {
       const voterUserId = userIdByDiscordId.get(discordId);
       if (!voterUserId) continue; // voter has no linked site account — nothing to attribute the vote to
-      const upserted = await supabase.from("rec_eos_award_votes").upsert(
-        { poll_id: input.pollId, voter_user_id: voterUserId, nominee_user_id: nomineeUserId, updated_at: now },
-        { onConflict: "poll_id,voter_user_id" },
-      );
-      if (!upserted.error) recorded += 1;
+      rows.push({ poll_id: input.pollId, voter_user_id: voterUserId, nominee_user_id: nomineeUserId, updated_at: now });
     }
   }
-  return { recorded };
+  if (!rows.length) return { recorded: 0 };
+  const upserted = await supabase.from("rec_eos_award_votes").upsert(rows, { onConflict: "poll_id,voter_user_id" });
+  if (upserted.error) throw new ApiError(500, "Failed to record EOS award votes.", upserted.error);
+  return { recorded: rows.length };
 }
 
 export async function listSettledEosAwards(input: { guildId: string; seasonNumber?: number | null }) {

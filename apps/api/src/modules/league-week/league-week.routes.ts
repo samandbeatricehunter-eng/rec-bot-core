@@ -9,7 +9,6 @@ import { adjustEosPayoutItem, getMyEosPayoutProgress, issueEosPayoutBatch, listE
 import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
-import { generateAdvanceDms } from "./advance-dm.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { getMyDefenseNicknameStatus, setDefenseNickname } from "./defense-nicknames.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
@@ -447,19 +446,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await setNextAdvanceTime(body));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  // Preview-only — this generates the per-coach DM text but does not send it. Actual
-  // delivery requires the bot's discordUser.send(), so this route is only useful for a web
-  // "here's what would be sent" view; the send action itself stays Discord-only.
-  app.post("/v1/league-week/advance-dms", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send(await generateAdvanceDms(body));
     } catch (error) {
       return sendError(reply, error);
     }

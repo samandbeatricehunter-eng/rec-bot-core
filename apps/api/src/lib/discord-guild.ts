@@ -265,14 +265,6 @@ export async function getDiscordPollResults(channelId: string, messageId: string
   };
 }
 
-// Force-closes a still-open native poll early (commissioner "Close Poll" action) — Discord
-// finalizes the results and locks out further votes. A no-op (returns false, non-throwing) if
-// the poll already expired/finalized on its own, so callers can treat this as best-effort.
-export async function expireDiscordPoll(channelId: string, messageId: string): Promise<boolean> {
-  const res = await discordBotFetch(`/channels/${channelId}/polls/${messageId}/expire`, { method: "POST" }).catch(() => null);
-  return Boolean(res?.ok);
-}
-
 function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
   const entry = cache.get(key);
   return entry && entry.expiresAt + STALE_AUTH_CACHE_MS > Date.now() ? entry.value : undefined;
@@ -291,12 +283,6 @@ async function retryAfterRateLimit(path: string, response: Response, init?: Requ
   await new Promise((resolve) => setTimeout(resolve, delayMs));
   const retried = await discordBotFetch(path, init);
   return retryAfterRateLimit(path, retried, init, attempt + 1);
-}
-
-export async function getDiscordReactionUserIds(channelId: string, messageId: string, emojiId: string): Promise<string[]> {
-  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emojiId)}?limit=100`).catch(() => null);
-  if (!res || !res.ok) return [];
-  return ((await res.json()) as Array<{ id: string }>).map((user) => user.id);
 }
 
 // Clears a channel's recent history the same way the bot's purgeChannelMessages does —

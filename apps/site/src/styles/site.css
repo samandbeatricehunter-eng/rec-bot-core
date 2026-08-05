@@ -1926,6 +1926,11 @@ h1, h2, h3, .site-wordmark {
 .site-landing-plans-trial {
   margin-bottom: 16px;
 }
+.site-trial-note {
+  max-width: 520px;
+  font-size: 13px;
+  margin: 6px 0 0;
+}
 .site-plan-savings {
   margin: -8px 0 0;
   font-size: 12px;

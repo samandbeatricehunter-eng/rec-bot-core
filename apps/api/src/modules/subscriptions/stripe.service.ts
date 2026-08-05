@@ -281,6 +281,11 @@ async function applyActiveSubscription(userId: string, subscription: Stripe.Subs
   };
   if (subscription.status === "trialing") {
     update.trial_used_at = now;
+    update.trial_ends_at = toIsoFromUnix(subscription.trial_end ?? null);
+  } else {
+    // Any non-trialing status (converted to paid, canceled, etc.) means the trial-period
+    // league limits no longer apply, regardless of subscription.trial_end's historical value.
+    update.trial_ends_at = null;
   }
 
   if (billingStatus === "active") {

@@ -32,7 +32,20 @@ export type EntitlementUser = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   supabase_auth_user_id?: string | null;
+  trial_ends_at?: string | null;
 };
+
+/** True while the user is inside their current 7-day Stripe trial window — during which
+ * Gold/Platinum both get a tighter per-game league cap (see TRIAL_JOIN_LIMIT/TRIAL_OWN_LIMIT)
+ * so the free trial can't be used to stand up a full multi-league footprint before paying. */
+export function isCurrentlyTrialing(user: EntitlementUser, now = new Date()): boolean {
+  if (!user.trial_ends_at) return false;
+  const endsAt = new Date(user.trial_ends_at);
+  return !Number.isNaN(endsAt.getTime()) && endsAt.getTime() > now.getTime();
+}
+
+export const TRIAL_JOIN_LIMIT = 1;
+export const TRIAL_OWN_LIMIT = 1;
 
 export type EntitlementSummary = {
   tier: SubscriptionTier;
@@ -135,6 +148,7 @@ export async function assertGuildLeagueNotFrozen(guildId: string) {
 
 export function joinLimitFor(user: EntitlementUser, now = new Date()): number {
   if (!hasSiteAccess(user, now)) return 0;
+  if (isCurrentlyTrialing(user, now)) return TRIAL_JOIN_LIMIT;
   const tier = asTier(user.subscription_tier);
   if (tier === "platinum") return PLATINUM_JOIN_LIMIT;
   if (tier === "gold") return GOLD_JOIN_LIMIT;
@@ -143,6 +157,7 @@ export function joinLimitFor(user: EntitlementUser, now = new Date()): number {
 
 export function ownLimitFor(user: EntitlementUser, now = new Date()): number {
   if (!canCreateLeague(user, now)) return 0;
+  if (isCurrentlyTrialing(user, now)) return TRIAL_OWN_LIMIT;
   return PLATINUM_OWN_LIMIT;
 }
 
@@ -150,7 +165,7 @@ async function loadUser(userId: string): Promise<EntitlementUser> {
   const result = await supabase
     .from("rec_users")
     .select(
-      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id",
+      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id,trial_ends_at",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -241,12 +256,15 @@ export async function assertCanCreateLeague(userId: string, game: string): Promi
   if (!canCreateLeague(user)) {
     throw new ApiError(403, "Platinum subscription required to create a league.");
   }
+  const limit = ownLimitFor(user);
   const owned = await countOwnedLeagues(userId, game);
-  if (owned >= PLATINUM_OWN_LIMIT) {
+  if (owned >= limit) {
     throw new ApiError(
       403,
-      `Platinum allows at most ${PLATINUM_OWN_LIMIT} active leagues per game.`,
-      { owned, limit: PLATINUM_OWN_LIMIT, game },
+      isCurrentlyTrialing(user)
+        ? `Your 7-day trial allows creating 1 league per game — subscribe to create more.`
+        : `Platinum allows at most ${limit} active leagues per game.`,
+      { owned, limit, game },
     );
   }
   return user;

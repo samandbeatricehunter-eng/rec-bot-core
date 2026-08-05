@@ -379,7 +379,7 @@ function parsedExternalGameId(leagueId: string, seasonNumber: number, weekNumber
 
 async function insertScheduleGames(input: {
   leagueId: string;
-  guildId: string;
+  guildId?: string | null;
   seasonId: string;
   seasonNumber: number;
   games: ParsedScheduleMatchup[];
@@ -434,17 +434,45 @@ export async function seedDefaultScheduleForGuild(input: {
   force?: boolean;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  const leagueId = context.leagueId;
-  const game = context.rec_leagues.game as string | null;
-  if (game !== "madden_26" && game !== "madden_27") {
-    return { seeded: false as const, reason: "unsupported_game" as const, gameCount: 0 };
-  }
-
   const seasonNumber = resolveSeasonNumber(context, null);
   if (seasonNumber !== 1) {
     return { seeded: false as const, reason: "not_league_year_one" as const, gameCount: 0 };
   }
+  return seedDefaultScheduleForLeague({
+    leagueId: context.leagueId,
+    game: context.rec_leagues.game as string | null,
+    seasonNumber,
+    guildId: input.guildId,
+    requestedByDiscordId: input.requestedByDiscordId,
+    force: input.force,
+  });
+}
 
+/**
+ * Core seeder, keyed on leagueId rather than a Discord guildId — Madden season-1 leagues seed
+ * their default NFL schedule at creation time regardless of whether the league ever gets
+ * linked to Discord (Discord is an optional add-on, not a prerequisite for site features).
+ * seedDefaultScheduleForGuild (above) is the Discord-link-triggered path that delegates here;
+ * createUnclaimedLeague calls this directly at site creation time.
+ */
+export async function seedDefaultScheduleForLeague(input: {
+  leagueId: string;
+  game: string | null;
+  seasonNumber: number;
+  guildId?: string | null;
+  requestedByDiscordId?: string | null;
+  force?: boolean;
+}) {
+  const leagueId = input.leagueId;
+  const game = input.game;
+  if (game !== "madden_26" && game !== "madden_27") {
+    return { seeded: false as const, reason: "unsupported_game" as const, gameCount: 0 };
+  }
+  if (input.seasonNumber !== 1) {
+    return { seeded: false as const, reason: "not_league_year_one" as const, gameCount: 0 };
+  }
+
+  const seasonNumber = input.seasonNumber;
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   const configuration = await supabase

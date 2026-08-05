@@ -5,6 +5,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
+import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
 import { snapshotLeagueHistory } from "../users/league-history.service.js";
@@ -643,6 +644,20 @@ export async function createUnclaimedLeague(input: {
   if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
 
   const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+
+  // Madden season-1 leagues get their default NFL schedule immediately, regardless of whether
+  // this league ever gets linked to Discord — Discord is an optional add-on, not a
+  // prerequisite for core site functionality. CFB schedules are always manual (no default to
+  // seed). Non-fatal: a schedule-seed hiccup shouldn't block league creation.
+  if (!isCfbGame && seasonNumber === 1) {
+    await seedDefaultScheduleForLeague({
+      leagueId: league.data.id,
+      game: input.game,
+      seasonNumber: 1,
+    }).catch((err) => {
+      console.error("[ERROR] Failed to seed default schedule for new league (non-fatal):", err);
+    });
+  }
 
   await writeAuditLog({
     action: "league.created_unclaimed",

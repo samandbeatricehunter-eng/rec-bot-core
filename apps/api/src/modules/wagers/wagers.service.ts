@@ -940,7 +940,16 @@ async function resolveParlay(leagueId: string, wagerId: string, stake: number): 
     const outcome = await resolveOutcome(leagueId, { game_id: leg.game_id, market: leg.market, pick: leg.pick, line: leg.line, wager_kind: "house" });
     if (outcome == null) return null; // a leg's game isn't confirmed yet
     results.push(outcome);
-    await supabase.from("rec_wager_legs").update({ leg_result: outcome }).eq("id", leg.id);
+  }
+  // One update per distinct outcome value instead of one per leg.
+  const idsByOutcome = new Map<"won" | "lost" | "push", string[]>();
+  legs.forEach((leg, i) => {
+    const ids = idsByOutcome.get(results[i]) ?? [];
+    ids.push(leg.id);
+    idsByOutcome.set(results[i], ids);
+  });
+  for (const [outcome, ids] of idsByOutcome) {
+    await supabase.from("rec_wager_legs").update({ leg_result: outcome }).in("id", ids);
   }
   if (results.some((r) => r === "lost")) return { outcome: "lost", payout: 0 };
   const wonOdds = legs.filter((_, i) => results[i] === "won").map((l) => Number(l.odds));

@@ -211,8 +211,16 @@ export async function generateSeasonDraftPicks(input: { guildId: string; discord
     const insert = await supabase.from("rec_draft_picks").insert(newRows);
     if (insert.error) throw new ApiError(500, "Failed to generate draft picks.", insert.error);
   }
-  for (const update of pickNumberUpdates) {
-    const result = await supabase.from("rec_draft_picks").update({ pick_number: update.pick_number, updated_at: new Date().toISOString() }).eq("id", update.id);
+  if (pickNumberUpdates.length) {
+    const now = new Date().toISOString();
+    // Single batched upsert-on-conflict instead of one UPDATE per pick — only the listed
+    // columns (id, pick_number, updated_at) get touched for existing rows.
+    const result = await supabase
+      .from("rec_draft_picks")
+      .upsert(
+        pickNumberUpdates.map((update) => ({ id: update.id, pick_number: update.pick_number, updated_at: now })),
+        { onConflict: "id" },
+      );
     if (result.error) throw new ApiError(500, "Failed to update draft pick order.", result.error);
   }
   return { generated: newRows.length, reordered: pickNumberUpdates.length };

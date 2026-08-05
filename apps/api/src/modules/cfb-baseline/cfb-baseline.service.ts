@@ -337,14 +337,6 @@ export async function createImportRecordsFromCfbBaseline(
   let recordsCreated = 0;
 
   for (const bt of baselineTeams) {
-    // Check if a league team already exists with this abbreviation
-    const { data: existingTeam } = await supabase
-      .from("rec_teams")
-      .select("id")
-      .eq("league_id", leagueId)
-      .eq("abbreviation", bt.abbreviation)
-      .maybeSingle();
-
     const entityKey = `team:${bt.source_team_id}`;
     const trustLevel: ImportTrustLevel = "external_cfb_baseline";
 
@@ -481,13 +473,20 @@ export async function rollForwardCfbRosterOneSeason(input: { leagueId: string; r
     }
   }
 
+  // One update per distinct target class_year instead of one per player.
+  const idsByTargetYear = new Map<string, string[]>();
   for (const row of advanceUpdates) {
-    const { error: updateError } = await supabase.from("rec_players").update({ class_year: row.class_year }).eq("id", row.id);
+    const ids = idsByTargetYear.get(row.class_year) ?? [];
+    ids.push(row.id);
+    idsByTargetYear.set(row.class_year, ids);
+  }
+  for (const [classYear, ids] of idsByTargetYear) {
+    const { error: updateError } = await supabase.from("rec_players").update({ class_year: classYear }).in("id", ids);
     if (updateError) throw new Error(`Failed to advance class year: ${updateError.message}`);
   }
 
-  const now = new Date().toISOString();
-  for (const id of graduateIds) {
+  if (graduateIds.length) {
+    const now = new Date().toISOString();
     const { error: graduateError } = await supabase
       .from("rec_players")
       .update({
@@ -495,8 +494,8 @@ export async function rollForwardCfbRosterOneSeason(input: { leagueId: string; r
         status_changed_at: now,
         status_note: "Graduated — annual roster roll-forward",
       })
-      .eq("id", id);
-    if (graduateError) throw new Error(`Failed to graduate player: ${graduateError.message}`);
+      .in("id", graduateIds);
+    if (graduateError) throw new Error(`Failed to graduate players: ${graduateError.message}`);
   }
 
   return {

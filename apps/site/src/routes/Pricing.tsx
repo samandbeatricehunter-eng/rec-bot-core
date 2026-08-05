@@ -114,7 +114,15 @@ export function Pricing() {
             Pick a subscription to unlock the REC League hub. Cancel anytime from
             Manage billing.
           </p>
-          {!subscribed && <p className="site-trial-badge">New subscribers get a 7-day free trial — no charge until it ends.</p>}
+          {!subscribed && (
+            <>
+              <p className="site-trial-badge">New subscribers get a 7-day free trial — no charge until it ends.</p>
+              <p className="site-muted site-trial-note">
+                During the trial: Gold can join 1 league per game; Platinum can join 1 and create
+                1 league per game. Full limits unlock once the trial ends or converts.
+              </p>
+            </>
+          )}
           <div className="site-billing-interval" role="tablist" aria-label="Billing interval">
             <button
               type="button"
