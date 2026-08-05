@@ -4,6 +4,7 @@ import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRI
 import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
+import { BoxScoreIcon, HighlightReelIcon, InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
@@ -23,7 +24,6 @@ import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
-import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModal.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
@@ -208,6 +208,38 @@ function DefenseNicknamePrompt() {
   </div>;
 }
 
+const EOS_PAYOUT_DESCRIPTIONS: Record<string, string> = {
+  power_ranking_position: "Your global power ranking position. Pays a set amount per exact rank, independent of the tier ladder shown here.",
+  team_ppg: "Team average points scored per game this season.",
+  opp_ppg_allowed: "Opponent average points allowed per game — lower is better.",
+  team_def_ints: "Team defensive interceptions per game.",
+  team_def_yards_allowed: "Total yards allowed per game — lower is better.",
+  turnover_diff: "Turnovers forced minus turnovers committed, per game.",
+  team_total_offense: "Total offensive yards gained per game.",
+  off_red_zone_td_rate: "Percent of red-zone trips that end in a touchdown.",
+  def_red_zone_td_rate: "Percent of opponent red-zone trips that end in a touchdown allowed — lower is better.",
+  time_of_possession: "Average time of possession per game.",
+  well_disciplined: "Penalties committed per game — lower is better.",
+  red_zone_finish_rate: "Percent of red-zone trips that end in a score (touchdown or field goal).",
+  rb_workhorse: "Composite of rush attempts, yards per carry, and rushing TDs per game — rewards genuine bell-cow usage, not one big game.",
+  defense_needs_a_name: "Composite of red-zone defense, takeaways forced, and 3rd/4th-down stop rates — an elite, identity-worthy defense.",
+};
+
+const TIER_OPERATOR_SYMBOL: Record<string, string> = {
+  greater_or_equal: "≥",
+  less_than: "<",
+  less_or_equal: "≤",
+};
+
+function formatTierThreshold(key: string, threshold: number): string {
+  if (key === "time_of_possession") {
+    const minutes = Math.floor(threshold / 60);
+    const seconds = Math.round(threshold % 60);
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+  return Number.isInteger(threshold) ? String(threshold) : threshold.toFixed(1);
+}
+
 function EosPayoutProgressPanel() {
   const { guildId, discordId } = useReadyAuth();
   const [progress, setProgress] = useState<MyEosPayoutProgress | null>(null);
@@ -223,13 +255,31 @@ function EosPayoutProgressPanel() {
     {cards.map((card) => {
       const tierLabel = card.progress.currentTier ? `Tier ${card.progress.currentTier} · ${coinsNumber(card.progress.currentAmount)}` : "No tier yet";
       const nextLabel = card.progress.nextTier ? `Next: Tier ${card.progress.nextTier.tier} (${coinsNumber(card.progress.nextTier.amount)})` : "Top tier reached";
-      return <article key={card.key} className="hub-eos-progress-card">
+      return <article key={card.key} className="hub-eos-progress-card" tabIndex={0}>
         <div className="hub-eos-progress-card-head">
           <strong>{card.label}</strong>
           <span>{"rank" in card && card.rank != null ? `Rank ${card.rank}` : card.currentValue}</span>
         </div>
         <div className="hub-eos-progress-bar"><div className="hub-eos-progress-bar-fill" style={{ width: `${card.progress.percent}%` }} /></div>
         <div className="hub-eos-progress-card-foot"><span>{tierLabel}</span><span>{nextLabel}</span></div>
+        <div className="hub-eos-progress-tooltip">
+          <p className="hub-eos-progress-tooltip-desc">{EOS_PAYOUT_DESCRIPTIONS[card.key] ?? "EOS payout category."}</p>
+          <div className="hub-eos-progress-tiers">
+            <table>
+              <thead><tr><th>Tier</th><th>Threshold</th><th>Payout</th></tr></thead>
+              <tbody>
+                {card.tiers.map((tier) => (
+                  <tr key={tier.tier} className={tier.tier === card.progress.currentTier ? "hub-eos-progress-tier-active" : undefined}>
+                    <td>{tier.tier}</td>
+                    <td>{TIER_OPERATOR_SYMBOL[tier.operator] ?? ""}{formatTierThreshold(card.key, tier.threshold)}</td>
+                    <td>{coinsNumber(tier.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {card.triggerNote && <p className="hub-eos-progress-note">{card.triggerNote}</p>}
+        </div>
       </article>;
     })}
   </div>;
@@ -385,15 +435,10 @@ export function HubHome() {
   const [playerStatsDraft, setPlayerStatsDraft] = useState({ playerName: "", watchedPlayerId: "", category: "passing", values: {} as Record<string, string> });
   const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
   const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
-  const [recruitModalOpen, setRecruitModalOpen] = useState(false);
-  const [myWatchedPlayersModalOpen, setMyWatchedPlayersModalOpen] = useState(false);
   const [lateSubmissionsOpen, setLateSubmissionsOpen] = useState(false);
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
-  const [recruitDraft, setRecruitDraft] = useState<{ playerName: string; position: string; starRating: string; homeCity: string; homeState: string }>({ playerName: "", position: CFB_POSITIONS[0] ?? "ATH", starRating: "3", homeCity: "", homeState: "" });
-  const [recruitNotice, setRecruitNotice] = useState<string | null>(null);
-  const [recruitBusy, setRecruitBusy] = useState(false);
   const [interviewAnswers, setInterviewAnswers] = useState([
     { questionId: "", answer: "" },
     { questionId: "", answer: "" },
@@ -944,17 +989,6 @@ export function HubHome() {
     finally { setPlayerStatsBusy(false); }
   }
 
-  async function submitRecruitCommit() {
-    if (auth.status !== "ready") return;
-    setRecruitBusy(true); setRecruitNotice(null);
-    try {
-      await recApi.submitRecruitCommit({ guildId: auth.guildId, playerName: recruitDraft.playerName.trim(), position: recruitDraft.position, starRating: Number(recruitDraft.starRating), homeCity: recruitDraft.homeCity.trim(), homeState: recruitDraft.homeState.trim() });
-      setRecruitDraft({ playerName: "", position: CFB_POSITIONS[0] ?? "ATH", starRating: "3", homeCity: "", homeState: "" });
-      setRecruitNotice("Recruit commit submitted.");
-    } catch (cause) { setRecruitNotice(cause instanceof Error ? cause.message : "Recruit commit failed."); }
-    finally { setRecruitBusy(false); }
-  }
-
   async function voteGotw(pollId: string, selectedTeamId: string) {
     if (auth.status !== "ready" || !matchupSchedule) return;
     await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId, selectedTeamId });
@@ -1168,19 +1202,15 @@ export function HubHome() {
       {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
-        <div className="hub-gameday-actions hub-quick-actions-row">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
-          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${coinsNumber(50)} on approval`}</span></div></button>
-          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMyWatchedPlayersModalOpen(true)}><IconWell size="sm" icon={<UserPlus size={16} />} /><div><strong>Add Player(s) to Watch</strong><span>Track performances by name</span></div></button>
+        <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<BoxScoreIcon size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<HighlightReelIcon size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
+          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
         </div>
       </div>
       <div className="hub-stat-grid">
@@ -1805,12 +1835,6 @@ export function HubHome() {
       <div className="hub-submission-grid">{(PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).map(([key, label]) => <label className="form-field" key={key}><span className="form-label">{label}</span><input className="form-input" type="number" min="0" value={playerStatsDraft.values[key] ?? ""} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, values: { ...current.values, [key]: event.target.value } }))} /></label>)}</div>
       <Button variant="primary" disabled={playerStatsBusy} onClick={() => void submitPlayerStats()}>{playerStatsBusy ? "Submitting..." : "Submit Player Stats"}</Button>
     </div></Modal>}
-    {recruitModalOpen && <Modal title="Confirmed Commit" onClose={() => setRecruitModalOpen(false)}><div className="hub-submission-modal">
-      {recruitNotice && <p className="hub-transfer-status">{recruitNotice}</p>}<label className="form-field"><span className="form-label">Recruit name</span><input className="form-input" value={recruitDraft.playerName} onChange={(event) => setRecruitDraft((current) => ({ ...current, playerName: event.target.value }))} /></label>
-      <div className="hub-submission-grid"><label className="form-field"><span className="form-label">Position</span><select className="form-input" value={recruitDraft.position} onChange={(event) => setRecruitDraft((current) => ({ ...current, position: event.target.value }))}>{CFB_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}</select></label><label className="form-field"><span className="form-label">Stars</span><select className="form-input" value={recruitDraft.starRating} onChange={(event) => setRecruitDraft((current) => ({ ...current, starRating: event.target.value }))}>{[1, 2, 3, 4, 5].map((stars) => <option key={stars} value={stars}>{stars}</option>)}</select></label></div>
-      <div className="hub-submission-grid"><label className="form-field"><span className="form-label">City</span><input className="form-input" value={recruitDraft.homeCity} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeCity: event.target.value }))} /></label><label className="form-field"><span className="form-label">State</span><input className="form-input" value={recruitDraft.homeState} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeState: event.target.value }))} /></label></div>
-      <Button variant="primary" disabled={recruitBusy || !recruitDraft.playerName.trim() || !recruitDraft.homeCity.trim() || !recruitDraft.homeState.trim()} onClick={() => void submitRecruitCommit()}>{recruitBusy ? "Submitting..." : "Submit Commit"}</Button>
-    </div></Modal>}
     {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
     {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
     {wagerGamePickerOpen && <Modal title="Place a Wager" onClose={() => setWagerGamePickerOpen(false)}><div className="hub-close-wagers-list">
@@ -1877,7 +1901,6 @@ export function HubHome() {
       {retireError && <p className="hub-transfer-status">{retireError}</p>}
       <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
-    {myWatchedPlayersModalOpen && auth.status === "ready" && <MyWatchedPlayersModal guildId={auth.guildId} onClose={() => setMyWatchedPlayersModalOpen(false)} />}
     {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} focus={lateSubmissionsFocus ?? undefined} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); }} />}
   </div>;
 }
