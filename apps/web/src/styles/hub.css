@@ -855,8 +855,8 @@ button.poty:disabled {
 .hub-eos-progress-tiers td { padding: 3px 0; color: #e4dab8; }
 .hub-eos-progress-tier-active td { color: var(--gold); font-weight: 700; }
 .hub-eos-progress-note { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: #c9bd94; font-style: italic; }
-.hub-defense-nickname-form { display: flex; gap: var(--space-2); }
-.hub-defense-nickname-form input { flex: 1; }
+.hub-defense-nickname-form { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.hub-defense-nickname-form input { flex: 1; min-width: 180px; }
 
 .hub-eos-vote-block { margin-bottom: var(--space-4); border: 1px solid var(--gold); border-radius: var(--radius-md); background: color-mix(in srgb, var(--accent) 5%, transparent); overflow: hidden; }
 .hub-eos-vote-block summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; list-style: none; font-weight: 700; }

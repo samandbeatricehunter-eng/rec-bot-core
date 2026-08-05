@@ -5,6 +5,7 @@ import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, E
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { BoxScoreIcon, HighlightReelIcon, InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
+import { randomDefenseName } from "../../lib/defense-names.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
@@ -202,6 +203,7 @@ function DefenseNicknamePrompt() {
     <p><strong>Your defense earned "This Defense Needs a Name"!</strong> Give it a nickname — it'll show up in headlines about your defense until it stops qualifying.</p>
     <div className="hub-defense-nickname-form">
       <input className="form-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="e.g. The Iron Curtain" maxLength={60} />
+      <Button variant="secondary" disabled={busy} onClick={() => setValue(randomDefenseName(value))} title="Can't think of one? Roll the dice.">🎲 Randomize</Button>
       <Button variant="primary" disabled={busy || !value.trim()} onClick={() => void save()}>{busy ? "Saving…" : "Name It"}</Button>
     </div>
     {error && <p className="hub-schedule-missing">{error}</p>}
