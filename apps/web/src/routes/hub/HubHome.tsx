@@ -312,7 +312,9 @@ function ScheduleWeekList({
             <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadBoxScore(week)}>Box Score</button>
           )}
           {onUploadHighlight && missingHighlight && (
-            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>Highlight(s)</button>
+            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>
+              Highlight(s) <span className="hub-schedule-highlight-count">{highlightCounts?.[week.weekNumber] ?? 0}/2</span>
+            </button>
           )}
         </div>
       ) : null}

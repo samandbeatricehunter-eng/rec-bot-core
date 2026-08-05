@@ -242,7 +242,11 @@ export function RecruitingBoardModal({ guildId, viewerUserId, canManageLeague, o
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           {displayList.map((recruit) => {
             const isOwner = viewerUserId != null && recruit.submittedByUserId === viewerUserId;
-            const canEditStatus = isOwner || canManageLeague;
+            // Commissioner override intentionally excluded here — only the recruit's own
+            // submitter edits status from the main hub board. A commissioner-level override
+            // for other coaches' recruits belongs in League Management, not this member-facing
+            // surface (canManageLeague is still accepted as a prop for that future view).
+            const canEditStatus = isOwner;
             return (
             <div key={recruit.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", padding: "var(--space-2) var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
               <div style={{ minWidth: 0 }}>

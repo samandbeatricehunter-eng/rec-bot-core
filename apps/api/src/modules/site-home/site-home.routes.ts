@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
-import { runDailyMaintenance } from "../maintenance/maintenance.service.js";
 import {
   addHighlightComment,
   getSiteHomeCard,
@@ -11,6 +10,7 @@ import {
   listSiteAnnouncements,
   listUserBadges,
   listUserCareerStatsByGame,
+  pruneDeadHighlightsOnceDaily,
   toggleSpotlightReaction,
 } from "./site-home.service.js";
 
@@ -107,11 +107,15 @@ export async function siteHomeRoutes(app: FastifyInstance) {
   });
 
 
-  /** Cron: daily 8:00 AM America/Chicago — refresh top-5 Spotlight Reel. */
-  app.post("/v1/site-home/spotlight/refresh", async (request, reply) => {
+  // Spotlight Reel and power rankings refresh moved to native pg_cron functions
+  // (refresh_spotlight_reel / refresh_power_rankings in Supabase) — both are pure DB
+  // reads/writes, so they no longer need this HTTP round-trip. Dead-highlight pruning stays
+  // here since it calls Cloudflare's API, which pg_cron can't do without duplicating this
+  // logic in SQL; triggered daily via pg_net from Supabase instead of a separate Railway cron.
+  app.post("/v1/site-home/highlights/prune", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      return reply.send(await runDailyMaintenance());
+      return reply.send(await pruneDeadHighlightsOnceDaily());
     } catch (error) {
       return sendError(reply, error);
     }
