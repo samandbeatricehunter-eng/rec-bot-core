@@ -465,12 +465,12 @@ client.once("clientReady", async () => {
   await Promise.allSettled([...client.guilds.cache.values()].map((guild) => syncRecentHighlightMessages(guild)));
   await recoverOpenActiveChecks(client);
   await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
-  const refreshGuides = () => Promise.allSettled([...client.guilds.cache.values()].map((guild) => publishRecGuide(guild)));
-  // Reconcile once when the bot starts. League-settings saves and the explicit
-  // commissioner refresh action own subsequent guide updates. A timer here used
-  // to rewrite the guide every minute, which could publish an intermediate mix
-  // of settings while a commissioner was still editing the settings screen.
-  await refreshGuides();
+  // Guide content is kept in sync by two explicit triggers: a settings save that changes the
+  // guide channel, and the commissioner's manual "Refresh Guide" action — both already call
+  // publishRecGuide. There is deliberately no startup refresh-all-guilds pass here anymore: it
+  // used to purge and repost the guide channel in every connected guild on every process boot
+  // (any deploy, crash-restart, or host-initiated restart), which is disruptive with no
+  // corresponding settings change to justify it.
 });
 
 client.on("error", (error) => {
