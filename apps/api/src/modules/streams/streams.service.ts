@@ -267,6 +267,15 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     teamId: assignment?.team_id ?? null,
   });
 
+  // rec_stream_compliance_logs.game_id was never set on insert (this was the only place that
+  // resolved it) — the hub's "Live Games" card joins through game_id to show real team names,
+  // so without this it always fell back to the literal "Away"/"Home" placeholder. Best-effort:
+  // a failure here shouldn't block the stream post itself.
+  if (lockedGameId) {
+    await supabase.from("rec_stream_compliance_logs").update({ game_id: lockedGameId }).eq("id", streamLog.data.id)
+      .then(({ error }) => { if (error) console.error("[ERROR] Failed to backfill stream log game_id (non-fatal):", error); });
+  }
+
   // Best-effort public notice on the league chat — never blocks the stream post itself.
   if (lockedGameId) {
     void (async () => {

@@ -372,7 +372,7 @@ export function AccountHub({
                 {initial}
               </span>
             )}
-            <div>
+            <div className="site-account-identity-info">
               <h2>@{linked.username}</h2>
               {linked.discordUsername ? (
                 <p className="site-muted">Discord · {linked.discordUsername}</p>
