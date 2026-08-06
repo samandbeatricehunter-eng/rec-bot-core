@@ -2824,12 +2824,21 @@ h1, h2, h3, .site-wordmark {
   .site-home-hero-stats {
     grid-template-columns: 1fr;
   }
-  .site-home-announce-carousel,
-  .site-spotlight-carousel {
+  .site-home-announce-carousel {
     grid-template-columns: 1fr;
   }
-  .site-home-carousel-arrow {
+  .site-home-announce-carousel .site-home-carousel-arrow {
     display: none;
+  }
+  .site-spotlight-carousel {
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-2);
+  }
+  .site-spotlight-carousel .site-home-carousel-arrow {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    flex-shrink: 0;
   }
 }
 

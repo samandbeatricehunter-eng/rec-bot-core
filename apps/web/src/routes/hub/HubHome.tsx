@@ -22,6 +22,7 @@ import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js
 import { InterviewBody } from "../../components/hub/InterviewBody.js";
 import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
 import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
+import { CommissionerPollsVotingBlock } from "../../components/hub/CommissionerPollsVotingBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
@@ -1552,6 +1553,7 @@ export function HubHome() {
 
         <EosAwardVotingBlock />
         <PublicPollsBlock />
+        <CommissionerPollsVotingBlock />
         <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {(() => {

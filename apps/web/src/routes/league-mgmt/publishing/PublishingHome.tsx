@@ -58,7 +58,7 @@ function CommissionerPollsCard() {
   return <Card>
     <h2>Commissioner Polls</h2>
     <p className="form-hint">
-      Posts to the Media page for every member to vote on directly — no Discord link required.
+      Posts to Campus Buzz for every member of this league to vote on directly — no Discord link required.
       If a voting-polls channel is configured, an informational mirror posts there too.
     </p>
     {error && <ErrorState message={error} />}
@@ -290,26 +290,32 @@ function RoundtableHostsCard() {
     <h2>Roundtable Hosts</h2>
     <p className="form-hint">
       Rename any of the 4 roundtable voices and assign them a personality — real-world sports analyst names are blocked.
-      Their underlying take style stays the same; only the byline and persona label change.
+      In this app's own auto-generated headlines, only the byline and persona label change. The personality's full
+      description (how that voice actually thinks and writes) is included as a character brief in Provide Prompt below,
+      for the external AI tool to actually follow.
     </p>
     {error && <ErrorState message={error} />}
     <div style={{ display: "grid", gap: "var(--space-3)" }}>
       {hosts.map((host) => {
         const draft = drafts[host.voice] ?? { displayName: host.displayName, personalityKey: "" };
-        return <div key={host.voice} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", gap: "var(--space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div className="form-field" style={{ minWidth: 180 }}>
-            <label className="form-label">Name ({host.voice})</label>
-            <input className="form-input" maxLength={60} value={draft.displayName} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, displayName: event.target.value } }))} />
+        const selectedPersonality = personalities.find((p) => p.key === draft.personalityKey);
+        return <div key={host.voice} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="form-field" style={{ minWidth: 180 }}>
+              <label className="form-label">Name ({host.voice})</label>
+              <input className="form-input" maxLength={60} value={draft.displayName} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, displayName: event.target.value } }))} />
+            </div>
+            <div className="form-field" style={{ minWidth: 220 }}>
+              <label className="form-label">Personality</label>
+              <select className="form-select" value={draft.personalityKey} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, personalityKey: event.target.value } }))}>
+                {personalities.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+            </div>
+            <Button variant="secondary" disabled={busy === host.voice} onClick={() => void randomizeName(host.voice)}>Random Name</Button>
+            <Button variant="tactical" disabled={busy === host.voice || !draft.displayName.trim()} onClick={() => void save(host.voice)}>{busy === host.voice ? "Saving…" : "Save"}</Button>
+            {host.isCustom && <Button variant="secondary" disabled={busy === host.voice} onClick={() => void reset(host.voice)}>Reset to Default</Button>}
           </div>
-          <div className="form-field" style={{ minWidth: 220 }}>
-            <label className="form-label">Personality</label>
-            <select className="form-select" value={draft.personalityKey} onChange={(event) => setDrafts((current) => ({ ...current, [host.voice]: { ...draft, personalityKey: event.target.value } }))}>
-              {personalities.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-            </select>
-          </div>
-          <Button variant="secondary" disabled={busy === host.voice} onClick={() => void randomizeName(host.voice)}>Random Name</Button>
-          <Button variant="tactical" disabled={busy === host.voice || !draft.displayName.trim()} onClick={() => void save(host.voice)}>{busy === host.voice ? "Saving…" : "Save"}</Button>
-          {host.isCustom && <Button variant="secondary" disabled={busy === host.voice} onClick={() => void reset(host.voice)}>Reset to Default</Button>}
+          {selectedPersonality && <p className="form-hint" style={{ margin: 0 }}>{selectedPersonality.description}</p>}
         </div>;
       })}
     </div>

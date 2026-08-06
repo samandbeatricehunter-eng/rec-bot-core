@@ -161,7 +161,7 @@ function pickTake(voice: AnalystVoice, keywords: string[], usedNormalized: Set<s
 // League-supplied display-name/role overrides for one or more of the 4 fixed voice slots —
 // the take-bank content itself always stays keyed to the underlying voice, so renaming a host
 // never requires touching CORE_TAKES.
-export type AnalystMetaOverrides = Partial<Record<AnalystVoice, { speaker: string; role: string }>>;
+export type AnalystMetaOverrides = Partial<Record<AnalystVoice, { speaker: string; role: string; personalityDescription?: string }>>;
 
 export function selectRoundtableTakes(corpus: string, overrides?: AnalystMetaOverrides): Array<{ speaker: string; role: string; take: string }> {
   const keywords = extractKeywords(corpus);

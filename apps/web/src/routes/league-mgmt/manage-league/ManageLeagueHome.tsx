@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, ChevronRight, GraduationCap, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { BarChart3, ChevronRight, GraduationCap, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -119,9 +119,6 @@ export function ManageLeagueHome() {
         subtitle="Find a team, see its schedule and box-score health, and enter its games and scores."
         actions={
           <div className="manage-league-header-actions">
-            <Button variant="ghost" onClick={() => navigate(-1)}>
-              <ArrowLeft size={16} /> Back
-            </Button>
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
               <Users size={16} /> Link/Unlink Teams
             </Button>
@@ -129,7 +126,7 @@ export function ManageLeagueHome() {
               <Shield size={16} /> Manage Roles
             </Button>
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
-            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP & Bowls</Button>
+            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
             {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
             <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
               <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}

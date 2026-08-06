@@ -128,7 +128,29 @@
   font-size: var(--text-xs);
 }
 
+.team-schedule-actions-row { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+
 @media (max-width: 760px) {
+  /* Right-aligned + wrap looked fine with room to breathe, but on a narrow phone the two
+     unevenly-sized buttons (Upload Box Score vs. Enter Results) wrap onto their own lines,
+     right-justified, and read as randomly sized/positioned relative to everything else in this
+     card, which is full-width. Stack them full-width instead once they'd otherwise wrap. */
+  .team-schedule-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .team-schedule-actions-row > * {
+    width: 100%;
+  }
+  /* The Upload Box Score button is wrapped in a Tooltip (an inline-flex span) — stretching the
+     wrapper alone doesn't stretch the button inside it, since a lone flex child doesn't grow to
+     fill its container without flex-grow. */
+  .team-schedule-actions-row .tooltip-wrapper {
+    width: 100%;
+  }
+  .team-schedule-actions-row .tooltip-wrapper > * {
+    flex: 1;
+  }
   .team-schedule-table,
   .team-schedule-table tbody,
   .team-schedule-table tr,

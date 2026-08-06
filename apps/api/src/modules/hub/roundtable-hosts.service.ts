@@ -21,7 +21,7 @@ export async function loadHostOverridesForLeague(leagueId: string): Promise<Anal
   for (const row of rows.data) {
     const voice = row.voice_key as AnalystVoice;
     const personality = getRoundtablePersonality(row.personality_key);
-    overrides[voice] = { speaker: row.display_name, role: personality?.label ?? ANALYST_META[voice].role };
+    overrides[voice] = { speaker: row.display_name, role: personality?.label ?? ANALYST_META[voice].role, personalityDescription: personality?.description };
   }
   return overrides;
 }

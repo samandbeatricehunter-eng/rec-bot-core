@@ -78,7 +78,13 @@ export function ExpandedArticleView({
           <span className="expanded-article-index">
             {activeIndex + 1} / {stories.length}
           </span>
-          <button type="button" className="expanded-article-close" onClick={onClose} aria-label="Close article">
+          <button
+            type="button"
+            className="expanded-article-close"
+            onClick={onClose}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label="Close article"
+          >
             <X size={20} />
           </button>
         </header>

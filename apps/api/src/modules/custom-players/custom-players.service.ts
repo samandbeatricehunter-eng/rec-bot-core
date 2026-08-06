@@ -40,6 +40,19 @@ function gameFamily(game: string): RecGameFamily { return game === "cfb_27" ? "C
 function gameYear(game: string): number { const match = game.match(/(\d{2})$/); return match ? Number(match[1]) : 27; }
 function defaultDev(game: RecGameFamily, tier: RecPackageTier) { return tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"; }
 
+// Legends are the game's own "already famous" catalog for this game family — letting a custom
+// player claim an exact legend name would be confusing at best (two "Deion Sanders" on a
+// roster) and could be used to impersonate the real purchasable Legend. Case/whitespace
+// insensitive since "deion   sanders" is the same collision as "Deion Sanders".
+async function assertNameNotLegend(game: RecGameFamily, identity: Identity) {
+  const fullName = `${identity.firstName.trim()} ${identity.lastName.trim()}`.toLowerCase().replace(/\s+/g, " ");
+  const gameScope = game === "CFB" ? "cfb_27" : "madden";
+  const legends = await supabase.from("rec_legend_catalog").select("name").eq("game_scope", gameScope);
+  if (legends.error) throw new ApiError(500, "Failed to validate player name.", legends.error);
+  const collides = (legends.data ?? []).some((row: any) => String(row.name ?? "").trim().toLowerCase().replace(/\s+/g, " ") === fullName);
+  if (collides) throw new ApiError(400, "That name matches a Legend in this game — pick a different name for your custom player.");
+}
+
 function validateIdentity(game: RecGameFamily, identity: Identity) {
   if (!identity.firstName?.trim() || !identity.lastName?.trim()) throw new ApiError(400, "First and last name are required.");
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
@@ -184,6 +197,7 @@ export async function submitCustomPlayer(input: {
   const { context, baseline, teamId, seasonNumber } = await contextFor(input.guildId, input.discordId);
   const game = gameFamily(context.rec_leagues.game); const year = gameYear(context.rec_leagues.game);
   validateIdentity(game, input.identity);
+  await assertNameNotLegend(game, input.identity);
   const config = await getCustomPlayerConfig(input.guildId, input.discordId);
   if (!config.enabled) throw new ApiError(400, "Custom-player purchases are disabled for this league.");
   if (config.seasonCap > 0 && config.seasonUsed >= config.seasonCap) throw new ApiError(409, "You have reached this season's custom-player cap.");

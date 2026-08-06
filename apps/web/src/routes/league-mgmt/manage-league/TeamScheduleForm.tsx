@@ -286,7 +286,7 @@ export function TeamScheduleForm() {
                       </div>
                     </Td>
                     <Td data-label="Actions">
-                      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <div className="team-schedule-actions-row">
                         {week.pendingBoxScoreSubmissionId ? (
                           <Button
                             variant="secondary"
