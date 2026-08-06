@@ -5,11 +5,11 @@ import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/use
 import { ApiError, sendError } from "../../lib/errors.js";
 import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
 
+// Player trait purchases have been retired app-wide — no longer accepted here.
 const PurchaseTypeSchema = z.enum([
   "age_reset",
   "dev_upgrade",
   "contract",
-  "player_trait",
   "attribute",
   "legend",
   "custom_player",

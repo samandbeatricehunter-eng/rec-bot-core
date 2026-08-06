@@ -10,11 +10,12 @@ import { assertPurchaseDeadlineOpen } from "./purchase-deadlines.js";
 
 // purchase_type → the rec_league_configuration columns that gate it. seasonCap null means the
 // type uses a more specific cap model handled elsewhere (attributes use per-attribute caps).
-const PURCHASE_CONFIG: Record<RecPurchaseType, { enabled: string; seasonCap: string | null }> = {
+// Player trait purchases were retired app-wide — the type/column stay defined elsewhere
+// (unused) rather than a destructive drop, but no purchase config below references them.
+const PURCHASE_CONFIG: Partial<Record<RecPurchaseType, { enabled: string; seasonCap: string | null }>> = {
   age_reset: { enabled: "age_resets_enabled", seasonCap: "age_resets_season_cap" },
   dev_upgrade: { enabled: "dev_upgrades_enabled", seasonCap: "dev_upgrades_season_cap" },
   contract: { enabled: "contract_adjustment_purchases_enabled", seasonCap: "contract_purchases_season_cap" },
-  player_trait: { enabled: "player_trait_purchases_enabled", seasonCap: "player_trait_purchases_season_cap" },
   attribute: { enabled: "attribute_purchases_enabled", seasonCap: null },
   legend: { enabled: "legends_enabled", seasonCap: "legends_season_cap" },
   custom_player: { enabled: "custom_players_enabled", seasonCap: "custom_players_season_cap" },
@@ -24,7 +25,7 @@ const PURCHASE_CONFIG: Record<RecPurchaseType, { enabled: string; seasonCap: str
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"] as const;
 
 // CFB 27's configured store does not open until Season 2. Madden has no such restriction.
-const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "player_trait", "age_reset", "contract"];
+const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "age_reset", "contract"];
 
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";
@@ -247,9 +248,9 @@ export async function createPurchaseRequest(input: {
         nonCoreGroupCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
         nonCoreOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
       });
-    } else if (cfg.seasonCap) {
+    } else if (cfg!.seasonCap) {
       // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
-      const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
+      const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
       if (cap > 0) {
         const used = await supabase
           .from("rec_purchases")
@@ -548,7 +549,6 @@ const SEASON_CAP_COLUMNS: Partial<Record<RecPurchaseType, string>> = {
   age_reset: "age_resets_season_cap",
   dev_upgrade: "dev_upgrades_season_cap",
   contract: "contract_purchases_season_cap",
-  player_trait: "player_trait_purchases_season_cap",
   legend: "legends_season_cap",
   custom_player: "custom_players_season_cap",
 };
@@ -567,7 +567,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
 
   const config = await supabase
     .from("rec_league_configuration")
-    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,player_trait_purchases_season_cap,legends_season_cap,custom_players_season_cap")
+    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,legends_season_cap,custom_players_season_cap")
     .eq("league_id", context.leagueId)
     .maybeSingle();
   if (config.error) throw new ApiError(500, "Failed to load store configuration.", config.error);

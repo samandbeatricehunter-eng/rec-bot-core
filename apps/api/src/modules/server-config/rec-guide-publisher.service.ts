@@ -14,7 +14,6 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   const economy = settings.coin_economy_enabled !== false;
   const media = settings.media_features_enabled !== false;
   const attributes = economy && settings.attribute_purchases_enabled === true;
-  const traits = economy && settings.player_trait_purchases_enabled === true;
   const ruleLabel = (value: unknown) => String(value ?? "not configured").replaceAll("_", " ");
   const customRules = Array.isArray(settings.custom_rules) ? settings.custom_rules : [];
   const boxScoreSubmission = routes.box_scores_channel_id
@@ -75,7 +74,6 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       "This league has the coin economy enabled. Eligible activity can create commissioner-reviewed payouts; purchases reserve funds until approved or fulfilled.",
       "Wagers include enabled house markets, parlays, and peer challenges. A wager is fulfilled only when that game's box score is submitted before league advance. Results, refunds, and net house/peer performance are retained in League History.",
       attributes ? "Attribute purchases use this league's selected core attributes, overall/individual core caps, and grouped non-core cap." : "Attribute purchases are disabled for this league.",
-      traits ? "Player trait purchases are enabled when supported by the current game." : "Player trait purchases are not currently available.",
     ]) : null,
     base(economy ? 7 : 6, "Rules & Policies", [
       `**Fourth down — regular season:** ${ruleLabel(settings.fourth_down_rule_type_regular ?? settings.fourth_down_rule_type)}${settings.custom_fourth_down_rule_regular ? ` — ${settings.custom_fourth_down_rule_regular}` : ""}.`,

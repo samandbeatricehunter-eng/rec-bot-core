@@ -465,7 +465,6 @@ function LeagueSearchCard({
               />
               <DetailRow label="Dev upgrades" value={onOff(league.devUpgradesEnabled)} />
               <DetailRow label="Attribute purchases" value={onOff(league.attributePurchasesEnabled)} />
-              <DetailRow label="Player trait purchases" value={onOff(league.playerTraitPurchasesEnabled)} />
               {!cfb ? (
                 <DetailRow
                   label="Contract purchases"

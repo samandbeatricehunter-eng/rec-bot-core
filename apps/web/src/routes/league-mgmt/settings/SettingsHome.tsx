@@ -23,7 +23,7 @@ const EOS_PAYOUTS_KEY = "eos-payouts";
 const PURCHASE_DEADLINE_TYPES = [
   ["custom_player", "Custom Players"], ["legend", "Legends"], ["attribute", "Attributes"],
   ["dev_upgrade", "Development Upgrades"], ["age_reset", "Age Resets"],
-  ["contract", "Contract Adjustments"], ["player_trait", "Player Traits"],
+  ["contract", "Contract Adjustments"],
 ] as const;
 const PURCHASE_DEADLINE_STAGES = [
   "preseason_training_camp", "regular_season", "wild_card", "divisional",
@@ -247,7 +247,7 @@ export function SettingsHome() {
               <div className="form-field">
                 <label className="form-label">Purchase deadlines</label>
                 <p className="form-hint">Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season.</p>
-                {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract", "player_trait"].includes(key)).map(([key, label]) => {
+                {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract"].includes(key)).map(([key, label]) => {
                   const current = purchaseDeadlines[key];
                   return <div className="attribute-cap-row" key={key}>
                     <span>{label}</span>

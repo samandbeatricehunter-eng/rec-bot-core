@@ -566,7 +566,9 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // CFB has Campus Legends (a plain toggle rendered by buildPurchaseSettingWindow) but no
   // Age Resets or Contract Purchases — skip those purchase steps.
   if (isCfb && step === "dev_upgrades") return "attribute_purchases";
-  if (isCfb && step === "player_trait_purchases") return "server_setup";
+  // Player trait purchases have been retired app-wide — always skip this step regardless
+  // of how it was reached (CFB never offered it; Madden used to via the attribute chain).
+  if (step === "player_trait_purchases") return isCfb ? "server_setup" : "contract_purchases";
 
   // Conference realignment editor only applies when realignment is allowed (CFB only —
   // conference_realignment is unreachable for Madden titles, see the dynasty-block skip above).

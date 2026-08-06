@@ -270,8 +270,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [coreAttributePurchasesSeasonCap, setCoreAttributePurchasesSeasonCap] = useState(0);
   const [coreAttributeGroupCap, setCoreAttributeGroupCap] = useState(0);
   const [nonCoreAttributePurchasesSeasonCap, setNonCoreAttributePurchasesSeasonCap] = useState(0);
-  const [playerTraitPurchasesEnabled, setPlayerTraitPurchasesEnabled] = useState(false);
-  const [playerTraitPurchasesSeasonCap, setPlayerTraitPurchasesSeasonCap] = useState(0);
+
   const [contractAdjustmentPurchasesEnabled, setContractAdjustmentPurchasesEnabled] = useState(false);
   const [contractPurchasesSeasonCap, setContractPurchasesSeasonCap] = useState(0);
   const [purchaseDeadlines, setPurchaseDeadlines] = useState<Record<string, { stage: string; week: number }>>({});
@@ -405,8 +404,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       coreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributePurchasesSeasonCap : 0,
       coreAttributeGroupCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributeGroupCap : 0,
       nonCoreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? nonCoreAttributePurchasesSeasonCap : 0,
-      playerTraitPurchasesEnabled: coinEconomyEnabled && isMadden ? playerTraitPurchasesEnabled : false,
-      playerTraitPurchasesSeasonCap: coinEconomyEnabled && isMadden && playerTraitPurchasesEnabled ? playerTraitPurchasesSeasonCap : 0,
+      // Player trait purchases were retired app-wide — always sent disabled.
+      playerTraitPurchasesEnabled: false,
+      playerTraitPurchasesSeasonCap: 0,
       contractAdjustmentPurchasesEnabled: coinEconomyEnabled && isMadden ? contractAdjustmentPurchasesEnabled : false,
       contractPurchasesSeasonCap: coinEconomyEnabled && isMadden && contractAdjustmentPurchasesEnabled ? contractPurchasesSeasonCap : 0,
       purchaseDeadlines: coinEconomyEnabled ? purchaseDeadlines : {},
@@ -468,7 +468,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     ageResetsEnabled, ageResetsSeasonCap,
     attributePurchasesEnabled, coreAttributePurchasesSeasonCap,
     coreAttributeGroupCap, nonCoreAttributePurchasesSeasonCap,
-    playerTraitPurchasesEnabled, playerTraitPurchasesSeasonCap,
     contractAdjustmentPurchasesEnabled, contractPurchasesSeasonCap,
     purchaseDeadlines, customRules,
     difficulty, cfbDifficulty, quarterLengthMinutes,
@@ -589,7 +588,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     legend: "Legends",
     dev_upgrade: "Dev Upgrades",
     attribute_purchase: "Attribute Purchases",
-    player_trait: "Player Traits (Madden Only)",
     age_reset: "Age Resets (Madden Only)",
     contract_adjustment: "Contract Adjustments (Madden Only)",
   };
@@ -866,11 +864,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   )}
                   {isMadden && (
                     <>
-                      <ToggleField label="Player trait purchases" hint="Allow users to spend coins to add or remove player traits (e.g. Conservative, Aggressive)."
-                        checked={playerTraitPurchasesEnabled} onChange={setPlayerTraitPurchasesEnabled} />
-                      {playerTraitPurchasesEnabled && (
-                        <NumberField label="Player trait purchases season cap" value={playerTraitPurchasesSeasonCap} onChange={setPlayerTraitPurchasesSeasonCap} min={0} max={10} />
-                      )}
                       <ToggleField label="Contract adjustment purchases" hint="Allow users to spend coins to restructure or adjust player contracts."
                         checked={contractAdjustmentPurchasesEnabled} onChange={setContractAdjustmentPurchasesEnabled} />
                       {contractAdjustmentPurchasesEnabled && (

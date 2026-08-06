@@ -165,7 +165,6 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Dev Upgrades", "dev_upgrades"),
       option("Attribute Purchases", "attribute_purchases"),
       option("Attribute Core Attributes", "attribute_core_attributes"),
-      option("Player Trait Purchases", "player_trait_purchases"),
     ] : [
       option("Custom Players", "custom_players"),
       option("Legends", "legends"),
@@ -173,7 +172,6 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Age Resets", "age_resets"),
       option("Attribute Purchases", "attribute_purchases"),
       option("Attribute Core Attributes", "attribute_core_attributes"),
-      option("Player Trait Purchases", "player_trait_purchases"),
       option("Contract Purchases", "contract_purchases"),
     ],
     server: [
@@ -330,7 +328,6 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Dev Upgrades: ${yesNo(draft.devUpgradesEnabled)}`,
           `Age Resets: ${yesNo(draft.ageResetsEnabled)}`,
           `Attribute Purchases: ${yesNo(draft.attributePurchasesEnabled)}`,
-          `Player Trait Purchases: ${yesNo(draft.playerTraitPurchasesEnabled)}`,
           `Contract Purchases: ${yesNo(draft.contractAdjustmentPurchasesEnabled)}`,
           "",
           formatPurchaseCapsReview(draft)
@@ -467,7 +464,6 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
           `Campus Legends: ${yesNo(draft.legendsEnabled)}`,
           `Dev Upgrades: ${yesNo(draft.devUpgradesEnabled)}`,
           `Attribute Purchases: ${yesNo(draft.attributePurchasesEnabled)}`,
-          `Player Trait Purchases: ${yesNo(draft.playerTraitPurchasesEnabled)}`,
           "",
           formatPurchaseCapsReview(draft)
         ].join("\n"),

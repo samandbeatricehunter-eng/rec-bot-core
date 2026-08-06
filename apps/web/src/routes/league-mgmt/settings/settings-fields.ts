@@ -68,8 +68,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { key: "coreAttributePurchasesSeasonCap", label: "Core Attribute Default Cap (points, per attribute)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
       { key: "coreAttributeGroupCap", label: "Core Attribute Group Cap (points, total across all Core)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
       { key: "nonCoreAttributePurchasesSeasonCap", label: "Non-Core Attribute Group Cap (points, total across all Non-Core)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
-      { key: "playerTraitPurchasesEnabled", label: "Player Trait Purchases Enabled", type: "toggle", gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
-      { key: "playerTraitPurchasesSeasonCap", label: "Player Trait Purchases Season Cap", type: "number", min: 0, max: 10, gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.playerTraitPurchasesEnabled), resetTo: 0 },
       { key: "contractAdjustmentPurchasesEnabled", label: "Contract Adjustment Purchases Enabled", type: "toggle", gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
       { key: "contractPurchasesSeasonCap", label: "Contract Adjustment Season Cap", type: "number", min: 0, max: 5, gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.contractAdjustmentPurchasesEnabled), resetTo: 0 },
     ],

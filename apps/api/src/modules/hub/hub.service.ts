@@ -510,13 +510,13 @@ export async function getHub(guildId: string, discordId: string) {
   if (headlines.error) throw new ApiError(500, "Failed to load hub headlines.", headlines.error);
   if (highlights.error) throw new ApiError(500, "Failed to load highlights.", highlights.error);
 
-  const storeConfig = await supabase.from("rec_league_configuration").select("coin_economy_enabled,age_resets_enabled,dev_upgrades_enabled,contract_adjustment_purchases_enabled,player_trait_purchases_enabled,attribute_purchases_enabled,legends_enabled,custom_players_enabled").eq("league_id", context.leagueId).maybeSingle();
+  const storeConfig = await supabase.from("rec_league_configuration").select("coin_economy_enabled,age_resets_enabled,dev_upgrades_enabled,contract_adjustment_purchases_enabled,attribute_purchases_enabled,legends_enabled,custom_players_enabled").eq("league_id", context.leagueId).maybeSingle();
   if (storeConfig.error) throw new ApiError(500, "Failed to load Hub store configuration.", storeConfig.error);
   const cfg = storeConfig.data ?? {};
   const cfbSeasonOne = context.rec_leagues.game === "cfb_27" && seasonNumber < 2;
   const productConfig = [
     ["age_reset", "Age Reset", "age_resets_enabled", true], ["dev_upgrade", "Dev Upgrade", "dev_upgrades_enabled", true],
-    ["contract", "Contract", "contract_adjustment_purchases_enabled", true], ["player_trait", "Player Trait Change", "player_trait_purchases_enabled", true],
+    ["contract", "Contract", "contract_adjustment_purchases_enabled", true],
     ["attribute", "Attribute Points", "attribute_purchases_enabled", true], ["legend", context.rec_leagues.game === "cfb_27" ? "Campus Legend" : "Legend", "legends_enabled", true],
     ["custom_player", context.rec_leagues.game === "cfb_27" ? "Custom Recruit" : "Custom Player", "custom_players_enabled", true],
   ] as const;

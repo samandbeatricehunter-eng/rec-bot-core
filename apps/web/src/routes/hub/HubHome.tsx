@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { BoxScoreIcon, HighlightReelIcon, InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
@@ -46,7 +46,6 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
   age_reset: RefreshCw,
   dev_upgrade: TrendingUp,
   contract: ScrollText,
-  player_trait: Sparkles,
   attribute: SlidersHorizontal,
   legend: Star,
   custom_player: UserPlus,
@@ -55,7 +54,6 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   age_reset: coinsNumber(REC_AGE_RESET_PRICE),
   dev_upgrade: `${coinsNumber(REC_DEV_UPGRADE_PRICE.star)}-${coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}`,
   contract: coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction),
-  player_trait: coinsNumber(REC_PLAYER_TRAIT_PRICE),
   attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
   legend: coinsNumber(REC_LEGEND_PRICE),
   custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
@@ -1357,12 +1355,6 @@ export function HubHome() {
             <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>
             <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.variant} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-          </>}
-
-          {purchaseType === "player_trait" && <>
-            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
-            <label className="form-field"><span className="form-label">Requested trait</span><input className="form-input" value={purchaseDetails.requestedTrait ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, requestedTrait: event.target.value }))} /></label>
-            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={REC_PLAYER_TRAIT_PRICE} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 
           {purchaseType === "age_reset" && <>

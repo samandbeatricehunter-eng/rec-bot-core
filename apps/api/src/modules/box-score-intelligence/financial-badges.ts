@@ -24,7 +24,7 @@ import {
   SPENDER_RUNGS,
 } from "./badge-rules.js";
 
-const ATTRIBUTE_PURCHASE_TYPES = ["attribute", "player_trait"];
+const ATTRIBUTE_PURCHASE_TYPES = ["attribute"];
 const DEV_UPGRADE_PURCHASE_TYPES = ["age_reset", "dev_upgrade"];
 
 async function sameGameTypeLeagueIds(leagueIds: string[], game: string): Promise<Set<string>> {
