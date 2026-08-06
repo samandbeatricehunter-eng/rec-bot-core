@@ -63,7 +63,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtTroubleshoot: "rec:league_mgmt:advance:troubleshoot",
   leagueMgmtTroubleshootSchedule: "rec:league_mgmt:advance:troubleshoot:schedule",
   leagueMgmtTroubleshootEos: "rec:league_mgmt:advance:troubleshoot:eos",
-  leagueMgmtTroubleshootReverseTxn: "rec:league_mgmt:advance:troubleshoot:reverse_txn",
   leagueMgmtEosPayouts: "rec:league_mgmt:advance:eos_payouts",
   leagueMgmtEosAwards: "rec:league_mgmt:advance:eos_awards",
   leagueMgmtPotyTallies: "rec:league_mgmt:advance:poty_tallies",

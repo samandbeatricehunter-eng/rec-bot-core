@@ -772,6 +772,17 @@ export type PeerWagerBoardResponse = {
 export type MyWagersResponse = {
   wagers: Array<{ id: string; gameId: string | null; gameLabel: string; weekNumber: number; wagerKind: string; challengeType: string | null; market: string; marketLabel: string; pickLabel: string; stake: number; potentialPayout: number; status: string; boardState: "open" | "active" | "settled"; placedByName: string; acceptedByName: string | null; isMine: boolean; canEdit: boolean; canCancel: boolean; settledAt: string | null; createdAt: string }>;
 };
+export type ReversibleTransaction = {
+  id: string;
+  amount: number;
+  transaction_type: string;
+  description: string;
+  source: string;
+  source_reference: Record<string, unknown> | null;
+  created_at: string;
+  reversible: boolean;
+};
+export type ReversibleTransactionsResponse = { userId: string; transactions: ReversibleTransaction[] };
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
 };

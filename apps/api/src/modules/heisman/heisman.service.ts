@@ -146,12 +146,28 @@ export async function awardHeismanWinner(input: {
     const winnerUserId = assignment.rows[0]?.user_id ?? null;
     if (!winnerUserId) throw new ApiError(400, "This candidate's team isn't linked to a coach — link it before awarding.");
 
-    // Same connection/transaction as the race-state write below, so the coin payout and
-    // closing the race commit atomically — never one without the other.
-    await client.query(
-      `select add_to_wallet($1,$2,$3,$4,$5,$6::rec_source_type,$7::jsonb)`,
-      [winnerUserId, AWARD_AMOUNT, context.leagueId, "Heisman Trophy award", "heisman_award", "heisman", JSON.stringify({ candidateId: input.candidateId })],
-    );
+    // Discord-only accounts (no linked site login) are supposed to be excluded from payout
+    // eligibility, same as they're already blocked from spending (assertSiteAccountForEconomy)
+    // — this credit skipped that check entirely. Queue it in the same backlog table other
+    // payout types already use instead of crediting a wallet the user can't touch yet; it
+    // releases once they link (releaseBacklogForUser, called from linkDiscordFromOAuth).
+    const linked = await client.query(`select supabase_auth_user_id from rec_users where id=$1`, [winnerUserId]);
+    const isDiscordOnly = !linked.rows[0]?.supabase_auth_user_id;
+
+    // Same connection/transaction as the race-state write below, so the coin payout (or its
+    // backlog entry) and closing the race commit atomically — never one without the other.
+    if (isDiscordOnly) {
+      await client.query(
+        `insert into rec_economy_payout_backlog (league_id, season_number, user_id, amount, description, transaction_type, source, source_reference)
+         values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,
+        [context.leagueId, seasonNumber, winnerUserId, AWARD_AMOUNT, "Heisman Trophy award", "heisman_award", "heisman", JSON.stringify({ candidateId: input.candidateId })],
+      );
+    } else {
+      await client.query(
+        `select add_to_wallet($1,$2,$3,$4,$5,$6::rec_source_type,$7::jsonb)`,
+        [winnerUserId, AWARD_AMOUNT, context.leagueId, "Heisman Trophy award", "heisman_award", "heisman", JSON.stringify({ candidateId: input.candidateId })],
+      );
+    }
 
     const requestedByUserId = await recUserIdForDiscord(input.requestedByDiscordId ?? null);
     await client.query(

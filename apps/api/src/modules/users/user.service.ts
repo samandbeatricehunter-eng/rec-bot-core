@@ -263,27 +263,24 @@ export async function transferSavings(discordId: string, amount: number, directi
 
   const baseline = await getUserBaselineByDiscordId(discordId);
   await assertSiteAccountForEconomy(baseline.user.id);
-  const walletRow = baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 };
-  const wallet = Number(walletRow.wallet_balance ?? 0);
-  const savings = Number(walletRow.savings_balance ?? 0);
+  const amountInt = Math.floor(amount);
 
-  if (direction === "to_savings") {
-    if (wallet < amount) throw new ApiError(400, `Insufficient wallet balance. You have ${formatCoins(wallet)}.`);
-    const { error } = await supabase
-      .from("rec_wallets")
-      .upsert({ user_id: baseline.user.id, wallet_balance: wallet - amount, savings_balance: savings + amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    if (error) throw new ApiError(500, "Transfer failed", error);
-  } else {
-    if (savings < amount) throw new ApiError(400, `Insufficient savings balance. You have ${formatCoins(savings)}.`);
-    const { error } = await supabase
-      .from("rec_wallets")
-      .upsert({ user_id: baseline.user.id, wallet_balance: wallet + amount, savings_balance: savings - amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    if (error) throw new ApiError(500, "Transfer failed", error);
+  // A single atomic UPDATE with the balance floor baked into the WHERE clause — replaces a
+  // former read-then-absolute-overwrite that could silently erase a concurrent debit landing
+  // on the same wallet row (the transfer would "restore" a stale balance, canceling the debit
+  // while the user kept whatever it paid for).
+  const { error } = await supabase.rpc("transfer_wallet_savings", { p_user_id: baseline.user.id, p_amount: amountInt, p_direction: direction });
+  if (error) {
+    if ((error as { code?: string }).code === "REC02") {
+      const label = direction === "to_savings" ? "wallet" : "savings";
+      throw new ApiError(400, `Insufficient ${label} balance.`);
+    }
+    throw new ApiError(500, "Transfer failed", error);
   }
 
   const updated = await supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", baseline.user.id).single();
   return {
-    transferred: amount,
+    transferred: amountInt,
     direction,
     wallet_balance: updated.data?.wallet_balance ?? 0,
     savings_balance: updated.data?.savings_balance ?? 0

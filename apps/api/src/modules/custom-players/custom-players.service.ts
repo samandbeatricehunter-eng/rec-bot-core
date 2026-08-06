@@ -238,6 +238,22 @@ export async function submitCustomPlayer(input: {
     build_rules_version: REC_BUILD_RULES_VERSION, ovr_model_version: REC_OVR_MODEL_VERSION, name_corpus_version: REC_NAME_CORPUS_VERSION,
     idempotency_key: input.idempotencyKey }).select("*").single();
   if (build.error) { await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to save the custom-player build.", build.error); }
+
+  // Real guard against the season-cap race the pre-check above (config.seasonUsed >=
+  // config.seasonCap, evaluated against a snapshot fetched before this insert) can't fully
+  // close on its own — recount now that this build has actually committed and is visible.
+  if (config.seasonCap > 0) {
+    const recount = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
+      .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
+      .in("status", ["pending_review", "approved", "applied"]);
+    if (recount.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to verify the season cap.", recount.error); }
+    if ((recount.count ?? 0) > config.seasonCap) {
+      await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id);
+      await supabase.from("rec_purchases").delete().eq("id", purchase.data.id);
+      throw new ApiError(409, "You have reached this season's custom-player cap — someone else's request just filled it.");
+    }
+  }
+
   const ledger = await supabase.rpc("add_to_wallet", { p_user_id: baseline.user.id, p_amount: -pkg.coinPrice, p_league_id: context.leagueId,
     p_description: `${pkg.displayName} custom player`, p_transaction_type: "purchase_debit", p_source: "purchase", p_source_reference: { customPlayerBuildId: build.data.id } });
   if (ledger.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to charge the wallet.", ledger.error); }

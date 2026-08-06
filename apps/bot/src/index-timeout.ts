@@ -180,9 +180,6 @@ import {
   handleWagerApprove,
   handleWagerCancel,
   handleWagerAccept,
-  handleWagerCounter,
-  handleCounterAccept,
-  handleCounterDeny,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
 import {
@@ -308,12 +305,6 @@ const roleMgmtSessions = new Map<string, {
   selectedUserIds: string[];
   page: number;
 }>();
-const reverseTxnSessions = new Map<string, { discordId: string; transactions: any[] }>();
-const TROUBLESHOOT_CUSTOM_IDS = {
-  reverseUserSelect: "rec:trouble:reverse:user",
-  reverseTxnSelect: "rec:trouble:reverse:txn",
-} as const;
-
 const CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS = new Set<string>([
   MENU_CUSTOM_IDS.leagueMgmt,
   MENU_CUSTOM_IDS.leagueMgmtTeams,
@@ -634,15 +625,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
 
-    // Wagers run on public messages (pending-payouts, announcements) and in DMs
-    // (counter offers), and the placement/counter flows shouldn't depend on an
-    // active menu session — so route all wager interactions before the guard.
+    // Wagers run on public messages (pending-payouts, announcements), and the placement flows
+    // shouldn't depend on an active menu session — so route all wager interactions before the guard.
     if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.approvePrefix)) return handleWagerApprove(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.cancelPrefix)) return handleWagerCancel(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.acceptPrefix)) return handleWagerAccept(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.counterAcceptPrefix)) return handleCounterAccept(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.counterDenyPrefix)) return handleCounterDeny(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.counterPrefix)) return handleWagerCounter(interaction);
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeHouse) return handleWagerModeHouse(interaction);
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeOpen) return handleWagerModeOpen(interaction);
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeDirect) return handleWagerModeDirect(interaction);
@@ -716,8 +703,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_REQUEST_CUSTOM_IDS.conferenceSelect) return handleTeamRequestConference(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
-      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.reverseUserSelect) return handleReverseTxnUserSelect(interaction);
-      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.reverseTxnSelect) return handleReverseTxnSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.weekSelect) return handleManualScoresWeekSelect(interaction);
@@ -837,7 +822,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshoot) return handleTroubleshootMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootSchedule) return handleLeagueMgmtSchedule(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos) return handleEosProjections(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn) return handleReverseTransactionOpen(interaction);
       if (interaction.customId === TROUBLESHOOT_EOS_CUSTOM_IDS.eosPrev) return handleEosProjectionPage(interaction, -1);
       if (interaction.customId === TROUBLESHOOT_EOS_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
@@ -1384,7 +1368,8 @@ async function handleTroubleshootMenu(interaction: ButtonInteraction) {
         "",
         "**Weekly Schedule** opens schedule repair tools.",
         "**EOS Projections** will page through projected EOS payouts.",
-        "**Reverse Transaction** will refund or reverse a recent wallet transaction."
+        "",
+        "Reversing a wallet transaction is a site-only commissioner tool now — open League Mgmt → Settings → Maintenance on the site."
       ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1392,93 +1377,9 @@ async function handleTroubleshootMenu(interaction: ButtonInteraction) {
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos).setLabel("EOS Projections").setStyle(ButtonStyle.Secondary),
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn).setLabel("Reverse Transaction").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
       ),
     ],
-  });
-}
-
-function formatMoney(n: unknown) {
-  return formatCoins(Number(n ?? 0));
-}
-
-function formatTxnOption(txn: any) {
-  const amount = Number(txn.amount ?? 0);
-  const type = String(txn.transaction_type ?? "transaction").replaceAll("_", " ");
-  return `${formatCoins(amount, { signed: true })} ${type}`.slice(0, 100);
-}
-
-async function handleReverseTransactionOpen(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "reverse transactions");
-  await interaction.deferUpdate();
-  const coaches = (await recApi.getLeagueCoaches(interaction.guildId).catch(() => null))?.coaches ?? [];
-  const linked = coaches.filter((coach: any) => coach.discordId).slice(0, 25);
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Reverse Transaction").setDescription("Select an active linked coach, then choose one of their last 24 league transactions to reverse.")],
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(TROUBLESHOOT_CUSTOM_IDS.reverseUserSelect)
-          .setPlaceholder("Select linked coach")
-          .setDisabled(!linked.length)
-          .addOptions(...(linked.length ? linked.map((coach: any) => new StringSelectMenuOptionBuilder()
-            .setLabel(`${coach.teamAbbreviation ?? coach.teamName ?? "Team"} - ${coach.displayName ?? coach.discordId}`.slice(0, 100))
-            .setValue(coach.discordId)
-          ) : [new StringSelectMenuOptionBuilder().setLabel("No linked coaches").setValue("none")])),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
-  });
-}
-
-async function handleReverseTxnUserSelect(interaction: StringSelectMenuInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const discordId = interaction.values[0];
-  if (!discordId || discordId === "none") return interaction.reply({ content: "No coach selected.", flags: MessageFlags.Ephemeral });
-  await interaction.deferUpdate();
-  const result = await recApi.listReversibleTransactions({ guildId: interaction.guildId, discordId });
-  const transactions = (result.transactions ?? []).filter((txn: any) => txn.reversible).slice(0, 24);
-  reverseTxnSessions.set(interaction.user.id, { discordId, transactions });
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Reverse Transaction").setDescription(`Selected <@${discordId}>. Choose one transaction to reverse.`)],
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(TROUBLESHOOT_CUSTOM_IDS.reverseTxnSelect)
-          .setPlaceholder("Select transaction")
-          .setDisabled(!transactions.length)
-          .addOptions(...(transactions.length ? transactions.map((txn: any) => new StringSelectMenuOptionBuilder()
-            .setLabel(formatTxnOption(txn))
-            .setDescription(String(txn.description ?? txn.source ?? "No description").slice(0, 100))
-            .setValue(txn.id)
-          ) : [new StringSelectMenuOptionBuilder().setLabel("No reversible transactions").setValue("none")])),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
-  });
-}
-
-async function handleReverseTxnSelect(interaction: StringSelectMenuInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const session = reverseTxnSessions.get(interaction.user.id);
-  const ledgerId = interaction.values[0];
-  if (!session || !ledgerId || ledgerId === "none") return interaction.reply({ content: "Transaction selection expired.", flags: MessageFlags.Ephemeral });
-  await interaction.deferUpdate();
-  const result = await recApi.reverseTransaction({ guildId: interaction.guildId, discordId: session.discordId, ledgerId, requestedByDiscordId: interaction.user.id });
-  reverseTxnSessions.delete(interaction.user.id);
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Transaction Reversed")
-      .setDescription(`Posted a compensating transaction for <@${session.discordId}>: **${formatMoney(result.amount)}**.`)],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
-    )],
   });
 }
 

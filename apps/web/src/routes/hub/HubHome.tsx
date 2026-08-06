@@ -994,7 +994,7 @@ export function HubHome() {
     setPurchaseBusy(true); setPurchaseStatus(null);
     try {
       const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
-      await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details });
+      await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details, idempotencyKey: crypto.randomUUID() });
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
       setPurchaseDetails({}); setStoreContext(null); await load();
     } catch (cause) { setPurchaseStatus(cause instanceof Error ? cause.message : "Purchase failed."); }

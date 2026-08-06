@@ -42,12 +42,9 @@ export const WAGER_CUSTOM_IDS = {
   approvePrefix: "rec:wager:approve:", // + wagerId (pending-payout review)
   cancelPrefix: "rec:wager:void:",     // + wagerId (pending-payout review)
   acceptPrefix: "rec:wager:accept:",   // + wagerId (accept an open/direct challenge as-is)
-  counterPrefix: "rec:wager:counter:", // + wagerId (counter a challenge)
-  counterAcceptPrefix: "rec:wager:counter_ok:",   // + counterWagerId (poster accepts a counter, in DM)
-  counterDenyPrefix: "rec:wager:counter_no:",      // + counterWagerId (poster denies a counter, in DM)
 } as const;
 
-type WagerMode = "house" | "peer_open" | "peer_direct" | "parlay" | "counter";
+type WagerMode = "house" | "peer_open" | "peer_direct" | "parlay";
 
 type ParlayLeg = { gameId: string; market: string; pick: string; label: string; kind: string; offeredLine: number | null };
 
@@ -55,7 +52,6 @@ type WagerSession = {
   mode: WagerMode;
   targetUserId: string | null;
   targetDiscordId: string | null;
-  counterOriginalId: string | null;
   parlayLegs: ParlayLeg[];
   options: any | null;          // getWagerOptions payload for the selected game
   gameId: string | null;
@@ -78,7 +74,7 @@ const SESSION_TTL = 10 * 60 * 1000;
 function getSession(userId: string): WagerSession {
   const s = sessions.get(userId);
   if (s && Date.now() - s.at < SESSION_TTL) return s;
-  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, counterOriginalId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, marketKind: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
+  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, marketKind: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
 }
@@ -536,7 +532,6 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
   }
 
   if (session.mode === "house") return placeHouseAndPost(interaction, session, stake, customLine);
-  if (session.mode === "counter") return placeCounterAndDM(interaction, session, stake, customLine);
   return proposePeerAndPost(interaction, session, stake, customLine);
 }
 
@@ -734,187 +729,6 @@ export async function handleWagerAccept(interaction: ButtonInteraction) {
   return acceptPeerAndPost(interaction, interaction.customId.slice(WAGER_CUSTOM_IDS.acceptPrefix.length));
 }
 
-// ─── Counter-offers ─────────────────────────────────────────────────────────────
-
-// "Counter" on a challenge → an ephemeral flow where the counter-er sets new terms on
-// the same game (market → side → stake). On submit, the original poster is DMed.
-export async function handleWagerCounter(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const wagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.counterPrefix.length);
-  let summary: any;
-  try {
-    summary = await recApi.getPeerWagerForCounter(interaction.guildId, wagerId);
-  } catch (err) {
-    return interaction.reply({ content: userError(err), flags: MessageFlags.Ephemeral });
-  }
-  if (summary.proposerDiscordId && summary.proposerDiscordId === interaction.user.id) {
-    return interaction.reply({ content: "You can't counter your own wager.", flags: MessageFlags.Ephemeral });
-  }
-
-  const session = getSession(interaction.user.id);
-  session.mode = "counter";
-  session.counterOriginalId = wagerId;
-  session.options = summary.options;
-  session.gameId = summary.gameId;
-  session.gameLabel = `${summary.options.awayLabel} at ${summary.options.homeLabel}`;
-  session.market = session.marketLabel = session.pick = session.sideLabel = null;
-  session.at = Date.now();
-
-  const marketMenu = new StringSelectMenuBuilder()
-    .setCustomId(WAGER_CUSTOM_IDS.marketSelect)
-    .setPlaceholder("Pick a market for your counter")
-    .addOptions((summary.options.markets ?? []).slice(0, 25).map((m: any) =>
-      new StringSelectMenuOptionBuilder().setLabel(m.label.slice(0, 100)).setValue(m.market).setDescription(m.line != null ? `Line: ${m.line}${m.unit ? ` ${m.unit}` : ""}` : "Winner")));
-
-  return interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    embeds: [new EmbedBuilder().setTitle("Counter the Wager").setColor(COLORS.purple).setDescription(`${session.gameLabel}\n\nPick your side and stake. The poster will get a DM to accept or deny your counter.`)],
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(marketMenu)],
-  });
-}
-
-async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: WagerSession, stake: number, customLine: number | null) {
-  if (!interaction.inCachedGuild() || !session.counterOriginalId || !session.gameId || !session.market || !session.pick) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter").setColor(COLORS.error).setDescription("Your counter session expired — click Counter again.")], components: [] });
-  }
-  let result: any;
-  try {
-    result = await recApi.placeCounterWager({ guildId: interaction.guildId, discordId: interaction.user.id, originalWagerId: session.counterOriginalId, market: session.market, pick: session.pick, stake, customLine });
-  } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter Not Sent").setColor(COLORS.error).setDescription(userError(err))], components: [] });
-  }
-  sessions.delete(interaction.user.id);
-
-  const posterDiscordId: string | null = result.proposerDiscordId ?? null;
-  const counterEmbed = new EmbedBuilder()
-    .setTitle("Counter-Offer to Your Wager")
-    .setColor(COLORS.purple)
-    .setDescription([
-      `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
-      "",
-      `Their pick — ${result.marketLabel}: **${result.counterPickLabel}**`,
-      `Stake: **${formatCoins(result.stake)} each** → winner takes **${formatCoins(result.payout)}**.`,
-      "",
-      "Accept to lock it in (you take the other side), or Deny to keep your original offer open.",
-    ].join("\n"));
-  const counterRows = buildCounterResponseRows(interaction.guildId!, posterDiscordId ?? "", result.counterWager.id);
-
-  // Prefer a DM; fall back to a poster-tagged announcement message if DMs are closed.
-  let delivered = false;
-  let where = "";
-  if (posterDiscordId) {
-    const poster = await interaction.client.users.fetch(posterDiscordId).catch(() => null);
-    if (poster) {
-      const dm = await poster.send({ embeds: [counterEmbed], components: counterRows }).catch(() => null);
-      if (dm) { delivered = true; where = "DMed"; }
-    }
-    if (!delivered) {
-      const channel = await getAnnouncementsChannel(interaction.guild, (await recApi.getEconomyConfig(interaction.guildId).catch(() => null))?.routes ?? {}).catch(() => null);
-      if (channel && "send" in channel && channel.isTextBased()) {
-        const msg = await (channel as TextChannel).send({
-          content: `<@${posterDiscordId}>`,
-          embeds: [counterEmbed],
-          components: counterRows,
-          allowedMentions: { users: [posterDiscordId] },
-        }).catch(() => null);
-        if (msg) { delivered = true; where = "posted to announcements"; }
-      }
-    }
-  }
-
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Counter Sent ✅")
-      .setColor(COLORS.success)
-      .setDescription([
-        `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **${formatCoins(result.stake)}**.`,
-        `${formatCoins(result.stake)} moved to holding.`,
-        delivered ? `The poster was notified (${where}) to accept or deny.` : "Couldn't reach the poster — they'll be refunded if the counter isn't accepted before the next advance.",
-      ].join("\n"))],
-    components: [],
-  });
-}
-
-// Accept/Deny buttons for a counter — only the original poster may use them. The
-// guild + poster id are encoded so the buttons work in a DM (no guild context) and
-// can be gated when posted publicly to the announcements channel.
-function buildCounterResponseRows(guildId: string, posterDiscordId: string, counterWagerId: string) {
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterAcceptPrefix}${guildId}:${posterDiscordId}:${counterWagerId}`).setLabel("Accept Counter").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterDenyPrefix}${guildId}:${posterDiscordId}:${counterWagerId}`).setLabel("Deny").setStyle(ButtonStyle.Danger))];
-}
-
-function parseCounterButton(rest: string): { guildId: string; posterDiscordId: string; counterWagerId: string } {
-  const parts = rest.split(":");
-  return { guildId: parts[0], posterDiscordId: parts[1], counterWagerId: parts.slice(2).join(":") };
-}
-
-export async function handleCounterAccept(interaction: ButtonInteraction) {
-  const { guildId, posterDiscordId, counterWagerId } = parseCounterButton(interaction.customId.slice(WAGER_CUSTOM_IDS.counterAcceptPrefix.length));
-  if (posterDiscordId && interaction.user.id !== posterDiscordId) {
-    return interaction.reply({ content: `Only <@${posterDiscordId}> can respond to this counter.`, flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferUpdate();
-  let result: any;
-  try {
-    result = await recApi.acceptCounter(guildId, interaction.user.id, counterWagerId);
-  } catch (err) {
-    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
-  }
-  const w = result.wager;
-
-  // Close the original announcement.
-  if (result.originalAnnouncementChannelId && result.originalAnnouncementMessageId) {
-    const ch = await interaction.client.channels.fetch(result.originalAnnouncementChannelId).catch(() => null);
-    if (ch?.isTextBased?.()) {
-      const msg = await (ch as any).messages.fetch(result.originalAnnouncementMessageId).catch(() => null);
-      if (msg?.embeds?.[0]) {
-        const embed = EmbedBuilder.from(msg.embeds[0]).setColor(COLORS.success);
-        embed.addFields({ name: "SETTLED VIA COUNTER", value: `Countered terms accepted. Sent to Commissioner Notifications.` });
-        await msg.edit({ embeds: [embed], components: [] }).catch(() => undefined);
-      }
-    }
-  }
-
-  // Update the DM and post the pending-payout embed.
-  const base = interaction.message.embeds[0];
-  const dmEmbed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(COLORS.success);
-  dmEmbed.addFields({ name: "ACCEPTED", value: "You accepted the counter. Sent to Commissioner Notifications." });
-  await interaction.editReply({ embeds: [dmEmbed], components: [] }).catch(() => undefined);
-
-  const channelId: string | null = result.pendingPayoutsChannelId ?? null;
-  if (channelId) {
-    const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
-    if (ch?.isTextBased?.() && !(ch as any).isDMBased?.()) {
-      const payload = {
-        wager: w,
-        gameLabel: "—",
-        marketLabel: w.market,
-        sideLabel: `${w.placed_by_discord_id ? `<@${w.placed_by_discord_id}>` : "Counter-er"} vs <@${interaction.user.id}>`,
-      };
-      const msg = await (ch as TextChannel).send({ embeds: [buildWagerPendingEmbed(payload, false)], components: buildWagerReviewRows(w.id) }).catch(() => null);
-      if (msg) await recApi.attachWagerPendingMessage({ wagerId: w.id, channelId: ch.id, messageId: msg.id }).catch(() => undefined);
-    }
-  }
-}
-
-export async function handleCounterDeny(interaction: ButtonInteraction) {
-  const { posterDiscordId, counterWagerId } = parseCounterButton(interaction.customId.slice(WAGER_CUSTOM_IDS.counterDenyPrefix.length));
-  if (posterDiscordId && interaction.user.id !== posterDiscordId) {
-    return interaction.reply({ content: `Only <@${posterDiscordId}> can respond to this counter.`, flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferUpdate();
-  try {
-    await recApi.declineCounter(interaction.user.id, counterWagerId);
-  } catch (err) {
-    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
-  }
-  const base = interaction.message.embeds[0];
-  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(COLORS.neutral);
-  embed.addFields({ name: "DENIED", value: "You denied the counter. Your original offer stays open." });
-  await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
-}
-
 // ─── Pending-payout embed + commissioner review ────────────────────────────────
 
 export function buildWagerPendingEmbed(result: any, confirmed: boolean): EmbedBuilder {
@@ -1020,13 +834,14 @@ export async function deleteWagerCleanupMessages(client: any, cleanup: any): Pro
 }
 
 export async function handleWagerCancel(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can cancel wagers.", flags: MessageFlags.Ephemeral });
   }
   const wagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.cancelPrefix.length);
   await interaction.deferUpdate();
   try {
-    await recApi.cancelWager(wagerId);
+    await recApi.cancelWager(interaction.guildId, interaction.user.id, wagerId);
   } catch (err) {
     return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral });
   }

@@ -37,17 +37,7 @@ async function issuePayout(input: CreditOrBacklogInput): Promise<string | null> 
   return ledger.data ?? null;
 }
 
-/** Non-positive amounts (badge penalties, zero-amount no-ops) always apply immediately — only a real payout waits on the economy floor. */
-export async function creditOrBacklog(input: CreditOrBacklogInput): Promise<{ backlogged: boolean; ledgerId: string | null }> {
-  if (input.amount <= 0) {
-    return { backlogged: false, ledgerId: await issuePayout(input) };
-  }
-
-  const activation = await getEconomyActivation(input.leagueId);
-  if (activation.payoutsActive) {
-    return { backlogged: false, ledgerId: await issuePayout(input) };
-  }
-
+async function backlogPayout(input: CreditOrBacklogInput): Promise<{ backlogged: boolean; ledgerId: string | null }> {
   // Mirrors add_to_wallet's own dedup (same user/type/source/reference short-circuits to the
   // existing ledger row) — some callers (badge bonuses on a box-score correction) re-issue the
   // same payout idempotently and must not queue a second backlog row for it.
@@ -78,6 +68,30 @@ export async function creditOrBacklog(input: CreditOrBacklogInput): Promise<{ ba
     .single();
   if (inserted.error) throw new ApiError(500, "Failed to queue backlogged payout.", inserted.error);
   return { backlogged: true, ledgerId: null };
+}
+
+/** Non-positive amounts (badge penalties, zero-amount no-ops) always apply immediately — only a real payout waits on the economy floor. */
+export async function creditOrBacklog(input: CreditOrBacklogInput): Promise<{ backlogged: boolean; ledgerId: string | null }> {
+  if (input.amount <= 0) {
+    return { backlogged: false, ledgerId: await issuePayout(input) };
+  }
+
+  // Discord-only accounts (no linked site login) are supposed to be excluded from payout
+  // eligibility, same as they're already blocked from spending (assertSiteAccountForEconomy) —
+  // box score/badge/EOS/GOTW/article payouts all route through here and were crediting a
+  // wallet those accounts can't touch yet regardless. Queue it the same way the league-floor
+  // backlog below already does; releaseBacklogForUser pays it out once they link.
+  const { isDiscordOnlyUser } = await import("../subscriptions/discord-only.service.js");
+  if (await isDiscordOnlyUser(input.userId)) {
+    return backlogPayout(input);
+  }
+
+  const activation = await getEconomyActivation(input.leagueId);
+  if (activation.payoutsActive) {
+    return { backlogged: false, ledgerId: await issuePayout(input) };
+  }
+
+  return backlogPayout(input);
 }
 
 /** Called right after a league's linked-user count could have crossed the floor (a new team gets linked). No-ops quietly if the league still isn't eligible or has nothing queued. */
@@ -137,6 +151,52 @@ export async function releaseBacklogForLeague(leagueId: string, seasonNumber: nu
     userCount: perUser.size,
     totalAmount: [...perUser.values()].reduce((sum, entry) => sum + entry.total, 0),
   };
+}
+
+/** Called once a user links a real site account (linkDiscordFromOAuth) — releases every payout
+ * that was queued for them specifically because they were Discord-only, regardless of any
+ * league's linked-user floor (that's releaseBacklogForLeague's separate concern). */
+export async function releaseBacklogForUser(userId: string): Promise<{ released: boolean; totalAmount: number }> {
+  const backlog = await supabase
+    .from("rec_economy_payout_backlog")
+    .select("*")
+    .eq("user_id", userId)
+    .is("released_at", null);
+  if (backlog.error) throw new ApiError(500, "Failed to load user's payout backlog.", backlog.error);
+  const rows = backlog.data ?? [];
+  if (!rows.length) return { released: false, totalAmount: 0 };
+
+  const now = new Date().toISOString();
+  let totalAmount = 0;
+  const items: string[] = [];
+
+  for (const row of rows as any[]) {
+    const ledger = await supabase.rpc("add_to_wallet", {
+      p_user_id: row.user_id,
+      p_amount: row.amount,
+      p_league_id: row.league_id,
+      p_description: row.description,
+      p_transaction_type: row.transaction_type,
+      p_source: row.source,
+      p_source_reference: row.source_reference ?? {},
+    });
+    if (ledger.error) {
+      console.error("[ERROR] Failed to release user's backlogged payout row", row.id, ledger.error);
+      continue;
+    }
+    await supabase.from("rec_economy_payout_backlog").update({ released_at: now }).eq("id", row.id);
+    totalAmount += Number(row.amount);
+    items.push(`${row.description} (+${row.amount})`);
+  }
+
+  if (totalAmount > 0) {
+    const title = `Coins released: +${totalAmount}`;
+    const body = items.length > 10 ? `${items.slice(0, 10).join("; ")}; and ${items.length - 10} more` : items.join("; ");
+    void createSiteNotification({ userId, kind: "economy_backlog_released", title, body, href: "/account" }).catch(() => undefined);
+    void sendPushToUser(userId, { title, body, url: "/account" }).catch(() => undefined);
+  }
+
+  return { released: true, totalAmount };
 }
 
 /** Called on season rollover (setLeagueWeek, when seasonNumber changes) — backlogs don't carry into the new season. */

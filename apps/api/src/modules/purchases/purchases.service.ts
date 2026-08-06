@@ -149,6 +149,7 @@ export async function createPurchaseRequest(input: {
   discordId: string;
   purchaseType: RecPurchaseType;
   details: Record<string, unknown>;
+  idempotencyKey?: string;
 }) {
   const cfg = PURCHASE_CONFIG[input.purchaseType];
   if (!cfg) throw new ApiError(400, "Unknown purchase type.");
@@ -190,6 +191,16 @@ export async function createPurchaseRequest(input: {
   const userId = baseline.user.id;
   await assertSiteAccountForEconomy(userId);
 
+  // A retried/duplicated submit (network hiccup, double-click) with the same client-generated
+  // key returns the original request instead of creating (and charging for) a second one —
+  // mirrors the same pattern custom-player builds already use.
+  if (input.idempotencyKey) {
+    const existing = await supabase.from("rec_purchases").select("*")
+      .eq("league_id", leagueId).eq("user_id", userId).eq("idempotency_key", input.idempotencyKey).maybeSingle();
+    if (existing.error) throw new ApiError(500, "Failed to check for a duplicate purchase.", existing.error);
+    if (existing.data) return { purchase: existing.data, duplicate: true };
+  }
+
   // Attributes carry an allocation list; dev upgrades carry a player + target tier — both
   // get normalized server-side (authoritative) so pricing and cap enforcement can't be
   // spoofed by client-supplied core/tier flags.
@@ -212,42 +223,50 @@ export async function createPurchaseRequest(input: {
 
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
-    await enforceDevUpgradePlayerCap({
-      leagueId, userId, seasonNumber,
-      playerId: String((details as any).playerId),
-      cap: Number(cfgRow.dev_upgrades_player_cap ?? 0),
-    });
-  } else if (input.purchaseType === "attribute") {
-    await enforceAttributeCaps({
-      leagueId,
-      userId,
-      seasonNumber,
-      allocations: (details.allocations as AttributeAllocation[]) ?? [],
-      defaultCoreCap: Number(cfgRow.core_attribute_purchases_season_cap ?? 0),
-      coreGroupCap: Number(cfgRow.core_attribute_group_cap ?? 0),
-      coreOverrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
-      nonCoreGroupCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
-      nonCoreOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
-    });
-  } else if (cfg.seasonCap) {
-    // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
-    const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
-    if (cap > 0) {
-      const used = await supabase
-        .from("rec_purchases")
-        .select("id", { count: "exact", head: true })
-        .eq("league_id", leagueId)
-        .eq("user_id", userId)
-        .eq("purchase_type", input.purchaseType)
-        .eq("season_number", seasonNumber)
-        .in("status", ACTIVE_STATUSES as unknown as string[]);
-      if (used.error) throw new ApiError(500, "Failed to check season purchase cap.", used.error);
-      if ((used.count ?? 0) >= cap) {
-        throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label}.`);
+  // Every cap here is a count/aggregate over existing rows checked, then a separate insert —
+  // two concurrent requests can both pass this check against the same pre-insert snapshot and
+  // both succeed, exceeding the cap. Run once now (fail fast, no wasted insert/debit for the
+  // common non-racing case), and run again below AFTER the insert commits, when a concurrent
+  // request's row (if any) is actually visible — that second call is the real guard.
+  async function enforceCaps() {
+    if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
+      await enforceDevUpgradePlayerCap({
+        leagueId, userId, seasonNumber,
+        playerId: String((details as any).playerId),
+        cap: Number(cfgRow.dev_upgrades_player_cap ?? 0),
+      });
+    } else if (input.purchaseType === "attribute") {
+      await enforceAttributeCaps({
+        leagueId,
+        userId,
+        seasonNumber,
+        allocations: (details.allocations as AttributeAllocation[]) ?? [],
+        defaultCoreCap: Number(cfgRow.core_attribute_purchases_season_cap ?? 0),
+        coreGroupCap: Number(cfgRow.core_attribute_group_cap ?? 0),
+        coreOverrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
+        nonCoreGroupCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
+        nonCoreOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
+      });
+    } else if (cfg.seasonCap) {
+      // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
+      const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
+      if (cap > 0) {
+        const used = await supabase
+          .from("rec_purchases")
+          .select("id", { count: "exact", head: true })
+          .eq("league_id", leagueId)
+          .eq("user_id", userId)
+          .eq("purchase_type", input.purchaseType)
+          .eq("season_number", seasonNumber)
+          .in("status", ACTIVE_STATUSES as unknown as string[]);
+        if (used.error) throw new ApiError(500, "Failed to check season purchase cap.", used.error);
+        if ((used.count ?? 0) >= cap) {
+          throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label}.`);
+        }
       }
     }
   }
+  await enforceCaps();
 
   const now = new Date().toISOString();
   const inserted = await supabase
@@ -263,13 +282,89 @@ export async function createPurchaseRequest(input: {
       details,
       status: "pending",
       already_deducted: false,
+      idempotency_key: input.idempotencyKey ?? null,
       submitted_at: now,
       created_at: now,
       updated_at: now,
     })
     .select("*")
     .single();
-  if (inserted.error) throw new ApiError(500, "Failed to create purchase request.", inserted.error);
+  if (inserted.error) {
+    // 23505 here is either the idempotency key racing with itself (a genuinely-concurrent
+    // retry) or the legend-uniqueness index (rec_purchases_legend_unique_active) firing.
+    if ((inserted.error as { code?: string }).code === "23505") {
+      if (input.purchaseType === "legend") throw new ApiError(409, "This legend has already been purchased in this league.");
+      if (input.idempotencyKey) {
+        const existing = await supabase.from("rec_purchases").select("*")
+          .eq("league_id", leagueId).eq("user_id", userId).eq("idempotency_key", input.idempotencyKey).maybeSingle();
+        if (existing.data) return { purchase: existing.data, duplicate: true };
+      }
+    }
+    throw new ApiError(500, "Failed to create purchase request.", inserted.error);
+  }
+
+  // Real guard against the TOCTOU race enforceCaps() above can't fully close on its own: recount
+  // with the just-inserted row now actually committed and visible. A losing concurrent request's
+  // own insert is also visible to THIS recount by the time both have landed, so whichever request
+  // reaches this point last is the one that (correctly) self-aborts — see enforceCaps() above.
+  try {
+    if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
+      const cap = Number(cfgRow.dev_upgrades_player_cap ?? 0);
+      if (cap > 0) {
+        const rows = await supabase.from("rec_purchases").select("details")
+          .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "dev_upgrade").eq("season_number", seasonNumber)
+          .in("status", ACTIVE_STATUSES as unknown as string[]);
+        if (rows.error) throw new ApiError(500, "Failed to verify dev upgrade player cap.", rows.error);
+        const distinctPlayerIds = new Set((rows.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
+        if (distinctPlayerIds.size > cap) {
+          throw new ApiError(409, `This league limits dev upgrades to ${cap} player(s) per team per season — someone else just claimed the last slot.`);
+        }
+      }
+    } else if (input.purchaseType === "attribute") {
+      const rows = await supabase.from("rec_purchases").select("details")
+        .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "attribute").eq("season_number", seasonNumber)
+        .in("status", ACTIVE_STATUSES as unknown as string[]);
+      if (rows.error) throw new ApiError(500, "Failed to verify attribute caps.", rows.error);
+      const usedByCode: Record<string, number> = {};
+      let usedCore = 0, usedNonCore = 0;
+      for (const row of rows.data ?? []) {
+        for (const a of ((row as any).details?.allocations as any[]) ?? []) {
+          const pts = Math.max(0, Number(a.points) || 0);
+          usedByCode[a.code] = (usedByCode[a.code] ?? 0) + pts;
+          if (a.core) usedCore += pts; else usedNonCore += pts;
+        }
+      }
+      const coreOverrides = (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {};
+      const nonCoreOverrides = (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {};
+      const defaultCoreCap = Number(cfgRow.core_attribute_purchases_season_cap ?? 0);
+      const coreGroupCap = Number(cfgRow.core_attribute_group_cap ?? 0);
+      const nonCoreGroupCap = Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0);
+      for (const [code, used] of Object.entries(usedByCode)) {
+        const allocation = ((details.allocations as AttributeAllocation[]) ?? []).find((a) => a.code === code);
+        const isCore = allocation?.core ?? false;
+        const cap = Number((isCore ? coreOverrides[code] : nonCoreOverrides[code]) ?? (isCore ? defaultCoreCap : 0));
+        if (cap > 0 && used > cap) throw new ApiError(409, `${code} is capped at ${cap} points per season — someone else's request just filled it.`);
+      }
+      if (coreGroupCap > 0 && usedCore > coreGroupCap) throw new ApiError(409, `Core attribute points are capped at ${coreGroupCap} total per season — someone else's request just filled it.`);
+      if (nonCoreGroupCap > 0 && usedNonCore > nonCoreGroupCap) throw new ApiError(409, `Non-core attribute points are capped at ${nonCoreGroupCap} total per season — someone else's request just filled it.`);
+    } else if (cfg.seasonCap) {
+      const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
+      if (cap > 0) {
+        const used = await supabase
+          .from("rec_purchases")
+          .select("id", { count: "exact", head: true })
+          .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", input.purchaseType).eq("season_number", seasonNumber)
+          .in("status", ACTIVE_STATUSES as unknown as string[]);
+        if (used.error) throw new ApiError(500, "Failed to verify season purchase cap.", used.error);
+        if ((used.count ?? 0) > cap) {
+          throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label} — someone else's request just filled it.`);
+        }
+      }
+    }
+  } catch (capError) {
+    await supabase.from("rec_purchases").delete().eq("id", inserted.data.id);
+    throw capError;
+  }
 
   // Deduct on request. If the debit fails, roll back the pending row so we never leave a
   // request without a charge.

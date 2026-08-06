@@ -154,6 +154,10 @@ export async function linkDiscordFromOAuth(input: {
   }
 
   const lifetimePlatinum = await syncLifetimePlatinumForUser(recUserId);
+  // This user just went from Discord-only to site-linked — release anything that was queued
+  // for them specifically because they couldn't receive payouts yet (Heisman awards, etc.).
+  const { releaseBacklogForUser } = await import("../economy/economy-backlog.js");
+  void releaseBacklogForUser(recUserId).catch((error) => console.error("[ERROR] Failed to release user's payout backlog after linking (non-fatal):", error));
   const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
   return { ...profile, lifetimePlatinum, discordLinked: true };
 }

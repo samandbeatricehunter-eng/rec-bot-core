@@ -115,13 +115,10 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
     if (existing.error) throw new ApiError(500, "Failed to check savings interest idempotency.", existing.error);
     if ((existing.data ?? []).length) continue;
 
-    const updated = await supabase
-      .from("rec_wallets")
-      .update({
-        savings_balance: savings + interest,
-        updated_at: now.toISOString(),
-      })
-      .eq("user_id", wallet.user_id);
+    // Atomic delta via RPC, not a read-then-absolute-write of `savings + interest` — a
+    // withdrawal landing on this row between the SELECT above and this write would otherwise
+    // get silently erased by the stale absolute value.
+    const updated = await supabase.rpc("add_to_savings", { p_user_id: wallet.user_id, p_amount: interest });
     if (updated.error) throw new ApiError(500, "Failed to credit savings interest.", updated.error);
 
     const ledger = await supabase.from("rec_dollar_ledger").insert({

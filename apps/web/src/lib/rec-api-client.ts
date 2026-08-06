@@ -65,6 +65,7 @@ import type {
   MyWagersResponse,
   ChallengeableCoachesResponse,
   OpenWagersForCommissionerResponse,
+  ReversibleTransactionsResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
   TeamLinkMatrix,
@@ -286,6 +287,10 @@ export const recApi = {
     recApiFetch<OpenWagersForCommissionerResponse>("/v1/wagers/open", { method: "POST", body: JSON.stringify({ guildId }) }),
   commissionerCancelWager: (input: { guildId: string; wagerId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/wagers/commissioner-cancel", { method: "POST", body: JSON.stringify(input) }),
+  listReversibleTransactions: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<ReversibleTransactionsResponse>("/v1/admin-economy/reversible-transactions", { method: "POST", body: JSON.stringify(input) }),
+  reverseTransaction: (input: { guildId: string; discordId: string; ledgerId: string }) =>
+    recApiFetch<{ reversed: true; ledgerId: string; amount: number }>("/v1/admin-economy/reverse-transaction", { method: "POST", body: JSON.stringify(input) }),
   listLeagueDraftPicks: (guildId: string) =>
     recApiFetch<Array<{ id: string; league_id: string; season_number: number; round: number; original_team_id: string; current_team_id: string; pick_number: number | null }>>("/v1/draft-picks/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   proposeTrade: (input: { guildId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
@@ -391,7 +396,7 @@ export const recApi = {
     recApiFetch<unknown>("/v1/box-score/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   transferMyFunds: (input: { guildId: string; amount: number; direction: "to_savings" | "from_savings" }) =>
     recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),
-  createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown> }) =>
+  createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown>; idempotencyKey?: string }) =>
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),

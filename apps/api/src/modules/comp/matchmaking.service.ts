@@ -450,6 +450,16 @@ export async function cancelCompMatch(input: { userId: string; matchId: string }
 }
 
 async function awardCompCoins(userId: string, amount: number, matchId: string, description: string) {
+  // Discord-only accounts (no linked site login) are supposed to be excluded from payout
+  // eligibility, same as they're already blocked from spending (assertSiteAccountForEconomy) —
+  // this credited their (global, cross-league) wallet with no such check. Comp isn't scoped to
+  // any one league's payout backlog table, so rather than build a parallel queue for a
+  // relatively small, frequent reward, just skip the credit until they link.
+  const account = await supabase.from("rec_users").select("supabase_auth_user_id").eq("id", userId).maybeSingle();
+  if (!account.data?.supabase_auth_user_id) {
+    console.warn(`[WARN] Skipped Comp payout of ${amount} for discord-only user ${userId} (match ${matchId}) — link a site account to earn Comp coins.`);
+    return;
+  }
   const payout = await supabase.rpc("add_to_wallet", {
     p_user_id: userId, p_amount: amount, p_league_id: null, p_description: description,
     p_transaction_type: "comp_game", p_source: "h2h_comp", p_source_reference: { matchId },

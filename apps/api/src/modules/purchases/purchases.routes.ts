@@ -20,6 +20,7 @@ const CreatePurchaseSchema = z.object({
   discordId: z.string().min(1),
   purchaseType: PurchaseTypeSchema,
   details: z.record(z.any()).default({}),
+  idempotencyKey: z.string().uuid().optional(),
 });
 
 const ReviewPurchaseSchema = z.object({
