@@ -85,7 +85,6 @@ export function AdvanceHome() {
   const setGotwCandidates = (_value: GotwCandidate[]) => {};
   const setGotwGameId = (_value: string | ((previous: string) => string)) => {};
   const assigningGotw = false;
-  const [flagBusyGameId, setFlagBusyGameId] = useState<string | null>(null);
 
   const [jumpTargets, setJumpTargets] = useState<{ currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> } | null>(null);
   const [jumpTargetKey, setJumpTargetKey] = useState("");
@@ -271,33 +270,11 @@ export function AdvanceHome() {
 
   function handleAssignGotw() {}
 
-  async function handlePostseasonFlag(gameId: string, patch: { isBowlGame?: boolean; isNationalChampionship?: boolean }) {
-    if (!data) return;
-    const target = data.games.find((g) => g.gameId === gameId);
-    if (!target) return;
-    setFlagBusyGameId(gameId);
-    setError(null);
-    try {
-      await recApi.setGamePostseasonFlags({
-        guildId,
-        gameId,
-        isBowlGame: patch.isBowlGame ?? target.isBowlGame,
-        isNationalChampionship: patch.isNationalChampionship ?? target.isNationalChampionship,
-      });
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save postseason flags.");
-    } finally {
-      setFlagBusyGameId(null);
-    }
-  }
-
   if (error && !data) return <div><PageHeader title="Advance" subtitle="Weekly league advance." /><ErrorState message={error} /></div>;
   if (!data) return <LoadingState />;
 
   const pollByGameId = new Map((gotwPolls ?? []).map((p) => [p.game_id, p]));
   const openCandidates = (gotwCandidates ?? []).filter((c) => !pollByGameId.has(c.gameId));
-  const isPostseasonWeek = data.currentStage !== "regular_season";
   const missingScoreGames = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
   const readyToAdvance = missingScoreGames.length === 0;
   const currentLabel = data.currentStage === "regular_season" ? `Week ${data.currentWeek}` : titleCaseStage(data.currentStage);
@@ -343,19 +320,6 @@ export function AdvanceHome() {
                     {entryHasScores(entry)
                       ? <span className="advance-derived-outcome">{deriveOutcome(entry!.awayScore, entry!.homeScore) === "tie" ? "Tie" : `${deriveOutcome(entry!.awayScore, entry!.homeScore) === "away" ? g.awayTeamName : g.homeTeamName} win`}</span>
                       : involvesHuman(g) && <span className="advance-score-required">Score required</span>}
-                  </div>
-                )}
-                {isCfb && isPostseasonWeek && g.isH2h && (
-                  <div className="advance-flag-row">
-                    <label>
-                      <input type="checkbox" disabled={flagBusyGameId === g.gameId} checked={g.isBowlGame} onChange={(e) => handlePostseasonFlag(g.gameId, { isBowlGame: e.target.checked })} />
-                      Bowl Game
-                    </label>
-                    <label>
-                      <input type="checkbox" disabled={flagBusyGameId === g.gameId} checked={g.isNationalChampionship} onChange={(e) => handlePostseasonFlag(g.gameId, { isNationalChampionship: e.target.checked })} />
-                      National Championship
-                    </label>
-                    <span className="form-hint">Bowl games and the national championship are automatic Game of the Week matchups.</span>
                   </div>
                 )}
                 <div className="advance-game-actions">

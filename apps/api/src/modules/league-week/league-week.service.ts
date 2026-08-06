@@ -58,6 +58,19 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     await wipeBacklogForSeason(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe payout backlog on season rollover:", error);
     });
+    // Clear out the ending season's Campus Buzz articles/announcements so the new season
+    // starts with a clean feed — except the national championship recap, which stays as the
+    // season's closing headline.
+    // .neq() alone would silently exclude every row with a null primary_angle (SQL `<>`
+    // never matches NULL) — most stories have no primary_angle at all, so that would leave
+    // almost everything undeleted. or() with an explicit is-null clause covers those too.
+    const storiesWipe = await supabase.from("rec_game_stories").delete()
+      .eq("league_id", context.leagueId).eq("season", previousSeasonNumber)
+      .or("primary_angle.is.null,primary_angle.neq.national_championship_recap");
+    if (storiesWipe.error) console.error("[ERROR] Failed to wipe game stories on season rollover:", storiesWipe.error);
+    const announcementsWipe = await supabase.from("rec_hub_announcements").delete()
+      .eq("league_id", context.leagueId).eq("season_number", previousSeasonNumber);
+    if (announcementsWipe.error) console.error("[ERROR] Failed to wipe hub announcements on season rollover:", announcementsWipe.error);
   }
 
   const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);

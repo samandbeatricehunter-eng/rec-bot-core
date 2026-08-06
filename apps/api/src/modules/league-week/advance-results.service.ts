@@ -21,7 +21,7 @@ import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
-import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
+import { publishScheduledMediaForAdvance, publishTransitionStory } from "../hub/story-publishing.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
@@ -84,16 +84,22 @@ async function publishLeagueAdvanceAnnouncement(input: {
       ? `League advanced to Week ${input.weekNumber}`
       : `League advanced to ${label}`;
 
-  const games = await supabase
-    .from("rec_games")
-    .select(
-      "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
-    )
-    .eq("league_id", input.leagueId)
-    .eq("week_number", input.weekNumber)
-    .not("home_user_id", "is", null)
-    .not("away_user_id", "is", null)
-    .order("created_at", { ascending: true });
+  // Offseason stages (end of season recap, transfer portal, signing day, etc.) have no real
+  // slate — skip the games query entirely rather than risk listing stale/leftover rows that
+  // happen to share this week_number from the last real gameplay week.
+  const hasScheduledGames = stageHasScheduledGames(input.seasonStage, input.game);
+  const games = hasScheduledGames
+    ? await supabase
+        .from("rec_games")
+        .select(
+          "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+        )
+        .eq("league_id", input.leagueId)
+        .eq("week_number", input.weekNumber)
+        .not("home_user_id", "is", null)
+        .not("away_user_id", "is", null)
+        .order("created_at", { ascending: true })
+    : { data: [] as any[] };
 
   const lines = (games.data ?? []).map((game: any) => {
     const away = input.game === "cfb_27" ? resolveTeamSchool(game.away_team) ?? formatTeamDisplayName(game.away_team) : formatTeamDisplayName(game.away_team);
@@ -621,7 +627,9 @@ export async function completeAdvanceWeek(input: {
   for (const result of input.results) {
     const game = await supabase
       .from("rec_games")
-      .select("id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id")
+      .select(
+        "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+      )
       .eq("id", result.gameId)
       .eq("league_id", context.leagueId)
       .maybeSingle();
@@ -681,6 +689,29 @@ export async function completeAdvanceWeek(input: {
     await settleGotwPollsForGame({ guildId: input.guildId, gameId: game.data.id, winningTeamId }).catch((err) => {
       console.error("[ERROR] settleGotwPollsForGame failed during advance (non-fatal):", err);
     });
+
+    // Bowl games and the national championship don't get a regular weekly recap otherwise
+    // (they're often the only game that week, or the league is heading straight into the
+    // offseason) — post a dedicated recap so who-played/who-won isn't lost.
+    if (game.data.is_bowl_game || game.data.is_national_championship) {
+      const away: any = game.data.away_team;
+      const home: any = game.data.home_team;
+      const awayName = context.rec_leagues.game === "cfb_27" ? resolveTeamSchool(away) ?? formatTeamDisplayName(away) : formatTeamDisplayName(away);
+      const homeName = context.rec_leagues.game === "cfb_27" ? resolveTeamSchool(home) ?? formatTeamDisplayName(home) : formatTeamDisplayName(home);
+      const winnerName = isTie ? null : winningTeamId === game.data.home_team_id ? homeName : awayName;
+      const loserName = isTie ? null : winnerName === homeName ? awayName : homeName;
+      const gameLabel = game.data.is_national_championship
+        ? "National Championship"
+        : (String(game.data.bowl_name ?? "").trim() || "Bowl Game");
+      await publishTransitionStory({
+        guildId: input.guildId,
+        headline: winnerName ? `${gameLabel}: ${winnerName} Wins` : `${gameLabel} Ends in a Tie`,
+        body: winnerName
+          ? `${winnerName} defeated ${loserName} ${Math.max(homeScore, awayScore)}-${Math.min(homeScore, awayScore)} in the ${gameLabel}.`
+          : `${awayName} and ${homeName} tied ${awayScore}-${homeScore} in the ${gameLabel}.`,
+        primaryAngle: game.data.is_national_championship ? "national_championship_recap" : "bowl_game_recap",
+      }).catch((err) => console.error("[ERROR] Failed to publish bowl/national championship recap (non-fatal):", err));
+    }
   }
 
   const advanceResult = await setLeagueWeek({

@@ -1321,6 +1321,9 @@ h1, h2, h3, .site-wordmark {
   border-bottom: 1px solid var(--border);
   background: var(--nav-bg);
   overflow-x: auto;
+  position: sticky;
+  top: 56px;
+  z-index: 90;
 }
 .site-league-top-nav-btn {
   display: flex;

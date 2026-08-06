@@ -1304,6 +1304,12 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       // one was already entered into the schedule builder ahead of time.
       if (isPreseason) {
         currentMatchup = "Preseason (No Games)";
+      } else if (!isGameplayStage) {
+        // Offseason stages (end of season recap, transfer portal, signing day, etc.) have no
+        // real slate for anyone — never run the games query, since a stale row left over from
+        // the last real gameplay week at this same week_number would otherwise surface as a
+        // live-looking opponent.
+        currentMatchup = stageDisplay(stage);
       } else {
         const games = await supabase
           .from("rec_games")

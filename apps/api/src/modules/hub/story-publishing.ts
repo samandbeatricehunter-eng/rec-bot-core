@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { gameplaySeasonStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -39,12 +40,17 @@ export async function publishTransitionStory(input: {
 }): Promise<{ storyId: string }> {
   const context = await getCurrentLeagueContext(input.guildId);
   const season = Number(context.rec_leagues.season_number ?? 1);
-  const week = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "");
+  // A "week" only means anything during a real gameplay stage — during offseason stages
+  // (end of season recap, transfer portal, signing day, etc.) current_week is stale leftover
+  // state from the last real week, so stamping it here mislabels these stories as "Week N".
+  const isGameplayStage = gameplaySeasonStages(context.rec_leagues.game).has(seasonStage);
+  const week = isGameplayStage ? Number(context.rec_leagues.current_week ?? 1) : null;
   const storyType = input.storyType ?? "headline";
   const hostOverrides = storyType === "article" ? await loadHostOverridesForLeague(context.leagueId) : undefined;
   const roundtable = storyType === "article" ? buildRoundtableDiscussion({ headline: input.headline, body: input.body, hostOverrides }) : null;
   const result = await supabase.from("rec_game_stories").insert({
-    id: randomUUID(), league_id: context.leagueId, season, week, game_id: null,
+    id: randomUUID(), league_id: context.leagueId, season, week, season_stage: isGameplayStage ? null : seasonStage, game_id: null,
     primary_angle: input.primaryAngle, headline: input.headline, body: input.body,
     notes: [], story_type: storyType, roundtable,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),

@@ -443,8 +443,8 @@ async function refreshDiscordMediaUrl(highlight: any) {
 }
 
 async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number; currentWeek: number; seasonStage: string | null }) {
-  const richSelect = "id,season,week,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at";
-  const baseSelect = "id,season,week,headline,body,primary_angle,notes,story_type,roundtable,created_at";
+  const richSelect = "id,season,week,season_stage,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at";
+  const baseSelect = "id,season,week,season_stage,headline,body,primary_angle,notes,story_type,roundtable,created_at";
   const stage = String(input.seasonStage ?? "preseason").toLowerCase();
   if (stage === "preseason" || stage === "preseason_training_camp") return { data: [], error: null };
 

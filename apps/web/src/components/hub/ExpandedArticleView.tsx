@@ -8,6 +8,10 @@ import { InterviewBody } from "./InterviewBody.js";
 
 type Story = HubResponse["headlines"][number];
 
+function humanizeStage(key: string) {
+  return key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 type ExpandedArticleViewProps = {
   stories: Story[];
   activeIndex: number;
@@ -89,7 +93,7 @@ export function ExpandedArticleView({
           </button>
         </header>
         <div className="expanded-article-body">
-          <time>Week {story.week}</time>
+          <time>{story.week != null ? `Week ${story.week}` : story.season_stage ? humanizeStage(story.season_stage) : "League Story"}</time>
           <h2>{story.headline ?? "League Story"}</h2>
           {story.image_url ? (
             <img

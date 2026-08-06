@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { BoxScoreIcon, HighlightReelIcon, InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
@@ -491,7 +491,6 @@ export function HubHome() {
     return [...groups.entries()].sort(([a], [b]) => conferenceSortKey(a) - conferenceSortKey(b) || a.localeCompare(b));
   }, [hub?.powerRankings]);
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
-  const [wagerGamePickerOpen, setWagerGamePickerOpen] = useState(false);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [weekWagerLines, setWeekWagerLines] = useState<WeekWagerLinesResponse["lines"] | null>(null);
   const [myWagers, setMyWagers] = useState<MyWagersResponse["wagers"] | null>(null);
@@ -682,9 +681,17 @@ export function HubHome() {
       group.push({ story, flatIndex });
       byWeek.set(key, group);
     });
+    // Sort by each group's most recent story rather than by week number — offseason stories
+    // (week === null, e.g. EOS awards, recruiting/portal recaps) are otherwise stuck sorting
+    // after every real week even when they're the newest thing published.
     return [...byWeek.entries()]
-      .sort((a, b) => (b[0] ?? -1) - (a[0] ?? -1))
-      .map(([week, items]) => ({ week, items }));
+      .map(([week, items]) => ({
+        week,
+        items,
+        latestCreatedAt: items.reduce((latest, item) => Math.max(latest, new Date(item.story.created_at).getTime()), 0),
+      }))
+      .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt)
+      .map(({ week, items }) => ({ week, items }));
   }, [hub?.headlines]);
 
   useEffect(() => {
@@ -1561,7 +1568,9 @@ export function HubHome() {
             const active = items.length ? items[headlineItemIndex % items.length] : null;
             if (!active) return <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>;
             const { story, flatIndex } = active;
-            const weekLabel = activeHeadlineGroup?.week == null ? "League Story" : `Week ${activeHeadlineGroup.week}`;
+            const weekLabel = activeHeadlineGroup?.week != null
+              ? `Week ${activeHeadlineGroup.week}`
+              : story.season_stage ? displayLabel(story.season_stage) : "League Story";
             const itemPos = items.length > 1 ? `${(headlineItemIndex % items.length) + 1} of ${items.length}` : null;
             return isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
@@ -1580,7 +1589,15 @@ export function HubHome() {
                   <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                 </article>
                 <p className="hub-story-swipe-hint">
-                  {headlineWeekCount > 1 ? "Swipe for older weeks" : weekLabel}{itemPos ? ` · ${itemPos}` : ""}
+                  {headlineWeekCount > 1 ? "Swipe for older weeks" : weekLabel}
+                  {itemPos ? (
+                    <>
+                      {" · "}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)} aria-label="Previous article">‹</button>
+                      {` ${itemPos} `}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)} aria-label="Next article">›</button>
+                    </>
+                  ) : null}
                 </p>
               </div>
             ) : (
@@ -1591,7 +1608,17 @@ export function HubHome() {
                   <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                 </article>
                 {headlineWeekCount > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)}><ChevronRight /></button> : null}
-                <p className="hub-story-swipe-hint">{weekLabel}{itemPos ? ` · Showing ${itemPos}` : ""}</p>
+                <p className="hub-story-swipe-hint">
+                  {weekLabel}
+                  {itemPos ? (
+                    <>
+                      {" · Showing "}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)} aria-label="Previous article">‹</button>
+                      {` ${itemPos} `}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)} aria-label="Next article">›</button>
+                    </>
+                  ) : null}
+                </p>
               </div>
             );
           })()}
@@ -1634,16 +1661,6 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <>
-
-          <SectionFrame eyebrow="Live market" title="Wager Board" action={<Button variant="primary" size="compact" onClick={() => setWagerGamePickerOpen(true)}><Plus size={16} /> Place Wager</Button>}>
-            {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
-            <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading wagers...</p> : wagersBoard.length ? <>
-              <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
-              {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><span className="hub-wager-kicker">{isActive ? "Active Wager" : "Open Challenge"}</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pickLabel}</p><p className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</p><div><b><CoinAmount amount={wager.stake} /> stake</b><small>Potential payout <CoinAmount amount={wager.potentialPayout} /></small></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}{wager.canEdit && <Button variant="secondary" size="compact" disabled={wagersBoardBusy} onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}>Edit</Button>}{wager.canEdit && <Button variant="danger" size="compact" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}>Cancel</Button>}</div></article>; })()}
-              <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
-              <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
-            </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open or Active Wagers</strong><p>User challenges appear here automatically.</p></div>}</div>
-          </SectionFrame>
 
           {matchupSchedule?.gotw ? (
             <SectionFrame
@@ -1952,18 +1969,6 @@ export function HubHome() {
     </div></Modal>}
     {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
     {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
-    {wagerGamePickerOpen && <Modal title="Place a Wager" onClose={() => setWagerGamePickerOpen(false)}><div className="hub-close-wagers-list">
-      {(() => {
-        const eligible = (matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.involvesMe && game.wageringOpen && !game.isFinal);
-        if (!eligible.length) return <p className="hub-empty">No games are open for wagering right now.</p>;
-        return eligible.map((game) => (
-          <label key={game.gameId}>
-            <span>{game.awayTeamName} at {game.homeTeamName}</span>
-            <Button variant="secondary" size="compact" onClick={() => { setWagerGamePickerOpen(false); void openWager(game); }}>Select</Button>
-          </label>
-        ));
-      })()}
-    </div></Modal>}
     {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
