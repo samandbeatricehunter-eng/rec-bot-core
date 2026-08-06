@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { CONFERENCE_ORDER } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
@@ -116,6 +117,28 @@ const CFB_RECRUITING_DIFFICULTY = [
 const CFB_DYNASTY_TYPE = [
   { value: "real", label: "Real Rosters" },
   { value: "mixed", label: "Mixed (Team Builder Allowed)" },
+];
+
+const PLAYER_EDIT_PERMISSION_OPTIONS = [
+  { value: "commish_only", label: "Commissioner Only" },
+  { value: "any_player", label: "Any Player" },
+  { value: "none", label: "None" },
+];
+
+const SEASON_EXPERIENCE_OPTIONS = [
+  { value: "full_control", label: "Full Control" },
+  { value: "customized", label: "Customized" },
+  { value: "simple", label: "Simple" },
+];
+
+const CHAMP_GAME_LOCATION_OPTIONS = [
+  { value: "conference_leader_home", label: "Conference Leader's Home Stadium" },
+  { value: "any_stadium", label: "Any Stadium" },
+];
+
+const CHAMP_GAME_CRITERIA_OPTIONS = [
+  { value: "conference_record", label: "Conference Record" },
+  { value: "division_winners", label: "Division Winners" },
 ];
 
 const CFB_CONFERENCE_REALIGNMENT = [
@@ -327,6 +350,35 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [coachModeCpuManageStaffEnabled, setCoachModeCpuManageStaffEnabled] = useState(false);
   const [coachModeCpuManageFacilitiesEnabled, setCoachModeCpuManageFacilitiesEnabled] = useState(false);
 
+  const [playerEditPermission, setPlayerEditPermission] = useState("commish_only");
+  const [manualXpProgressionPenaltyPct, setManualXpProgressionPenaltyPct] = useState(25);
+  const [verbalCommitInfluencePct, setVerbalCommitInfluencePct] = useState(25);
+  const [userTransferChancePct, setUserTransferChancePct] = useState(55);
+  const [cpuTransferChancePct, setCpuTransferChancePct] = useState(55);
+  const [transferPortalMaxPerTeam, setTransferPortalMaxPerTeam] = useState(20);
+  const [minimumPlayClockSeconds, setMinimumPlayClockSeconds] = useState(15);
+  const [seasonExperience, setSeasonExperience] = useState("customized");
+
+  // Per-conference rule overrides — only conferences the commissioner actually customizes get
+  // sent; everyone else inherits the league-wide defaults implicitly (no row created for them).
+  const [conferenceRulesEditing, setConferenceRulesEditing] = useState(false);
+  const [activeConferenceForRules, setActiveConferenceForRules] = useState("");
+  const [conferenceRules, setConferenceRules] = useState<Record<string, {
+    divisionsEnabled: boolean; division1Name: string; division2Name: string; conferenceGames: number;
+    confChampGameEnabled: boolean; champGameLocation: string; champGameSelectionCriteria: string;
+    protectedOpponentsEnabled: boolean; protectedOpponentsCount: number;
+  }>>({});
+  function conferenceRuleDraft(conference: string) {
+    return conferenceRules[conference] ?? {
+      divisionsEnabled: false, division1Name: "", division2Name: "", conferenceGames: 8,
+      confChampGameEnabled: false, champGameLocation: "conference_leader_home", champGameSelectionCriteria: "division_winners",
+      protectedOpponentsEnabled: false, protectedOpponentsCount: 1,
+    };
+  }
+  function updateConferenceRule(conference: string, patch: Partial<ReturnType<typeof conferenceRuleDraft>>) {
+    setConferenceRules((current) => ({ ...current, [conference]: { ...conferenceRuleDraft(conference), ...patch } }));
+  }
+
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [teams, setTeams] = useState<SiteOpenTeam[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -361,6 +413,17 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       dynastyType: isCfb ? dynastyType : undefined,
       recruitingDifficulty: isCfb ? recruitingDifficulty : undefined,
       transferPortalEnabled: isCfb ? transferPortalEnabled : undefined,
+      playerEditPermission: isCfb ? playerEditPermission : undefined,
+      manualXpProgressionPenaltyPct: isCfb ? manualXpProgressionPenaltyPct : undefined,
+      verbalCommitInfluencePct: isCfb ? verbalCommitInfluencePct : undefined,
+      userTransferChancePct: isCfb ? userTransferChancePct : undefined,
+      cpuTransferChancePct: isCfb ? cpuTransferChancePct : undefined,
+      transferPortalMaxPerTeam: isCfb ? transferPortalMaxPerTeam : undefined,
+      minimumPlayClockSeconds: isCfb ? minimumPlayClockSeconds : undefined,
+      seasonExperience: isCfb ? seasonExperience : undefined,
+      conferenceRules: isCfb && conferenceRulesEditing
+        ? Object.entries(conferenceRules).map(([conferenceName, rule]) => ({ conferenceName, ...rule }))
+        : undefined,
       coachCarouselEnabled: isCfb ? coachCarouselEnabled : undefined,
       homeFieldAdvantageEnabled: isCfb ? homeFieldAdvantageEnabled : undefined,
       stadiumPulseEnabled: isCfb ? stadiumPulseEnabled : undefined,
@@ -1035,7 +1098,15 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   <ToggleField label="Abilities enabled" checked={abilitiesEnabled} onChange={setAbilitiesEnabled} />
                   <ToggleField label="Wear and tear" checked={wearAndTearEnabled} onChange={setWearAndTearEnabled} />
                   <SelectField label="Coach XP setting" value={coachXpSetting} onChange={setCoachXpSetting}
-                    options={[{ value: "casual", label: "Casual" }, { value: "career", label: "Career" }]} />
+                    options={[{ value: "casual", label: "Casual" }, { value: "career", label: "Career" }, { value: "simulation", label: "Simulation" }]} />
+                  <SelectField label="Player edit permission" hint="Informational only — who is expected to edit player info/ratings in-game."
+                    value={playerEditPermission} onChange={setPlayerEditPermission} options={PLAYER_EDIT_PERMISSION_OPTIONS} />
+                  <NumberField label="Manual XP progression penalty (%)" hint="Coin/points penalty applied when progression is done manually instead of automatically."
+                    value={manualXpProgressionPenaltyPct} onChange={setManualXpProgressionPenaltyPct} min={0} max={100} />
+                  <NumberField label="Verbal commit influence (%)" hint="How much a verbal commitment influences a recruit's final decision."
+                    value={verbalCommitInfluencePct} onChange={setVerbalCommitInfluencePct} min={0} max={100} />
+                  <SelectField label="Season experience" hint="How much manual control users have over season-to-season decisions."
+                    value={seasonExperience} onChange={setSeasonExperience} options={SEASON_EXPERIENCE_OPTIONS} />
                 </Section>
 
                 <Section title="Dynasty / Recruiting">
@@ -1043,14 +1114,66 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                     value={dynastyType} onChange={setDynastyType} options={CFB_DYNASTY_TYPE} />
                   <SelectField label="Recruiting difficulty" hint="Controls how competitive recruiting is. Hard means top recruits are much harder to land."
                     value={recruitingDifficulty} onChange={setRecruitingDifficulty} options={CFB_RECRUITING_DIFFICULTY} />
-                  <ToggleField label="Transfer portal enabled" hint="Allow players to enter the transfer portal between seasons." checked={transferPortalEnabled} onChange={setTransferPortalEnabled} />
+                  <NumberField label="Transfer portal — max transfers per team" hint="0 turns the transfer portal off. Max 30."
+                    value={transferPortalMaxPerTeam} onChange={setTransferPortalMaxPerTeam} min={0} max={30} />
+                  <NumberField label="User player transfer chance (%)" value={userTransferChancePct} onChange={setUserTransferChancePct} min={0} max={100} />
+                  <NumberField label="CPU player transfer chance (%)" value={cpuTransferChancePct} onChange={setCpuTransferChancePct} min={0} max={100} />
                   <ToggleField label="Coach carousel enabled" hint="Allow coaches to move between schools during the coaching carousel phase." checked={coachCarouselEnabled} onChange={setCoachCarouselEnabled} />
                   <ToggleField label="Home-field advantage enabled" hint="Grant gameplay bonuses to the home team." checked={homeFieldAdvantageEnabled} onChange={setHomeFieldAdvantageEnabled} />
                   <ToggleField label="Stadium pulse enabled" hint="Enable the crowd noise/stadium pulse mechanic." checked={stadiumPulseEnabled} onChange={setStadiumPulseEnabled} />
+                  <NumberField label="Minimum play clock (seconds)" hint="10-25 seconds." value={minimumPlayClockSeconds} onChange={setMinimumPlayClockSeconds} min={10} max={25} />
                   <SelectField label="Conference realignment" hint="Whether commissioners can move teams between conferences."
                     value={conferenceRealignment} onChange={setConferenceRealignment} options={CFB_CONFERENCE_REALIGNMENT} />
                   <ToggleField label="Team Builder allowed" hint="Allow imported Team Builder teams in the dynasty." checked={teamBuilderAllowed} onChange={setTeamBuilderAllowed} />
                 </Section>
+
+                {conferenceRealignment === "allowed" && (
+                  <Section title="Individual Conference Rules">
+                    <ToggleField label="Customize individual conference rules?" checked={conferenceRulesEditing} onChange={(value) => { setConferenceRulesEditing(value); if (!value) setActiveConferenceForRules(""); }} />
+                    {conferenceRulesEditing && (
+                      <>
+                        <label className="site-field">
+                          <span>Conference</span>
+                          <select className="site-select" value={activeConferenceForRules} onChange={(event) => setActiveConferenceForRules(event.target.value)}>
+                            <option value="">Select a conference to customize</option>
+                            {CONFERENCE_ORDER.map((conf) => (
+                              <option key={conf} value={conf}>{conf}{conferenceRules[conf] ? " (customized)" : ""}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {activeConferenceForRules && (() => {
+                          const draft = conferenceRuleDraft(activeConferenceForRules);
+                          return (
+                            <div className="wizard-conference-rule-panel">
+                              <ToggleField label="Divisions" checked={draft.divisionsEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { divisionsEnabled: value })} />
+                              {draft.divisionsEnabled && (
+                                <>
+                                  <TextField label="Division 1 name" value={draft.division1Name} onChange={(value) => updateConferenceRule(activeConferenceForRules, { division1Name: value })} maxLength={40} />
+                                  <TextField label="Division 2 name" value={draft.division2Name} onChange={(value) => updateConferenceRule(activeConferenceForRules, { division2Name: value })} maxLength={40} />
+                                </>
+                              )}
+                              <NumberField label="Number of conference games" value={draft.conferenceGames} onChange={(value) => updateConferenceRule(activeConferenceForRules, { conferenceGames: value })} min={6} max={9} />
+                              <ToggleField label="Conference championship game" checked={draft.confChampGameEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { confChampGameEnabled: value })} />
+                              {draft.confChampGameEnabled && (
+                                <>
+                                  <SelectField label="Championship game location" value={draft.champGameLocation} onChange={(value) => updateConferenceRule(activeConferenceForRules, { champGameLocation: value })} options={CHAMP_GAME_LOCATION_OPTIONS} />
+                                  <SelectField label="Championship game selection criteria" value={draft.champGameSelectionCriteria} onChange={(value) => updateConferenceRule(activeConferenceForRules, { champGameSelectionCriteria: value })} options={CHAMP_GAME_CRITERIA_OPTIONS} />
+                                </>
+                              )}
+                              <ToggleField label="Protected opponents" checked={draft.protectedOpponentsEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { protectedOpponentsEnabled: value })} />
+                              {draft.protectedOpponentsEnabled && (
+                                <NumberField label="Number of protected opponents" value={draft.protectedOpponentsCount} onChange={(value) => updateConferenceRule(activeConferenceForRules, { protectedOpponentsCount: value })} min={1} max={10} />
+                              )}
+                              <div className="site-modal-actions">
+                                <button type="button" className="site-btn site-btn-secondary" onClick={() => setActiveConferenceForRules("")}>Done with {activeConferenceForRules}</button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </Section>
+                )}
               </>
             )}
 
