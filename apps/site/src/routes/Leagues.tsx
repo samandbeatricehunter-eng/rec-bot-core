@@ -100,6 +100,10 @@ function isCfbGame(game: string) {
   return game === "cfb_27";
 }
 
+function consoleLabel(console: string) {
+  return console === "ps5" ? "PS5" : console === "xbox" ? "Xbox" : console === "pc" ? "PC" : console;
+}
+
 function teamOptionsForGame(game: GameKey) {
   if (game === "cfb_27") {
     return [...CFB_27_TEAMS]
@@ -270,6 +274,11 @@ function LeagueSearchCard({
             <h2>
               {league.isMember ? <MemberStar tier={memberTier} /> : null}
               {league.name}
+              {!league.crossPlayEnabled && league.requiredConsole && (
+                <span className="site-console-badge" title={`${consoleLabel(league.requiredConsole)} only — cross play is disabled`}>
+                  {consoleLabel(league.requiredConsole)}
+                </span>
+              )}
             </h2>
             <span className="site-league-search-expand">{expanded ? "Hide details" : "Details"}</span>
           </div>
@@ -1043,6 +1052,9 @@ export function LeaguesPage() {
             <button type="button" className="site-modal-close" onClick={() => setRequestLeague(null)} aria-label="Close">×</button>
             <h2 id="team-request-title">Request a team in {requestLeague.name}</h2>
             <p className="site-muted">Choose one available team. The league commissioner will review your request.</p>
+            {!requestLeague.crossPlayEnabled && requestLeague.requiredConsole && (
+              <p className="site-muted"><strong>This league is for {consoleLabel(requestLeague.requiredConsole)} only.</strong></p>
+            )}
             {requestBusy && requestTeams.length === 0 ? <p>Loading available teams…</p> : null}
             {requestPendingTeamId ? (
               <p className="site-success">Your team request is pending commissioner approval.</p>

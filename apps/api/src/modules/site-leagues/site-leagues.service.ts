@@ -694,6 +694,10 @@ export type SiteLeagueSearchHit = {
   coachModeCpuManageBudgetEnabled: boolean | null;
   coachModeCpuManageStaffEnabled: boolean | null;
   coachModeCpuManageFacilitiesEnabled: boolean | null;
+
+  // Cross play
+  crossPlayEnabled: boolean;
+  requiredConsole: string | null;
 };
 
 export async function searchSiteLeagues(input: {
@@ -879,6 +883,8 @@ export async function searchSiteLeagues(input: {
         c.coach_mode_cpu_manage_budget_enabled,
         c.coach_mode_cpu_manage_staff_enabled,
         c.coach_mode_cpu_manage_facilities_enabled,
+        coalesce(c.cross_play_enabled, true) as cross_play_enabled,
+        c.required_console,
         (
           select coalesce(json_agg(json_build_object(
             'abbreviation', t.abbreviation,
@@ -1125,6 +1131,9 @@ export async function searchSiteLeagues(input: {
         row.coach_mode_cpu_manage_facilities_enabled == null
           ? null
           : Boolean(row.coach_mode_cpu_manage_facilities_enabled),
+
+      crossPlayEnabled: Boolean(row.cross_play_enabled ?? true),
+      requiredConsole: (row.required_console as string | null) ?? null,
     };
   });
 

@@ -38,6 +38,60 @@ function mapRow(row: any): Recruit {
 
 const SELECT_COLUMNS = "id,player_name,position,home_city,home_state,star_rating,status,committed_team_id,committed_team_external,commit_date,story_id,height_inches,weight_lbs,submitted_by_user_id";
 
+// Rough placeholder OVR from star rating (1-5) until the commissioner sets a real one via
+// Edit Rosters — recruits carry no OVR field of their own, only a recruiting-grade star rating.
+function ovrFromStarRating(starRating: number | null): number | null {
+  if (!starRating) return null;
+  return Math.max(55, Math.min(85, 55 + starRating * 6));
+}
+
+/** Materializes every signed, in-league-committed recruit into a real roster row — called when
+ * a league advances into a new season's preseason (signing day has passed). Idempotent: a
+ * recruit already linked to a rec_players row via source_recruit_id is never inserted twice. */
+export async function materializeSignedRecruits(leagueId: string): Promise<{ materialized: number }> {
+  const signed = await supabase.from("rec_recruiting_profiles")
+    .select("id,player_name,first_name,last_name,position,height_inches,weight_lbs,star_rating,committed_team_id")
+    .eq("league_id", leagueId).eq("status", "signed").not("committed_team_id", "is", null);
+  if (signed.error) throw new ApiError(500, "Failed to load signed recruits.", signed.error);
+  const recruits = signed.data ?? [];
+  if (!recruits.length) return { materialized: 0 };
+
+  const already = await supabase.from("rec_players").select("source_recruit_id")
+    .eq("league_id", leagueId).in("source_recruit_id", recruits.map((r) => r.id));
+  if (already.error) throw new ApiError(500, "Failed to check already-materialized recruits.", already.error);
+  const materializedIds = new Set((already.data ?? []).map((row: any) => row.source_recruit_id));
+
+  let materialized = 0;
+  for (const recruit of recruits) {
+    if (materializedIds.has(recruit.id)) continue;
+    const nameParts = String(recruit.player_name ?? "").trim().split(/\s+/);
+    const firstName = recruit.first_name?.trim() || nameParts[0] || "Unknown";
+    const lastName = recruit.last_name?.trim() || nameParts.slice(1).join(" ") || "Recruit";
+    const inserted = await supabase.from("rec_players").insert({
+      league_id: leagueId,
+      team_id: recruit.committed_team_id,
+      source_recruit_id: recruit.id,
+      madden_player_id: `recruit:${leagueId}:${recruit.id}`,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: `${firstName} ${lastName}`,
+      position: recruit.position,
+      height_inches: recruit.height_inches ?? null,
+      weight_lbs: recruit.weight_lbs ?? null,
+      overall_rating: ovrFromStarRating(recruit.star_rating),
+      is_free_agent: false,
+      is_default_player: false,
+      player_source: "signed_recruit",
+      roster_status: "active",
+      status_changed_at: new Date().toISOString(),
+      raw_payload: {},
+    });
+    if (inserted.error) { console.error("[ERROR] Failed to materialize signed recruit:", recruit.id, inserted.error); continue; }
+    materialized += 1;
+  }
+  return { materialized };
+}
+
 export async function listRecruits(guildId: string): Promise<{ recruits: Recruit[] }> {
   const context = await getCurrentLeagueContext(guildId);
   const result = await supabase.from("rec_recruiting_profiles").select(SELECT_COLUMNS).eq("league_id", context.leagueId).order("created_at", { ascending: false });

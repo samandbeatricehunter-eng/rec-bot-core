@@ -276,6 +276,8 @@ export type SiteLeagueSearchHit = {
   coachModeCpuManageBudgetEnabled: boolean | null;
   coachModeCpuManageStaffEnabled: boolean | null;
   coachModeCpuManageFacilitiesEnabled: boolean | null;
+  crossPlayEnabled: boolean;
+  requiredConsole: string | null;
 };
 
 export type SiteLeagueSearchFilters = {

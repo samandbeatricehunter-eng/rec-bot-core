@@ -6,6 +6,7 @@ import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.service.js";
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
+import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -71,6 +72,12 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     const announcementsWipe = await supabase.from("rec_hub_announcements").delete()
       .eq("league_id", context.leagueId).eq("season_number", previousSeasonNumber);
     if (announcementsWipe.error) console.error("[ERROR] Failed to wipe hub announcements on season rollover:", announcementsWipe.error);
+
+    // Signing day has passed — every recruit who signed and committed in-league becomes a
+    // real roster player as of this new season's preseason.
+    await materializeSignedRecruits(context.leagueId).catch((error) => {
+      console.error("[ERROR] Failed to materialize signed recruits on season rollover:", error);
+    });
   }
 
   const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
