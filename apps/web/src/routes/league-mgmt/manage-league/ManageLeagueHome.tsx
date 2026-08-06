@@ -13,6 +13,7 @@ import { Button } from "../../../components/ui/Button.js";
 import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -34,7 +35,7 @@ function conferenceSortKey(conference: string): number {
 // linking are reachable from here (RolesHome.tsx/TeamOwnershipTable.tsx/LinkTeamForm.tsx,
 // moved under this same route prefix) rather than being separate top-level nav destinations.
 // Deep relocate/rename/custom-team actions per row are still future work — see the plan.
-export function ManageLeagueHome() {
+export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "roster" }) {
   const { guildId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const navigate = useNavigate();
@@ -115,25 +116,29 @@ export function ManageLeagueHome() {
   return (
     <div>
       <PageHeader
-        title="Manage League"
-        subtitle="Find a team, see its schedule and box-score health, and enter its games and scores."
+        title={mode === "roster" ? "Edit Rosters" : "Manage League"}
+        subtitle={mode === "roster" ? "Find a team and add or review players on its roster." : "Find a team, see its schedule and box-score health, and enter its games and scores."}
         actions={
-          <div className="manage-league-header-actions">
-            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
-              <Users size={16} /> Link/Unlink Teams
-            </Button>
-            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
-              <Shield size={16} /> Manage Roles
-            </Button>
-            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
-            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
-            {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
-            <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
-              <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
-            </Button>
-          </div>
+          mode === "roster" ? undefined : (
+            <div className="manage-league-header-actions">
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
+                <Users size={16} /> Link/Unlink Teams
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
+                <Shield size={16} /> Manage Roles
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
+              {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
+              {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
+              <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
+                <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
+              </Button>
+            </div>
+          )
         }
       />
+      {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
       {error && <ErrorState message={error} />}
       {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}
@@ -164,22 +169,26 @@ export function ManageLeagueHome() {
                   <option value="unlinked">Open (unlinked)</option>
                 </select>
               </div>
-              <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
-                <label className="form-label" htmlFor="filter-schedule">Schedule status</label>
-                <select id="filter-schedule" className="form-select" value={scheduleStatus} onChange={(e) => setScheduleStatus(e.target.value as ScheduleFilter)}>
-                  <option value="all">Any status</option>
-                  <option value="empty">Empty</option>
-                  <option value="partial">Partial</option>
-                  <option value="complete">Complete</option>
-                </select>
-              </div>
-              <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
-                <label className="form-label" htmlFor="filter-missing">Box scores</label>
-                <select id="filter-missing" className="form-select" value={missing} onChange={(e) => setMissing(e.target.value as MissingFilter)}>
-                  <option value="all">All teams</option>
-                  <option value="has_missing">Missing a box score</option>
-                </select>
-              </div>
+              {mode === "schedule" && (
+                <>
+                  <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
+                    <label className="form-label" htmlFor="filter-schedule">Schedule status</label>
+                    <select id="filter-schedule" className="form-select" value={scheduleStatus} onChange={(e) => setScheduleStatus(e.target.value as ScheduleFilter)}>
+                      <option value="all">Any status</option>
+                      <option value="empty">Empty</option>
+                      <option value="partial">Partial</option>
+                      <option value="complete">Complete</option>
+                    </select>
+                  </div>
+                  <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
+                    <label className="form-label" htmlFor="filter-missing">Box scores</label>
+                    <select id="filter-missing" className="form-select" value={missing} onChange={(e) => setMissing(e.target.value as MissingFilter)}>
+                      <option value="all">All teams</option>
+                      <option value="has_missing">Missing a box score</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
           </Card>
 
@@ -215,7 +224,7 @@ export function ManageLeagueHome() {
                             }}
                           >
                             <button
-                              onClick={() => navigate(`/league-mgmt/manage-league/${team.id}`)}
+                              onClick={() => navigate(mode === "roster" ? `/league-mgmt/manage-league/rosters/${team.id}` : `/league-mgmt/manage-league/${team.id}`)}
                               className="btn btn-ghost"
                               style={{ flex: 1, justifyContent: "flex-start", textAlign: "left", padding: "var(--space-2)" }}
                             >
@@ -224,13 +233,15 @@ export function ManageLeagueHome() {
                                 <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
                                   {team.linkedUser?.displayName ?? "Open"}
                                 </span>
-                                <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
-                                  {team.gamesScheduled}/{team.gamesExpected} games
-                                </Badge>
-                                {team.missingBoxScoreCount > 0 && (
+                                {mode === "schedule" && (
+                                  <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
+                                    {team.gamesScheduled}/{team.gamesExpected} games
+                                  </Badge>
+                                )}
+                                {mode === "schedule" && team.missingBoxScoreCount > 0 && (
                                   <Badge status="denied">{team.missingBoxScoreCount} missing box score{team.missingBoxScoreCount === 1 ? "" : "s"}</Badge>
                                 )}
-                                {team.awaitingReviewCount > 0 && (
+                                {mode === "schedule" && team.awaitingReviewCount > 0 && (
                                   <Badge status="pending">{team.awaitingReviewCount} awaiting review</Badge>
                                 )}
                                 <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>

@@ -69,7 +69,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
 
   const players = await supabase
     .from("rec_players")
-    .select("id,full_name,position,height_inches,weight_lbs,class_year,overall_rating,roster_status,is_default_player,dev_trait")
+    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
     .order("position", { ascending: true })
@@ -83,6 +83,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     positionGroup: normalizeCfbPosition(p.position ?? ""),
     heightInches: p.height_inches,
     weightLbs: p.weight_lbs,
+    handedness: p.handedness ?? null,
     classYear: p.class_year,
     overallRating: p.overall_rating,
     rosterStatus: p.roster_status ?? "active",
@@ -214,6 +215,61 @@ async function incrementPlayersGoneProCounters(leagueId: string, userId: string,
   } else {
     await supabase.from("rec_global_user_records").insert({ user_id: userId, players_gone_pro_career: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
   }
+}
+
+/** Directly add a tracked player to a team's roster — the commissioner's "Edit Rosters" path
+ * (any team) and the auto-approved path when a commissioner submits their own "Edit Roster"
+ * quick-action request. Never touches is_default_player (stays false), matching the rule that
+ * only recruits/manually-added players are eligible replacement targets for custom players and
+ * legend purchases. */
+export async function addRosterPlayer(input: {
+  guildId: string;
+  discordId: string;
+  teamId: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  handedness?: string | null;
+  overallRating?: number | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, input.teamId);
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  if (!firstName || !lastName) throw new ApiError(400, "First and last name are required.");
+  const position = input.position.trim().toUpperCase();
+  if (!position) throw new ApiError(400, "Position is required.");
+
+  const inserted = await supabase
+    .from("rec_players")
+    .insert({
+      league_id: leagueId,
+      team_id: input.teamId,
+      madden_player_id: `manual:${leagueId}:${crypto.randomUUID()}`,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: `${firstName} ${lastName}`,
+      position,
+      height_inches: input.heightInches ?? null,
+      weight_lbs: input.weightLbs ?? null,
+      handedness: input.handedness ?? null,
+      overall_rating: input.overallRating ?? null,
+      is_free_agent: false,
+      is_default_player: false,
+      player_source: "manual_roster_add",
+      roster_status: "active",
+      status_changed_at: new Date().toISOString(),
+      raw_payload: {},
+    })
+    .select("id,full_name,position,roster_status")
+    .single();
+  if (inserted.error) throw new ApiError(500, "Failed to add player to roster.", inserted.error);
+  return inserted.data;
 }
 
 /** Reinstate a player accidentally marked as departed, or one who "stayed another year" after

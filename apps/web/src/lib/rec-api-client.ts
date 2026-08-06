@@ -261,6 +261,16 @@ export const recApi = {
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/reinstate", { method: "POST", body: JSON.stringify(input) }),
   addTransferInPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; classYear?: string | null; overallRating?: number | null; note?: string | null }) =>
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/transfer-in", { method: "POST", body: JSON.stringify(input) }),
+  addRosterPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; heightInches?: number | null; weightLbs?: number | null; handedness?: string | null; overallRating?: number | null }) =>
+    recApiFetch<RosterLifecycleResult>("/v1/roster/add-player", { method: "POST", body: JSON.stringify(input) }),
+  submitRosterAddRequest: (input: { guildId: string; firstName: string; lastName: string; position: string; heightInches?: number | null; weightLbs?: number | null; overallRating?: number | null }) =>
+    recApiFetch<{ status: "approved" | "pending"; player?: RosterLifecycleResult; requestId?: string }>("/v1/roster/add-requests/submit", { method: "POST", body: JSON.stringify(input) }),
+  listRosterAddRequests: (guildId: string) =>
+    recApiFetch<{ requests: Array<{ id: string; header: string; summary: string; payload: any; requester_discord_id: string | null; created_at: string }> }>("/v1/roster/add-requests/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  approveRosterAddRequest: (input: { guildId: string; requestId: string }) =>
+    recApiFetch<{ player: RosterLifecycleResult }>("/v1/roster/add-requests/approve", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  denyRosterAddRequest: (input: { guildId: string; requestId: string; reason: string }) =>
+    recApiFetch<{ ok: true }>("/v1/roster/add-requests/deny", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
     recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
   placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>

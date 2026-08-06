@@ -8,6 +8,7 @@ export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueM
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
 export { CfpPostseasonManager } from "../../../apps/web/src/routes/league-mgmt/manage-league/CfpPostseasonManager.js";
 export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
+export { TeamRosterForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.js";
 export { TeamOwnershipTable } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamOwnershipTable.js";
 export { LinkTeamForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/LinkTeamForm.js";
 export { RolesHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/RolesHome.js";

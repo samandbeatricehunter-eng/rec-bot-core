@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { addTransferInPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture } from "./roster.service.js";
+import { addRosterPlayer, addTransferInPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture } from "./roster.service.js";
+import { approveRosterAddRequest, denyRosterAddRequest, listRosterAddRequests, submitRosterAddRequest } from "./roster-add-requests.service.js";
 
 export async function teamRosterRoutes(app: FastifyInstance) {
   app.post("/v1/roster/team", async (request, reply) => {
@@ -77,6 +78,99 @@ export async function teamRosterRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.discordId = auth.discordId;
       if (!body.discordId) throw new Error("Missing Discord id.");
       return reply.send(await addTransferInPlayer({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Commissioner-direct add (Edit Rosters page — any team, no approval needed since the
+  // commissioner is the approver themselves).
+  app.post("/v1/roster/add-player", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        teamId: z.string().uuid(),
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        position: z.string().min(1),
+        heightInches: z.number().int().min(60).max(84).optional().nullable(),
+        weightLbs: z.number().int().min(100).max(450).optional().nullable(),
+        handedness: z.enum(["left", "right"]).optional().nullable(),
+        overallRating: z.number().int().min(0).max(99).optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await addRosterPlayer({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // "Edit Roster" My Team quick action — commissioners get an immediate add, everyone else
+  // queues a pending request for commissioner review.
+  app.post("/v1/roster/add-requests/submit", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        position: z.string().min(1),
+        heightInches: z.number().int().min(60).max(84).optional().nullable(),
+        weightLbs: z.number().int().min(100).max(450).optional().nullable(),
+        overallRating: z.number().int().min(0).max(99).optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await submitRosterAddRequest({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/roster/add-requests/list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await listRosterAddRequests(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/roster/add-requests/approve", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        requestId: z.string().uuid(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await approveRosterAddRequest({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/roster/add-requests/deny", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        requestId: z.string().uuid(),
+        reason: z.string().min(1).max(500),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await denyRosterAddRequest({ ...body, discordId: body.discordId }));
     } catch (error) {
       return sendError(reply, error);
     }

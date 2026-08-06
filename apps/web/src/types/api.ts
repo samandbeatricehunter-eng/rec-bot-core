@@ -702,6 +702,7 @@ export type RosterPlayer = {
   positionGroup: string;
   heightInches: number | null;
   weightLbs: number | null;
+  handedness: string | null;
   classYear: string | null;
   overallRating: number | null;
   rosterStatus: string;

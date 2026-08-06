@@ -27,6 +27,7 @@ import {
   RolesHome,
   SettingsHome,
   TeamOwnershipTable,
+  TeamRosterForm,
   TeamScheduleForm,
   UniversalChatDrawer,
 } from "@rec/hub-ui";
@@ -217,6 +218,8 @@ function HubMgmtRoutes() {
       <Route path="manage-league/postseason" element={<MgmtSubPage><CfpPostseasonManager /></MgmtSubPage>} />
       <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
       <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />
+      <Route path="manage-league/rosters" element={<MgmtSubPage><ManageLeagueHome mode="roster" /></MgmtSubPage>} />
+      <Route path="manage-league/rosters/:teamId" element={<MgmtSubPage><TeamRosterForm /></MgmtSubPage>} />
       <Route path="manage-league/:teamId" element={<MgmtSubPage><TeamScheduleForm /></MgmtSubPage>} />
       <Route path="delete-league" element={<MgmtSubPage><DeleteLeagueHome /></MgmtSubPage>} />
       <Route path="settings" element={<MgmtSubPage><SettingsHome /></MgmtSubPage>} />
