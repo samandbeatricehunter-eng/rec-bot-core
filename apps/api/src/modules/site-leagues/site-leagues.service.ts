@@ -709,6 +709,9 @@ export async function searchSiteLeagues(input: {
   const params: unknown[] = [input.recUserId];
   const where: string[] = [
     "coalesce(l.subscription_frozen, false) = false",
+    // Offline dynasties/franchises don't show up in league search (they still count toward
+    // the owner's league cap — that's enforced separately at creation time).
+    "coalesce(l.is_online, true) = true",
     `not exists (
       select 1 from rec_league_bans b
       where b.banned_user_id = $1

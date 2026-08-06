@@ -28,6 +28,11 @@ export const CreateLeagueSchema = z.object({
   name: z.string().min(1),
   leaguePassword: z.string().optional().nullable(),
   customRules: z.array(z.object({ id: z.string().min(1).max(80), category: z.string().trim().min(1).max(80), title: z.string().trim().min(1).max(160), text: z.string().trim().min(1).max(4000) })).max(200).default([]),
+  // Offline dynasties/franchises are excluded from league search but still count toward the
+  // owner's league cap.
+  isOnline: z.boolean().default(true),
+  crossPlayEnabled: z.boolean().default(true),
+  requiredConsole: z.enum(["ps5", "xbox", "pc"]).optional().nullable(),
 
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),

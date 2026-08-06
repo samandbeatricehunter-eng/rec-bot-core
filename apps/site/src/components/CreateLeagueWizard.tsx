@@ -218,6 +218,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [error, setError] = useState<string | null>(null);
 
   const [game, setGame] = useState<GameKey | "">("");
+  const [isOnline, setIsOnline] = useState(true);
+  const [crossPlayEnabled, setCrossPlayEnabled] = useState(true);
+  const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");
   const [leagueType, setLeagueType] = useState("");
   const [activeRostersEnabled, setActiveRostersEnabled] = useState(true);
   const [trackRostersEnabled, setTrackRostersEnabled] = useState(false);
@@ -349,6 +352,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
   const collectConfig = useCallback(() => {
     return {
+      isOnline,
+      crossPlayEnabled,
+      requiredConsole: crossPlayEnabled ? undefined : requiredConsole,
       leagueType: leagueType || undefined,
       activeRostersEnabled: isCfb ? activeRostersEnabled : undefined,
       trackRostersEnabled: isCfb ? trackRostersEnabled : undefined,
@@ -448,7 +454,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       leaguePassword: leaguePassword || undefined,
     };
   }, [
-    game, leagueType, activeRostersEnabled, trackRostersEnabled, name, leaguePassword,
+    game, isOnline, crossPlayEnabled, requiredConsole, leagueType, activeRostersEnabled, trackRostersEnabled, name, leaguePassword,
     seasonNumber, seasonStage, currentWeek, skipToStage, skipToStageValue,
     regularSeasonStreamingRequirement, regularSeasonStreamingSide,
     postseasonStreamingRequirement, postseasonStreamingSide,
@@ -633,6 +639,33 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 ))}
               </div>
             </Section>
+
+            {game && (
+              <Section title="Online or Offline">
+                <p className="site-muted">Offline dynasties/franchises don't show up in league search, but still count toward your league-owner limit.</p>
+                <div className="wizard-game-grid">
+                  <button type="button" className={`wizard-game-card ${isOnline ? "wizard-game-card-active" : ""}`} onClick={() => setIsOnline(true)}>Online</button>
+                  <button type="button" className={`wizard-game-card ${!isOnline ? "wizard-game-card-active" : ""}`} onClick={() => setIsOnline(false)}>Offline</button>
+                </div>
+              </Section>
+            )}
+
+            {game && (
+              <Section title="Cross Play">
+                <ToggleField label="Allow cross-platform members" hint="Off restricts this league to one console — a console badge shows in league search and requesting a team warns which console is required."
+                  checked={crossPlayEnabled} onChange={setCrossPlayEnabled} />
+                {!crossPlayEnabled && (
+                  <label className="site-field">
+                    <span>Console</span>
+                    <select className="site-select" value={requiredConsole} onChange={(event) => setRequiredConsole(event.target.value as typeof requiredConsole)}>
+                      <option value="ps5">PS5</option>
+                      <option value="xbox">Xbox</option>
+                      <option value="pc">PC</option>
+                    </select>
+                  </label>
+                )}
+              </Section>
+            )}
 
             {isMadden && (
               <Section title="League Type">

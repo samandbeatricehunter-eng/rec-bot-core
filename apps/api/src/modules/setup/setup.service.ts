@@ -174,7 +174,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
     trust_mode: "manual",
-    fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"
+    fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable",
+    is_online: input.isOnline ?? true,
   };
 
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
@@ -198,6 +199,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
 
+    cross_play_enabled: input.crossPlayEnabled ?? true,
+    required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
@@ -866,6 +869,8 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
+    cross_play_enabled: input.crossPlayEnabled ?? true,
+    required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
