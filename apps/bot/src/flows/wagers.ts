@@ -651,8 +651,7 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
     const isDirect = challengeType === "direct";
     const content = isDirect && targetDiscordId ? `<@${targetDiscordId}>` : "@everyone";
     const rows = [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.acceptPrefix}${result.wager.id}`).setLabel("Accept").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterPrefix}${result.wager.id}`).setLabel("Counter").setStyle(ButtonStyle.Primary))];
+      new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.acceptPrefix}${result.wager.id}`).setLabel("Accept").setStyle(ButtonStyle.Success))];
     const msg = await (channel as TextChannel).send({
       content,
       embeds: [buildPeerChallengeEmbed(result, interaction.user.id, targetDiscordId, isDirect)],

@@ -423,9 +423,10 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   }
 
   // Site-placed peer wagers didn't get the Discord announcement Discord-placed ones already
-  // get client-side from the bot — post it here instead, with the same Accept/Counter buttons
-  // (customIds match apps/bot/src/flows/wagers.ts's WAGER_CUSTOM_IDS, so the bot's existing
-  // button handler works on this message exactly as if it had posted it).
+  // get client-side from the bot — post it here instead, with the same Accept button (no
+  // Counter — Discord doesn't offer that flow, only the site does; customId matches
+  // apps/bot/src/flows/wagers.ts's WAGER_CUSTOM_IDS.acceptPrefix so the bot's existing button
+  // handler works on this message exactly as if it had posted it).
   if (input.origin === "user" && announcementsChannelId) {
     void (async () => {
       const isDirect = input.challengeType === "direct";
@@ -454,7 +455,6 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
           type: 1,
           components: [
             { type: 2, style: 3, label: "Accept", custom_id: `rec:wager:accept:${insert.data.id}` },
-            { type: 2, style: 1, label: "Counter", custom_id: `rec:wager:counter:${insert.data.id}` },
           ],
         }],
         allowed_mentions: isDirect && targetDiscordId ? { users: [targetDiscordId] } : { parse: ["everyone"] },
