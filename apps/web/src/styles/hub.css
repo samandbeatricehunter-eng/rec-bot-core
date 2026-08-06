@@ -527,6 +527,27 @@ button.poty:disabled {
 .hub-my-wager-row-actions { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
 .hub-my-wager-row--won { border-color: color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); }
 .hub-my-wager-row--lost { opacity: .75; }
+/* The figures (stake/payout/status) and actions (edit/cancel) blocks both refuse to shrink
+   (flex-shrink:0), so on a narrow phone the info column — the only shrinkable child — gets
+   squeezed down to almost nothing, wrapping every single word onto its own line; combined with
+   align-items:center, that tall wrapped text then visually straddles the vertically-centered
+   figures/actions blocks, making the whole card look scrambled. Stack into a column instead of
+   fighting for horizontal space. */
+@media (max-width: 640px) {
+  .hub-my-wager-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hub-my-wager-row-figures {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .hub-my-wager-row-figures b, .hub-my-wager-row-figures small { text-align: left; }
+  .hub-my-wager-row-actions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+}
 
 .hub-trade-center section { margin-top: var(--space-5); }
 .hub-trade-center h3 { font-family: var(--font-display); letter-spacing: .01em; color: var(--gold); margin: var(--space-4) 0 var(--space-2); }

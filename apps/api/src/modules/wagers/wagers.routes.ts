@@ -129,7 +129,7 @@ export async function wagerRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
       if (auth.mode === "user") body.discordId = auth.discordId;
-      return reply.send(await placePeerWager({ ...body, discordId: resolvedDiscordId(body) }));
+      return reply.send(await placePeerWager({ ...body, discordId: resolvedDiscordId(body), origin: auth.mode }));
     } catch (error) {
       return sendError(reply, error);
     }

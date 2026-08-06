@@ -259,12 +259,19 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 
   if (streamLog.error) throw new ApiError(500, "Failed to record stream post.", streamLog.error);
 
+  // Locking the game's wager markets is a side effect of posting a stream, not the point of
+  // it — an uncaught throw here (as happened with the "in_progress" enum-value bug, now fixed)
+  // used to abort the rest of recordStreamPost entirely, silently skipping the payout review and
+  // chat notice below even though the stream itself had already been recorded above.
   const lockedGameId = await closeGameMarketsAfterStream({
     guildId: input.guildId,
     leagueId: context.leagueId,
     seasonNumber,
     weekNumber,
     teamId: assignment?.team_id ?? null,
+  }).catch((error) => {
+    console.error("[ERROR] Failed to close game markets after stream (non-fatal):", error);
+    return null;
   });
 
   // rec_stream_compliance_logs.game_id was never set on insert (this was the only place that

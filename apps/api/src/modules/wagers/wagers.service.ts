@@ -15,6 +15,7 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 import { sendPushToUsers } from "../push/push.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { assertNotLeagueRestricted } from "../moderation/moderation.service.js";
+import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
   if (!team) return "TBD";
@@ -326,6 +327,10 @@ export type PlacePeerWagerInput = {
   challengeType: "open" | "direct";
   targetUserId?: string | null;
   customLine?: number | null;
+  /** "user" = placed from the site; "bot" = placed from a Discord slash-command flow, which
+   * already posts its own richer (live discord.js) announcement client-side after this call
+   * returns — only "user"-origin wagers get the announcement posted here, to avoid a duplicate. */
+  origin?: "user" | "bot";
 };
 
 // Propose a peer wager: escrow the proposer's stake and leave it awaiting an opponent
@@ -394,15 +399,84 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   }
   await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
 
+  const gameLabel = `${prep.options.awayLabel} at ${prep.options.homeLabel}`;
+  const marketLabel = prep.marketDef.label;
+  const proposerPickLabel = prep.side.label;
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+
+  // A direct challenge is invisible to the challenged coach unless they happen to open the
+  // wagers board — notify them everywhere we can reach them: site bell, push, and a Discord DM
+  // if their account has Discord linked.
+  if (input.challengeType === "direct" && input.targetUserId) {
+    const targetAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.targetUserId).maybeSingle();
+    const targetDiscordId = targetAccount.data?.discord_id ?? null;
+    const href = `/l/${leagueId}/matchups`;
+    const title = "You've been challenged to a wager";
+    const body = `${gameLabel} — ${marketLabel}: they took ${proposerPickLabel}. ${formatCoins(stake)} stake, winner takes ${formatCoins(payout)}.`;
+    void createSiteNotification({ userId: input.targetUserId, leagueId, kind: "wager_challenge", title, body, href }).catch(() => undefined);
+    void sendPushToUsers([input.targetUserId], { title, body, url: href }).catch(() => undefined);
+    if (targetDiscordId) {
+      void sendDiscordDirectMessage(targetDiscordId, `**${title}**\n${body}\nAccept it from the wagers board on the site or in Discord.`).catch((error) => {
+        console.error("[ERROR] Failed to DM direct wager challenge (non-fatal):", error);
+      });
+    }
+  }
+
+  // Site-placed peer wagers didn't get the Discord announcement Discord-placed ones already
+  // get client-side from the bot — post it here instead, with the same Accept/Counter buttons
+  // (customIds match apps/bot/src/flows/wagers.ts's WAGER_CUSTOM_IDS, so the bot's existing
+  // button handler works on this message exactly as if it had posted it).
+  if (input.origin === "user" && announcementsChannelId) {
+    void (async () => {
+      const isDirect = input.challengeType === "direct";
+      let targetDiscordId: string | null = null;
+      if (isDirect && input.targetUserId) {
+        const targetAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.targetUserId).maybeSingle();
+        targetDiscordId = targetAccount.data?.discord_id ?? null;
+      }
+      const fields = [
+        { name: "FROM", value: `<@${input.discordId}>`, inline: true },
+        ...(isDirect && targetDiscordId ? [{ name: "TO", value: `<@${targetDiscordId}>`, inline: true }] : []),
+        { name: "GAME", value: gameLabel, inline: false },
+        { name: "PROPOSER TAKES", value: `${marketLabel}: **${proposerPickLabel}**`, inline: false },
+        { name: "YOU'D TAKE", value: `The other side of ${marketLabel}.`, inline: false },
+        { name: "STAKE / POT", value: `${formatCoins(stake)} each — winner takes ${formatCoins(payout)}`, inline: false },
+      ];
+      const sent = await postDiscordChannelMessage(announcementsChannelId, {
+        content: isDirect && targetDiscordId ? `<@${targetDiscordId}>` : "@everyone",
+        embeds: [{
+          title: isDirect ? "Head-to-Head Challenge" : "Open Wager Challenge",
+          color: 0x8855dd,
+          fields,
+          footer: { text: isDirect ? "Accept to lock it in." : "Click Take Wager to take the other side." },
+        }],
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: "Accept", custom_id: `rec:wager:accept:${insert.data.id}` },
+            { type: 2, style: 1, label: "Counter", custom_id: `rec:wager:counter:${insert.data.id}` },
+          ],
+        }],
+        allowed_mentions: isDirect && targetDiscordId ? { users: [targetDiscordId] } : { parse: ["everyone"] },
+      }).catch((error) => {
+        console.error("[ERROR] Failed to post peer wager announcement (non-fatal):", error);
+        return null;
+      });
+      if (sent?.id) {
+        await supabase.from("rec_wagers").update({ announcement_channel_id: announcementsChannelId, announcement_message_id: sent.id }).eq("id", insert.data.id);
+      }
+    })();
+  }
+
   return {
     wager: { ...insert.data, hold_ledger_id: hold.data },
-    proposerPickLabel: prep.side.label,
-    marketLabel: prep.marketDef.label,
-    gameLabel: `${prep.options.awayLabel} at ${prep.options.homeLabel}`,
+    proposerPickLabel,
+    marketLabel,
+    gameLabel,
     stake,
     payout,
     walletBalance: prep.balance - stake,
-    announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null,
+    announcementsChannelId,
   };
 }
 
@@ -825,8 +899,11 @@ function pickLabelFor(w: any, gameById: Map<string, any>): string {
         ? teamAbbr(game.away_team)
         : String(w.pick ?? "");
   if (kind === "spread" && w.line != null) {
-    const isHome = w.pick === game.home_team_id;
-    const line = isHome ? -Number(w.line) : Number(w.line);
+    // w.line is stored already signed relative to the picked team (see prepareSingleWager /
+    // placeHouseWager: `isHome ? -rawSpread : rawSpread`) — re-flipping it here by home/away
+    // double-inverted the sign for the home side, so a wager placed on "TEAM -5.5" displayed
+    // back as "TEAM +5.5" everywhere this label is shown (My Wagers, Peer Wager Board).
+    const line = Number(w.line);
     return `${teamLabel} ${line > 0 ? "+" : ""}${line}`;
   }
   return teamLabel;
@@ -1409,7 +1486,12 @@ export async function closeWageringForGame(input: { guildId: string; gameId: str
   if (offers.error) throw new ApiError(500, "Failed to close open wagers.", offers.error);
   for (const wager of offers.data ?? []) await refundWagerStake(wager, "Wager refunded - game wagering closed");
   if (offers.data?.length) await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", offers.data.map((wager) => wager.id));
-  if (game.data.status === "scheduled") await supabase.from("rec_games").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", input.gameId);
+  // "in_progress" isn't a valid rec_game_status enum value (only scheduled/pending_schedule/
+  // ready/completed/locked/cancelled exist) — this update threw every single time, uncaught,
+  // which aborted the rest of closeGameMarketsAfterStream's Promise.all (and thus the rest of
+  // recordStreamPost) whenever a stream triggered this path. "locked" is the real value other
+  // wager gates already check for via `status !== "scheduled"` (lines 118, 170, 1394 above).
+  if (game.data.status === "scheduled") await supabase.from("rec_games").update({ status: "locked", updated_at: new Date().toISOString() }).eq("id", input.gameId);
   return { closed: true, refundedCount: offers.data?.length ?? 0 };
 }
 
@@ -1418,7 +1500,10 @@ export async function reopenWageringForGame(input: { guildId: string; gameId: st
   const game = await supabase.from("rec_games").select("id,status").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
-  if (["completed", "final"].includes(String(game.data.status))) throw new ApiError(409, "Completed games cannot be reopened for wagering.");
+  // "final" is not a real rec_game_status value (see closeWageringForGame above) — the enum only
+  // has scheduled/pending_schedule/ready/completed/locked/cancelled, so that half of this check
+  // could never match. "cancelled" should block reopening too, same as "completed".
+  if (["completed", "cancelled"].includes(String(game.data.status))) throw new ApiError(409, "Completed or cancelled games cannot be reopened for wagering.");
   const updated = await supabase.from("rec_games").update({ status: "scheduled", updated_at: new Date().toISOString() }).eq("id", input.gameId);
   if (updated.error) throw new ApiError(500, "Failed to reopen wagering.", updated.error);
   return { reopened: true };
