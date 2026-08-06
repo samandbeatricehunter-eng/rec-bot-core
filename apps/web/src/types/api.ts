@@ -875,6 +875,7 @@ export type LegendCatalogEntry = {
   archetype: string | null;
   build_note: string | null;
   college: string | null;
+  body_type: string | null;
   attributes: Record<string, number>;
 };
 

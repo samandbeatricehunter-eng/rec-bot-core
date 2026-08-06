@@ -14,7 +14,7 @@ export async function listLegendCatalog(guildId: string) {
   const gameScope = context.rec_leagues?.game === "cfb_27" ? "cfb_27" : "madden";
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,attributes")
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes")
     .eq("game_scope", gameScope)
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })
@@ -140,7 +140,7 @@ export async function createLegendPurchaseRequest(input: {
   guildId: string;
   discordId: string;
   legendId: string;
-  replaceTarget?: { position: string; firstName: string; lastName: string } | null;
+  replacementPlayerId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
 
@@ -154,6 +154,18 @@ export async function createLegendPurchaseRequest(input: {
   }
 
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
+
+  // Only recruits/manually-added players are eligible replacement targets — same rule as
+  // custom-player builds (the default baseline roster is never selectable here).
+  let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
+  if (input.replacementPlayerId) {
+    if (!teamId) throw new ApiError(403, "A linked league team is required.");
+    const found = await supabase.from("rec_players").select("id,first_name,last_name,position")
+      .eq("id", input.replacementPlayerId).eq("league_id", context.leagueId).eq("team_id", teamId)
+      .eq("roster_status", "active").eq("is_default_player", false).maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
+    replaceTarget = { playerId: found.data.id, position: found.data.position, firstName: found.data.first_name, lastName: found.data.last_name };
+  }
 
   const details = {
     legendId: legend.data.id,
@@ -169,16 +181,14 @@ export async function createLegendPurchaseRequest(input: {
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
+    bodyType: legend.data.body_type,
     attributes: legend.data.attributes,
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
-    // Buyer's requested replacement target, if any — position + name of the roster player
-    // this legend replaces. The commissioner can accept, change, or skip this designation
-    // independently when they approve (see reviewLegendPurchase-equivalent flow); blank
-    // means the buyer left it entirely up to the commissioner to choose.
-    replaceTarget: input.replaceTarget
-      ? { position: input.replaceTarget.position, firstName: input.replaceTarget.firstName.trim(), lastName: input.replaceTarget.lastName.trim() }
-      : null,
+    // Buyer's requested replacement target, if any — the actual roster row (recruit/manually
+    // added player) this legend replaces. The commissioner can accept, change, or skip this
+    // designation independently when they approve; blank means the buyer left it up to them.
+    replaceTarget,
   };
 
   const result = await createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
@@ -195,7 +205,7 @@ export async function createLegendPurchaseRequest(input: {
     .update({
       queue_type: "legend",
       header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
-      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${details.devTrait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${details.devTrait}.${details.bodyType ? ` Body type: ${details.bodyType}.` : ""} Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
       payload: { purchaseId: result.purchase.id, purchaseType: "legend", cost: result.price, replaceTarget: details.replaceTarget },
     })
     .eq("source_table", "rec_purchases")

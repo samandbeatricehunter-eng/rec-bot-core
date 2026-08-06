@@ -404,7 +404,7 @@ export const recApi = {
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>
     recApiFetch<{ soldLegendIds: string[]; sold: import("../types/api.js").LegendAvailabilityEntry[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
-  purchaseHubLegend: (input: { guildId: string; legendId: string; replaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
+  purchaseHubLegend: (input: { guildId: string; legendId: string; replacementPlayerId?: string | null }) =>
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   cancelHubLegend: (input: { guildId: string; legendId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/legends/cancel", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),

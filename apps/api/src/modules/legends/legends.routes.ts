@@ -31,11 +31,7 @@ export async function legendRoutes(app: FastifyInstance) {
         guildId: z.string().min(1),
         discordId: z.string().min(1),
         legendId: z.string().uuid(),
-        replaceTarget: z.object({
-          position: z.string().min(1),
-          firstName: z.string(),
-          lastName: z.string(),
-        }).optional().nullable(),
+        replacementPlayerId: z.string().uuid().optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "user") body.discordId = auth.discordId;

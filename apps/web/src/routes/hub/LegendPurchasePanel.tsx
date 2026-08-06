@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { REC_DEFENSE_POSITIONS, REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, REC_OFFENSE_POSITIONS, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
-
-type ReplaceTarget = { position: string; firstName: string; lastName: string };
-const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
+import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LegendAvailabilityEntry, LegendCatalogEntry } from "../../types/api.js";
@@ -24,12 +21,22 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Reuses the custom-player builder's replacement-eligibility config — same rule for both
+  // purchase types: only recruits/manually-added players (never the default baseline roster).
+  const [replacementConfig, setReplacementConfig] = useState<{ replacementPlayers: any[]; blockedNoEligibleReplacement: boolean } | null>(null);
 
   function load() {
-    Promise.all([recApi.listHubLegends(guildId), recApi.listHubLegendAvailability(guildId)])
-      .then(([catalog, availability]) => {
+    Promise.all([
+      recApi.listHubLegends(guildId),
+      recApi.listHubLegendAvailability(guildId),
+      // Best-effort — a user with no team assignment yet shouldn't lose the whole legend
+      // catalog just because replacement-eligibility can't be determined for them.
+      recApi.getCustomPlayerConfig(guildId).catch(() => ({ replacementPlayers: [], blockedNoEligibleReplacement: false })),
+    ])
+      .then(([catalog, availability, config]) => {
         setLegends(catalog.legends);
         setSold(availability.sold);
+        setReplacementConfig({ replacementPlayers: config.replacementPlayers ?? [], blockedNoEligibleReplacement: Boolean(config.blockedNoEligibleReplacement) });
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load legends."));
   }
@@ -52,11 +59,11 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
     return legends.filter((legend) => legendPositionGroupFor(legend.position) === group);
   }, [legends, group]);
 
-  async function purchase(legend: LegendCatalogEntry, replaceTarget: ReplaceTarget | null) {
+  async function purchase(legend: LegendCatalogEntry, replacementPlayerId: string | null) {
     setBusy(true);
     setError(null);
     try {
-      await recApi.purchaseHubLegend({ guildId, legendId: legend.id, replaceTarget });
+      await recApi.purchaseHubLegend({ guildId, legendId: legend.id, replacementPlayerId });
       setNotice(`${legend.name} purchased — a commissioner has been notified for approval.`);
       setActiveLegend(null);
       load();
@@ -138,8 +145,10 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           soldEntry={soldByLegendId.get(activeLegend.id) ?? null}
           isMine={soldByLegendId.get(activeLegend.id)?.purchaserDiscordId === discordId}
           busy={busy}
+          replacementPlayers={replacementConfig?.replacementPlayers ?? []}
+          blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
           onClose={() => setActiveLegend(null)}
-          onPurchase={(replaceTarget) => void purchase(activeLegend, replaceTarget)}
+          onPurchase={(replacementPlayerId) => void purchase(activeLegend, replacementPlayerId)}
           onCancel={() => void cancel(activeLegend)}
         />
       )}
@@ -152,6 +161,8 @@ function LegendDetailModal({
   soldEntry,
   isMine,
   busy,
+  replacementPlayers,
+  blockedNoEligibleReplacement,
   onClose,
   onPurchase,
   onCancel,
@@ -160,22 +171,22 @@ function LegendDetailModal({
   soldEntry: LegendAvailabilityEntry | null;
   isMine: boolean;
   busy: boolean;
+  replacementPlayers: any[];
+  blockedNoEligibleReplacement: boolean;
   onClose: () => void;
-  onPurchase: (replaceTarget: ReplaceTarget | null) => void;
+  onPurchase: (replacementPlayerId: string | null) => void;
   onCancel: () => void;
 }) {
   const [designateReplacement, setDesignateReplacement] = useState(false);
-  const [replacePosition, setReplacePosition] = useState("");
-  const [replaceFirstName, setReplaceFirstName] = useState("");
-  const [replaceLastName, setReplaceLastName] = useState("");
+  const [replacementPlayerId, setReplacementPlayerId] = useState("");
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
-  const canSubmitReplacement = !designateReplacement || (replacePosition && replaceFirstName.trim() && replaceLastName.trim());
+  const canSubmitReplacement = !designateReplacement || Boolean(replacementPlayerId);
 
   return (
     <Modal title={legend.name} onClose={onClose}>
       <p className="hub-muted" style={{ marginTop: 0 }}>
-        {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}
+        {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
       </p>
       <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
@@ -195,39 +206,40 @@ function LegendDetailModal({
         by the commissioner to hit that number.
       </p>
 
-      {!isTaken && !isMine && (
+      {!isTaken && !isMine && blockedNoEligibleReplacement && (
+        <p className="form-hint">Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the "Edit Roster" quick action on My Team before purchasing a legend.</p>
+      )}
+      {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
-          <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
-            <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
-            <span className="form-label" style={{ margin: 0 }}>Pick which roster player this replaces</span>
-          </label>
-          {designateReplacement ? (
+          {replacementPlayers.length > 0 && (
             <>
-              <label className="form-field">
-                <span className="form-label">Position</span>
-                <select className="form-input" value={replacePosition} onChange={(event) => setReplacePosition(event.target.value)}>
-                  <option value="">Select position</option>
-                  {REPLACE_TARGET_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}
-                </select>
+              <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
+                <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
+                <span className="form-label" style={{ margin: 0 }}>Pick which roster player this replaces</span>
               </label>
-              <label className="form-field">
-                <span className="form-label">First name</span>
-                <input className="form-input" value={replaceFirstName} onChange={(event) => setReplaceFirstName(event.target.value)} />
-              </label>
-              <label className="form-field">
-                <span className="form-label">Last name</span>
-                <input className="form-input" value={replaceLastName} onChange={(event) => setReplaceLastName(event.target.value)} />
-              </label>
+              {designateReplacement ? (
+                <label className="form-field">
+                  <span className="form-label">Replace</span>
+                  <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
+                    <option value="">Select player</option>
+                    {replacementPlayers.map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <p className="form-hint">Leave unchecked to let your commissioner choose which player this replaces.</p>
+              )}
             </>
-          ) : (
-            <p className="form-hint">Leave unchecked to let your commissioner choose which player this replaces.</p>
           )}
           <div className="hub-store-total">
             <span>Total: <strong><CoinAmount amount={REC_LEGEND_PRICE} /></strong></span>
             <Button
               variant="primary"
               disabled={busy || !canSubmitReplacement}
-              onClick={() => onPurchase(designateReplacement ? { position: replacePosition, firstName: replaceFirstName, lastName: replaceLastName } : null)}
+              onClick={() => onPurchase(designateReplacement ? replacementPlayerId : null)}
             >
               {busy ? "Submitting…" : "Purchase"}
             </Button>

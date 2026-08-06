@@ -33,8 +33,40 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 type Identity = {
   firstName: string; lastName: string; jerseyNumber: number; handedness: string;
   heightInches: number; weightLbs: number; hometownCity?: string; hometownState?: string;
-  college?: string;
+  college?: string; bodyType?: string;
 };
+
+// CFB-only — Madden custom players keep the flat 60-84in / 140-400lb range below. These
+// ceilings are the mid-upper end of each position group's real-world FBS height distribution
+// (roughly the 85th-90th percentile), not the absolute outlier max. "avg" is the midpoint of
+// the position's typical range and is what the per-inch-over-average creation-point surcharge
+// is measured from — it is deliberately lower than the max ceiling.
+const CFB_POSITION_HEIGHT: Record<string, { max: number; avg: number }> = {
+  QB: { max: 77, avg: 75 },
+  HB: { max: 73, avg: 71 }, FB: { max: 73, avg: 71 },
+  WR: { max: 76, avg: 73 },
+  TE: { max: 78, avg: 77 },
+  LT: { max: 79, avg: 77 }, LG: { max: 79, avg: 77 }, C: { max: 79, avg: 77 }, RG: { max: 79, avg: 77 }, RT: { max: 79, avg: 77 },
+  LE: { max: 78, avg: 76 }, RE: { max: 78, avg: 76 }, DT: { max: 78, avg: 76 },
+  LOLB: { max: 76, avg: 74 }, MLB: { max: 76, avg: 74 }, ROLB: { max: 76, avg: 74 },
+  CB: { max: 74, avg: 71 },
+  FS: { max: 75, avg: 72 }, SS: { max: 75, avg: 72 },
+};
+const CFB_HEIGHT_FLOOR = 65;
+const CFB_HEIGHT_OVERAGE_COST_PER_INCH = 100;
+
+const CFB_BODY_TYPE_WEIGHT: Record<string, { min: number; max: number }> = {
+  standard: { min: 175, max: 230 },
+  thin: { min: 180, max: 236 },
+  heavy: { min: 280, max: 400 },
+  lean: { min: 160, max: 215 },
+  muscular: { min: 210, max: 285 },
+};
+
+function heightOverageCost(position: string, heightInches: number): number {
+  const avg = CFB_POSITION_HEIGHT[position.toUpperCase()]?.avg ?? heightInches;
+  return Math.max(0, heightInches - avg) * CFB_HEIGHT_OVERAGE_COST_PER_INCH;
+}
 
 function gameFamily(game: string): RecGameFamily { return game === "cfb_27" ? "CFB" : "MADDEN"; }
 function gameYear(game: string): number { const match = game.match(/(\d{2})$/); return match ? Number(match[1]) : 27; }
@@ -53,14 +85,27 @@ async function assertNameNotLegend(game: RecGameFamily, identity: Identity) {
   if (collides) throw new ApiError(400, "That name matches a Legend in this game — pick a different name for your custom player.");
 }
 
-function validateIdentity(game: RecGameFamily, identity: Identity) {
+function validateIdentity(game: RecGameFamily, identity: Identity, position: string) {
   if (!identity.firstName?.trim() || !identity.lastName?.trim()) throw new ApiError(400, "First and last name are required.");
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
-  if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) throw new ApiError(400, "Height must be 60-84 inches.");
-  if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
   if (game === "CFB") {
     if (!identity.hometownCity?.trim() || !identity.hometownState?.trim()) throw new ApiError(400, "CFB players require a hometown and state.");
     if (identity.college) throw new ApiError(400, "CFB custom players do not use a college field.");
+    // Only first/last name, jersey #, handedness, height, and weight are editable for a CFB
+    // custom player — everything else about their physical build comes from ratings.
+    const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
+    const heightMax = heightRule?.max ?? 84;
+    if (!Number.isInteger(identity.heightInches) || identity.heightInches < CFB_HEIGHT_FLOOR || identity.heightInches > heightMax) {
+      throw new ApiError(400, `Height for this position must be between 5'5" and ${Math.floor(heightMax / 12)}'${heightMax % 12}".`);
+    }
+    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body type is required.");
+    const weightRule = CFB_BODY_TYPE_WEIGHT[identity.bodyType];
+    if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < weightRule.min || identity.weightLbs > weightRule.max) {
+      throw new ApiError(400, `Weight for the ${identity.bodyType} body type must be between ${weightRule.min} and ${weightRule.max} pounds.`);
+    }
+  } else {
+    if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) throw new ApiError(400, "Height must be 60-84 inches.");
+    if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
   }
 }
 
@@ -95,8 +140,12 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   const builds = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .in("status", ["pending_review", "approved", "applied"]);
+  // Only recruits/manually-added players are eligible replacement targets — the default
+  // baseline roster (is_default_player = true) is never selectable here.
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).order("position");
+    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
+  const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
   const wallet = Number(baseline.wallet?.wallet_balance ?? 0);
   const attributes = new Set<string>();
   for (const position of REC_CUSTOM_PLAYER_POSITIONS) for (const code of getRecEditableAttributes(game, position)) attributes.add(code);
@@ -112,8 +161,13 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     replacementPlayers: roster.data ?? [],
     // Backlog #42 — non-seeded-league fallback: with no active players on the team (baseline
     // roster never applied), the replacement step is skipped and the build adds a brand-new
-    // player instead of replacing one. Whenever players exist, replacement stays mandatory.
+    // player instead of replacing one. Whenever eligible (non-default) players exist,
+    // replacement stays mandatory.
     replacementRequired: (roster.data ?? []).length > 0,
+    // Active players exist, but none are eligible replacement targets (the whole roster is
+    // still the untouched default baseline) — the purchase can't proceed until the user tracks
+    // a recruit or manually adds a player via Edit Roster.
+    blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
     contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only. Choose a replacement player whose in-game appearance matches your physical preferences.",
     versions: { package: REC_CUSTOM_PLAYER_PACKAGE_VERSION, cost: REC_CUSTOM_PLAYER_COST_VERSION, archetype: REC_ARCHETYPE_CONFIG_VERSION, rules: REC_BUILD_RULES_VERSION, ovr: REC_OVR_MODEL_VERSION, names: REC_NAME_CORPUS_VERSION },
   };
@@ -196,11 +250,14 @@ export async function submitCustomPlayer(input: {
 }) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(input.guildId, input.discordId);
   const game = gameFamily(context.rec_leagues.game); const year = gameYear(context.rec_leagues.game);
-  validateIdentity(game, input.identity);
+  validateIdentity(game, input.identity, input.position);
   await assertNameNotLegend(game, input.identity);
   const config = await getCustomPlayerConfig(input.guildId, input.discordId);
   if (!config.enabled) throw new ApiError(400, "Custom-player purchases are disabled for this league.");
   if (config.seasonCap > 0 && config.seasonUsed >= config.seasonCap) throw new ApiError(409, "You have reached this season's custom-player cap.");
+  if (config.blockedNoEligibleReplacement) {
+    throw new ApiError(400, "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action first.");
+  }
   assertPurchaseDeadlineOpen({
     purchaseType: "custom_player",
     deadlines: config.purchaseDeadlines,
@@ -209,25 +266,27 @@ export async function submitCustomPlayer(input: {
   });
   const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey, developmentTrait: input.developmentTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
+  // CFB-only surcharge for building above a position's real-world average height — deducted
+  // from the same creation-point budget as attributes/development, not a separate coin cost.
+  const heightSurcharge = game === "CFB" ? heightOverageCost(input.position, input.identity.heightInches) : 0;
+  if (heightSurcharge > evaluation.pointsRemaining) {
+    throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
+  }
+  const pointsRemainingAfterHeight = evaluation.pointsRemaining - heightSurcharge;
   const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);
   if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
 
-  // Backlog #42 — replacement is mandatory whenever the team has players. With an empty
-  // roster (unseeded league) the purchase proceeds without one: the approved build creates
-  // a brand-new player instead of replacing an outgoing row.
+  // Backlog #42 — replacement is mandatory whenever the team has eligible (non-default)
+  // players. With an empty roster (unseeded league) the purchase proceeds without one: the
+  // approved build creates a brand-new player instead of replacing an outgoing row.
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
     const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").maybeSingle();
-    if (found.error || !found.data) throw new ApiError(400, "Select an active player from your roster to replace.");
+      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").eq("is_default_player", false).maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
     replacement = found as { data: Record<string, unknown> };
-  } else {
-    const activeCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
-    if (activeCount.error) throw new ApiError(500, "Failed to check your roster.", activeCount.error);
-    if ((activeCount.count ?? 0) > 0) {
-      throw new ApiError(400, "This team has active players — select one to replace. Skipping the replacement is only allowed while your roster is empty (an unseeded league).");
-    }
+  } else if (config.replacementRequired) {
+    throw new ApiError(400, "This team has eligible players — select one to replace. Skipping the replacement is only allowed while none are eligible yet.");
   }
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
@@ -237,15 +296,16 @@ export async function submitCustomPlayer(input: {
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
     details: { packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
-  const refundCoins = Math.ceil(evaluation.pointsRemaining * .5);
+  const refundCoins = Math.ceil(pointsRemainingAfterHeight * .5);
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
     game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: input.position.toUpperCase(),
     selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: input.developmentTrait,
-    identity: input.identity, attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
-    attribute_points_spent: evaluation.attributeCost, development_points_spent: evaluation.netDevelopmentCost, creation_points_spent: evaluation.totalCost,
-    creation_points_remaining: evaluation.pointsRemaining, unused_cp_refund_coins: refundCoins, estimated_ovr_raw: evaluation.rawOverall,
+    identity: input.identity, body_type: game === "CFB" ? input.identity.bodyType : null, height_overage_cost: heightSurcharge,
+    attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
+    attribute_points_spent: evaluation.attributeCost, development_points_spent: evaluation.netDevelopmentCost, creation_points_spent: evaluation.totalCost + heightSurcharge,
+    creation_points_remaining: pointsRemainingAfterHeight, unused_cp_refund_coins: refundCoins, estimated_ovr_raw: evaluation.rawOverall,
     estimated_ovr: evaluation.displayOverall, linear_score: evaluation.linearScore, model_confidence: evaluation.confidence,
     raw_ovr_cap: evaluation.rawOverallCap, support_indexes: {}, package_configuration_version: REC_CUSTOM_PLAYER_PACKAGE_VERSION,
     cost_configuration_version: REC_CUSTOM_PLAYER_COST_VERSION, archetype_configuration_version: REC_ARCHETYPE_CONFIG_VERSION,
@@ -307,7 +367,7 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     return rejected.data;
   }
   const adjusted = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
-  validateIdentity(build.game_family, adjusted.identity);
+  validateIdentity(build.game_family, adjusted.identity, build.position);
   const reevaluated = evaluateCustomPlayer({ game: build.game_family, packageTier: build.package_tier, position: build.position, archetypeKey: build.selected_archetype_key, developmentTrait: build.development_trait, attributes: adjusted.attributes, mode: "submit" });
   if (!reevaluated.valid) throw new ApiError(409, "The saved build no longer passes authoritative validation.");
   if (reevaluated.rawOverall > 88) throw new ApiError(409, "Custom-player OVR cannot exceed the league-wide 88 OVR ceiling. Reduce ratings before applying.");
