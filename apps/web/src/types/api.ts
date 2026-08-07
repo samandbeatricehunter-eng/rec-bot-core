@@ -617,6 +617,8 @@ export type HubMatchupSchedule = {
     myGotyComment?: string | null;
     streams: Array<{ side: "away" | "home"; userId: string; teamName: string; streamLogId: string; url: string; watchPath: string; postedAt: string | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   }>;
+  isOffseason: boolean;
+  offseasonStageLabel: string | null;
 };
 export type HubMatchupGame = HubMatchupSchedule["games"][number];
 export type MatchupChatMessage = { id: string; author_user_id: string; author_display_name: string; body: string; created_at: string };

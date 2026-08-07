@@ -160,7 +160,9 @@ export function RosterHome() {
               }}
             >
               <span className="hub-roster-grade-group">{group.group}</span>
-              <span className="hub-roster-grade-letter">{group.grade}</span>
+              <span className="hub-roster-grade-letter" data-grade-letter={group.grade?.charAt(0) ?? ""}>
+                {group.grade}
+              </span>
               <span className="hub-roster-grade-meta">
                 {group.avgOverall != null ? `${group.avgOverall} OVR avg` : "No players"} · {group.playerCount}
               </span>

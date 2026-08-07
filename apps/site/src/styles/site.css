@@ -2076,7 +2076,7 @@ h1, h2, h3, .site-wordmark {
   position: relative;
   z-index: 1;
   width: 100%;
-  overflow: auto;
+  overflow: visible;
 }
 /* In-process hub must not use apps/web .app-backdrop overlays — those ::before/::after
    layers are position:fixed and paint above HubHome (no AppShell z-index wrapper),
@@ -2581,6 +2581,10 @@ h1, h2, h3, .site-wordmark {
 .site-home-announce-card,
 .site-spotlight-card {
   min-width: 0;
+  /* Always occupy the carousel's centered 1fr track — without this, the card grid-auto-places
+     into the leading `auto` arrow column whenever the prev/next arrows are absent (a single
+     clip/announcement), shrink-wrapping it against the left edge with dead space to the right. */
+  grid-column: 2;
 }
 .site-spotlight-card {
   /* Without this the browser claims horizontal touch drags as a native page pan before our

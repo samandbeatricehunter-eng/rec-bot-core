@@ -3,6 +3,7 @@ export { InjectedAuthProvider, useAuth, useReadyAuth } from "../../../apps/web/s
 export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/league-theme-context.js";
 export { HubChromeProvider, useHubChrome } from "../../../apps/web/src/lib/hub-chrome-context.js";
 export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
+export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
 export { MatchupDetailPage } from "../../../apps/web/src/routes/matchups/MatchupDetail.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";

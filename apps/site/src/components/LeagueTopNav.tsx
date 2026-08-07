@@ -8,6 +8,7 @@ import {
   IconMgmt,
   IconRetire,
   IconRoster,
+  IconRules,
   IconStore,
   IconTeam,
   IconTrade,
@@ -115,6 +116,14 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
                 <IconStore /> Store
               </NavLink>
             ) : null}
+            <NavLink
+              to={`/l/${leagueId}/rules`}
+              role="menuitem"
+              className="site-account-menu-item"
+              onClick={() => setMenuOpen(false)}
+            >
+              <IconRules /> Rules
+            </NavLink>
             {isCommissioner ? (
               <NavLink
                 to={`/l/${leagueId}/mgmt`}

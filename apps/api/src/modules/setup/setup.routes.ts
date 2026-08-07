@@ -242,6 +242,18 @@ export async function setupRoutes(app: FastifyInstance) {
     }
   });
 
+  // Same draft as above, but open to any league member — backs the read-only "Rules" page
+  // (hub nav), which unlike Settings has no edit affordance, so there's nothing to gate.
+  app.post("/v1/setup/league/rules", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await getLeagueConfigAsDraft(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/setup/league/config/update", async (request, reply) => {
     try {
       const body = CreateLeagueSchema.parse(request.body);

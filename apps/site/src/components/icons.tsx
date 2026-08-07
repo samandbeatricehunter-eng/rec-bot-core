@@ -208,6 +208,17 @@ export function IconWager(props: IconProps) {
   );
 }
 
+export function IconRules(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M12 6.5C10.4 5.3 8.2 4.7 6 4.7A3.2 3.2 0 0 0 4 5.4v13.2c.6-.3 1.3-.4 2-.4 2.2 0 4.4.6 6 1.8" />
+      <path d="M12 6.5c1.6-1.2 3.8-1.8 6-1.8 1 0 1.5.2 2 .7v13.2c-.6-.3-1.3-.4-2-.4-2.2 0-4.4.6-6 1.8" />
+      <path d="M12 6.5v13.4" />
+    </>,
+  );
+}
+
 export function IconMenu(props: IconProps) {
   return base(
     props,

@@ -421,9 +421,23 @@ button.poty:disabled {
 .hub-roster-grade-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--space-3) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); cursor: pointer; text-align: center; }
 .hub-roster-grade-card:hover { border-color: var(--accent); }
 .hub-roster-grade-group { font-size: var(--text-xs); font-weight: 800; letter-spacing: .04em; color: var(--text-muted); }
-.hub-roster-grade-letter { font-size: var(--text-xl); font-weight: 900; }
+.hub-roster-grade-letter { font-size: var(--text-xl); font-weight: 900; color: var(--text); }
+.hub-roster-grade-letter[data-grade-letter="A"] { color: #4ade80; }
+.hub-roster-grade-letter[data-grade-letter="B"] { color: #7dd3fc; }
+.hub-roster-grade-letter[data-grade-letter="C"] { color: #fbbf24; }
+.hub-roster-grade-letter[data-grade-letter="D"] { color: #fb923c; }
+.hub-roster-grade-letter[data-grade-letter="F"] { color: #f87171; }
 .hub-roster-grade-meta { font-size: 10px; color: var(--text-muted); }
 .hub-roster-group-selector { max-width: 240px; margin-bottom: var(--space-3); }
+
+.hub-rules-category h3 { margin: 0 0 var(--space-3); font-size: var(--text-lg); text-transform: uppercase; letter-spacing: .03em; }
+.hub-rules-category h4 { margin: var(--space-3) 0 var(--space-2); font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.hub-rules-category + .hub-rules-category { margin-top: var(--space-4); }
+.hub-rules-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-top: 1px solid var(--border); }
+.hub-rules-row:first-of-type { border-top: none; }
+.hub-rules-label { color: var(--text-secondary); font-size: var(--text-sm); }
+.hub-rules-value { color: var(--text); font-weight: 700; text-align: right; }
+.hub-rules-custom-group + .hub-rules-custom-group { margin-top: var(--space-2); }
 .hub-roster-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .hub-roster-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .hub-roster-table th { text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; border-bottom: 1px solid var(--border); }
@@ -623,9 +637,12 @@ button.poty:disabled {
 .hub-poty-modal label.active { border-color:var(--gold); color:var(--gold); box-shadow:inset 0 0 18px color-mix(in srgb, var(--accent) 16%, transparent); }
 
 @media (max-width:700px) {
-  .hub-highlight-carousel { padding:0 40px; }
-  .hub-highlight-carousel > .hub-highlight-arrow { width:34px; height:34px; }
-  .hub-highlight-carousel > .hub-highlight-arrow svg { width:18px; height:18px; }
+  .hub-highlight-carousel,
+  .hub-story-carousel { padding:0 40px; }
+  .hub-highlight-carousel > .hub-highlight-arrow,
+  .hub-story-carousel > .hub-highlight-arrow { width:34px; height:34px; }
+  .hub-highlight-carousel > .hub-highlight-arrow svg,
+  .hub-story-carousel > .hub-highlight-arrow svg { width:18px; height:18px; }
 }
 
 /* Unified rendered badge shelf. Badge qualification scopes remain internal; users see
@@ -1086,7 +1103,7 @@ button.poty:disabled {
 .hub-open-team-conferences article small { margin-top: 2px; color: var(--text-muted); }
 
 .hub-story-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.hub-story-carousel { position: relative; display: grid; place-items: center; padding-inline: 58px; }
+.hub-story-carousel { position: relative; display: grid; place-items: center; width: 100%; max-width: 876px; min-width: 0; margin: 0 auto; padding-inline: 58px; }
 .hub-story-card { position: relative; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius-md); background: linear-gradient(145deg, rgba(34,35,31,.96), rgba(13,14,13,.98)); overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.06); }
 .hub-story-feature { width: min(760px, 100%); min-height: 230px; }
 .hub-story-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--edge-steel); }

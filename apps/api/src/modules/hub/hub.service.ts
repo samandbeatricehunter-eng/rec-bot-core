@@ -18,6 +18,7 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel } from "../streams/streams.service.js";
+import { stageHasScheduledGames, stageLabel } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
@@ -1291,6 +1292,23 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const selectedWeek = input.weekNumber ?? currentWeek;
+  const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
+  // Once the league has finished its championship game it moves into the dynasty offseason
+  // pipeline (End of Season Recap, Transfer Portal, etc.) — no rec_games rows are scheduled
+  // for that stage, so skip the games query entirely and tell the client there's no slate to
+  // show instead of falling through to whatever week-1 CPU games are still sitting in the DB.
+  if (!input.weekNumber && !stageHasScheduledGames(seasonStage, context.rec_leagues.game)) {
+    return {
+      currentWeek,
+      selectedWeek: currentWeek,
+      weekNumbers: [],
+      usersByConference: [],
+      gotw: null,
+      games: [],
+      isOffseason: true,
+      offseasonStageLabel: stageLabel(seasonStage, currentWeek, context.rec_leagues.game),
+    };
+  }
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   if (context.rec_leagues.game === "cfb_27") {
     const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
@@ -1487,6 +1505,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     // own `gotw` field instead of this singular one.
     gotw: gotwGames.length === 1 ? gotwGames[0].gotw : null,
     games: mappedGames,
+    isOffseason: false,
+    offseasonStageLabel: null,
   };
 }
 

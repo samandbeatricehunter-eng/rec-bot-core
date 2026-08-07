@@ -1375,6 +1375,7 @@ export function HubHome() {
         if (state) return state;
         const schedule = matchupSchedule;
         if (!schedule) return null;
+        if (schedule.isOffseason) return <p className="hub-empty">No games this week — the league is in the offseason ({schedule.offseasonStageLabel ?? "Offseason"}).</p>;
         return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => {
           const lines = weekWagerLines?.find((l) => l.gameId === game.gameId) ?? null;
           return (
@@ -1388,7 +1389,7 @@ export function HubHome() {
                 </div>
               )}
             </div>
-            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
+            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
           </article>
           );
         })}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
@@ -1814,6 +1815,7 @@ export function HubHome() {
                 if (state) return state;
                 const schedule = matchupSchedule;
                 if (!schedule) return null;
+                if (schedule.isOffseason) return <p className="hub-empty">No games this week — the league is in the offseason ({schedule.offseasonStageLabel ?? "Offseason"}).</p>;
                 return <>
                 <div className="hub-week-picker">
                   <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>

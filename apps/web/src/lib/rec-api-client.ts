@@ -591,6 +591,8 @@ export const recApi = {
   refreshRecGuide: (guildId: string) => recApiFetch<{ posted: number; channelId: string }>("/v1/server-config/rec-guide/refresh", { method: "POST", body: JSON.stringify({ guildId }) }),
   getLeagueSettingsDraft: (guildId: string) =>
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getLeagueRulesDraft: (guildId: string) =>
+    recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/rules", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateLeagueSettings: (draft: LeagueSettingsDraft) =>
     recApiFetch<unknown>("/v1/setup/league/config/update", { method: "POST", body: JSON.stringify(draft) }),
   listModeration: (guildId: string) =>
