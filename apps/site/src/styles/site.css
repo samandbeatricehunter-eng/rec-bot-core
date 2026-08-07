@@ -1419,6 +1419,8 @@ h1, h2, h3, .site-wordmark {
   display: grid;
   place-items: center;
   padding: 20px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.6);
 }
 .site-modal-backdrop {
   position: absolute;
@@ -1857,13 +1859,13 @@ h1, h2, h3, .site-wordmark {
 .wizard-warning h3 { margin: 0 0 var(--space-2); font-size: 18px; }
 .wizard-warning p { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: 14px; }
 .wizard-game-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
-.wizard-game-card { padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); cursor: pointer; text-align: center; font-size: 16px; font-weight: 600; transition: border-color 0.15s; }
-.wizard-game-card:hover { border-color: var(--gold, #d4a843); }
-.wizard-game-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
-.wizard-option-card { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); cursor: pointer; transition: border-color 0.15s; }
+.wizard-game-card { padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); color: var(--text); cursor: pointer; text-align: center; font-size: 16px; font-weight: 600; transition: border-color 0.15s, color 0.15s; }
+.wizard-game-card:hover { border-color: var(--gold, #d4a843); color: var(--gold-light, var(--gold, #d4a843)); }
+.wizard-game-card-active { border-color: var(--gold, #d4a843); color: var(--gold-light, var(--gold, #d4a843)); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.wizard-option-card { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); color: var(--text); cursor: pointer; transition: border-color 0.15s; }
 .wizard-option-card:hover { border-color: var(--gold, #d4a843); }
 .wizard-option-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
-.wizard-option-card strong { font-size: 14px; }
+.wizard-option-card strong { font-size: 14px; color: var(--text); }
 .wizard-option-card .site-muted { font-size: 12px; }
 .wizard-section { padding: var(--space-2) 0; border-bottom: 1px solid var(--card-border); }
 .wizard-section:last-child { border-bottom: none; }

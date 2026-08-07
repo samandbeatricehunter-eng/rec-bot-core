@@ -667,8 +667,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   ];
 
   return (
-    <div className="site-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="site-modal site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="site-modal" role="presentation" onMouseDown={onClose}>
+      <section className="site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
         <button type="button" className="site-modal-close" onClick={onClose} aria-label="Close">&times;</button>
         <h2 id="create-league-title">Create League</h2>
         {step > 0 && <p className="site-muted">Step {step} of {isFantasyDraft ? "8" : "7"}</p>}
