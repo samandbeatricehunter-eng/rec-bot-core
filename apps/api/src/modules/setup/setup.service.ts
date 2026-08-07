@@ -5,6 +5,8 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
+import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-baseline/madden-baseline.service.js";
+import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
@@ -385,6 +387,34 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     }
   }
 
+  // Madden: leagueType drives whether/how the baseline roster gets applied.
+  // - regular_rosters: real team assignments.
+  // - fantasy_draft: every player starts unassigned (team_id null), forming the draft pool
+  //   — see docs/madden-fantasy-draft-plan.md for the (not-yet-built) draft tracker that
+  //   consumes this pool.
+  // - custom_rosters: no preseed unless customRostersPreseedRequested is explicitly set
+  //   (a wizard-step confirmation asked right after picking "custom rosters" — see plan
+  //   doc §3), in which case it behaves exactly like regular_rosters.
+  let maddenBaselineSeed: Awaited<ReturnType<typeof applyMaddenBaselineToLeague>> | null = null;
+  if ((input.game === "madden_26" || input.game === "madden_27") &&
+      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
+        (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
+    const activeMaddenDataset = await getActiveMaddenDataset();
+    if (activeMaddenDataset) {
+      maddenBaselineSeed = await applyMaddenBaselineToLeague({
+        league_id: league.data.id,
+        dataset_id: activeMaddenDataset.id,
+        fantasyDraftMode: input.leagueType === "fantasy_draft",
+      });
+    }
+  }
+
+  // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool
+  // (the draft tracker's initial state — see docs/madden-fantasy-draft-plan.md §4).
+  if (input.leagueType === "fantasy_draft") {
+    await ensureFantasyDraftSession(league.data.id);
+  }
+
   await upsertConferenceRules(league.data.id, input.conferenceRules);
 
   return {
@@ -569,6 +599,7 @@ export async function createUnclaimedLeague(input: {
   game: "madden_26" | "madden_27" | "cfb_27";
   leaguePassword?: string | null;
   leagueType?: string;
+  customRostersPreseedRequested?: boolean;
   isOnline?: boolean;
   crossPlayEnabled?: boolean;
   requiredConsole?: "ps5" | "xbox" | "pc" | null;
@@ -725,6 +756,31 @@ export async function createUnclaimedLeague(input: {
   await upsertConferenceRules(league.data.id, input.conferenceRules);
 
   const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+
+  // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
+  // that function's comment above its own applyMaddenBaselineToLeague call for the full
+  // leagueType decision table.
+  if ((input.game === "madden_26" || input.game === "madden_27") &&
+      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
+        (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
+    const activeMaddenDataset = await getActiveMaddenDataset();
+    if (activeMaddenDataset) {
+      await applyMaddenBaselineToLeague({
+        league_id: league.data.id,
+        dataset_id: activeMaddenDataset.id,
+        fantasyDraftMode: input.leagueType === "fantasy_draft",
+      }).catch((err) => {
+        console.error("[ERROR] Failed to apply Madden baseline roster to new league (non-fatal):", err);
+      });
+    }
+  }
+
+  // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool.
+  if (input.leagueType === "fantasy_draft") {
+    await ensureFantasyDraftSession(league.data.id).catch((err) => {
+      console.error("[ERROR] Failed to create fantasy draft session for new league (non-fatal):", err);
+    });
+  }
 
   // Madden season-1 leagues get their default NFL schedule immediately, regardless of whether
   // this league ever gets linked to Discord — Discord is an optional add-on, not a

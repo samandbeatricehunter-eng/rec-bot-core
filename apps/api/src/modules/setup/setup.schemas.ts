@@ -36,6 +36,10 @@ export const CreateLeagueSchema = z.object({
 
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
+  // Madden only, custom_rosters only: a wizard-step confirmation asked right after picking
+  // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false
+  // (no preseed) so commissioners who want a truly blank roster get one without an extra step.
+  customRostersPreseedRequested: z.boolean().default(false),
   // CFB 27 only: replaces the League Type question.
   activeRostersEnabled: z.boolean().default(true),
   // CFB 27 only: seed the league's initial rosters from the CFB baseline dataset at creation.

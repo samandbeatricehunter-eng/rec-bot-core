@@ -476,7 +476,7 @@ export type ChatMessage = { id: string; author_discord_id: string; author_displa
 
 export type HubReactionKey = "love" | "like" | "dislike" | "poop" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY" | "MVP_PLAY" | "MOSSED" | "STEAMROLLER" | "FAWKKKK" | "SNATCHED" | "RIP";
 export type HubResponse = {
-  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string };
+  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string; fantasyDraftStatus: string };
   canManageLeague: boolean;
   commissionerTier: "commissioner" | "co_commissioner" | null;
   store: { enabled: boolean; cfbSeasonOneLocked: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };
@@ -711,6 +711,7 @@ export type RosterPlayer = {
   isDefaultPlayer: boolean;
   recentIncrease: number | null;
   devTrait: string | null;
+  photoUrl: string | null;
 };
 export type RosterPositionGroup = {
   group: string;
@@ -893,3 +894,63 @@ export type LegendAvailabilityEntry = {
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
 export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };
+
+// Fantasy draft (Madden league draft tracker)
+export type FantasyDraftStatus = "not_scheduled" | "scheduled" | "live" | "wrap_up" | "concluded";
+export type FantasyDraftOrderMode = "standard" | "snake";
+
+export type FantasyDraftSession = {
+  id: string;
+  leagueId: string;
+  status: FantasyDraftStatus;
+  orderMode: FantasyDraftOrderMode | null;
+  scheduledAt: string | null;
+  currentRound: number;
+  currentPickInRound: number;
+  commencedByUserId: string | null;
+  commencedAt: string | null;
+  concludedAt: string | null;
+};
+
+export type FantasyDraftTeam = {
+  id: string;
+  name: string;
+  displayName: string;
+  abbreviation: string | null;
+};
+
+export type FantasyDraftPoolPlayer = {
+  id: string;
+  name: string;
+  position: string;
+  overallRating: number | null;
+  jerseyNumber: number | null;
+  archetype: string | null;
+  photoUrl: string | null;
+  teamId: string | null;
+  isDrafted: boolean;
+  draftedByTeamId: string | null;
+  isDefaultPlayer: boolean;
+};
+
+export type FantasyDraftPick = {
+  id: string;
+  round: number;
+  pickInRound: number;
+  overallPickNumber: number;
+  teamId: string;
+  teamName: string;
+  playerId: string;
+  isWrapupPick: boolean;
+  loggedAt: string;
+};
+
+export type FantasyDraftState = {
+  session: FantasyDraftSession | null;
+  teams: FantasyDraftTeam[];
+  pickOrder: Array<{ pickInRound: number; teamId: string }>;
+  onTheClockTeamId: string | null;
+  pool: FantasyDraftPoolPlayer[];
+  picks: FantasyDraftPick[];
+  caller: { isCommissioner: boolean; myTeamId: string | null };
+};

@@ -77,6 +77,9 @@ import type {
   TeamManagementSummary,
   TeamScheduleManualState,
   UploadImageResponse,
+  FantasyDraftState,
+  FantasyDraftSession,
+  FantasyDraftOrderMode,
 } from "../types/api.js";
 
 const REC_API_TIMEOUT_MS = 30_000;
@@ -255,6 +258,8 @@ export const recApi = {
     recApiFetch<WeekWagerLinesResponse>("/v1/wagers/week-lines", { method: "POST", body: JSON.stringify(input) }),
   getTeamRoster: (input: { guildId: string; teamId?: string | null }) =>
     recApiFetch<TeamRosterResponse>("/v1/roster/team", { method: "POST", body: JSON.stringify(input) }),
+  uploadPlayerPhoto: (input: { guildId: string; playerId: string; contentType: string; imageBase64: string }) =>
+    recApiFetch<{ playerId: string; photoUrl: string }>("/v1/roster/player/photo", { method: "POST", body: JSON.stringify(input) }),
   setPlayerDeparture: (input: { guildId: string; playerId: string; status: RosterDepartureStatus; note?: string | null }) =>
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/departure", { method: "POST", body: JSON.stringify(input) }),
   reinstatePlayer: (input: { guildId: string; playerId: string }) =>
@@ -618,7 +623,7 @@ export const recApi = {
 
   // First-Time Setup (Phase 2) — omitted fields fall back to CreateLeagueSchema's Zod
   // defaults server-side, so a minimal payload here is intentional, not a shortcut.
-  createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean }) =>
+  createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; customRostersPreseedRequested?: boolean }) =>
     recApiFetch<{ league: { id: string; name: string }; defaultTeams: unknown[] }>("/v1/setup/league/create", { method: "POST", body: JSON.stringify(input) }),
 
   // Advance — the web is now the sole advance surface (there is no Discord advance wizard
@@ -768,4 +773,28 @@ export const recApi = {
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>
     recApiFetch<WeeklyH2hGamesResponse>(REC_API_ROUTES.weeklyH2hGames, { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // Fantasy draft (Madden league draft tracker) — all actions require a website session.
+  getFantasyDraftState: (guildId: string) =>
+    recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  scheduleFantasyDraft: (input: { guildId: string; scheduledAt?: string | null }) =>
+    recApiFetch<FantasyDraftSession>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
+  commenceFantasyDraft: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/commence", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setFantasyDraftPickOrder: (input: { guildId: string; orderMode: FantasyDraftOrderMode; picks: Array<{ pickInRound: number; teamId: string }> }) =>
+    recApiFetch<{ ok: true; orderMode: FantasyDraftOrderMode; count: number }>("/v1/fantasy-draft/set-pick-order", { method: "POST", body: JSON.stringify(input) }),
+  addFantasyDraftCustomPlayer: (input: { guildId: string; firstName: string; lastName: string; position: string; jerseyNumber?: number | null; archetype?: string | null; devTrait?: string | null; overallRating?: number | null; attributes: Record<string, number> }) =>
+    recApiFetch<{ id: string; name: string; position: string; overallRating: number | null }>("/v1/fantasy-draft/add-custom-player", { method: "POST", body: JSON.stringify(input) }),
+  removeFantasyDraftPoolPlayer: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<{ removed: true }>("/v1/fantasy-draft/remove-pool-player", { method: "POST", body: JSON.stringify(input) }),
+  logFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<{ ok: true; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick", { method: "POST", body: JSON.stringify(input) }),
+  logFantasyDraftWrapupPick: (input: { guildId: string; playerId: string; teamId?: string | null }) =>
+    recApiFetch<{ ok: true; overallPickNumber: number; teamId: string }>("/v1/fantasy-draft/wrapup-pick", { method: "POST", body: JSON.stringify(input) }),
+  undoFantasyDraftPick: (guildId: string) =>
+    recApiFetch<{ ok: true; undonePlayerId: string }>("/v1/fantasy-draft/undo", { method: "POST", body: JSON.stringify({ guildId }) }),
+  skipFantasyDraftToEnd: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/skip-to-end", { method: "POST", body: JSON.stringify({ guildId }) }),
+  concludeFantasyDraft: (guildId: string) =>
+    recApiFetch<{ ok: true; underStrengthTeams: Array<{ teamId: string; teamName: string; draftedCount: number }> }>("/v1/fantasy-draft/conclude", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

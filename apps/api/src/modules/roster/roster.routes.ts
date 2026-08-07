@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { addRosterPlayer, addTransferInPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture } from "./roster.service.js";
+import { addRosterPlayer, addTransferInPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture, uploadPlayerPhoto } from "./roster.service.js";
 import { approveRosterAddRequest, denyRosterAddRequest, listRosterAddRequests, submitRosterAddRequest } from "./roster-add-requests.service.js";
 
 export async function teamRosterRoutes(app: FastifyInstance) {
@@ -19,6 +19,29 @@ export async function teamRosterRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.discordId = auth.discordId;
       if (!body.discordId) throw new Error("Missing Discord id.");
       return reply.send(await getTeamRoster({ guildId: body.guildId, discordId: body.discordId, teamId: body.teamId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // League Mgmt headshot upload (plan §11) — commissioner-facing photo control in the roster
+  // editor. Same session/auth conventions as every other roster lifecycle route; the service
+  // gates to the player's own team coach or a co-commissioner+.
+  app.post("/v1/roster/player/photo", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        playerId: z.string().uuid(),
+        contentType: z.string().min(1),
+        imageBase64: z.string().min(1),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      const imageBuffer = Buffer.from(body.imageBase64, "base64");
+      return reply.send(await uploadPlayerPhoto({ guildId: body.guildId, discordId: body.discordId, playerId: body.playerId, contentType: body.contentType, imageBuffer }));
     } catch (error) {
       return sendError(reply, error);
     }

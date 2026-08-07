@@ -1,4 +1,4 @@
-export type ChatChannelType = "league" | "game" | "commissioner";
+export type ChatChannelType = "league" | "game" | "commissioner" | "fantasy_draft";
 
 /** Normalized message shape used by the unified chat drawer. The three
  * underlying services (league-chat, game-chat, commissioner-chat) keep their

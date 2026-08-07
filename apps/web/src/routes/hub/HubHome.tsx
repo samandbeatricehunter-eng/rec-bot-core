@@ -34,6 +34,7 @@ import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreSta
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
+import { FantasyDraftCard } from "./FantasyDraftCard.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -1224,6 +1225,7 @@ export function HubHome() {
       </div>
     );
   }
+  const readyGuildId = auth.status === "ready" ? auth.guildId : null;
   const headlines = hub.headlines ?? [];
   const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
@@ -1530,6 +1532,10 @@ export function HubHome() {
             ) : <p className="hub-empty">League announcements will appear here.</p>}
           </SectionFrame>
         </div>
+
+        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && readyGuildId && (
+          <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} />
+        )}
 
         {matchupSchedule?.gotw?.status === "open" && <div className="hub-gameday-card">
           <p className="hub-eyebrow">GOTW voting is open</p>

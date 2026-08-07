@@ -4,14 +4,18 @@ import { resolveUserSessionFromToken, assertGuildPermission } from "../../lib/us
 import { subscribeSocket, unsubscribeSocket, dropSocket } from "./chat-realtime.js";
 import { supabase } from "../../lib/supabase.js";
 
-const ChannelTypeSchema = z.enum(["league", "game", "commissioner"]);
+const ChannelTypeSchema = z.enum(["league", "game", "commissioner", "fantasy_draft"]);
 const ClientMessageSchema = z.union([
   z.object({ type: z.literal("subscribe"), channelType: ChannelTypeSchema, channelId: z.string().min(1) }),
   z.object({ type: z.literal("unsubscribe"), channelType: ChannelTypeSchema, channelId: z.string().min(1) }),
 ]);
 
-async function resolveChannelLeagueId(channelType: "league" | "game" | "commissioner", channelId: string): Promise<string | null> {
-  if (channelType === "league") {
+type RealtimeChannelType = "league" | "game" | "commissioner" | "fantasy_draft";
+
+async function resolveChannelLeagueId(channelType: RealtimeChannelType, channelId: string): Promise<string | null> {
+  if (channelType === "league" || channelType === "fantasy_draft") {
+    // fantasy_draft channels use the league id directly as the channel id — the board
+    // refreshes via a one-shot refetch on event, so there's no per-message row to resolve.
     const result = await supabase.from("rec_leagues").select("id").eq("id", channelId).maybeSingle();
     return result.data?.id ?? null;
   }
@@ -32,7 +36,7 @@ async function resolveChannelLeagueId(channelType: "league" | "game" | "commissi
 
 async function canSubscribeToChannel(
   session: { discordId: string },
-  channelType: "league" | "game" | "commissioner",
+  channelType: RealtimeChannelType,
   channelId: string,
 ): Promise<boolean> {
   const leagueId = await resolveChannelLeagueId(channelType, channelId);
@@ -47,6 +51,8 @@ async function canSubscribeToChannel(
     .eq("status", "active")
     .maybeSingle();
   if (!membership.data) return false;
+  // fantasy_draft is an open league channel (any member), like "league" — the board itself
+  // gates commissioner-only actions, not the subscription.
   if (channelType !== "commissioner") return true;
   if (["commissioner", "co_commissioner"].includes(String(membership.data.role))) return true;
   const owner = await supabase.from("rec_leagues").select("owner_user_id").eq("id", leagueId).eq("owner_user_id", account.data.user_id).maybeSingle();

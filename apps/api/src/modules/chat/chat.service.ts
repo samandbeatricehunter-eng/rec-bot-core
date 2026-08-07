@@ -44,6 +44,9 @@ const CHANNEL_ID_COLUMN_BY_TYPE: Record<ChatChannelType, { table: string; column
   league: { table: "rec_league_chat_messages", column: "league_id" },
   game: { table: "rec_game_chat_messages", column: "game_channel_id" },
   commissioner: { table: "rec_commissioner_chat_messages", column: "guild_id" },
+  // Fantasy draft channels are refresh-only (no message history) — never queried by
+  // resolveChannelIdForMessage, but required to satisfy the Record<ChatChannelType, ...>.
+  fantasy_draft: { table: "rec_fantasy_draft_sessions", column: "league_id" },
 };
 
 async function resolveChannelIdForMessage(channelType: ChatChannelType, messageId: string): Promise<string | null> {

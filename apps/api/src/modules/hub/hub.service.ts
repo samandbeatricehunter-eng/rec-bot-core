@@ -612,6 +612,7 @@ export async function getHub(guildId: string, discordId: string) {
       seasonNumber,
       weekNumber: currentWeek,
       seasonStage,
+      fantasyDraftStatus: context.rec_leagues.fantasy_draft_status ?? "not_applicable",
     },
     canManageLeague,
     commissionerTier,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CFB_POSITIONS } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
@@ -14,6 +14,82 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";
   return `${Math.floor(inches / 12)}'${inches % 12}"`;
+}
+
+const HEADSHOT_MAX_DIMENSION = 600;
+const HEADSHOT_MAX_BASE64 = 6_000_000; // ≈4.5 MB binary, safely under the server's 5 MB cap
+
+/** Read + downscale an image file to a base64 data URL the API can re-host. */
+function readImageAsResizedBase64(file: File): Promise<{ contentType: string; imageBase64: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read the image file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file isn't a valid image."));
+      img.onload = () => {
+        const scale = Math.min(1, HEADSHOT_MAX_DIMENSION / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Your browser can't resize this image here.")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const preferred = file.type === "image/png" ? "image/png" : file.type === "image/webp" ? "image/webp" : "image/jpeg";
+        let dataUrl = canvas.toDataURL(preferred, preferred === "image/png" ? undefined : 0.9);
+        if (dataUrl.length > HEADSHOT_MAX_BASE64) {
+          for (const quality of [0.7, 0.5, 0.35]) {
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+            if (dataUrl.length <= HEADSHOT_MAX_BASE64) break;
+          }
+        }
+        const contentType = dataUrl.startsWith("data:image/png") ? "image/png" : dataUrl.startsWith("data:image/webp") ? "image/webp" : "image/jpeg";
+        resolve({ contentType, imageBase64: dataUrl.split(",")[1] ?? "" });
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function HeadshotCell({ guildId, player, onUploaded }: { guildId: string; player: RosterPlayer; onUploaded: () => void }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        setError("Headshot must be a JPEG, PNG, or WebP image.");
+        return;
+      }
+      const resized = await readImageAsResizedBase64(file);
+      await recApi.uploadPlayerPhoto({ guildId, playerId: player.id, contentType: resized.contentType, imageBase64: resized.imageBase64 });
+      onUploaded();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload headshot.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Td>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+        {player.photoUrl
+          ? <img src={player.photoUrl} alt={player.fullName} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} loading="lazy" />
+          : <div style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+        <div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={(event) => { void handleFile(event.target.files?.[0]); event.target.value = ""; }} />
+          <Button size="compact" disabled={busy} onClick={() => fileInputRef.current?.click()}>{busy ? "Uploading…" : player.photoUrl ? "Replace" : "Add headshot"}</Button>
+          {error && <p className="form-hint" style={{ color: "var(--error)", margin: "4px 0 0" }}>{error}</p>}
+        </div>
+      </div>
+    </Td>
+  );
 }
 
 function AddPlayerForm({ guildId, teamId, onAdded }: { guildId: string; teamId: string; onAdded: () => void }) {
@@ -145,6 +221,7 @@ export function TeamRosterForm() {
         <Table>
           <thead>
             <tr>
+              <Th>Headshot</Th>
               <Th>Player</Th>
               <Th>Position</Th>
               <Th>Height</Th>
@@ -156,6 +233,7 @@ export function TeamRosterForm() {
           <tbody>
             {filtered.map((player: RosterPlayer) => (
               <tr key={player.id}>
+                <HeadshotCell guildId={guildId} player={player} onUploaded={load} />
                 <Td>{player.fullName}</Td>
                 <Td>{player.position}</Td>
                 <Td>{formatHeight(player.heightInches)}</Td>
@@ -165,7 +243,7 @@ export function TeamRosterForm() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><Td colSpan={6} style={{ textAlign: "center", color: "var(--text-secondary)" }}>No players match.</Td></tr>
+              <tr><Td colSpan={7} style={{ textAlign: "center", color: "var(--text-secondary)" }}>No players match.</Td></tr>
             )}
           </tbody>
         </Table>

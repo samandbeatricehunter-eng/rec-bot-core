@@ -1,6 +1,7 @@
 import { CFB_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, gameplaySeasonStages, isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
+import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
@@ -49,6 +50,7 @@ export type RosterPlayer = {
   isDefaultPlayer: boolean;
   recentIncrease: null;
   devTrait: string | null;
+  photoUrl: string | null;
 };
 
 export type RosterPositionGroup = {
@@ -69,7 +71,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
 
   const players = await supabase
     .from("rec_players")
-    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait")
+    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
     .order("position", { ascending: true })
@@ -92,6 +94,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     // flow is a separate, not-yet-built feature) — always null until that lands.
     recentIncrease: null,
     devTrait: p.dev_trait ?? null,
+    photoUrl: p.photo_url ?? null,
   }));
 
   const activeRows = rows.filter((r) => r.rosterStatus === "active" || r.rosterStatus === "transferred_in");
@@ -344,4 +347,56 @@ export async function addTransferInPlayer(input: {
     .single();
   if (inserted.error) throw new ApiError(500, "Failed to log incoming transfer.", inserted.error);
   return inserted.data;
+}
+
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PHOTO_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/** League Mgmt headshot upload (plan §11): a commissioner-facing form control in the roster
+ * editor that uploads one player's custom headshot to Cloudflare Images and overwrites that
+ * player's rec_players.photo_url. Re-uploads use the player id as the Cloudflare image id,
+ * so replacing a headshot overwrites the same image instead of accumulating orphans. */
+export async function uploadPlayerPhoto(input: {
+  guildId: string;
+  discordId: string;
+  playerId: string;
+  contentType: string;
+  imageBuffer: Buffer;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const player = await supabase.from("rec_players").select("id,team_id,league_id").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
+
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
+
+  if (!PHOTO_ALLOWED_TYPES.has(input.contentType)) {
+    throw new ApiError(400, "Headshot must be a JPEG, PNG, or WebP image.");
+  }
+  if (input.imageBuffer.length === 0 || input.imageBuffer.length > PHOTO_MAX_BYTES) {
+    throw new ApiError(400, "Headshot must be between 1 byte and 5 MB.");
+  }
+
+  // Square-ish 2-3x the app's ~96px roster slots (≈300px) reads crisp on retina; the field
+  // hint text repeats this so it lands in front of the person cropping the source image.
+  const uploaded = await uploadImageToCloudflare({
+    buffer: input.imageBuffer,
+    contentType: input.contentType,
+    imageId: input.playerId,
+    meta: { leagueId, playerId: input.playerId },
+  });
+
+  const updated = await supabase
+    .from("rec_players")
+    .update({ photo_url: uploaded.url, updated_at: new Date().toISOString() })
+    .eq("id", input.playerId)
+    .select("id,full_name,photo_url")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to save the player's headshot.", updated.error);
+
+  return { playerId: updated.data.id, photoUrl: updated.data.photo_url };
 }

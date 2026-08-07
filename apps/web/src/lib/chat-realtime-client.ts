@@ -12,6 +12,9 @@ const RECONNECT_MAX_DELAY_MS = 15000;
 
 type PendingSub = { channelType: ChatChannelType; channelId: string; action: "subscribe" | "unsubscribe" };
 
+/** A lightweight non-chat event payload (e.g. `{ kind: "refresh" }` for the fantasy draft). */
+export type ChannelEvent = { kind: string; [key: string]: unknown };
+
 class ChatRealtimeClient {
   private socket: WebSocket | null = null;
   private guildId: string | null = null;
@@ -20,6 +23,9 @@ class ChatRealtimeClient {
   private activeChannels = new Set<string>();
   private pendingQueue: PendingSub[] = [];
   private intentionalClose = false;
+  /** Non-chat subscribers (draft board, etc.) keyed by channel. chatStore still owns the
+   * realtime reconciliation for chat surfaces; these listeners are for everything else. */
+  private eventListeners = new Map<string, Set<(event: ChannelEvent) => void>>();
 
   private channelKey(channelType: ChatChannelType, channelId: string) {
     return `${channelType}:${channelId}`;
@@ -65,6 +71,8 @@ class ChatRealtimeClient {
       try { parsed = JSON.parse(event.data); } catch { return; }
       if (!parsed) return;
       chatStore.applyRealtimeEvent(parsed.channelType, parsed.channelId, parsed.event);
+      const key = this.channelKey(parsed.channelType, parsed.channelId);
+      this.eventListeners.get(key)?.forEach((listener) => listener(parsed.event as ChannelEvent));
     });
 
     socket.addEventListener("close", () => {
@@ -127,6 +135,25 @@ class ChatRealtimeClient {
     chatStore.markRealtimeActive(channelType, channelId, false);
     this.send({ type: "unsubscribe", channelType, channelId });
     if (!this.activeChannels.size) this.teardown();
+  }
+
+  /** Subscribe to plain push events on a channel (fantasy draft refresh, etc.), bypassing the
+   * chat message store. Returns an unsubscribe function; the socket stays open for this channel
+   * until every listener (chat store included) is gone. */
+  onChannelEvent(guildId: string, channelType: ChatChannelType, channelId: string, listener: (event: ChannelEvent) => void): () => void {
+    const key = this.channelKey(channelType, channelId);
+    if (!this.eventListeners.has(key)) this.eventListeners.set(key, new Set());
+    this.eventListeners.get(key)!.add(listener);
+    this.subscribeChannel(guildId, channelType, channelId);
+    return () => {
+      const set = this.eventListeners.get(key);
+      if (!set) return;
+      set.delete(listener);
+      if (set.size === 0) {
+        this.eventListeners.delete(key);
+        this.unsubscribeChannel(channelType, channelId);
+      }
+    };
   }
 }
 

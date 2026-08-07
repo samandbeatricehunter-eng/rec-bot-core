@@ -465,10 +465,33 @@ commissioner-facing form control instead of a batch seed-time operation.
   seed script) hasn't been live-tested against a real Cloudflare Images account — verify
   the response shape (`result.variants[0]`) against Cloudflare's actual API on first real
   run, small sample first.
-- ❌ **Not started**: apply-to-league wiring (§3) into `setup.service.ts`, draft-session
-  migration/API (§4), draft card UI (§5), realtime channel (§6), Custom Player Wizard
-  integration, League Mgmt headshot upload (§11). All fully specified above — next agent
-  (or next session) should be able to pick any of these up directly from their section.
+- ✅ **Apply-to-league wiring done** (§3): new `apps/api/src/modules/madden-baseline/
+  madden-baseline.service.ts` (`applyMaddenBaselineToLeague`, `getActiveMaddenDataset`),
+  wired into both `createLeagueForServer` and `createUnclaimedLeague` in
+  `setup.service.ts`. Writes into `rec_players` (not a new table — see §2's correction).
+  Matches team by `rec_teams.name` against `rec_madden_baseline_players.team_abbreviation`
+  (which despite its column name holds the full team name, e.g. "Buffalo Bills" — noted
+  directly in the service file). `regular_rosters` and `custom_rosters` (when
+  `customRostersPreseedRequested` is true, a new schema field) get real team assignments;
+  `fantasy_draft` gets every player with `team_id: null`. Idempotent via
+  `madden_player_id = 'madden27:' + source_slug` dedupe check. **Not yet exercised
+  end-to-end** — no league has actually been created through this path yet to confirm it
+  works; the next step for whoever picks this up is creating a real test league in each of
+  the three `leagueType` modes and checking `rec_players` came out right, especially the
+  team-name matching (case/whitespace mismatches between the CSV's team names and
+  `rec_teams.name` are the most likely failure mode).
+- **Still not started**: draft-session migration/API (§4), draft card UI (§5), realtime
+  channel (§6), Custom Player Wizard integration, League Mgmt headshot upload (§11). All
+  fully specified above — next agent (or next session) should be able to pick any of these
+  up directly from their section.
+- **Madden 26 backfill for the remaining 188 draft-class stub players**: leaguestation.com
+  has current Madden 26 ratings for every NFL player, but its browse/search pages are
+  client-rendered from an `/api/` path its `robots.txt` explicitly disallows for crawlers —
+  individual player pages (`/players/{id}/{slug}`) are fine and fully scrapeable once you
+  have the ID, there's just no crawl-safe bulk way to discover 188 specific IDs. Samuel is
+  manually pulling the URLs; once supplied, scrape each page (same text-extraction approach
+  as the maddenratings.com pages — see `apps/api/scripts/data/madden27/` script history)
+  and re-run the seed script to backfill `data_quality = 'backfilled_prior_year'` rows.
 - Also fixed in this session (unrelated bug reports, already pushed): Campus Buzz carousel
   arrows now page through articles instead of an almost-always-hidden week dimension; a
   real bug where offseason-stage stories (which reuse the last real week_number for

@@ -35,6 +35,7 @@ export function FirstTimeSetupHome() {
   const [name, setName] = useState("");
   const [game, setGame] = useState("madden_26");
   const [leagueType, setLeagueType] = useState("regular_rosters");
+  const [customRostersPreseedRequested, setCustomRostersPreseedRequested] = useState(false);
   const [activeRostersEnabled, setActiveRostersEnabled] = useState(true);
   const [trackRostersEnabled, setTrackRostersEnabled] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -82,7 +83,7 @@ export function FirstTimeSetupHome() {
         guildId,
         name: name.trim(),
         game,
-        ...(game === "cfb_27" ? { activeRostersEnabled, trackRostersEnabled } : { leagueType }),
+        ...(game === "cfb_27" ? { activeRostersEnabled, trackRostersEnabled } : { leagueType, ...(leagueType === "custom_rosters" ? { customRostersPreseedRequested } : {}) }),
       });
       setResult({ leagueName: res.league.name, teamCount: res.defaultTeams?.length ?? 0 });
     } catch (err) {
@@ -181,6 +182,15 @@ export function FirstTimeSetupHome() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {game !== "cfb_27" && leagueType === "custom_rosters" && (
+            <div className="form-field">
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                <input type="checkbox" checked={customRostersPreseedRequested} disabled={busy} onChange={(e) => setCustomRostersPreseedRequested(e.target.checked)} />
+                Pre-seed with in-game default rosters anyway? (leave unchecked for a blank roster)
+              </label>
             </div>
           )}
 
