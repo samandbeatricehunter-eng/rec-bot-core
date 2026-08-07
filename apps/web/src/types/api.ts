@@ -952,5 +952,6 @@ export type FantasyDraftState = {
   onTheClockTeamId: string | null;
   pool: FantasyDraftPoolPlayer[];
   picks: FantasyDraftPick[];
+  myBoard: string[];
   caller: { isCommissioner: boolean; myTeamId: string | null };
 };

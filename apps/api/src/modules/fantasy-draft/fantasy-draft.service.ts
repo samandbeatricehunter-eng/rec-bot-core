@@ -186,6 +186,22 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
     myTeamId = assignment.data?.team_id ?? null;
   }
 
+  // Personal ranked board — ordered player ids, draft status derived from picks so a
+  // freshly drafted player (before the delete trigger clears it) never shows as available.
+  let myBoard: string[] = [];
+  if (userId) {
+    const board = await supabase
+      .from("rec_fantasy_draft_board_entries")
+      .select("player_id")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .order("rank", { ascending: true });
+    if (board.error) throw new ApiError(500, "Failed to load your draft board.", board.error);
+    myBoard = (board.data ?? [])
+      .map((entry: any) => entry.player_id as string)
+      .filter((playerId) => !draftedIds.has(playerId));
+  }
+
   const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
   const onTheClockTeamId = session ? teamOnTheClock(session, pickOrder) : null;
 
@@ -218,8 +234,62 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       isWrapupPick: pick.is_wrapup_pick,
       loggedAt: pick.logged_at,
     })),
+    myBoard,
     caller: { isCommissioner, myTeamId },
   };
+}
+
+/** Replaces the caller's personal ranked board for the league's active draft. Only
+ * undrafted pool players may sit on the board; drafted or removed players are dropped
+ * silently. Available any time before the draft is concluded. */
+export async function saveFantasyDraftBoard(guildId: string, discordId: string, playerIds: string[]) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["not_scheduled", "scheduled", "live", "wrap_up"]);
+
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to save a draft board.");
+
+  const unique = [...new Set(playerIds)];
+  if (unique.length > 500) throw new ApiError(400, "A draft board can hold up to 500 players.");
+
+  let validated: string[] = unique;
+  if (unique.length) {
+    const players = await supabase
+      .from("rec_players")
+      .select("id")
+      .eq("league_id", leagueId)
+      .in("id", unique);
+    if (players.error) throw new ApiError(500, "Failed to validate board players.", players.error);
+    const validIds = new Set((players.data ?? []).map((p: any) => p.id));
+    validated = unique.filter((id) => validIds.has(id));
+  }
+
+  const picks = await listPicks(session.id);
+  const draftedIds = new Set(picks.map((pick) => pick.player_id));
+  const board = validated.filter((id) => !draftedIds.has(id));
+
+  const { error: deleteError } = await supabase
+    .from("rec_fantasy_draft_board_entries")
+    .delete()
+    .eq("league_id", leagueId)
+    .eq("user_id", userId);
+  if (deleteError) throw new ApiError(500, "Failed to replace your draft board.", deleteError);
+
+  if (board.length) {
+    const { error } = await supabase.from("rec_fantasy_draft_board_entries").insert(
+      board.map((playerId, index) => ({
+        league_id: leagueId,
+        user_id: userId,
+        player_id: playerId,
+        rank: index + 1,
+      })),
+    );
+    if (error) throw new ApiError(500, "Failed to save your draft board.", error);
+  }
+
+  return { ok: true as const, board };
 }
 
 export async function scheduleFantasyDraft(guildId: string, discordId: string, scheduledAt: string) {

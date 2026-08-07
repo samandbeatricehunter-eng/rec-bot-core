@@ -777,6 +777,8 @@ export const recApi = {
   // Fantasy draft (Madden league draft tracker) — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveFantasyDraftBoard: (input: { guildId: string; playerIds: string[] }) =>
+    recApiFetch<{ ok: true; board: string[] }>("/v1/fantasy-draft/board/save", { method: "POST", body: JSON.stringify(input) }),
   scheduleFantasyDraft: (input: { guildId: string; scheduledAt?: string | null }) =>
     recApiFetch<FantasyDraftSession>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
   commenceFantasyDraft: (guildId: string) =>

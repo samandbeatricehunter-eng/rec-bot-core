@@ -10,6 +10,7 @@ import {
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
   removeFantasyDraftPoolPlayer,
+  saveFantasyDraftBoard,
   scheduleFantasyDraft,
   setFantasyDraftPickOrder,
   skipFantasyDraftToEnd,
@@ -30,6 +31,15 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
         isCommissioner = false;
       }
       return reply.send(await getFantasyDraftState(guildId, auth.discordId, isCommissioner));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/board/save", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), playerIds: z.array(z.string().uuid()).max(500) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Saving a draft board requires a website session.");
+      return reply.send(await saveFantasyDraftBoard(body.guildId, auth.discordId, body.playerIds));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   REC_CUSTOM_PLAYER_POSITIONS,
   REC_DEV_TRAITS,
@@ -8,7 +8,7 @@ import {
   listRecArchetypes,
   type RecOvrPosition,
 } from "@rec/shared";
-import { AlertTriangle, CheckCircle2, Clock, Plus, Search, SkipForward, Trash2, Trophy, Undo2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, Trash2, Trophy, Undo2 } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { chatRealtimeClient } from "../../lib/chat-realtime-client.js";
 import type { FantasyDraftOrderMode, FantasyDraftPoolPlayer, FantasyDraftState } from "../../types/api.js";
@@ -20,6 +20,7 @@ import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 
 const POSITION_GROUP_ORDER = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "LOLB", "MLB", "ROLB", "CB", "FS", "SS", "K", "P"];
 const DRAFT_POSITIONS = [...REC_CUSTOM_PLAYER_POSITIONS, "K", "P"] as const;
+const NEXT_UP_COUNT = 5;
 
 function formatScheduledAt(value: string | null): string {
   if (!value) return "not scheduled";
@@ -34,14 +35,43 @@ function sortByPosition(a: FantasyDraftPoolPlayer, b: FantasyDraftPoolPlayer): n
   return (ka === -1 ? 99 : ka) - (kb === -1 ? 99 : kb);
 }
 
+function positionTabs(players: FantasyDraftPoolPlayer[]): string[] {
+  return [...new Set(players.map((p) => p.position))].sort((a, b) => {
+    const ka = POSITION_GROUP_ORDER.indexOf(a);
+    const kb = POSITION_GROUP_ORDER.indexOf(b);
+    return (ka === -1 ? 99 : ka) - (kb === -1 ? 99 : kb);
+  });
+}
+
+function nextPicksUp(state: FantasyDraftState): Array<{ round: number; pickInRound: number; teamId: string; teamName: string }> {
+  const { session, pickOrder, teams } = state;
+  if (!session || pickOrder.length !== 32) return [];
+  const result: Array<{ round: number; pickInRound: number; teamId: string; teamName: string }> = [];
+  let round = session.currentRound;
+  let pickInRound = session.currentPickInRound + 1;
+  for (let i = 0; i < NEXT_UP_COUNT; i++) {
+    if (pickInRound > 32) { pickInRound = 1; round += 1; }
+    const index = pickInRound - 1;
+    let teamId: string | undefined;
+    if (session.orderMode === "snake" && round % 2 === 0) {
+      teamId = pickOrder[pickOrder.length - 1 - index]?.teamId;
+    } else {
+      teamId = pickOrder[index]?.teamId;
+    }
+    if (!teamId) break;
+    const team = teams.find((t) => t.id === teamId);
+    result.push({ round, pickInRound, teamId, teamName: team?.displayName ?? "Unknown team" });
+    pickInRound += 1;
+  }
+  return result;
+}
+
 export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagueId: string }) {
   const [state, setState] = useState<FantasyDraftState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [positionFilter, setPositionFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [pickOrderOpen, setPickOrderOpen] = useState(false);
   const [customPlayerOpen, setCustomPlayerOpen] = useState(false);
@@ -51,6 +81,9 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [wrapupBannerDismissed, setWrapupBannerDismissed] = useState(() => {
     try { return sessionStorage.getItem(`rec-fantasy-draft-wrapup-${leagueId}`) === "1"; } catch { return false; }
   });
+
+  const [boardOrder, setBoardOrder] = useState<string[]>([]);
+  const boardSaveTimerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +107,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   }, [guildId, leagueId, load]);
 
   useEffect(() => {
+    setBoardOrder(state?.myBoard ?? []);
+  }, [state?.myBoard]);
+
+  useEffect(() => {
     if (!state?.session) return;
     const status = state.session.status;
     if (status === "wrap_up" && prevStatusRef.current && prevStatusRef.current !== "wrap_up" && !wrapupBannerDismissed) {
@@ -81,6 +118,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     }
     prevStatusRef.current = status;
   }, [state, wrapupBannerDismissed]);
+
+  useEffect(() => {
+    return () => { if (boardSaveTimerRef.current) window.clearTimeout(boardSaveTimerRef.current); };
+  }, []);
 
   async function runAction(action: () => Promise<unknown>, successMessage: string | null = null) {
     setBusy(true);
@@ -97,6 +138,26 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     }
   }
 
+  function handleBoardReorder(next: FantasyDraftPoolPlayer[]) {
+    const nextIds = next.map((p) => p.id);
+    setBoardOrder((current) => {
+      // When a position/search filter is active the reorder applies to a subsequence of
+      // the full board; merge the new subset order back in so unlisted players keep their slots.
+      if (nextIds.length === current.length) return nextIds;
+      const subsetIds = new Set(nextIds);
+      const result: string[] = [];
+      let cursor = 0;
+      for (const id of current) {
+        result.push(subsetIds.has(id) ? nextIds[cursor++]! : id);
+      }
+      return result;
+    });
+    if (boardSaveTimerRef.current) window.clearTimeout(boardSaveTimerRef.current);
+    boardSaveTimerRef.current = window.setTimeout(() => {
+      void runAction(() => recApi.saveFantasyDraftBoard({ guildId, playerIds: nextIds }));
+    }, 600);
+  }
+
   if (loading && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><LoadingState label="Loading the draft board…" /></SectionFrame>;
   if (error && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><ErrorState message={error} /><div style={{ marginTop: "var(--space-3)" }}><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>Try again</Button></div></SectionFrame>;
   if (!state) return null;
@@ -108,18 +169,6 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const onTheClock = session && hasPickOrder ? teams.find((t) => t.id === state.onTheClockTeamId) ?? null : null;
   const draftedCount = picks.length;
   const playerNameById = new Map(pool.map((p) => [p.id, p.name]));
-
-  const positions = [...new Set(pool.filter((p) => !p.isDrafted).map((p) => p.position))].sort((a, b) => {
-    const ka = POSITION_GROUP_ORDER.indexOf(a);
-    const kb = POSITION_GROUP_ORDER.indexOf(b);
-    return (ka === -1 ? 99 : ka) - (kb === -1 ? 99 : kb);
-  });
-  const query = searchQuery.trim().toLowerCase();
-  const visibleRows = pool
-    .filter((p) => !p.isDrafted)
-    .filter((p) => positionFilter === "All" || p.position === positionFilter)
-    .filter((p) => !query || p.name.toLowerCase().includes(query))
-    .sort((a, b) => (b.overallRating ?? -1) - (a.overallRating ?? -1));
 
   const recentPicks = [...picks].sort((a, b) => b.overallPickNumber - a.overallPickNumber).slice(0, 8);
 
@@ -141,7 +190,7 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     if (status === "not_scheduled") commissionerActions.push({ label: "Schedule", icon: <Clock size={16} />, onClick: () => setScheduleOpen(true) });
     if (status === "scheduled") commissionerActions.push({ label: "Commence Draft", icon: <Trophy size={16} />, onClick: () => void runAction(() => recApi.commenceFantasyDraft(guildId), "Draft commenced.") });
     if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: hasPickOrder ? "Edit Pick Order" : "Set Pick Order", icon: <CheckCircle2 size={16} />, onClick: () => setPickOrderOpen(true) });
-    if (["scheduled", "live", "wrap_up"].includes(status)) commissionerActions.push({ label: "Add Custom Player", icon: <Plus size={16} />, onClick: () => setCustomPlayerOpen(true) });
+    if (["scheduled", "live", "wrap_up"].includes(status)) commissionerActions.push({ label: "Add Player", icon: <Plus size={16} />, onClick: () => setCustomPlayerOpen(true) });
     if (status === "live" && hasPickOrder) {
       commissionerActions.push({ label: "Undo", icon: <Undo2 size={16} />, onClick: () => void runAction(() => recApi.undoFantasyDraftPick(guildId)) });
       commissionerActions.push({ label: "Skip to End", icon: <SkipForward size={16} />, onClick: () => void runAction(() => recApi.skipFantasyDraftToEnd(guildId), "Auto-completed the remaining picks.") });
@@ -158,13 +207,7 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const showUndraftedWarning = (status === "live" || status === "wrap_up") && hasPickOrder && pool.length > draftedCount;
 
   return (
-    <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker" subtitle={statusHeadline()} action={commissionerActions.length ? (
-      <div className="fantasy-draft-actions">
-        {commissionerActions.map((a) => (
-          <Button key={a.label} variant={a.danger ? "danger" : "secondary"} size="compact" disabled={busy || a.disabled} onClick={a.onClick}>{a.icon} {a.label}</Button>
-        ))}
-      </div>
-    ) : undefined}>
+    <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker" subtitle={statusHeadline()}>
       {notice && (
         <div className="fantasy-draft-notice">
           <p>{notice}</p>
@@ -181,12 +224,8 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
           <p><strong>{picks.length}</strong> total picks were logged for this draft.</p>
           {recentPicks.length > 0 && <PickHistory picks={recentPicks} playerNameById={playerNameById} />}
         </div>
-      ) : status === "not_scheduled" || status === "scheduled" ? (
-        <div className="fantasy-draft-empty">
-          <p>{status === "scheduled" ? "The draft is on the calendar — the board opens when the commissioner commences it." : "No fantasy draft scheduled yet."}</p>
-        </div>
       ) : (
-        <div className="fantasy-draft-body">
+        <>
           {showUndraftedWarning && (
             <p className="fantasy-draft-warning"><AlertTriangle size={16} /> {pool.length - draftedCount} player{pool.length - draftedCount === 1 ? "" : "s"} still undrafted — wrap-up picks can assign them after the main board closes.</p>
           )}
@@ -197,61 +236,34 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
             </div>
           )}
 
-          {(status === "live" || status === "wrap_up") && hasPickOrder && (
-            <div className="fantasy-draft-board">
-              <div className="fantasy-draft-toolbar">
-                <div className="fantasy-draft-filter-tabs">
-                  {["All", ...positions].map((position) => (
-                    <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
-                  ))}
-                </div>
-                <label className="fantasy-draft-search">
-                  <Search size={14} />
-                  <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                </label>
-              </div>
+          <div className="fantasy-draft-split">
+            <div className="fantasy-draft-panel">
+              <BoardPanel
+                guildId={guildId}
+                state={state}
+                boardOrder={boardOrder}
+                busy={busy}
+                isCommissioner={isCommissioner}
+                status={status}
+                hasPickOrder={hasPickOrder}
+                onReorder={handleBoardReorder}
+                onWrapupTarget={setWrapupTarget}
+                onPoolAction={(action, successMessage) => void runAction(action, successMessage)}
+              />
+            </div>
+            <div className="fantasy-draft-tracker">
+              <TrackerPanel state={state} playerNameById={playerNameById} />
+            </div>
+          </div>
 
-              {visibleRows.length === 0 ? (
-                <p className="hub-empty">No players in the pool for this filter.</p>
-              ) : (
-                <div className="fantasy-draft-pool">
-                  {visibleRows.map((player) => {
-                    const canDraft = status === "live" ? isCommissioner : true;
-                    return (
-                      <div key={player.id} className="fantasy-draft-player-row">
-                        <div className="fantasy-draft-player-identity">
-                          {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
-                          <div>
-                            <strong>{player.name}</strong>
-                            <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}{player.archetype ? ` · ${player.archetype.replaceAll("_", " ")}` : ""}</small>
-                          </div>
-                        </div>
-                        <div className="fantasy-draft-player-actions">
-                          {status === "wrap_up" && !isCommissioner && (
-                            <Button variant="primary" size="compact" disabled={busy} onClick={() => void runAction(() => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id }), `${player.name} assigned to your team.`)}>Assign to My Team</Button>
-                          )}
-                          {status === "wrap_up" && isCommissioner && (
-                            <Button variant="primary" size="compact" disabled={busy} onClick={() => setWrapupTarget(player)}>Assign</Button>
-                          )}
-                          {status === "live" && isCommissioner && (
-                            <Button variant="primary" size="compact" disabled={busy} onClick={() => void runAction(() => recApi.logFantasyDraftPick({ guildId, playerId: player.id }), `${player.name} drafted.`)}>Drafted</Button>
-                          )}
-                          {isCommissioner && (
-                            <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => void runAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`)}><Trash2 size={15} /></Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          {commissionerActions.length > 0 && (
+            <div className="fantasy-draft-actionbar">
+              {commissionerActions.map((a) => (
+                <Button key={a.label} variant={a.danger ? "danger" : "secondary"} size="compact" disabled={busy || a.disabled} onClick={a.onClick}>{a.icon} {a.label}</Button>
+              ))}
             </div>
           )}
-
-          {(status === "live" || status === "wrap_up") && (
-            <PickHistory picks={recentPicks} playerNameById={playerNameById} />
-          )}
-        </div>
+        </>
       )}
 
       {scheduleOpen && <ScheduleModal guildId={guildId} onClose={() => setScheduleOpen(false)} onScheduled={() => void runAction(() => Promise.resolve(), "Draft scheduled.")} />}
@@ -295,6 +307,305 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         </Modal>
       )}
     </SectionFrame>
+  );
+}
+
+function BoardPanel({ guildId, state, boardOrder, busy, isCommissioner, status, hasPickOrder, onReorder, onWrapupTarget, onPoolAction }: {
+  guildId: string;
+  state: FantasyDraftState;
+  boardOrder: string[];
+  busy: boolean;
+  isCommissioner: boolean;
+  status: string;
+  hasPickOrder: boolean;
+  onReorder: (next: FantasyDraftPoolPlayer[]) => void;
+  onWrapupTarget: (player: FantasyDraftPoolPlayer) => void;
+  onPoolAction: (action: () => Promise<unknown>, successMessage?: string | null) => void;
+}) {
+  const { pool, picks, caller } = state;
+  const [tab, setTab] = useState<"board" | "roster" | "pool">("board");
+  const [positionFilter, setPositionFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const poolById = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool]);
+  const showPoolTab = (isCommissioner && (status === "live" || status === "wrap_up") && hasPickOrder) || status === "wrap_up";
+
+  useEffect(() => { setPositionFilter("All"); setSearchQuery(""); }, [tab]);
+
+  const boardPlayers = useMemo(() => (
+    boardOrder.map((id) => poolById.get(id)).filter((p): p is FantasyDraftPoolPlayer => p != null && !p.isDrafted)
+  ), [boardOrder, poolById]);
+
+  const myRoster = useMemo(() => {
+    if (!caller.myTeamId) return [];
+    return pool.filter((p) => p.draftedByTeamId === caller.myTeamId && p.isDrafted);
+  }, [pool, caller.myTeamId]);
+
+  const query = searchQuery.trim().toLowerCase();
+  const activeTabPlayers = tab === "board" ? boardPlayers : tab === "roster" ? myRoster : [];
+  const tabs = positionTabs(activeTabPlayers);
+
+  const poolRows = pool
+    .filter((p) => !p.isDrafted)
+    .filter((p) => tab === "pool" && (positionFilter === "All" || p.position === positionFilter))
+    .filter((p) => !query || p.name.toLowerCase().includes(query))
+    .sort((a, b) => sortByPosition(a, b) || (b.overallRating ?? -1) - (a.overallRating ?? -1));
+
+  const visibleBoard = activeTabPlayers
+    .filter((p) => positionFilter === "All" || p.position === positionFilter)
+    .filter((p) => !query || p.name.toLowerCase().includes(query));
+
+  return (
+    <div className="fantasy-draft-panel-inner">
+      <div className="fantasy-draft-tabs">
+        <button type="button" className={tab === "board" ? "active" : ""} onClick={() => setTab("board")}>My Board</button>
+        <button type="button" className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>My Roster</button>
+        {showPoolTab && <button type="button" className={tab === "pool" ? "active" : ""} onClick={() => setTab("pool")}>Draft Pool</button>}
+      </div>
+
+      {tab === "pool" ? (
+        <div className="fantasy-draft-toolbar">
+          <div className="fantasy-draft-filter-tabs">
+            {["All", ...positionTabs(pool.filter((p) => !p.isDrafted))].map((position) => (
+              <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
+            ))}
+          </div>
+          <label className="fantasy-draft-search">
+            <Search size={14} />
+            <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </label>
+        </div>
+      ) : (
+        <div className="fantasy-draft-toolbar">
+          <div className="fantasy-draft-filter-tabs">
+            {["All", ...tabs].map((position) => (
+              <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
+            ))}
+          </div>
+          <label className="fantasy-draft-search">
+            <Search size={14} />
+            <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </label>
+        </div>
+      )}
+
+      {tab === "board" && (
+        <>
+          <p className="fantasy-draft-panel-hint">Drag players to rank them (top = most wanted). Drafted players drop off automatically.</p>
+          {visibleBoard.length === 0 ? (
+            <p className="hub-empty">{query ? "No players match your search." : boardPlayers.length === 0 ? "Your board is empty — players from the draft pool will appear here as the draft runs." : "No players in this position group yet."}</p>
+          ) : (
+            <SortableRankedList
+              items={visibleBoard}
+              onReorder={onReorder}
+              renderContent={(player, index, isDragging) => (
+                <div className="fantasy-draft-player-identity">
+                  {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                  <div>
+                    <strong>{player.name}</strong>
+                    <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>
+                  </div>
+                </div>
+              )}
+            />
+          )}
+        </>
+      )}
+
+      {tab === "roster" && (
+        <div className="fantasy-draft-roster">
+          {visibleBoard.length === 0 ? (
+            <p className="hub-empty">{caller.myTeamId ? "No players drafted to your team yet." : "You aren't assigned to a team in this league."}</p>
+          ) : (
+            visibleBoard.sort(sortByPosition).map((player) => (
+              <div key={player.id} className="fantasy-draft-roster-row">
+                <div className="fantasy-draft-player-identity">
+                  {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                  <div>
+                    <strong>{player.name}</strong>
+                    <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {tab === "pool" && (
+        <div className="fantasy-draft-pool">
+          {poolRows.length === 0 ? (
+            <p className="hub-empty">No undrafted players in the pool for this filter.</p>
+          ) : (
+            poolRows.map((player) => {
+              const canDraft = status === "live" ? isCommissioner : true;
+              return (
+                <div key={player.id} className="fantasy-draft-player-row">
+                  <div className="fantasy-draft-player-identity">
+                    {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                    <div>
+                      <strong>{player.name}</strong>
+                      <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}{player.archetype ? ` · ${player.archetype.replaceAll("_", " ")}` : ""}</small>
+                    </div>
+                  </div>
+                  <div className="fantasy-draft-player-actions">
+                    {status === "wrap_up" && !isCommissioner && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onPoolAction(() => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id }), `${player.name} assigned to your team.`)}>Assign to My Team</Button>
+                    )}
+                    {status === "wrap_up" && isCommissioner && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onWrapupTarget(player)}>Assign</Button>
+                    )}
+                    {status === "live" && isCommissioner && canDraft && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onPoolAction(() => recApi.logFantasyDraftPick({ guildId, playerId: player.id }), `${player.name} drafted.`)}>Drafted</Button>
+                    )}
+                    {isCommissioner && (
+                      <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => onPoolAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`)}><Trash2 size={15} /></Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrackerPanel({ state, playerNameById }: { state: FantasyDraftState; playerNameById: Map<string, string> }) {
+  const { session, teams, picks } = state;
+  const onTheClock = session ? teams.find((t) => t.id === state.onTheClockTeamId) ?? null : null;
+  const upcoming = nextPicksUp(state);
+
+  const chronologicalPicks = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
+
+  return (
+    <div className="fantasy-draft-tracker-inner">
+      {session && session.status === "live" && (
+        <div className="fantasy-draft-clock">
+          <p className="fantasy-draft-clock-label">On the clock</p>
+          <p className="fantasy-draft-clock-team">{onTheClock?.displayName ?? "unknown team"}</p>
+          <p className="fantasy-draft-clock-pick">Round {session.currentRound}, Pick {session.currentPickInRound}</p>
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <div className="fantasy-draft-nextup">
+          <h4>Next up</h4>
+          <ul>
+            {upcoming.map((next) => (
+              <li key={`${next.round}-${next.pickInRound}`}><span className="fantasy-draft-pick-round">R{next.round} P{next.pickInRound}</span><strong>{next.teamName}</strong></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="fantasy-draft-picks">
+        <h4>Picks made</h4>
+        {chronologicalPicks.length === 0 ? (
+          <p className="hub-empty">No picks logged yet.</p>
+        ) : (
+          <ul>
+            {chronologicalPicks.map((pick) => (
+              <li key={pick.id}><span className="fantasy-draft-pick-round">R{pick.round} P{pick.pickInRound}</span><strong>{pick.teamName}</strong> — <em>{playerNameById.get(pick.playerId) ?? "unknown player"}</em>{pick.isWrapupPick ? " · wrap-up" : ""}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SortableRankedList<T extends { id: string }>({ items, onReorder, renderContent }: {
+  items: T[];
+  onReorder: (next: T[]) => void;
+  renderContent: (item: T, index: number, isDragging: boolean) => ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragStateRef = useRef<{ pointerId: number; startIndex: number; startY: number; armed: boolean; holdTimer: ReturnType<typeof setTimeout> | null } | null>(null);
+
+  function cleanupDrag() {
+    const dragState = dragStateRef.current;
+    if (dragState?.holdTimer) clearTimeout(dragState.holdTimer);
+    dragStateRef.current = null;
+    setDraggingId(null);
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLElement>, index: number) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const isMouse = event.pointerType === "mouse";
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const dragState = { pointerId: event.pointerId, startIndex: index, startY: event.clientY, armed: !isMouse, holdTimer: null as ReturnType<typeof setTimeout> | null };
+    dragStateRef.current = dragState;
+    if (isMouse) {
+      dragState.holdTimer = setTimeout(() => {
+        if (dragStateRef.current === dragState) dragState.armed = true;
+      }, 200);
+    }
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLElement>, index: number) {
+    const dragState = dragStateRef.current;
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    if (!dragState.armed) {
+      if (Math.abs(event.clientY - dragState.startY) > 10) {
+        if (dragState.holdTimer) clearTimeout(dragState.holdTimer);
+        dragStateRef.current = null;
+      }
+      return;
+    }
+    const currentIndex = dragState.startIndex;
+    const draggingItem = items[currentIndex];
+    if (!draggingItem) return;
+    if (draggingId === null) {
+      if (Math.abs(event.clientY - dragState.startY) < 6) return;
+      setDraggingId(draggingItem.id);
+    }
+    const container = containerRef.current;
+    if (!container) return;
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-sortable-row]"));
+    if (!rows.length) return;
+    let targetIndex = rows.length - 1;
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i]!.getBoundingClientRect();
+      if (event.clientY < rect.top + rect.height / 2) { targetIndex = i; break; }
+    }
+    if (targetIndex === currentIndex) return;
+    const next = [...items];
+    const [moved] = next.splice(currentIndex, 1);
+    next.splice(targetIndex, 0, moved!);
+    dragStateRef.current = { ...dragState, startIndex: targetIndex };
+    onReorder(next);
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<HTMLElement>) {
+    const dragState = dragStateRef.current;
+    if (dragState && event.pointerId === dragState.pointerId) cleanupDrag();
+  }
+
+  return (
+    <div className="fantasy-draft-board-list" ref={containerRef}>
+      {items.map((item, index) => (
+        <div key={item.id} className={`fantasy-draft-board-row${draggingId === item.id ? " dragging" : ""}`} data-sortable-row>
+          <span className="fantasy-draft-board-rank">{index + 1}</span>
+          <span
+            className={`fantasy-draft-board-handle${draggingId === item.id ? " dragging" : ""}`}
+            role="button"
+            aria-label={`Reorder ${"name" in item ? String((item as any).name) : item.id}`}
+            title="Hold to drag"
+            onPointerDown={(e) => handlePointerDown(e, index)}
+            onPointerMove={(e) => handlePointerMove(e, index)}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
+            <GripVertical size={16} />
+          </span>
+          {renderContent(item, index, draggingId === item.id)}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -475,7 +786,7 @@ function AddCustomPlayerModal({ guildId, onClose, onAdded }: { guildId: string; 
   }
 
   return (
-    <Modal title="Add Custom Player" onClose={onClose} panelClassName="fantasy-draft-modal-wide">
+    <Modal title="Add Player" onClose={onClose} panelClassName="fantasy-draft-modal-wide">
       <div className="fantasy-draft-form-grid">
         <label>First name<input className="form-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
         <label>Last name<input className="form-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
