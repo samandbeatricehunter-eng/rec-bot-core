@@ -67,6 +67,7 @@ async function restUpdate(table: string, query: string, patch: unknown): Promise
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "data", "madden27");
+const M26_DIR = join(__dirname, "data", "madden26");
 const GAME_TITLE = "madden_27";
 const PROVIDER = "maddenratings.com";
 const SOURCE_VERSION = "2026-08-07";
@@ -89,6 +90,62 @@ const ATTRIBUTE_COLUMNS: Record<string, string> = {
 };
 
 type Row = Record<string, string>;
+
+// Madden 26 CSV header -> madden_27 baseline DB column. Used to backfill the unrated stub
+// players (plan doc §1/§12) from the per-team M26 rating CSVs in data/madden26/. M26 has no
+// injury/kicking columns; those stay null on backfilled rows.
+const M26_ATTRIBUTE_MAP: Record<string, string> = {
+  Speed: "speed", Acceleration: "acceleration", Agility: "agility", Awareness: "awareness", Strength: "strength",
+  Stamina: "stamina", Jumping: "jumping", Toughness: "toughness", "Change of Direction": "change_of_direction",
+  "Throw Power": "throw_power", "Short Accuracy": "throw_accuracy_short", "Mid Accuracy": "throw_accuracy_mid",
+  "Deep Accuracy": "throw_accuracy_deep", "Throw on Run": "throw_on_the_run", "Throw Under Pressure": "throw_under_pressure",
+  "Play Action": "play_action", "Break Sack": "break_sack", Catching: "catching", "Catch in Traffic": "catch_in_traffic",
+  "Spectacular Catch": "spectacular_catch", "Short Routes": "route_running_short", "Mid Routes": "route_running_medium",
+  "Deep Routes": "route_running_deep", Release: "release", Carrying: "carrying", "Ball Carrier Vision": "bc_vision",
+  Trucking: "trucking", "Stiff Arm": "stiff_arm", "Spin Move": "spin_move", "Juke Move": "juke_move",
+  "Break Tackle": "break_tackle", "Run Blocking": "run_block", "Pass Blocking": "pass_block",
+  "Impact Blocking": "impact_blocking", "Lead Block": "lead_block", "Run Block Finesse": "run_block_finesse",
+  "Run Block Power": "run_block_power", "Pass Block Finesse": "pass_block_finesse", "Pass Block Power": "pass_block_power",
+  "Finesse Moves": "finesse_moves", "Power Moves": "power_moves", "Block Shedding": "block_shedding", Tackle: "tackle",
+  "Hit Power": "hit_power", Pursuit: "pursuit", "Play Recognition": "play_recognition", "Man Coverage": "man_coverage",
+  "Zone Coverage": "zone_coverage", Press: "press",
+};
+
+function decodeEntities(s: string): string {
+  return s.replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&apos;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+
+function normalizeName(name: string): string {
+  return decodeEntities(name).toLowerCase().replace(/\./g, "").replace(/'/g, "").replace(/\s+/g, " ").trim();
+}
+
+function stripSuffix(name: string): string {
+  return name.replace(/\s+(jr|sr|ii|iii|iv)$/i, "");
+}
+
+function slugName(url: string): string {
+  const slug = slugFromUrl(url);
+  return slug.split("-").filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+}
+
+/** Build a normalized-name -> M26 row lookup, with suffix-stripped variants as fallback. */
+function loadM26Lookup(): Map<string, Row> {
+  const lookup = new Map<string, Row>();
+  for (const file of ["ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"]) {
+    const path = join(M26_DIR, `madden-ratings-${file}.csv`);
+    if (!existsSync(path)) continue;
+    for (const row of parseCsv(readFileSync(path, "utf8"))) {
+      const n = normalizeName(row.Player);
+      if (!n) continue;
+      if (!lookup.has(n)) lookup.set(n, row);
+      const ns = normalizeName(stripSuffix(row.Player));
+      if (ns && ns !== n && !lookup.has(ns)) lookup.set(ns, row);
+    }
+  }
+  return lookup;
+}
 
 function parseCsv(text: string): Row[] {
   const rows: string[][] = [];
@@ -318,9 +375,24 @@ async function main() {
   // (PGRST102 "All object keys must match") — placeholder rows must carry the same null
   // attribute columns the rated rows get from attributeColumns(), not omit them.
   const nullAttributeColumns = Object.fromEntries(Object.values(ATTRIBUTE_COLUMNS).map((col) => [col, null]));
+  const m26Lookup = loadM26Lookup();
+  let m26Matched = 0;
   for (const row of stubRows) {
     const slug = slugFromUrl(row.url);
-    const hasRatings = row.dataSource?.startsWith("Madden NFL 26");
+    // Repair lost names (scrape artifact) from the URL slug before matching.
+    if (row.name === "Madden 27 Ratings Database") row.name = slugName(row.url) || row.name;
+    const m26 = m26Lookup.get(normalizeName(row.name)) ?? m26Lookup.get(normalizeName(stripSuffix(row.name)));
+    const hasRatings = row.dataSource?.startsWith("Madden NFL 26") || Boolean(m26);
+    const m26Columns: Record<string, unknown> = {};
+    let m26AttrCount = 0;
+    if (m26) {
+      m26Matched++;
+      for (const [m26Col, dbCol] of Object.entries(M26_ATTRIBUTE_MAP)) {
+        const v = num(m26[m26Col]);
+        m26Columns[dbCol] = v;
+        if (v !== null) m26AttrCount++;
+      }
+    }
     rows.push({
       dataset_id: datasetId,
       source_slug: slug,
@@ -343,9 +415,11 @@ async function main() {
       abilities_raw: null,
       data_quality: hasRatings ? "backfilled_prior_year" : "placeholder",
       ...nullAttributeColumns,
-      total_attributes: null,
+      ...m26Columns,
+      total_attributes: m26 ? (m26AttrCount || null) : null,
     });
   }
+  if (m26Matched) console.log(`Backfilled ${m26Matched} stub players from Madden 26 rating CSVs.`);
 
   const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? "";
   const apiToken = env.CLOUDFLARE_API_TOKEN?.trim() ?? "";

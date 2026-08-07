@@ -490,14 +490,20 @@ commissioner-facing form control instead of a batch seed-time operation.
   channel (§6), Custom Player Wizard integration, League Mgmt headshot upload (§11). All
   fully specified above — next agent (or next session) should be able to pick any of these
   up directly from their section.
-- **Madden 26 backfill for the remaining 188 draft-class stub players**: leaguestation.com
-  has current Madden 26 ratings for every NFL player, but its browse/search pages are
-  client-rendered from an `/api/` path its `robots.txt` explicitly disallows for crawlers —
-  individual player pages (`/players/{id}/{slug}`) are fine and fully scrapeable once you
-  have the ID, there's just no crawl-safe bulk way to discover 188 specific IDs. Samuel is
-  manually pulling the URLs; once supplied, scrape each page (same text-extraction approach
-  as the maddenratings.com pages — see `apps/api/scripts/data/madden27/` script history)
-  and re-run the seed script to backfill `data_quality = 'backfilled_prior_year'` rows.
+- ✅ **Madden 26 backfill for the stub players**: Samuel supplied 32 per-team Madden 26
+  rating CSVs (leaguestation data, `apps/api/scripts/data/madden26/madden-ratings-*.csv`,
+  moved out of `apps/csv rosters 26/`). They carry ratings but no player IDs, so instead of
+  scraping individual leaguestation pages the ratings are matched **by name** and mapped
+  column-by-column onto the madden_27 baseline schema (`M26_ATTRIBUTE_MAP`). Ran
+  `apps/api/scripts/madden26-stub-backfill.ts`: **288 of the 410 stubs now have Madden 26
+  ratings** (`data_quality = 'backfilled_prior_year'`, 38 attributes each, real position +
+  OVR); 122 remain `placeholder` (not on any Madden 26 team roster in the supplied set).
+  The script also repaired the 18 stub rows whose scraped name was lost ("Madden 27 Ratings
+  Database" — those pages genuinely don't contain the player's name in HTML) by deriving the
+  name from the URL slug (e.g. `tyre-phillips` → Tyre Phillips), in both the CSV and the DB.
+  Entity-decoding (11 rows: `D&#8217;Ante Smith` → D'Ante Smith) and suffix-stripped matching
+  (Jr/Sr/II/III/IV) were needed to match M26 names properly. The seed script now does the
+  same M26 backfill on future full re-runs (`loadM26Lookup()`).
 - Also fixed in this session (unrelated bug reports, already pushed): Campus Buzz carousel
   arrows now page through articles instead of an almost-always-hidden week dimension; a
   real bug where offseason-stage stories (which reuse the last real week_number for
