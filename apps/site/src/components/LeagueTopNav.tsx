@@ -16,7 +16,7 @@ import {
 } from "./icons.js";
 
 function buzzLabelForGame(game: string | null | undefined): string {
-  if (game && game.startsWith("madden")) return "Breaking News";
+  if (game && game.startsWith("madden")) return "League News";
   return "Campus Buzz";
 }
 

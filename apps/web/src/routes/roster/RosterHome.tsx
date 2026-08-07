@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { CFB_POSITION_GROUPS } from "@rec/shared";
+import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { RosterPlayer, TeamRosterResponse } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
@@ -88,6 +89,8 @@ const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
 export function RosterHome() {
   const { guildId } = useReadyAuth();
+  const hub = useHubChrome();
+  const isMadden = hub.currentLeague?.game?.startsWith("madden") ?? false;
   const [data, setData] = useState<TeamRosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("grid");
@@ -198,7 +201,7 @@ export function RosterHome() {
             <span className="form-label">Position group</span>
             <select className="form-input" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
               <option value="ALL">All positions</option>
-              {CFB_POSITION_GROUPS.map((group) => (
+              {(isMadden ? MADDEN_POSITION_GROUPS : CFB_POSITION_GROUPS).map((group) => (
                 <option key={group} value={group}>
                   {group}
                 </option>
@@ -258,7 +261,7 @@ export function RosterHome() {
                     <h3 className="hub-roster-detail-name">{selectedPlayer.fullName}</h3>
                     <div className="hub-roster-detail-meta">
                       <span>{formatHeight(selectedPlayer.heightInches)}{selectedPlayer.weightLbs != null ? `, ${selectedPlayer.weightLbs} lbs` : ""}</span>
-                      {selectedPlayer.classYear && <span>Class: <strong>{selectedPlayer.classYear}</strong></span>}
+                      {!isMadden && selectedPlayer.classYear && <span>Class: <strong>{selectedPlayer.classYear}</strong></span>}
                       {selectedPlayer.devTrait && <span>Dev Trait: <strong>{selectedPlayer.devTrait}</strong></span>}
                     </div>
                   </div>
@@ -275,7 +278,7 @@ export function RosterHome() {
                     <th className="hub-roster-sortable" onClick={() => toggleSort("fullName")}>Player{sortKey === "fullName" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th className="hub-roster-sortable" onClick={() => toggleSort("heightInches")}>Ht{sortKey === "heightInches" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th className="hub-roster-sortable" onClick={() => toggleSort("weightLbs")}>Wt{sortKey === "weightLbs" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
-                    <th className="hub-roster-sortable" onClick={() => toggleSort("classYear")}>Class{sortKey === "classYear" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
+                    {!isMadden && <th className="hub-roster-sortable" onClick={() => toggleSort("classYear")}>Class{sortKey === "classYear" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>}
                     <th className="hub-roster-sortable" onClick={() => toggleSort("overallRating")}>OVR{sortKey === "overallRating" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th />
                     {data.canEditRosterStatus && <th>Status</th>}
@@ -290,7 +293,7 @@ export function RosterHome() {
                       </td>
                       <td>{formatHeight(player.heightInches)}</td>
                       <td>{player.weightLbs != null ? `${player.weightLbs} lbs` : "—"}</td>
-                      <td>{player.classYear ?? "—"}</td>
+                      {!isMadden && <td>{player.classYear ?? "—"}</td>}
                       <td>
                         {player.overallRating ?? "—"}
                         {player.recentIncrease ? <span className="hub-roster-increase">+{player.recentIncrease}</span> : null}
@@ -305,7 +308,7 @@ export function RosterHome() {
                   ))}
                   {sortedPlayers.length === 0 && (
                     <tr>
-                      <td colSpan={data.canEditRosterStatus ? 7 : 6} className="hub-empty">
+                      <td colSpan={(isMadden ? 5 : 6) + (data.canEditRosterStatus ? 1 : 0)} className="hub-empty">
                         No players in this group.
                       </td>
                     </tr>

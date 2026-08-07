@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
 import { ErrorState } from "../ui/ErrorState.js";
@@ -15,6 +16,8 @@ export function ShareStreamModal({
   onClose: () => void;
   onSubmitted: () => void;
 }) {
+  const hub = useHubChrome();
+  const buzzLabel = hub.currentLeague?.game?.startsWith("madden") ? "League News" : "Campus Buzz";
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,7 @@ export function ShareStreamModal({
           onChange={(event) => setUrl(event.target.value)}
         />
         <p className="form-hint">
-          Posts to this league's Discord streams channel (if linked), a Campus Buzz Chat notice,
+          Posts to this league's Discord streams channel (if linked), a {buzzLabel} Chat notice,
           and the Live Games board — plus a payout review if you're eligible this week.
         </p>
       </div>

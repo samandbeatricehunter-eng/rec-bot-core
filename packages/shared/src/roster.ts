@@ -10,6 +10,11 @@ export const CFB_POSITION_GROUPS = [
 ] as const;
 export type CfbPositionGroup = (typeof CFB_POSITION_GROUPS)[number];
 
+// Madden baseline data was imported using the same position-code scheme as CFB (LEDG/REDG,
+// WILL/MIKE/SAM), so it reuses the same group list plus long snapper, which CFB doesn't track.
+export const MADDEN_POSITION_GROUPS = [...CFB_POSITION_GROUPS, "LS"] as const;
+export type MaddenPositionGroup = (typeof MADDEN_POSITION_GROUPS)[number];
+
 // The baseline dataset carries handedness on QBs ("QB (Left)"/"QB (Right)") — collapse both
 // onto the QB group for grading/filtering while the raw label still displays per-player.
 export function normalizeCfbPosition(rawPosition: string): string {

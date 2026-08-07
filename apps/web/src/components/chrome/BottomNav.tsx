@@ -48,7 +48,8 @@ function globalItems(): NavItem[] {
   ];
 }
 
-function buzzLabelForGame(_game: string | null | undefined): string {
+function buzzLabelForGame(game: string | null | undefined): string {
+  if (game && game.startsWith("madden")) return "League News";
   return "Campus Buzz";
 }
 

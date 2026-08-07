@@ -1,4 +1,4 @@
-import { CFB_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, gameplaySeasonStages, isCfb } from "@rec/shared";
+import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, gameplaySeasonStages, isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
@@ -97,8 +97,10 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     photoUrl: p.photo_url ?? null,
   }));
 
+  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
   const activeRows = rows.filter((r) => r.rosterStatus === "active" || r.rosterStatus === "transferred_in");
-  const groups: RosterPositionGroup[] = CFB_POSITION_GROUPS.map((group) => {
+  const groupList: readonly string[] = isMadden ? MADDEN_POSITION_GROUPS : CFB_POSITION_GROUPS;
+  const groups: RosterPositionGroup[] = groupList.map((group) => {
     const inGroup = activeRows.filter((r) => r.positionGroup === group);
     const withOverall = inGroup.filter((r) => r.overallRating != null);
     const avgOverall = withOverall.length
@@ -115,7 +117,6 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
   // Draft picks are a Madden-only asset (CFB leagues use recruiting/transfer portal instead)
   // shown as their own "position group" alongside the real position groups, per how coaches
   // already browse rosters here.
-  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
   const draftPicks = isMadden ? await listDraftPicksForTeam(input.guildId, teamId) : [];
   const positionGroups = isMadden
     ? [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }]

@@ -62,7 +62,9 @@ async function notifyLeagueMembersOfAdvance(input: {
       league_id: input.leagueId,
       kind: "league_advanced",
       title,
-      body: "Open Campus Buzz for the latest around-the-league news.",
+      body: input.game.startsWith("madden")
+        ? "Open League News for the latest around-the-league news."
+        : "Open Campus Buzz for the latest around-the-league news.",
       href: `/l/${input.leagueId}/buzz`,
     })),
   );

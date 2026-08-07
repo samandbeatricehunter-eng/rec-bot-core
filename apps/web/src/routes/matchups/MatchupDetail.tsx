@@ -119,6 +119,8 @@ export function MatchupActions({
    * need updating too — omit the prop and the button just doesn't render. */
   onOpenRequestHelp?: () => void;
 }) {
+  const { currentLeague } = useHubChrome();
+  const buzzLabel = currentLeague?.game?.startsWith("madden") ? "League News" : "Campus Buzz";
   const isParticipant = matchup.involvesMe;
   const canOpenBoxScore = canUploadBoxScore;
   const canOpenPlayerStats = Boolean(matchup.boxScoreSubmissionId) && matchup.boxScoreStatus !== "denied";
@@ -161,7 +163,7 @@ export function MatchupActions({
             type="button"
             className="matchup-action"
             onClick={onOpenShareStream}
-            title="Share your stream — mirrors to Discord and Campus Buzz Chat if this league is linked."
+            title={`Share your stream — mirrors to Discord and ${buzzLabel} Chat if this league is linked.`}
           >
             <Share2 size={16} /> Share Stream
           </button>

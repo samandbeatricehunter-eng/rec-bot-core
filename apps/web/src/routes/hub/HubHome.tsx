@@ -1564,7 +1564,7 @@ export function HubHome() {
         <PublicPollsBlock />
         <CommissionerPollsVotingBlock />
         <>
-        <SectionFrame eyebrow="Around the league" title="Campus Buzz">
+        <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "League News" : "Campus Buzz"}>
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
             const active = items.length ? items[headlineItemIndex % items.length] : null;

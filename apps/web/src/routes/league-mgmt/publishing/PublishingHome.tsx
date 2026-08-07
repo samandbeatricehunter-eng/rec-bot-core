@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
+import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -9,6 +10,8 @@ import type { CommissionerPoll } from "../../../types/api.js";
 
 function CommissionerPollsCard() {
   const { guildId, discordId } = useReadyAuth();
+  const hub = useHubChrome();
+  const buzzLabel = hub.currentLeague?.game?.startsWith("madden") ? "League News" : "Campus Buzz";
   const [polls, setPolls] = useState<CommissionerPoll[] | null>(null);
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
@@ -58,7 +61,7 @@ function CommissionerPollsCard() {
   return <Card>
     <h2>Commissioner Polls</h2>
     <p className="form-hint">
-      Posts to Campus Buzz for every member of this league to vote on directly — no Discord link required.
+      Posts to {buzzLabel} for every member of this league to vote on directly — no Discord link required.
       If a voting-polls channel is configured, an informational mirror posts there too.
     </p>
     {error && <ErrorState message={error} />}
