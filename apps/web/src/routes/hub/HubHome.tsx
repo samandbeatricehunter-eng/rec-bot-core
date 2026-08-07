@@ -1558,17 +1558,18 @@ export function HubHome() {
         <PublicPollsBlock />
         <CommissionerPollsVotingBlock />
         <>
-        <SectionFrame
-          eyebrow="Around the league"
-          title="Campus Buzz"
-          subtitle={hub.league.seasonStage && hub.league.seasonStage !== "regular_season" ? `Now: ${leagueTimelineLabel(hub.league)} — headlines below are from the last active week` : undefined}
-        >
+        <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
             const active = items.length ? items[headlineItemIndex % items.length] : null;
             if (!active) return <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>;
             const { story, flatIndex } = active;
-            const weekLabel = activeHeadlineGroup?.week != null
+            // Offseason-stage stories (end of season recap, transfer portal, etc.) reuse the
+            // last real gameplay week_number for storage continuity (see advance-results
+            // .service.ts) — that's a DB detail, not the story's actual context, so a non-
+            // regular-season story must show its season_stage, not "Week N".
+            const isRegularSeasonStory = !story.season_stage || story.season_stage === "regular_season";
+            const weekLabel = isRegularSeasonStory && activeHeadlineGroup?.week != null
               ? `Week ${activeHeadlineGroup.week}`
               : story.season_stage ? displayLabel(story.season_stage) : "League Story";
             const itemPos = items.length > 1 ? `${(headlineItemIndex % items.length) + 1} of ${items.length}` : null;

@@ -1,9 +1,10 @@
 # Madden Roster Pre-Seed + Fantasy Draft Tracker — Implementation Plan
 
-Status: **planned, not started**. Written 2026-08-07 from a live spec session with Samuel.
-Any agent picking this up should read this whole doc before touching code — it's the
-source of truth for a feature that spans a new data pipeline, league-creation wiring, a
-realtime draft-session state machine, and a fairly involved new UI surface.
+Status: **in progress — data pipeline built and seeded, league-creation wiring not started.**
+Written 2026-08-07 from a live spec session with Samuel; updated same day as work
+progressed. Any agent picking this up should read this whole doc before touching code, and
+read §11 (Progress Log) first — it's the fastest way to see exactly what's real vs. still
+planned.
 
 ## 0. Why this exists
 
@@ -104,26 +105,42 @@ create index rec_madden_baseline_players_team_idx on public.rec_madden_baseline_
 create index rec_madden_baseline_players_position_idx on public.rec_madden_baseline_players(dataset_id, position);
 ```
 
-Per-league mutable copy (created at league setup time, from the active dataset):
+**Corrected 2026-08-07, mid-build** — do NOT create a new per-league table. `rec_players`
+already exists as the shared, operational per-league roster table for **both** games (not
+CFB-only, as this doc originally assumed). Confirmed via live schema inspection — it
+already has every column this feature needs:
 
-```sql
-create table public.rec_madden_league_players (
-  id uuid primary key default gen_random_uuid(),
-  league_id uuid not null references public.rec_leagues(id) on delete cascade,
-  baseline_player_id uuid not null references public.rec_madden_baseline_players(id),
-  team_id uuid references public.rec_teams(id),   -- null = free agent / undrafted pool
-  is_drafted boolean not null default false,
-  drafted_pick_id uuid,   -- set once picked, references rec_fantasy_draft_picks(id) below
-  created_at timestamptz not null default now()
-);
-alter table public.rec_madden_league_players enable row level security;
-create index rec_madden_league_players_league_idx on public.rec_madden_league_players(league_id);
-create unique index rec_madden_league_players_league_baseline_idx on public.rec_madden_league_players(league_id, baseline_player_id);
+```
+id, league_id, team_id, madden_player_id, first_name, last_name, full_name, position,
+overall_rating, jersey_number, archetype, attributes (jsonb), college, birth_year,
+height_inches, weight_lbs, dev_trait, years_pro, is_free_agent, is_xfactor, ability_count,
+roster_status, status_changed_at, status_note, is_default_player, player_source,
+custom_player_build_id, hometown_city, hometown_state, handedness, on_trade_block,
+contract_* fields, source_recruit_id
 ```
 
-This is the table both `regular_rosters` and `fantasy_draft` leagues use — the difference
-is purely whether `team_id` starts populated (regular) or null league-wide, grouped only
-by `position` for pool display (fantasy).
+An earlier pass in this doc/build created a duplicate `rec_madden_league_players` table
+before anything referenced it — that table has since been **dropped** (migration
+`drop_redundant_madden_league_players`, applied 2026-08-07). Don't recreate it.
+
+Apply-to-league (§3) inserts directly into `rec_players` instead:
+`league_id`, `team_id` (real team for `regular_rosters`, `null` for `fantasy_draft`),
+`madden_player_id` = `'madden27:' + source_slug` (mirrors CFB's existing `'cfb27:%'`
+convention seen in `20260803140000_player_roster_lifecycle.sql`), `is_free_agent` = true
+when `team_id` is null, `player_source` = `'imported'` (existing CFB baseline rows use this
+same value), `is_default_player` = true, `attributes` (jsonb) = every Madden attribute
+column from `rec_madden_baseline_players` as one object — **no established key-casing
+convention exists yet** (sampled existing CFB rows' `attributes` column: always `{}`,
+never actually populated in practice) — pick one (recommend the same snake_case used in
+`rec_madden_baseline_players`, e.g. `{"throw_power": 95, ...}`) and use it consistently.
+
+**Open issue found, not yet resolved**: `rec_players.roster_status` has a check constraint
+limited to `('active','drafted','transferred_out','transferred_in','retired','graduated')`
+— all CFB-dynasty vocabulary (transfers, graduation), nothing NFL-appropriate. Decide
+before writing the apply function: either extend that constraint to add Madden-sensible
+values, or just use `'active'` for every Madden player and rely on `team_id`/`is_free_agent`
+alone to represent roster state (simpler, probably sufficient — Madden doesn't need
+"transferred"/"graduated" semantics at all).
 
 Fantasy draft session state (new tables, careful not to collide with the *existing*
 `rec_draft_picks` table — that one tracks future **rookie draft pick assets** for
@@ -164,7 +181,7 @@ create table public.rec_fantasy_draft_picks (
   pick_in_round integer not null,
   overall_pick_number integer not null,
   team_id uuid not null references public.rec_teams(id),
-  league_player_id uuid not null references public.rec_madden_league_players(id),
+  player_id uuid not null references public.rec_players(id),
   is_wrapup_pick boolean not null default false,
   logged_by_user_id uuid not null,
   logged_at timestamptz not null default now()
@@ -173,7 +190,10 @@ alter table public.rec_fantasy_draft_picks enable row level security;
 create index rec_fantasy_draft_picks_session_idx on public.rec_fantasy_draft_picks(session_id, overall_pick_number);
 ```
 
-`rec_madden_league_players.drafted_pick_id` FK's to this last table (add after both exist).
+"Drafted" status is derived, not stored: a `rec_players` row counts as drafted if a
+`rec_fantasy_draft_picks` row exists with matching `player_id` — no `is_drafted`/
+`drafted_pick_id` column needed on `rec_players` itself (it doesn't have one, and adding
+game-mode-specific columns to a shared table is worth avoiding if a join covers it).
 
 All new tables get `alter table ... enable row level security;` per this repo's
 CLAUDE.md convention (service-role bypasses it; no anon-key policies needed yet).
@@ -184,7 +204,7 @@ In `apps/api/src/modules/setup/setup.service.ts`, alongside the existing
 `applyCfbBaselineToLeague` call, add a Madden branch:
 
 - `leagueType === "regular_rosters"`: for each active `rec_madden_baseline_players` row,
-  insert a `rec_madden_league_players` row with `team_id` resolved from
+  insert a `rec_players` row with `team_id` resolved from
   `team_abbreviation` → the league's own `rec_teams.id` (same abbreviation-matching
   pattern `applyCfbBaselineToLeague` already uses). Free agents (`team_abbreviation` null)
   get `team_id: null` too — they just sit in the pool as real-life free agents, still
@@ -236,23 +256,23 @@ else):
   `apps/web/src/components/hub/PlayerStatsModal.tsx` or roster list rendering for an
   existing pattern before inventing a new one) instead of a real photo; updatable to a
   real headshot later via the same photo-upload path custom players presumably already
-  have. Inserts directly into `rec_madden_league_players` (no `baseline_player_id` — that
+  have. Inserts directly into `rec_players` (no `baseline_player_id` — that
   FK needs to become nullable, or custom players need their own lightweight row shape;
   decide at migration time) with `team_id: null`. Supports adding multiple players in one
   sitting (wizard shouldn't force a full page reload/close between each).
-- `DELETE /v1/fantasy-draft/pool/:leaguePlayerId` — "Remove Player from Draft Pool",
+- `DELETE /v1/fantasy-draft/pool/:playerId` — "Remove Player from Draft Pool",
   commissioner/co-commissioner only. Pulls a player out of the pool entirely (not drafted,
   just gone — e.g. commissioner decides a player shouldn't be in this league's draft for
   any reason). Available throughout the live/wrap-up phases, not just pre-draft.
 - `POST /v1/fantasy-draft/pick` — commissioner/co-commissioner only, live-phase: body
-  `{ leaguePlayerId }`. Resolves current `(round, pick_in_round)` → team from
+  `{ playerId }`. Resolves current `(round, pick_in_round)` → team from
   `rec_fantasy_draft_pick_order` (accounting for snake reversal on even rounds if
   `order_mode: 'snake'`), inserts `rec_fantasy_draft_picks`, marks the
-  `rec_madden_league_players` row drafted + `team_id`, advances
+  `rec_players` row drafted + `team_id`, advances
   `current_pick_in_round`/`current_round` (wrapping pick 32→1 and incrementing round).
   Broadcasts a draft-update event (see §6).
 - `POST /v1/fantasy-draft/pick-wrapup` — any league member, wrap-up phase only: body
-  `{ leaguePlayerId, teamId? }`. If the caller is a plain team owner, `teamId` is ignored
+  `{ playerId, teamId? }`. If the caller is a plain team owner, `teamId` is ignored
   and forced to their own team. If the caller is commissioner/co-commissioner, `teamId` is
   required (this is the "Add to MY team" / "Add to ANOTHER team" modal — "my team" just
   means the commissioner's own `teamId` if they own one, same endpoint either way, UI
@@ -260,7 +280,7 @@ else):
   clock-advance logic.
 - `POST /v1/fantasy-draft/undo` — commissioner/co-commissioner only. Deletes the most
   recent `rec_fantasy_draft_picks` row (by `overall_pick_number desc`), un-marks the
-  corresponding `rec_madden_league_players` row (`is_drafted: false, team_id: null,
+  corresponding `rec_players` row (`is_drafted: false, team_id: null,
   drafted_pick_id: null`), decrements the session's `current_round`/`current_pick_in_round`
   back to that pick. Callable repeatedly — "up to the last 32" in the spec just means
   repeated undo naturally covers a full round back; no special multi-undo batching needed,
@@ -268,10 +288,10 @@ else):
 - `POST /v1/fantasy-draft/skip-to-end` — commissioner/co-commissioner only. Sets
   `status: 'wrap_up'`. Triggers the "review your rosters in-game" pop-up for all members
   (via the same broadcast channel — client shows a dismissible modal on receipt) and makes
-  every remaining undrafted `rec_madden_league_players` row's "Drafted" button visible to
+  every remaining undrafted `rec_players` row's "Drafted" button visible to
   all members (not just commissioners) in the UI.
 - `POST /v1/fantasy-draft/conclude` — commissioner/co-commissioner only, only valid from
-  `wrap_up`. Sets `status: 'concluded'`. Every still-undrafted `rec_madden_league_players`
+  `wrap_up`. Sets `status: 'concluded'`. Every still-undrafted `rec_players`
   row stays `team_id: null` — i.e. genuinely becomes the league's free-agent pool (no
   further action needed, "undrafted → free agency" is just "we stop touching them").
   Computes each team's roster size; if any team is under the minimum (see §7), returns a
@@ -370,7 +390,7 @@ Answered by Samuel 2026-08-07, recorded here so a future agent doesn't re-ask:
 ## 10. Suggested build order
 
 1. Migration for `rec_madden_roster_datasets` / `rec_madden_baseline_players` /
-   `rec_madden_league_players` (§2, first two tables only — draft-session tables come
+   `rec_players` (§2, first two tables only — draft-session tables come
    later since regular-rosters leagues don't need them at all).
 2. Seed script (`apps/api/scripts/madden-baseline-seed.ts`) reading the committed CSVs,
    downloading + re-hosting photos to Cloudflare (§8), writing into
@@ -388,3 +408,71 @@ Answered by Samuel 2026-08-07, recorded here so a future agent doesn't re-ask:
 6. Custom Player Wizard integration (stripped-down, no-cost mode) for the post-pick-order
    "add custom players" step.
 7. Draft card UI + realtime channel (§5, §6), including the position-group sorter.
+
+## 11. League Mgmt — per-player custom headshot upload
+
+New requirement from Samuel: in League Mgmt's roster editor
+(`apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.tsx`, added 2026-08-06 —
+not yet inspected in this pass, check its actual edit-player form shape before wiring this
+in), editing a specific player needs a custom headshot upload field, uploading to
+Cloudflare (Images, per §8) and overwriting that player's `rec_players`-equivalent photo
+field with the result. Show recommended sizing in the field's hint text — Cloudflare
+Images itself doesn't mandate a specific input size (it transforms on delivery via
+variants), so "recommended" here means what looks good in this app's existing
+player-photo slots: check the CSS `width`/`height` those slots actually render at (roster
+cards, matchup cards, etc.) and recommend a source image at 2-3x that for retina displays,
+square or the same aspect ratio the silhouette placeholder uses. Not built yet — scope this
+as its own small task alongside or after the Cloudflare Images pipeline in §8, since it's
+the same upload primitive (`rehostPhoto`-style Cloudflare Images POST) reused as a
+commissioner-facing form control instead of a batch seed-time operation.
+
+## 12. Progress Log
+
+**2026-08-07** (this build session):
+
+- ✅ Migration applied to prod (`kyooxpjsxvsatrariafq`): `rec_madden_roster_datasets` +
+  `rec_madden_baseline_players` (migration `madden_baseline_roster`).
+- ✅ Mid-build correction: created then **dropped** a redundant `rec_madden_league_players`
+  table after discovering `rec_players` already serves that role for both games (migration
+  `drop_redundant_madden_league_players`). See §2's "Corrected 2026-08-07" note for the
+  full explanation — read that before touching apply-to-league code.
+- ✅ Seed script `apps/api/scripts/madden-baseline-seed.ts` written, working, and **run
+  against production** — `pnpm --filter @rec/api exec tsx scripts/madden-baseline-seed.ts`.
+  Had to rewrite it to use raw PostgREST `fetch()` calls instead of `@supabase/supabase-js`'s
+  `createClient()`, which unconditionally instantiates a realtime client and throws on this
+  machine's Node 20 (no native WebSocket) — same failure that blocks running `apps/api`
+  itself locally here. Not a code-correctness issue, just a local-env constraint; the REST
+  approach works everywhere the JS client would.
+- ✅ **3,079 players live in `rec_madden_baseline_players` right now**: 2,669 `data_quality
+  = 'rated'` (full Madden 27 attributes), 2 `'backfilled_prior_year'` (Madden 26 ratings,
+  matched from Samuel's spreadsheet), 408 `'placeholder'` (name/team/college/photo only,
+  no ratings — see §1's stub-player note for why). Verified via direct SQL count.
+- ✅ CSVs committed to the repo at `apps/api/scripts/data/madden27/` (3 files: rosters, free
+  agents, final stub/placeholder players — the intermediate cross-reference CSVs handed to
+  Samuel in chat were not all committed, only the final merged ones the seed script reads).
+- ✅ Real-life cross-check for the 410 stub players done via NFL.com's 32 official team
+  roster pages (not leaguestation.com — checked that site too, it's Madden **26** data,
+  useful for ratings backfill in theory but not pursued further at scale after the
+  spreadsheet-and-Wayback-Machine attempts both came up mostly empty; see §1): 43 found on
+  a current NFL.com roster (real team assigned), 367 placed in free agency.
+- ⏳ **Photos are NOT yet re-hosted on Cloudflare** — `CLOUDFLARE_ACCOUNT_ID`/
+  `CLOUDFLARE_API_TOKEN` aren't set in this environment, so the seed script's Cloudflare
+  Images upload step silently fell back to storing the original `maddenratings.com` URLs
+  in `rec_madden_baseline_players.photo_url`. **Do not ship this to users as-is** — re-run
+  `madden-baseline-seed.ts` once Cloudflare Images credentials are confirmed provisioned;
+  it's idempotent (safe to re-run, clears and re-seeds the same dataset version) and will
+  backfill real hosted URLs at that point. The upload code itself (`rehostPhoto()` in the
+  seed script) hasn't been live-tested against a real Cloudflare Images account — verify
+  the response shape (`result.variants[0]`) against Cloudflare's actual API on first real
+  run, small sample first.
+- ❌ **Not started**: apply-to-league wiring (§3) into `setup.service.ts`, draft-session
+  migration/API (§4), draft card UI (§5), realtime channel (§6), Custom Player Wizard
+  integration, League Mgmt headshot upload (§11). All fully specified above — next agent
+  (or next session) should be able to pick any of these up directly from their section.
+- Also fixed in this session (unrelated bug reports, already pushed): Campus Buzz carousel
+  arrows now page through articles instead of an almost-always-hidden week dimension; a
+  real bug where offseason-stage stories (which reuse the last real week_number for
+  storage — see `advance-results.service.ts` line ~87) were mislabeled "Week N" instead of
+  showing their actual season stage; and the `/l/:leagueId/rules` route was missing from
+  `apps/site/src/App.tsx` entirely (existed in the menu and view-switch logic, never
+  registered in the router, so it fell through to the catch-all redirect to `/`).
