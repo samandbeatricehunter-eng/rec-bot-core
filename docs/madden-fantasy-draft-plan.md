@@ -455,16 +455,22 @@ commissioner-facing form control instead of a batch seed-time operation.
   useful for ratings backfill in theory but not pursued further at scale after the
   spreadsheet-and-Wayback-Machine attempts both came up mostly empty; see §1): 43 found on
   a current NFL.com roster (real team assigned), 367 placed in free agency.
-- ⏳ **Photos are NOT yet re-hosted on Cloudflare** — `CLOUDFLARE_ACCOUNT_ID`/
-  `CLOUDFLARE_API_TOKEN` aren't set in this environment, so the seed script's Cloudflare
-  Images upload step silently fell back to storing the original `maddenratings.com` URLs
-  in `rec_madden_baseline_players.photo_url`. **Do not ship this to users as-is** — re-run
-  `madden-baseline-seed.ts` once Cloudflare Images credentials are confirmed provisioned;
-  it's idempotent (safe to re-run, clears and re-seeds the same dataset version) and will
-  backfill real hosted URLs at that point. The upload code itself (`rehostPhoto()` in the
-  seed script) hasn't been live-tested against a real Cloudflare Images account — verify
-  the response shape (`result.variants[0]`) against Cloudflare's actual API on first real
-  run, small sample first.
+- ✅ **Photos re-hosted on Cloudflare** (§8): `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN`/
+  `CLOUDFLARE_ACCOUNT_HASH` now set, and the seed was re-run to backfill hosted URLs. Two
+  corrections found along the way: (1) the rosters/FA CSVs only store player **page** URLs,
+  not photo URLs — the real photos come from each page's `og:image` meta tag, so a new
+  scraper (`apps/api/scripts/scrape-madden-photos.ts`) fetched all 2,669 rated player pages
+  and produced `apps/api/scripts/data/madden27/madden27_player_photos.csv` (2,664 with
+  photos, 5 without); (2) Cloudflare Images **rejects re-uploads to an existing custom ID**
+  ("Resource already exists") — it does not overwrite, so both `uploadImageToCloudflare`
+  and the seed now delete-then-retry, and the seed rehost switched from Cloudflare's
+  URL-fetch (flaky against this site) to download-the-binary-then-upload. The seed's bulk
+  pass got throttled by the source site partway through (~1,167 rows failed), so a second
+  script (`apps/api/scripts/madden-photo-backfill.ts`, resumable, lower concurrency)
+  finished the rest. Final state: **3,056/3,079 players have `imagedelivery.net` URLs,
+  23 have no source photo at all (5 rated without og:image + 18 stubs), 0 maddenratings.com
+  URLs remain** in the dataset. `rec_madden_baseline_players.photo_url` is now exclusively
+  Cloudflare-hosted.
 - ✅ **Apply-to-league wiring done** (§3): new `apps/api/src/modules/madden-baseline/
   madden-baseline.service.ts` (`applyMaddenBaselineToLeague`, `getActiveMaddenDataset`),
   wired into both `createLeagueForServer` and `createUnclaimedLeague` in

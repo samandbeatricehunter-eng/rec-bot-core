@@ -30,6 +30,7 @@ const EnvSchema = z.object({
   // Cloudflare Stream (web highlight uploads). Optional so the API boots without Stream;
   // direct-upload / webhook / cleanup call sites fail closed when unset.
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_ACCOUNT_HASH: z.string().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_STREAM_WEBHOOK_SECRET: z.string().optional(),
   CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN: z.string().optional(),

@@ -142,38 +142,67 @@ async function clearDataset(datasetId: string): Promise<void> {
   await withRetry(() => restDelete("rec_madden_roster_datasets", `id=eq.${datasetId}`), "clear dataset");
 }
 
-let cloudflareWarned = false;
-async function rehostPhoto(sourceUrl: string, slug: string): Promise<string> {
+// Photo re-host: download each photo from the source site and upload the binary to
+// Cloudflare Images (Cloudflare's own URL-fetch is unreliable against maddenratings.com and
+// not idempotent — duplicate custom IDs error instead of replacing). Stable id
+// `madden27-<slug>` lets re-seeds replace images; on an "already exists" error we delete
+// and retry. Delivery URL is built from CLOUDFLARE_ACCOUNT_HASH when set (never serve the
+// source-site URL to end users — see plan doc §8). Returns "" if a photo is absent or the
+// upload ultimately fails; callers store "" (silhouette placeholder) rather than a dead
+// source URL.
+const CF_IMAGES_API = "https://api.cloudflare.com/client/v4";
+async function rehostPhoto(sourceUrl: string, slug: string, accountId: string, apiToken: string, accountHash: string): Promise<string> {
   if (!sourceUrl) return "";
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const apiToken = env.CLOUDFLARE_API_TOKEN?.trim();
-  if (!accountId || !apiToken) {
-    if (!cloudflareWarned) {
-      console.warn("CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN not set — storing source-site photo URLs directly.");
-      console.warn("Re-run this script after Cloudflare Images is configured to backfill real hosted URLs.");
-      cloudflareWarned = true;
+
+  async function download(): Promise<{ ok: boolean; buffer?: ArrayBuffer; contentType?: string; status: number }> {
+    try {
+      const res = await fetch(sourceUrl, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) return { ok: false, status: res.status };
+      return { ok: true, buffer: await res.arrayBuffer(), contentType: res.headers.get("content-type") ?? "image/png", status: res.status };
+    } catch {
+      return { ok: false, status: 0 };
     }
-    return sourceUrl;
   }
-  try {
+
+  async function upload(): Promise<{ ok: boolean; payload: { success?: boolean; result?: { variants?: string[] }; errors?: Array<{ message?: string }> } | null }> {
+    const dl = await download();
+    if (!dl.ok || !dl.buffer) return { ok: false, payload: { errors: [{ message: `download failed (HTTP ${dl.status})` }] } };
     const form = new FormData();
-    form.set("url", sourceUrl);
+    form.set("file", new Blob([dl.buffer], { type: dl.contentType }), `${slug}.png`);
     form.set("id", `madden27-${slug}`);
-    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiToken}` },
-      body: form,
-    });
-    const body = (await res.json()) as { success: boolean; result?: { variants?: string[] }; errors?: Array<{ message: string }> };
-    if (!body.success || !body.result?.variants?.length) {
-      console.warn(`  Cloudflare Images upload failed for ${slug}: ${body.errors?.map((e) => e.message).join("; ") ?? "unknown error"}`);
-      return sourceUrl;
+    form.set("requireSignedURLs", "false");
+    try {
+      const res = await fetch(`${CF_IMAGES_API}/accounts/${accountId}/images/v1`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiToken}` },
+        body: form,
+        signal: AbortSignal.timeout(60_000),
+      });
+      const payload = await res.json().catch(() => null) as { success?: boolean; result?: { variants?: string[] }; errors?: Array<{ message?: string }> } | null;
+      return { ok: res.ok && !!payload?.success && !!payload.result?.variants?.length, payload };
+    } catch (err) {
+      return { ok: false, payload: { errors: [{ message: String(err) }] } };
     }
-    return body.result.variants[0];
-  } catch (err) {
-    console.warn(`  Cloudflare Images upload threw for ${slug}:`, err);
-    return sourceUrl;
   }
+
+  async function attempt(): Promise<string> {
+    const { ok, payload } = await upload();
+    if (!ok) return "";
+    return accountHash
+      ? `https://imagedelivery.net/${accountHash}/madden27-${slug}/public`
+      : payload?.result?.variants?.[0] ?? "";
+  }
+
+  let url = await attempt();
+  if (!url) {
+    // Cloudflare rejects re-uploads to an existing custom ID — delete and retry once.
+    await fetch(`${CF_IMAGES_API}/accounts/${accountId}/images/v1/madden27-${slug}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiToken}` },
+    }).catch(() => {});
+    url = await attempt();
+  }
+  return url;
 }
 
 async function insertBatched(table: string, rows: Array<Record<string, unknown>>, batchSize = 250): Promise<number> {
@@ -239,6 +268,16 @@ async function main() {
     "deactivate prior datasets",
   );
 
+  // Real photo URLs keyed by slug (see scrape-madden-photos.ts). The rosters/FA CSVs only
+  // carry player *page* URLs, which are useless as photos — without this map those rows get
+  // "" (silhouette placeholder).
+  const photoMap = new Map<string, string>();
+  const photoCsvPath = join(DATA_DIR, "madden27_player_photos.csv");
+  if (existsSync(photoCsvPath)) {
+    for (const row of parseCsv(readFileSync(photoCsvPath, "utf8"))) if (row.id && row.image) photoMap.set(row.id, row.image);
+    console.log(`Loaded ${photoMap.size} photo URLs from madden27_player_photos.csv`);
+  }
+
   const rows: Array<Record<string, unknown>> = [];
 
   function attributeColumns(row: Row): Record<string, unknown> {
@@ -267,7 +306,7 @@ async function main() {
       draft_year: num(row.draftYear),
       draft_pick_overall: num(row.draftPickOverall),
       drafted_by_team: row.draftedByTeam || null,
-      photo_url: row.url, // placeholder — Cloudflare re-host pass below overwrites per-row
+      photo_url: photoMap.get(slug) ?? "", // placeholder — Cloudflare re-host pass below fills in
       abilities_raw: row.abilitiesRaw || null,
       data_quality: "rated",
       ...attributeColumns(row),
@@ -308,20 +347,30 @@ async function main() {
     });
   }
 
-  console.log(`Re-hosting ${rows.length} photos${env.CLOUDFLARE_ACCOUNT_ID ? " via Cloudflare Images" : " (Cloudflare not configured — using source URLs)"}...`);
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? "";
+  const apiToken = env.CLOUDFLARE_API_TOKEN?.trim() ?? "";
+  const accountHash = env.CLOUDFLARE_ACCOUNT_HASH?.trim() ?? "";
+  const useCloudflare = Boolean(accountId && apiToken);
+  console.log(`Re-hosting ${rows.length} photos${useCloudflare ? " via Cloudflare Images" : " (Cloudflare not configured — using source URLs)"}...`);
   let photosDone = 0;
+  let photoFailures = 0;
   const CONCURRENCY = 8;
   let next = 0;
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
       while (next < rows.length) {
         const row = rows[next++];
-        row.photo_url = await rehostPhoto(String(row.photo_url ?? ""), String(row.source_slug));
+        if (useCloudflare) {
+          const hosted = await rehostPhoto(String(row.photo_url ?? ""), String(row.source_slug), accountId, apiToken, accountHash);
+          if (!hosted) photoFailures++;
+          row.photo_url = hosted;
+        }
         photosDone++;
-        if (photosDone % 200 === 0) console.log(`  photos: ${photosDone}/${rows.length}`);
+        if (photosDone % 200 === 0) console.log(`  photos: ${photosDone}/${rows.length} (${photoFailures} failed)`);
       }
     }),
   );
+  console.log(`Photo pass done: ${photosDone} processed, ${photoFailures} with no hosted URL${useCloudflare ? "" : " (falling back to source URLs)"}.`);
 
   console.log(`Inserting ${rows.length} baseline players...`);
   await insertBatched("rec_madden_baseline_players", rows);
