@@ -329,6 +329,28 @@ States to render (driven by `session.status`):
   Pool" action, both visible/enabled only for commissioner/co-commissioner. Card chrome
   also has **Undo** and **Skip to End** buttons (commissioner/co-commissioner only), plus
   an entry point back into "Add custom player" from §4.
+  - **Name search bar (added to spec 2026-08-07)**: a text input above the pool list, always
+    visible regardless of which position-group tab is active. Filters the *entire* undrafted
+    pool by partial, case-insensitive name match — not scoped to whichever position tab
+    happens to be selected. Goal: the commissioner can find and log any player's draft
+    status in a couple keystrokes without first navigating to their position group. Combine
+    with the position filter via AND when both are set (search narrows within whatever tab
+    is active, but typing a name should arguably also be able to clear/override the tab
+    filter — decide at build time whether search auto-switches to "All" or just searches
+    within-tab; leaning toward auto-switching to "All" the moment the user types, since the
+    stated goal is "quicker than digging through tabs").
+  - **Visual design (added to spec 2026-08-07)**: Samuel wants the *spectator* (non-
+    commissioner) view of the draft to read as a structured draft board, similar in spirit
+    to Madden's own in-game draft-tracker screen he shared a reference screenshot of —
+    that screen is essentially a **picks-made list**, not a raw player grid: a round header,
+    a "pick #, team-logo-equivalent, player name" row per completed pick, a running
+    "on the clock" indicator, and a short "next up" ticker of upcoming teams. Build an
+    analogous board using this site's own visual language (dark theme, gold accents) and
+    our own team/player data — do not attempt to recreate EA's specific chrome, logos, or
+    exact pixel layout, just the structural idea (list of picks made, round/pick/team/player
+    per row, clock + next-up ticker). The commissioner's view is this same board *plus* the
+    action buttons and the full undrafted-pool list/search described above — spectators
+    don't need the pool, just the board of what's already happened and who's up next.
 - `wrap_up` — same list, but now every member sees "Drafted" buttons (self-assign to own
   team; commissioner/co-commissioner get the "MY team / ANOTHER team" modal instead). A
   one-time dismissible pop-up ("go review your in-game roster...") fires for every member
@@ -511,3 +533,33 @@ commissioner-facing form control instead of a batch seed-time operation.
   showing their actual season stage; and the `/l/:leagueId/rules` route was missing from
   `apps/site/src/App.tsx` entirely (existed in the menu and view-switch logic, never
   registered in the router, so it fell through to the catch-all redirect to `/`).
+- ✅ **CreateLeagueWizard modal fix** (unrelated bug report, pushed): the dialog `<section>`
+  combined `.site-modal` (meant to be the outer fixed/centered wrapper) with
+  `.site-modal-wide` (the panel styling) on the same element — conflicting `position`/
+  `display`/`z-index` between the two left it uncentered and not scrolling. Split back into
+  outer wrapper (`site-modal`) + inner panel (`site-modal-wide`), and added explicit
+  `color` to the option-card buttons (`wizard-game-card`/`wizard-option-card`), which had
+  none and fell back to the browser's default dark button text on the dark theme.
+- ✅ **Roster viewer redesign** (unrelated feature request, pushed): Samuel wants the
+  roster list view to resemble the in-game roster viewer's layout — a selected-player
+  detail header (photo/silhouette, name, position, bio, big OVR readout) above a sortable
+  stat table, rather than a flat unsorted list. Implemented on
+  `apps/web/src/routes/roster/RosterHome.tsx` (currently the **only** roster viewer in the
+  codebase — CFB-specific, using `CFB_POSITION_GROUPS`/`classYear`/`heightInches`; Madden
+  has no roster UI yet since `rec_players` rows for Madden don't exist until league-creation
+  wiring is exercised). Added: click-to-select row → detail header above the table; clickable
+  sortable column headers (Player/Ht/Wt/Class/OVR) with asc/desc toggle. Position-group
+  grade cards at the top were left untouched, per Samuel's request. New CSS in
+  `apps/web/src/styles/hub.css` (`hub-roster-detail*`, `hub-roster-sortable`,
+  `hub-roster-row-selected`). **This same component pattern (detail header + sortable
+  table) is the one to reuse for Madden's roster view once that exists**, with Madden-
+  appropriate columns (attribute ratings like SPD/STR/AGI/AWR — see `attributes` jsonb on
+  `rec_players` — instead of CFB's height/weight/class).
+- **Two new UI specs added to §5** (draft tracker, not yet built — see that section for
+  full detail): (1) the commissioner's player-pool search bar must filter the *entire*
+  undrafted pool by partial name match, not scoped to whichever position-group tab is
+  active; (2) the spectator-facing draft view should look like a structured picks-made
+  board (round header, pick #/team/player rows, on-the-clock + next-up ticker) — Samuel
+  shared an in-game reference screenshot; build an analogous board in this site's own
+  visual language, not a recreation of EA's specific chrome/logos. Commissioner view is
+  the same board plus the action buttons and full pool/search from the bullet above.
