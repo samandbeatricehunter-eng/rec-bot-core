@@ -1558,7 +1558,11 @@ export function HubHome() {
         <PublicPollsBlock />
         <CommissionerPollsVotingBlock />
         <>
-        <SectionFrame eyebrow="Around the league" title="Campus Buzz">
+        <SectionFrame
+          eyebrow="Around the league"
+          title="Campus Buzz"
+          subtitle={hub.league.seasonStage && hub.league.seasonStage !== "regular_season" ? `Now: ${leagueTimelineLabel(hub.league)} — headlines below are from the last active week` : undefined}
+        >
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
             const active = items.length ? items[headlineItemIndex % items.length] : null;
@@ -1598,22 +1602,19 @@ export function HubHome() {
               </div>
             ) : (
               <div className="hub-story-carousel">
-                {headlineWeekCount > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)}><ChevronLeft /></button> : null}
+                {/* The counter below ("N of M") steps through this week's articles, not
+                    weeks — so, to match the Highlight Reel, these big arrows drive
+                    headlineItemIndex (the dimension actually visible/relevant here), not
+                    headlineWeekIndex. Week auto-selects to the current week on load. */}
+                {items.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Previous article" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)}><ChevronLeft /></button> : null}
                 <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
                   {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
                   <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                 </article>
-                {headlineWeekCount > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)}><ChevronRight /></button> : null}
+                {items.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Next article" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)}><ChevronRight /></button> : null}
                 <p className="hub-story-swipe-hint">
                   {weekLabel}
-                  {itemPos ? (
-                    <>
-                      {" · Showing "}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)} aria-label="Previous article">‹</button>
-                      {` ${itemPos} `}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)} aria-label="Next article">›</button>
-                    </>
-                  ) : null}
+                  {itemPos ? ` · Showing ${itemPos}` : null}
                 </p>
               </div>
             );

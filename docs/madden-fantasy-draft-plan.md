@@ -36,8 +36,16 @@ questions):
   binaries) keyed by `id` (site URL slug, e.g. `josh-allen`), joins to the rosters/FA CSVs
   on that same key.
 - `madden27_unrated_stub_players.csv` — 410 players the source site lists but never
-  rated (name + photo only, no team/position/attributes). **Excluded from the pool** —
-  see open question 1 on what (if anything) to do with these.
+  rated (name + photo only, no team/position/attributes). **Excluded from the pool.**
+  Status on cross-referencing these against real-life current NFL rosters/free agency:
+  **not done for all 410** — only spot-checked one (Amare Barno, confirmed via Wikipedia
+  as an accurate free agent, now UFL). The Madden 26 ratings spreadsheet Samuel shared
+  only matched 2 of the 410 by name (that sheet has ~1,877 rows — starters/notable
+  backups only, not deep enough to cover these). A full 410-player real-life cross-check
+  has no single bulk source and would mean ~410 individual lookups; not attempted at that
+  scale. If Samuel wants this pursued further, scope it down (e.g. only the 285 stubs that
+  at least have a draft-class year, since true unknowns are least likely to matter for a
+  draft pool) rather than all 410.
 
 Total usable pool: **2,669 players** (2,370 rostered + 299 FA), each with a full attribute
 set. This is meaningfully short of a real depth chart (avg. ~74/team vs. real ~90-man
@@ -184,8 +192,14 @@ In `apps/api/src/modules/setup/setup.service.ts`, alongside the existing
 - `leagueType === "fantasy_draft"`: same insert, but **every** row gets `team_id: null`
   regardless of real-life team — the whole pool starts undrafted, grouped only by
   `position`. Also insert a `rec_fantasy_draft_sessions` row with `status: 'not_scheduled'`.
-- `leagueType === "custom_rosters"`: no baseline import at all (existing behavior —
-  commissioner builds rosters manually, unchanged).
+- `leagueType === "custom_rosters"`: **no preseed by default.** Immediately after the
+  commissioner picks "custom rosters" in the creation wizard, show a confirmation step:
+  "Pre-seed with in-game default rosters anyway?" — Yes runs the exact same import as
+  `regular_rosters` (real team assignments); No leaves rosters empty for fully manual
+  building (existing behavior, unchanged). This is a wizard-step decision, not a new
+  `leagueType` value — `roster_type` stays `custom_rosters` either way; only whether the
+  baseline import ran differs (track via a boolean, e.g.
+  `rec_league_configuration.custom_roster_preseeded`).
 
 ## 4. Backend — draft session API (new module: `apps/api/src/modules/fantasy-draft/`)
 
@@ -211,6 +225,25 @@ else):
   team per `pick_in_round` 1-32). Writes `rec_fantasy_draft_pick_order`. This is the "set
   each pick # with a dropdown of all 32 teams" step, gating the actual live-picking UI
   until it's fully set.
+- `POST /v1/fantasy-draft/add-custom-player` — commissioner/co-commissioner only,
+  available right after pick order is set (and really any time before `concluded`).
+  Routes through the **existing Custom Player Wizard**
+  (`apps/web/src/components/hub/CustomPlayerWizard.tsx`) in a stripped-down mode: no coin
+  cost / purchase-points flow (this isn't a store purchase, it's commissioner roster
+  construction) — just position, name, jersey, archetype, and the attribute/OVR fields.
+  New players get a generic silhouette placeholder image (reuse whatever default/fallback
+  avatar the roster UI already shows for photo-less players — check
+  `apps/web/src/components/hub/PlayerStatsModal.tsx` or roster list rendering for an
+  existing pattern before inventing a new one) instead of a real photo; updatable to a
+  real headshot later via the same photo-upload path custom players presumably already
+  have. Inserts directly into `rec_madden_league_players` (no `baseline_player_id` — that
+  FK needs to become nullable, or custom players need their own lightweight row shape;
+  decide at migration time) with `team_id: null`. Supports adding multiple players in one
+  sitting (wizard shouldn't force a full page reload/close between each).
+- `DELETE /v1/fantasy-draft/pool/:leaguePlayerId` — "Remove Player from Draft Pool",
+  commissioner/co-commissioner only. Pulls a player out of the pool entirely (not drafted,
+  just gone — e.g. commissioner decides a player shouldn't be in this league's draft for
+  any reason). Available throughout the live/wrap-up phases, not just pre-draft.
 - `POST /v1/fantasy-draft/pick` — commissioner/co-commissioner only, live-phase: body
   `{ leaguePlayerId }`. Resolves current `(round, pick_in_round)` → team from
   `rec_fantasy_draft_pick_order` (accounting for snake reversal on even rounds if
@@ -264,12 +297,18 @@ States to render (driven by `session.status`):
 - Immediately after commence, before `pick-order` is set — a modal (commissioner only)
   walking through: pick order mode (standard/snake), then 32 dropdowns (team per pick
   slot 1-32). Nobody else sees the draft board yet.
+- Right after pick order is confirmed (still commissioner-only, before the board goes
+  fully live) — an optional "Add custom players to the pool?" step using the Custom
+  Player Wizard flow described in §4's `add-custom-player` endpoint. Skippable; can also
+  be revisited later from the live board itself (not a one-time gate).
 - `live` — the main card: header = "Round {r}, Pick {p} — {team} on the clock". Below it,
-  a scrollable, sortable/filterable (by position, search-by-name) list of every
-  undrafted `rec_madden_league_players` row (name, position, OVR, team origin if regular-
-  roster-flavored data still shown for context, archetype). Each row has a "Drafted"
-  button, visible/enabled only for commissioner/co-commissioner. Card chrome also has
-  **Undo** and **Skip to End** buttons (commissioner/co-commissioner only).
+  a scrollable player pool list with a **position-group sorter** (tabs or a dropdown —
+  QB/HB/WR/.../K, plus "All") as the primary filter, secondary search-by-name, each row
+  showing name, position, OVR, real-life team origin (context only, not functional in
+  fantasy-draft leagues), archetype. Each row has a "Drafted" button and a "Remove from
+  Pool" action, both visible/enabled only for commissioner/co-commissioner. Card chrome
+  also has **Undo** and **Skip to End** buttons (commissioner/co-commissioner only), plus
+  an entry point back into "Add custom player" from §4.
 - `wrap_up` — same list, but now every member sees "Drafted" buttons (self-assign to own
   team; commissioner/co-commissioner get the "MY team / ANOTHER team" modal instead). A
   one-time dismissible pop-up ("go review your in-game roster...") fires for every member
@@ -292,61 +331,60 @@ the socket is down.
 
 ## 7. Roster page — position minimums
 
-Samuel wants each position card on the roster page to show `current/required`, e.g.
-"HB 2/3". **Open question 3**: I don't have a confirmed source for what those per-position
-minimum counts should be for a 53-man Madden roster — need Samuel to give me the actual
-numbers (or confirm using Madden's own in-game "minimum roster requirements" screen,
-which I can't access — a screenshot from Samuel's game would be authoritative) before this
-part can be built. Don't guess and hardcode invented numbers here.
+**Dropped from scope** (Samuel: "forget about this"). Not building the `{count}/{required}`
+position-card display. If revisited later, treat as a fresh ask, not a continuation of
+this doc.
 
-Once we have real numbers: extend `apps/web/src/routes/roster/RosterHome.tsx`'s existing
-`hub-roster-grade-grid` cards (already touched 2026-08-07 for grade-color contrast) to
-also render `{count}/{required}` per `positionGroups` entry, sourced from a new constant
-(e.g. `MADDEN_POSITION_MINIMUMS` in `@rec/shared`) compared against the league's actual
-roster counts.
+## 8. Photo storage — download + re-host via Cloudflare
 
-## 8. Open questions (need Samuel's answer before/while implementing)
+Resolved: don't hotlink `maddenratings.com` image URLs. Download each player's photo once
+at seed time and re-host in our own storage. Samuel confirmed Cloudflare is available and
+should be linked — this repo already has a working Cloudflare integration to model off of
+(`docs/cloudflare-highlights.md`, Cloudflare Stream for highlight clips). For static player
+photos, Cloudflare Images (or an R2 bucket) is the better fit than Stream (that's
+video-specific) — check what's actually provisioned on the account before assuming Images
+vs. R2. Seed script downloads from the CSV's `image` URL, uploads to Cloudflare, and stores
+the resulting Cloudflare-hosted URL in `rec_madden_baseline_players.photo_url` — the
+original fan-site URL never gets stored or served to end users.
 
-1. **The 410 unrated stub players** — fully exclude from the pool (current plan), or
-   include as zero-attribute placeholder entries some other way? Leaning exclude since
-   they'd be undraftable dead weight, but confirm.
-2. Can a commissioner **commence** a draft with no `scheduled_at` set at all, or must
-   scheduling happen first?
-3. **Position minimums** for the roster-page position cards (§7) — need real numbers.
-4. Where should the **raw scraped CSVs** live — committed to the repo (under
-   `apps/api/scripts/data/`), or kept out of git and re-supplied by Samuel each time the
-   seed script runs? (CFB's baseline seed script pattern pulls from a live provider API at
-   seed-time rather than committing a static file — Madden's source has no API, so this
-   needs a different answer.)
-5. Confirm co-commissioner permission check: this plan assumes the existing
-   `assertGuildPermission(..., "co_commissioner")` (in `apps/api/src/lib/user-auth.ts`)
-   is the right gate for every "commish or co-commish" action listed above — same check
-   used elsewhere in League Mgmt.
-6. Discord `@everyone` mention on commence — needs `allowed_mentions: { parse: ["everyone"] }`
-   (or equivalent) explicitly set on that Discord API call, since Discord silently no-ops
-   `@everyone` text otherwise. Confirm the bot's role actually has "Mention @everyone"
-   permission in servers using this — if not, this step needs a fallback (e.g. a normal
-   ping to commissioners only, or a loud embed without the literal mention).
-7. **Photo re-hosting**: do we want to hotlink `maddenratings.com` image URLs directly in
-   the product (fragile — their site, their bandwidth, could break/rate-limit/change URLs
-   any time), or download + re-host them in our own storage (Supabase Storage / Cloudflare)
-   once, at seed time? Recommend the latter for anything user-facing in production; the
-   CSV of URLs handed to Samuel is the input to that re-hosting step, not the final asset
-   pipeline.
+## 9. Open questions — resolved
 
-## 9. Suggested build order
+Answered by Samuel 2026-08-07, recorded here so a future agent doesn't re-ask:
+
+1. **410 unrated stub players** — excluded from the pool. Real-life cross-referencing not
+   completed for all 410 (see §1) — flag to Samuel again if he wants that pursued further.
+2. Commencing with no `scheduled_at` set: **allowed, but not recommended** — the UI should
+   let it happen (no hard block) while nudging toward scheduling first (e.g. a confirm-step
+   warning, not a disabled button).
+3. ~~Position minimums~~ — dropped, see §7.
+4. **Raw CSVs**: commit to the repo. **All compiled data lives in Supabase** (the
+   `rec_madden_baseline_players` table from §2 *is* that storage — the CSVs are just the
+   seed script's input file, not a parallel source of truth) for display on the site.
+5. **Co-commissioner permission gate confirmed** — `assertGuildPermission(...,
+   "co_commissioner")` is correct for every commissioner-only action in this doc.
+6. **Discord `@everyone`**: fine — the bot has admin permissions globally on every linked
+   server, so the `allowed_mentions` opt-in will work without a per-server permission
+   check.
+7. **Photo hosting**: resolved, see §8 (download + re-host via Cloudflare).
+
+## 10. Suggested build order
 
 1. Migration for `rec_madden_roster_datasets` / `rec_madden_baseline_players` /
    `rec_madden_league_players` (§2, first two tables only — draft-session tables come
    later since regular-rosters leagues don't need them at all).
-2. Seed script (`apps/api/scripts/madden-baseline-seed.ts`) reading the CSVs into
+2. Seed script (`apps/api/scripts/madden-baseline-seed.ts`) reading the committed CSVs,
+   downloading + re-hosting photos to Cloudflare (§8), writing into
    `rec_madden_baseline_players`, mirroring `cfb-baseline-seed.ts`'s dedupe/checksum
    pattern.
 3. Wire `regular_rosters` league creation (§3) — this alone is independently shippable
-   and valuable (real rosters on league create) without any draft-tracker work.
-4. `custom_rosters`/`fantasy_draft` pool creation (all `team_id: null`, §3) — also
-   independently shippable (gives fantasy-draft leagues a position-grouped pool to look
-   at) even before the draft-tracker UI exists.
-5. Draft-session migration + API module (§4).
-6. Draft card UI + realtime channel (§5, §6).
-7. Roster position-minimums display (§7) — blocked on open question 3.
+   and valuable (real rosters on league create) without any draft-tracker work. Wire the
+   `custom_rosters` "pre-seed anyway?" confirmation step at the same time (same import
+   path, just gated behind an extra wizard confirmation).
+4. `fantasy_draft` pool creation (all `team_id: null`, §3) — also independently shippable
+   (gives fantasy-draft leagues a position-grouped pool to look at) even before the
+   draft-tracker UI exists.
+5. Draft-session migration + API module (§4), including `add-custom-player` and the
+   remove-from-pool endpoint.
+6. Custom Player Wizard integration (stripped-down, no-cost mode) for the post-pick-order
+   "add custom players" step.
+7. Draft card UI + realtime channel (§5, §6), including the position-group sorter.
