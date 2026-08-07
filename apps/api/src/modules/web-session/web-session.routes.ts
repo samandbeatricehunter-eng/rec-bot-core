@@ -3,18 +3,9 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { ExchangeAppHandoffSchema, MintWebSessionSchema } from "./web-session.schemas.js";
-import { exchangeAppHandoff, mintAppHandoff, mintWebSession } from "./web-session.service.js";
+import { exchangeAppHandoff, mintAppHandoff } from "./web-session.service.js";
 
 export async function webSessionRoutes(app: FastifyInstance) {
-  app.post("/v1/web-session/mint", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      return reply.send(await mintWebSession(MintWebSessionSchema.parse(request.body)));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
   app.post("/v1/web-session/handoff/mint", async (request, reply) => {
     try {
       requireInternalApiKey(request);

@@ -1,7 +1,7 @@
 # Nixpacks / Railway monorepo build.
 # Each Railway service must set RAILWAY_SERVICE_NAME (or the service name) so
 # `scripts/railway-build.mjs` only builds that service + @rec/shared.
-# Do NOT use `pnpm -r build` here — that rebuilds api+bot+web+site every deploy.
+# Do NOT use `pnpm -r build` here — that rebuilds api+bot+site every deploy.
 
 providers = ["node"]
 

@@ -1,21 +1,20 @@
-# @rec/web — Web Dashboard
+# @rec/web — Hub UI component source
 
-The web frontend for REC Bot's League Mgmt workflows. Opened as a normal external browser
-tab (not a Discord-embedded iframe): a commissioner or co-commissioner clicks "Open Web
-Dashboard" in Discord's League Mgmt panel, the bot mints a short-lived signed session
-token and hands back a link, and that link opens this app with the token in the URL.
-Coexists with the existing Discord-native League Mgmt workflow; it does not replace it.
+Not a deployable app. This package holds the source for the hub route components (Hub
+home, Roster, Matchups, League Mgmt, etc.), shared React contexts (auth, hub chrome,
+league theme, chat drawer), and the CSS these components use. `packages/hub-ui`
+re-exports these files directly (no build step) so `apps/site` — the only deployed
+surface (PWA + website) — can mount them with its own shell, nav, and auth.
+
+There used to be a second, standalone entry point here (`App.tsx`/`main.tsx`, a
+Discord-Activity-style iframe shell reached via a `?token=` JWT link) that was deployed
+as its own Railway service. That's been removed — Discord's `/app` command now opens a
+site deep-link instead. If you're looking for chrome/navigation, see
+`apps/site/src/components/LeagueTopNav.tsx` and `SiteShell.tsx`.
 
 ## Local development
 
-No special setup needed — this is a plain SPA. Run `pnpm --filter @rec/web dev`
-(defaults to `http://localhost:5173`) and open it directly with a `?token=...` from a
-real mint (or a manually-crafted test JWT signed with the same `ACTIVITY_JWT_SECRET`
-apps/api uses).
+There's no dev server for this package on its own — preview changes through `apps/site`
+(`pnpm --filter @rec/site dev`), which imports these components live.
 
-## Build & deploy
-
-Same conventions as `apps/api`/`apps/bot`: `dev` / `build` / `start` / `typecheck` scripts,
-deployed as a third Railway service pointing at the repo root with Start Command
-`node apps/web/server/serve.js`. See the root `nixpacks.toml` comment for how the three
-services share one build (`pnpm -r build`) but differ only by Start Command.
+`pnpm --filter @rec/web typecheck` runs `tsc --noEmit` over the source.

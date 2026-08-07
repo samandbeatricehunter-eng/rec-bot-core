@@ -6,35 +6,8 @@ import { supabase } from "../../lib/supabase.js";
 import { ensureRecUserForAuthUser } from "../subscriptions/entitlements.service.js";
 import type { ExchangeAppHandoffInput, MintWebSessionInput } from "./web-session.schemas.js";
 
-const WEB_SESSION_TTL_SECONDS = 30 * 60;
 const APP_HANDOFF_TTL_SECONDS = 10 * 60;
 const APP_HANDOFF_PURPOSE = "app_handoff";
-
-async function resolveOrProvisionUserId(input: MintWebSessionInput): Promise<string> {
-  const account = await supabase
-    .from("rec_discord_accounts")
-    .select("user_id")
-    .eq("discord_id", input.discordId)
-    .maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to check Discord account.", account.error);
-  if (account.data?.user_id) return account.data.user_id;
-
-  const displayName = input.globalName ?? input.username;
-  const user = await supabase
-    .from("rec_users")
-    .insert({ display_name: displayName, status: "active" })
-    .select("id")
-    .single();
-  if (user.error) throw new ApiError(500, "Failed to create REC user for Discord account.", user.error);
-
-  const created = await supabase
-    .from("rec_discord_accounts")
-    .insert({ user_id: user.data.id, discord_id: input.discordId, username: input.username, global_name: input.globalName ?? null })
-    .select("user_id")
-    .single();
-  if (created.error) throw new ApiError(500, "Failed to create Discord account link.", created.error);
-  return created.data.user_id;
-}
 
 function requireJwtSecret(): string {
   if (!env.ACTIVITY_JWT_SECRET) throw new ApiError(500, "Web session auth is not configured (ACTIVITY_JWT_SECRET missing).");
@@ -43,43 +16,6 @@ function requireJwtSecret(): string {
 
 function jwtKey() {
   return new TextEncoder().encode(requireJwtSecret());
-}
-
-async function signWebSessionToken(input: { discordId: string; guildId: string }) {
-  return new SignJWT({ discordId: input.discordId, guildId: input.guildId })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(`${WEB_SESSION_TTL_SECONDS}s`)
-    .sign(jwtKey());
-}
-
-/** Build a browser hub URL for an already-linked Discord user + guild. */
-export async function buildWebHubUrl(input: {
-  discordId: string;
-  guildId: string;
-  /** Hash route after `#`, e.g. `/?section=league&subTab=buzz` */
-  hashPath?: string;
-  embed?: boolean;
-}): Promise<{ hubUrl: string; token: string; expiresInSeconds: number }> {
-  if (!env.WEB_APP_URL) {
-    throw new ApiError(500, "WEB_APP_URL is not configured on the API.");
-  }
-  const token = await signWebSessionToken({
-    discordId: input.discordId,
-    guildId: input.guildId,
-  });
-  const hubBase = env.WEB_APP_URL.replace(/\/$/, "");
-  const params = new URLSearchParams({ token });
-  if (input.embed) params.set("embed", "1");
-  const hash = (input.hashPath ?? "/").replace(/^#/, "");
-  const hubUrl = `${hubBase}/?${params.toString()}#${hash.startsWith("/") ? hash : `/${hash}`}`;
-  return { hubUrl, token, expiresInSeconds: WEB_SESSION_TTL_SECONDS };
-}
-
-export async function mintWebSession(input: MintWebSessionInput) {
-  await resolveOrProvisionUserId(input);
-  const token = await signWebSessionToken({ discordId: input.discordId, guildId: input.guildId });
-  return { token, expiresInSeconds: WEB_SESSION_TTL_SECONDS };
 }
 
 /** Short-lived Discord to site bridge token. Bot embeds this in /open-app?handoff= */

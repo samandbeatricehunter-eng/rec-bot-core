@@ -2,10 +2,11 @@ import { spawn } from "node:child_process";
 
 const service = (process.env.RAILWAY_SERVICE_NAME || "").toLowerCase();
 
+// @rec/web has no deployable app of its own (removed — see apps/web/README.md); it's
+// component source consumed by @rec/site's build, not a Railway service target.
 function filtersForService() {
   if (service.includes("site")) return ["@rec/shared", "@rec/site"];
   if (service.includes("bot")) return ["@rec/shared", "@rec/bot"];
-  if (service.includes("web")) return ["@rec/shared", "@rec/web"];
   return ["@rec/shared", "@rec/api"];
 }
 

@@ -25,8 +25,6 @@ async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const recApi = {
   refreshRecGuide: (guildId: string) => recFetch<{ posted: number; channelId: string } | null>("/v1/server-config/rec-guide/refresh", { method: "POST", body: JSON.stringify({ guildId }) }),
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
-  mintWebSession: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
-    recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionMint, { method: "POST", body: JSON.stringify(input) }),
   mintAppHandoff: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
     recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionHandoffMint, {
       method: "POST",

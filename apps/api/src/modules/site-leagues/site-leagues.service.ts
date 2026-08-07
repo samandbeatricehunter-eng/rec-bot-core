@@ -2,7 +2,6 @@ import { CFB_27_TEAMS, stageLabel } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
-import { buildWebHubUrl } from "../web-session/web-session.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
 import { getGameWagerOptions } from "../wagers/odds.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -417,26 +416,7 @@ async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Prom
   }
 }
 
-function hubHashForView(view: SiteLeagueHubView): string {
-  switch (view) {
-    case "matchups":
-      return "/?section=league&subTab=matchups";
-    case "team":
-      return "/?section=team";
-    case "store":
-      return "/?section=store";
-    case "mgmt":
-      return "/league-mgmt";
-    case "buzz":
-    default:
-      return "/?section=league&subTab=buzz";
-  }
-}
-
-/**
- * Resolve Discord guild + identity for the in-process site hub.
- * Also includes hubUrl for older site bundles that still iframe WEB_APP_URL.
- */
+/** Resolve Discord guild + identity for the in-process site hub. */
 export async function openSiteLeagueHub(input: {
   recUserId: string;
   leagueId: string;
@@ -446,26 +426,10 @@ export async function openSiteLeagueHub(input: {
   guildId: string;
   discordId: string;
   leagueId: string;
-  hubUrl: string | null;
+  hubUrl: null;
 }> {
   const context = await openSiteLeagueHubContext(input);
-  let hubUrl: string | null = null;
-  try {
-    const issued = await buildWebHubUrl({
-      discordId: context.discordId,
-      guildId: context.guildId,
-      hashPath: hubHashForView(input.view ?? "buzz"),
-      embed: input.embed ?? true,
-    });
-    hubUrl = issued.hubUrl;
-  } catch (error) {
-    // In-process hub only needs guildId/discordId; hubUrl is legacy compat.
-    console.warn(
-      "[open-hub] hubUrl unavailable:",
-      error instanceof Error ? error.message : error,
-    );
-  }
-  return { ...context, hubUrl };
+  return { ...context, hubUrl: null };
 }
 
 /** Resolve Discord guild + identity for rendering the hub inside apps/site (no iframe). */
