@@ -1,5 +1,33 @@
 # Session Progress Log (2026-08-03 marathon session)
 
+## CFB settings expansion — B2 backend wiring (2026-08-06, committed and pushed)
+The site wizard already collected every new CFB setting and per-conference rule in the UI,
+but the backend silently dropped them: `CreateUnclaimedLeagueSchema` stripped the unknown
+keys, `buildConfigurationPayload` never mapped them, and `rec_conference_rules` was never
+written. This pass wired the full path:
+- Route schema (`setup.routes.ts`) now accepts `isOnline`, `crossPlayEnabled`,
+  `requiredConsole`, `playerEditPermission`, `manualXpProgressionPenaltyPct`,
+  `verbalCommitInfluencePct`, `userTransferChancePct`, `cpuTransferChancePct`,
+  `transferPortalMaxPerTeam`, `minimumPlayClockSeconds`, `seasonExperience`, and
+  `conferenceRules` (validated array shape).
+- `setup.schemas.ts` (`CreateLeagueSchema`, Discord path) gained the same CFB fields +
+  `conferenceRules`, and `coachXpSetting` was widened to include `simulation` (the DB check
+  constraint already allowed it).
+- `setup.service.ts`: `buildConfigurationPayload` + both Discord-side payloads now persist
+  every new column; `createUnclaimedLeague` sets `is_online` on `rec_leagues`; new
+  `upsertConferenceRules()` (delete + insert, undefined = untouched) called from
+  `createUnclaimedLeague`, `updateSiteLeagueConfig`, `createLeagueForServer`, and
+  `updateLeagueConfig` — so per-conference rules persist for both site-wizard and Discord
+  flows.
+- `getLeagueConfigAsDraft` surfaces the new CFB fields, `crossPlayEnabled`/`requiredConsole`,
+  and a `conferenceRules` array.
+- `settings-fields.ts` exposes all of them in the generic Settings renderer (Dynasty /
+  Franchise category + cross-play/console under Rules & Policies).
+- Track A (offseason display bug sweep) shipped earlier in `c8128cd`; B12/B13 (Madden
+  start-method skip toggle + Gameplay/Team/Commissioner sections) and B10 (legend body types
+  seeded via `20260806060000_assign_legend_body_types.sql`, displayed in
+  `LegendPurchasePanel.tsx`) were already complete.
+
 ## Newly reported (2026-08-04 evening, session 3 — pick up here)
 Session 3 shipped #19-24 from the backlog below (wagers team-total O/U + board
 dedupe, GOTW reopen, moneyline favorite label, 4 settings bugs, EOS award

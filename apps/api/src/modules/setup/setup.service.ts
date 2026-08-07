@@ -198,6 +198,14 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
+    player_edit_permission: input.game === "cfb_27" ? (input.playerEditPermission ?? "commish_only") : null,
+    manual_xp_progression_penalty_pct: input.game === "cfb_27" ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
+    verbal_commit_influence_pct: input.game === "cfb_27" ? (input.verbalCommitInfluencePct ?? 25) : null,
+    user_transfer_chance_pct: input.game === "cfb_27" ? (input.userTransferChancePct ?? 55) : null,
+    cpu_transfer_chance_pct: input.game === "cfb_27" ? (input.cpuTransferChancePct ?? 55) : null,
+    transfer_portal_max_per_team: input.game === "cfb_27" ? (input.transferPortalMaxPerTeam ?? 20) : null,
+    minimum_play_clock_seconds: input.game === "cfb_27" ? (input.minimumPlayClockSeconds ?? 15) : null,
+    season_experience: input.game === "cfb_27" ? (input.seasonExperience ?? "customized") : null,
 
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
@@ -377,6 +385,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     }
   }
 
+  await upsertConferenceRules(league.data.id, input.conferenceRules);
+
   return {
     server: serverResult.server,
     league: league.data,
@@ -413,6 +423,16 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     home_field_advantage_enabled: isCfbGame ? (input.homeFieldAdvantageEnabled ?? true) : null,
     stadium_pulse_enabled: isCfbGame ? (input.stadiumPulseEnabled ?? true) : null,
     team_builder_allowed: isCfbGame ? (input.teamBuilderAllowed ?? false) : null,
+    player_edit_permission: isCfbGame ? (input.playerEditPermission ?? "commish_only") : null,
+    manual_xp_progression_penalty_pct: isCfbGame ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
+    verbal_commit_influence_pct: isCfbGame ? (input.verbalCommitInfluencePct ?? 25) : null,
+    user_transfer_chance_pct: isCfbGame ? (input.userTransferChancePct ?? 55) : null,
+    cpu_transfer_chance_pct: isCfbGame ? (input.cpuTransferChancePct ?? 55) : null,
+    transfer_portal_max_per_team: isCfbGame ? (input.transferPortalMaxPerTeam ?? 20) : null,
+    minimum_play_clock_seconds: isCfbGame ? (input.minimumPlayClockSeconds ?? 15) : null,
+    season_experience: isCfbGame ? (input.seasonExperience ?? "customized") : null,
+    cross_play_enabled: input.crossPlayEnabled ?? true,
+    required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled ?? false,
     custom_players_enabled: input.customPlayersEnabled ?? false,
     legends_enabled: input.legendsEnabled ?? false,
@@ -511,12 +531,47 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
   };
 }
 
+/**
+ * Replaces a league's per-conference rule rows. Called with an empty array to clear them,
+ * or left untouched when the wizard didn't customize any conferences (undefined).
+ */
+async function upsertConferenceRules(leagueId: string, rules: Record<string, unknown>[] | undefined) {
+  if (!Array.isArray(rules)) return;
+  if (rules.length === 0) {
+    await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
+    return;
+  }
+  const rows = rules.map((rule) => ({
+    league_id: leagueId,
+    conference_name: String(rule.conferenceName ?? ""),
+    divisions_enabled: Boolean(rule.divisionsEnabled),
+    division_1_name: rule.division1Name ?? null,
+    division_2_name: rule.division2Name ?? null,
+    conference_games: rule.conferenceGames ?? null,
+    conf_champ_game_enabled: Boolean(rule.confChampGameEnabled),
+    champ_game_location: rule.champGameLocation ?? null,
+    champ_game_selection_criteria: rule.champGameSelectionCriteria ?? null,
+    protected_opponents_enabled: Boolean(rule.protectedOpponentsEnabled),
+    protected_opponents_count: rule.protectedOpponentsCount ?? 1,
+  })).filter((row) => row.conference_name);
+  if (rows.length === 0) {
+    await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
+    return;
+  }
+  await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
+  const { error } = await supabase.from("rec_conference_rules").insert(rows);
+  if (error) throw new ApiError(500, "Failed to save conference rules.", error);
+}
+
 export async function createUnclaimedLeague(input: {
   requestedByUserId: string;
   name: string;
   game: "madden_26" | "madden_27" | "cfb_27";
   leaguePassword?: string | null;
   leagueType?: string;
+  isOnline?: boolean;
+  crossPlayEnabled?: boolean;
+  requiredConsole?: "ps5" | "xbox" | "pc" | null;
   activeRostersEnabled?: boolean;
   trackRostersEnabled?: boolean;
   dynastyType?: string;
@@ -527,6 +582,26 @@ export async function createUnclaimedLeague(input: {
   stadiumPulseEnabled?: boolean;
   conferenceRealignment?: string;
   teamBuilderAllowed?: boolean;
+  playerEditPermission?: string;
+  manualXpProgressionPenaltyPct?: number;
+  verbalCommitInfluencePct?: number;
+  userTransferChancePct?: number;
+  cpuTransferChancePct?: number;
+  transferPortalMaxPerTeam?: number;
+  minimumPlayClockSeconds?: number;
+  seasonExperience?: string;
+  conferenceRules?: Array<{
+    conferenceName: string;
+    divisionsEnabled: boolean;
+    division1Name?: string | null;
+    division2Name?: string | null;
+    conferenceGames: number;
+    confChampGameEnabled: boolean;
+    champGameLocation?: string | null;
+    champGameSelectionCriteria?: string | null;
+    protectedOpponentsEnabled: boolean;
+    protectedOpponentsCount: number;
+  }>;
   seasonNumber?: number;
   seasonStage?: string;
   currentWeek?: number;
@@ -637,6 +712,7 @@ export async function createUnclaimedLeague(input: {
     current_week: input.currentWeek ?? 1,
     trust_mode: "manual",
     fantasy_draft_status: leagueType === "fantasy_draft" ? "pending" : "not_applicable",
+    is_online: input.isOnline ?? true,
   };
 
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
@@ -645,6 +721,8 @@ export async function createUnclaimedLeague(input: {
   const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
   const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
   if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
+
+  await upsertConferenceRules(league.data.id, input.conferenceRules);
 
   const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
 
@@ -687,6 +765,8 @@ export async function updateSiteLeagueConfig(input: { requestedByUserId: string;
 
   const { data, error } = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
   if (error) throw new ApiError(500, "Failed to update league configuration.", error);
+
+  await upsertConferenceRules(input.leagueId, input.conferenceRules as Record<string, unknown>[] | undefined);
 
   await writeAuditLog({
     action: "league.configuration.updated",
@@ -869,6 +949,14 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
+    player_edit_permission: input.game === "cfb_27" ? (input.playerEditPermission ?? "commish_only") : null,
+    manual_xp_progression_penalty_pct: input.game === "cfb_27" ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
+    verbal_commit_influence_pct: input.game === "cfb_27" ? (input.verbalCommitInfluencePct ?? 25) : null,
+    user_transfer_chance_pct: input.game === "cfb_27" ? (input.userTransferChancePct ?? 55) : null,
+    cpu_transfer_chance_pct: input.game === "cfb_27" ? (input.cpuTransferChancePct ?? 55) : null,
+    transfer_portal_max_per_team: input.game === "cfb_27" ? (input.transferPortalMaxPerTeam ?? 20) : null,
+    minimum_play_clock_seconds: input.game === "cfb_27" ? (input.minimumPlayClockSeconds ?? 15) : null,
+    season_experience: input.game === "cfb_27" ? (input.seasonExperience ?? "customized") : null,
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
@@ -972,6 +1060,8 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     .single();
   if (error) throw new ApiError(500, "Failed to update league configuration", error);
 
+  await upsertConferenceRules(context.leagueId, input.conferenceRules);
+
   await writeAuditLog({
     action: "league.configuration.updated",
     entityType: "rec_league_configuration",
@@ -989,13 +1079,26 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 
 export async function getLeagueConfigAsDraft(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const [league, config] = await Promise.all([
+  const [league, config, conferenceRulesResult] = await Promise.all([
     supabase.from("rec_leagues").select("name,game").eq("id", context.leagueId).single(),
-    supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle()
+    supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle(),
+    supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId)
   ]);
   if (league.error) throw new ApiError(500, "Failed to load league", league.error);
   const c = config.data ?? {};
   const r = context.routes ?? {};
+  const conferenceRules = (conferenceRulesResult.data ?? []).map((row) => ({
+    conferenceName: row.conference_name,
+    divisionsEnabled: row.divisions_enabled,
+    division1Name: row.division_1_name,
+    division2Name: row.division_2_name,
+    conferenceGames: row.conference_games,
+    confChampGameEnabled: row.conf_champ_game_enabled,
+    champGameLocation: row.champ_game_location,
+    champGameSelectionCriteria: row.champ_game_selection_criteria,
+    protectedOpponentsEnabled: row.protected_opponents_enabled,
+    protectedOpponentsCount: row.protected_opponents_count,
+  }));
   const draft = {
     name: league.data.name ?? "League",
     game: league.data.game ?? "madden_26",
@@ -1009,9 +1112,20 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     coachCarouselEnabled: c.coach_carousel_enabled ?? true,
     conferenceRealignment: c.conference_realignment ?? "locked",
     conferenceAssignments: {},
+    crossPlayEnabled: c.cross_play_enabled ?? true,
+    requiredConsole: c.required_console ?? null,
     homeFieldAdvantageEnabled: c.home_field_advantage_enabled ?? true,
     stadiumPulseEnabled: c.stadium_pulse_enabled ?? true,
     teamBuilderAllowed: c.team_builder_allowed ?? (c.dynasty_type === "mixed"),
+    playerEditPermission: c.player_edit_permission ?? "commish_only",
+    manualXpProgressionPenaltyPct: c.manual_xp_progression_penalty_pct ?? 25,
+    verbalCommitInfluencePct: c.verbal_commit_influence_pct ?? 25,
+    userTransferChancePct: c.user_transfer_chance_pct ?? 55,
+    cpuTransferChancePct: c.cpu_transfer_chance_pct ?? 55,
+    transferPortalMaxPerTeam: c.transfer_portal_max_per_team ?? 20,
+    minimumPlayClockSeconds: c.minimum_play_clock_seconds ?? 15,
+    seasonExperience: c.season_experience ?? "customized",
+    conferenceRules,
     seasonWeek: "week_1",
     coinEconomyEnabled: c.coin_economy_enabled ?? false,
     customPlayersEnabled: c.custom_players_enabled ?? false,
