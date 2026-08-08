@@ -18,24 +18,28 @@ export function parseInterviewBody(body: string | null | undefined): QaBlock[] |
   return null;
 }
 
-/** Bodies stored as "Question?\nAnswer\n\nQuestion?\nAnswer" without Q:/A: prefixes. */
+/**
+ * Bodies stored as "Question?\nAnswer\n\nQuestion?\nAnswer" without Q:/A: prefixes.
+ * All-or-nothing: every blank-line block must be a strict question block (first line ends
+ * with a question mark, at least two lines, non-empty answer, substantive question). A
+ * prose body that happens to contain a question line must not be misread as an interview.
+ */
 function parsePlainQuestionBlocks(text: string): QaBlock[] | null {
   const blocks = text.split(/\n\s*\n/).map((chunk) => chunk.trim()).filter(Boolean);
-  if (blocks.length < 1) return null;
+  if (!blocks.length) return null;
   const parsed: QaBlock[] = [];
   for (const block of blocks) {
     const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-    if (!lines.length) continue;
+    if (lines.length < 2) return null;
     const first = lines[0]!;
-    if (!first.includes("?")) continue;
+    if (!first.includes("?")) return null;
     const qEnd = first.indexOf("?");
     const questionFromFirst = first.slice(0, qEnd + 1).trim();
     const answerFromFirst = first.slice(qEnd + 1).trim();
     const answerRest = lines.slice(1).join("\n").trim();
     const answer = [answerFromFirst, answerRest].filter(Boolean).join("\n").trim();
-    if (questionFromFirst.length >= 12) {
-      parsed.push({ question: questionFromFirst, answer });
-    }
+    if (questionFromFirst.length < 12 || !answer) return null;
+    parsed.push({ question: questionFromFirst, answer });
   }
   return parsed.length ? parsed : null;
 }
@@ -66,8 +70,13 @@ function parseLabeledQa(text: string): QaBlock[] | null {
   return chunked.length ? chunked : null;
 }
 
-/** Recover Q/A when newlines/prefixes were lost and body is one run-on paragraph. */
+/**
+ * Recover Q/A when newlines/prefixes were lost and body is one run-on paragraph. Only safe
+ * when there is no paragraph structure at all — a body with blank-line-separated prose is
+ * rendered as paragraphs instead of being force-fit into fake Q/A.
+ */
 function parseHeuristicQa(text: string): QaBlock[] | null {
+  if (text.split(/\n\s*\n/).filter(Boolean).length > 1) return null;
   const normalized = text.replace(/\s+/g, " ").trim();
   // Split before common interview question openers that end with ?
   const parts = normalized.split(
@@ -95,10 +104,38 @@ function parseHeuristicQa(text: string): QaBlock[] | null {
   return parsed.length >= 2 ? parsed : parsed.length === 1 ? parsed : null;
 }
 
+/** Split a stored story body on blank lines so `\n\n` becomes a real paragraph break. */
+function splitBlocks(body: string | null | undefined): string[] {
+  return String(body ?? "").split(/\n\s*\n/).map((chunk) => chunk.trim()).filter(Boolean);
+}
+
+/**
+ * Structured paragraph rendering for prose story bodies. Blank-line separation becomes real
+ * paragraph spacing, `## Section` lines become headings, and single `\n` inside a block stays
+ * a soft line break (via RichText) — so spacing submitted/generated in the body is preserved.
+ */
+export function StoryBody({ body }: { body: string | null | undefined }) {
+  const blocks = splitBlocks(body);
+  if (!blocks.length) {
+    return <p className="roundtable-lede"><RichText text={body} /></p>;
+  }
+  return (
+    <div className="story-body">
+      {blocks.map((block, index) => {
+        const heading = block.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          return <h4 className="story-body-heading" key={index}><RichText text={heading[2]} /></h4>;
+        }
+        return <p className="story-body-paragraph" key={index}><RichText text={block} /></p>;
+      })}
+    </div>
+  );
+}
+
 export function InterviewBody({ body }: { body: string | null | undefined }) {
   const qa = parseInterviewBody(body);
   if (!qa) {
-    return <p className="roundtable-lede"><RichText text={body} /></p>;
+    return <StoryBody body={body} />;
   }
   return (
     <div className="interview-qa">
