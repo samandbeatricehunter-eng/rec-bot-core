@@ -850,7 +850,10 @@ export async function completeAdvanceWeek(input: {
   let nextAdvanceLabel = fallbackTiming;
   if (input.nextAdvance) {
     await setNextAdvanceTime({ guildId: input.guildId, ...input.nextAdvance });
-    nextAdvanceLabel = `${input.nextAdvance.year}-${String(input.nextAdvance.month).padStart(2, "0")}-${String(input.nextAdvance.day).padStart(2, "0")} ${String(input.nextAdvance.hour).padStart(2, "0")}:${String(input.nextAdvance.minute).padStart(2, "0")} ${input.nextAdvance.tzLabel}`;
+    const { year, month, day, hour, minute, tzLabel } = input.nextAdvance;
+    const ampm = hour < 12 ? "AM" : "PM";
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    nextAdvanceLabel = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${hour12}:${String(minute).padStart(2, "0")} ${ampm} ${tzLabel}`;
   }
   await publishLeagueAdvanceAnnouncement({
     guildId: input.guildId,

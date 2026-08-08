@@ -14,17 +14,17 @@ import { getMyDefenseNicknameStatus, setDefenseNickname } from "./defense-nickna
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { sendDiscordAdvanceAnnouncement } from "../../lib/discord-guild.js";
-import { stageLabel } from "@rec/shared";
 import { createGameChannelsForCurrentWeek } from "../game-channels/game-channels.service.js";
 import { supabase } from "../../lib/supabase.js";
 
-async function relayWebAdvanceToDiscord(guildId: string, weekNumber: number, seasonStage: string, nextAdvanceLabel: string) {
+// completeAdvanceWeek/completeAdvanceJump already post the advance announcement to Discord
+// (via publishLeagueAdvanceAnnouncement -> recordHubAnnouncement) as part of advancing —
+// this just reports whether that post had a channel to land in, without posting a second,
+// duplicate announcement.
+async function relayWebAdvanceToDiscord(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const announcementChannelId = String((context.routes as any)?.announcements_channel_id ?? "");
   if (!announcementChannelId) return { announcementPosted: false, error: "No announcements channel is configured." };
-  const destinationLabel = stageLabel(seasonStage, weekNumber, context.rec_leagues.game ?? null);
-  await sendDiscordAdvanceAnnouncement(announcementChannelId, destinationLabel, nextAdvanceLabel);
   return { announcementPosted: true };
 }
 
@@ -202,7 +202,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         }
       }
       const discord = auth.mode === "user"
-        ? await relayWebAdvanceToDiscord(body.guildId, result.nextWeekNumber, result.nextSeasonStage, result.nextAdvanceLabel).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
+        ? await relayWebAdvanceToDiscord(body.guildId).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
       return reply.send({ ...result, discord, gameChannels });
     } catch (error) {
@@ -250,7 +250,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       const result = await completeAdvanceJump(body);
       const discord = auth.mode === "user"
-        ? await relayWebAdvanceToDiscord(body.guildId, body.targetWeekNumber, body.targetSeasonStage, result.nextAdvanceLabel).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
+        ? await relayWebAdvanceToDiscord(body.guildId).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
       return reply.send({ ...result, discord });
     } catch (error) {

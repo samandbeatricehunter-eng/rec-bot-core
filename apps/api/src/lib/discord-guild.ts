@@ -175,19 +175,6 @@ export async function sendDiscordDirectMessage(discordId: string, content: strin
   if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
 }
 
-export async function sendDiscordAdvanceAnnouncement(channelId: string, destinationLabel: string, nextAdvanceLabel: string): Promise<void> {
-  const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      content: "@everyone",
-      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNext advance: **${nextAdvanceLabel}**\n\nRun **/app** for league options and details.` }],
-      allowed_mentions: { parse: ["everyone"] },
-    }),
-  });
-  if (!sent.ok) throw new ApiError(502, `Discord rejected the advance announcement (${sent.status}).`);
-}
-
 // Generic message post (embeds/components/content) — the REST equivalent of a discord.js
 // TextChannel#send(), used by server-driven flows (advance completion, game/league chat
 // forwarding) that need to post to a channel without a live bot gateway client. Returns the
