@@ -239,6 +239,29 @@ export const recSiteNotifications = pgTable("rec_site_notifications", {
     .where(sql`${table.readAt} is null`)
 ]);
 
+export const recLeagueInvites = pgTable("rec_league_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id, { onDelete: "cascade" }),
+  inviterUserId: uuid("inviter_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  inviteeUserId: uuid("invitee_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" })
+}, (table) => [
+  check(
+    "rec_league_invites_status_check",
+    sql`${table.status} in ('pending', 'accepted', 'declined')`
+  ),
+  check(
+    "rec_league_invites_not_self_check",
+    sql`${table.inviterUserId} <> ${table.inviteeUserId}`
+  ),
+  uniqueIndex("rec_league_invites_pending_uidx").on(table.leagueId, table.inviteeUserId).where(sql`${table.status} = 'pending'`),
+  index("rec_league_invites_invitee_idx").on(table.inviteeUserId, table.status),
+  index("rec_league_invites_league_idx").on(table.leagueId, table.status)
+]);
+
 export const recSeasons = pgTable("rec_seasons", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),

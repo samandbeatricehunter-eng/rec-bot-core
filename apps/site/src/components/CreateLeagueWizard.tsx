@@ -6,9 +6,16 @@ import {
 } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
+import {
+  CFB_TEMPLATE_PRESETS,
+  LEAGUE_TEMPLATES,
+  MADDEN_TEMPLATE_PRESETS,
+  type LeagueTemplateId,
+  type LeagueTemplatePreset,
+} from "../lib/league-templates.js";
 
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
@@ -353,6 +360,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [step, setStep] = useState<Step>(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<LeagueTemplateId | null>(null);
 
   const [game, setGame] = useState<GameKey | "">("");
   const [isOnline, setIsOnline] = useState(true);
@@ -501,6 +509,78 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+
+  const [inviteFriends, setInviteFriends] = useState<Array<{ userId: string; username: string; displayName: string }>>([]);
+  const [sentInvites, setSentInvites] = useState<Array<{ inviteId: string; status: string; invitee: { userId: string; username: string; displayName: string } }>>([]);
+  const [inviteSearchQuery, setInviteSearchQuery] = useState("");
+  const [inviteSearchResults, setInviteSearchResults] = useState<Array<{ userId: string; username: string; displayName: string }>>([]);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 9 || !leagueId) return;
+    let cancelled = false;
+    Promise.all([
+      siteApi.listFriends(),
+      siteApi.listLeagueInvites(leagueId),
+    ])
+      .then(([friends, invites]) => {
+        if (cancelled) return;
+        setInviteFriends(friends.accepted.map((f) => f.peer));
+        setSentInvites(invites.invites.map((i) => ({
+          inviteId: i.inviteId,
+          status: i.status,
+          invitee: i.invitee,
+        })));
+      })
+      .catch((err) => {
+        if (!cancelled) setInviteError(err instanceof Error ? err.message : "Could not load friends.");
+      });
+    return () => { cancelled = true; };
+  }, [step, leagueId]);
+
+  useEffect(() => {
+    if (step !== 9) return;
+    const q = inviteSearchQuery.trim();
+    if (!q) {
+      setInviteSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      siteApi.searchInviteTargets({ query: q, limit: 8 })
+        .then((result) => { if (!cancelled) setInviteSearchResults(result.users); })
+        .catch(() => { if (!cancelled) setInviteSearchResults([]); });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [step, inviteSearchQuery]);
+
+  const alreadyInvitedIds = useMemo(() => new Set(sentInvites.map((i) => i.invitee.userId)), [sentInvites]);
+
+  async function sendInvite(target: { userId: string; username: string; displayName: string }) {
+    if (!leagueId || inviteBusy) return;
+    setInviteBusy(true);
+    setInviteError(null);
+    try {
+      const result = await siteApi.sendLeagueInvite({
+        leagueId,
+        userId: target.userId,
+        message: inviteMessage.trim() || undefined,
+      });
+      setSentInvites((current) => [
+        { inviteId: result.inviteId, status: result.status, invitee: target },
+        ...current,
+      ]);
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Could not send the invite.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
 
   const auth = useAuth();
 
@@ -784,6 +864,65 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     isCfb, isMadden, isSeasonOne,
   ]);
 
+  function applyTemplate(template: LeagueTemplatePreset) {
+    if (template.leagueType !== undefined) setLeagueType(template.leagueType);
+    if (template.difficulty !== undefined) setDifficulty(template.difficulty);
+    if (template.cfbDifficulty !== undefined) setCfbDifficulty(template.cfbDifficulty);
+    if (template.recruitingDifficulty !== undefined) setRecruitingDifficulty(template.recruitingDifficulty);
+    if (template.dynastyType !== undefined) setDynastyType(template.dynastyType);
+    if (template.quarterLengthMinutes !== undefined) setQuarterLengthMinutes(template.quarterLengthMinutes);
+    if (template.acceleratedClockEnabled !== undefined) setAcceleratedClockEnabled(template.acceleratedClockEnabled);
+    if (template.acceleratedClockMinimumSeconds !== undefined) setAcceleratedClockMinimumSeconds(template.acceleratedClockMinimumSeconds);
+    if (template.tradeDifficulty !== undefined) setTradeDifficulty(template.tradeDifficulty);
+    if (template.freeAgentMotivationImpact !== undefined) setFreeAgentMotivationImpact(template.freeAgentMotivationImpact);
+    if (template.salaryCapEnabled !== undefined) setSalaryCapEnabled(template.salaryCapEnabled);
+    if (template.tradeDeadlineEnabled !== undefined) setTradeDeadlineEnabled(template.tradeDeadlineEnabled);
+    if (template.tradeApprovalPolicy !== undefined) setTradeApprovalPolicy(template.tradeApprovalPolicy);
+    if (template.cpuTradingPolicy !== undefined) setCpuTradingPolicy(template.cpuTradingPolicy);
+    if (template.positionChangePolicy !== undefined) setPositionChangePolicy(template.positionChangePolicy);
+    if (template.coinEconomyEnabled !== undefined) setCoinEconomyEnabled(template.coinEconomyEnabled);
+    if (template.coinEconomyMinimumLinkedUsers !== undefined) setCoinEconomyMinimumLinkedUsers(template.coinEconomyMinimumLinkedUsers);
+    if (template.customPlayersEnabled !== undefined) setCustomPlayersEnabled(template.customPlayersEnabled);
+    if (template.customPlayersSeasonCap !== undefined) setCustomPlayersSeasonCap(template.customPlayersSeasonCap);
+    if (template.legendsEnabled !== undefined) setLegendsEnabled(template.legendsEnabled);
+    if (template.legendsSeasonCap !== undefined) setLegendsSeasonCap(template.legendsSeasonCap);
+    if (template.devUpgradesEnabled !== undefined) setDevUpgradesEnabled(template.devUpgradesEnabled);
+    if (template.devUpgradeCapMode !== undefined) setDevUpgradeCapMode(template.devUpgradeCapMode);
+    if (template.devUpgradesSeasonCap !== undefined) setDevUpgradesSeasonCap(template.devUpgradesSeasonCap);
+    if (template.devUpgradesPlayerCap !== undefined) setDevUpgradesPlayerCap(template.devUpgradesPlayerCap);
+    if (template.ageResetsEnabled !== undefined) setAgeResetsEnabled(template.ageResetsEnabled);
+    if (template.ageResetsSeasonCap !== undefined) setAgeResetsSeasonCap(template.ageResetsSeasonCap);
+    if (template.attributePurchasesEnabled !== undefined) setAttributePurchasesEnabled(template.attributePurchasesEnabled);
+    if (template.coreAttributePurchasesSeasonCap !== undefined) setCoreAttributePurchasesSeasonCap(template.coreAttributePurchasesSeasonCap);
+    if (template.coreAttributeGroupCap !== undefined) setCoreAttributeGroupCap(template.coreAttributeGroupCap);
+    if (template.nonCoreAttributePurchasesSeasonCap !== undefined) setNonCoreAttributePurchasesSeasonCap(template.nonCoreAttributePurchasesSeasonCap);
+    if (template.contractAdjustmentPurchasesEnabled !== undefined) setContractAdjustmentPurchasesEnabled(template.contractAdjustmentPurchasesEnabled);
+    if (template.contractPurchasesSeasonCap !== undefined) setContractPurchasesSeasonCap(template.contractPurchasesSeasonCap);
+    if (template.regularSeasonStreamingRequirement !== undefined) setRegularSeasonStreamingRequirement(template.regularSeasonStreamingRequirement);
+    if (template.regularSeasonStreamingSide !== undefined) setRegularSeasonStreamingSide(template.regularSeasonStreamingSide);
+    if (template.postseasonStreamingRequirement !== undefined) setPostseasonStreamingRequirement(template.postseasonStreamingRequirement);
+    if (template.postseasonStreamingSide !== undefined) setPostseasonStreamingSide(template.postseasonStreamingSide);
+    if (template.gotwStreamingRequirement !== undefined) setGotwStreamingRequirement(template.gotwStreamingRequirement);
+    if (template.gotwStreamingSide !== undefined) setGotwStreamingSide(template.gotwStreamingSide);
+    if (template.fourthDownRuleTypeRegular !== undefined) setFourthDownRuleTypeRegular(template.fourthDownRuleTypeRegular);
+    if (template.fourthDownRuleTypePlayoff !== undefined) setFourthDownRuleTypePlayoff(template.fourthDownRuleTypePlayoff);
+    if (template.offensivePlayCallLimitsEnabled !== undefined) setOffensivePlayCallLimitsEnabled(template.offensivePlayCallLimitsEnabled);
+    if (template.offensivePlayCallLimit !== undefined) setOffensivePlayCallLimit(template.offensivePlayCallLimit);
+    if (template.offensivePlayCallCooldownEnabled !== undefined) setOffensivePlayCallCooldownEnabled(template.offensivePlayCallCooldownEnabled);
+    if (template.offensivePlayCallCooldown !== undefined) setOffensivePlayCallCooldown(template.offensivePlayCallCooldown);
+    if (template.defensivePlayCallLimitsEnabled !== undefined) setDefensivePlayCallLimitsEnabled(template.defensivePlayCallLimitsEnabled);
+    if (template.defensivePlayCallLimit !== undefined) setDefensivePlayCallLimit(template.defensivePlayCallLimit);
+    if (template.defensivePlayCallCooldownEnabled !== undefined) setDefensivePlayCallCooldownEnabled(template.defensivePlayCallCooldownEnabled);
+    if (template.defensivePlayCallCooldown !== undefined) setDefensivePlayCallCooldown(template.defensivePlayCallCooldown);
+  }
+
+  function handleTemplateSelect(id: LeagueTemplateId | null) {
+    setTemplateId(id);
+    if (id && game) {
+      applyTemplate(game === "cfb_27" ? CFB_TEMPLATE_PRESETS[id] : MADDEN_TEMPLATE_PRESETS[id]);
+    }
+  }
+
   function advance(nextStep: Step) {
     setStep(nextStep);
   }
@@ -829,7 +968,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
         }
       }
-      setStep(7);
+      setStep(8);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the league.");
     } finally {
@@ -898,7 +1037,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       <section className="site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
         <button type="button" className="site-modal-close" onClick={onClose} aria-label="Close">&times;</button>
         <h2 id="create-league-title">Create League</h2>
-        {step > 0 && step < 7 && <p className="site-muted">Step {step} of 6</p>}
+        {step > 0 && step < 8 && <p className="site-muted">Step {step} of 7</p>}
         {error && <p className="site-auth-error">{error}</p>}
 
         {step === 0 && (
@@ -917,13 +1056,55 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 1 && (
           <>
+            <Section title="Start From a Template">
+              <p className="site-muted">
+                Templates prefill the league's rules, difficulty, streaming, and economy settings. You can still
+                change anything after picking one — or start blank and set everything yourself.
+              </p>
+              <div className="wizard-template-grid">
+                {LEAGUE_TEMPLATES.map((template) => (
+                  <button key={template.id} type="button"
+                    className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}
+                    onClick={() => handleTemplateSelect(template.id)}>
+                    <strong>{template.name}</strong>
+                    <span className="site-muted wizard-template-tagline">{template.tagline}</span>
+                    <span className="site-muted wizard-template-desc">{template.description}</span>
+                  </button>
+                ))}
+                <button type="button"
+                  className={`wizard-template-card ${templateId === null ? "wizard-template-card-active" : ""}`}
+                  onClick={() => handleTemplateSelect(null)}>
+                  <strong>Blank Setup</strong>
+                  <span className="site-muted wizard-template-tagline">No template</span>
+                  <span className="site-muted wizard-template-desc">Start with every setting at its default and configure the league yourself.</span>
+                </button>
+              </div>
+            </Section>
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(0)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(2)}>Next</button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
             <Section title="Game">
               <p className="site-muted">Choose which game this league will use. This cannot be changed later.</p>
               <div className="wizard-game-grid">
                 {GAME_OPTIONS.map((option) => (
                   <button key={option.value} type="button"
                     className={`wizard-game-card ${game === option.value ? "wizard-game-card-active" : ""}`}
-                    onClick={() => { setGame(option.value); setLeagueType(""); }}>
+                    onClick={() => {
+                      setGame(option.value);
+                      setLeagueType("");
+                      if (templateId) {
+                        const preset = option.value === "cfb_27"
+                          ? CFB_TEMPLATE_PRESETS[templateId]
+                          : MADDEN_TEMPLATE_PRESETS[templateId];
+                        applyTemplate(preset);
+                      }
+                    }}>
                     {option.label}
                   </button>
                 ))}
@@ -984,13 +1165,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             )}
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(0)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={!game || (isMadden && !leagueType)} onClick={() => setStep(2)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(1)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={!game || (isMadden && !leagueType)} onClick={() => setStep(3)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <>
             <Section title="League Name">
               <TextField label="League name" value={name} onChange={setName} placeholder="e.g. REC OG" maxLength={80} />
@@ -1000,15 +1181,15 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <TextField label="Password" value={leaguePassword} onChange={setLeaguePassword} placeholder="Optional" />
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(1)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={!name.trim()} onClick={() => advance(3)}>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={!name.trim()} onClick={() => advance(4)}>
                 Continue
               </button>
             </div>
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <Section title="Season Setup">
               <NumberField label="Season number" hint="Set to 1 for a brand-new dynasty. Only change this if you are importing an existing save that is already past season 1."
@@ -1047,13 +1228,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               )}
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(2)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(4)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(3)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(5)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             <Section title="Streaming Requirements">
               <SelectField label="Regular season streaming" hint="Whether users must stream their regular season games."
@@ -1297,13 +1478,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(3)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(5)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(4)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(6)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <>
             {isMadden && (
               <>
@@ -1479,13 +1660,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(4)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(6)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(5)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(7)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 6 && (
+        {step === 7 && (
           <>
             <Section title="Team Assignment">
               <p className="site-muted">Pick your team. You will be assigned as the head commissioner for this team.</p>
@@ -1502,7 +1683,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </div>
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(5)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void finishWizard()}>Skip for Now</button>
               <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
                 {busy ? "Finishing..." : "Assign Team & Finish"}
@@ -1511,7 +1692,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           </>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <>
             <Section title="Your League is Ready">
               <p className="site-muted">
@@ -1559,6 +1740,100 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => { if (leagueId) onCreated(leagueId); }}>
+                Done
+              </button>
+              <button type="button" className="site-btn site-btn-primary" disabled={!leagueId} onClick={() => setStep(9)}>
+                Invite Friends
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 9 && (
+          <>
+            <Section title="Invite Friends">
+              <p className="site-muted">
+                Invite users to your league. They'll get a notification and an inbox message; once they accept they
+                join as a member and can pick a team.
+              </p>
+              {inviteError && <p className="site-auth-error">{inviteError}</p>}
+
+              <label className="site-field">
+                <span>Personal message (optional)</span>
+                <input className="site-input" placeholder="e.g. Hey! We need a QB for our new league." maxLength={500}
+                  value={inviteMessage} onChange={(e) => setInviteMessage(e.target.value)} />
+              </label>
+
+              <Section title="Search by username">
+                <input className="site-input" placeholder="Type a username…" value={inviteSearchQuery}
+                  onChange={(e) => setInviteSearchQuery(e.target.value)} />
+                {inviteSearchResults.length > 0 && (
+                  <div className="wizard-invite-results">
+                    {inviteSearchResults.map((user) => (
+                      <div key={user.userId} className="wizard-invite-row">
+                        <span className="wizard-invite-name">
+                          <strong>{user.username}</strong>
+                          <span className="site-muted">{user.displayName !== user.username ? user.displayName : ""}</span>
+                        </span>
+                        {alreadyInvitedIds.has(user.userId) ? (
+                          <span className="site-muted">Invited</span>
+                        ) : (
+                          <button type="button" className="site-btn site-btn-secondary site-btn-sm" disabled={inviteBusy}
+                            onClick={() => void sendInvite(user)}>
+                            {inviteBusy ? "Sending…" : "Invite"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Your Friends">
+                {inviteFriends.length === 0 ? (
+                  <p className="site-muted">No accepted friends yet — add friends from the Friends page, or invite by username above.</p>
+                ) : (
+                  <div className="wizard-invite-results">
+                    {inviteFriends.map((user) => (
+                      <div key={user.userId} className="wizard-invite-row">
+                        <span className="wizard-invite-name">
+                          <strong>{user.username}</strong>
+                          <span className="site-muted">{user.displayName !== user.username ? user.displayName : ""}</span>
+                        </span>
+                        {alreadyInvitedIds.has(user.userId) ? (
+                          <span className="site-muted">Invited</span>
+                        ) : (
+                          <button type="button" className="site-btn site-btn-secondary site-btn-sm" disabled={inviteBusy}
+                            onClick={() => void sendInvite(user)}>
+                            {inviteBusy ? "Sending…" : "Invite"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {sentInvites.length > 0 && (
+                <Section title="Sent Invites">
+                  <div className="wizard-invite-results">
+                    {sentInvites.map((invite) => (
+                      <div key={invite.inviteId} className="wizard-invite-row">
+                        <span className="wizard-invite-name">
+                          <strong>{invite.invitee.username}</strong>
+                          <span className="site-muted">{invite.invitee.displayName !== invite.invitee.username ? invite.invitee.displayName : ""}</span>
+                        </span>
+                        <span className={`site-muted wizard-invite-status-${invite.status}`}>{invite.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+            </Section>
+
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(8)}>Back</button>
               <button type="button" className="site-btn site-btn-primary" onClick={() => { if (leagueId) onCreated(leagueId); }}>
                 Done
               </button>

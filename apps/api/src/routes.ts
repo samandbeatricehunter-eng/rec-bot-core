@@ -48,6 +48,7 @@ import { subscriptionRoutes } from "./modules/subscriptions/subscriptions.routes
 import { siteFriendsRoutes } from "./modules/site-friends/site-friends.routes.js";
 import { siteInboxRoutes } from "./modules/site-inbox/site-inbox.routes.js";
 import { siteLeaguesRoutes } from "./modules/site-leagues/site-leagues.routes.js";
+import { siteLeagueInvitesRoutes } from "./modules/site-league-invites/site-league-invites.routes.js";
 import { siteNotificationsRoutes } from "./modules/site-notifications/site-notifications.routes.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
 import { siteHighlightsRoutes } from "./modules/site-highlights/site-highlights.routes.js";
@@ -106,6 +107,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await siteFriendsRoutes(app);
   await siteInboxRoutes(app);
   await siteLeaguesRoutes(app);
+  await siteLeagueInvitesRoutes(app);
   await siteNotificationsRoutes(app);
   await siteHighlightsRoutes(app);
   await siteHomeRoutes(app);

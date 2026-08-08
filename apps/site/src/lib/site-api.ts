@@ -142,6 +142,32 @@ export type SiteMessage = {
   reportedAt: string | null;
 };
 
+export type SiteLeagueInvite = {
+  inviteId: string;
+  status: string;
+  message: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  invitee: {
+    userId: string;
+    username: string;
+    displayName: string;
+  };
+};
+
+export type SiteLeagueInvitePending = {
+  inviteId: string;
+  leagueId: string;
+  leagueName: string;
+  message: string | null;
+  createdAt: string;
+  inviter: {
+    userId: string;
+    username: string;
+    displayName: string;
+  };
+};
+
 export type DmTarget = {
   userId: string;
   username: string;
@@ -516,6 +542,39 @@ export const siteApi = {
     return request<{ ok: true; requestId: string }>("/v1/site-leagues/request-team", {
       leagueId,
       teamId,
+    });
+  },
+  searchInviteTargets(input: { query?: string; limit?: number } = {}) {
+    return request<{ users: Array<{ userId: string; username: string; displayName: string }> }>(
+      "/v1/site-league-invites/search",
+      input,
+    );
+  },
+  sendLeagueInvite(input: {
+    leagueId: string;
+    userId?: string;
+    username?: string;
+    message?: string;
+  }) {
+    return request<{
+      inviteId: string;
+      status: string;
+      createdAt: string;
+      peer: { userId: string; username: string; displayName: string };
+    }>("/v1/site-league-invites/send", input);
+  },
+  listLeagueInvites(leagueId: string) {
+    return request<{ invites: SiteLeagueInvite[] }>("/v1/site-league-invites/list", {
+      leagueId,
+    });
+  },
+  listPendingInvites() {
+    return request<{ invites: SiteLeagueInvitePending[] }>("/v1/site-league-invites/mine", {});
+  },
+  respondLeagueInvite(inviteId: string, action: "accept" | "decline") {
+    return request<{ ok: true; status: string }>("/v1/site-league-invites/respond", {
+      inviteId,
+      action,
     });
   },
   openLeagueHub(input: {

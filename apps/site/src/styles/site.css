@@ -1871,6 +1871,27 @@ h1, h2, h3, .site-wordmark {
 .wizard-option-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
 .wizard-option-card strong { font-size: 14px; color: var(--text); }
 .wizard-option-card .site-muted { font-size: 12px; }
+.wizard-template-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.wizard-template-card { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); color: var(--text); cursor: pointer; text-align: left; transition: border-color 0.15s; }
+.wizard-template-card:hover { border-color: var(--gold, #d4a843); }
+.wizard-template-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.wizard-template-card strong { font-size: 14px; color: var(--text); }
+.wizard-template-card .wizard-template-tagline { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.wizard-template-card .wizard-template-desc { font-size: 12px; line-height: 1.45; }
+.wizard-invite-results { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
+.wizard-invite-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--card-border); border-radius: var(--radius-sm); }
+.wizard-invite-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.wizard-invite-name strong { font-size: 14px; }
+.wizard-invite-name .site-muted { font-size: 12px; }
+.wizard-invite-status-pending { color: var(--gold, #d4a843); }
+.wizard-invite-status-accepted { color: #2ecc71; }
+.wizard-invite-status-declined { color: var(--text-muted); }
+.site-leagues-invites { padding: var(--space-3); border: 1px solid var(--gold, #d4a843); border-radius: var(--radius-md); background: rgba(212,168,67,0.06); margin-bottom: var(--space-3); }
+.site-leagues-invites h2 { margin: 0 0 4px; font-size: 16px; }
+.site-leagues-invites ul { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.site-leagues-invite-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.site-leagues-invite-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.site-leagues-invite-actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
 .wizard-section { padding: var(--space-2) 0; border-bottom: 1px solid var(--card-border); }
 .wizard-section:last-child { border-bottom: none; }
 .wizard-section-title { margin: 0 0 var(--space-2); font-size: 15px; font-weight: 700; }

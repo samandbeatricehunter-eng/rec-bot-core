@@ -6,6 +6,7 @@ import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
   type EntitlementSummary,
+  type SiteLeagueInvitePending,
   type SiteLeagueSearchFilters,
   type SiteLeagueSearchHit,
   type SiteLeagueSummary,
@@ -634,6 +635,11 @@ export function LeaguesPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestSent, setRequestSent] = useState(false);
 
+  const [pendingInvites, setPendingInvites] = useState<SiteLeagueInvitePending[]>([]);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteAction, setInviteAction] = useState<string | null>(null);
+
   const [results, setResults] = useState<SiteLeagueSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -696,6 +702,42 @@ export function LeaguesPage() {
       cancelled = true;
     };
   }, [auth.status]);
+
+  useEffect(() => {
+    if (auth.status !== "signed-in") {
+      setPendingInvites([]);
+      return;
+    }
+    let cancelled = false;
+    siteApi
+      .listPendingInvites()
+      .then((res) => {
+        if (!cancelled) setPendingInvites(res.invites);
+      })
+      .catch(() => {
+        if (!cancelled) setPendingInvites([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.status, inviteAction]);
+
+  async function respondToInvite(inviteId: string, action: "accept" | "decline") {
+    setInviteBusy(true);
+    setInviteError(null);
+    setInviteAction(inviteId);
+    try {
+      await siteApi.respondLeagueInvite(inviteId, action);
+      setInviteAction(null);
+      if (action === "accept") {
+        await hub.refreshLeagues();
+      }
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Could not respond to the invite.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (tab !== "search") return;
@@ -816,6 +858,47 @@ export function LeaguesPage() {
           </button>
         </div>
       </div>
+
+      {pendingInvites.length > 0 ? (
+        <section className="site-leagues-invites">
+          <h2>League invitations</h2>
+          <p className="site-muted">
+            You've been invited to join these leagues. Accepting adds you as a member — you can pick a team after.
+          </p>
+          {inviteError ? <p className="site-auth-error">{inviteError}</p> : null}
+          <ul>
+            {pendingInvites.map((invite) => (
+              <li key={invite.inviteId} className="site-leagues-invite-row">
+                <div className="site-leagues-invite-info">
+                  <strong>{invite.leagueName}</strong>
+                  <span className="site-muted">
+                    from @{invite.inviter.username}
+                    {invite.message ? ` — ${invite.message}` : ""}
+                  </span>
+                </div>
+                <div className="site-leagues-invite-actions">
+                  <button
+                    type="button"
+                    className="site-btn site-btn-primary site-btn-sm"
+                    disabled={inviteBusy}
+                    onClick={() => void respondToInvite(invite.inviteId, "accept")}
+                  >
+                    {inviteAction === invite.inviteId ? "Accepting…" : "Accept"}
+                  </button>
+                  <button
+                    type="button"
+                    className="site-btn site-btn-ghost site-btn-sm"
+                    disabled={inviteBusy}
+                    onClick={() => void respondToInvite(invite.inviteId, "decline")}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {tab === "mine" ? (
         <section className="site-leagues-panel">
