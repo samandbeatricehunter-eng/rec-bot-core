@@ -286,7 +286,6 @@ function LeagueSearchCard({
             {league.gameLabel}
             {" · Commish: "}
             {league.commissionerUsername ?? "-"}
-            {league.commissionerDiscordName ? ` · Discord ${league.commissionerDiscordName}` : ""}
             {` · ${league.memberCount} members`}
           </p>
 

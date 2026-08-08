@@ -196,7 +196,6 @@ export type SiteLeagueSearchHit = {
   openTeamCount: number;
   memberCount: number;
   commissionerUsername: string | null;
-  commissionerDiscordName: string | null;
   isMember: boolean;
 
   coinEconomyEnabled: boolean;

@@ -573,7 +573,6 @@ export type SiteLeagueSearchHit = {
   openTeamCount: number;
   memberCount: number;
   commissionerUsername: string | null;
-  commissionerDiscordName: string | null;
   isMember: boolean;
 
   // Shared pills / expanded
@@ -779,7 +778,6 @@ export async function searchSiteLeagues(input: {
         l.current_week,
         l.created_at,
         coalesce(owner.username, owner.display_name) as commissioner_username,
-        coalesce(da.global_name, da.username) as commissioner_discord_name,
         c.difficulty,
         c.sliders_adjusted,
         c.streaming_requirement,
@@ -915,7 +913,6 @@ export async function searchSiteLeagues(input: {
       from rec_leagues l
       left join rec_league_configuration c on c.league_id = l.id
       left join rec_users owner on owner.id = l.owner_user_id
-      left join rec_discord_accounts da on da.user_id = owner.id
       where ${where.join("\n        and ")}
       order by ${orderBy}
       limit $${params.length}
@@ -971,7 +968,6 @@ export async function searchSiteLeagues(input: {
       // display_name can be a raw Discord-ID placeholder left over from account
       // auto-provisioning (same guard as hub.service.ts's displayNameForUser) — never show that.
       commissionerUsername: /^\d{15,}$/.test(String(row.commissioner_username ?? "")) ? null : (row.commissioner_username as string | null) ?? null,
-      commissionerDiscordName: (row.commissioner_discord_name as string | null) ?? null,
       isMember: Boolean(row.is_member),
 
       coinEconomyEnabled: Boolean(row.coin_economy_enabled),
