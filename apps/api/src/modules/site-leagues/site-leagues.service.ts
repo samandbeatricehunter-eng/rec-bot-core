@@ -219,7 +219,7 @@ export async function listOpenTeamsForSiteLeague(input: {
 
   const result = await getPgPool().query(
     `
-      select t.id, t.name, t.abbreviation, t.mascot
+      select t.id, t.name, t.abbreviation, t.display_nick as mascot
       from rec_teams t
       where t.league_id = $1
         and not exists (

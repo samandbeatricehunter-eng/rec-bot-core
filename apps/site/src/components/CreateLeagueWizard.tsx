@@ -1316,7 +1316,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(5)}>Back</button>
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void finishWizard()}>Skip for Now</button>
               <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
-                {busy ? "Finishing..." : "Assign Team &amp; Finish"}
+                {busy ? "Finishing..." : "Assign Team & Finish"}
               </button>
             </div>
           </>
