@@ -8,6 +8,7 @@ import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
 import {
   CFB_TEMPLATE_PRESETS,
+  describeTemplateSettings,
   LEAGUE_TEMPLATES,
   MADDEN_TEMPLATE_PRESETS,
   type LeagueTemplateId,
@@ -874,7 +875,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.acceleratedClockEnabled !== undefined) setAcceleratedClockEnabled(template.acceleratedClockEnabled);
     if (template.acceleratedClockMinimumSeconds !== undefined) setAcceleratedClockMinimumSeconds(template.acceleratedClockMinimumSeconds);
     if (template.tradeDifficulty !== undefined) setTradeDifficulty(template.tradeDifficulty);
-    if (template.freeAgentMotivationImpact !== undefined) setFreeAgentMotivationImpact(template.freeAgentMotivationImpact);
     if (template.salaryCapEnabled !== undefined) setSalaryCapEnabled(template.salaryCapEnabled);
     if (template.tradeDeadlineEnabled !== undefined) setTradeDeadlineEnabled(template.tradeDeadlineEnabled);
     if (template.tradeApprovalPolicy !== undefined) setTradeApprovalPolicy(template.tradeApprovalPolicy);
@@ -896,6 +896,11 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.coreAttributePurchasesSeasonCap !== undefined) setCoreAttributePurchasesSeasonCap(template.coreAttributePurchasesSeasonCap);
     if (template.coreAttributeGroupCap !== undefined) setCoreAttributeGroupCap(template.coreAttributeGroupCap);
     if (template.nonCoreAttributePurchasesSeasonCap !== undefined) setNonCoreAttributePurchasesSeasonCap(template.nonCoreAttributePurchasesSeasonCap);
+    if (template.coreAttributes !== undefined) {
+      setCoreAttributes(template.coreAttributes);
+      setCoreAttributeCapOverrides({});
+      setNonCoreAttributeCapOverrides({});
+    }
     if (template.contractAdjustmentPurchasesEnabled !== undefined) setContractAdjustmentPurchasesEnabled(template.contractAdjustmentPurchasesEnabled);
     if (template.contractPurchasesSeasonCap !== undefined) setContractPurchasesSeasonCap(template.contractPurchasesSeasonCap);
     if (template.regularSeasonStreamingRequirement !== undefined) setRegularSeasonStreamingRequirement(template.regularSeasonStreamingRequirement);
@@ -1059,25 +1064,49 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             <Section title="Start From a Template">
               <p className="site-muted">
                 Templates prefill the league's rules, difficulty, streaming, and economy settings. You can still
-                change anything after picking one — or start blank and set everything yourself.
+                change anything after picking one — or start blank and set everything yourself. Settings shown are
+                the Madden defaults; CFB leagues start from the same template minus age resets and contract purchases.
               </p>
               <div className="wizard-template-grid">
-                {LEAGUE_TEMPLATES.map((template) => (
-                  <button key={template.id} type="button"
-                    className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}
-                    onClick={() => handleTemplateSelect(template.id)}>
-                    <strong>{template.name}</strong>
-                    <span className="site-muted wizard-template-tagline">{template.tagline}</span>
-                    <span className="site-muted wizard-template-desc">{template.description}</span>
+                {LEAGUE_TEMPLATES.map((template) => {
+                  const settingsGroups = describeTemplateSettings(MADDEN_TEMPLATE_PRESETS[template.id], "madden");
+                  return (
+                    <div key={template.id}
+                      className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}>
+                      <button type="button" className="wizard-template-card-select" onClick={() => handleTemplateSelect(template.id)}>
+                        <strong>{template.name}</strong>
+                        <span className="site-muted wizard-template-tagline">{template.tagline}</span>
+                        <span className="site-muted wizard-template-desc">{template.description}</span>
+                      </button>
+                      <details className="wizard-template-settings">
+                        <summary>View settings</summary>
+                        <div className="wizard-template-settings-groups">
+                          {settingsGroups.map((group) => (
+                            <div key={group.key} className="wizard-template-settings-group">
+                              <strong>{group.label}</strong>
+                              <p className="site-muted wizard-template-settings-blurb">{group.blurb}</p>
+                              <dl className="wizard-template-settings-list">
+                                {group.rows.map((row) => (
+                                  <div key={row.label} className="wizard-template-settings-row">
+                                    <dt>{row.label}</dt>
+                                    <dd>{row.value}</dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })}
+                <div className={`wizard-template-card ${templateId === null ? "wizard-template-card-active" : ""}`}>
+                  <button type="button" className="wizard-template-card-select" onClick={() => handleTemplateSelect(null)}>
+                    <strong>Blank Setup</strong>
+                    <span className="site-muted wizard-template-tagline">No template</span>
+                    <span className="site-muted wizard-template-desc">Start with every setting at its default and configure the league yourself.</span>
                   </button>
-                ))}
-                <button type="button"
-                  className={`wizard-template-card ${templateId === null ? "wizard-template-card-active" : ""}`}
-                  onClick={() => handleTemplateSelect(null)}>
-                  <strong>Blank Setup</strong>
-                  <span className="site-muted wizard-template-tagline">No template</span>
-                  <span className="site-muted wizard-template-desc">Start with every setting at its default and configure the league yourself.</span>
-                </button>
+                </div>
               </div>
             </Section>
             <div className="site-modal-actions">
