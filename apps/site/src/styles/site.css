@@ -1417,10 +1417,16 @@ h1, h2, h3, .site-wordmark {
   inset: 0;
   z-index: 60;
   display: grid;
-  place-items: center;
   padding: 20px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.6);
+}
+/* Children center when smaller than the viewport but grow/scroll as a single region when taller
+   (margin:auto on a grid item avoids the place-items:center clipping that hides the card header
+   on mobile — see .site-modal-wide below). */
+.site-modal > .site-modal-panel,
+.site-modal > .site-modal-wide {
+  margin: auto;
 }
 .site-modal-backdrop {
   position: absolute;
@@ -1832,8 +1838,6 @@ h1, h2, h3, .site-wordmark {
   flex-direction: column;
   gap: var(--space-3);
   width: min(720px, 100%);
-  max-height: 85vh;
-  overflow-y: auto;
   padding: var(--space-5);
   border: var(--card-border);
   border-radius: var(--radius-lg);
@@ -3009,14 +3013,25 @@ h1, h2, h3, .site-wordmark {
   font-size: 24px;
 }
 /* Flex item holding username + Discord link status — without min-width:0 a long username or
-   the "Discord not linked · Link Discord" line can't shrink to wrap, and instead forces the
-   whole identity row (and the page under it) to overflow horizontally on mobile. */
+   the Discord link block can't shrink to wrap, and instead forces the whole identity row (and
+   the page under it) to overflow horizontally on mobile. */
 .site-account-identity-info {
   min-width: 0;
   flex: 1 1 auto;
 }
 .site-account-identity-info p {
   margin: 4px 0 0;
+}
+.site-account-discord-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+}
+.site-account-discord-link .site-btn {
+  min-height: 40px;
+  padding: 8px 16px;
 }
 .site-account-identity h2 {
   margin: 0;

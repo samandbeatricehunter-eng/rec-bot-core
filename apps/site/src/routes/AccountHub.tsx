@@ -377,17 +377,17 @@ export function AccountHub({
               {linked.discordUsername ? (
                 <p className="site-muted">Discord · {linked.discordUsername}</p>
               ) : (
-                <p className="site-muted">
-                  Discord not linked ·{" "}
+                <div className="site-account-discord-link">
+                  <p className="site-muted">Discord not linked</p>
                   <button
                     type="button"
-                    className="site-text-link"
+                    className="site-btn site-btn-primary"
                     disabled={discordLinkBusy}
                     onClick={() => void linkDiscordAccount()}
                   >
-                    {discordLinkBusy ? "Redirecting…" : "Link Discord"}
+                    {discordLinkBusy ? "Redirecting…" : "Link Discord account"}
                   </button>
-                </p>
+                </div>
               )}
               {discordLinkError ? <p className="site-auth-error">{discordLinkError}</p> : null}
             </div>

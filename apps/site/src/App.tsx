@@ -24,7 +24,7 @@ import { Privacy } from "./routes/Privacy.js";
 import { Terms } from "./routes/Terms.js";
 import { DevBypass } from "./routes/DevBypass.js";
 import { DiscordGuildPicker } from "./routes/DiscordGuildPicker.js";
-
+import { DiscordGuildTokenPopup } from "./routes/DiscordGuildTokenPopup.js";
 function LegacyCommissionerInboxRedirect() {
   const { leagueId = "" } = useParams();
   return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
@@ -214,6 +214,7 @@ function Routed() {
       <Route path="/login" element={<LogIn />} />
       <Route path="/open-app" element={<OpenApp />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/discord-guild-token" element={<DiscordGuildTokenPopup />} />
       {/* import.meta.env.DEV is statically replaced at build time — this branch (and the
           DevBypass import above) is dead code in any production build, not just hidden. */}
       {import.meta.env.DEV && <Route path="/dev-bypass" element={<DevBypass />} />}

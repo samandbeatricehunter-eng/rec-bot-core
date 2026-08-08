@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
+import { useAuth } from "../lib/auth-context.js";
 
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -382,6 +383,97 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [teams, setTeams] = useState<SiteOpenTeam[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+
+  const auth = useAuth();
+
+  const [discordLinked, setDiscordLinked] = useState<boolean | null>(null);
+  const [discordGuilds, setDiscordGuilds] = useState<Array<{ id: string; name: string; icon: string | null }>>([]);
+  const [selectedGuildId, setSelectedGuildId] = useState("");
+  const [discordBusy, setDiscordBusy] = useState(false);
+  const [discordError, setDiscordError] = useState<string | null>(null);
+  const [discordConnectResult, setDiscordConnectResult] = useState<{ inviteUrl: string; token: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    siteApi
+      .getLinkProfile()
+      .then((profile) => {
+        if (!cancelled) setDiscordLinked(Boolean(profile.discordUsername));
+      })
+      .catch(() => {
+        if (!cancelled) setDiscordLinked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "rec:discord-guild-token") return;
+      if (!event.data.ok) {
+        setDiscordBusy(false);
+        setDiscordError(event.data.error ?? "Could not connect your Discord account.");
+        return;
+      }
+      void (async () => {
+        try {
+          const result = await siteApi.listDiscordGuilds(event.data.providerToken);
+          if (!result.guilds.length) {
+            setDiscordError("No Discord servers found where you're the owner or have Manage Server permission.");
+            setDiscordBusy(false);
+            return;
+          }
+          setDiscordGuilds(result.guilds);
+          setSelectedGuildId(result.guilds[0].id);
+          setDiscordBusy(false);
+        } catch (err) {
+          setDiscordBusy(false);
+          setDiscordError(err instanceof Error ? err.message : "Could not load your Discord servers.");
+        }
+      })();
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  async function startDiscordPicker() {
+    if (!leagueId) return;
+    setDiscordBusy(true);
+    setDiscordError(null);
+    setDiscordConnectResult(null);
+    try {
+      if (auth.status === "signed-in") sessionStorage.setItem("rec_guild_picker_expected_uid", auth.user.id);
+      const { url, error } = await auth.discordGuildOAuthUrl();
+      if (error || !url) throw new Error(error ?? "Could not start Discord linking.");
+      const popup = window.open(url, "rec-discord-guilds", "width=560,height=680");
+      if (!popup) {
+        setDiscordBusy(false);
+        setDiscordError("Your browser blocked the popup. Allow popups for this site and try again.");
+      }
+    } catch (err) {
+      setDiscordBusy(false);
+      setDiscordError(err instanceof Error ? err.message : "Could not start Discord linking.");
+    }
+  }
+
+  async function connectGuildToLeague() {
+    if (!leagueId || !selectedGuildId) return;
+    setDiscordBusy(true);
+    setDiscordError(null);
+    try {
+      const [enabled, invite] = await Promise.all([
+        siteApi.enableLeagueBot(leagueId),
+        siteApi.getBotInviteUrl(selectedGuildId),
+      ]);
+      setDiscordConnectResult({ inviteUrl: invite.inviteUrl, token: enabled.league.discord_bot_invite_token ?? "" });
+      setDiscordBusy(false);
+    } catch (err) {
+      setDiscordBusy(false);
+      setDiscordError(err instanceof Error ? err.message : "Failed to enable the Discord bot.");
+    }
+  }
 
   const isCfb = game === "cfb_27";
   const isMadden = game === "madden_26" || game === "madden_27";
@@ -769,7 +861,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <TextField label="League name" value={name} onChange={setName} placeholder="e.g. REC OG" maxLength={80} />
             </Section>
             <Section title="League Password (Optional)">
-              <p className="site-muted">If set, users must enter this password to join the league. Leave blank for open enrollment.</p>
+              <p className="site-muted">Optional — users never need it to request an open team. If set, the password is stored with your league and shared with a user once you approve their request.</p>
               <TextField label="Password" value={leaguePassword} onChange={setLeaguePassword} placeholder="Optional" />
             </Section>
             <div className="site-modal-actions">
@@ -815,7 +907,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
               {isMadden && isSeasonOne && !skipToStage && (
                 <div className="wizard-notice">
-                  <strong>Madden Schedule</strong> — The default NFL 18-week schedule will be automatically seeded when the league is linked to a Discord server.
+                  <strong>Madden Schedule</strong> — The default NFL 18-week schedule is automatically seeded for your league, whether or not it's linked to a Discord server.
                 </div>
               )}
             </Section>
@@ -829,10 +921,55 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         {step === 4 && (
           <>
             <Section title="Discord Server Link (Optional)">
-              <p className="site-muted">You can link a Discord server for bot features, streaming announcements, draft scheduling, and more from League Settings once your league is created.</p>
-              <div className="wizard-notice">
-                Discord features become available once the bot is invited to your server — that's a separate step after this wizard, from the league's "Connect a Discord Server" option.
-              </div>
+              {discordLinked === null ? (
+                <p className="site-muted">Checking your Discord connection…</p>
+              ) : discordLinked ? (
+                discordConnectResult ? (
+                  <>
+                    <p className="site-muted">Finish linking this league to your Discord server:</p>
+                    <ol className="site-muted">
+                      <li>
+                        <a href={discordConnectResult.inviteUrl} target="_blank" rel="noreferrer">Invite the REC bot</a> — the server is already pre-selected, just confirm the permissions.
+                      </li>
+                      <li>In that server, run <code>/claim-league</code> and paste this token when prompted:</li>
+                    </ol>
+                    <code className="site-league-card-token">{discordConnectResult.token}</code>
+                    <p className="site-muted">Only that server's owner can run /claim-league — anyone else running it will be rejected.</p>
+                  </>
+                ) : discordGuilds.length > 0 ? (
+                  <>
+                    <p className="site-muted">Your Discord account is connected — pick a server to invite the REC bot to:</p>
+                    <label className="site-field">
+                      <span>Server</span>
+                      <select className="site-select" value={selectedGuildId} onChange={(e) => setSelectedGuildId(e.target.value)}>
+                        {discordGuilds.map((guild) => (
+                          <option key={guild.id} value={guild.id}>{guild.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="site-modal-actions">
+                      <button type="button" className="site-btn site-btn-ghost" disabled={discordBusy} onClick={() => { setDiscordGuilds([]); setSelectedGuildId(""); }}>
+                        Back
+                      </button>
+                      <button type="button" className="site-btn site-btn-primary" disabled={discordBusy} onClick={() => void connectGuildToLeague()}>
+                        {discordBusy ? "Setting things up…" : "Use this server"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="site-muted">Your Discord account is connected. Pick a server to invite the REC bot to.</p>
+                    <button type="button" className="site-btn site-btn-primary" disabled={discordBusy} onClick={() => void startDiscordPicker()}>
+                      {discordBusy ? "Opening Discord…" : "Connect a Discord Server"}
+                    </button>
+                  </>
+                )
+              ) : (
+                <p className="site-muted">
+                  Linking a Discord server is optional — bot features, streaming announcements, and draft scheduling can all be set up later from League Settings. To connect a server now, link your Discord account first on My Account.
+                </p>
+              )}
+              {discordError && <p className="site-auth-error">{discordError}</p>}
             </Section>
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(3)}>Back</button>

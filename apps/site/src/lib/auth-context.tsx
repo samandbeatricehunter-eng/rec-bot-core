@@ -17,6 +17,7 @@ type AuthContextValue = AuthState & {
   signInWithDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
   linkDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
   pickDiscordGuild: (returnPath: string) => Promise<{ error: string | null }>;
+  discordGuildOAuthUrl: () => Promise<{ url: string | null; error: string | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -117,13 +118,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  // Same "guilds"-scoped OAuth round-trip as pickDiscordGuild, but returns the Discord
+  // authorization URL instead of redirecting this tab. Used by the league-creation wizard to
+  // open Discord in a popup (see /discord-guild-token), keep all wizard state intact, and
+  // receive the short-lived provider_token back via postMessage for the server dropdown.
+  async function discordGuildOAuthUrl() {
+    const redirectTo = `${sitePublicUrl() || window.location.origin}/discord-guild-token`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: {
+        redirectTo,
+        scopes: "identify guilds",
+        queryParams: { prompt: "consent" },
+        skipBrowserRedirect: true,
+      },
+    });
+    return { url: data?.url ?? null, error: error?.message ?? null };
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setKeepLoggedIn(false);
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, linkDiscord, pickDiscordGuild, signOut }}>
+    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, linkDiscord, pickDiscordGuild, discordGuildOAuthUrl, signOut }}>
       {children}
     </AuthContext.Provider>
   );
