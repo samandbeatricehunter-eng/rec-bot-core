@@ -756,63 +756,76 @@ export async function createUnclaimedLeague(input: {
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
   if (league.error) throw new ApiError(500, "Failed to create league.", league.error);
 
-  const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
-  const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
-  if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
+  // Everything below writes rows keyed to this league. The Supabase JS client can't wrap
+  // these in one DB transaction, so on any failure in the required (non-fatal-catch) steps we
+  // roll back via rec_delete_league instead of leaving a half-configured league behind for the
+  // commissioner to find (and instead of leaving them unable to retry without hitting a
+  // duplicate — see CreateLeagueWizard.finishWizard, which only reuses an id it got back here).
+  try {
+    const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
+    const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
+    if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
 
-  await upsertConferenceRules(league.data.id, input.conferenceRules);
+    await upsertConferenceRules(league.data.id, input.conferenceRules);
 
-  const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+    const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
 
-  // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
-  // that function's comment above its own applyMaddenBaselineToLeague call for the full
-  // leagueType decision table.
-  if ((input.game === "madden_26" || input.game === "madden_27") &&
-      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
-        (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
-    const activeMaddenDataset = await getActiveMaddenDataset();
-    if (activeMaddenDataset) {
-      await applyMaddenBaselineToLeague({
-        league_id: league.data.id,
-        dataset_id: activeMaddenDataset.id,
-        fantasyDraftMode: input.leagueType === "fantasy_draft",
-      }).catch((err) => {
-        console.error("[ERROR] Failed to apply Madden baseline roster to new league (non-fatal):", err);
+    // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
+    // that function's comment above its own applyMaddenBaselineToLeague call for the full
+    // leagueType decision table.
+    if ((input.game === "madden_26" || input.game === "madden_27") &&
+        (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
+          (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
+      const activeMaddenDataset = await getActiveMaddenDataset();
+      if (activeMaddenDataset) {
+        await applyMaddenBaselineToLeague({
+          league_id: league.data.id,
+          dataset_id: activeMaddenDataset.id,
+          fantasyDraftMode: input.leagueType === "fantasy_draft",
+        }).catch((err) => {
+          console.error("[ERROR] Failed to apply Madden baseline roster to new league (non-fatal):", err);
+        });
+      }
+    }
+
+    // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool.
+    if (input.leagueType === "fantasy_draft") {
+      await ensureFantasyDraftSession(league.data.id).catch((err) => {
+        console.error("[ERROR] Failed to create fantasy draft session for new league (non-fatal):", err);
       });
     }
-  }
 
-  // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool.
-  if (input.leagueType === "fantasy_draft") {
-    await ensureFantasyDraftSession(league.data.id).catch((err) => {
-      console.error("[ERROR] Failed to create fantasy draft session for new league (non-fatal):", err);
+    // Madden season-1 leagues get their default NFL schedule immediately, regardless of whether
+    // this league ever gets linked to Discord — Discord is an optional add-on, not a
+    // prerequisite for core site functionality. CFB schedules are always manual (no default to
+    // seed). Non-fatal: a schedule-seed hiccup shouldn't block league creation.
+    if (!isCfbGame && seasonNumber === 1) {
+      await seedDefaultScheduleForLeague({
+        leagueId: league.data.id,
+        game: input.game,
+        seasonNumber: 1,
+      }).catch((err) => {
+        console.error("[ERROR] Failed to seed default schedule for new league (non-fatal):", err);
+      });
+    }
+
+    await writeAuditLog({
+      action: "league.created_unclaimed",
+      entityType: "rec_leagues",
+      entityId: league.data.id,
+      newValue: { league: league.data, configuration: configuration.data },
+      reason: "League created from the site, before any Discord server was connected.",
+      source: "manual_admin_entry",
     });
+
+    return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams };
+  } catch (err) {
+    const rollback = await supabase.rpc("rec_delete_league", { p_league_id: league.data.id });
+    if (rollback.error) {
+      console.error("[ERROR] Failed to roll back a partially-created league after setup failure:", rollback.error);
+    }
+    throw err;
   }
-
-  // Madden season-1 leagues get their default NFL schedule immediately, regardless of whether
-  // this league ever gets linked to Discord — Discord is an optional add-on, not a
-  // prerequisite for core site functionality. CFB schedules are always manual (no default to
-  // seed). Non-fatal: a schedule-seed hiccup shouldn't block league creation.
-  if (!isCfbGame && seasonNumber === 1) {
-    await seedDefaultScheduleForLeague({
-      leagueId: league.data.id,
-      game: input.game,
-      seasonNumber: 1,
-    }).catch((err) => {
-      console.error("[ERROR] Failed to seed default schedule for new league (non-fatal):", err);
-    });
-  }
-
-  await writeAuditLog({
-    action: "league.created_unclaimed",
-    entityType: "rec_leagues",
-    entityId: league.data.id,
-    newValue: { league: league.data, configuration: configuration.data },
-    reason: "League created from the site, before any Discord server was connected.",
-    source: "manual_admin_entry",
-  });
-
-  return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams };
 }
 
 export async function updateSiteLeagueConfig(input: { requestedByUserId: string; leagueId: string; [key: string]: unknown }) {
@@ -904,11 +917,8 @@ export async function completeWizard(input: {
 
     // Update Discord nickname if guild + discord ID provided
     if (input.guildId && input.discordId) {
-      const isCfb = league.data.game === "cfb_27";
       const teamName = team.data.name ?? team.data.abbreviation ?? "";
-      const nickname = isCfb
-        ? `${teamName} (Commish)`
-        : `${teamName} (Commish)`;
+      const nickname = `${teamName} (Commish)`;
       const { setGuildMemberNickname } = await import("../../lib/discord-guild.js");
       await setGuildMemberNickname(input.guildId, input.discordId, nickname, "REC league wizard — head commissioner assignment").catch(() => undefined);
 

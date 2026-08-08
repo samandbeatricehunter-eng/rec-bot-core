@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
-  AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE,
-  MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, NFC_TEAMS, REC_ATTRIBUTE_POINT_PRICE,
+  AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, NFC_TEAMS,
   type MaddenAttributeCode,
 } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
@@ -14,348 +13,22 @@ import {
   type LeagueTemplateId,
   type LeagueTemplatePreset,
 } from "../lib/league-templates.js";
+import {
+  CoreAttributePicker, CounterField, NumberField, Section, SelectField,
+  TextField, TextareaField, ToggleField,
+} from "./wizard/fields.js";
+import {
+  ADVANCE_TIMING_OPTIONS, BALL_HAWK_OPTIONS, CFB_CONFERENCE_REALIGNMENT, CFB_DIFFICULTY,
+  CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY, CFB_ROSTER_OPTIONS, CFB_SEASON_STAGES,
+  CHAMP_GAME_CRITERIA_OPTIONS, CHAMP_GAME_LOCATION_OPTIONS, COACH_FIRING_OPTIONS,
+  CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS, GAME_OPTIONS,
+  INJURY_OPTIONS, MADDEN_DIFFICULTY, MADDEN_LEAGUE_TYPES, MADDEN_SEASON_STAGES,
+  PLAYER_EDIT_PERMISSION_OPTIONS, POSITION_CHANGE_OPTIONS, SEASON_EXPERIENCE_OPTIONS,
+  STREAMING_OPTIONS, STREAMING_SIDE_OPTIONS, TRADE_APPROVAL_OPTIONS, TRADE_DIFFICULTY_OPTIONS,
+  type GameKey,
+} from "./wizard/options.js";
 
-type GameKey = "madden_26" | "madden_27" | "cfb_27";
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
-
-const GAME_OPTIONS: { value: GameKey; label: string }[] = [
-  { value: "madden_26", label: "Madden 26" },
-  { value: "madden_27", label: "Madden 27" },
-  { value: "cfb_27", label: "CFB 27" },
-];
-
-const MADDEN_LEAGUE_TYPES = [
-  { value: "regular_rosters", label: "Regular Rosters", desc: "Start with real NFL rosters. Trades, free agency, and the draft work as expected." },
-  { value: "fantasy_draft", label: "Fantasy Draft", desc: "Every team is emptied and users draft brand-new rosters from scratch. You can schedule a draft date at the end of setup." },
-  { value: "custom_rosters", label: "Custom Rosters", desc: "Import a custom roster file before starting. Useful for roster sharing communities." },
-] as const;
-
-const CFB_ROSTER_OPTIONS = [
-  { value: "activeRosters", label: "Active Rosters", desc: "Seed the league with the current CFB baseline dataset. Recommended for most leagues." },
-  { value: "trackRosters", label: "Track Rosters", desc: "Enable recruiting, transfer portal, and roster progression tracking. Only check this if your league uses REC's dynasty tracking features." },
-] as const;
-
-const MADDEN_DIFFICULTY = [
-  { value: "rookie", label: "Rookie" },
-  { value: "pro", label: "Pro" },
-  { value: "all_pro", label: "All-Pro" },
-  { value: "all_madden", label: "All-Madden" },
-];
-
-const CFB_DIFFICULTY = [
-  { value: "freshman", label: "Freshman" },
-  { value: "varsity", label: "Varsity" },
-  { value: "all_american", label: "All-American" },
-  { value: "heisman", label: "Heisman" },
-];
-
-const MADDEN_SEASON_STAGES = [
-  "preseason_training_camp", "regular_season", "wild_card", "divisional",
-  "conference_championship", "super_bowl", "offseason", "draft",
-] as const;
-
-const CFB_SEASON_STAGES = [
-  "preseason", "regular_season", "wild_card", "divisional",
-  "conference_championship", "national_championship", "offseason", "draft",
-] as const;
-
-const STREAMING_OPTIONS = [
-  { value: "required", label: "Required" },
-  { value: "recommended", label: "Recommended" },
-  { value: "disabled", label: "Disabled" },
-];
-
-const STREAMING_SIDE_OPTIONS = [
-  { value: "home", label: "Home" },
-  { value: "away", label: "Away" },
-  { value: "either", label: "Either" },
-  { value: "both", label: "Both" },
-];
-
-const FOURTH_DOWN_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "standard_rec", label: "Standard REC" },
-  { value: "custom", label: "Custom" },
-];
-
-const INJURY_OPTIONS = [
-  { value: "off", label: "Off" },
-  { value: "on_standard", label: "On (Standard)" },
-  { value: "on_reduced", label: "On (Reduced)" },
-];
-
-const ADVANCE_TIMING_OPTIONS = [
-  { value: "24hr", label: "24 Hours" },
-  { value: "48hr", label: "48 Hours" },
-  { value: "72hr", label: "72 Hours" },
-  { value: "other", label: "Custom" },
-];
-
-const BALL_HAWK_OPTIONS = [
-  { value: "on", label: "On" },
-  { value: "off", label: "Off" },
-  { value: "keep_individual", label: "Keep Individual" },
-];
-
-const COACH_FIRING_OPTIONS = [
-  { value: "off", label: "Off" },
-  { value: "on", label: "On" },
-  { value: "cpu_only", label: "CPU Teams Only" },
-];
-
-const POSITION_CHANGE_OPTIONS = [
-  { value: "open", label: "Open" },
-  { value: "restricted", label: "Restricted" },
-  { value: "highly_restricted", label: "Highly Restricted" },
-];
-
-const TRADE_APPROVAL_OPTIONS = [
-  { value: "no_approval_required", label: "No Approval Required" },
-  { value: "commissioner_review", label: "Commissioner Review" },
-  { value: "competition_committee_review", label: "Competition Committee Review" },
-];
-
-const CPU_TRADING_OPTIONS = [
-  { value: "allowed", label: "Allowed" },
-  { value: "restricted", label: "Restricted" },
-  { value: "not_allowed", label: "Not Allowed" },
-];
-
-const TRADE_DIFFICULTY_OPTIONS = [
-  { value: "very_easy", label: "Very Easy" },
-  { value: "easy", label: "Easy" },
-  { value: "normal", label: "Normal" },
-  { value: "hard", label: "Hard" },
-  { value: "very_hard", label: "Very Hard" },
-];
-
-const FA_MOTIVATION_IMPACT_OPTIONS = [
-  { value: "off", label: "Off (None)" },
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "very_high", label: "Very High" },
-];
-
-const CFB_RECRUITING_DIFFICULTY = [
-  { value: "easy", label: "Easy" },
-  { value: "normal", label: "Normal" },
-  { value: "hard", label: "Hard" },
-];
-
-const CFB_DYNASTY_TYPE = [
-  { value: "real", label: "Real Rosters" },
-  { value: "mixed", label: "Mixed (Team Builder Allowed)" },
-];
-
-const PLAYER_EDIT_PERMISSION_OPTIONS = [
-  { value: "commish_only", label: "Commissioner Only" },
-  { value: "any_player", label: "Any Player" },
-  { value: "none", label: "None" },
-];
-
-const SEASON_EXPERIENCE_OPTIONS = [
-  { value: "full_control", label: "Full Control" },
-  { value: "customized", label: "Customized" },
-  { value: "simple", label: "Simple" },
-];
-
-const CHAMP_GAME_LOCATION_OPTIONS = [
-  { value: "conference_leader_home", label: "Conference Leader's Home Stadium" },
-  { value: "any_stadium", label: "Any Stadium" },
-];
-
-const CHAMP_GAME_CRITERIA_OPTIONS = [
-  { value: "conference_record", label: "Conference Record" },
-  { value: "division_winners", label: "Division Winners" },
-];
-
-const CFB_CONFERENCE_REALIGNMENT = [
-  { value: "allowed", label: "Allowed" },
-  { value: "locked", label: "Locked" },
-];
-
-function Tooltip({ text }: { text: string }) {
-  return (
-    <span className="wizard-tooltip" tabIndex={0} role="tooltip" aria-label={text}>
-      <span className="wizard-tooltip-icon" aria-hidden="true">?</span>
-      <span className="wizard-tooltip-bubble">{text}</span>
-    </span>
-  );
-}
-
-function FieldLabel({ label, hint }: { label: string; hint?: string }) {
-  return (
-    <label className="site-field-label">
-      {label}
-      {hint && <Tooltip text={hint} />}
-    </label>
-  );
-}
-
-function SelectField({ label, hint, value, onChange, options }: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <label className="site-field">
-      <FieldLabel label={label} hint={hint} />
-      <select className="site-select" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function ToggleField({ label, hint, checked, onChange, disabled, desc }: {
-  label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; desc?: string;
-}) {
-  return (
-    <div className="site-field">
-      <label className="site-field site-field-checkbox">
-        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
-        <span>{label}</span>
-        {hint && <Tooltip text={hint} />}
-      </label>
-      {desc && <p className="wizard-field-desc">{desc}</p>}
-    </div>
-  );
-}
-
-// Counter (stepper) input for caps: a toggle pair plus a read-only value, so commissioners can
-// bump a cap up/down without fighting a native number input that refuses to clear its default 0.
-// 0 always means "no limit" for purchase caps and is labelled as such via unlimitedLabel.
-function CounterField({ label, hint, desc, value, onChange, min = 0, max = 99, disabled, unlimitedLabel = false }: {
-  label: string; hint?: string; desc?: string; value: number; onChange: (v: number) => void;
-  min?: number; max?: number; disabled?: boolean; unlimitedLabel?: boolean;
-}) {
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
-  return (
-    <label className="site-field">
-      <FieldLabel label={label} hint={hint} />
-      <div className="wizard-counter">
-        <button type="button" className="wizard-counter-btn" aria-label={`Decrease ${label}`}
-          disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))}>−</button>
-        <span className={`wizard-counter-value ${value === 0 && unlimitedLabel ? "wizard-counter-value-zero" : ""}`}>
-          {value === 0 && unlimitedLabel ? "0 · Unlimited" : String(value)}
-        </span>
-        <button type="button" className="wizard-counter-btn" aria-label={`Increase ${label}`}
-          disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))}>+</button>
-      </div>
-      {desc && <p className="wizard-field-desc">{desc}</p>}
-    </label>
-  );
-}
-
-function CoreAttributePicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return Object.values(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS).map((group) => ({
-      label: group.label,
-      codes: group.codes.filter((code) => {
-        if (!q) return true;
-        const def = MADDEN_ATTRIBUTE_BY_CODE.get(code);
-        return code.toLowerCase().includes(q) || (def?.name.toLowerCase().includes(q) ?? false);
-      }),
-    }));
-  }, [query]);
-
-  const toggle = (code: string) => {
-    onChange(value.includes(code) ? value.filter((c) => c !== code) : [...value, code]);
-  };
-
-  return (
-    <div className="site-field wizard-multiselect">
-      <FieldLabel label="Core attributes" hint="The attributes users can spend points on at the premium Core rate. Every attribute not selected here is treated as Non-Core." />
-      <button type="button" className="wizard-multiselect-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span>{value.length === 0 ? "No core attributes selected" : `${value.length} core attribute${value.length === 1 ? "" : "s"} selected`}</span>
-        <span className="wizard-multiselect-caret" aria-hidden="true">{open ? "▲" : "▼"}</span>
-      </button>
-      {open && (
-        <div className="wizard-multiselect-panel">
-          <input className="site-input" placeholder="Search attributes…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className="wizard-multiselect-scroll">
-            {groups.map((group) => (
-              <div key={group.label} className="wizard-multiselect-group">
-                <strong className="wizard-multiselect-group-label">{group.label}</strong>
-                {group.codes.length === 0 ? (
-                  <p className="site-muted wizard-multiselect-empty">No matches.</p>
-                ) : (
-                  group.codes.map((code) => {
-                    const def = MADDEN_ATTRIBUTE_BY_CODE.get(code);
-                    const checked = value.includes(code);
-                    return (
-                      <label key={code} className="wizard-multiselect-option">
-                        <input type="checkbox" checked={checked} onChange={() => toggle(code)} />
-                        <span><strong>{code}</strong>{def ? ` — ${def.name}` : ""}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="wizard-multiselect-footer">
-            <span className="site-muted">Core points cost {REC_ATTRIBUTE_POINT_PRICE.core} coins each; Non-Core cost {REC_ATTRIBUTE_POINT_PRICE.non_core} coins each.</span>
-            {value.length > 0 && (
-              <button type="button" className="site-btn site-btn-ghost site-btn-sm" onClick={() => onChange([])}>Clear all</button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NumberField({ label, hint, value, onChange, min, max, disabled }: {
-  label: string; hint?: string; value: number; onChange: (v: number) => void;
-  min?: number; max?: number; disabled?: boolean;
-}) {
-  return (
-    <label className="site-field">
-      <FieldLabel label={label} hint={hint} />
-      <input className="site-input" type="number" value={value} min={min} max={max} disabled={disabled}
-        onChange={(e) => onChange(Math.max(min ?? 0, Math.min(max ?? 999, Number(e.target.value))))} />
-    </label>
-  );
-}
-
-function TextField({ label, hint, value, onChange, placeholder, disabled, maxLength }: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; disabled?: boolean; maxLength?: number;
-}) {
-  return (
-    <label className="site-field">
-      <FieldLabel label={label} hint={hint} />
-      <input className="site-input" value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} disabled={disabled} maxLength={maxLength} />
-    </label>
-  );
-}
-
-function TextareaField({ label, hint, value, onChange, placeholder, disabled }: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; disabled?: boolean;
-}) {
-  return (
-    <label className="site-field">
-      <FieldLabel label={label} hint={hint} />
-      <textarea className="site-input" rows={3} value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} disabled={disabled} />
-    </label>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="wizard-section">
-      <h3 className="wizard-section-title">{title}</h3>
-      {children}
-    </div>
-  );
-}
 
 export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (leagueId: string) => void }) {
   const [step, setStep] = useState<Step>(0);
@@ -795,8 +468,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       tradeDeadlineEnabled: isMadden ? tradeDeadlineEnabled : undefined,
       abilitiesEnabled,
       wearAndTearEnabled,
-      coachFiringPolicy,
-      preorderBonusesEnabled,
+      coachFiringPolicy: isMadden ? coachFiringPolicy : undefined,
+      preorderBonusesEnabled: isMadden ? preorderBonusesEnabled : undefined,
       coachModeEnabled,
       coachModeAutoPassEnabled: coachModeEnabled ? coachModeAutoPassEnabled : false,
       coachModeAutoSnapEnabled: coachModeEnabled ? coachModeAutoSnapEnabled : false,
@@ -870,7 +543,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.difficulty !== undefined) setDifficulty(template.difficulty);
     if (template.cfbDifficulty !== undefined) setCfbDifficulty(template.cfbDifficulty);
     if (template.recruitingDifficulty !== undefined) setRecruitingDifficulty(template.recruitingDifficulty);
-    if (template.dynastyType !== undefined) setDynastyType(template.dynastyType);
+    if (template.dynastyType !== undefined) {
+      setDynastyType(template.dynastyType);
+      // Team Builder allowed is implied by dynasty type ("Mixed" = allowed, "Real Rosters" =
+      // not) — keep them from disagreeing rather than exposing them as two settings that can
+      // silently contradict each other.
+      setTeamBuilderAllowed(template.dynastyType === "mixed");
+    }
     if (template.quarterLengthMinutes !== undefined) setQuarterLengthMinutes(template.quarterLengthMinutes);
     if (template.acceleratedClockEnabled !== undefined) setAcceleratedClockEnabled(template.acceleratedClockEnabled);
     if (template.acceleratedClockMinimumSeconds !== undefined) setAcceleratedClockMinimumSeconds(template.acceleratedClockMinimumSeconds);
@@ -969,9 +648,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       if (selectedTeamId && createdId) {
         const open = await siteApi.listOpenLeagueTeams(createdId);
         const team = open.teams.find((t) => t.abbreviation === selectedTeamId);
-        if (team) {
-          await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
-        }
+        // Don't silently continue to the success screen if the assignment can't be resolved —
+        // it would tell the commissioner they got a team they never actually got.
+        if (!team) throw new Error("That team is no longer available in this league. Try assigning a team again.");
+        await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
       }
       setStep(8);
     } catch (err) {
@@ -1593,7 +1273,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
                 <Section title="Dynasty / Recruiting">
                   <SelectField label="Dynasty type" hint="Whether teams use real-world rosters or allow Team Builder imports."
-                    value={dynastyType} onChange={setDynastyType} options={CFB_DYNASTY_TYPE} />
+                    value={dynastyType} onChange={(v) => { setDynastyType(v); setTeamBuilderAllowed(v === "mixed"); }} options={CFB_DYNASTY_TYPE} />
                   <SelectField label="Recruiting difficulty" hint="Controls how competitive recruiting is. Hard means top recruits are much harder to land."
                     value={recruitingDifficulty} onChange={setRecruitingDifficulty} options={CFB_RECRUITING_DIFFICULTY} />
                   <NumberField label="Transfer portal — max transfers per team" hint="0 turns the transfer portal off. Max 30."
@@ -1606,7 +1286,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   <NumberField label="Minimum play clock (seconds)" hint="10-25 seconds." value={minimumPlayClockSeconds} onChange={setMinimumPlayClockSeconds} min={10} max={25} />
                   <SelectField label="Conference realignment" hint="Whether commissioners can move teams between conferences."
                     value={conferenceRealignment} onChange={setConferenceRealignment} options={CFB_CONFERENCE_REALIGNMENT} />
-                  <ToggleField label="Team Builder allowed" hint="Allow imported Team Builder teams in the dynasty." checked={teamBuilderAllowed} onChange={setTeamBuilderAllowed} />
+                  <ToggleField label="Team Builder allowed" hint="Follows Dynasty type — Mixed allows Team Builder teams, Real Rosters does not."
+                    checked={teamBuilderAllowed} onChange={setTeamBuilderAllowed} disabled desc="Set by Dynasty type above." />
                 </Section>
 
                 {conferenceRealignment === "allowed" && (
