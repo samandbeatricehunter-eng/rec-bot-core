@@ -97,6 +97,7 @@ export const CreateLeagueSchema = z.object({
   ]).default("regular_season"),
 
   coinEconomyEnabled: z.boolean().default(false),
+  coinEconomyMinimumLinkedUsers: z.number().int().min(0).max(30).default(8),
   customPlayersEnabled: z.boolean().default(false),
   legendsEnabled: z.boolean().default(false),
   devUpgradesEnabled: z.boolean().default(false),
@@ -166,6 +167,11 @@ export const CreateLeagueSchema = z.object({
 
   difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
   cfbDifficulty: z.enum(["freshman", "varsity", "all_american", "heisman"]).default("heisman"),
+  // Madden only: mirrors the in-game "Trade Difficulty" league setting. Omitted/null for CFB.
+  tradeDifficulty: z.enum(["very_easy", "easy", "normal", "hard", "very_hard"]).default("normal"),
+  // Madden 26 only: mirrors the in-game "Free Agent Motivation Impact" league setting (the
+  // setting does not exist in Madden 27). Null/omitted for everything else.
+  freeAgentMotivationImpact: z.enum(["off", "normal", "high", "very_high"]).default("normal"),
   slidersAdjusted: z.boolean().default(false),
   difficultyCustomSettings: z.string().optional().nullable(),
   coachXpSetting: z.enum(["casual", "career", "simulation"]).optional().nullable(),

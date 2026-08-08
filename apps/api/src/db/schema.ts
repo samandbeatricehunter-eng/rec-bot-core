@@ -914,6 +914,8 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   injuryPolicy: text("injury_policy").notNull().default("on_standard"),
   difficulty: text("difficulty").notNull().default("all_madden"),
   cfbDifficulty: text("cfb_difficulty"),
+  tradeDifficulty: text("trade_difficulty"),
+  freeAgentMotivationImpact: text("free_agent_motivation_impact"),
   quarterLengthMinutes: integer("quarter_length_minutes").notNull().default(8),
   acceleratedClockEnabled: boolean("accelerated_clock_enabled").notNull().default(true),
   acceleratedClockMinimumSeconds: integer("accelerated_clock_minimum_seconds").notNull().default(20),

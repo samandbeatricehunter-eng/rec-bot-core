@@ -1,5 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, NFC_TEAMS } from "@rec/shared";
+import {
+  AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE,
+  MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, NFC_TEAMS, REC_ATTRIBUTE_POINT_PRICE,
+  type MaddenAttributeCode,
+} from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
 
@@ -109,6 +113,21 @@ const CPU_TRADING_OPTIONS = [
   { value: "not_allowed", label: "Not Allowed" },
 ];
 
+const TRADE_DIFFICULTY_OPTIONS = [
+  { value: "very_easy", label: "Very Easy" },
+  { value: "easy", label: "Easy" },
+  { value: "normal", label: "Normal" },
+  { value: "hard", label: "Hard" },
+  { value: "very_hard", label: "Very Hard" },
+];
+
+const FA_MOTIVATION_IMPACT_OPTIONS = [
+  { value: "off", label: "Off (None)" },
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "very_high", label: "Very High" },
+];
+
 const CFB_RECRUITING_DIFFICULTY = [
   { value: "easy", label: "Easy" },
   { value: "normal", label: "Normal" },
@@ -149,7 +168,10 @@ const CFB_CONFERENCE_REALIGNMENT = [
 
 function Tooltip({ text }: { text: string }) {
   return (
-    <span className="wizard-tooltip" title={text} style={{ cursor: "help", marginLeft: 4, fontSize: "0.85em", opacity: 0.6 }}>?</span>
+    <span className="wizard-tooltip" tabIndex={0} role="tooltip" aria-label={text}>
+      <span className="wizard-tooltip-icon" aria-hidden="true">?</span>
+      <span className="wizard-tooltip-bubble">{text}</span>
+    </span>
   );
 }
 
@@ -176,15 +198,106 @@ function SelectField({ label, hint, value, onChange, options }: {
   );
 }
 
-function ToggleField({ label, hint, checked, onChange, disabled }: {
-  label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean;
+function ToggleField({ label, hint, checked, onChange, disabled, desc }: {
+  label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; desc?: string;
 }) {
   return (
-    <label className="site-field site-field-checkbox">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
-      <span>{label}</span>
-      {hint && <Tooltip text={hint} />}
+    <div className="site-field">
+      <label className="site-field site-field-checkbox">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
+        <span>{label}</span>
+        {hint && <Tooltip text={hint} />}
+      </label>
+      {desc && <p className="wizard-field-desc">{desc}</p>}
+    </div>
+  );
+}
+
+// Counter (stepper) input for caps: a toggle pair plus a read-only value, so commissioners can
+// bump a cap up/down without fighting a native number input that refuses to clear its default 0.
+// 0 always means "no limit" for purchase caps and is labelled as such via unlimitedLabel.
+function CounterField({ label, hint, desc, value, onChange, min = 0, max = 99, disabled, unlimitedLabel = false }: {
+  label: string; hint?: string; desc?: string; value: number; onChange: (v: number) => void;
+  min?: number; max?: number; disabled?: boolean; unlimitedLabel?: boolean;
+}) {
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  return (
+    <label className="site-field">
+      <FieldLabel label={label} hint={hint} />
+      <div className="wizard-counter">
+        <button type="button" className="wizard-counter-btn" aria-label={`Decrease ${label}`}
+          disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))}>−</button>
+        <span className={`wizard-counter-value ${value === 0 && unlimitedLabel ? "wizard-counter-value-zero" : ""}`}>
+          {value === 0 && unlimitedLabel ? "0 · Unlimited" : String(value)}
+        </span>
+        <button type="button" className="wizard-counter-btn" aria-label={`Increase ${label}`}
+          disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))}>+</button>
+      </div>
+      {desc && <p className="wizard-field-desc">{desc}</p>}
     </label>
+  );
+}
+
+function CoreAttributePicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return Object.values(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS).map((group) => ({
+      label: group.label,
+      codes: group.codes.filter((code) => {
+        if (!q) return true;
+        const def = MADDEN_ATTRIBUTE_BY_CODE.get(code);
+        return code.toLowerCase().includes(q) || (def?.name.toLowerCase().includes(q) ?? false);
+      }),
+    }));
+  }, [query]);
+
+  const toggle = (code: string) => {
+    onChange(value.includes(code) ? value.filter((c) => c !== code) : [...value, code]);
+  };
+
+  return (
+    <div className="site-field wizard-multiselect">
+      <FieldLabel label="Core attributes" hint="The attributes users can spend points on at the premium Core rate. Every attribute not selected here is treated as Non-Core." />
+      <button type="button" className="wizard-multiselect-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span>{value.length === 0 ? "No core attributes selected" : `${value.length} core attribute${value.length === 1 ? "" : "s"} selected`}</span>
+        <span className="wizard-multiselect-caret" aria-hidden="true">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="wizard-multiselect-panel">
+          <input className="site-input" placeholder="Search attributes…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="wizard-multiselect-scroll">
+            {groups.map((group) => (
+              <div key={group.label} className="wizard-multiselect-group">
+                <strong className="wizard-multiselect-group-label">{group.label}</strong>
+                {group.codes.length === 0 ? (
+                  <p className="site-muted wizard-multiselect-empty">No matches.</p>
+                ) : (
+                  group.codes.map((code) => {
+                    const def = MADDEN_ATTRIBUTE_BY_CODE.get(code);
+                    const checked = value.includes(code);
+                    return (
+                      <label key={code} className="wizard-multiselect-option">
+                        <input type="checkbox" checked={checked} onChange={() => toggle(code)} />
+                        <span><strong>{code}</strong>{def ? ` — ${def.name}` : ""}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="wizard-multiselect-footer">
+            <span className="site-muted">Core points cost {REC_ATTRIBUTE_POINT_PRICE.core} coins each; Non-Core cost {REC_ATTRIBUTE_POINT_PRICE.non_core} coins each.</span>
+            {value.length > 0 && (
+              <button type="button" className="site-btn site-btn-ghost site-btn-sm" onClick={() => onChange([])}>Clear all</button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -297,6 +410,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [coreAttributePurchasesSeasonCap, setCoreAttributePurchasesSeasonCap] = useState(0);
   const [coreAttributeGroupCap, setCoreAttributeGroupCap] = useState(0);
   const [nonCoreAttributePurchasesSeasonCap, setNonCoreAttributePurchasesSeasonCap] = useState(0);
+  const [coreAttributes, setCoreAttributes] = useState<string[]>([]);
+  const [coreAttributeCapOverrides, setCoreAttributeCapOverrides] = useState<Record<string, number>>({});
+  const [nonCoreAttributeCapOverrides, setNonCoreAttributeCapOverrides] = useState<Record<string, number>>({});
+  const [coinEconomyMinimumLinkedUsers, setCoinEconomyMinimumLinkedUsers] = useState(8);
 
   const [contractAdjustmentPurchasesEnabled, setContractAdjustmentPurchasesEnabled] = useState(false);
   const [contractPurchasesSeasonCap, setContractPurchasesSeasonCap] = useState(0);
@@ -309,6 +426,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
   const [difficulty, setDifficulty] = useState("all_madden");
   const [cfbDifficulty, setCfbDifficulty] = useState("heisman");
+  const [tradeDifficulty, setTradeDifficulty] = useState("normal");
+  const [freeAgentMotivationImpact, setFreeAgentMotivationImpact] = useState("normal");
   const [quarterLengthMinutes, setQuarterLengthMinutes] = useState(8);
   const [acceleratedClockEnabled, setAcceleratedClockEnabled] = useState(true);
   const [acceleratedClockMinimumSeconds, setAcceleratedClockMinimumSeconds] = useState(20);
@@ -559,6 +678,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       customCoachesRequired,
       customPlaybooksAllowed,
       coinEconomyEnabled,
+      coinEconomyMinimumLinkedUsers: coinEconomyEnabled ? coinEconomyMinimumLinkedUsers : undefined,
       customPlayersEnabled: coinEconomyEnabled ? customPlayersEnabled : false,
       customPlayersSeasonCap: coinEconomyEnabled && customPlayersEnabled ? customPlayersSeasonCap : 0,
       legendsEnabled: coinEconomyEnabled ? legendsEnabled : false,
@@ -573,6 +693,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       coreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributePurchasesSeasonCap : 0,
       coreAttributeGroupCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributeGroupCap : 0,
       nonCoreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? nonCoreAttributePurchasesSeasonCap : 0,
+      coreAttributes: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributes : [],
+      coreAttributeCapOverrides: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributeCapOverrides : {},
+      nonCoreAttributeCapOverrides: coinEconomyEnabled && attributePurchasesEnabled ? nonCoreAttributeCapOverrides : {},
       // Player trait purchases were retired app-wide — always sent disabled.
       playerTraitPurchasesEnabled: false,
       playerTraitPurchasesSeasonCap: 0,
@@ -582,6 +705,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       customRules,
       difficulty: isMadden ? difficulty : undefined,
       cfbDifficulty: isCfb ? cfbDifficulty : undefined,
+      tradeDifficulty: isMadden ? tradeDifficulty : undefined,
+      freeAgentMotivationImpact: game === "madden_26" ? freeAgentMotivationImpact : undefined,
       quarterLengthMinutes,
       acceleratedClockEnabled,
       acceleratedClockMinimumSeconds: acceleratedClockEnabled ? acceleratedClockMinimumSeconds : 20,
@@ -637,9 +762,11 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     ageResetsEnabled, ageResetsSeasonCap,
     attributePurchasesEnabled, coreAttributePurchasesSeasonCap,
     coreAttributeGroupCap, nonCoreAttributePurchasesSeasonCap,
+    coreAttributes, coreAttributeCapOverrides, nonCoreAttributeCapOverrides,
+    coinEconomyMinimumLinkedUsers,
     contractAdjustmentPurchasesEnabled, contractPurchasesSeasonCap,
     purchaseDeadlines, customRules,
-    difficulty, cfbDifficulty, quarterLengthMinutes,
+    difficulty, cfbDifficulty, tradeDifficulty, freeAgentMotivationImpact, quarterLengthMinutes,
     acceleratedClockEnabled, acceleratedClockMinimumSeconds,
     salaryCapEnabled, tradeDeadlineEnabled, abilitiesEnabled, wearAndTearEnabled,
     coachFiringPolicy, preorderBonusesEnabled,
@@ -1003,20 +1130,33 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
             <Section title="Economy">
               <ToggleField label="Enable coin economy" hint="Master switch — turning this on enables a points-based economy where users spend coins on custom players, legends, dev upgrades, and more."
+                desc="The coin economy gives every user a coin balance they earn from activity, then spend on roster upgrades. Keep this off if you want a no-transaction league."
                 checked={coinEconomyEnabled} onChange={setCoinEconomyEnabled} />
               {coinEconomyEnabled && (
                 <>
+                  <CounterField label="Minimum linked users before economy activates"
+                    hint="Payouts stay locked until this many users are linked to teams. Prevents abuse in tiny leagues."
+                    desc="Below this threshold the economy is dormant — no coins flow and no purchases can be made. Set to 0 to activate immediately."
+                    value={coinEconomyMinimumLinkedUsers} onChange={setCoinEconomyMinimumLinkedUsers} min={0} max={30} unlimitedLabel={false} />
+
                   <ToggleField label="Custom players" hint="Allow users to spend coins to create custom players for their roster."
+                    desc="Users buy a custom player build (position, size, ratings) and add them to their team. Capped by the season cap below."
                     checked={customPlayersEnabled} onChange={setCustomPlayersEnabled} />
                   {customPlayersEnabled && (
-                    <NumberField label="Custom players season cap" hint="Max custom players per team per season." value={customPlayersSeasonCap} onChange={setCustomPlayersSeasonCap} min={0} max={5} />
+                    <CounterField label="Custom players season cap" hint="Max custom players per team per season. 0 = unlimited."
+                      value={customPlayersSeasonCap} onChange={setCustomPlayersSeasonCap} min={0} max={5} unlimitedLabel />
                   )}
+
                   <ToggleField label="Legends" hint="Allow users to spend coins to add retired legend players."
+                    desc="Users add retired superstars (e.g. Hall of Fame players) to their roster. Capped by the season cap below."
                     checked={legendsEnabled} onChange={setLegendsEnabled} />
                   {legendsEnabled && (
-                    <NumberField label="Legends season cap" hint="Max legends per team per season." value={legendsSeasonCap} onChange={setLegendsSeasonCap} min={0} max={5} />
+                    <CounterField label="Legends season cap" hint="Max legends per team per season. 0 = unlimited."
+                      value={legendsSeasonCap} onChange={setLegendsSeasonCap} min={0} max={5} unlimitedLabel />
                   )}
+
                   <ToggleField label="Dev upgrades" hint="Allow users to spend coins to upgrade a player's development trait (e.g. Normal to Star, Star to Superstar)."
+                    desc="Upgrading a player's dev trait lets them earn XP and progress faster. Choose how these are capped below."
                     checked={devUpgradesEnabled} onChange={setDevUpgradesEnabled} />
                   {devUpgradesEnabled && (
                     <>
@@ -1024,36 +1164,76 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                         value={devUpgradeCapMode} onChange={setDevUpgradeCapMode}
                         options={[{ value: "total_purchases", label: "Limit total upgrade purchases per team" }, { value: "players_per_season", label: "Limit number of players who can be upgraded" }]} />
                       {devUpgradeCapMode === "total_purchases" && (
-                        <NumberField label="Dev upgrades season cap (total purchases)" value={devUpgradesSeasonCap} onChange={setDevUpgradesSeasonCap} min={0} max={20} />
+                        <CounterField label="Dev upgrades season cap (total purchases)" hint="0 = unlimited."
+                          value={devUpgradesSeasonCap} onChange={setDevUpgradesSeasonCap} min={0} max={20} unlimitedLabel />
                       )}
                       {devUpgradeCapMode === "players_per_season" && (
-                        <NumberField label="Dev upgrades player cap (distinct players per team)" value={devUpgradesPlayerCap} onChange={setDevUpgradesPlayerCap} min={0} max={20} />
+                        <CounterField label="Dev upgrades player cap (distinct players per team)" hint="0 = unlimited."
+                          value={devUpgradesPlayerCap} onChange={setDevUpgradesPlayerCap} min={0} max={20} unlimitedLabel />
                       )}
                     </>
                   )}
+
                   <ToggleField label="Attribute purchases" hint="Allow users to spend coins to boost individual player attributes (e.g. +1 Speed, +1 Throw Power)."
+                    desc="Users spend points to raise individual player attributes. Attributes are split into Core and Non-Core groups with separate caps and pricing."
                     checked={attributePurchasesEnabled} onChange={setAttributePurchasesEnabled} />
                   {attributePurchasesEnabled && (
                     <>
-                      <NumberField label="Core attribute default cap (points per attribute)" hint="Max points a user can spend on a single core attribute per season. 0 = unlimited."
-                        value={coreAttributePurchasesSeasonCap} onChange={setCoreAttributePurchasesSeasonCap} min={0} max={99} />
-                      <NumberField label="Core attribute group cap (total across all core)" hint="Total points usable across all core attributes combined. 0 = unlimited."
-                        value={coreAttributeGroupCap} onChange={setCoreAttributeGroupCap} min={0} max={99} />
-                      <NumberField label="Non-core attribute group cap (total across all non-core)" hint="Total points usable across all non-core attributes combined. 0 = unlimited."
-                        value={nonCoreAttributePurchasesSeasonCap} onChange={setNonCoreAttributePurchasesSeasonCap} min={0} max={99} />
+                      <CounterField label="Core attribute default cap (points per attribute)"
+                        hint="Max points a user can spend on a single core attribute per season, unless that attribute has its own override below. 0 = unlimited."
+                        value={coreAttributePurchasesSeasonCap} onChange={setCoreAttributePurchasesSeasonCap} min={0} max={99} unlimitedLabel />
+                      <CounterField label="Core attribute group cap (total across all core)"
+                        hint="Total points usable across all core attributes combined. A purchase must clear both its attribute's individual cap AND this pooled total. 0 = unlimited."
+                        value={coreAttributeGroupCap} onChange={setCoreAttributeGroupCap} min={0} max={99} unlimitedLabel />
+                      <CounterField label="Non-core attribute group cap (total across all non-core)"
+                        hint="Total points usable across all non-core attributes combined. 0 = unlimited."
+                        value={nonCoreAttributePurchasesSeasonCap} onChange={setNonCoreAttributePurchasesSeasonCap} min={0} max={99} unlimitedLabel />
+
+                      <CoreAttributePicker value={coreAttributes} onChange={setCoreAttributes} />
+
+                      {coreAttributes.length > 0 && (
+                        <div className="wizard-override-list">
+                          <p className="wizard-override-heading">Per-core-attribute overrides</p>
+                          <p className="site-muted wizard-override-hint">
+                            Set an individual cap for a specific core attribute. Leave a counter at its default ({coreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${coreAttributePurchasesSeasonCap} points`}) to keep that attribute on the group default; 0 means unlimited.
+                          </p>
+                          {coreAttributes.map((code) => {
+                            const def = MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode);
+                            const override = coreAttributeCapOverrides[code];
+                            const current = override ?? coreAttributePurchasesSeasonCap;
+                            return (
+                              <div key={code} className="wizard-override-row">
+                                <span className="wizard-override-label"><strong>{code}</strong>{def ? ` — ${def.name}` : ""}</span>
+                                <CounterField label={`Cap for ${code}`} value={current}
+                                  onChange={(v) => {
+                                    const next = { ...coreAttributeCapOverrides };
+                                    if (v === coreAttributePurchasesSeasonCap) delete next[code];
+                                    else next[code] = v;
+                                    setCoreAttributeCapOverrides(next);
+                                  }}
+                                  min={0} max={99} unlimitedLabel />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </>
                   )}
                   {isMadden && (
                     <>
                       <ToggleField label="Contract adjustment purchases" hint="Allow users to spend coins to restructure or adjust player contracts."
+                        desc="Users pay coins to reshape a player's contract (length, guaranteed money). Capped by the season cap below."
                         checked={contractAdjustmentPurchasesEnabled} onChange={setContractAdjustmentPurchasesEnabled} />
                       {contractAdjustmentPurchasesEnabled && (
-                        <NumberField label="Contract adjustment season cap" value={contractPurchasesSeasonCap} onChange={setContractPurchasesSeasonCap} min={0} max={5} />
+                        <CounterField label="Contract adjustment season cap" hint="0 = unlimited."
+                          value={contractPurchasesSeasonCap} onChange={setContractPurchasesSeasonCap} min={0} max={5} unlimitedLabel />
                       )}
                       <ToggleField label="Age resets" hint="Allow users to spend coins to reset a player's age, extending their career."
+                        desc="Users pay coins to roll a player back to a younger age, keeping them productive for more seasons. Capped by the season cap below."
                         checked={ageResetsEnabled} onChange={setAgeResetsEnabled} />
                       {ageResetsEnabled && (
-                        <NumberField label="Age resets season cap" value={ageResetsSeasonCap} onChange={setAgeResetsSeasonCap} min={0} max={5} />
+                        <CounterField label="Age resets season cap" hint="0 = unlimited."
+                          value={ageResetsSeasonCap} onChange={setAgeResetsSeasonCap} min={0} max={5} unlimitedLabel />
                       )}
                     </>
                   )}
@@ -1137,6 +1317,15 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   )}
                   <ToggleField label="Abilities enabled" hint="Show X-Factor and Superstar abilities in-game." checked={abilitiesEnabled} onChange={setAbilitiesEnabled} />
                   <ToggleField label="Wear and tear" hint="Enable the wear-and-tear injury system." checked={wearAndTearEnabled} onChange={setWearAndTearEnabled} />
+                </Section>
+
+                <Section title="League Sim Settings">
+                  <SelectField label="Trade difficulty" hint="Controls how willing CPU teams are to accept trades. Very Easy makes it easy to swing deals with the CPU; Very Hard makes CPU teams much tougher negotiators."
+                    value={tradeDifficulty} onChange={setTradeDifficulty} options={TRADE_DIFFICULTY_OPTIONS} />
+                  {game === "madden_26" && (
+                    <SelectField label="Free agent motivation impact" hint="Controls how much factors like money, playing time, and championship odds weigh in free-agent signings. Off means free agents mostly sign with the highest bidder. This setting does not exist in Madden 27."
+                      value={freeAgentMotivationImpact} onChange={setFreeAgentMotivationImpact} options={FA_MOTIVATION_IMPACT_OPTIONS} />
+                  )}
                 </Section>
 
                 <Section title="Salary Cap &amp; Trades">

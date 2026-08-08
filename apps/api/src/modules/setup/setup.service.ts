@@ -212,6 +212,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
+    coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
     dev_upgrades_enabled: input.devUpgradesEnabled,
@@ -272,6 +273,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
     cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
+    trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
+    free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
@@ -464,6 +467,7 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled ?? false,
+    coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled ?? false,
     legends_enabled: input.legendsEnabled ?? false,
     dev_upgrades_enabled: input.devUpgradesEnabled ?? false,
@@ -511,11 +515,14 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     coach_abilities_restriction_notes: input.coachAbilitiesRestrictionNotes ?? null,
     trade_approval_policy: input.tradeApprovalPolicy ?? "competition_committee_review",
     cpu_trading_policy: input.cpuTradingPolicy ?? "allowed",
+    cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : (input.cpuTradingAllowed ?? true),
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy ?? "on_standard",
     difficulty: isCfbGame ? null : (input.difficulty ?? "all_madden"),
     cfb_difficulty: isCfbGame ? (input.cfbDifficulty ?? "heisman") : null,
+    trade_difficulty: isCfbGame ? null : (input.tradeDifficulty ?? "normal"),
+    free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: isCfbGame ? (input.coachXpSetting ?? "casual") : null,
@@ -815,6 +822,7 @@ export async function updateSiteLeagueConfig(input: { requestedByUserId: string;
   if (league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league creator can update settings.");
 
   const isCfbGame = league.data.game === "cfb_27";
+  input.game = league.data.game;
   const configurationPayload = buildConfigurationPayload(input.leagueId, input, isCfbGame);
 
   const previous = await supabase.from("rec_league_configuration").select("*").eq("league_id", input.leagueId).maybeSingle();
@@ -1016,6 +1024,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
+    coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
     dev_upgrades_enabled: input.devUpgradesEnabled,
@@ -1069,6 +1078,8 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
     cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
+    trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
+    free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
@@ -1235,6 +1246,8 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     injuryPolicy: c.injury_policy ?? "on_standard",
     difficulty: c.difficulty === "custom" ? "all_madden" : (c.difficulty ?? "all_madden"),
     cfbDifficulty: c.cfb_difficulty ?? (c.difficulty === "all_pro" ? "all_american" : c.difficulty === "pro" ? "varsity" : c.difficulty === "rookie" ? "freshman" : "heisman"),
+    tradeDifficulty: c.trade_difficulty ?? "normal",
+    freeAgentMotivationImpact: c.free_agent_motivation_impact ?? "normal",
     slidersAdjusted: c.sliders_adjusted ?? Boolean(String(c.difficulty_custom_settings ?? "").trim()),
     difficultyCustomSettings: c.difficulty_custom_settings ?? "",
     coachXpSetting: c.coach_xp_setting ?? "casual",
