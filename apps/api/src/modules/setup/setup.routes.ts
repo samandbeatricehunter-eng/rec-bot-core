@@ -13,6 +13,7 @@ const DeleteLeagueSchema = z.object({
 });
 import { createLeagueForServer } from "./setup-season.service.js";
 import { publishRecGuideFromApi } from "../server-config/rec-guide-publisher.service.js";
+import { linkSiteLeagueToServer } from "../subscriptions/bot-invite.service.js";
 import { isAllowedLeagueCreator, requireSiteLeagueCreator, resolveSiteLeagueCreator } from "../../lib/site-league-creator.js";
 import {
   registerServer,
@@ -185,6 +186,13 @@ const CompleteWizardSchema = z.object({
   discordId: z.string().optional(),
 });
 
+const LinkSiteLeagueServerSchema = z.object({
+  leagueId: z.string().uuid(),
+  providerToken: z.string().min(1),
+  guildId: z.string().trim().min(1),
+  serverName: z.string().trim().max(120).optional(),
+});
+
 export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/setup/server/register", async (request, reply) => {
     try {
@@ -329,6 +337,16 @@ export async function setupRoutes(app: FastifyInstance) {
       const body = CompleteWizardSchema.parse(request.body);
       const { userId } = await requireSiteLeagueCreator(request);
       return reply.send(await completeWizard({ ...body, requestedByUserId: userId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Directly links a created league to a Discord server the creator owns/manages — the
+  // replacement for the token + /claim-league round-trip (see linkSiteLeagueToServer).
+  app.post("/v1/site-leagues/link-server", async (request, reply) => {
+    try {
+      const body = LinkSiteLeagueServerSchema.parse(request.body);
+      const { userId } = await requireSiteLeagueCreator(request);
+      return reply.send(await linkSiteLeagueToServer({ ...body, requestedByUserId: userId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

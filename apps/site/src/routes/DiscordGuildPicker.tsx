@@ -29,26 +29,40 @@ export function DiscordGuildPicker() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
-    if (!code) return;
+    // No ?code means the OAuth redirect came back in the URL fragment (#access_token=…) — the
+    // supabase client picks that up during initialization, so poll for the resulting session
+    // (same handling as the /discord-guild-token popup).
+    if (!code && !url.hash) return;
 
     let cancelled = false;
     setPhase("loading");
     (async () => {
       try {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) throw exchangeError;
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+        }
+        let session = null;
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (data.session) {
+            session = data.session;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        if (!session) throw new Error("Discord didn't return a permission grant — try again.");
 
         const expectedUid = sessionStorage.getItem("rec_guild_picker_expected_uid");
         sessionStorage.removeItem("rec_guild_picker_expected_uid");
-        if (expectedUid && data.session?.user.id !== expectedUid) {
+        if (expectedUid && session.user.id !== expectedUid) {
           throw new Error(
             "This Discord account is linked to a different REC account. Sign back into your original account and try again.",
           );
         }
 
-        const providerToken = data.session?.provider_token;
+        const providerToken = session.provider_token;
         if (!providerToken) {
           throw new Error("Discord didn't return a fresh permission grant — try again.");
         }

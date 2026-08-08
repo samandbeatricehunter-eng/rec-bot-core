@@ -721,6 +721,12 @@ export const siteApi = {
   completeWizard(input: { leagueId: string; teamId?: string; guildId?: string; discordId?: string }) {
     return request<{ ok: boolean; team: any | null; assignment: any | null }>("/v1/site-leagues/complete-wizard", input);
   },
+  linkLeagueServer(input: { leagueId: string; providerToken: string; guildId: string; serverName?: string }) {
+    return request<{
+      linked: boolean;
+      server: { id: string; name: string } | null;
+    }>("/v1/site-leagues/link-server", input);
+  },
   getAdminStats() {
     return request<AdminStats>("/v1/admin/stats", {});
   },

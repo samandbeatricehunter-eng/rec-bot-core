@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { CONFERENCE_ORDER } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, NFC_TEAMS } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
 
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
@@ -381,17 +381,17 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   }
 
   const [leagueId, setLeagueId] = useState<string | null>(null);
-  const [teams, setTeams] = useState<SiteOpenTeam[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   const auth = useAuth();
 
   const [discordLinked, setDiscordLinked] = useState<boolean | null>(null);
   const [discordGuilds, setDiscordGuilds] = useState<Array<{ id: string; name: string; icon: string | null }>>([]);
+  const [discordProviderToken, setDiscordProviderToken] = useState<string | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState("");
   const [discordBusy, setDiscordBusy] = useState(false);
   const [discordError, setDiscordError] = useState<string | null>(null);
-  const [discordConnectResult, setDiscordConnectResult] = useState<{ inviteUrl: string; token: string } | null>(null);
+  const [discordConnectResult, setDiscordConnectResult] = useState<{ serverName: string; inviteUrl: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,6 +426,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             return;
           }
           setDiscordGuilds(result.guilds);
+          setDiscordProviderToken(event.data.providerToken);
           setSelectedGuildId(result.guilds[0].id);
           setDiscordBusy(false);
         } catch (err) {
@@ -439,7 +440,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   }, []);
 
   async function startDiscordPicker() {
-    if (!leagueId) return;
     setDiscordBusy(true);
     setDiscordError(null);
     setDiscordConnectResult(null);
@@ -459,25 +459,33 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   }
 
   async function connectGuildToLeague() {
-    if (!leagueId || !selectedGuildId) return;
+    if (!leagueId || !selectedGuildId || !discordProviderToken) return;
     setDiscordBusy(true);
     setDiscordError(null);
     try {
-      const [enabled, invite] = await Promise.all([
-        siteApi.enableLeagueBot(leagueId),
+      const guild = discordGuilds.find((g) => g.id === selectedGuildId);
+      const [linked, invite] = await Promise.all([
+        siteApi.linkLeagueServer({
+          leagueId,
+          providerToken: discordProviderToken,
+          guildId: selectedGuildId,
+          serverName: guild?.name,
+        }),
         siteApi.getBotInviteUrl(selectedGuildId),
       ]);
-      setDiscordConnectResult({ inviteUrl: invite.inviteUrl, token: enabled.league.discord_bot_invite_token ?? "" });
+      setDiscordConnectResult({
+        serverName: linked.server?.name ?? guild?.name ?? selectedGuildId,
+        inviteUrl: invite.inviteUrl,
+      });
       setDiscordBusy(false);
     } catch (err) {
       setDiscordBusy(false);
-      setDiscordError(err instanceof Error ? err.message : "Failed to enable the Discord bot.");
+      setDiscordError(err instanceof Error ? err.message : "Failed to connect the Discord server.");
     }
   }
 
   const isCfb = game === "cfb_27";
   const isMadden = game === "madden_26" || game === "madden_27";
-  const isFantasyDraft = leagueType === "fantasy_draft";
   const isSeasonOne = seasonNumber === 1;
 
   const gameLabel = isCfb ? "CFB" : "Madden";
@@ -649,54 +657,54 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     isCfb, isMadden, isSeasonOne,
   ]);
 
-  async function createLeague() {
+  function advance(nextStep: Step) {
+    setStep(nextStep);
+  }
+
+  // The league row is NOT created until the final step — the whole wizard's config lives in
+  // component state (collectConfig) and is sent in one shot at the end, so abandoning the
+  // wizard at any earlier step leaves nothing behind in the database.
+  const teamOptions: SiteOpenTeam[] = useMemo(() => {
+    if (game === "cfb_27") {
+      return CFB_27_TEAMS.map((t) => ({
+        id: t.abbreviation,
+        name: t.name,
+        abbreviation: t.abbreviation,
+        mascot: t.isSchedulePlaceholder ? "FCS" : t.mascot,
+      }));
+    }
+    return [...AFC_TEAMS, ...NFC_TEAMS].map((t) => ({
+      id: t.abbreviation,
+      name: t.name,
+      abbreviation: t.abbreviation,
+      mascot: null,
+    }));
+  }, [game]);
+
+  async function finishWizard() {
     if (!game || !name.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      const payload = { name: name.trim(), game, ...collectConfig() };
-      const result = await siteApi.createLeague(payload);
-      setLeagueId(result.league.id);
-      setStep(3);
+      let createdId = leagueId;
+      if (!createdId) {
+        const payload = { name: name.trim(), game, ...collectConfig() };
+        const result = await siteApi.createLeague(payload);
+        createdId = result.league.id;
+        setLeagueId(createdId);
+      }
+      // Team picker keys off the shared default-team catalog (abbreviation) because the league
+      // doesn't exist until now; resolve it to the real team id before completing the wizard.
+      if (selectedTeamId && createdId) {
+        const open = await siteApi.listOpenLeagueTeams(createdId);
+        const team = open.teams.find((t) => t.abbreviation === selectedTeamId);
+        if (team) {
+          await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
+        }
+      }
+      setStep(7);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the league.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveConfigAndAdvance(nextStep: Step) {
-    if (!leagueId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await siteApi.updateLeagueConfig(leagueId, collectConfig());
-      setStep(nextStep);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save settings.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadTeams() {
-    if (!leagueId) return;
-    try {
-      const result = await siteApi.listOpenLeagueTeams(leagueId);
-      setTeams(result.teams);
-    } catch { /* ignore */ }
-  }
-
-  async function finishWizard() {
-    if (!leagueId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const teamId = selectedTeamId ?? undefined;
-      await siteApi.completeWizard({ leagueId, teamId: teamId || undefined });
-      onCreated(leagueId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not finish setup.");
     } finally {
       setBusy(false);
     }
@@ -763,7 +771,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       <section className="site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
         <button type="button" className="site-modal-close" onClick={onClose} aria-label="Close">&times;</button>
         <h2 id="create-league-title">Create League</h2>
-        {step > 0 && <p className="site-muted">Step {step} of {isFantasyDraft ? "8" : "7"}</p>}
+        {step > 0 && step < 7 && <p className="site-muted">Step {step} of 6</p>}
         {error && <p className="site-auth-error">{error}</p>}
 
         {step === 0 && (
@@ -866,8 +874,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(1)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={!name.trim() || busy} onClick={() => void createLeague()}>
-                {busy ? "Creating..." : "Create League"}
+              <button type="button" className="site-btn site-btn-primary" disabled={!name.trim()} onClick={() => advance(3)}>
+                Continue
               </button>
             </div>
           </>
@@ -912,73 +920,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               )}
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(2)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => saveConfigAndAdvance(4)}>Next</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(4)}>Next</button>
             </div>
           </>
         )}
 
         {step === 4 && (
-          <>
-            <Section title="Discord Server Link (Optional)">
-              {discordLinked === null ? (
-                <p className="site-muted">Checking your Discord connection…</p>
-              ) : discordLinked ? (
-                discordConnectResult ? (
-                  <>
-                    <p className="site-muted">Finish linking this league to your Discord server:</p>
-                    <ol className="site-muted">
-                      <li>
-                        <a href={discordConnectResult.inviteUrl} target="_blank" rel="noreferrer">Invite the REC bot</a> — the server is already pre-selected, just confirm the permissions.
-                      </li>
-                      <li>In that server, run <code>/claim-league</code> and paste this token when prompted:</li>
-                    </ol>
-                    <code className="site-league-card-token">{discordConnectResult.token}</code>
-                    <p className="site-muted">Only that server's owner can run /claim-league — anyone else running it will be rejected.</p>
-                  </>
-                ) : discordGuilds.length > 0 ? (
-                  <>
-                    <p className="site-muted">Your Discord account is connected — pick a server to invite the REC bot to:</p>
-                    <label className="site-field">
-                      <span>Server</span>
-                      <select className="site-select" value={selectedGuildId} onChange={(e) => setSelectedGuildId(e.target.value)}>
-                        {discordGuilds.map((guild) => (
-                          <option key={guild.id} value={guild.id}>{guild.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="site-modal-actions">
-                      <button type="button" className="site-btn site-btn-ghost" disabled={discordBusy} onClick={() => { setDiscordGuilds([]); setSelectedGuildId(""); }}>
-                        Back
-                      </button>
-                      <button type="button" className="site-btn site-btn-primary" disabled={discordBusy} onClick={() => void connectGuildToLeague()}>
-                        {discordBusy ? "Setting things up…" : "Use this server"}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="site-muted">Your Discord account is connected. Pick a server to invite the REC bot to.</p>
-                    <button type="button" className="site-btn site-btn-primary" disabled={discordBusy} onClick={() => void startDiscordPicker()}>
-                      {discordBusy ? "Opening Discord…" : "Connect a Discord Server"}
-                    </button>
-                  </>
-                )
-              ) : (
-                <p className="site-muted">
-                  Linking a Discord server is optional — bot features, streaming announcements, and draft scheduling can all be set up later from League Settings. To connect a server now, link your Discord account first on My Account.
-                </p>
-              )}
-              {discordError && <p className="site-auth-error">{discordError}</p>}
-            </Section>
-            <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(3)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => saveConfigAndAdvance(5)}>Continue</button>
-            </div>
-          </>
-        )}
-
-        {step === 5 && (
           <>
             <Section title="Streaming Requirements">
               <SelectField label="Regular season streaming" hint="Whether users must stream their regular season games."
@@ -1169,15 +1117,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(4)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => saveConfigAndAdvance(6)}>
-                {busy ? "Saving..." : "Next"}
-              </button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(3)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => advance(5)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 6 && (
+        {step === 5 && (
           <>
             {isMadden && (
               <>
@@ -1344,9 +1290,33 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => saveConfigAndAdvance(5)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => { void loadTeams(); setStep(7); }}>
-                {busy ? "Saving..." : "Next"}
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(4)}>Back</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(6)}>Next</button>
+            </div>
+          </>
+        )}
+
+        {step === 6 && (
+          <>
+            <Section title="Team Assignment">
+              <p className="site-muted">Pick your team. You will be assigned as the head commissioner for this team.</p>
+              <div className="wizard-team-grid">
+                {teamOptions.map((team) => (
+                  <button key={team.id} type="button"
+                    className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
+                    onClick={() => setSelectedTeamId(team.id)}>
+                    <strong>{team.name}</strong>
+                    {team.mascot && <span className="site-muted">{team.mascot}</span>}
+                    {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
+                  </button>
+                ))}
+              </div>
+            </Section>
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(5)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void finishWizard()}>Skip for Now</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
+                {busy ? "Finishing..." : "Assign Team &amp; Finish"}
               </button>
             </div>
           </>
@@ -1354,29 +1324,54 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 7 && (
           <>
-            <Section title="Team Assignment">
-              <p className="site-muted">Pick your team from the available teams in this league. You will be assigned as the head commissioner for this team.</p>
-              {teams.length === 0 ? (
-                <p className="site-muted">Loading available teams...</p>
-              ) : (
-                <div className="wizard-team-grid">
-                  {teams.map((team) => (
-                    <button key={team.id} type="button"
-                      className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
-                      onClick={() => setSelectedTeamId(team.id)}>
-                      <strong>{team.name}</strong>
-                      {team.mascot && <span className="site-muted">{team.mascot}</span>}
-                      {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <Section title="Your League is Ready">
+              <p className="site-muted">
+                <strong>{name || "Your league"}</strong> was created{selectedTeamId ? ` and you were assigned the ${selectedTeamId}` : ""}. You can manage settings, add users, and assign teams anytime from the league hub.
+              </p>
             </Section>
+
+            <Section title="Connect a Discord Server (Optional)">
+              {discordLinked === null ? (
+                <p className="site-muted">Checking your Discord connection…</p>
+              ) : !discordLinked ? (
+                <p className="site-muted">
+                  Your Discord account isn't linked yet — link it from My Account, then come back here (or use League Settings) to connect a server.
+                </p>
+              ) : discordConnectResult ? (
+                <>
+                  <p className="site-muted">Connected to <strong>{discordConnectResult.serverName}</strong>.</p>
+                  <p className="site-muted">Last step — add the REC bot to that server:</p>
+                  <a className="site-btn site-btn-primary" href={discordConnectResult.inviteUrl} target="_blank" rel="noreferrer">
+                    Invite the REC bot
+                  </a>
+                  <p className="site-muted">The bot will be active once invited.</p>
+                </>
+              ) : discordGuilds.length > 0 ? (
+                <>
+                  <p className="site-muted">Pick one of your servers to connect this league to:</p>
+                  <label className="site-field">
+                    <span>Server</span>
+                    <select className="site-select" value={selectedGuildId} onChange={(e) => setSelectedGuildId(e.target.value)}>
+                      {discordGuilds.map((guild) => (
+                        <option key={guild.id} value={guild.id}>{guild.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" className="site-btn site-btn-primary" disabled={discordBusy || !selectedGuildId} onClick={() => void connectGuildToLeague()}>
+                    {discordBusy ? "Connecting…" : "Connect this server"}
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="site-btn site-btn-primary" disabled={discordBusy} onClick={() => void startDiscordPicker()}>
+                  {discordBusy ? "Opening Discord…" : "Connect a Discord Server"}
+                </button>
+              )}
+              {discordError && <p className="site-auth-error">{discordError}</p>}
+            </Section>
+
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={finishWizard}>Skip for Now</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={finishWizard}>
-                {busy ? "Finishing..." : "Assign Team &amp; Finish"}
+              <button type="button" className="site-btn site-btn-primary" onClick={() => { if (leagueId) onCreated(leagueId); }}>
+                Done
               </button>
             </div>
           </>

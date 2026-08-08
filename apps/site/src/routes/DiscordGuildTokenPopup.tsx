@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase-client.js";
 
 /**
@@ -10,8 +9,6 @@ import { supabase } from "../lib/supabase-client.js";
  * (Discord identity attached elsewhere) is reported back rather than silently acting on it.
  */
 export function DiscordGuildTokenPopup() {
-  const [params] = useSearchParams();
-
   useEffect(() => {
     let cancelled = false;
     const origin = window.location.origin;
@@ -21,19 +18,35 @@ export function DiscordGuildTokenPopup() {
 
     (async () => {
       try {
-        const code = params.get("code");
-        if (!code) throw new Error("Missing Discord authorization code.");
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) throw error;
-        const { data } = await supabase.auth.getSession();
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        }
+        // Supabase's Discord OAuth redirects back with the session in the URL fragment
+        // (#access_token=…), not a ?code — supabase-js picks that up during initialization.
+        // Poll briefly for the resulting session (covers both flows).
+        let session = null;
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (data.session) {
+            session = data.session;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        if (!session) throw new Error("Discord didn't return a permission grant — try again.");
+
         const expectedUid = sessionStorage.getItem("rec_guild_picker_expected_uid");
         sessionStorage.removeItem("rec_guild_picker_expected_uid");
-        if (expectedUid && data.session?.user.id !== expectedUid) {
+        if (expectedUid && session.user.id !== expectedUid) {
           throw new Error(
             "This Discord account is linked to a different REC account. Sign back into your original account and try again.",
           );
         }
-        const providerToken = data.session?.provider_token;
+        const providerToken = session.provider_token;
         if (!providerToken) {
           throw new Error("Discord didn't return a fresh permission grant — try again.");
         }
@@ -48,7 +61,7 @@ export function DiscordGuildTokenPopup() {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, []);
 
   return (
     <div className="site-page site-auth-page">
