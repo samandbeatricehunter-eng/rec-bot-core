@@ -6,6 +6,7 @@ import {
   addFantasyDraftCustomPlayer,
   commenceFantasyDraft,
   concludeFantasyDraft,
+  getFantasyDraftCheckins,
   getFantasyDraftState,
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
@@ -13,6 +14,8 @@ import {
   saveFantasyDraftBoard,
   scheduleFantasyDraft,
   setFantasyDraftPickOrder,
+  setFantasyDraftSelfCheckin,
+  setFantasyDraftTeamCheckin,
   skipFantasyDraftToEnd,
   undoFantasyDraftPick,
 } from "./fantasy-draft.service.js";
@@ -147,6 +150,41 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send(await concludeFantasyDraft(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Self-service check-in/out from the site or the Discord embed buttons. Any league member
+  // toggles their own assigned team. Bot calls (embed buttons) pass the clicking user's
+  // discordId explicitly; website sessions resolve it from auth.
+  app.post("/v1/fantasy-draft/check-in", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), checkedIn: z.boolean(), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") {
+        return reply.send(await setFantasyDraftSelfCheckin(body.guildId, auth.discordId, body.checkedIn));
+      }
+      if (!body.discordId) throw new Error("discordId is required for bot check-in calls.");
+      return reply.send(await setFantasyDraftSelfCheckin(body.guildId, body.discordId, body.checkedIn));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Commissioner override of any team's check-in status (site panel, or bot embed buttons
+  // acting for the commissioner).
+  app.post("/v1/fantasy-draft/check-in/set", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), teamId: z.string().uuid(), checkedIn: z.boolean() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Updating a team's check-in requires a commissioner session.");
+      return reply.send(await setFantasyDraftTeamCheckin(body.guildId, auth.discordId, body.teamId, body.checkedIn));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Read-only snapshot of team check-in status for the bot's live embed.
+  app.post("/v1/fantasy-draft/check-ins", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(await getFantasyDraftCheckins(guildId));
     } catch (error) { return sendError(reply, error); }
   });
 }

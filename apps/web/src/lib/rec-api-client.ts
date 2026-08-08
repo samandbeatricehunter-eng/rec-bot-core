@@ -799,4 +799,8 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/fantasy-draft/skip-to-end", { method: "POST", body: JSON.stringify({ guildId }) }),
   concludeFantasyDraft: (guildId: string) =>
     recApiFetch<{ ok: true; underStrengthTeams: Array<{ teamId: string; teamName: string; draftedCount: number }> }>("/v1/fantasy-draft/conclude", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setFantasyDraftSelfCheckin: (input: { guildId: string; checkedIn: boolean }) =>
+    recApiFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify(input) }),
+  setFantasyDraftTeamCheckin: (input: { guildId: string; teamId: string; checkedIn: boolean }) =>
+    recApiFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/set", { method: "POST", body: JSON.stringify(input) }),
 };

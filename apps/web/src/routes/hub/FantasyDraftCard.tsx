@@ -11,7 +11,7 @@ import {
 import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, Trash2, Trophy, Undo2 } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { chatRealtimeClient } from "../../lib/chat-realtime-client.js";
-import type { FantasyDraftOrderMode, FantasyDraftPoolPlayer, FantasyDraftState } from "../../types/api.js";
+import type { FantasyDraftCheckin, FantasyDraftOrderMode, FantasyDraftPoolPlayer, FantasyDraftState } from "../../types/api.js";
 import { Button } from "../../components/ui/Button.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
@@ -218,6 +218,19 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
       )}
       {error && <p className="hub-error">{error}</p>}
 
+      {status !== "concluded" && (
+        <>
+          {status === "live" && onTheClock && !state.onTheClockCheckedIn && (
+            <div className="fantasy-draft-checkin-warning">
+              <AlertTriangle size={16} />
+              <span><strong>{onTheClock.displayName}</strong> hasn't checked in for this draft — their pick will be skipped when it comes up.</span>
+            </div>
+          )}
+          <CheckinBar state={state} guildId={guildId} busy={busy} onChanged={() => void load()} onError={setError} />
+          <CommissionerCheckinPanel state={state} guildId={guildId} busy={busy} onChanged={() => void load()} onError={setError} />
+        </>
+      )}
+
       {status === "concluded" ? (
         <div className="fantasy-draft-concluded">
           <Trophy size={28} />
@@ -307,6 +320,109 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         </Modal>
       )}
     </SectionFrame>
+  );
+}
+
+/** Self-service check-in bar. Discord-linked members toggle their own team's presence;
+ * mirrors the buttons on the live Discord embed. Shown pre-draft and through the live phase. */
+function CheckinBar({ state, guildId, busy, onChanged, onError }: {
+  state: FantasyDraftState;
+  guildId: string;
+  busy: boolean;
+  onChanged: () => void;
+  onError: (message: string) => void;
+}) {
+  const { caller, session, checkins } = state;
+  const status = session?.status ?? "not_scheduled";
+  const [saving, setSaving] = useState(false);
+  const myTeamId = caller.myTeamId;
+  if (!myTeamId) return null;
+  if (status === "not_scheduled" || status === "scheduled" || status === "live") {
+    const myCheckin = checkins.find((c) => c.teamId === myTeamId) ?? null;
+    const checkedIn = myCheckin?.checkedIn ?? false;
+    async function toggle() {
+      setSaving(true);
+      try {
+        await recApi.setFantasyDraftSelfCheckin({ guildId, checkedIn: !checkedIn });
+        onChanged();
+      } catch (err) {
+        onError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(false);
+      }
+    }
+    return (
+      <div className={`fantasy-draft-checkin${checkedIn ? " checked-in" : ""}`}>
+        <div className="fantasy-draft-checkin-status">
+          {checkedIn ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+          <div>
+            <strong>{checkedIn ? "You're checked in" : "You haven't checked in yet"}</strong>
+            <p>{checkedIn
+              ? "You're all set for the draft — your pick won't be skipped."
+              : "Check in before or during the draft, or your pick will be skipped when it comes up."}</p>
+          </div>
+        </div>
+        <Button variant={checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || saving} onClick={() => void toggle()}>
+          {saving ? "Saving…" : checkedIn ? "Check Out" : "Check In"}
+        </Button>
+      </div>
+    );
+  }
+  return null;
+}
+
+/** Commissioner presence panel — every team by team name with its check-in status, the DC tag
+ * next to each owner's Discord name, a running count of who's present, and override buttons. */
+function CommissionerCheckinPanel({ state, guildId, busy, onChanged, onError }: {
+  state: FantasyDraftState;
+  guildId: string;
+  busy: boolean;
+  onChanged: () => void;
+  onError: (message: string) => void;
+}) {
+  const { caller, session, checkins } = state;
+  const [togglingTeamId, setTogglingTeamId] = useState<string | null>(null);
+  if (!caller.isCommissioner || !session) return null;
+  if (session.status === "concluded") return null;
+
+  const checkedCount = checkins.filter((c) => c.checkedIn).length;
+  async function toggle(checkin: FantasyDraftCheckin) {
+    setTogglingTeamId(checkin.teamId);
+    try {
+      await recApi.setFantasyDraftTeamCheckin({ guildId, teamId: checkin.teamId, checkedIn: !checkin.checkedIn });
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTogglingTeamId(null);
+    }
+  }
+
+  return (
+    <div className="fantasy-draft-checkin-panel">
+      <div className="fantasy-draft-checkin-panel-head">
+        <h4>Check-Ins</h4>
+        <span className="fantasy-draft-checkin-count">{checkedCount}/{checkins.length} checked in</span>
+      </div>
+      <p className="fantasy-draft-checkin-panel-hint">Who's present for the draft. Teams not checked in get skipped when their pick comes up.</p>
+      <ul className="fantasy-draft-checkin-list">
+        {checkins.map((checkin) => {
+          const discord = checkin.discordGlobalName ?? checkin.discordUsername;
+          return (
+            <li key={checkin.teamId} className={checkin.checkedIn ? "checked-in" : ""}>
+              <span className="fantasy-draft-checkin-team">
+                <strong>{checkin.teamName}</strong>
+                <small>{discord ? `@${discord}` : "No Discord linked"}</small>
+              </span>
+              <span className="fantasy-draft-checkin-status-pill">{checkin.checkedIn ? "Checked In" : "NOT Checked In"}</span>
+              <Button variant={checkin.checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || togglingTeamId === checkin.teamId} onClick={() => void toggle(checkin)}>
+                {togglingTeamId === checkin.teamId ? "Saving…" : checkin.checkedIn ? "Check Out" : "Check In"}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

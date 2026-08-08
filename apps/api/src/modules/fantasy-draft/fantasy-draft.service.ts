@@ -7,9 +7,10 @@
 // it. All state mutations broadcast a `fantasy_draft:{leagueId}` realtime refresh event.
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
+import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { broadcastChatEvent } from "../chat/chat-realtime.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import {
   getCurrentLeagueContext,
@@ -31,6 +32,8 @@ type SessionRow = {
   commenced_by_user_id: string | null;
   commenced_at: string | null;
   concluded_at: string | null;
+  checkin_message_channel_id: string | null;
+  checkin_message_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,6 +105,8 @@ function serializeSession(row: SessionRow) {
     commencedByUserId: row.commenced_by_user_id,
     commencedAt: row.commenced_at,
     concludedAt: row.concluded_at,
+    checkinMessageChannelId: row.checkin_message_channel_id,
+    checkinMessageId: row.checkin_message_id,
   };
 }
 
@@ -204,12 +209,18 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
 
   const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
   const onTheClockTeamId = session ? teamOnTheClock(session, pickOrder) : null;
+  const checkins = session ? await buildCheckinList(session.id, leagueId, teams, isCommissioner) : [];
+  const onTheClockCheckedIn = onTheClockTeamId
+    ? checkins.find((c) => c.teamId === onTheClockTeamId)?.checkedIn ?? false
+    : false;
 
   return {
     session: session ? serializeSession(session) : null,
     teams,
     pickOrder,
     onTheClockTeamId,
+    onTheClockCheckedIn,
+    checkins,
     pool: (pool.data ?? []).map((p: any) => ({
       id: p.id,
       name: p.full_name,
@@ -237,6 +248,238 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
     myBoard,
     caller: { isCommissioner, myTeamId },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Draft check-ins. Discord-linked users toggle "checked in" from the site or the
+// live Discord embed; commissioners can override any team's status. The embed is
+// a single message in the announcements channel, refreshed in place whenever a
+// status changes so buttons and site always agree.
+// ---------------------------------------------------------------------------
+const CHECKIN_EMBED_COLOR = 0xd9a521;
+export const FANTASY_CHECKIN_CUSTOM_IDS = { in: "rec:fantasy_checkin:in", out: "rec:fantasy_checkin:out" } as const;
+
+type CheckinRow = {
+  id: string;
+  session_id: string;
+  team_id: string;
+  user_id: string | null;
+  discord_id: string | null;
+  checked_in: boolean;
+  checked_in_at: string | null;
+  updated_by_user_id: string | null;
+  updated_at: string;
+};
+
+export type FantasyDraftCheckin = {
+  teamId: string;
+  teamName: string;
+  checkedIn: boolean;
+  ownerUserId: string | null;
+  discordUsername: string | null;
+  discordGlobalName: string | null;
+};
+
+/** Teams ordered the same as listTeams(), with check-in state plus (for commissioners)
+ * the owner's REC id and Discord identity so the panel can show the DC tag next to the
+ * Discord name while listing every team by its team name. */
+async function buildCheckinList(
+  sessionId: string,
+  leagueId: string,
+  teams: Array<{ id: string; displayName: string }>,
+  includeIdentity: boolean,
+): Promise<FantasyDraftCheckin[]> {
+  const [rowsResult, assignmentsResult] = await Promise.all([
+    supabase.from("rec_fantasy_draft_checkins").select("*").eq("session_id", sessionId),
+    supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
+  ]);
+  if (rowsResult.error) throw new ApiError(500, "Failed to load draft check-ins.", rowsResult.error);
+  if (assignmentsResult.error) throw new ApiError(500, "Failed to load team owners.", assignmentsResult.error);
+
+  const byTeam = new Map<string, CheckinRow>((rowsResult.data ?? []).map((r) => [r.team_id, r as CheckinRow]));
+  const ownerByTeam = new Map<string, string>((assignmentsResult.data ?? []).map((a: any) => [a.team_id, a.user_id]));
+
+  let identityByUser = new Map<string, { username: string | null; global_name: string | null }>();
+  if (includeIdentity) {
+    const userIds = [...new Set([...ownerByTeam.values(), ...(rowsResult.data ?? []).map((r) => r.user_id).filter(Boolean)])];
+    if (userIds.length) {
+      const accounts = await supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", userIds);
+      if (accounts.error) throw new ApiError(500, "Failed to load check-in identities.", accounts.error);
+      identityByUser = new Map((accounts.data ?? []).map((a: any) => [a.user_id, { username: a.username ?? null, global_name: a.global_name ?? null }]));
+    }
+  }
+
+  return teams.map((team) => {
+    const ownerUserId = ownerByTeam.get(team.id) ?? null;
+    const identity = ownerUserId ? identityByUser.get(ownerUserId) : null;
+    return {
+      teamId: team.id,
+      teamName: team.displayName,
+      checkedIn: Boolean(byTeam.get(team.id)?.checked_in),
+      ownerUserId: includeIdentity ? ownerUserId : null,
+      discordUsername: includeIdentity ? (identity?.username ?? null) : null,
+      discordGlobalName: includeIdentity ? (identity?.global_name ?? null) : null,
+    };
+  });
+}
+
+async function resolveTeamOwnerUserId(leagueId: string, teamId: string): Promise<string | null> {
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("team_id", teamId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to resolve the team owner.", assignment.error);
+  return assignment.data?.user_id ?? null;
+}
+
+async function resolveTeamForUser(leagueId: string, userId: string): Promise<string> {
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to resolve your team.", assignment.error);
+  if (!assignment.data?.team_id) throw new ApiError(400, "You aren't assigned to a team in this league yet.");
+  return assignment.data.team_id;
+}
+
+async function persistCheckin(input: {
+  sessionId: string;
+  leagueId: string;
+  teamId: string;
+  userId: string | null;
+  discordId: string | null;
+  checkedIn: boolean;
+  updatedByUserId: string | null;
+}) {
+  const { error } = await supabase.from("rec_fantasy_draft_checkins").upsert({
+    session_id: input.sessionId,
+    team_id: input.teamId,
+    user_id: input.userId,
+    discord_id: input.discordId,
+    checked_in: input.checkedIn,
+    checked_in_at: input.checkedIn ? new Date().toISOString() : null,
+    updated_by_user_id: input.updatedByUserId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "session_id,team_id" });
+  if (error) throw new ApiError(500, "Failed to update the draft check-in.", error);
+}
+
+async function buildCheckinEmbedData(leagueId: string, session: SessionRow) {
+  const teams = await listTeams(leagueId);
+  const checkins = await buildCheckinList(session.id, leagueId, teams, false);
+  const checkedCount = checkins.filter((c) => c.checkedIn).length;
+  return {
+    title: "Fantasy Draft Check-In",
+    color: CHECKIN_EMBED_COLOR,
+    description: `The fantasy draft is live! Tap **Check In** so your pick doesn't get skipped.\n\n${checkins
+      .map((c) => (c.checkedIn ? `✅ **${c.teamName}** — Checked In` : `❌ **${c.teamName}** — NOT Checked In`))
+      .join("\n")}`,
+    footer: { text: `Checked in: ${checkedCount}/${checkins.length}` },
+  };
+}
+
+function buildCheckinComponents() {
+  return [{
+    type: 1,
+    components: [
+      { type: 2, style: 3, label: "Check In", custom_id: FANTASY_CHECKIN_CUSTOM_IDS.in },
+      { type: 2, style: 4, label: "Check Out", custom_id: FANTASY_CHECKIN_CUSTOM_IDS.out },
+    ],
+  }];
+}
+
+/** Rebuilds the live check-in embed in place after a status change. Silent no-op when the
+ * session has no tracked embed yet (e.g. site-only league with no announcements channel). */
+async function refreshCheckinEmbed(leagueId: string, session: SessionRow) {
+  if (!session.checkin_message_channel_id || !session.checkin_message_id) return;
+  const embed = await buildCheckinEmbedData(leagueId, session);
+  await editDiscordMessage(session.checkin_message_channel_id, session.checkin_message_id, {
+    embeds: [embed],
+    components: buildCheckinComponents(),
+  }).catch(() => undefined);
+}
+
+/** Fires a push to the on-the-clock team's owner ("your pick is coming up"). Cheap to call
+ * on every state change; the user's device only shows it if push is subscribed. */
+async function pushOnTheClock(leagueId: string, session: SessionRow) {
+  const pickOrder = await listPickOrder(session.id);
+  const teamId = teamOnTheClock(session, pickOrder);
+  if (!teamId) return;
+  const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
+  if (!ownerUserId) return;
+  const team = await supabase.from("rec_teams").select("name,display_nick,display_abbr").eq("id", teamId).maybeSingle();
+  const displayName = team.data ? (team.data.display_nick ?? team.data.display_abbr ?? team.data.name) : "your team";
+  const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
+  sendPushToUsers([ownerUserId], {
+    title: "Your pick is on the clock",
+    body: `${displayName} is up (Round ${session.current_round} Pick ${session.current_pick_in_round}). Check in so your pick isn't skipped!`,
+    url: `${base}/l/${leagueId}/buzz`,
+  }).catch(() => undefined);
+}
+
+/** Commissioner-oriented read for the bot's live check-in embed (team name + status only). */
+export async function getFantasyDraftCheckins(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["scheduled", "live", "wrap_up"]);
+  const teams = await listTeams(leagueId);
+  const checkins = await buildCheckinList(session.id, leagueId, teams, false);
+  return { checkins: checkins.map((c) => ({ teamId: c.teamId, teamName: c.teamName, checkedIn: c.checkedIn })) };
+}
+
+/** Self-service check-in/out. Only Discord-linked accounts (real or site-only) can toggle;
+ * the target team is the caller's active team assignment. Broadcasts a refresh and keeps the
+ * live Discord embed in sync. */
+export async function setFantasyDraftSelfCheckin(guildId: string, discordId: string, checkedIn: boolean) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["not_scheduled", "scheduled", "live"]);
+
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to check in.");
+  const teamId = await resolveTeamForUser(leagueId, userId);
+
+  await persistCheckin({ sessionId: session.id, leagueId, teamId, userId, discordId, checkedIn, updatedByUserId: userId });
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  await refreshCheckinEmbed(leagueId, session);
+  return { ok: true as const, teamId, checkedIn };
+}
+
+/** Commissioner override of any team's check-in status (used from the site panel and the
+ * Discord embed's per-team buttons). */
+export async function setFantasyDraftTeamCheckin(guildId: string, actorDiscordId: string, teamId: string, checkedIn: boolean) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["not_scheduled", "scheduled", "live"]);
+
+  const team = await supabase.from("rec_teams").select("id").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
+  if (team.error) throw new ApiError(500, "Failed to validate the team.", team.error);
+  if (!team.data) throw new ApiError(400, "The target team does not belong to this league.");
+
+  const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
+  let ownerDiscordId: string | null = null;
+  if (ownerUserId) {
+    const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", ownerUserId).maybeSingle();
+    if (account.error) throw new ApiError(500, "Failed to resolve the team owner.", account.error);
+    ownerDiscordId = account.data?.discord_id ?? null;
+  }
+  const actorUserId = await resolveRecUserId(actorDiscordId);
+
+  await persistCheckin({ sessionId: session.id, leagueId, teamId, userId: ownerUserId, discordId: ownerDiscordId, checkedIn, updatedByUserId: actorUserId });
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  await refreshCheckinEmbed(leagueId, session);
+  return { ok: true as const, teamId, checkedIn };
 }
 
 /** Replaces the caller's personal ranked board for the league's active draft. Only
@@ -365,12 +608,31 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
       }],
       allowed_mentions: { parse: ["everyone"] },
     }).catch((error) => console.error("[ERROR] Fantasy draft commence announcement failed (non-fatal):", error));
+
+    // Live check-in board — one message the API and bot both keep in sync.
+    const checkinEmbed = await buildCheckinEmbedData(leagueId, session);
+    const posted = await postDiscordChannelMessage(announcementsChannelId, {
+      embeds: [checkinEmbed],
+      components: buildCheckinComponents(),
+    }).catch(() => null);
+    if (posted?.id) {
+      try {
+        await supabase.from("rec_fantasy_draft_sessions").update({
+          checkin_message_channel_id: announcementsChannelId,
+          checkin_message_id: posted.id,
+          updated_at: new Date().toISOString(),
+        }).eq("id", session.id);
+      } catch { /* non-fatal — embed stays live even if tracking fails */ }
+      session.checkin_message_channel_id = announcementsChannelId;
+      session.checkin_message_id = posted.id;
+    }
   }
   const members = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId);
   const userIds = [...new Set((members.data ?? []).map((m: any) => m.user_id).filter(Boolean))] as string[];
   if (userIds.length) {
     sendPushToUsers(userIds, { title: "Fantasy draft is live!", body: "The fantasy draft has started — check the draft board." }).catch(() => undefined);
   }
+  await pushOnTheClock(leagueId, session);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const };
@@ -571,6 +833,8 @@ export async function logFantasyDraftPick(guildId: string, discordId: string, pl
     current_pick_in_round: nextPick,
     updated_at: new Date().toISOString(),
   }).eq("id", session.id);
+
+  await pushOnTheClock(leagueId, { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const, round: session.current_round, pickInRound: session.current_pick_in_round, teamId, overallPickNumber };

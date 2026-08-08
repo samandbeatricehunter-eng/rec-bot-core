@@ -910,6 +910,8 @@ export type FantasyDraftSession = {
   commencedByUserId: string | null;
   commencedAt: string | null;
   concludedAt: string | null;
+  checkinMessageChannelId: string | null;
+  checkinMessageId: string | null;
 };
 
 export type FantasyDraftTeam = {
@@ -945,11 +947,22 @@ export type FantasyDraftPick = {
   loggedAt: string;
 };
 
+export type FantasyDraftCheckin = {
+  teamId: string;
+  teamName: string;
+  checkedIn: boolean;
+  ownerUserId: string | null;
+  discordUsername: string | null;
+  discordGlobalName: string | null;
+};
+
 export type FantasyDraftState = {
   session: FantasyDraftSession | null;
   teams: FantasyDraftTeam[];
   pickOrder: Array<{ pickInRound: number; teamId: string }>;
   onTheClockTeamId: string | null;
+  onTheClockCheckedIn: boolean;
+  checkins: FantasyDraftCheckin[];
   pool: FantasyDraftPoolPlayer[];
   picks: FantasyDraftPick[];
   myBoard: string[];

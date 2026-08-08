@@ -206,6 +206,17 @@ export async function deleteDiscordMessage(channelId: string, messageId: string)
   await discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }).catch(() => undefined);
 }
 
+/** Edit a previously posted bot message (embeds/components/content) via REST. Used to keep
+ * live status embeds (e.g. the fantasy-draft check-in board) in sync when a change comes
+ * from a non-gateway source like the website. Returns false on any non-OK response (a
+ * deleted/expired message is non-fatal to the caller). */
+export async function editDiscordMessage(channelId: string, messageId: string, payload: Record<string, unknown>): Promise<boolean> {
+  const path = `/channels/${channelId}/messages/${messageId}`;
+  const init: RequestInit = { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
+  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  return sent.ok;
+}
+
 export async function banDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
   const response = await discordBotFetch(`/guilds/${guildId}/bans/${discordId}`, {
     method: "PUT",

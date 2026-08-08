@@ -705,4 +705,10 @@ export const recApi = {
     recFetch<any>("/v1/purchases/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
   getPurchaseCounts: (discordId: string, guildId: string) =>
     recFetch<any>("/v1/purchases/counts", { method: "POST", body: JSON.stringify({ discordId, guildId }) }),
+
+  // ─── Fantasy draft check-ins ───
+  getFantasyDraftCheckins: (guildId: string) =>
+    recFetch<{ checkins: Array<{ teamId: string; teamName: string; checkedIn: boolean }> }>("/v1/fantasy-draft/check-ins", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setFantasyDraftSelfCheckin: (guildId: string, discordId: string, checkedIn: boolean) =>
+    recFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify({ guildId, discordId, checkedIn }) }),
 };
