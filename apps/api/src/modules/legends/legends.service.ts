@@ -4,7 +4,8 @@
 
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { createPurchaseRequest } from "../purchases/purchases.service.js";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
@@ -236,6 +237,18 @@ export async function createLegendPurchaseRequest(input: {
     })
     .eq("source_table", "rec_purchases")
     .eq("source_id", result.purchase.id);
+
+  const linked = await findServerRoutesForLeague(context.leagueId).catch(() => null);
+  const announcementsChannelId = (linked?.routes as any)?.announcements_channel_id as string | null | undefined;
+  if (announcementsChannelId) {
+    await postDiscordChannelMessage(announcementsChannelId, {
+      embeds: [{
+        title: "Legend Reserved",
+        color: 0xd4af37,
+        description: `**${teamName ?? "A team"}** has purchased legend **${legend.data.name}** (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.`,
+      }],
+    }).catch((err) => console.error("[ERROR] Failed to post legend purchase announcement (non-fatal):", err));
+  }
 
   return result;
 }

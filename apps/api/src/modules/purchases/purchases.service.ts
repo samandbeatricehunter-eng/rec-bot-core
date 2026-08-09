@@ -1,8 +1,7 @@
 import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
@@ -134,18 +133,6 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
 
   if (replacementPlayerId) {
     await supabase.from("rec_players").delete().eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId);
-  }
-
-  const linked = await findServerRoutesForLeague(leagueId).catch(() => null);
-  const announcementsChannelId = (linked?.routes as any)?.announcements_channel_id as string | null | undefined;
-  if (announcementsChannelId) {
-    await postDiscordChannelMessage(announcementsChannelId, {
-      embeds: [{
-        title: "Legend Acquired",
-        color: 0xd4af37,
-        description: `**${details.purchasingTeamName ?? "A team"}** has purchased legend **${details.name}** (${details.position}, ${details.estOvr ?? "?"} OVR).`,
-      }],
-    }).catch((err) => console.error("[ERROR] Failed to post legend purchase announcement (non-fatal):", err));
   }
 }
 
