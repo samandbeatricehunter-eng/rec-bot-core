@@ -262,7 +262,13 @@ function LeagueSearchCard({
 
   return (
     <article className={["site-league-search-card", expanded ? "is-expanded" : ""].join(" ")}>
-      <button type="button" className="site-league-search-card-toggle" onClick={onToggle}>
+      <div
+        className="site-league-search-card-toggle"
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
+      >
         <div className="site-league-search-card-main">
           <div className="site-league-search-card-top">
             <h2>
@@ -432,7 +438,7 @@ function LeagueSearchCard({
             </li>
           </ul>
         </div>
-      </button>
+      </div>
 
       {expanded ? (
         <div className="site-league-search-expanded">

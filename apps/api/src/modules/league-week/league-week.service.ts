@@ -32,10 +32,16 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   const highlightAwardsDue = previousStage === "regular_season"
     && previousWeek === regularSeasonWeeks(context.rec_leagues.game)
     && input.seasonStage !== "regular_season";
+  // Hitting preseason always means the next consecutive season, in every league — this is
+  // the ONE rule for when the season number advances, so it applies regardless of which
+  // caller (Advance wizard, manual Set Week, etc.) triggers the transition. An explicit
+  // input.seasonNumber (e.g. the Discord "Set Season" override) still wins when given.
+  const enteringPreseason = input.seasonStage === "preseason" && previousStage !== "preseason";
+  const effectiveSeasonNumber = input.seasonNumber ?? (enteringPreseason ? previousSeasonNumber + 1 : undefined);
   const payload = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,
-    ...(input.seasonNumber ? { season_number: input.seasonNumber } : {}),
+    ...(effectiveSeasonNumber ? { season_number: effectiveSeasonNumber } : {}),
     updated_at: new Date().toISOString()
   };
 
@@ -48,7 +54,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
 
   if (result.error) throw new ApiError(500, "Failed to update league week.", result.error);
 
-  if (input.seasonNumber && input.seasonNumber !== previousSeasonNumber) {
+  if (effectiveSeasonNumber && effectiveSeasonNumber !== previousSeasonNumber) {
     await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
     });
@@ -84,7 +90,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     // locked through Season 1 (see CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES in
     // purchases.service.ts) and opens automatically the moment the league rolls into Season
     // 2 — announce that transition the same way any other hub announcement goes out.
-    if (context.rec_leagues.game === "cfb_27" && previousSeasonNumber < 2 && input.seasonNumber >= 2) {
+    if (context.rec_leagues.game === "cfb_27" && previousSeasonNumber < 2 && effectiveSeasonNumber >= 2) {
       await recordHubAnnouncement({
         guildId: input.guildId,
         title: "The REC Store Is Open!",
@@ -95,7 +101,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     }
   }
 
-  const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
+  const seasonNumber = Number(effectiveSeasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
   const savingsInterest = await applyAdvanceSavingsInterest({
     leagueId: context.leagueId,
     serverId: context.serverId,
