@@ -891,6 +891,7 @@ export type LegendCatalogEntry = {
   college: string | null;
   body_type: string | null;
   attributes: Record<string, number>;
+  photo_url: string | null;
 };
 
 export type LegendAvailabilityEntry = {

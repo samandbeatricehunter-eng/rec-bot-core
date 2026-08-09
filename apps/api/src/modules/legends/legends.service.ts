@@ -14,7 +14,7 @@ export async function listLegendCatalog(guildId: string) {
   const gameScope = context.rec_leagues?.game === "cfb_27" ? "cfb_27" : "madden";
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes")
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,photo_url")
     .eq("game_scope", gameScope)
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })

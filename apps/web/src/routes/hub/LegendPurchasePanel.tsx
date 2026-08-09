@@ -141,6 +141,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
                 disabled={isTaken}
                 onClick={() => setActiveLegend(legend)}
               >
+                {legend.photo_url ? <img className="legend-card-photo" src={legend.photo_url} alt="" loading="lazy" /> : <div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
                 <strong className="legend-card-name">{legend.name}</strong>
                 <span className="legend-card-meta">{legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs</span>
                 <div className="legend-card-attrs">
@@ -203,9 +204,12 @@ function LegendDetailModal({
 
   return (
     <Modal title={legend.name} onClose={onClose}>
-      <p className="hub-muted" style={{ marginTop: 0 }}>
-        {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
-      </p>
+      <div className="legend-detail-header">
+        {legend.photo_url ? <img className="legend-detail-photo" src={legend.photo_url} alt="" /> : <div className="legend-detail-photo legend-card-photo-empty">{legend.position}</div>}
+        <p className="hub-muted" style={{ marginTop: 0 }}>
+          {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
+        </p>
+      </div>
       <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
 
