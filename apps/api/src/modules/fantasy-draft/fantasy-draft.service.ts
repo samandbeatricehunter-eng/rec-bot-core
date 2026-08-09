@@ -164,12 +164,13 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
     resolveRecUserId(discordId),
   ]);
 
-  const [pickOrder, picks, pool] = await Promise.all([
+  const [pickOrder, picks, pool, pickRequests] = await Promise.all([
     session ? listPickOrder(session.id) : Promise.resolve<Array<{ pickInRound: number; teamId: string }>>([]),
     session ? listPicks(session.id) : Promise.resolve<PickRow[]>([]),
-    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait")
+    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait,attributes,height_inches,weight_lbs,birth_year,college,years_pro")
       .eq("league_id", leagueId)
       .order("overall_rating", { ascending: false }),
+    session ? listPendingPickRequests(session.id) : Promise.resolve<PickRequestRow[]>([]),
   ]);
   if (pool.error) throw new ApiError(500, "Failed to load the draft pool.", pool.error);
 
@@ -234,6 +235,12 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       isDrafted: draftedIds.has(p.id),
       draftedByTeamId: draftedTeamByPlayer.get(p.id) ?? null,
       isDefaultPlayer: Boolean(p.is_default_player),
+      attributes: (p.attributes ?? {}) as Record<string, number | null>,
+      heightInches: p.height_inches ?? null,
+      weightLbs: p.weight_lbs ?? null,
+      birthYear: p.birth_year ?? null,
+      college: p.college ?? null,
+      yearsPro: p.years_pro ?? null,
     })),
     picks: picks.map((pick) => ({
       id: pick.id,
@@ -245,6 +252,14 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       playerId: pick.player_id,
       isWrapupPick: pick.is_wrapup_pick,
       loggedAt: pick.logged_at,
+    })),
+    pickRequests: pickRequests.map((r) => ({
+      id: r.id,
+      teamId: r.team_id,
+      teamName: teamById.get(r.team_id) ?? "Unknown",
+      playerId: r.player_id,
+      requestedByUserId: r.requested_by_user_id,
+      createdAt: r.created_at,
     })),
     myBoard,
     caller: { isCommissioner, myTeamId },
@@ -846,6 +861,143 @@ export async function logFantasyDraftPick(guildId: string, discordId: string, pl
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const, round: session.current_round, pickInRound: session.current_pick_in_round, teamId, overallPickNumber };
+}
+
+// ---------------------------------------------------------------------------
+// Pick requests. A non-commissioner "drafting" a player doesn't log the pick directly —
+// it submits a request that only takes effect once the commissioner approves it (they
+// confirmed the pick actually happened in-game). Only valid while the requesting team is
+// still on the clock; if the draft has moved on by the time the commissioner acts, the
+// request is auto-denied instead of silently applying to the wrong slot.
+// ---------------------------------------------------------------------------
+
+type PickRequestRow = {
+  id: string;
+  session_id: string;
+  team_id: string;
+  player_id: string;
+  requested_by_user_id: string;
+  status: "pending" | "approved" | "denied";
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by_user_id: string | null;
+};
+
+async function listPendingPickRequests(sessionId: string): Promise<PickRequestRow[]> {
+  const { data, error } = await supabase
+    .from("rec_fantasy_draft_pick_requests")
+    .select("*")
+    .eq("session_id", sessionId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load pending pick requests.", error);
+  return (data ?? []) as PickRequestRow[];
+}
+
+export async function requestFantasyDraftPick(guildId: string, discordId: string, playerId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to request a pick.");
+
+  const teamId = await resolveTeamForUser(leagueId, userId);
+
+  const pickOrder = await listPickOrder(session.id);
+  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before drafting.");
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  if (onTheClockTeamId !== teamId) {
+    throw new ApiError(409, "It's not your turn — you can only draft a player when your team is on the clock.");
+  }
+
+  const player = await supabase.from("rec_players").select("id,team_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load the player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
+  if (player.data.team_id != null) throw new ApiError(409, "That player has already been drafted.");
+
+  // Replace any earlier pending request from this team (e.g. they changed their mind) rather
+  // than stacking a second one — the unique partial index only allows one pending row per team.
+  await supabase.from("rec_fantasy_draft_pick_requests").delete().eq("session_id", session.id).eq("team_id", teamId).eq("status", "pending");
+
+  const inserted = await supabase.from("rec_fantasy_draft_pick_requests").insert({
+    session_id: session.id,
+    team_id: teamId,
+    player_id: playerId,
+    requested_by_user_id: userId,
+  }).select("id").single();
+  if (inserted.error) throw new ApiError(500, "Failed to submit the pick request.", inserted.error);
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, requestId: inserted.data.id, pending: true as const };
+}
+
+export async function resolveFantasyDraftPickRequest(guildId: string, discordId: string, requestId: string, action: "approve" | "deny") {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to resolve pick requests.");
+
+  const request = await supabase.from("rec_fantasy_draft_pick_requests").select("*").eq("id", requestId).eq("session_id", session.id).maybeSingle();
+  if (request.error) throw new ApiError(500, "Failed to load the pick request.", request.error);
+  if (!request.data) throw new ApiError(404, "Pick request not found.");
+  if (request.data.status !== "pending") throw new ApiError(409, "This pick request has already been resolved.");
+  const row = request.data as PickRequestRow;
+
+  if (action === "deny") {
+    const { error } = await supabase.from("rec_fantasy_draft_pick_requests")
+      .update({ status: "denied", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
+      .eq("id", row.id);
+    if (error) throw new ApiError(500, "Failed to deny the pick request.", error);
+    broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+    return { ok: true as const, approved: false as const };
+  }
+
+  const pickOrder = await listPickOrder(session.id);
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  if (onTheClockTeamId !== row.team_id) {
+    await supabase.from("rec_fantasy_draft_pick_requests")
+      .update({ status: "denied", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
+      .eq("id", row.id);
+    broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+    throw new ApiError(409, "The draft has moved on since this request was made — it's no longer that team's turn. The request was denied.");
+  }
+
+  const overallPickNumber = (session.current_round - 1) * 32 + session.current_pick_in_round;
+  await recordPick({
+    session,
+    leagueId,
+    playerId: row.player_id,
+    teamId: row.team_id,
+    round: session.current_round,
+    pickInRound: session.current_pick_in_round,
+    overallPickNumber,
+    isWrapupPick: false,
+    loggedByUserId: row.requested_by_user_id,
+  });
+
+  let nextRound = session.current_round;
+  let nextPick = session.current_pick_in_round + 1;
+  if (nextPick > 32) {
+    nextRound += 1;
+    nextPick = 1;
+  }
+  await supabase.from("rec_fantasy_draft_sessions").update({
+    current_round: nextRound,
+    current_pick_in_round: nextPick,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+
+  await supabase.from("rec_fantasy_draft_pick_requests")
+    .update({ status: "approved", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
+    .eq("id", row.id);
+
+  await pushOnTheClock(leagueId, { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow);
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, approved: true as const, round: session.current_round, pickInRound: session.current_pick_in_round, teamId: row.team_id, overallPickNumber };
 }
 
 export async function logFantasyDraftWrapupPick(guildId: string, discordId: string, playerId: string, requestedTeamId: string | null, isCommissioner: boolean) {

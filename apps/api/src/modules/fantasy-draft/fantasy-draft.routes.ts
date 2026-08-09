@@ -11,6 +11,8 @@ import {
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
   removeFantasyDraftPoolPlayer,
+  requestFantasyDraftPick,
+  resolveFantasyDraftPickRequest,
   saveFantasyDraftBoard,
   scheduleFantasyDraft,
   setFantasyDraftPickOrder,
@@ -104,12 +106,36 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  // Commissioner-only: logs a pick immediately for whichever team is on the clock, no
+  // approval step (they're the one confirming it happened in-game). Non-commissioners submit
+  // a request instead — see /v1/fantasy-draft/pick/request below.
   app.post("/v1/fantasy-draft/pick", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), playerId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new Error("Logging a pick requires a website session.");
       return reply.send(await logFantasyDraftPick(body.guildId, auth.discordId, body.playerId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Non-commissioner draft request: only valid when the caller's own team is on the clock.
+  // Sits pending until the commissioner approves or denies it.
+  app.post("/v1/fantasy-draft/pick/request", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), playerId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Requesting a pick requires a website session.");
+      return reply.send(await requestFantasyDraftPick(body.guildId, auth.discordId, body.playerId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Commissioner approves/denies a pending pick request.
+  app.post("/v1/fantasy-draft/pick/resolve-request", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), requestId: z.string().uuid(), action: z.enum(["approve", "deny"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Resolving a pick request requires a commissioner session.");
+      return reply.send(await resolveFantasyDraftPickRequest(body.guildId, auth.discordId, body.requestId, body.action));
     } catch (error) { return sendError(reply, error); }
   });
 

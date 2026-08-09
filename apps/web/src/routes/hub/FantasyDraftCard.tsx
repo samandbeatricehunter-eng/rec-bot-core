@@ -8,10 +8,10 @@ import {
   listRecArchetypes,
   type RecOvrPosition,
 } from "@rec/shared";
-import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, Trash2, Trophy, Undo2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, SlidersHorizontal, Trash2, Trophy, Undo2, X } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { chatRealtimeClient } from "../../lib/chat-realtime-client.js";
-import type { FantasyDraftCheckin, FantasyDraftOrderMode, FantasyDraftPoolPlayer, FantasyDraftState } from "../../types/api.js";
+import type { FantasyDraftCheckin, FantasyDraftOrderMode, FantasyDraftPickRequest, FantasyDraftPoolPlayer, FantasyDraftState } from "../../types/api.js";
 import { Button } from "../../components/ui/Button.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
@@ -20,6 +20,73 @@ import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 
 const POSITION_GROUP_ORDER = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "LOLB", "MLB", "ROLB", "CB", "FS", "SS", "K", "P"];
 const DRAFT_POSITIONS = [...REC_CUSTOM_PLAYER_POSITIONS, "K", "P"] as const;
+
+// Maps the snake_case keys stored in rec_players.attributes to the 3-letter Madden codes
+// (matching MADDEN_ATTRIBUTE_DEFINITIONS in @rec/shared) used for column headers and the
+// attribute filter builder.
+const ATTRIBUTE_KEY_TO_CODE: Record<string, string> = {
+  speed: "SPD", acceleration: "ACC", strength: "STR", agility: "AGI", awareness: "AWR",
+  jumping: "JMP", injury: "INJ", stamina: "STA", toughness: "TOU",
+  throw_power: "THP", throw_under_pressure: "TUP", throw_accuracy_short: "SAC",
+  throw_accuracy_mid: "MAC", throw_accuracy_deep: "DAC", throw_on_the_run: "RUN", play_action: "PAC",
+  catching: "CTH", spectacular_catch: "SPC", catch_in_traffic: "CIT",
+  route_running_short: "SRR", route_running_medium: "MRR", route_running_deep: "DRR", release: "RLS",
+  carrying: "CAR", break_tackle: "BTK", trucking: "TRK", change_of_direction: "COD",
+  bc_vision: "BCV", stiff_arm: "SFA", spin_move: "SPM", juke_move: "JKM", break_sack: "BSK",
+  tackle: "TAK", power_moves: "PMV", finesse_moves: "FMV", block_shedding: "BSH", pursuit: "PUR",
+  play_recognition: "PRC", man_coverage: "MCV", zone_coverage: "ZCV", hit_power: "POW", press: "PRS",
+  run_block: "RBK", pass_block: "PBK", impact_blocking: "IBL", run_block_power: "RBP",
+  run_block_finesse: "RBF", pass_block_power: "PBP", pass_block_finesse: "PBF", lead_block: "LBK",
+  kick_power: "KPW", kick_accuracy: "KAC", kick_return: "RET",
+};
+const ATTRIBUTE_ALL_KEYS = Object.keys(ATTRIBUTE_KEY_TO_CODE);
+
+// Base columns shown for every position, then a handful of position-relevant extras — mirrors
+// the in-game roster viewer's per-position column set instead of showing all 53 attributes.
+const ATTRIBUTE_BASE_KEYS = ["speed", "acceleration", "agility", "strength", "awareness"];
+const POSITION_EXTRA_ATTRIBUTE_KEYS: Record<string, string[]> = {
+  QB: ["throw_power", "throw_accuracy_short", "throw_accuracy_mid", "throw_accuracy_deep"],
+  HB: ["trucking", "break_tackle", "change_of_direction", "bc_vision"],
+  FB: ["trucking", "break_tackle", "lead_block", "run_block"],
+  WR: ["catching", "route_running_short", "route_running_medium", "route_running_deep"],
+  TE: ["catching", "run_block", "pass_block", "route_running_short"],
+  LT: ["run_block", "pass_block", "run_block_power", "pass_block_power"],
+  RT: ["run_block", "pass_block", "run_block_power", "pass_block_power"],
+  LG: ["run_block", "pass_block", "impact_blocking", "lead_block"],
+  RG: ["run_block", "pass_block", "impact_blocking", "lead_block"],
+  C: ["run_block", "pass_block", "impact_blocking", "lead_block"],
+  LE: ["power_moves", "finesse_moves", "block_shedding", "pursuit"],
+  RE: ["power_moves", "finesse_moves", "block_shedding", "pursuit"],
+  DT: ["power_moves", "finesse_moves", "block_shedding", "tackle"],
+  LOLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
+  MLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
+  ROLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
+  CB: ["man_coverage", "zone_coverage", "press", "play_recognition"],
+  FS: ["zone_coverage", "man_coverage", "play_recognition", "hit_power"],
+  SS: ["zone_coverage", "man_coverage", "play_recognition", "hit_power"],
+  K: ["kick_power", "kick_accuracy"],
+  P: ["kick_power", "kick_accuracy"],
+};
+
+function attributeColumnsForPosition(position: string | null): string[] {
+  const extras = (position && POSITION_EXTRA_ATTRIBUTE_KEYS[position]) || [];
+  return [...ATTRIBUTE_BASE_KEYS, ...extras.filter((k) => !ATTRIBUTE_BASE_KEYS.includes(k))];
+}
+function attributeLabel(key: string): string {
+  return ATTRIBUTE_KEY_TO_CODE[key] ?? key.slice(0, 3).toUpperCase();
+}
+function attributeFullName(key: string): string {
+  const code = ATTRIBUTE_KEY_TO_CODE[key];
+  return code ? getRecAttributeDisplayName(code) : key;
+}
+function playerAge(birthYear: number | null): number | null {
+  if (!birthYear) return null;
+  return new Date().getFullYear() - birthYear;
+}
+function formatHeight(inches: number | null): string {
+  if (!inches) return "—";
+  return `${Math.floor(inches / 12)}'${inches % 12}"`;
+}
 const NEXT_UP_COUNT = 5;
 
 function formatScheduledAt(value: string | null): string {
@@ -77,6 +144,8 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [customPlayerOpen, setCustomPlayerOpen] = useState(false);
   const [wrapupTarget, setWrapupTarget] = useState<FantasyDraftPoolPlayer | null>(null);
   const [concludeResult, setConcludeResult] = useState<{ teamName: string; draftedCount: number }[] | null>(null);
+  const [openPlayer, setOpenPlayer] = useState<FantasyDraftPoolPlayer | null>(null);
+  const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
   const prevStatusRef = useRef<string | null>(null);
   const [wrapupBannerDismissed, setWrapupBannerDismissed] = useState(() => {
     try { return sessionStorage.getItem(`rec-fantasy-draft-wrapup-${leagueId}`) === "1"; } catch { return false; }
@@ -158,11 +227,46 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     }, 600);
   }
 
+  function toggleBoardMembership(playerId: string) {
+    const next = boardOrder.includes(playerId) ? boardOrder.filter((id) => id !== playerId) : [...boardOrder, playerId];
+    setBoardOrder(next);
+    if (boardSaveTimerRef.current) window.clearTimeout(boardSaveTimerRef.current);
+    boardSaveTimerRef.current = window.setTimeout(() => {
+      void runAction(() => recApi.saveFantasyDraftBoard({ guildId, playerIds: next }));
+    }, 600);
+  }
+
+  // Every draft submission — from the pool table's Draft button or the player card — gets a
+  // native confirm before it goes out. Commissioners log immediately; everyone else submits a
+  // request that only takes effect once the commissioner approves it.
+  function handleDraftClick(player: FantasyDraftPoolPlayer, isCommissionerCaller: boolean) {
+    if (!window.confirm(`Draft ${player.name}${isCommissionerCaller ? "" : " — sends a request to your commissioner"}?`)) return;
+    void runAction(
+      () => isCommissionerCaller
+        ? recApi.logFantasyDraftPick({ guildId, playerId: player.id })
+        : recApi.requestFantasyDraftPick({ guildId, playerId: player.id }),
+      isCommissionerCaller ? `${player.name} drafted.` : `Pick request sent for ${player.name} — waiting on your commissioner.`,
+    );
+  }
+
+  async function resolvePickRequest(requestId: string, action: "approve" | "deny") {
+    setResolvingRequestId(requestId);
+    setError(null);
+    try {
+      await recApi.resolveFantasyDraftPickRequest({ guildId, requestId, action });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResolvingRequestId(null);
+    }
+  }
+
   if (loading && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><LoadingState label="Loading the draft board…" /></SectionFrame>;
   if (error && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><ErrorState message={error} /><div style={{ marginTop: "var(--space-3)" }}><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>Try again</Button></div></SectionFrame>;
   if (!state) return null;
 
-  const { session, teams, pickOrder, pool, picks, caller } = state;
+  const { session, teams, pickOrder, pool, picks, pickRequests, caller } = state;
   const isCommissioner = caller.isCommissioner;
   const status = session?.status ?? "not_scheduled";
   const hasPickOrder = pickOrder.length === 32;
@@ -171,6 +275,11 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const playerNameById = new Map(pool.map((p) => [p.id, p.name]));
 
   const recentPicks = [...picks].sort((a, b) => b.overallPickNumber - a.overallPickNumber).slice(0, 8);
+
+  const poolById = new Map(pool.map((p) => [p.id, p]));
+  const boardPlayers = boardOrder.map((id) => poolById.get(id)).filter((p): p is FantasyDraftPoolPlayer => p != null && !p.isDrafted);
+  const myRoster = caller.myTeamId ? pool.filter((p) => p.draftedByTeamId === caller.myTeamId && p.isDrafted) : [];
+  const myPendingRequest = caller.myTeamId ? pickRequests.find((r) => r.teamId === caller.myTeamId) ?? null : null;
 
   function statusHeadline(): string {
     if (!session) return "No fantasy draft scheduled yet.";
@@ -193,7 +302,13 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     if (["scheduled", "live", "wrap_up"].includes(status)) commissionerActions.push({ label: "Add Player", icon: <Plus size={16} />, onClick: () => setCustomPlayerOpen(true) });
     if (status === "live" && hasPickOrder) {
       commissionerActions.push({ label: "Undo", icon: <Undo2 size={16} />, onClick: () => void runAction(() => recApi.undoFantasyDraftPick(guildId)) });
-      commissionerActions.push({ label: "Skip to End", icon: <SkipForward size={16} />, onClick: () => void runAction(() => recApi.skipFantasyDraftToEnd(guildId), "Auto-completed the remaining picks.") });
+      commissionerActions.push({
+        label: "Skip to End", icon: <SkipForward size={16} />,
+        onClick: () => {
+          if (!window.confirm("This auto-completes every remaining pick and moves straight to wrap-up. This cannot be undone. Continue?")) return;
+          void runAction(() => recApi.skipFantasyDraftToEnd(guildId), "Auto-completed the remaining picks.");
+        },
+      });
     }
     if (status === "wrap_up") commissionerActions.push({
       label: "Conclude Draft", icon: <CheckCircle2 size={16} />, danger: true,
@@ -249,19 +364,45 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
             </div>
           )}
 
+          {isCommissioner && pickRequests.length > 0 && (
+            <div className="fantasy-draft-pick-requests">
+              <h4><AlertTriangle size={16} /> Pending pick request{pickRequests.length === 1 ? "" : "s"}</h4>
+              {pickRequests.map((r) => (
+                <div key={r.id} className="fantasy-draft-pick-request-row">
+                  <span><strong>{r.teamName}</strong> wants to draft <em>{playerNameById.get(r.playerId) ?? "unknown player"}</em></span>
+                  <div className="fantasy-draft-pick-request-actions">
+                    <Button variant="primary" size="compact" disabled={resolvingRequestId === r.id} onClick={() => void resolvePickRequest(r.id, "approve")}>Confirm</Button>
+                    <Button variant="secondary" size="compact" disabled={resolvingRequestId === r.id} onClick={() => void resolvePickRequest(r.id, "deny")}>Deny</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!isCommissioner && myPendingRequest && (
+            <p className="fantasy-draft-notice"><Clock size={14} /> Your pick request for <strong>{playerNameById.get(myPendingRequest.playerId) ?? "this player"}</strong> is waiting on your commissioner.</p>
+          )}
+
+          {hasPickOrder && (
+            <DraftPoolTable
+              guildId={guildId}
+              pool={pool}
+              busy={busy}
+              isCommissioner={isCommissioner}
+              status={status}
+              onWrapupTarget={setWrapupTarget}
+              onPoolAction={(action, successMessage) => void runAction(action, successMessage)}
+              onOpenPlayer={setOpenPlayer}
+              onDraftClick={(player) => handleDraftClick(player, isCommissioner)}
+            />
+          )}
+
           <div className="fantasy-draft-split">
             <div className="fantasy-draft-panel">
-              <BoardPanel
-                guildId={guildId}
-                state={state}
-                boardOrder={boardOrder}
+              <BoardRosterSplit
+                boardPlayers={boardPlayers}
+                myRoster={myRoster}
                 busy={busy}
-                isCommissioner={isCommissioner}
-                status={status}
-                hasPickOrder={hasPickOrder}
                 onReorder={handleBoardReorder}
-                onWrapupTarget={setWrapupTarget}
-                onPoolAction={(action, successMessage) => void runAction(action, successMessage)}
               />
             </div>
             <div className="fantasy-draft-tracker">
@@ -318,6 +459,18 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
           )}
           <Button variant="primary" onClick={() => setConcludeResult(null)}>Got it</Button>
         </Modal>
+      )}
+      {openPlayer && (
+        <PlayerCardModal
+          player={openPlayer}
+          isOnBoard={boardOrder.includes(openPlayer.id)}
+          canDraft={status === "live" && !openPlayer.isDrafted}
+          draftLabel={isCommissioner ? "Draft Player" : "Request Pick"}
+          busy={busy}
+          onToggleBoard={() => toggleBoardMembership(openPlayer.id)}
+          onDraft={() => { handleDraftClick(openPlayer, isCommissioner); setOpenPlayer(null); }}
+          onClose={() => setOpenPlayer(null)}
+        />
       )}
     </SectionFrame>
   );
@@ -435,95 +588,316 @@ function CommissionerCheckinPanel({ state, guildId, busy, onChanged, onError }: 
   );
 }
 
-function BoardPanel({ guildId, state, boardOrder, busy, isCommissioner, status, hasPickOrder, onReorder, onWrapupTarget, onPoolAction }: {
+/** Tapping a player's name anywhere in the draft room opens this — photo/bio, a full
+ * attributes tab, an abilities tab (placeholder when none is on file), and the action buttons:
+ * Draft Player (if drafting is available to the viewer right now), Add/Remove from Board, Close. */
+function PlayerCardModal({ player, isOnBoard, canDraft, draftLabel, busy, onToggleBoard, onDraft, onClose }: {
+  player: FantasyDraftPoolPlayer;
+  isOnBoard: boolean;
+  canDraft: boolean;
+  draftLabel: string;
+  busy: boolean;
+  onToggleBoard: () => void;
+  onDraft: () => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"attributes" | "abilities">("attributes");
+  const age = playerAge(player.birthYear);
+  const attributeEntries = Object.entries(player.attributes)
+    .filter(([, value]) => value != null)
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+
+  return (
+    <Modal title={player.name} onClose={onClose} panelClassName="fantasy-draft-player-card">
+      <div className="fantasy-draft-player-card-header">
+        {player.photoUrl ? (
+          <img className="fantasy-draft-player-card-photo" src={player.photoUrl} alt={player.name} />
+        ) : (
+          <div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>
+        )}
+        <div className="fantasy-draft-player-card-bio">
+          <p className="fantasy-draft-player-card-position">{player.position} #{player.jerseyNumber ?? "—"} · {player.overallRating ?? "—"} OVR</p>
+          {player.devTrait && <p className="fantasy-draft-player-card-devtrait">{player.devTrait.replaceAll("_", " ")}</p>}
+          <dl className="fantasy-draft-player-card-facts">
+            <div><dt>Height / Weight</dt><dd>{formatHeight(player.heightInches)}{player.weightLbs ? ` · ${player.weightLbs} lbs` : ""}</dd></div>
+            <div><dt>Age</dt><dd>{age ?? "—"}</dd></div>
+            <div><dt>College</dt><dd>{player.college ?? "—"}</dd></div>
+            <div><dt>Experience</dt><dd>{player.yearsPro != null ? `${player.yearsPro} yr${player.yearsPro === 1 ? "" : "s"}` : "—"}</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div className="fantasy-draft-tabs">
+        <button type="button" className={tab === "attributes" ? "active" : ""} onClick={() => setTab("attributes")}>Attributes</button>
+        <button type="button" className={tab === "abilities" ? "active" : ""} onClick={() => setTab("abilities")}>Abilities</button>
+      </div>
+
+      {tab === "attributes" ? (
+        attributeEntries.length === 0 ? (
+          <p className="hub-empty">No attribute data on file for this player.</p>
+        ) : (
+          <div className="fantasy-draft-player-card-attributes">
+            {attributeEntries.map(([key, value]) => (
+              <div key={key} className="fantasy-draft-player-card-attribute-row">
+                <span className="fantasy-draft-player-card-attribute-name">{attributeFullName(key)}</span>
+                <span className="fantasy-draft-player-card-attribute-value">{value}</span>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <p className="hub-empty">No ability data is on file for this player.</p>
+      )}
+
+      <div className="fantasy-draft-form-actions">
+        <Button variant={isOnBoard ? "secondary" : "primary"} disabled={busy} onClick={onToggleBoard}>
+          {isOnBoard ? "Remove from Board" : "Add to Board"}
+        </Button>
+        {canDraft && (
+          <Button variant="primary" disabled={busy} onClick={onDraft}>{draftLabel}</Button>
+        )}
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+      </div>
+    </Modal>
+  );
+}
+
+type AttributeCondition = { id: string; key: string; min: number };
+
+/** "QB with SPD>=90, THP>=90, SAC>=84" style filter builder — AND'd together with the position
+ * filter and search box. Works against the full attribute set regardless of which columns the
+ * position's default column set shows. */
+function AttributeFilterBuilder({ conditions, onChange }: { conditions: AttributeCondition[]; onChange: (next: AttributeCondition[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draftKey, setDraftKey] = useState(ATTRIBUTE_ALL_KEYS[0]!);
+  const [draftMin, setDraftMin] = useState(80);
+
+  function addCondition() {
+    if (conditions.some((c) => c.key === draftKey)) return;
+    onChange([...conditions, { id: crypto.randomUUID(), key: draftKey, min: draftMin }]);
+  }
+
+  return (
+    <div className="fantasy-draft-attr-filter">
+      <button type="button" className="fantasy-draft-attr-filter-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <SlidersHorizontal size={14} /> Attribute filters{conditions.length > 0 ? ` (${conditions.length})` : ""}
+      </button>
+      {conditions.length > 0 && (
+        <div className="fantasy-draft-attr-filter-chips">
+          {conditions.map((c) => (
+            <span key={c.id} className="fantasy-draft-attr-filter-chip">
+              {attributeLabel(c.key)} ≥ {c.min}
+              <button type="button" aria-label={`Remove ${attributeLabel(c.key)} filter`} onClick={() => onChange(conditions.filter((x) => x.id !== c.id))}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="fantasy-draft-attr-filter-panel">
+          <select className="form-input" value={draftKey} onChange={(e) => setDraftKey(e.target.value)}>
+            {ATTRIBUTE_ALL_KEYS.map((key) => <option key={key} value={key}>{attributeLabel(key)} — {attributeFullName(key)}</option>)}
+          </select>
+          <input className="form-input" type="number" min={0} max={99} value={draftMin} onChange={(e) => setDraftMin(Math.max(0, Math.min(99, Number(e.target.value) || 0)))} />
+          <Button variant="secondary" size="compact" onClick={addCondition}>Add</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The big, main draft-room panel — every undrafted player, laid out like the in-game roster
+ * viewer: position filter + search + attribute filters on top, a sticky sortable header row,
+ * players scrolling vertically. Its own position filter (independent of Board/Roster's). */
+function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupTarget, onPoolAction, onOpenPlayer, onDraftClick }: {
   guildId: string;
-  state: FantasyDraftState;
-  boardOrder: string[];
+  pool: FantasyDraftPoolPlayer[];
   busy: boolean;
   isCommissioner: boolean;
   status: string;
-  hasPickOrder: boolean;
-  onReorder: (next: FantasyDraftPoolPlayer[]) => void;
   onWrapupTarget: (player: FantasyDraftPoolPlayer) => void;
   onPoolAction: (action: () => Promise<unknown>, successMessage?: string | null) => void;
+  onOpenPlayer: (player: FantasyDraftPoolPlayer) => void;
+  onDraftClick: (player: FantasyDraftPoolPlayer) => void;
 }) {
-  const { pool, picks, caller } = state;
-  const [tab, setTab] = useState<"board" | "roster" | "pool">("board");
   const [positionFilter, setPositionFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conditions, setConditions] = useState<AttributeCondition[]>([]);
+  const [sortKey, setSortKey] = useState("overallRating");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-  const poolById = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool]);
-  const showPoolTab = (isCommissioner && (status === "live" || status === "wrap_up") && hasPickOrder) || status === "wrap_up";
-
-  useEffect(() => { setPositionFilter("All"); setSearchQuery(""); }, [tab]);
-
-  const boardPlayers = useMemo(() => (
-    boardOrder.map((id) => poolById.get(id)).filter((p): p is FantasyDraftPoolPlayer => p != null && !p.isDrafted)
-  ), [boardOrder, poolById]);
-
-  const myRoster = useMemo(() => {
-    if (!caller.myTeamId) return [];
-    return pool.filter((p) => p.draftedByTeamId === caller.myTeamId && p.isDrafted);
-  }, [pool, caller.myTeamId]);
-
+  const available = useMemo(() => pool.filter((p) => !p.isDrafted), [pool]);
   const query = searchQuery.trim().toLowerCase();
-  const activeTabPlayers = tab === "board" ? boardPlayers : tab === "roster" ? myRoster : [];
-  const tabs = positionTabs(activeTabPlayers);
 
-  const poolRows = pool
-    .filter((p) => !p.isDrafted)
-    .filter((p) => tab === "pool" && (positionFilter === "All" || p.position === positionFilter))
-    .filter((p) => !query || p.name.toLowerCase().includes(query))
-    .sort((a, b) => sortByPosition(a, b) || (b.overallRating ?? -1) - (a.overallRating ?? -1));
+  const columns = positionFilter === "All" ? ATTRIBUTE_BASE_KEYS : attributeColumnsForPosition(positionFilter);
 
-  const visibleBoard = activeTabPlayers
+  const rows = available
     .filter((p) => positionFilter === "All" || p.position === positionFilter)
-    .filter((p) => !query || p.name.toLowerCase().includes(query));
+    .filter((p) => !query || p.name.toLowerCase().includes(query))
+    .filter((p) => conditions.every((c) => (p.attributes[c.key] ?? -1) >= c.min))
+    .sort((a, b) => {
+      const av = sortKey === "overallRating" ? a.overallRating ?? -1 : a.attributes[sortKey] ?? -1;
+      const bv = sortKey === "overallRating" ? b.overallRating ?? -1 : b.attributes[sortKey] ?? -1;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+
+  function handleHeaderClick(key: string) {
+    if (sortKey !== key) { setSortKey(key); setSortDir("desc"); return; }
+    if (sortDir === "desc") { setSortDir("asc"); return; }
+    setSortKey("overallRating"); setSortDir("desc");
+  }
+
+  function sortIndicator(key: string) {
+    if (sortKey !== key) return null;
+    return sortDir === "desc" ? "▼" : "▲";
+  }
+  function ariaSort(key: string): "ascending" | "descending" | undefined {
+    if (sortKey !== key) return undefined;
+    return sortDir === "desc" ? "descending" : "ascending";
+  }
 
   return (
-    <div className="fantasy-draft-panel-inner">
-      <div className="fantasy-draft-tabs">
-        <button type="button" className={tab === "board" ? "active" : ""} onClick={() => setTab("board")}>My Board</button>
-        <button type="button" className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>My Roster</button>
-        {showPoolTab && <button type="button" className={tab === "pool" ? "active" : ""} onClick={() => setTab("pool")}>Draft Pool</button>}
-      </div>
-
-      {tab === "pool" ? (
-        <div className="fantasy-draft-toolbar">
-          <div className="fantasy-draft-filter-tabs">
-            {["All", ...positionTabs(pool.filter((p) => !p.isDrafted))].map((position) => (
-              <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
-            ))}
-          </div>
-          <label className="fantasy-draft-search">
-            <Search size={14} />
-            <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-          </label>
+    <div className="fantasy-draft-pool-panel">
+      <div className="fantasy-draft-toolbar">
+        <div className="fantasy-draft-filter-tabs">
+          {["All", ...positionTabs(available)].map((position) => (
+            <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
+          ))}
         </div>
+        <label className="fantasy-draft-search">
+          <Search size={14} />
+          <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </label>
+      </div>
+      <AttributeFilterBuilder conditions={conditions} onChange={setConditions} />
+
+      {rows.length === 0 ? (
+        <p className="hub-empty">No undrafted players match this filter.</p>
       ) : (
-        <div className="fantasy-draft-toolbar">
-          <div className="fantasy-draft-filter-tabs">
-            {["All", ...tabs].map((position) => (
-              <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
-            ))}
-          </div>
-          <label className="fantasy-draft-search">
-            <Search size={14} />
-            <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-          </label>
+        <div className="fantasy-draft-pool-table-scroll">
+          <table className="fantasy-draft-pool-table">
+            <thead>
+              <tr>
+                <th className="fantasy-draft-pool-table-name-col">Player</th>
+                <th className="is-sortable" aria-sort={ariaSort("overallRating")} onClick={() => handleHeaderClick("overallRating")}>OVR {sortIndicator("overallRating")}</th>
+                {columns.map((key) => (
+                  <th key={key} className="is-sortable" title={attributeFullName(key)} aria-sort={ariaSort(key)} onClick={() => handleHeaderClick(key)}>
+                    {attributeLabel(key)} {sortIndicator(key)}
+                  </th>
+                ))}
+                <th className="fantasy-draft-pool-table-action-col" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((player) => (
+                <tr key={player.id}>
+                  <td className="fantasy-draft-pool-table-name-col">
+                    <button type="button" className="fantasy-draft-player-name-btn" onClick={() => onOpenPlayer(player)}>
+                      {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt="" loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                      <span>
+                        <strong>{player.name}</strong>
+                        <small>{player.position}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</small>
+                      </span>
+                    </button>
+                  </td>
+                  <td>{player.overallRating ?? "—"}</td>
+                  {columns.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
+                  <td className="fantasy-draft-pool-table-action-col">
+                    {status === "wrap_up" && !isCommissioner && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onPoolAction(() => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id }), `${player.name} assigned to your team.`)}>Assign</Button>
+                    )}
+                    {status === "wrap_up" && isCommissioner && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onWrapupTarget(player)}>Assign</Button>
+                    )}
+                    {status === "live" && (
+                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onDraftClick(player)}>Draft</Button>
+                    )}
+                    {isCommissioner && (
+                      <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => onPoolAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`)}><Trash2 size={15} /></Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
+    </div>
+  );
+}
 
-      {tab === "board" && (
-        <>
-          <p className="fantasy-draft-panel-hint">Drag players to rank them (top = most wanted). Drafted players drop off automatically.</p>
+const BOARD_ALL_SORT_OPTIONS = ["overallRating", ...ATTRIBUTE_BASE_KEYS, "throw_power", "trucking", "catching", "man_coverage", "tackle"];
+
+/** My Board and My Roster, side by side, sharing one position filter. Board is per-position:
+ * filtered to a single position it's a drag-to-reorder ranking of just that position; on "All"
+ * it flattens to every position combined, sorted (desc) by whichever attribute the dropdown
+ * picks instead of custom order — reordering is disabled in that view since there's no single
+ * cross-position rank to drag. */
+function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
+  boardPlayers: FantasyDraftPoolPlayer[];
+  myRoster: FantasyDraftPoolPlayer[];
+  busy: boolean;
+  onReorder: (next: FantasyDraftPoolPlayer[]) => void;
+}) {
+  const [positionFilter, setPositionFilter] = useState("All");
+  const [allSortKey, setAllSortKey] = useState("overallRating");
+
+  const tabs = positionTabs([...boardPlayers, ...myRoster]);
+
+  const visibleBoard = positionFilter === "All"
+    ? [...boardPlayers].sort((a, b) => (b.attributes[allSortKey] ?? b.overallRating ?? -1) - (a.attributes[allSortKey] ?? a.overallRating ?? -1))
+    : boardPlayers.filter((p) => p.position === positionFilter);
+
+  const visibleRoster = myRoster
+    .filter((p) => positionFilter === "All" || p.position === positionFilter)
+    .sort(sortByPosition);
+
+  return (
+    <div className="fantasy-draft-board-roster-split">
+      <div className="fantasy-draft-toolbar fantasy-draft-board-roster-toolbar">
+        <div className="fantasy-draft-filter-tabs">
+          {["All", ...tabs].map((position) => (
+            <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
+          ))}
+        </div>
+        {positionFilter === "All" && (
+          <label className="fantasy-draft-board-sort">
+            Sort by
+            <select className="form-input" value={allSortKey} onChange={(e) => setAllSortKey(e.target.value)}>
+              {BOARD_ALL_SORT_OPTIONS.map((key) => <option key={key} value={key}>{key === "overallRating" ? "OVR" : attributeLabel(key)}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <div className="fantasy-draft-board-roster-columns">
+        <div className="fantasy-draft-panel-inner fantasy-draft-board-column">
+          <h4 className="fantasy-draft-column-title">My Board</h4>
+          <p className="fantasy-draft-panel-hint">
+            {positionFilter === "All"
+              ? "All positions, sorted by the selected attribute. Pick a position tab to drag-reorder your ranking within it."
+              : "Drag players to rank them (top = most wanted). Drafted players drop off automatically."}
+          </p>
           {visibleBoard.length === 0 ? (
-            <p className="hub-empty">{query ? "No players match your search." : boardPlayers.length === 0 ? "Your board is empty — players from the draft pool will appear here as the draft runs." : "No players in this position group yet."}</p>
+            <p className="hub-empty">{boardPlayers.length === 0 ? "Your board is empty — add players from the draft pool." : "No players in this position group yet."}</p>
+          ) : positionFilter === "All" ? (
+            <div className="fantasy-draft-roster">
+              {visibleBoard.map((player) => (
+                <div key={player.id} className="fantasy-draft-roster-row">
+                  <div className="fantasy-draft-player-identity">
+                    {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                    <div>
+                      <strong>{player.name}</strong>
+                      <small>{player.position} · {player.overallRating ?? "—"} OVR</small>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <SortableRankedList
               items={visibleBoard}
               onReorder={onReorder}
-              renderContent={(player, index, isDragging) => (
+              renderContent={(player) => (
                 <div className="fantasy-draft-player-identity">
                   {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
                   <div>
@@ -534,65 +908,29 @@ function BoardPanel({ guildId, state, boardOrder, busy, isCommissioner, status, 
               )}
             />
           )}
-        </>
-      )}
-
-      {tab === "roster" && (
-        <div className="fantasy-draft-roster">
-          {visibleBoard.length === 0 ? (
-            <p className="hub-empty">{caller.myTeamId ? "No players drafted to your team yet." : "You aren't assigned to a team in this league."}</p>
-          ) : (
-            visibleBoard.sort(sortByPosition).map((player) => (
-              <div key={player.id} className="fantasy-draft-roster-row">
-                <div className="fantasy-draft-player-identity">
-                  {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
-                  <div>
-                    <strong>{player.name}</strong>
-                    <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
         </div>
-      )}
 
-      {tab === "pool" && (
-        <div className="fantasy-draft-pool">
-          {poolRows.length === 0 ? (
-            <p className="hub-empty">No undrafted players in the pool for this filter.</p>
+        <div className="fantasy-draft-panel-inner fantasy-draft-roster-column">
+          <h4 className="fantasy-draft-column-title">My Roster</h4>
+          {visibleRoster.length === 0 ? (
+            <p className="hub-empty">No players drafted to your team yet.</p>
           ) : (
-            poolRows.map((player) => {
-              const canDraft = status === "live" ? isCommissioner : true;
-              return (
-                <div key={player.id} className="fantasy-draft-player-row">
+            <div className="fantasy-draft-roster">
+              {visibleRoster.map((player) => (
+                <div key={player.id} className="fantasy-draft-roster-row">
                   <div className="fantasy-draft-player-identity">
                     {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
                     <div>
                       <strong>{player.name}</strong>
-                      <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}{player.archetype ? ` · ${player.archetype.replaceAll("_", " ")}` : ""}</small>
+                      <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>
                     </div>
                   </div>
-                  <div className="fantasy-draft-player-actions">
-                    {status === "wrap_up" && !isCommissioner && (
-                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onPoolAction(() => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id }), `${player.name} assigned to your team.`)}>Assign to My Team</Button>
-                    )}
-                    {status === "wrap_up" && isCommissioner && (
-                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onWrapupTarget(player)}>Assign</Button>
-                    )}
-                    {status === "live" && isCommissioner && canDraft && (
-                      <Button variant="primary" size="compact" disabled={busy} onClick={() => onPoolAction(() => recApi.logFantasyDraftPick({ guildId, playerId: player.id }), `${player.name} drafted.`)}>Drafted</Button>
-                    )}
-                    {isCommissioner && (
-                      <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => onPoolAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`)}><Trash2 size={15} /></Button>
-                    )}
-                  </div>
                 </div>
-              );
-            })
+              ))}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

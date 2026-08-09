@@ -934,6 +934,21 @@ export type FantasyDraftPoolPlayer = {
   isDrafted: boolean;
   draftedByTeamId: string | null;
   isDefaultPlayer: boolean;
+  attributes: Record<string, number | null>;
+  heightInches: number | null;
+  weightLbs: number | null;
+  birthYear: number | null;
+  college: string | null;
+  yearsPro: number | null;
+};
+
+export type FantasyDraftPickRequest = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  playerId: string;
+  requestedByUserId: string;
+  createdAt: string;
 };
 
 export type FantasyDraftPick = {
@@ -967,6 +982,7 @@ export type FantasyDraftState = {
   checkins: FantasyDraftCheckin[];
   pool: FantasyDraftPoolPlayer[];
   picks: FantasyDraftPick[];
+  pickRequests: FantasyDraftPickRequest[];
   myBoard: string[];
   caller: { isCommissioner: boolean; myTeamId: string | null };
 };

@@ -1194,7 +1194,7 @@ h1, h2, h3, .site-wordmark {
 .site-league-selector-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 44;
+  z-index: 140;
   border: none;
   padding: 0;
   background: rgba(0, 0, 0, 0.55);
@@ -1205,7 +1205,7 @@ h1, h2, h3, .site-wordmark {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 45;
+  z-index: 141;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1239,6 +1239,10 @@ h1, h2, h3, .site-wordmark {
   padding: 0;
   list-style: none;
   overflow: auto;
+  /* Flex items default to min-height: auto, which stops overflow: auto from ever kicking
+     in inside a column flex container — without this the list just pushes the drawer taller
+     than its max-height instead of scrolling internally. */
+  min-height: 0;
 }
 .site-league-selector-menu button {
   display: block;

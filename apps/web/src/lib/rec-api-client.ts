@@ -791,6 +791,10 @@ export const recApi = {
     recApiFetch<{ removed: true }>("/v1/fantasy-draft/remove-pool-player", { method: "POST", body: JSON.stringify(input) }),
   logFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
     recApiFetch<{ ok: true; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick", { method: "POST", body: JSON.stringify(input) }),
+  requestFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<{ ok: true; requestId: string; pending: true }>("/v1/fantasy-draft/pick/request", { method: "POST", body: JSON.stringify(input) }),
+  resolveFantasyDraftPickRequest: (input: { guildId: string; requestId: string; action: "approve" | "deny" }) =>
+    recApiFetch<{ ok: true; approved: boolean }>("/v1/fantasy-draft/pick/resolve-request", { method: "POST", body: JSON.stringify(input) }),
   logFantasyDraftWrapupPick: (input: { guildId: string; playerId: string; teamId?: string | null }) =>
     recApiFetch<{ ok: true; overallPickNumber: number; teamId: string }>("/v1/fantasy-draft/wrapup-pick", { method: "POST", body: JSON.stringify(input) }),
   undoFantasyDraftPick: (guildId: string) =>
