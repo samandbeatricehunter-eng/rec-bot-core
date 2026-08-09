@@ -296,7 +296,7 @@ export async function submitCustomPlayer(input: {
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
     details: { packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
-  const refundCoins = Math.ceil(pointsRemainingAfterHeight * .5);
+  const refundCoins = Math.ceil((pointsRemainingAfterHeight * .5) / 15);
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
@@ -381,7 +381,7 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     p_estimated_ovr_raw: reevaluated.rawOverall, p_estimated_ovr: reevaluated.displayOverall, p_linear_score: reevaluated.linearScore,
     p_attribute_points_spent: reevaluated.attributeCost, p_development_points_spent: reevaluated.netDevelopmentCost,
     p_creation_points_spent: reevaluated.totalCost, p_creation_points_remaining: reevaluated.pointsRemaining,
-    p_unused_cp_refund_coins: Math.ceil(reevaluated.pointsRemaining * .5), p_changes: changes,
+    p_unused_cp_refund_coins: Math.ceil((reevaluated.pointsRemaining * .5) / 15), p_changes: changes,
   });
   if (applied.error) throw new ApiError(500, "Failed to apply the custom player atomically.", applied.error);
   if (changes.length) {
