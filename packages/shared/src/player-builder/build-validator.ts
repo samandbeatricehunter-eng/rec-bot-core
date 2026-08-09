@@ -13,9 +13,7 @@ import {
 import {
   evaluateRecArchetypeIdentity,
   getRecAllAttributeCodes,
-  getRecArchetype,
   getRecArchetypeCostMultiplier,
-  REC_ARCHETYPE_CATALOG,
   type RecGameFamily,
   type RecPackageTier,
 } from "./archetypes.js";
@@ -55,20 +53,40 @@ export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, numb
   jmp: 1.35,
 } as const;
 
-export const REC_SUPPORT_UNLOCKS = [
-  { minimumRequestedRating: 95, requiredSupportIndex: 82, minimumPrimarySkill: 65 },
-  { minimumRequestedRating: 90, requiredSupportIndex: 75, minimumPrimarySkill: 60 },
-  { minimumRequestedRating: 85, requiredSupportIndex: 68, minimumPrimarySkill: 55 },
-  { minimumRequestedRating: 80, requiredSupportIndex: 62, minimumPrimarySkill: 50 },
+// A gated attribute's ceiling rises in tiers — to push past `minimumRequestedRating - 1`,
+// every one of that attribute's related attributes (below) must already be at least
+// `requiredFloor`. Checked from highest tier down so the message always names the single
+// next threshold the player needs to clear, not every tier at once.
+export const REC_ATTRIBUTE_CEILING_TIERS = [
+  { minimumRequestedRating: 95, requiredFloor: 80 },
+  { minimumRequestedRating: 90, requiredFloor: 70 },
+  { minimumRequestedRating: 85, requiredFloor: 60 },
+  { minimumRequestedRating: 80, requiredFloor: 50 },
 ] as const;
+
+// Logical, position-agnostic pairings — every one of the 53 attribute codes is editable
+// for every position (getRecEditableAttributes returns the full set regardless of position),
+// so these floors are always satisfiable no matter what the player is. Keeps a build from
+// pumping one number (e.g. Speed) while everything that would realistically make that
+// number possible (Agility, Change of Direction, Acceleration) stays untouched.
+export const REC_ATTRIBUTE_FLOOR_RELATIONS: Readonly<Record<string, readonly string[]>> = {
+  spd: ["agi", "cod", "acc"],
+  acc: ["spd", "agi"],
+  agi: ["cod", "acc"],
+  cod: ["agi", "acc"],
+  str: ["tou"],
+  jmp: ["agi", "str"],
+  thp: ["str"],
+  kpw: ["str"],
+  pow: ["str"],
+} as const;
 
 export type RecBuildViolationCode =
   | "UNSUPPORTED_ATTRIBUTE"
   | "INVALID_RATING"
   | "INSUFFICIENT_POINTS"
   | "PACKAGE_ATTRIBUTE_CAP"
-  | "SUPPORT_INDEX_TOO_LOW"
-  | "PRIMARY_SKILL_FLOOR"
+  | "ATTRIBUTE_FLOOR_REQUIRED"
   | "ARCHETYPE_IDENTITY"
   | "OVR_CAP_EXCEEDED";
 
@@ -79,15 +97,15 @@ export interface RecBuildViolation {
   requestedRating?: number;
   current?: number;
   required?: number;
+  ceilingRating?: number;
   deficientAttributes?: Array<{ attribute: string; current: number; required: number }>;
 }
 
-export interface RecSupportResult {
+export interface RecAttributeCeilingResult {
   applicable: boolean;
-  supportIndex: number;
-  requiredSupportIndex: number;
-  minimumPrimarySkill: number;
-  deficientPrimaryAttributes: Array<{ attribute: string; current: number; required: number }>;
+  requiredFloor: number;
+  ceilingRating: number;
+  deficientAttributes: Array<{ attribute: string; current: number; required: number }>;
 }
 
 export interface RecBuildEvaluationInput {
@@ -121,7 +139,6 @@ export interface RecBuildEvaluationResult {
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
-const round2 = (value: number): number => Math.round(value * 100) / 100;
 
 function normalizeRecAttributeMap(attributes: RecPlayerAttributes): RecPlayerAttributes {
   const normalized: RecPlayerAttributes = {};
@@ -239,86 +256,41 @@ export function calculateRecBuildAttributeCost(
   }, 0);
 }
 
-function weightedMean(entries: Array<{ value: number; weight: number }>): number {
-  const totalWeight = entries.reduce((sum, entry) => sum + entry.weight, 0);
-  return totalWeight > 0
-    ? entries.reduce(
-        (sum, entry) => sum + entry.value * entry.weight,
-        0
-      ) / totalWeight
-    : 0;
-}
-
-export function evaluateRecSupportGate(
-  game: RecGameFamily,
-  positionInput: string,
-  archetypeKey: string,
+/** Checks whether `targetAttribute` can reach `requestedRating` given its related
+ * attributes' current values — logical (Speed needs Agility/COD/Acceleration, Throw Power
+ * needs Strength), not archetype-derived, so the requirement is stable and explainable
+ * regardless of which archetype the build ends up matching. */
+export function evaluateRecAttributeCeiling(
   targetAttribute: string,
   requestedRating: number,
   attributesInput: RecPlayerAttributes
-): RecSupportResult {
+): RecAttributeCeilingResult {
   const code = targetAttribute.trim().toLowerCase();
-  const unlock = REC_SUPPORT_UNLOCKS.find(
+  const related = REC_ATTRIBUTE_FLOOR_RELATIONS[code];
+  const tier = REC_ATTRIBUTE_CEILING_TIERS.find(
     (rule) => requestedRating >= rule.minimumRequestedRating
   );
-  if (!unlock || REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS[code] === undefined) {
-    return {
-      applicable: false,
-      supportIndex: 0,
-      requiredSupportIndex: 0,
-      minimumPrimarySkill: 0,
-      deficientPrimaryAttributes: [],
-    };
+  if (!related || !tier) {
+    return { applicable: false, requiredFloor: 0, ceilingRating: 0, deficientAttributes: [] };
   }
 
   const attributes = normalizeRecAttributeMap(attributesInput);
-  const archetype = getRecArchetype(game, positionInput, archetypeKey);
-  const supportCodes = [
-    ...new Set([
-      ...archetype.primaryAttributes,
-      ...archetype.secondaryAttributes,
-    ]),
-  ].filter((attribute) => attribute !== code);
-
-  const entries = supportCodes.map((attribute) => {
-    const raw = attributes[attribute];
-    const value =
-      typeof raw === "number" && Number.isFinite(raw)
-        ? clamp(raw, 0, 99)
-        : 0;
-    const weight = archetype.primaryAttributes.includes(attribute) ? 1 : 0.75;
-    return { attribute, value, weight };
-  });
-
-  const mean = weightedMean(entries);
-  const lowerCount = Math.max(1, Math.ceil(entries.length / 4));
-  const lowerQuartile = weightedMean(
-    [...entries].sort((a, b) => a.value - b.value).slice(0, lowerCount)
-  );
-  const supportIndex = round2(0.70 * mean + 0.30 * lowerQuartile);
-
-  const deficientPrimaryAttributes = archetype.primaryAttributes
-    .filter((attribute) => attribute !== code)
+  const deficientAttributes = related
     .map((attribute) => {
       const raw = attributes[attribute];
       const current =
         typeof raw === "number" && Number.isFinite(raw)
           ? clamp(raw, 0, 99)
           : 0;
-      return {
-        attribute,
-        current,
-        required: unlock.minimumPrimarySkill,
-      };
+      return { attribute, current, required: tier.requiredFloor };
     })
     .filter((entry) => entry.current < entry.required);
 
   return {
     applicable: true,
-    supportIndex,
-    requiredSupportIndex: unlock.requiredSupportIndex,
-    minimumPrimarySkill: unlock.minimumPrimarySkill,
-    deficientPrimaryAttributes,
+    requiredFloor: tier.requiredFloor,
+    ceilingRating: tier.minimumRequestedRating,
+    deficientAttributes,
   };
 }
 
@@ -348,37 +320,20 @@ function validateHighImpactAttributes(
       });
     }
 
-    const support = evaluateRecSupportGate(
-      input.game,
-      input.position,
-      input.archetypeKey,
-      attribute,
-      rating,
-      attributes
-    );
+    const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
 
-    if (support.applicable && support.supportIndex < support.requiredSupportIndex) {
+    if (ceiling.applicable && ceiling.deficientAttributes.length > 0) {
       violations.push({
-        code: "SUPPORT_INDEX_TOO_LOW",
+        code: "ATTRIBUTE_FLOOR_REQUIRED",
         attribute,
         requestedRating: rating,
-        current: support.supportIndex,
-        required: support.requiredSupportIndex,
+        required: ceiling.requiredFloor,
+        ceilingRating: ceiling.ceilingRating,
+        deficientAttributes: ceiling.deficientAttributes,
         message:
-          `${attribute.toUpperCase()} ${rating} requires a support index of ` +
-          `${support.requiredSupportIndex}; current ${support.supportIndex}.`,
-      });
-    }
-
-    if (support.applicable && support.deficientPrimaryAttributes.length > 0) {
-      violations.push({
-        code: "PRIMARY_SKILL_FLOOR",
-        attribute,
-        requestedRating: rating,
-        deficientAttributes: support.deficientPrimaryAttributes,
-        message:
-          `${attribute.toUpperCase()} ${rating} requires every other primary ` +
-          `archetype skill to meet the ${support.minimumPrimarySkill} floor.`,
+          `${attribute.toUpperCase()} is capped at ${ceiling.ceilingRating - 1} until ` +
+          `${ceiling.deficientAttributes.map((entry) => entry.attribute.toUpperCase()).join(", ")} ` +
+          `${ceiling.deficientAttributes.length === 1 ? "reaches" : "each reach"} at least ${ceiling.requiredFloor}.`,
       });
     }
   }

@@ -58,5 +58,5 @@ const blocked = evaluateRecCustomPlayerBuild({
 });
 assert(!blocked.valid, "Min-maxed WR must be blocked");
 assert(blocked.violations.some((v) => v.code === "PACKAGE_ATTRIBUTE_CAP"), "Expected package attribute cap violation");
-assert(blocked.violations.some((v) => v.code === "SUPPORT_INDEX_TOO_LOW"), "Expected support-index violation");
+assert(blocked.violations.some((v) => v.code === "ATTRIBUTE_FLOOR_REQUIRED"), "Expected attribute-floor violation");
 console.log("REC custom-player v1.1 fixtures passed");

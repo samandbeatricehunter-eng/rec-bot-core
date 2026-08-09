@@ -3818,6 +3818,9 @@ button.poty:disabled {
 .custom-player-attribute-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .custom-player-attribute-group { margin-bottom: 1rem; }
+.custom-player-ceiling-table { width: 100%; border-collapse: collapse; margin: var(--space-3) 0; }
+.custom-player-ceiling-table th, .custom-player-ceiling-table td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--border); font-size: var(--text-sm); }
+.custom-player-ceiling-table th { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .custom-player-attribute-group h5 { margin: 0 0 .4rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--gold); }
 
 .custom-player-height-picker { display: flex; gap: .4rem; }

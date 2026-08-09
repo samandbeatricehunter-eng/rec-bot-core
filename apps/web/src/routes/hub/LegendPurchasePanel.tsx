@@ -25,6 +25,7 @@ import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
+import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 
 // Replaces the old plain <select> legend picker with the position-grouped browsing
 // experience: a group dropdown, a grid of small cards (name/height/weight + top 3
@@ -38,6 +39,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
   const [activeLegend, setActiveLegend] = useState<LegendCatalogEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // Reuses the custom-player builder's replacement-eligibility config — same rule for both
   // purchase types: only recruits/manually-added players (never the default baseline roster).
@@ -79,7 +81,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
 
   async function purchase(legend: LegendCatalogEntry, replacementPlayerId: string | null) {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       await recApi.purchaseHubLegend({ guildId, legendId: legend.id, replacementPlayerId });
       setNotice(`${legend.name} purchased — a commissioner has been notified for approval.`);
@@ -87,7 +89,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
       load();
       onPurchased();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Purchase failed.");
+      setActionError(err instanceof Error ? err.message : "Purchase failed.");
     } finally {
       setBusy(false);
     }
@@ -95,7 +97,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
 
   async function cancel(legend: LegendCatalogEntry) {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       const result = await recApi.cancelHubLegend({ guildId, legendId: legend.id });
       setNotice(`Purchase cancelled — ${result.refunded} coins refunded.`);
@@ -103,7 +105,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
       load();
       onPurchased();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cancel failed.");
+      setActionError(err instanceof Error ? err.message : "Cancel failed.");
     } finally {
       setBusy(false);
     }
@@ -171,6 +173,8 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           onCancel={() => void cancel(activeLegend)}
         />
       )}
+
+      {actionError && <ErrorPopup title="Purchase Failed" message={actionError} onClose={() => setActionError(null)} />}
 
       <p className="legend-photo-disclaimer">
         Player photos are used for informational and identification purposes only and remain the property of their respective owners/rights holders.

@@ -75,7 +75,8 @@ export async function listMySiteLeagues(input: {
           l.name,
           l.game,
           l.owner_user_id,
-          l.discord_bot_enabled,
+          l.discord_bot_enabled
+            or exists (select 1 from rec_server_league_links sll where sll.league_id = l.id and sll.is_primary) as discord_bot_enabled,
           t.name as team_name,
           m.role as membership_role
         from rec_team_assignments ta
@@ -94,7 +95,8 @@ export async function listMySiteLeagues(input: {
           l.name,
           l.game,
           l.owner_user_id,
-          l.discord_bot_enabled,
+          l.discord_bot_enabled
+            or exists (select 1 from rec_server_league_links sll where sll.league_id = l.id and sll.is_primary) as discord_bot_enabled,
           null::text as team_name,
           m.role as membership_role
         from rec_league_memberships m

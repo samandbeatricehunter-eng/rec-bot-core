@@ -14,6 +14,7 @@ import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
+import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -562,6 +563,7 @@ export function HubHome() {
   const [ageResetPlayer, setAgeResetPlayer] = useState<RosterPlayer | null>(null);
   const [contractPlayer, setContractPlayer] = useState<RosterPlayer | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
@@ -1006,13 +1008,13 @@ export function HubHome() {
   }
   async function submitPurchase(overrideDetails?: Record<string, unknown>) {
     if (auth.status !== "ready" || !purchaseType) return;
-    setPurchaseBusy(true); setPurchaseStatus(null);
+    setPurchaseBusy(true); setPurchaseStatus(null); setPurchaseError(null);
     try {
       const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
       await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details, idempotencyKey: crypto.randomUUID() });
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
       setPurchaseDetails({}); setStoreContext(null); await load();
-    } catch (cause) { setPurchaseStatus(cause instanceof Error ? cause.message : "Purchase failed."); }
+    } catch (cause) { setPurchaseError(cause instanceof Error ? cause.message : "Purchase failed."); }
     finally { setPurchaseBusy(false); }
   }
 
@@ -1384,6 +1386,7 @@ export function HubHome() {
           </>}
 
           {purchaseStatus && <p className="hub-transfer-status">{purchaseStatus}</p>}
+          {purchaseError && <ErrorPopup title="Purchase Failed" message={purchaseError} onClose={() => setPurchaseError(null)} />}
         </div>}
       </>}
     </section> : section === "wagers" ? <section className="hub-section hub-wagers-section"><div className="hub-section-heading"><div><p className="hub-eyebrow"><Coins size={14} /> Sportsbook</p><h2>Wagers</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
