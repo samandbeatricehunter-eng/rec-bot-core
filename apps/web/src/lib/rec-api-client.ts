@@ -548,6 +548,12 @@ export const recApi = {
     recApiFetch<unknown>("/v1/team-requests/approve", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
   rejectTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
     recApiFetch<unknown>("/v1/team-requests/reject", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
+  getGameInviteRequestStatus: (guildId: string) =>
+    recApiFetch<{ show: boolean }>("/v1/team-invite-requests/status", { method: "POST", body: JSON.stringify({ guildId }) }),
+  requestGameInvite: (input: { guildId: string; tag: string }) =>
+    recApiFetch<{ request: { id: string } }>("/v1/team-invite-requests/create", { method: "POST", body: JSON.stringify(input) }),
+  resolveGameInviteRequest: (input: { guildId: string; leagueId?: string; requestId: string; action: "sent" | "cannot_send" | "rejected" }) =>
+    recApiFetch<unknown>("/v1/team-invite-requests/resolve", { method: "POST", body: JSON.stringify(input) }),
   settleWager: (input: { guildId: string; leagueId?: string; wagerId: string }) =>
     recApiFetch<unknown>("/v1/wagers/settle", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   approveWeeklyScoreReview: (input: { guildId: string; reviewId: string }) =>

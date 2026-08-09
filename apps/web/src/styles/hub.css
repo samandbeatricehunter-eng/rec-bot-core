@@ -966,6 +966,21 @@ button.poty:disabled {
 .hub-store-lock { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--space-4); padding: var(--space-3); border: 1px solid rgba(255,170,0,.45); border-radius: var(--radius-md); background: rgba(255,170,0,.07); }
 .hub-store-lock strong { color: var(--warning); }
 .hub-store-lock span { color: var(--text-secondary); font-size: var(--text-sm); }
+
+/* One-time attention card (e.g. "Request Game Invite") atop the main league page — bright
+   enough to catch the eye, gone for good once resolved. */
+.hub-attention-card {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin-bottom: var(--space-4); padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent, #d9a521) 55%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent, #d9a521) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #d9a521) 20%, transparent);
+}
+.hub-attention-card-copy p { margin: 0; }
+.hub-attention-card-copy .hub-eyebrow { display: flex; align-items: center; gap: 6px; color: var(--accent, #d9a521); font-weight: 800; }
+.hub-attention-card-form { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.hub-attention-card-form input { min-width: 14rem; }
 .hub-store-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: var(--space-3); }
 .hub-store-products button { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-height: 120px; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--text-primary); text-align: left; cursor: pointer; }
 .hub-store-products button svg { color: var(--gold); }

@@ -133,6 +133,7 @@ function HighlightReviewPreview({ guildId, reviewId }: { guildId: string; review
 type ResolveMode =
   | { kind: "approve_deny"; reasonField: boolean; approveLabel: string; denyLabel: string }
   | { kind: "single"; actionLabel: string }
+  | { kind: "three_way"; actions: Array<{ key: string; label: string; variant: "primary" | "secondary" | "danger" }> }
   | { kind: "info"; message: string };
 
 function resolveModeFor(type: string): ResolveMode {
@@ -151,6 +152,15 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve & Publish", denyLabel: "Deny" };
     case "team_request":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Approve", denyLabel: "Reject" };
+    case "game_invite_request":
+      return {
+        kind: "three_way",
+        actions: [
+          { key: "sent", label: "Invite Sent", variant: "primary" },
+          { key: "cannot_send", label: "Cannot Send Invite", variant: "secondary" },
+          { key: "rejected", label: "Rejected", variant: "danger" },
+        ],
+      };
     case "weekly_score_review":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Log Scores", denyLabel: "Cancel" };
     case "wager":
@@ -305,6 +315,23 @@ export function ResolveNotificationModal({
     }
   }
 
+  async function handleThreeWay(actionKey: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await recApi.resolveGameInviteRequest({
+        guildId,
+        leagueId,
+        requestId: notification.sourceId ?? "",
+        action: actionKey as "sent" | "cannot_send" | "rejected",
+      });
+      onResolved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resolve this notification.");
+      setBusy(false);
+    }
+  }
+
   async function handle(action: "approve" | "deny") {
     setBusy(true);
     setError(null);
@@ -323,6 +350,9 @@ export function ResolveNotificationModal({
       {error && <ErrorState message={error} />}
       <Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge>
       <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}>{notification.subtitle}</p>
+      {notification.type === "game_invite_request" && notification.payload?.tag != null && (
+        <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>PSN/Gamertag: {String(notification.payload.tag)}</p>
+      )}
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
       )}
@@ -361,6 +391,16 @@ export function ResolveNotificationModal({
         <Button variant="primary" onClick={() => handle("approve")} disabled={busy}>
           {busy ? "Working…" : mode.actionLabel}
         </Button>
+      )}
+
+      {mode.kind === "three_way" && (
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          {mode.actions.map((a) => (
+            <Button key={a.key} variant={a.variant} onClick={() => handleThreeWay(a.key)} disabled={busy}>
+              {a.label}
+            </Button>
+          ))}
+        </div>
       )}
 
       {mode.kind === "approve_deny" && (
