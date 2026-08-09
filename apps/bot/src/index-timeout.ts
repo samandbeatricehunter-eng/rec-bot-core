@@ -510,6 +510,16 @@ client.on("guildCreate", async (guild) => {
   scheduleUnlinkedGuildCheck(guild.id, guild.name);
 });
 
+// Catches up nickname + Member role for someone who was already approved for a team (via a
+// team request) before they actually clicked their Discord invite link — linkUserToTeam's own
+// nickname/role set is a best-effort no-op while they're not in the guild yet.
+client.on("guildMemberAdd", async (member) => {
+  if (member.user.bot) return;
+  await recApi.syncMemberForGuildJoin(member.guild.id, member.id).catch((error) => {
+    console.error(`Failed to sync team nickname/role for ${member.id} joining guild ${member.guild.id} (non-fatal)`, error);
+  });
+});
+
 async function registerCommandsForVisibleGuilds() {
   const guildIds = [...client.guilds.cache.keys()];
   if (!guildIds.length) {

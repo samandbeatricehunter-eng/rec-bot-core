@@ -5,10 +5,24 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
-import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
+import { resolveTeamSchool } from "../users/user-profile-stats.service.js";
+
+// The nickname a newly-linked member gets tagged with: the school name for CFB (e.g.
+// "Georgia"), or the mascot for Madden (e.g. "Cowboys") — display_nick holds that directly for
+// custom/relocated teams; default catalog teams have it null, so fall back to the last word of
+// the full name ("Dallas Cowboys" -> "Cowboys").
+function shortTeamNickname(team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null }, isCfb: boolean): string {
+  if (isCfb) return resolveTeamSchool(team) ?? team.name?.trim() ?? "Team";
+  const nick = team.display_nick?.trim();
+  if (nick) return nick;
+  const name = (team.name ?? "Team").trim();
+  const parts = name.split(/\s+/);
+  return parts[parts.length - 1] || name;
+}
 
 export async function getCurrentLeagueForGuild(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -383,6 +397,16 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   const memberRoleId = await ensureManagedRoleId(input.guildId, "member");
   await addMemberRole(input.guildId, input.discordId, memberRoleId, "REC team linked; default Member role");
 
+  // Best-effort: fails silently if the member hasn't actually joined this Discord server yet
+  // (e.g. they were just approved and haven't clicked their invite link) — bot/index-timeout.ts's
+  // guildMemberAdd handler catches that case up once they do join.
+  await setGuildMemberNickname(
+    input.guildId,
+    input.discordId,
+    shortTeamNickname(team.data, league.game === "cfb_27"),
+    "REC team linked — nickname set to team",
+  ).catch(() => undefined);
+
   await writeAuditLog({
     action: "team.user_linked",
     entityType: "rec_team_assignments",
@@ -409,6 +433,35 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     isDiscordOnly,
     accountKind: isDiscordOnly ? "discord_only" : "site",
   };
+}
+
+// Catches up a member who joined the Discord server AFTER their team was already linked (e.g.
+// approved from a team request, then clicked their invite link later) — linkUserToTeam's own
+// nickname/role set is best-effort and silently no-ops while they're not in the guild yet.
+// Called from the bot's guildMemberAdd handler; a no-op if they have no active assignment.
+export async function syncMemberForGuildJoin(guildId: string, discordId: string): Promise<{ synced: boolean }> {
+  const { league } = await getCurrentLeagueForGuild(guildId);
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
+  if (!account.data?.user_id) return { synced: false };
+
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team:rec_teams(name,display_nick,is_relocated)")
+    .eq("league_id", league.id)
+    .eq("user_id", account.data.user_id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to load team assignment.", assignment.error);
+  const team = assignment.data?.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
+  if (!team) return { synced: false };
+
+  const memberRoleId = await ensureManagedRoleId(guildId, "member");
+  await addMemberRole(guildId, discordId, memberRoleId, "REC team linked; default Member role (caught up on guild join)");
+  await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team, league.game === "cfb_27"), "REC team linked — nickname set to team (caught up on guild join)").catch(() => undefined);
+  return { synced: true };
 }
 
 export async function listLinkedUsersTeams(guildId: string) {

@@ -1,10 +1,14 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { CreateDefaultTeamsSchema, CustomTeamReplacementSchema, LinkUserToTeamSchema, ResetDefaultTeamsSchema, UnlinkAllTeamsSchema, UnlinkTeamSchema } from "./team-ownership.schemas.js";
-import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, getTeamLinkMatrix, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, resetDefaultTeamsForGuild, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
+import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, getTeamLinkMatrix, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, resetDefaultTeamsForGuild, syncMemberForGuildJoin, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
 export async function teamOwnershipRoutes(app: FastifyInstance) {
+ // Bot-only: called from guildMemberAdd to catch up nickname/role for a member who was
+ // approved for a team before actually joining the Discord server.
+ app.post("/v1/team-ownership/sync-guild-join", async (request, reply) => { try { requireInternalApiKey(request); const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body); return reply.send(await syncMemberForGuildJoin(body.guildId, body.discordId)); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/default-teams", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await createDefaultTeamsForGuild(CreateDefaultTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/reset-default-teams", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await resetDefaultTeamsForGuild(ResetDefaultTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/custom-team-replacement", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await createCustomTeamReplacement(CustomTeamReplacementSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
