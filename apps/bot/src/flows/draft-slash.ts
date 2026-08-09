@@ -11,9 +11,9 @@ import { recApi } from "../lib/rec-api.js";
 
 // /draft is registered per-guild only within ~1hr of the scheduled draft (or while it's
 // live) — see apps/api/src/lib/discord-guild.ts syncGuildCommands and
-// fantasy-draft.service.ts's schedule/commence/conclude/skip-to-end call sites. When it IS
-// visible, this is a single ephemeral Check In/Check Out toggle — the public live embed in
-// announcements (fantasy-draft-checkin.ts) covers the same action for everyone watching.
+// fantasy-draft.service.ts's schedule/commence/conclude/skip-to-end call sites. This is the
+// only way to check in/out — the public live embed in announcements is read-only status,
+// posted with an @everyone ping telling everyone to use this command.
 const DRAFT_SLASH_CUSTOM_IDS = { toggle: "rec:draft_slash:toggle" } as const;
 
 function buildEmbed(teamName: string, checkedIn: boolean) {

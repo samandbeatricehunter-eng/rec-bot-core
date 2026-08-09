@@ -23,7 +23,7 @@ const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   CFB: ["Walk-On", "3-Star Recruit", "4-Star Recruit", "5-Star Recruit", "Campus GOAT"],
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],
 };
-const COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
+const COIN_PRICES = [400, 600, 800, 1200, 1600] as const;
 const TARGETS = [[58, 63], [64, 69], [70, 76], [77, 82], [83, 87]] as const;
 
 export function listRecCustomPlayerPackages(game: RecGameFamily, gameYear = 27): RecCustomPlayerPackageDefinition[] {

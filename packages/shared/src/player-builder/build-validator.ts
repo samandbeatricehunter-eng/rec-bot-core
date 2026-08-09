@@ -29,16 +29,19 @@ export interface RecPackageRules {
 }
 
 /**
- * creationPoints includes the empirical p90 archetype-premium adjustment.
- * The previous 4,600/5,100/5,800/6,700/7,700 values remain recorded as
- * baseCalibrationCp for auditability.
+ * creationPoints includes the empirical p90 archetype-premium adjustment. The previous
+ * 4,600/5,100/5,800/6,700/7,700 values remain recorded as baseCalibrationCp for
+ * auditability. Cut 30% off every tier's creationPoints on top of that so a build hitting
+ * its rawOverallCap takes real, deliberate min-maxing rather than being affordable with CP
+ * to spare — only Tier 5 (the only tier whose rawOverallCap is 88) should ever get close to
+ * the league's 88 OVR ceiling, and only for a build that spends efficiently.
  */
 export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>> = {
-  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 5000, rawOverallCap: 65, highImpactAttributeCap: 88 },
-  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 5600, rawOverallCap: 71, highImpactAttributeCap: 91 },
-  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 6300, rawOverallCap: 78, highImpactAttributeCap: 94 },
-  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 7300, rawOverallCap: 84, highImpactAttributeCap: 97 },
-  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 8500, rawOverallCap: 88, highImpactAttributeCap: 99 },
+  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 3500, rawOverallCap: 65, highImpactAttributeCap: 88 },
+  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 3920, rawOverallCap: 71, highImpactAttributeCap: 91 },
+  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 4410, rawOverallCap: 78, highImpactAttributeCap: 94 },
+  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 5110, rawOverallCap: 84, highImpactAttributeCap: 97 },
+  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 5950, rawOverallCap: 88, highImpactAttributeCap: 99 },
 } as const;
 
 export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, number>> = {
@@ -160,7 +163,8 @@ export function recBaseMarginalCost(destinationRating: number): number {
   if (rating <= 84) return 8;
   if (rating <= 89) return 12;
   if (rating <= 94) return 18;
-  return 28;
+  if (rating <= 97) return 45;
+  return 90;
 }
 
 export function getRecPositionAttributeWeight(

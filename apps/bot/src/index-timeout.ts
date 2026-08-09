@@ -132,7 +132,6 @@ import {
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
 import { handleClaimLeagueSlash } from "./flows/claim-league.js";
-import { FANTASY_CHECKIN_CUSTOM_IDS, handleFantasyCheckinButton } from "./flows/fantasy-draft-checkin.js";
 import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
@@ -619,11 +618,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isButton() && interaction.customId.startsWith("rec:gotw_vote:")) {
       await interaction.reply({ content: "GOTW vote received.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    if (interaction.isButton() && [FANTASY_CHECKIN_CUSTOM_IDS.in, FANTASY_CHECKIN_CUSTOM_IDS.out].includes(interaction.customId as any)) {
-      await handleFantasyCheckinButton(interaction);
       return;
     }
 

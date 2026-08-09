@@ -23,7 +23,7 @@ for (const game of ["CFB", "MADDEN"] as const) {
   }
 }
 assert(REC_PACKAGE_RULES[1].highImpactAttributeCap === 88, "Tier 1 cap drift");
-assert(REC_PACKAGE_RULES[5].creationPoints === 8500, "Tier 5 CP drift");
+assert(REC_PACKAGE_RULES[5].creationPoints === 5950, "Tier 5 CP drift");
 const wrEditable = getRecEditableAttributes("CFB", "WR", "speedster");
 assert(wrEditable.includes("spc") && wrEditable.includes("jmp"), "WR fields must remain position-wide across archetypes");
 const preview = evaluateRecProposedAttributeChange({

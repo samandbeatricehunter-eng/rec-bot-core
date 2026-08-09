@@ -297,12 +297,11 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
 
 // ---------------------------------------------------------------------------
 // Draft check-ins. Discord-linked users toggle "checked in" from the site or the
-// live Discord embed; commissioners can override any team's status. The embed is
-// a single message in the announcements channel, refreshed in place whenever a
-// status changes so buttons and site always agree.
+// /draft slash command; commissioners can override any team's status. The embed is
+// a single read-only status message in the announcements channel, refreshed in
+// place whenever a status changes — there are no buttons on it.
 // ---------------------------------------------------------------------------
 const CHECKIN_EMBED_COLOR = 0xd9a521;
-export const FANTASY_CHECKIN_CUSTOM_IDS = { in: "rec:fantasy_checkin:in", out: "rec:fantasy_checkin:out" } as const;
 
 type CheckinRow = {
   id: string;
@@ -431,21 +430,11 @@ async function buildCheckinEmbedData(leagueId: string, session: SessionRow) {
   return {
     title: "Fantasy Draft Check-In",
     color: CHECKIN_EMBED_COLOR,
-    description: `The fantasy draft is live! Tap **Check In** so your pick doesn't get skipped. CPU teams are skipped automatically.\n\n${checkins
+    description: `The fantasy draft is live! Use **/draft** to check in or out — if you're not checked in when your pick comes up, it gets skipped. CPU teams are skipped automatically.\n\n${checkins
       .map((c) => (c.isCpu ? `🤖 **${c.teamName}** — CPU` : c.checkedIn ? `✅ **${c.teamName}** — Checked In` : `❌ **${c.teamName}** — NOT Checked In`))
       .join("\n")}`,
     footer: { text: `Checked in: ${checkedCount}/${linkedCheckins.length} linked teams` },
   };
-}
-
-function buildCheckinComponents() {
-  return [{
-    type: 1,
-    components: [
-      { type: 2, style: 3, label: "Check In", custom_id: FANTASY_CHECKIN_CUSTOM_IDS.in },
-      { type: 2, style: 4, label: "Check Out", custom_id: FANTASY_CHECKIN_CUSTOM_IDS.out },
-    ],
-  }];
 }
 
 /** Rebuilds the live check-in embed in place after a status change. Silent no-op when the
@@ -455,7 +444,7 @@ async function refreshCheckinEmbed(leagueId: string, session: SessionRow) {
   const embed = await buildCheckinEmbedData(leagueId, session);
   await editDiscordMessage(session.checkin_message_channel_id, session.checkin_message_id, {
     embeds: [embed],
-    components: buildCheckinComponents(),
+    components: [],
   }).catch(() => undefined);
 }
 
@@ -681,11 +670,14 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
       allowed_mentions: { parse: ["everyone"] },
     }).catch((error) => console.error("[ERROR] Fantasy draft commence announcement failed (non-fatal):", error));
 
-    // Live check-in board — one message the API and bot both keep in sync.
+    // Live check-in board — one message the API and bot both keep in sync. No buttons here:
+    // check-in/out happens exclusively via the /draft slash command (apps/bot/src/flows/
+    // draft-slash.ts), which stays registered for the guild while the draft is scheduled/live.
     const checkinEmbed = await buildCheckinEmbedData(leagueId, session);
     const posted = await postDiscordChannelMessage(announcementsChannelId, {
+      content: "@everyone Use **/draft** to check in or out before your pick comes up.",
       embeds: [checkinEmbed],
-      components: buildCheckinComponents(),
+      allowed_mentions: { parse: ["everyone"] },
     }).catch(() => null);
     if (posted?.id) {
       try {

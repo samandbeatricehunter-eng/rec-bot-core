@@ -134,7 +134,7 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       archetype: p.archetype,
       attributes,
       college: p.college,
-      birth_year: p.date_of_birth ? Number(p.date_of_birth.slice(0, 4)) : null,
+      birth_year: p.date_of_birth ? new Date(p.date_of_birth).getUTCFullYear() : null,
       years_pro: p.years_pro,
       photo_url: p.photo_url ?? null,
       is_free_agent: !teamId,
