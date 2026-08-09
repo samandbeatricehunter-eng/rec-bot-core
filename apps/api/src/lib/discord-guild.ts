@@ -1,6 +1,7 @@
 import { env } from "../config/env.js";
 import { REC_MANAGED_ROLES, classifyGuildRoleNames, type RecManagedRoleKey } from "@rec/shared";
 import { ApiError } from "./errors.js";
+import { supabase } from "./supabase.js";
 
 // Server-side guild role/permission lookups for the Discord Activity's per-user auth —
 // the bot has a cached discord.js GuildMember for free on every interaction; a browser
@@ -412,19 +413,44 @@ async function getGuildOwnerId(guildId: string): Promise<string> {
   const cached = fromCache(guildOwnerCache, guildId);
   if (cached) return cached;
   const res = await discordBotFetch(`/guilds/${guildId}`);
-  if (!res.ok) throw new Error(`Failed to fetch guild (${res.status})`);
+  if (!res.ok) throw new ApiError(502, `Failed to fetch guild (${res.status}) — the bot may no longer be in this Discord server.`);
   const guild = (await res.json()) as { owner_id: string };
   toCache(guildOwnerCache, guildId, guild.owner_id);
   return guild.owner_id;
 }
 
+// DB-backed fallback for when the bot can't be asked directly (it's left the server, a
+// transient Discord API error, etc.) — mirrors league-context.service.ts's site-only-guild
+// ownership check, but for a real guild whose Discord link has gone stale. rec_leagues.
+// owner_user_id is set at league creation and doesn't depend on the bot still being present.
+async function isGuildOwnerByRecord(guildId: string, discordId: string): Promise<boolean> {
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
+  if (server.error || !server.data) return false;
+  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).maybeSingle();
+  if (link.error || !link.data) return false;
+  const league = await supabase.from("rec_leagues").select("owner_user_id").eq("id", link.data.league_id).maybeSingle();
+  if (league.error || !league.data?.owner_user_id) return false;
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  if (account.error || !account.data) return false;
+  return account.data.user_id === league.data.owner_user_id;
+}
+
 // "Head commissioner" — the Discord guild's actual owner. Same source
 // resolveMemberPermissionBits already special-cases internally (owner → Administrator);
 // exposed here as its own boolean for callers that need an owner-specific gate rather than
-// a general commissioner-level permission check (e.g. Delete League).
+// a general commissioner-level permission check (e.g. Delete League). Falls back to the DB
+// record if Discord can't answer (bot no longer in the server) rather than hard-failing —
+// a stale/broken Discord link should never be the reason a commissioner can't delete their
+// own league.
 export async function isGuildOwner(guildId: string, discordId: string): Promise<boolean> {
-  const ownerId = await getGuildOwnerId(guildId);
-  return discordId === ownerId;
+  try {
+    const ownerId = await getGuildOwnerId(guildId);
+    return discordId === ownerId;
+  } catch (error) {
+    const fallback = await isGuildOwnerByRecord(guildId, discordId);
+    if (fallback) return true;
+    throw error;
+  }
 }
 
 // Returns the member's role IDs, or null if the Discord user isn't a member of this guild.
