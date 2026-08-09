@@ -156,6 +156,9 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     purchaseDeadlines: config.data?.purchase_deadlines ?? {},
     packages: listRecCustomPlayerPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
     devTraits: REC_DEV_TRAITS[game],
+    // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
+    // trait the replaced player already has (or "normal" with no replacement).
+    devTraitInherited: game === "CFB",
     archetypes: Object.fromEntries(REC_CUSTOM_PLAYER_POSITIONS.map((position) => [position, listRecArchetypes(game, position)])),
     attributes: [...attributes].sort().map((code) => ({ code, displayName: getRecAttributeDisplayName(code) })),
     replacementPlayers: roster.data ?? [],
@@ -238,7 +241,8 @@ export async function cancelCustomPlayerDraft(guildId: string, discordId: string
 export function evaluateCustomPlayer(input: { game: RecGameFamily; packageTier: RecPackageTier; position: string; archetypeKey: string; developmentTrait: string; attributes: Record<string, number>; mode?: "preview" | "submit" }) {
   if (!isRecCustomPlayerPosition(input.position)) throw new ApiError(400, "Unsupported custom-player position. Kicker and punter are not eligible.");
   getRecArchetype(input.game, input.position, input.archetypeKey);
-  const netDevelopmentCost = getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
+  // CFB dev trait is inherited from the replaced player, never purchased — no CP cost for it.
+  const netDevelopmentCost = input.game === "CFB" ? 0 : getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
   const evaluation = evaluateRecCustomPlayerBuild({ ...input, netDevelopmentCost, mode: input.mode ?? "preview" });
   return { ...evaluation, inferredArchetypeKey: inferArchetype(input.game, input.position, input.attributes) };
 }
@@ -264,18 +268,6 @@ export async function submitCustomPlayer(input: {
     currentStage: String(context.rec_leagues.season_stage ?? "regular_season"),
     currentWeek: Number(context.rec_leagues.current_week ?? 1),
   });
-  const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey, developmentTrait: input.developmentTrait, attributes: input.attributes, mode: "submit" });
-  if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
-  // CFB-only surcharge for building above a position's real-world average height — deducted
-  // from the same creation-point budget as attributes/development, not a separate coin cost.
-  const heightSurcharge = game === "CFB" ? heightOverageCost(input.position, input.identity.heightInches) : 0;
-  if (heightSurcharge > evaluation.pointsRemaining) {
-    throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
-  }
-  const pointsRemainingAfterHeight = evaluation.pointsRemaining - heightSurcharge;
-  const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);
-  if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
-
   // Backlog #42 — replacement is mandatory whenever the team has eligible (non-default)
   // players. With an empty roster (unseeded league) the purchase proceeds without one: the
   // approved build creates a brand-new player instead of replacing an outgoing row.
@@ -288,6 +280,23 @@ export async function submitCustomPlayer(input: {
   } else if (config.replacementRequired) {
     throw new ApiError(400, "This team has eligible players — select one to replace. Skipping the replacement is only allowed while none are eligible yet.");
   }
+
+  // CFB dev trait is earned in-game, not purchased — the wizard never lets a CFB build
+  // choose one. The inserted player inherits whatever trait the replaced player already
+  // has (or starts "normal" when there's no replacement, i.e. an unseeded-league new add).
+  const effectiveDevTrait = game === "CFB" ? String(replacement.data?.dev_trait ?? "normal") : input.developmentTrait;
+
+  const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
+  if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
+  // CFB-only surcharge for building above a position's real-world average height — deducted
+  // from the same creation-point budget as attributes/development, not a separate coin cost.
+  const heightSurcharge = game === "CFB" ? heightOverageCost(input.position, input.identity.heightInches) : 0;
+  if (heightSurcharge > evaluation.pointsRemaining) {
+    throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
+  }
+  const pointsRemainingAfterHeight = evaluation.pointsRemaining - heightSurcharge;
+  const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);
+  if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
   if (existing.data) return { build: existing.data, duplicate: true };
@@ -301,7 +310,7 @@ export async function submitCustomPlayer(input: {
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
     game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: input.position.toUpperCase(),
-    selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: input.developmentTrait,
+    selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: effectiveDevTrait,
     identity: input.identity, body_type: game === "CFB" ? input.identity.bodyType : null, height_overage_cost: heightSurcharge,
     attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
     attribute_points_spent: evaluation.attributeCost, development_points_spent: evaluation.netDevelopmentCost, creation_points_spent: evaluation.totalCost + heightSurcharge,

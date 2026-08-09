@@ -619,7 +619,12 @@ export async function getHub(guildId: string, discordId: string) {
     store: {
       enabled: Boolean(cfg.coin_economy_enabled),
       cfbSeasonOneLocked: cfbSeasonOne,
-      products: productConfig.filter(([, , flag]) => Boolean((cfg as any)[flag])).map(([type, label, , cfbLocked]) => ({ type, label, locked: cfbSeasonOne && cfbLocked })),
+      // Dev trait progression is earned in-game for CFB, not purchased — hide the tile
+      // entirely there rather than showing it locked/enabled like the other products.
+      products: productConfig
+        .filter(([type]) => !(type === "dev_upgrade" && context.rec_leagues.game === "cfb_27"))
+        .filter(([, , flag]) => Boolean((cfg as any)[flag]))
+        .map(([type, label, , cfbLocked]) => ({ type, label, locked: cfbSeasonOne && cfbLocked })),
     },
     announcements: announcements.data ?? [],
     headlines: (headlines.data ?? []).map((story: any) => {

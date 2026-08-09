@@ -119,7 +119,9 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     jersey_number: details.jerseyNumber ?? null,
     college: !isCfbLeague ? (details.college ?? null) : null,
     dev_trait: details.devTrait ?? null,
-    overall_rating: details.estOvr ?? null,
+    // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
+    // is an integer column — round it, or the insert fails outright with a Postgres type error.
+    overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,
     archetype: details.archetype ?? null,
     attributes: mapLegendAttributes(details.attributes),
     photo_url: photoUrl,
@@ -278,6 +280,11 @@ export async function createPurchaseRequest(input: {
   if (config.error) throw new ApiError(500, "Failed to load league purchase configuration.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+  // CFB dev trait progression is earned in-game, not purchased — dev upgrades are a
+  // Madden-only purchase type regardless of the league's own dev_upgrades_enabled setting.
+  if (input.purchaseType === "dev_upgrade" && context.rec_leagues?.game === "cfb_27") {
+    throw new ApiError(400, "Dev trait upgrades aren't available in CFB leagues.");
+  }
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
   await assertEconomyPayoutsActive(leagueId);
   if (!cfgRow[cfg.enabled]) throw new ApiError(400, `${label} purchases are not enabled for this league.`);
@@ -608,8 +615,22 @@ export async function reviewPurchase(input: {
   // "Approved & Applied In-Game" is the actual trigger for legends — this is the one moment
   // the commissioner has confirmed the player really exists in the save, so it's also the
   // one moment we can safely create the roster row (full attributes + photo) automatically.
+  // If that insert fails, revert the approval instead of leaving an unrecoverable state
+  // (purchase marked approved, inbox item resolved, but no roster player ever created and
+  // no way to retry) — put the purchase and inbox item back to pending so the commissioner
+  // can simply approve again once the underlying issue is fixed.
   if (existing.data.purchase_type === "legend") {
-    await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
+    try {
+      await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
+    } catch (err) {
+      await supabase.from("rec_purchases").update({
+        status: "pending", reviewed_by_discord_id: null, approved_at: null, updated_at: new Date().toISOString(),
+      }).eq("id", input.purchaseId);
+      await supabase.from("rec_commissioners_inbox").update({
+        status: "pending", reviewed_by_discord_id: null, reviewed_at: null,
+      }).eq("source_table", "rec_purchases").eq("source_id", input.purchaseId);
+      throw err;
+    }
   }
 
   return { updated: true, action: "approve" as const, purchase: approved.data, buyerDiscordId: existing.data.discord_id };
