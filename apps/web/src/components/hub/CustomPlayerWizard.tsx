@@ -1,9 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { Dices } from "lucide-react";
-import { REC_DEV_TRAITS, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, MADDEN_ATTRIBUTE_SELECTION_GROUPS, REC_DEV_TRAITS, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
+
+const CFB_COLLEGE_OPTIONS = [...CFB_27_TEAMS].map((t) => t.name).sort();
+
+// Groups editable attribute codes by the same 5 categories the in-game roster viewer uses
+// (physical, passing/ball-carrier, receiving, blocking, defensive/kicking), preserving each
+// group's in-game order, instead of whatever order getRecEditableAttributes happens to return.
+function groupEditableAttributes(editable: readonly string[]): Array<{ label: string; codes: string[] }> {
+  const editableUpper = new Set(editable.map((c) => c.toUpperCase()));
+  const groups = Object.values(MADDEN_ATTRIBUTE_SELECTION_GROUPS).map((group) => ({
+    label: group.label,
+    codes: group.codes.filter((code) => editableUpper.has(code)).map((code) => code.toLowerCase()),
+  })).filter((group) => group.codes.length > 0);
+  const grouped = new Set(groups.flatMap((g) => g.codes));
+  const leftover = editable.filter((code) => !grouped.has(code));
+  return leftover.length ? [...groups, { label: "Other", codes: leftover }] : groups;
+}
+
+// Short, auto-generated blurb of what an archetype actually affects: its primary/secondary
+// attributes cost more creation points to raise (per REC_ARCHETYPE_COST_MULTIPLIERS), so
+// naming them tells the user exactly what this pick will make expensive vs. cheap to build.
+function archetypeDescription(entry: any): string {
+  const primary = (entry.primaryAttributes ?? []).map((c: string) => getRecAttributeDisplayName(c)).join(", ");
+  const secondary = (entry.secondaryAttributes ?? []).map((c: string) => getRecAttributeDisplayName(c)).join(", ");
+  if (!primary && !secondary) return "";
+  return `Prioritizes ${primary}${secondary ? ` (and, to a lesser extent, ${secondary})` : ""} — these attributes cost more creation points to raise under this archetype than under others.`;
+}
 
 const EMPTY_IDENTITY = { firstName: "", lastName: "", jerseyNumber: 0, handedness: "right", heightInches: 72, weightLbs: 200, hometownCity: "", hometownState: "", college: "", bodyType: "standard" };
 
@@ -60,15 +86,29 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       const weightRule = game === "CFB" ? (CFB_BODY_TYPE_WEIGHT[identity.bodyType] ?? CFB_BODY_TYPE_WEIGHT.standard) : null;
       const overageInches = heightRule ? Math.max(0, identity.heightInches - heightRule.avg) : 0;
       return <><h4>Player Details</h4><div className="custom-player-fields"><label>First name<input className="form-input" value={identity.firstName} onChange={(e) => setIdentity({ ...identity, firstName: e.target.value })}/></label><label>Last name<input className="form-input" value={identity.lastName} onChange={(e) => setIdentity({ ...identity, lastName: e.target.value })}/></label><Button variant="secondary" onClick={() => void generateName()}><Dices size={16}/> Generate</Button><label>Jersey #<input className="form-input" type="number" min="0" max="99" value={identity.jerseyNumber} onChange={(e) => setIdentity({ ...identity, jerseyNumber: Number(e.target.value) })}/></label><label>Hand<select className="form-input" value={identity.handedness} onChange={(e) => setIdentity({ ...identity, handedness: e.target.value })}><option value="right">Right</option><option value="left">Left</option></select></label>
-        <label>Height (in){heightRule ? ` — 5'5" to ${formatFeetInches(heightRule.max)}` : ""}<input className="form-input" type="number" min={heightRule ? 65 : undefined} max={heightRule?.max} value={identity.heightInches} onChange={(e) => setIdentity({ ...identity, heightInches: Number(e.target.value) })}/></label>
+        <label>Height{heightRule ? ` — 5'5" to ${formatFeetInches(heightRule.max)}` : ""}
+          <span className="custom-player-height-picker">
+            <select className="form-input" value={Math.floor(identity.heightInches / 12)} onChange={(e) => setIdentity({ ...identity, heightInches: Number(e.target.value) * 12 + (identity.heightInches % 12) })}>
+              {Array.from({ length: 4 }, (_, i) => i + 4).map((feet) => <option key={feet} value={feet}>{feet}'</option>)}
+            </select>
+            <select className="form-input" value={identity.heightInches % 12} onChange={(e) => setIdentity({ ...identity, heightInches: Math.floor(identity.heightInches / 12) * 12 + Number(e.target.value) })}>
+              {Array.from({ length: 12 }, (_, i) => i).map((inch) => <option key={inch} value={inch}>{inch}"</option>)}
+            </select>
+          </span>
+        </label>
         {game === "CFB" && <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setIdentity({ ...identity, bodyType: e.target.value })}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
         <label>Weight (lb){weightRule ? ` — ${weightRule.min}-${weightRule.max}` : ""}<input className="form-input" type="number" min={weightRule?.min} max={weightRule?.max} value={identity.weightLbs} onChange={(e) => setIdentity({ ...identity, weightLbs: Number(e.target.value) })}/></label>
-        {game === "CFB" ? <><label>Hometown<input className="form-input" value={identity.hometownCity} onChange={(e) => setIdentity({ ...identity, hometownCity: e.target.value })}/></label><label>State<input className="form-input" value={identity.hometownState} onChange={(e) => setIdentity({ ...identity, hometownState: e.target.value })}/></label></> : <label>College<input className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}/></label>}</div>
+        {game === "CFB" ? <><label>Hometown<input className="form-input" value={identity.hometownCity} onChange={(e) => setIdentity({ ...identity, hometownCity: e.target.value })}/></label><label>State<input className="form-input" value={identity.hometownState} onChange={(e) => setIdentity({ ...identity, hometownState: e.target.value })}/></label></> : <label>College<select className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}><option value="">Select college</option>{CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>}</div>
         {overageInches > 0 && <p className="form-hint">Height is {overageInches}" over the {position} average — costs {overageInches * 100} creation points.</p>}
         <p className="form-hint">{config.contractNotice}</p></>;
     })()}
-    {step === 3 && <><h4>Position, Archetype &amp; Development</h4><label>Position<select className="form-input" value={position} onChange={(e) => setPositionAndReset(e.target.value)}>{config.positions.map((value: string) => <option key={value}>{value}</option>)}</select></label><label>Archetype<select className="form-input" value={archetype} onChange={(e) => { setArchetype(e.target.value); setAttributes({}); }}>{config.archetypes[position].map((entry: any) => <option key={entry.key} value={entry.key}>{entry.name ?? entry.key.replaceAll("_", " ")}</option>)}</select></label><label>Development<select className="form-input" value={devTrait} onChange={(e) => setDevTrait(e.target.value)}>{(REC_DEV_TRAITS[game] as readonly any[]).map((entry) => <option key={entry.key} value={entry.key}>{entry.label} · {Math.max(0, entry.absoluteCost - pkg.includedDevCredit)} CP</option>)}</select></label></>}
-    {step === 4 && <><h4>Attribute Builder</h4><div className="custom-player-attribute-list">{editable.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><b>{attributes[code] ?? 0}</b><button onClick={() => mutate(code,1)}>+</button></div>)}</div></>}
+    {step === 3 && (() => {
+      const selectedArchetype = config.archetypes[position].find((entry: any) => entry.key === archetype);
+      return <><h4>Position, Archetype &amp; Development</h4><label>Position<select className="form-input" value={position} onChange={(e) => setPositionAndReset(e.target.value)}>{config.positions.map((value: string) => <option key={value}>{value}</option>)}</select></label><label>Archetype<select className="form-input" value={archetype} onChange={(e) => { setArchetype(e.target.value); setAttributes({}); }}>{config.archetypes[position].map((entry: any) => <option key={entry.key} value={entry.key}>{entry.name ?? entry.label ?? entry.key.replaceAll("_", " ")}</option>)}</select></label>
+      {selectedArchetype && <p className="form-hint">{archetypeDescription(selectedArchetype)}</p>}
+      <label>Development<select className="form-input" value={devTrait} onChange={(e) => setDevTrait(e.target.value)}>{(REC_DEV_TRAITS[game] as readonly any[]).map((entry) => <option key={entry.key} value={entry.key}>{entry.label} · {Math.max(0, entry.absoluteCost - pkg.includedDevCredit)} CP</option>)}</select></label></>;
+    })()}
+    {step === 4 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={0} max={99} value={attributes[code] ?? 0} onChange={(e) => mutate(code, Math.max(0, Math.min(99, Number(e.target.value) || 0)) - (attributes[code] ?? 0))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
     {step === 5 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position} · {archetype.replaceAll("_"," ")}</p><p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint"><strong>88 OVR maximum:</strong> if the applied player evaluates above 88 OVR, the commissioner must reduce ratings to reach the cap. Identity or rating edits are logged and sent to you; position, archetype, and development trait remain locked to this purchase.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{Math.ceil(((evaluation?.pointsRemaining ?? 0) * .5) / 15)} coin refund after application</strong></p>{config.replacementRequired ? <label>Replace active player<select className="form-input" value={replacementPlayerId} onChange={(e) => setReplacementPlayerId(e.target.value)}><option value="">Select player</option>{config.replacementPlayers.map((player: any) => <option key={player.id} value={player.id}>{player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR</option>)}</select></label> : <p className="form-hint">Your team has no active players yet (unseeded league) — this custom player will be added to the roster as a brand-new player instead of replacing anyone.</p>}</>}
     <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < 5 ? <Button variant="primary" onClick={() => setStep(step + 1)}>Continue</Button> : <Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId)} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
   </div>;
