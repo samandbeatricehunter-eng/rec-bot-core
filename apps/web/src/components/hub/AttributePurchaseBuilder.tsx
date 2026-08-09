@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE, formatCoins } from "@rec/shared";
-import type { StorePurchaseContext } from "../../types/api.js";
+import type { RosterPlayer, StorePurchaseContext } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
+import { RosterPlayerSelect } from "./RosterPlayerSelect.js";
 
 // Multi-attribute purchase builder: every one of the 53 Madden attributes gets its own
 // +/- counter starting at 0, priced live from the league's configured core-attribute set
@@ -11,18 +12,20 @@ import { CoinAmount } from "../ui/CoinAmount.js";
 // best-effort preview so the coach never submits something they can't afford or that's
 // already capped out.
 export function AttributePurchaseBuilder({
+  guildId,
   storeContext,
   wallet,
   busy,
   onSubmit,
 }: {
+  guildId: string;
   storeContext: StorePurchaseContext | null;
   wallet: number;
   busy: boolean;
   onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string) => void;
 }) {
   const [points, setPoints] = useState<Record<string, number>>({});
-  const [playerName, setPlayerName] = useState("");
+  const [player, setPlayer] = useState<RosterPlayer | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
   const isCore = (code: string) => storeContext?.coreAttributes.includes(code) ?? false;
@@ -78,11 +81,11 @@ export function AttributePurchaseBuilder({
   }
 
   const allocations = Object.entries(points).filter(([, pts]) => pts > 0).map(([code, pts]) => ({ code, points: pts }));
-  const canSubmit = allocations.length > 0 && playerName.trim().length > 0 && totalPrice <= wallet && !busy;
+  const canSubmit = allocations.length > 0 && Boolean(player) && totalPrice <= wallet && !busy;
 
   return (
     <div className="attr-builder">
-      <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Which player is this for?" /></label>
+      <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={guildId} value={player} onChange={setPlayer} /></label>
 
       {(Object.entries(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS) as Array<[string, typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[keyof typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS]]>).map(([groupKey, group]) => (
         <details key={groupKey} className="attr-builder-group">
@@ -114,7 +117,7 @@ export function AttributePurchaseBuilder({
 
       <div className="attr-builder-total">
         <span>Total: <strong><CoinAmount amount={totalPrice} /></strong> of <CoinAmount amount={wallet} /> available</span>
-        <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, playerName)}>
+        <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, player!.fullName)}>
           {busy ? "Submitting…" : `Submit (${allocations.reduce((sum, a) => sum + a.points, 0)} pts)`}
         </Button>
       </div>

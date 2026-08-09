@@ -1,4 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
+// Legend attributes are stored under full display names (e.g. "Throwing Power"), not the
+// 3-letter Madden codes MADDEN_ATTRIBUTE_DEFINITIONS uses — so the detail modal groups them
+// by keyword match against this list rather than reusing that lookup.
+const LEGEND_ATTRIBUTE_CATEGORIES: Array<{ label: string; keywords: string[] }> = [
+  { label: "Physical", keywords: ["Speed", "Acceleration", "Agility", "Change of Direction", "Strength", "Jumping", "Stamina", "Injury", "Awareness", "Toughness"] },
+  { label: "Passing", keywords: ["Throwing Power", "Throw Power", "Accuracy", "Play Action", "Throw on the Run", "Throw Under Pressure", "Break Sack"] },
+  { label: "Ball Carrier", keywords: ["Trucking", "BC Vision", "Ball Carrier Vision", "Stiff Arm", "Spin Move", "Juke Move", "Carrying", "Break Tackle"] },
+  { label: "Receiving", keywords: ["Catching", "Catch in Traffic", "Spectacular Catch", "Release", "Route Running", "Kick Return"] },
+  { label: "Blocking", keywords: ["Pass Block", "Run Block", "Lead Block", "Impact Blocking"] },
+  { label: "Defense", keywords: ["Tackling", "Tackle", "Hit Power", "Power Moves", "Finesse Moves", "Block Shedding", "Pursuit", "Play Recognition", "Man Coverage", "Zone Coverage", "Press"] },
+  { label: "Kicking", keywords: ["Kick Power", "Kick Accuracy"] },
+];
+function legendAttributeCategory(key: string): string {
+  for (const category of LEGEND_ATTRIBUTE_CATEGORIES) {
+    if (category.keywords.some((keyword) => key.toLowerCase().includes(keyword.toLowerCase()))) return category.label;
+  }
+  return "Other";
+}
 import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -191,13 +209,24 @@ function LegendDetailModal({
       <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
 
-      <div className="legend-attr-grid">
-        {Object.entries(legend.attributes)
-          .sort(([, a], [, b]) => b - a)
-          .map(([key, value]) => (
-            <span key={key} className="legend-attr-chip"><b>{value}</b> {key}</span>
-          ))}
-      </div>
+      {Object.entries(
+        Object.entries(legend.attributes).reduce<Record<string, Array<[string, number]>>>((groups, [key, value]) => {
+          const category = legendAttributeCategory(key);
+          (groups[category] ??= []).push([key, value]);
+          return groups;
+        }, {}),
+      )
+        .sort(([a], [b]) => LEGEND_ATTRIBUTE_CATEGORIES.findIndex((c) => c.label === a) - LEGEND_ATTRIBUTE_CATEGORIES.findIndex((c) => c.label === b))
+        .map(([category, entries]) => (
+          <div key={category} className="legend-attr-category">
+            <h4>{category}</h4>
+            <div className="legend-attr-grid">
+              {entries.sort(([, a], [, b]) => b - a).map(([key, value]) => (
+                <span key={key} className="legend-attr-chip"><b>{value}</b> {key}</span>
+              ))}
+            </div>
+          </div>
+        ))}
 
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
         Purchasing this legend is applied to your roster immediately once a commissioner approves it, and will
