@@ -171,6 +171,10 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           onCancel={() => void cancel(activeLegend)}
         />
       )}
+
+      <p className="legend-photo-disclaimer">
+        Player photos are used for informational and identification purposes only and remain the property of their respective owners/rights holders.
+      </p>
     </div>
   );
 }

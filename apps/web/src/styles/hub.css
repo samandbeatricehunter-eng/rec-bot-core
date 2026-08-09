@@ -1025,6 +1025,7 @@ button.poty:disabled {
 .hub-store-total strong { color: var(--gold); font-family: var(--font-display); font-size: var(--text-lg); }
 
 .legend-purchase-panel { display: grid; gap: var(--space-3); }
+.legend-photo-disclaimer { margin: var(--space-2) 0 0; font-size: 10px; line-height: 1.4; color: var(--text-muted); opacity: .75; }
 .legend-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); margin-top: var(--space-2); }
 .legend-card { display: grid; gap: 4px; padding: var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); text-align: left; cursor: pointer; }
 .legend-card:hover:not(:disabled) { border-color: var(--gold); }
