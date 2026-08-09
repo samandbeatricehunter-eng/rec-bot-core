@@ -83,6 +83,8 @@ function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> })
   const facts: Array<[string, string]> = [
     ["Team", String(payload.teamName ?? "Unassigned")],
     ["Position", String(payload.legendPosition ?? "—")],
+    ["Height", String(payload.height ?? "—")],
+    ["Weight", payload.weight != null ? `${payload.weight} lb` : "—"],
     ["Est. OVR", String(payload.estOvr ?? "—")],
     ["Dev Trait", String(payload.devTrait ?? "—")],
     ...(payload.bodyType ? [["Body Type", String(payload.bodyType)] as [string, string]] : []),

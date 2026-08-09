@@ -231,6 +231,8 @@ export async function createLegendPurchaseRequest(input: {
         estOvr: legend.data.est_ovr,
         devTrait: details.devTrait,
         bodyType: details.bodyType ?? null,
+        height: legend.data.height ?? null,
+        weight: legend.data.weight ?? null,
         teamName: teamName ?? null,
         attributes: legend.data.attributes ?? {},
       },
