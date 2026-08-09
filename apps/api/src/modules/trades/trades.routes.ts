@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { getTradeDetail, listMyTrades, listPendingReviewTrades, listTradeableTeams, listTradeBlockPlayers, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade } from "./trades.service.js";
+import { createTradeBlockListing, getTradeDetail, listMyTrades, listPendingReviewTrades, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
 
 const LegSchema = z.union([
   z.object({ type: z.literal("player"), playerId: z.string().uuid() }),
@@ -89,6 +89,35 @@ export async function tradesRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Trade-block management is website-only.");
       return reply.send(await setPlayerTradeBlock({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/block-listings/list", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await listTradeBlockListings(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/block-listings/create", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), legs: z.array(LegSchema).max(7),
+        coins: z.number().int().min(0).default(0), lookingFor: z.string().min(1).max(300),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Posting to the trade block is website-only.");
+      return reply.send(await createTradeBlockListing({ guildId: body.guildId, discordId: auth.discordId, legs: body.legs, coins: body.coins, lookingFor: body.lookingFor }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/block-listings/withdraw", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), listingId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Withdrawing a trade block listing is website-only.");
+      return reply.send(await withdrawTradeBlockListing({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

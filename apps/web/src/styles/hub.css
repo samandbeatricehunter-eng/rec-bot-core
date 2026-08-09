@@ -588,6 +588,10 @@ button.poty:disabled {
 .hub-trade-center section { margin-top: var(--space-5); }
 .hub-trade-center h3 { font-family: var(--font-display); letter-spacing: .01em; color: var(--gold); margin: var(--space-4) 0 var(--space-2); }
 .hub-trade-center h3:first-child { margin-top: 0; }
+.hub-trade-view-switch { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; border: 1px solid var(--border); background: rgba(0,0,0,.2); margin-bottom: var(--space-3); }
+.hub-trade-view-switch button { padding: 6px 16px; border-radius: 999px; border: none; background: transparent; color: var(--text-secondary); font-weight: 800; font-size: var(--text-sm); cursor: pointer; }
+.hub-trade-view-switch button.active { background: var(--gold); color: #111; }
+.hub-trade-block-panel { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); margin-bottom: var(--space-4); }
 .hub-trade-propose { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); }
 .hub-trade-sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin: var(--space-3) 0; }
 @media (max-width: 700px) { .hub-trade-sides { grid-template-columns: 1fr; } }

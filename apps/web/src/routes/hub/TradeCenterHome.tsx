@@ -3,7 +3,7 @@ import { Search, Trash2 } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { Trade, TradeLegInput, TeamRosterResponse, RosterPlayer, TeamDraftPick } from "../../types/api.js";
+import type { Trade, TradeBlockListing, TradeLegInput, TeamRosterResponse, RosterPlayer, TeamDraftPick } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -205,6 +205,113 @@ function statusLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterResponse): string {
+  const parts = listing.offeredLegs.map((leg) => {
+    if (leg.type === "player") {
+      const player = myRoster.players.find((p) => p.id === leg.playerId);
+      return player ? `${player.fullName} (${player.position})` : "a player";
+    }
+    const pick = myRoster.draftPicks.find((p) => p.id === leg.draftPickId);
+    return pick ? `Season ${pick.seasonNumber} Round ${pick.round} pick` : "a draft pick";
+  });
+  if (listing.offeredCoins > 0) parts.push(`${listing.offeredCoins} coins`);
+  return parts.length ? parts.join(", ") : "nothing yet";
+}
+
+/** Open "package offer" board: post up to 7 players/picks + coins with a free-text "looking
+ * for", visible league-wide and announced to Discord's trade-block channel — distinct from
+ * the simple single-player TradeBlockSection below, which just flags one player as available. */
+function TradeBlockPanel({ guildId, myRoster, onChanged }: {
+  guildId: string;
+  myRoster: TeamRosterResponse;
+  onChanged: () => void;
+}) {
+  const [listings, setListings] = useState<TradeBlockListing[] | null>(null);
+  const [legs, setLegs] = useState<TradeLegInput[]>([]);
+  const [coins, setCoins] = useState(0);
+  const [lookingFor, setLookingFor] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function load() {
+    recApi.listTradeBlockListings(guildId).then((res) => setListings(res.listings)).catch((err) => setError(err instanceof Error ? err.message : "Failed to load the trade block."));
+  }
+  useEffect(load, [guildId]);
+
+  function toggleLeg(leg: TradeLegInput) {
+    setLegs((current) => {
+      const key = legKey(leg);
+      if (current.some((l) => legKey(l) === key)) return current.filter((l) => legKey(l) !== key);
+      if (current.length >= MAX_LEGS) return current;
+      return [...current, leg];
+    });
+  }
+
+  async function post() {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await recApi.createTradeBlockListing({ guildId, legs, coins, lookingFor });
+      setLegs([]); setCoins(0); setLookingFor("");
+      setNotice("Posted to the trade block.");
+      load();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to post to the trade block.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function withdraw(listingId: string) {
+    setBusy(true); setError(null);
+    try {
+      await recApi.withdrawTradeBlockListing({ guildId, listingId });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to withdraw the listing.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="hub-trade-block-panel">
+      <h3>Open Trade Block Offers</h3>
+      {error && <p className="hub-error">{error}</p>}
+      {listings === null ? (
+        <p className="hub-empty">Loading the trade block...</p>
+      ) : listings.length === 0 ? (
+        <p className="hub-empty">No open offers right now.</p>
+      ) : (
+        listings.map((listing) => (
+          <div key={listing.id} className="hub-trade-row">
+            <span><strong>{listing.teamName}</strong> is ISO <strong>{listing.lookingFor}</strong> and is offering: {describeListingOffer(listing, myRoster)}</span>
+            {listing.teamId === myRoster.team.id && (
+              <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(listing.id)}>Withdraw</button>
+            )}
+          </div>
+        ))
+      )}
+
+      <h4>Post an Offer</h4>
+      {notice && <p className="hub-notice">{notice}</p>}
+      <TradeAssetPool sideLabel="Offering" roster={myRoster} selected={legs} onToggle={toggleLeg} disabled={legs.length >= MAX_LEGS} />
+      <label className="form-field">
+        <span className="form-label">Coins to include</span>
+        <input type="number" min={0} className="form-input" value={coins} onChange={(event) => setCoins(Math.max(0, Number(event.target.value) || 0))} />
+      </label>
+      <label className="form-field">
+        <span className="form-label">Looking for</span>
+        <input className="form-input" maxLength={300} placeholder="e.g. A starting WR or a 2027 1st round pick" value={lookingFor} onChange={(event) => setLookingFor(event.target.value)} />
+      </label>
+      <button type="button" className="btn btn-primary" disabled={busy || !lookingFor.trim() || (legs.length === 0 && coins === 0)} onClick={() => void post()}>
+        Post to Trade Block
+      </button>
+    </section>
+  );
+}
+
 type TradeBlockEntry = { id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null };
 
 function TradeBlockSection({
@@ -289,6 +396,7 @@ export function TradeCenterHome() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"block" | "builder">("block");
 
   function loadCore() {
     recApi.getTeamRoster({ guildId }).then(setMyRoster).catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
@@ -411,6 +519,19 @@ export function TradeCenterHome() {
       {error && <p className="hub-error">{error}</p>}
       {notice && <p className="hub-notice">{notice}</p>}
 
+      <div className="hub-trade-view-switch">
+        <button type="button" className={viewMode === "block" ? "active" : ""} onClick={() => setViewMode("block")}>Trade Block</button>
+        <button type="button" className={viewMode === "builder" ? "active" : ""} onClick={() => setViewMode("builder")}>Trade Builder</button>
+      </div>
+
+      {viewMode === "block" && (
+        <>
+          <TradeBlockPanel guildId={guildId} myRoster={myRoster} onChanged={loadCore} />
+          <TradeBlockSection guildId={guildId} myTeamId={myRoster.team.id} myPlayers={myRoster.players.filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in")} tradeBlock={tradeBlock} busy={busy} onRemove={removeFromTradeBlock} onChanged={loadCore} />
+        </>
+      )}
+
+      {viewMode === "builder" && <>
       <section className="hub-trade-propose">
         <h3>Propose a Trade</h3>
         <label className="form-field">
@@ -446,8 +567,6 @@ export function TradeCenterHome() {
           Propose Trade
         </button>
       </section>
-
-      <TradeBlockSection guildId={guildId} myTeamId={myRoster.team.id} myPlayers={myRoster.players.filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in")} tradeBlock={tradeBlock} busy={busy} onRemove={removeFromTradeBlock} onChanged={loadCore} />
 
       {isCommissioner && reviewTrades && reviewTrades.length > 0 && (
         <section className="hub-trade-review">
@@ -496,6 +615,7 @@ export function TradeCenterHome() {
           </div>
         ))}
       </section>
+      </>}
     </div>
   );
 }

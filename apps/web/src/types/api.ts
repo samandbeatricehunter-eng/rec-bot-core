@@ -720,6 +720,15 @@ export type RosterPositionGroup = {
   playerCount: number;
 };
 export type TradeLegInput = { type: "player"; playerId: string } | { type: "pick"; draftPickId: string };
+export type TradeBlockListing = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  offeredLegs: TradeLegInput[];
+  offeredCoins: number;
+  lookingFor: string;
+  createdAt: string;
+};
 export type TradeStatus = "pending_response" | "accepted" | "pending_review" | "applied" | "declined" | "withdrawn" | "rejected";
 export type TradeLeg = { id: string; leg_type: "player" | "pick"; player_id: string | null; draft_pick_id: string | null; from_team_id: string; to_team_id: string };
 export type Trade = {

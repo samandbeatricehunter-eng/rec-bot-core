@@ -70,6 +70,7 @@ import type {
   RoleMgmtMember,
   TeamLinkMatrix,
   Trade,
+  TradeBlockListing,
   TradeLeg,
   TradeLegInput,
   RoleMgmtRoleKey,
@@ -328,6 +329,12 @@ export const recApi = {
     recApiFetch<Array<{ id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null; listedAt: string | null }>>("/v1/trades/trade-block/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   setPlayerTradeBlock: (input: { guildId: string; playerId: string; listed: boolean; note?: string }) =>
     recApiFetch<{ id: string; full_name: string }>("/v1/trades/trade-block/set", { method: "POST", body: JSON.stringify(input) }),
+  listTradeBlockListings: (guildId: string) =>
+    recApiFetch<{ listings: TradeBlockListing[] }>("/v1/trades/block-listings/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createTradeBlockListing: (input: { guildId: string; legs: TradeLegInput[]; coins: number; lookingFor: string }) =>
+    recApiFetch<{ listing: unknown }>("/v1/trades/block-listings/create", { method: "POST", body: JSON.stringify(input) }),
+  withdrawTradeBlockListing: (input: { guildId: string; listingId: string }) =>
+    recApiFetch<{ withdrawn: true }>("/v1/trades/block-listings/withdraw", { method: "POST", body: JSON.stringify(input) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: {

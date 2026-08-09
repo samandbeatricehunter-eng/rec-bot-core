@@ -354,3 +354,115 @@ export async function getTradeDetail(guildId: string, tradeId: string) {
   if (legs.error) throw new ApiError(500, "Failed to load trade legs.", legs.error);
   return { trade: trade.data, legs: legs.data ?? [] };
 }
+
+// ---------------------------------------------------------------------------
+// Trade Block: open "I'm offering these, looking for that" listings — distinct from the
+// single-target proposal flow above. A listing packages up to MAX_LEGS_PER_SIDE players/picks
+// plus coins, is visible league-wide, and (unlike a proposal) has no receiving team; anyone
+// interested reaches out directly. Posting one announces it publicly to the trade-block
+// channel, same as a proposal does.
+// ---------------------------------------------------------------------------
+
+async function describeLegsForAnnouncement(leagueId: string, legs: LegInput[]): Promise<string> {
+  if (!legs.length) return "nothing";
+  const playerIds = legs.filter((l) => l.type === "player").map((l: any) => l.playerId);
+  const pickIds = legs.filter((l) => l.type === "pick").map((l: any) => l.draftPickId);
+  const [players, picks] = await Promise.all([
+    playerIds.length ? supabase.from("rec_players").select("id,full_name,position").in("id", playerIds) : Promise.resolve({ data: [] as any[] }),
+    pickIds.length ? supabase.from("rec_draft_picks").select("id,season_number,round").in("id", pickIds) : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const playerById = new Map<string, { full_name: string; position: string }>((players.data ?? []).map((p: any) => [p.id, p]));
+  const pickById = new Map<string, { season_number: number; round: number }>((picks.data ?? []).map((p: any) => [p.id, p]));
+  return legs.map((leg) => {
+    if (leg.type === "player") {
+      const p = playerById.get(leg.playerId);
+      return p ? `${p.full_name} (${p.position})` : "a player";
+    }
+    const p = pickById.get(leg.draftPickId);
+    return p ? `Season ${p.season_number} Round ${p.round} pick` : "a draft pick";
+  }).join(", ");
+}
+
+export async function createTradeBlockListing(input: {
+  guildId: string; discordId: string; legs: LegInput[]; coins: number; lookingFor: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  if (!userId) throw new ApiError(404, "REC account not found.");
+  const teamId = await teamForUser(context.leagueId, userId);
+  const lookingFor = input.lookingFor.trim();
+  if (!lookingFor) throw new ApiError(400, "Say what you're looking for.");
+  if (lookingFor.length > 300) throw new ApiError(400, "Keep what you're looking for under 300 characters.");
+  if (input.coins < 0) throw new ApiError(400, "Coins can't be negative.");
+  if (!input.legs.length && input.coins <= 0) throw new ApiError(400, "Offer at least one player, pick, or coin amount.");
+  await validateLegs(context.leagueId, teamId, input.legs);
+  if (input.coins > 0 && (await walletBalance(userId)) < input.coins) throw new ApiError(400, "You don't have enough coins to offer that amount.");
+
+  const inserted = await supabase.from("rec_trade_block_listings").insert({
+    league_id: context.leagueId, team_id: teamId, user_id: userId, discord_id: input.discordId,
+    offered_legs: input.legs, offered_coins: input.coins, looking_for: lookingFor, status: "open",
+  }).select("*").single();
+  if (inserted.error) throw new ApiError(500, "Failed to post to the trade block.", inserted.error);
+
+  const [teamName, offerDescription] = await Promise.all([
+    teamLabel(context.leagueId, teamId),
+    describeLegsForAnnouncement(context.leagueId, input.legs),
+  ]);
+  const offerLine = [offerDescription !== "nothing" ? offerDescription : null, input.coins > 0 ? `${input.coins} coins` : null].filter(Boolean).join(" + ");
+  const channelId = await resolveTradeBlockChannelId(context.leagueId);
+  if (channelId) {
+    const posted = await postDiscordChannelMessage(channelId, {
+      content: "@everyone",
+      embeds: [{
+        title: "Trade Block",
+        color: 0x8855dd,
+        description: `**${teamName}** is ISO **${lookingFor}** and is offering: ${offerLine || "nothing yet"}.`,
+      }],
+      allowed_mentions: { parse: ["everyone"] },
+    }).catch((err) => { console.error("[ERROR] Failed to post trade block listing to Discord (non-fatal):", err); return null; });
+    if (posted?.id) {
+      await supabase.from("rec_trade_block_listings").update({
+        discord_message_channel_id: channelId, discord_message_id: posted.id,
+      }).eq("id", inserted.data.id);
+    }
+  }
+
+  return { listing: inserted.data };
+}
+
+async function resolveTradeBlockChannelId(leagueId: string): Promise<string> {
+  const linked = await findServerRoutesForLeague(leagueId);
+  return (linked?.routes?.trade_block_channel_id as string | null | undefined) ?? "";
+}
+
+export async function listTradeBlockListings(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const listings = await supabase.from("rec_trade_block_listings").select("*")
+    .eq("league_id", context.leagueId).eq("status", "open").order("created_at", { ascending: false });
+  if (listings.error) throw new ApiError(500, "Failed to load the trade block.", listings.error);
+  const teamIds = Array.from(new Set<string>((listings.data ?? []).map((l: any) => l.team_id as string)));
+  const names = await teamNames(context.leagueId, teamIds);
+  return {
+    listings: (listings.data ?? []).map((l: any) => ({
+      id: l.id,
+      teamId: l.team_id,
+      teamName: names.get(l.team_id) ?? "A team",
+      offeredLegs: l.offered_legs as LegInput[],
+      offeredCoins: l.offered_coins,
+      lookingFor: l.looking_for,
+      createdAt: l.created_at,
+    })),
+  };
+}
+
+export async function withdrawTradeBlockListing(input: { guildId: string; discordId: string; listingId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  const listing = await supabase.from("rec_trade_block_listings").select("*").eq("id", input.listingId).eq("league_id", context.leagueId).maybeSingle();
+  if (listing.error) throw new ApiError(500, "Failed to load the listing.", listing.error);
+  if (!listing.data) throw new ApiError(404, "Listing not found.");
+  if (listing.data.user_id !== userId) throw new ApiError(403, "You can only withdraw your own trade block listing.");
+  const { error } = await supabase.from("rec_trade_block_listings").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", input.listingId);
+  if (error) throw new ApiError(500, "Failed to withdraw the listing.", error);
+  return { withdrawn: true as const };
+}
