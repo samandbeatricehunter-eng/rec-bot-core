@@ -7,6 +7,7 @@ import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service
 import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.service.js";
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
+import { recordHubAnnouncement } from "../hub/hub.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -78,6 +79,20 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     await materializeSignedRecruits(context.leagueId).catch((error) => {
       console.error("[ERROR] Failed to materialize signed recruits on season rollover:", error);
     });
+
+    // CFB's store (custom recruits, Campus Legends, dev upgrades, attributes, traits) is
+    // locked through Season 1 (see CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES in
+    // purchases.service.ts) and opens automatically the moment the league rolls into Season
+    // 2 — announce that transition the same way any other hub announcement goes out.
+    if (context.rec_leagues.game === "cfb_27" && previousSeasonNumber < 2 && input.seasonNumber >= 2) {
+      await recordHubAnnouncement({
+        guildId: input.guildId,
+        title: "The REC Store Is Open!",
+        body: "Season 2 has arrived — Custom Recruits, Campus Legends, Development Upgrades, Attribute Points, and Traits are now unlocked in the REC Store.",
+      }).catch((error) => {
+        console.error("[ERROR] Failed to post CFB store-unlock announcement:", error);
+      });
+    }
   }
 
   const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
