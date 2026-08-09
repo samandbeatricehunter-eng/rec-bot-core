@@ -7,6 +7,7 @@ import {
   commenceFantasyDraft,
   concludeFantasyDraft,
   getFantasyDraftCheckins,
+  getFantasyDraftSelfCheckinStatus,
   getFantasyDraftState,
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
@@ -176,6 +177,17 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send(await concludeFantasyDraft(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Backs the /draft ephemeral Discord command: the caller's own team + check-in status only.
+  app.post("/v1/fantasy-draft/check-in/status", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("discordId is required for bot check-in status calls.");
+      return reply.send(await getFantasyDraftSelfCheckinStatus(body.guildId, discordId));
     } catch (error) { return sendError(reply, error); }
   });
 

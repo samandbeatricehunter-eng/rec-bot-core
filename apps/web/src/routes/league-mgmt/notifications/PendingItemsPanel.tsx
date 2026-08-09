@@ -19,7 +19,6 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
   eos_payout: "EOS Payout", eos_award: "EOS Award", active_check: "Active Check",
   weekly_score_review: "Weekly Scores", wager: "Wager", team_request: "Team Request",
-  game_invite_request: "Game Invite Request",
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue",

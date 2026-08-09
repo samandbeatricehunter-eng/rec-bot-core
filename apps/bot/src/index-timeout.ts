@@ -133,6 +133,7 @@ import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
 import { handleClaimLeagueSlash } from "./flows/claim-league.js";
 import { FANTASY_CHECKIN_CUSTOM_IDS, handleFantasyCheckinButton } from "./flows/fantasy-draft-checkin.js";
+import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -562,6 +563,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "claim-league") {
       await handleClaimLeagueSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "draft") {
+      await handleDraftSlash(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId === DRAFT_SLASH_CUSTOM_IDS.toggle) {
+      await handleDraftSlashToggleButton(interaction);
       return;
     }
 

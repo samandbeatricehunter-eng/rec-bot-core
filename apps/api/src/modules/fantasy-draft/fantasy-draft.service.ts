@@ -10,7 +10,7 @@ import { ApiError } from "../../lib/errors.js";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { broadcastChatEvent } from "../chat/chat-realtime.js";
-import { editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { editDiscordMessage, postDiscordChannelMessage, syncGuildCommands } from "../../lib/discord-guild.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import {
   getCurrentLeagueContext,
@@ -34,6 +34,8 @@ type SessionRow = {
   concluded_at: string | null;
   checkin_message_channel_id: string | null;
   checkin_message_id: string | null;
+  on_clock_message_channel_id: string | null;
+  on_clock_message_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -86,6 +88,33 @@ async function requireSessionStatus(session: SessionRow, allowed: FantasyDraftSt
   if (!allowed.includes(session.status)) {
     throw new ApiError(409, `This action requires the draft to be ${allowed.join(" or ")}, but it is ${session.status}.`);
   }
+}
+
+// /draft is only registered as a visible guild command within ~1hr of the scheduled draft
+// time (or while live) — see syncGuildCommands. Scheduling ahead of time needs a timer for
+// the "now within 1hr" transition since nothing else triggers exactly then; in-memory only
+// (matches the existing pattern for the unlinked-guild grace period), so a process restart
+// between now and the transition just means /draft appears late instead of not at all.
+const draftVisibilityTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleDraftCommandVisibility(guildId: string, scheduledAt: string) {
+  const existing = draftVisibilityTimers.get(guildId);
+  if (existing) clearTimeout(existing);
+  const msUntilWindow = new Date(scheduledAt).getTime() - 60 * 60_000 - Date.now();
+  if (msUntilWindow <= 0) {
+    syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (immediate window):", error));
+    return;
+  }
+  const timer = setTimeout(() => {
+    draftVisibilityTimers.delete(guildId);
+    syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (scheduled window):", error));
+  }, msUntilWindow);
+  draftVisibilityTimers.set(guildId, timer);
+}
+
+function cancelDraftCommandVisibilityTimer(guildId: string) {
+  const existing = draftVisibilityTimers.get(guildId);
+  if (existing) { clearTimeout(existing); draftVisibilityTimers.delete(guildId); }
 }
 
 async function setLeagueFantasyDraftStatus(leagueId: string, status: string) {
@@ -459,6 +488,23 @@ export async function getFantasyDraftCheckins(guildId: string) {
   return { checkins: checkins.map((c) => ({ teamId: c.teamId, teamName: c.teamName, checkedIn: c.checkedIn })) };
 }
 
+/** Backs the `/draft` ephemeral command: the caller's own team + check-in status, without
+ * exposing every other team's identity (unlike getFantasyDraftCheckins, which is
+ * commissioner-oriented). Bot-callable — resolves the team from the caller's own discordId. */
+export async function getFantasyDraftSelfCheckinStatus(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["scheduled", "live"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to check in.");
+  const teamId = await resolveTeamForUser(leagueId, userId);
+  const team = await supabase.from("rec_teams").select("name,display_nick,display_abbr").eq("id", teamId).maybeSingle();
+  const teamName = team.data ? (team.data.display_nick ?? team.data.display_abbr ?? team.data.name) : "your team";
+  const checkin = await supabase.from("rec_fantasy_draft_checkins").select("checked_in").eq("session_id", session.id).eq("team_id", teamId).maybeSingle();
+  return { teamId, teamName, checkedIn: Boolean(checkin.data?.checked_in) };
+}
+
 /** Self-service check-in/out. Only Discord-linked accounts (real or site-only) can toggle;
  * the target team is the caller's active team assignment. Broadcasts a refresh and keeps the
  * live Discord embed in sync. */
@@ -585,6 +631,7 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
   }
 
   await setLeagueFantasyDraftStatus(leagueId, "scheduled");
+  scheduleDraftCommandVisibility(guildId, scheduledAt);
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return serializeSession(session);
 }
@@ -617,6 +664,8 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
   }
 
   await setLeagueFantasyDraftStatus(leagueId, "live");
+  cancelDraftCommandVisibilityTimer(guildId);
+  syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (commence):", error));
 
   // Fire-and-forget side effects — never block the response on Discord/push failures.
   const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
@@ -818,6 +867,146 @@ async function recordPick(input: {
   if (update.error) throw new ApiError(500, "Failed to assign the drafted player.", update.error);
 }
 
+// ---------------------------------------------------------------------------
+// Live "on the clock" embed and per-round conclusion announcements. The on-the-clock embed
+// is a single message (tracked via on_clock_message_channel_id/_id) that gets edited in
+// place after every pick to show the previous pick alongside who's up next; the round
+// conclusion embed is a fresh @everyone post each time a round's 32nd pick is logged.
+// ---------------------------------------------------------------------------
+
+async function resolveTeamOwnerDiscordId(leagueId: string, teamId: string): Promise<string | null> {
+  const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
+  if (!ownerUserId) return null;
+  const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", ownerUserId).maybeSingle();
+  if (account.error) return null;
+  return account.data?.discord_id ?? null;
+}
+
+async function buildOnTheClockEmbedData(
+  leagueId: string,
+  teams: Array<{ id: string; displayName: string }>,
+  session: SessionRow,
+  previousPick: PickRow | null,
+) {
+  const pickOrder = await listPickOrder(session.id);
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
+
+  let description = "";
+  if (previousPick) {
+    const player = await supabase.from("rec_players").select("full_name,position").eq("id", previousPick.player_id).maybeSingle();
+    const prevTeam = teams.find((t) => t.id === previousPick.team_id);
+    description += `Previous Pick (${previousPick.pick_in_round} - ${prevTeam?.displayName ?? "Unknown"}): **${player.data?.full_name ?? "Unknown"}** (${player.data?.position ?? "?"})\n\n`;
+  }
+  description += onTheClockTeam
+    ? `**${onTheClockTeam.displayName}**, you're on the CLOCK! (Round ${session.current_round}, Pick ${session.current_pick_in_round})`
+    : "Waiting for the next pick...";
+
+  return { onTheClockTeam, embed: { title: "On The Clock", color: 0xd9a521, description } };
+}
+
+/** Posts (first time) or edits in place (every pick after) the live on-the-clock embed.
+ * Silent no-op if the league has no announcements channel configured. */
+async function postOrUpdateOnTheClockEmbed(
+  announcementsChannelId: string | null,
+  leagueId: string,
+  teams: Array<{ id: string; displayName: string }>,
+  session: SessionRow,
+  previousPick: PickRow | null,
+) {
+  if (!announcementsChannelId) return;
+  const { onTheClockTeam, embed } = await buildOnTheClockEmbedData(leagueId, teams, session, previousPick);
+  const ownerDiscordId = onTheClockTeam ? await resolveTeamOwnerDiscordId(leagueId, onTheClockTeam.id) : null;
+  const content = ownerDiscordId ? `<@${ownerDiscordId}>` : undefined;
+
+  if (session.on_clock_message_channel_id && session.on_clock_message_id) {
+    const edited = await editDiscordMessage(session.on_clock_message_channel_id, session.on_clock_message_id, { content, embeds: [embed] }).catch(() => null);
+    if (edited) return;
+  }
+  const posted = await postDiscordChannelMessage(announcementsChannelId, { content, embeds: [embed] }).catch(() => null);
+  if (posted?.id) {
+    await supabase.from("rec_fantasy_draft_sessions").update({
+      on_clock_message_channel_id: announcementsChannelId,
+      on_clock_message_id: posted.id,
+      updated_at: new Date().toISOString(),
+    }).eq("id", session.id).then(() => undefined, () => undefined);
+    session.on_clock_message_channel_id = announcementsChannelId;
+    session.on_clock_message_id = posted.id;
+  }
+}
+
+/** Fires once a round's 32nd pick lands — full pick list for that round, @everyone, to
+ * the announcements channel. Fire-and-forget; never blocks the pick response. */
+async function postRoundConclusionEmbed(
+  announcementsChannelId: string | null,
+  leagueId: string,
+  teams: Array<{ id: string; displayName: string }>,
+  session: SessionRow,
+  completedRound: number,
+) {
+  if (!announcementsChannelId) return;
+  const picks = await listPicks(session.id);
+  const roundPicks = picks.filter((p) => p.round === completedRound).sort((a, b) => a.pick_in_round - b.pick_in_round);
+  if (!roundPicks.length) return;
+  const playerIds = roundPicks.map((p) => p.player_id);
+  const players = await supabase.from("rec_players").select("id,full_name,position").in("id", playerIds);
+  const playerById = new Map<string, { full_name: string; position: string }>((players.data ?? []).map((p: any) => [p.id, p]));
+  const lines = roundPicks.map((pick) => {
+    const team = teams.find((t) => t.id === pick.team_id);
+    const player = playerById.get(pick.player_id);
+    return `${pick.pick_in_round}. **${team?.displayName ?? "Unknown"}** — ${player?.full_name ?? "Unknown"} (${player?.position ?? "?"})`;
+  });
+  await postDiscordChannelMessage(announcementsChannelId, {
+    content: "@everyone",
+    embeds: [{
+      title: `Round ${completedRound} Complete`,
+      color: 0xd9a521,
+      description: lines.join("\n"),
+      footer: { text: "REC Leagues Fantasy Draft" },
+    }],
+    allowed_mentions: { parse: ["everyone"] },
+  }).catch((error) => console.error("[ERROR] Fantasy draft round-conclusion announcement failed (non-fatal):", error));
+}
+
+/** Shared tail of both pick-logging paths (direct commissioner log, and an approved pick
+ * request): advances the session's round/pick counters, then fires the on-the-clock embed
+ * update (always) and the round-conclusion embed (only when a round's last pick just landed). */
+async function advanceDraftClockAndAnnounce(
+  leagueId: string,
+  session: SessionRow,
+  justLoggedPick: { round: number; pickInRound: number; teamId: string; playerId: string },
+): Promise<{ nextRound: number; nextPick: number }> {
+  let nextRound = session.current_round;
+  let nextPick = session.current_pick_in_round + 1;
+  const roundJustCompleted = nextPick > 32;
+  if (roundJustCompleted) {
+    nextRound += 1;
+    nextPick = 1;
+  }
+  await supabase.from("rec_fantasy_draft_sessions").update({
+    current_round: nextRound,
+    current_pick_in_round: nextPick,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+
+  const context = await getCurrentLeagueContext(leagueId).catch(() => null);
+  const announcementsChannelId = (context?.routes as any)?.announcements_channel_id ?? null;
+  const teams = await listTeams(leagueId);
+  const nextSession = { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow;
+
+  const previousPickRow: PickRow = {
+    id: "", session_id: session.id, round: justLoggedPick.round, pick_in_round: justLoggedPick.pickInRound,
+    overall_pick_number: 0, team_id: justLoggedPick.teamId, player_id: justLoggedPick.playerId,
+    is_wrapup_pick: false, logged_by_user_id: "", logged_at: new Date().toISOString(),
+  };
+  await postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, previousPickRow).catch(() => undefined);
+  if (roundJustCompleted) {
+    await postRoundConclusionEmbed(announcementsChannelId, leagueId, teams, session, justLoggedPick.round).catch(() => undefined);
+  }
+
+  return { nextRound, nextPick };
+}
+
 export async function logFantasyDraftPick(guildId: string, discordId: string, playerId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { leagueId } = context;
@@ -845,18 +1034,9 @@ export async function logFantasyDraftPick(guildId: string, discordId: string, pl
     loggedByUserId: userId,
   });
 
-  let nextRound = session.current_round;
-  let nextPick = session.current_pick_in_round + 1;
-  if (nextPick > 32) {
-    nextRound += 1;
-    nextPick = 1;
-  }
-  await supabase.from("rec_fantasy_draft_sessions").update({
-    current_round: nextRound,
-    current_pick_in_round: nextPick,
-    updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
-
+  const { nextRound, nextPick } = await advanceDraftClockAndAnnounce(leagueId, session, {
+    round: session.current_round, pickInRound: session.current_pick_in_round, teamId, playerId,
+  });
   await pushOnTheClock(leagueId, { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
@@ -978,17 +1158,9 @@ export async function resolveFantasyDraftPickRequest(guildId: string, discordId:
     loggedByUserId: row.requested_by_user_id,
   });
 
-  let nextRound = session.current_round;
-  let nextPick = session.current_pick_in_round + 1;
-  if (nextPick > 32) {
-    nextRound += 1;
-    nextPick = 1;
-  }
-  await supabase.from("rec_fantasy_draft_sessions").update({
-    current_round: nextRound,
-    current_pick_in_round: nextPick,
-    updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
+  const { nextRound, nextPick } = await advanceDraftClockAndAnnounce(leagueId, session, {
+    round: session.current_round, pickInRound: session.current_pick_in_round, teamId: row.team_id, playerId: row.player_id,
+  });
 
   await supabase.from("rec_fantasy_draft_pick_requests")
     .update({ status: "approved", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
@@ -1078,6 +1250,8 @@ export async function skipFantasyDraftToEnd(guildId: string) {
   requireSessionStatus(session, ["live"]);
   await supabase.from("rec_fantasy_draft_sessions").update({ status: "wrap_up", updated_at: new Date().toISOString() }).eq("id", session.id);
   await setLeagueFantasyDraftStatus(leagueId, "wrap_up");
+  cancelDraftCommandVisibilityTimer(guildId);
+  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (skip to end):", error));
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const };
 }
@@ -1094,6 +1268,8 @@ export async function concludeFantasyDraft(guildId: string) {
     updated_at: new Date().toISOString(),
   }).eq("id", session.id);
   await setLeagueFantasyDraftStatus(leagueId, "concluded");
+  cancelDraftCommandVisibilityTimer(guildId);
+  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (conclude):", error));
 
   // Roster-size report for the "your team might not be fully assigned" modal — informational,
   // never a hard block (position minimums are out of scope, see plan §7).

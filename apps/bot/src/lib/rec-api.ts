@@ -713,4 +713,6 @@ export const recApi = {
     recFetch<{ checkins: Array<{ teamId: string; teamName: string; checkedIn: boolean }> }>("/v1/fantasy-draft/check-ins", { method: "POST", body: JSON.stringify({ guildId }) }),
   setFantasyDraftSelfCheckin: (guildId: string, discordId: string, checkedIn: boolean) =>
     recFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify({ guildId, discordId, checkedIn }) }),
+  getFantasyDraftSelfCheckinStatus: (guildId: string, discordId: string) =>
+    recFetch<{ teamId: string; teamName: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/status", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
 };

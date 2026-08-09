@@ -518,14 +518,6 @@ export function HubHome() {
   const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
   const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
   const [lateSubmissionsOpen, setLateSubmissionsOpen] = useState(false);
-  // One-time attention card on the main league page: shown once for a newly-linked member who
-  // hasn't submitted their PSN/Gamertag yet, disappears for good once they submit (or if a
-  // prior request already exists in any state — see needsGameInviteRequest below).
-  const [needsGameInviteRequest, setNeedsGameInviteRequest] = useState(false);
-  const [gameInviteTag, setGameInviteTag] = useState("");
-  const [gameInviteBusy, setGameInviteBusy] = useState(false);
-  const [gameInviteError, setGameInviteError] = useState<string | null>(null);
-  const [gameInviteSent, setGameInviteSent] = useState(false);
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
@@ -806,26 +798,6 @@ export function HubHome() {
     if (auth.status !== "ready" || section !== "team" || mediaPortal) return;
     recApi.getHubMediaPortal(auth.guildId).then(setMediaPortal).catch(() => setMediaPortal(null));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, mediaPortal]);
-
-  useEffect(() => {
-    if (auth.status !== "ready" || section !== "league" || gameInviteSent) return;
-    recApi.getGameInviteRequestStatus(auth.guildId).then((res) => setNeedsGameInviteRequest(res.show)).catch(() => setNeedsGameInviteRequest(false));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, gameInviteSent]);
-
-  async function submitGameInviteRequest() {
-    if (auth.status !== "ready") return;
-    setGameInviteBusy(true);
-    setGameInviteError(null);
-    try {
-      await recApi.requestGameInvite({ guildId: auth.guildId, tag: gameInviteTag.trim() });
-      setGameInviteSent(true);
-      setNeedsGameInviteRequest(false);
-    } catch (error) {
-      setGameInviteError(error instanceof Error ? error.message : "Failed to submit your invite request.");
-    } finally {
-      setGameInviteBusy(false);
-    }
-  }
 
   // Comments load once per story open — keyed on the index, not on `hub`, so an optimistic
   // reaction/comment update elsewhere doesn't re-trigger a comment refetch.
@@ -1497,21 +1469,6 @@ export function HubHome() {
       })()}
     </section> : section === "roster" ? <RosterHome /> : section === "trades" ? <TradeCenterHome /> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
-        {needsGameInviteRequest && (
-          <div className="hub-attention-card">
-            <div className="hub-attention-card-copy">
-              <p className="hub-eyebrow"><Send size={14} /> Request Game Invite</p>
-              <p>Enter your PSN ID or Gamertag so your commissioner can invite you in-game.</p>
-              {gameInviteError && <p className="hub-transfer-status">{gameInviteError}</p>}
-            </div>
-            <div className="hub-attention-card-form">
-              <input className="form-input" value={gameInviteTag} maxLength={40} onChange={(e) => setGameInviteTag(e.target.value)} placeholder="e.g. YourGamertag123" />
-              <Button variant="primary" disabled={gameInviteBusy || !gameInviteTag.trim()} onClick={() => void submitGameInviteRequest()}>
-                {gameInviteBusy ? "Submitting…" : "Submit"}
-              </Button>
-            </div>
-          </div>
-        )}
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
             <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p><p className="hub-hero-coach">{coachName}</p></div>

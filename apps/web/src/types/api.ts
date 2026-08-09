@@ -217,7 +217,6 @@ export type CommissionerNotificationType =
   | "weekly_score_review"
   | "wager"
   | "team_request"
-  | "game_invite_request"
   | "media"
   | "game_of_the_year"
   | "legend"

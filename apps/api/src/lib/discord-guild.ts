@@ -65,6 +65,52 @@ export async function getBotUserId(): Promise<string> {
   return user.id;
 }
 
+let applicationIdCache: CacheEntry<string> | undefined;
+async function getApplicationId(): Promise<string> {
+  if (applicationIdCache && applicationIdCache.expiresAt > Date.now()) return applicationIdCache.value;
+  const res = await discordBotFetch("/oauth2/applications/@me");
+  if (!res.ok) throw new ApiError(502, `Discord rejected the application lookup (${res.status}).`);
+  const app = await res.json() as { id: string };
+  applicationIdCache = { value: app.id, expiresAt: Date.now() + 10 * 60_000 };
+  return app.id;
+}
+
+// Mirrors apps/bot/src/commands.ts's static `commands` array — kept as plain JSON here (not
+// discord.js SlashCommandBuilder) because apps/api has no discord.js dependency. Every guild
+// command PUT replaces the guild's ENTIRE command set, so this always has to be re-sent in
+// full alongside whatever conditional commands (e.g. /draft) apply right now — there's no
+// partial "add one command" call. If the base command list in apps/bot/src/commands.ts ever
+// changes, update this to match or guilds will silently lose whichever command was dropped.
+const BASE_GUILD_COMMANDS_JSON = [
+  { name: "app", description: "Open the REC Leagues app." },
+  { name: "openteams", description: "View open and claimed teams in this league." },
+  { name: "matchup", description: "Show your current-week matchup." },
+  { name: "schedule", description: "Show your team's full season schedule." },
+  {
+    name: "claim-league",
+    description: "Link this Discord server to a REC league using its invite token.",
+    options: [{ type: 3, name: "token", description: "Invite token from the site's Enable Discord Bot page.", required: true }],
+  },
+];
+const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
+
+/**
+ * Registers this guild's full command set — the base commands plus /draft only when
+ * `includeDraft` is true. /draft is meant to only be visible within ~1hr of a scheduled
+ * fantasy draft or while one is live; see fantasy-draft.service.ts's schedule/commence/
+ * conclude/skip-to-end for the call sites that flip this.
+ */
+export async function syncGuildCommands(guildId: string, includeDraft: boolean): Promise<void> {
+  const appId = await getApplicationId();
+  const body = includeDraft ? [...BASE_GUILD_COMMANDS_JSON, DRAFT_COMMAND_JSON] : BASE_GUILD_COMMANDS_JSON;
+  const res = await discordBotFetch(`/applications/${appId}/guilds/${guildId}/commands`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(502, `Discord rejected the guild command sync (${res.status}).`);
+}
+
 async function putChannelPermissionOverwrite(channelId: string, overwriteId: string, type: 0 | 1, allow: bigint, deny: bigint) {
   const res = await discordBotFetch(`/channels/${channelId}/permissions/${overwriteId}`, {
     method: "PUT",
