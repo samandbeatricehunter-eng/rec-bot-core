@@ -362,6 +362,10 @@ class PostgresQueryBuilder {
         values.push(valuesList);
         return `${ident(column)} = ANY($${values.length})`;
       }
+      if (op === "neq") {
+        values.push(rawValue);
+        return `${ident(column)} <> $${values.length}`;
+      }
       throw new Error(`Unsupported or() operator: ${op}`);
     });
     return `(${clauses.join(" OR ")})`;
