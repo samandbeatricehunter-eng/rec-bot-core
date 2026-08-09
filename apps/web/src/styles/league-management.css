@@ -699,6 +699,17 @@
   border-color: var(--danger);
 }
 
+.core-attribute-picker { position: relative; }
+.core-attribute-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-strong, var(--border)); border-radius: var(--radius-md); background: var(--surface, transparent); color: var(--text); cursor: pointer; font-size: var(--text-sm); }
+.core-attribute-picker-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+.core-attribute-picker-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: var(--text-xs); font-weight: 700; }
+.core-attribute-picker-chip button { background: none; border: none; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
+.core-attribute-picker-panel { position: relative; z-index: 5; margin-top: var(--space-2); padding: var(--space-2); border: 1px solid var(--border-strong, var(--border)); border-radius: var(--radius-md); background: var(--card-bg, var(--surface)); }
+.core-attribute-picker-scroll { max-height: 16rem; overflow-y: auto; margin-top: var(--space-2); }
+.core-attribute-picker-group { margin-bottom: var(--space-2); }
+.core-attribute-picker-group strong { display: block; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gold, var(--accent)); margin-bottom: 4px; }
+.core-attribute-picker-option { display: flex; align-items: center; gap: var(--space-2); padding: 3px 0; font-size: var(--text-sm); cursor: pointer; }
+
 /* Command Center: Advance Readiness rows. Mobile-first — info stacks above actions instead
    of squeezing three buttons into a shrinking row (that's what wrapped "Notify Both" onto
    three lines on narrow phones). */

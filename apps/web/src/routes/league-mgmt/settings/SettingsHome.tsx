@@ -17,6 +17,7 @@ import { TransactionMaintenance } from "./TransactionMaintenance.js";
 import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
 import { ModerationSettings } from "./ModerationSettings.js";
 import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
+import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
@@ -247,37 +248,11 @@ export function SettingsHome() {
                 </div>
               </div>
             </div> : null}
-            {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
-              <div className="form-field">
-                <label className="form-label">Purchase deadlines</label>
-                <p className="form-hint">Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season.</p>
-                {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract"].includes(key)).map(([key, label]) => {
-                  const current = purchaseDeadlines[key];
-                  return <div className="attribute-cap-row" key={key}>
-                    <span>{label}</span>
-                    <select className="form-select" value={current?.stage ?? ""} onChange={(event) => {
-                      const next = { ...purchaseDeadlines };
-                      if (!event.target.value) delete next[key];
-                      else next[key] = { stage: event.target.value, week: current?.week ?? 1 };
-                      setField("purchaseDeadlines", next);
-                    }}>
-                      <option value="">No deadline</option>
-                      {PURCHASE_DEADLINE_STAGES.map((stage) => <option key={stage} value={stage}>{stage.replaceAll("_", " ")}</option>)}
-                    </select>
-                    <input className="form-input" aria-label={`${label} deadline week`} type="number" min={1} max={30} disabled={!current?.stage} value={current?.week ?? 1} onChange={(event) => setField("purchaseDeadlines", { ...purchaseDeadlines, [key]: { stage: current?.stage ?? "regular_season", week: Math.max(1, Math.min(30, Number(event.target.value))) } })} />
-                  </div>;
-                })}
-              </div>
-            ) : null}
             {activeCategory === "purchases" && Boolean(draft.attributePurchasesEnabled) ? (
               <div className="form-field">
-                <label className="form-label" htmlFor="core-attributes">Core attributes</label>
-                <input
-                  id="core-attributes"
-                  className="form-input"
-                  value={coreAttributes.join(", ")}
-                  onChange={(event) => {
-                    const next = [...new Set(event.target.value.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean))];
+                <CoreAttributePicker
+                  value={coreAttributes}
+                  onChange={(next) => {
                     setDraft((current) => current ? {
                       ...current,
                       coreAttributes: next,
@@ -285,7 +260,7 @@ export function SettingsHome() {
                     } : current);
                   }}
                 />
-                <p className="form-hint">Comma-separated in-game attribute codes. Each uses the default core cap unless an override is set below — and the group cap above still applies to their combined total.</p>
+                <p className="form-hint">Each selected attribute uses the Core Attribute Default Cap above unless overridden below — and the Core Attribute Group Cap above still applies to their combined total.</p>
                 {coreAttributes.map((code) => (
                   <label key={code} className="attribute-cap-row">
                     <span>{code} season cap</span>
@@ -358,6 +333,28 @@ export function SettingsHome() {
                     Add Override
                   </Button>
                 </div>
+              </div>
+            ) : null}
+            {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
+              <div className="form-field">
+                <label className="form-label">Purchase deadlines</label>
+                <p className="form-hint">Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season.</p>
+                {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract"].includes(key)).map(([key, label]) => {
+                  const current = purchaseDeadlines[key];
+                  return <div className="attribute-cap-row" key={key}>
+                    <span>{label}</span>
+                    <select className="form-select" value={current?.stage ?? ""} onChange={(event) => {
+                      const next = { ...purchaseDeadlines };
+                      if (!event.target.value) delete next[key];
+                      else next[key] = { stage: event.target.value, week: current?.week ?? 1 };
+                      setField("purchaseDeadlines", next);
+                    }}>
+                      <option value="">No deadline</option>
+                      {PURCHASE_DEADLINE_STAGES.map((stage) => <option key={stage} value={stage}>{stage.replaceAll("_", " ")}</option>)}
+                    </select>
+                    <input className="form-input" aria-label={`${label} deadline week`} type="number" min={1} max={30} disabled={!current?.stage} value={current?.week ?? 1} onChange={(event) => setField("purchaseDeadlines", { ...purchaseDeadlines, [key]: { stage: current?.stage ?? "regular_season", week: Math.max(1, Math.min(30, Number(event.target.value))) } })} />
+                  </div>;
+                })}
               </div>
             ) : null}
           </Card>
