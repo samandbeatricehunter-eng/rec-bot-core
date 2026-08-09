@@ -470,10 +470,19 @@ export async function listOpenTeams(guildId: string) {
   const teams = await supabase.from("rec_teams").select("*").eq("league_id", league.id).order("conference").order("name");
   if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
 
-  const assignments = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", league.id).is("ended_at", null);
+  const [assignments, pendingRequests] = await Promise.all([
+    supabase.from("rec_team_assignments").select("team_id").eq("league_id", league.id).is("ended_at", null),
+    // A team with a pending (unapproved) request shouldn't show as open — otherwise a second
+    // member could request the same team while the first request is still awaiting the
+    // commissioner. Only "pending"/"approved" hold the team; "rejected"/"completed" don't
+    // (completed teams are already caught by the assignment it created).
+    supabase.from("rec_team_link_requests").select("team_id").eq("league_id", league.id).in("status", ["pending", "approved"]),
+  ]);
   if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+  if (pendingRequests.error) throw new ApiError(500, "Failed to load pending team requests.", pendingRequests.error);
 
   const assigned = new Set(assignments.data.map((row) => row.team_id));
+  for (const row of pendingRequests.data) assigned.add(row.team_id);
   // totalTeams lets callers distinguish "this league truly has zero teams" (safe to auto-seed
   // defaults) from "every team is already linked" (openTeams.length === 0 too, but seeding here
   // would destructively wipe every existing team/conference/link).

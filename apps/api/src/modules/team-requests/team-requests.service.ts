@@ -74,6 +74,19 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
   if (teamTaken.error) throw new ApiError(500, "Failed to check team availability.", teamTaken.error);
   if (teamTaken.data) throw new ApiError(409, "That team is no longer available.");
 
+  // Someone else's pending/approved request on this same team also takes it off the market —
+  // without this a second member could request it while the first request is still awaiting
+  // the commissioner's review.
+  const teamRequested = await supabase
+    .from("rec_team_link_requests")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("team_id", input.teamId)
+    .in("status", ["pending", "approved"])
+    .maybeSingle();
+  if (teamRequested.error) throw new ApiError(500, "Failed to check team availability.", teamRequested.error);
+  if (teamRequested.data) throw new ApiError(409, "That team already has a pending request from another member.");
+
   const pending = await supabase
     .from("rec_team_link_requests")
     .select("id")

@@ -422,12 +422,19 @@ export type RosterTeam = {
   is_relocated?: boolean | null;
   linkedDiscordId?: string | null;
   linkedName?: string | null;
+  hasPendingRequest?: boolean | null;
   wins?: number | null;
   losses?: number | null;
   ties?: number | null;
   pointDifferential?: number | null;
   recordText?: string | null;
 };
+
+// A team is "open" to request only if nobody's linked to it AND nobody else has a pending
+// (unapproved) request on it — otherwise two members could both request the same team.
+export function isTeamOpenToRequest(team: Pick<RosterTeam, "linkedDiscordId" | "hasPendingRequest">): boolean {
+  return !team.linkedDiscordId && !team.hasPendingRequest;
+}
 export type RosterConference = {
   conference: string;
   divisions: Array<{ division: string; label: string; teams: RosterTeam[] }>;
@@ -561,7 +568,7 @@ export function buildOpenTeamsEmbeds(conferences: RosterConference[]) {
   for (const conf of normalized) {
     const fields: Array<{ name: string; value: string; inline: false }> = [];
     for (const division of conf.divisions) {
-      const openTeams = division.teams.filter((team) => !team.linkedDiscordId);
+      const openTeams = division.teams.filter(isTeamOpenToRequest);
       if (!openTeams.length) continue;
       fields.push({
         name: division.label,

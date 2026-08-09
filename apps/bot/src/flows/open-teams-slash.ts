@@ -14,7 +14,7 @@ import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { isCfbLeague } from "../lib/league-game.js";
 import { recApi } from "../lib/rec-api.js";
-import { normalizeRosterConferences, type RosterConference } from "../ui/menu.js";
+import { isTeamOpenToRequest, normalizeRosterConferences, type RosterConference } from "../ui/menu.js";
 
 export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   confPrefix: "rec:openteams:conf",
@@ -25,8 +25,10 @@ export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   teamSelectPrefix: "rec:openteams:req:team",
 } as const;
 
-function formatTeamLine(team: { name: string; linkedDiscordId?: string | null }) {
-  return team.linkedDiscordId ? `~~${team.name}~~ (<@${team.linkedDiscordId}>)` : `**${team.name}**`;
+function formatTeamLine(team: { name: string; linkedDiscordId?: string | null; hasPendingRequest?: boolean | null }) {
+  if (team.linkedDiscordId) return `~~${team.name}~~ (<@${team.linkedDiscordId}>)`;
+  if (team.hasPendingRequest) return `~~${team.name}~~ (request pending)`;
+  return `**${team.name}**`;
 }
 
 function conferenceFields(conference: RosterConference) {
@@ -112,7 +114,7 @@ function openTeamsList(conferences: RosterConference[]) {
   for (const conference of conferences) {
     for (const division of conference.divisions) {
       for (const team of division.teams) {
-        if (!team.linkedDiscordId) {
+        if (isTeamOpenToRequest(team)) {
           open.push({
             id: team.id,
             name: team.name,
