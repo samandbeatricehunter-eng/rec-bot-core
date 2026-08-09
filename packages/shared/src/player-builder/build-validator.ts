@@ -12,6 +12,7 @@ import {
 } from "./ovr-model.js";
 import {
   evaluateRecArchetypeIdentity,
+  getRecAllAttributeCodes,
   getRecArchetype,
   getRecArchetypeCostMultiplier,
   REC_ARCHETYPE_CATALOG,
@@ -201,24 +202,18 @@ export function calculateRecAttributeCost(
 }
 
 /**
- * Editable fields are position-wide. They are the union of every approved
- * archetype field for the position plus every position OVR field. Selecting a
- * new archetype therefore never deletes or hard-locks legitimate attributes.
+ * A custom player must have every one of the 53 attributes set, not just the ones relevant
+ * to their position/archetype — getRecArchetypeCostMultiplier already prices irrelevant
+ * attributes lower (REC_ARCHETYPE_COST_MULTIPLIERS.irrelevant) rather than excluding them, so
+ * "editable" is simply every attribute code. Game/position/archetype are kept as parameters
+ * (unused) so existing call sites don't need to change.
  */
 export function getRecEditableAttributes(
-  game: RecGameFamily,
-  positionInput: string,
+  _game: RecGameFamily,
+  _positionInput: string,
   _archetypeKey?: string
 ): readonly string[] {
-  const position = normalizeRecOvrPosition(positionInput);
-  const positionArchetypes = REC_ARCHETYPE_CATALOG[game][position];
-  return [...new Set([
-    ...Object.keys(REC_POSITION_OVR_MODELS[position].coefficients),
-    ...positionArchetypes.flatMap((archetype) => [
-      ...archetype.primaryAttributes,
-      ...archetype.secondaryAttributes,
-    ]),
-  ])].sort();
+  return getRecAllAttributeCodes();
 }
 
 export function calculateRecBuildAttributeCost(

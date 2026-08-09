@@ -19,6 +19,10 @@ export const commands = [
     .setDescription("Show your team's full season schedule.")
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("viewleague")
+    .setDescription("Get a link to this league's public status page.")
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("claim-league")
     .setDescription("Link this Discord server to a REC league using its invite token.")
     .addStringOption((option) =>

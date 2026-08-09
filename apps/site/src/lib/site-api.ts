@@ -960,6 +960,26 @@ export const siteApi = {
     if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Upload failed.");
     return payload as { url: string };
   },
+  getPublicLeagueSnapshot(guildId: string) {
+    return publicRequest<PublicLeagueSnapshot>("/v1/public-league/snapshot", {
+      method: "POST",
+      body: JSON.stringify({ guildId }),
+    });
+  },
+};
+
+export type PublicLeagueSnapshot = {
+  league: {
+    name: string;
+    game: string | null;
+    seasonNumber: number;
+    currentWeek: number;
+    seasonStage: string;
+    statusLabel: string;
+  };
+  matchups: Array<{ homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string }>;
+  linkedTeams: Array<{ teamId: string; teamName: string; coachName: string | null }>;
+  standings: Array<{ teamId: string; teamName: string; wins: number; losses: number; ties: number }>;
 };
 
 export type CompUserSummary = {

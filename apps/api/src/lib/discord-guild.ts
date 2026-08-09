@@ -86,6 +86,7 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "openteams", description: "View open and claimed teams in this league." },
   { name: "matchup", description: "Show your current-week matchup." },
   { name: "schedule", description: "Show your team's full season schedule." },
+  { name: "viewleague", description: "Get a link to this league's public status page." },
   {
     name: "claim-league",
     description: "Link this Discord server to a REC league using its invite token.",

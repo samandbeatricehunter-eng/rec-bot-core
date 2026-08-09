@@ -58,6 +58,7 @@ import { pollsRoutes } from "./modules/polls/polls.routes.js";
 import { draftPicksRoutes } from "./modules/draft-picks/draft-picks.routes.js";
 import { tradesRoutes } from "./modules/trades/trades.routes.js";
 import { fantasyDraftRoutes } from "./modules/fantasy-draft/fantasy-draft.routes.js";
+import { publicLeagueRoutes } from "./modules/public-league/public-league.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -116,6 +117,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await draftPicksRoutes(app);
   await tradesRoutes(app);
   await fantasyDraftRoutes(app);
+  await publicLeagueRoutes(app);
   await adminRoutes(app);
   await promoCodeRoutes(app);
   await rankingsRoutes(app);

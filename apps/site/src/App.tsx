@@ -32,6 +32,7 @@ function LegacyCommissionerInboxRedirect() {
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 import { AdminPage } from "./routes/Admin.js";
+import { PublicLeague } from "./routes/PublicLeague.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
   const parts: string[] = [];
@@ -223,6 +224,7 @@ function Routed() {
       <Route path="/help" element={<Help />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/league/:guildId" element={<PublicLeague />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

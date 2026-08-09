@@ -9,7 +9,10 @@
  * They never add or subtract OVR directly.
  */
 
-import { normalizeRecOvrPosition, type RecOvrPosition } from "./ovr-model.js";
+import { normalizeRecOvrPosition, REC_POSITION_OVR_MODELS, type RecOvrPosition } from "./ovr-model.js";
+import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
+
+const ALL_ATTRIBUTE_CODES: readonly string[] = MADDEN_ATTRIBUTE_DEFINITIONS.map((d) => d.code.toLowerCase());
 
 export const REC_ARCHETYPE_CONFIG_VERSION = "rec-archetypes-v1.1.0" as const;
 export type RecGameFamily = "CFB" | "MADDEN";
@@ -24,10 +27,16 @@ export interface RecArchetypeDefinition {
   observedCfb27Players?: number;
 }
 
+// "irrelevant" covers every attribute outside both this archetype's primary/secondary list
+// AND the position's OVR-model coefficients — e.g. blocking ratings on a CB. Custom players
+// must have every one of the 53 attributes set (not just the ones that matter for this
+// position/archetype), so those still cost creation points to raise, just at a lower,
+// "less intensified" rate than an attribute the position's OVR model actually weighs.
 export const REC_ARCHETYPE_COST_MULTIPLIERS = {
   primary: 1.15,
   secondary: 1.07,
   otherPositionRelevant: 1.00,
+  irrelevant: 0.5,
 } as const;
 
 export const REC_ARCHETYPE_IDENTITY_FLOORS: Readonly<Record<RecPackageTier, number>> = {
@@ -308,7 +317,17 @@ export function getRecArchetypeCostMultiplier(
   if (archetype.secondaryAttributes.includes(code)) {
     return REC_ARCHETYPE_COST_MULTIPLIERS.secondary;
   }
-  return REC_ARCHETYPE_COST_MULTIPLIERS.otherPositionRelevant;
+  const position = normalizeRecOvrPosition(positionInput);
+  if (code in REC_POSITION_OVR_MODELS[position].coefficients) {
+    return REC_ARCHETYPE_COST_MULTIPLIERS.otherPositionRelevant;
+  }
+  return REC_ARCHETYPE_COST_MULTIPLIERS.irrelevant;
+}
+
+/** Every attribute code the custom-player builder covers — a custom player must have all 53
+ * set, not just the ones relevant to their position/archetype (those just cost less). */
+export function getRecAllAttributeCodes(): readonly string[] {
+  return ALL_ATTRIBUTE_CODES;
 }
 
 export interface RecArchetypeIdentityResult {

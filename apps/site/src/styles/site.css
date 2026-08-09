@@ -378,6 +378,13 @@ h1, h2, h3, .site-wordmark {
   font-size: 14px;
 }
 .site-legal-page ul { padding-left: 1.25rem; display: flex; flex-direction: column; gap: 6px; }
+.site-public-league-section { display: flex; flex-direction: column; gap: var(--space-2); }
+.site-public-league-list { list-style: none; padding: 0 !important; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.site-public-league-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); font-size: 14px; }
+.site-public-league-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.site-public-league-table th, .site-public-league-table td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
+.site-public-league-table th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+
 .site-legal-notice {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
