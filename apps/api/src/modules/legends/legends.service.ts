@@ -220,7 +220,19 @@ export async function createLegendPurchaseRequest(input: {
       queue_type: "legend",
       header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
       summary: summaryLines.join("\n"),
-      payload: { purchaseId: result.purchase.id, purchaseType: "legend", cost: result.price, replaceTarget: details.replaceTarget },
+      payload: {
+        purchaseId: result.purchase.id,
+        purchaseType: "legend",
+        cost: result.price,
+        replaceTarget: details.replaceTarget,
+        legendName: legend.data.name,
+        legendPosition: legend.data.position,
+        estOvr: legend.data.est_ovr,
+        devTrait: details.devTrait,
+        bodyType: details.bodyType ?? null,
+        teamName: teamName ?? null,
+        attributes: legend.data.attributes ?? {},
+      },
     })
     .eq("source_table", "rec_purchases")
     .eq("source_id", result.purchase.id);

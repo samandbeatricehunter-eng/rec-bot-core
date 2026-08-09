@@ -3813,7 +3813,9 @@ button.poty:disabled {
 }
 
 .custom-player-attribute-list b { text-align: center; }
-.custom-player-attribute-input { width: 3rem; text-align: center; padding: .2rem; background: #0b0d11; border: 1px solid #3d434c; color: #fff; border-radius: 4px; }
+.custom-player-attribute-input { width: 3rem; text-align: center; padding: .2rem; background: #0b0d11; border: 1px solid #3d434c; color: #fff; border-radius: 4px; -moz-appearance: textfield; appearance: textfield; }
+.custom-player-attribute-input::-webkit-outer-spin-button,
+.custom-player-attribute-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .custom-player-attribute-group { margin-bottom: 1rem; }
 .custom-player-attribute-group h5 { margin: 0 0 .4rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--gold); }

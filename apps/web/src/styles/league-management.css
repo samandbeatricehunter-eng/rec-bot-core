@@ -598,6 +598,14 @@
 .completed-transaction-details dt { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .completed-transaction-details dd { margin: 3px 0 0; color: var(--text-primary); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .completed-transaction-audit { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--text-muted); font-size: var(--text-xs); }
+.legend-purchase-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+.legend-purchase-facts div { padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); }
+.legend-purchase-facts dt { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.legend-purchase-facts dd { margin: 3px 0 0; color: var(--text-primary); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.legend-purchase-attributes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); margin-bottom: var(--space-3); }
+.legend-purchase-attribute { display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); font-size: var(--text-sm); }
+.legend-purchase-attribute span { color: var(--text-secondary); }
+.legend-purchase-attribute strong { color: var(--gold); }
 .publishing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .manual-stat-entry { margin: var(--space-4) 0; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .manual-stat-entry summary { color: var(--gold); font-weight: 800; cursor: pointer; }

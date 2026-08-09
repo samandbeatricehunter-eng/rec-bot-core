@@ -74,6 +74,50 @@ function ReplacementDesignator({
   );
 }
 
+// Legend purchase detail: replaces the wall-of-text summary with a real key/value grid plus
+// a sorted attribute table, so a commissioner can actually scan it instead of reading a
+// run-on paragraph or a plain list of newline-separated lines.
+function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> }) {
+  const attributes = Object.entries((payload.attributes as Record<string, number>) ?? {}).sort(([, a], [, b]) => b - a);
+  const replaceTarget = payload.replaceTarget as { position: string; firstName: string; lastName: string } | null | undefined;
+  const facts: Array<[string, string]> = [
+    ["Team", String(payload.teamName ?? "Unassigned")],
+    ["Position", String(payload.legendPosition ?? "—")],
+    ["Est. OVR", String(payload.estOvr ?? "—")],
+    ["Dev Trait", String(payload.devTrait ?? "—")],
+    ...(payload.bodyType ? [["Body Type", String(payload.bodyType)] as [string, string]] : []),
+    ["Replaces", replaceTarget ? `${replaceTarget.position} ${replaceTarget.firstName} ${replaceTarget.lastName}` : "Commissioner's choice"],
+  ];
+  return (
+    <div className="legend-purchase-detail">
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        <strong>Do not approve until this player has actually been created in-game.</strong> Final in-league OVR is normalized to 88 — nudge attributes as needed.
+      </p>
+      <dl className="legend-purchase-facts">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {attributes.length > 0 && (
+        <>
+          <h4 style={{ marginBottom: "var(--space-2)" }}>Attributes</h4>
+          <div className="legend-purchase-attributes">
+            {attributes.map(([key, value]) => (
+              <div key={key} className="legend-purchase-attribute">
+                <span>{key}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Lets the commissioner actually watch the clip and see the claimed week/matchup before
 // approving payout — catches a highlight uploaded from the wrong game (or an outright fake
 // upload just to grab the free coins) that a bare title/subtitle can't reveal.
@@ -322,7 +366,11 @@ export function ResolveNotificationModal({
     <Modal title={notification.title} onClose={onClose}>
       {error && <ErrorState message={error} />}
       <Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge>
-      <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)", whiteSpace: "pre-line" }}>{notification.subtitle}</p>
+      {notification.type === "legend" && notification.payload ? (
+        <LegendPurchaseDetail payload={notification.payload} />
+      ) : (
+        <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)", whiteSpace: "pre-line" }}>{notification.subtitle}</p>
+      )}
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
       )}
