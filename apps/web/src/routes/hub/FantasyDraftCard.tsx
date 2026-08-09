@@ -41,37 +41,6 @@ const ATTRIBUTE_KEY_TO_CODE: Record<string, string> = {
 };
 const ATTRIBUTE_ALL_KEYS = Object.keys(ATTRIBUTE_KEY_TO_CODE);
 
-// Base columns shown for every position, then a handful of position-relevant extras — mirrors
-// the in-game roster viewer's per-position column set instead of showing all 53 attributes.
-const ATTRIBUTE_BASE_KEYS = ["speed", "acceleration", "agility", "strength", "awareness"];
-const POSITION_EXTRA_ATTRIBUTE_KEYS: Record<string, string[]> = {
-  QB: ["throw_power", "throw_accuracy_short", "throw_accuracy_mid", "throw_accuracy_deep"],
-  HB: ["trucking", "break_tackle", "change_of_direction", "bc_vision"],
-  FB: ["trucking", "break_tackle", "lead_block", "run_block"],
-  WR: ["catching", "route_running_short", "route_running_medium", "route_running_deep"],
-  TE: ["catching", "run_block", "pass_block", "route_running_short"],
-  LT: ["run_block", "pass_block", "run_block_power", "pass_block_power"],
-  RT: ["run_block", "pass_block", "run_block_power", "pass_block_power"],
-  LG: ["run_block", "pass_block", "impact_blocking", "lead_block"],
-  RG: ["run_block", "pass_block", "impact_blocking", "lead_block"],
-  C: ["run_block", "pass_block", "impact_blocking", "lead_block"],
-  LE: ["power_moves", "finesse_moves", "block_shedding", "pursuit"],
-  RE: ["power_moves", "finesse_moves", "block_shedding", "pursuit"],
-  DT: ["power_moves", "finesse_moves", "block_shedding", "tackle"],
-  LOLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
-  MLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
-  ROLB: ["tackle", "hit_power", "play_recognition", "pursuit"],
-  CB: ["man_coverage", "zone_coverage", "press", "play_recognition"],
-  FS: ["zone_coverage", "man_coverage", "play_recognition", "hit_power"],
-  SS: ["zone_coverage", "man_coverage", "play_recognition", "hit_power"],
-  K: ["kick_power", "kick_accuracy"],
-  P: ["kick_power", "kick_accuracy"],
-};
-
-function attributeColumnsForPosition(position: string | null): string[] {
-  const extras = (position && POSITION_EXTRA_ATTRIBUTE_KEYS[position]) || [];
-  return [...ATTRIBUTE_BASE_KEYS, ...extras.filter((k) => !ATTRIBUTE_BASE_KEYS.includes(k))];
-}
 function attributeLabel(key: string): string {
   return ATTRIBUTE_KEY_TO_CODE[key] ?? key.slice(0, 3).toUpperCase();
 }
@@ -728,7 +697,7 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
   const available = useMemo(() => pool.filter((p) => !p.isDrafted), [pool]);
   const query = searchQuery.trim().toLowerCase();
 
-  const columns = positionFilter === "All" ? ATTRIBUTE_BASE_KEYS : attributeColumnsForPosition(positionFilter);
+  const columns = ATTRIBUTE_ALL_KEYS;
 
   const rows = available
     .filter((p) => positionFilter === "All" || p.position === positionFilter)
@@ -758,11 +727,13 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
   return (
     <div className="fantasy-draft-pool-panel">
       <div className="fantasy-draft-toolbar">
-        <div className="fantasy-draft-filter-tabs">
-          {["All", ...positionTabs(available)].map((position) => (
-            <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
-          ))}
-        </div>
+        <label className="form-field fantasy-draft-position-select">
+          <span className="form-label">Position</span>
+          <select className="form-input" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
+            <option value="All">All positions</option>
+            {positionTabs(available).map((position) => <option key={position} value={position}>{position}</option>)}
+          </select>
+        </label>
         <label className="fantasy-draft-search">
           <Search size={14} />
           <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -825,7 +796,7 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
   );
 }
 
-const BOARD_ALL_SORT_OPTIONS = ["overallRating", ...ATTRIBUTE_BASE_KEYS, "throw_power", "trucking", "catching", "man_coverage", "tackle"];
+const BOARD_ALL_SORT_OPTIONS = ["overallRating", ...ATTRIBUTE_ALL_KEYS];
 
 /** My Board and My Roster, side by side, sharing one position filter. Board is per-position:
  * filtered to a single position it's a drag-to-reorder ranking of just that position; on "All"
@@ -854,11 +825,13 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
   return (
     <div className="fantasy-draft-board-roster-split">
       <div className="fantasy-draft-toolbar fantasy-draft-board-roster-toolbar">
-        <div className="fantasy-draft-filter-tabs">
-          {["All", ...tabs].map((position) => (
-            <button key={position} type="button" className={positionFilter === position ? "active" : ""} onClick={() => setPositionFilter(position)}>{position}</button>
-          ))}
-        </div>
+        <label className="form-field fantasy-draft-position-select">
+          <span className="form-label">Position</span>
+          <select className="form-input" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
+            <option value="All">All positions</option>
+            {tabs.map((position) => <option key={position} value={position}>{position}</option>)}
+          </select>
+        </label>
         {positionFilter === "All" && (
           <label className="fantasy-draft-board-sort">
             Sort by

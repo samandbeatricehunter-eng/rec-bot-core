@@ -3842,6 +3842,10 @@ button.poty:disabled {
 .fantasy-draft-filter-tabs button.active { color: #111; background: #f1f4f7; border-color: #fff; }
 .fantasy-draft-search { display: flex; align-items: center; gap: .45rem; padding: 0 .6rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(8,10,8,.72); color: var(--text-muted); }
 .fantasy-draft-search .form-input { border: 0; background: transparent; box-shadow: none; }
+.fantasy-draft-position-select, .hub-trade-pool-position-select { max-width: 12rem; }
+
+.hub-roster-pick-season-group, .hub-trade-pick-season-group { margin-top: var(--space-3); }
+.hub-roster-pick-season-group h4, .hub-trade-pick-season-group h5 { margin: 0 0 4px; color: var(--gold); }
 .fantasy-draft-pool { display: flex; flex-direction: column; gap: .45rem; }
 .fantasy-draft-player-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .55rem .65rem; background: #101318; border: 1px solid #3d434c; border-radius: var(--radius-md); }
 .fantasy-draft-player-identity { display: flex; align-items: center; gap: .7rem; min-width: 0; }

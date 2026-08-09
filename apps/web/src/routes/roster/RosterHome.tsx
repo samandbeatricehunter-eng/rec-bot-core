@@ -211,43 +211,50 @@ export function RosterHome() {
           </label>
           {showingDraftPicks ? (
             <div className="hub-roster-table-wrap">
-              <table className="hub-roster-table">
-                <thead>
-                  <tr>
-                    <th>Year</th>
-                    <th>Round</th>
-                    <th>Pick #</th>
-                    <th>Original owner</th>
-                    <th>History</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.draftPicks.map((pick) => (
-                    <tr key={pick.id}>
-                      <td>Season {pick.seasonNumber}</td>
-                      <td>Round {pick.round}</td>
-                      <td>{pick.pickNumber ?? "TBD"}</td>
-                      <td>{pick.isOwnPick ? "Own pick" : pick.originalTeamName}</td>
-                      <td>
-                        {pick.tradeChain.length === 0 ? (
-                          "—"
-                        ) : (
-                          <span className="hub-roster-pick-chain">
-                            {pick.tradeChain.length} trade{pick.tradeChain.length === 1 ? "" : "s"}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {data.draftPicks.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="hub-empty">
-                        No draft picks logged yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              {data.draftPicks.length === 0 ? (
+                <p className="hub-empty">No draft picks logged yet.</p>
+              ) : (
+                Object.entries(
+                  [...data.draftPicks]
+                    .sort((a, b) => a.seasonNumber - b.seasonNumber || a.round - b.round)
+                    .reduce<Record<number, typeof data.draftPicks>>((groups, pick) => {
+                      (groups[pick.seasonNumber] ??= []).push(pick);
+                      return groups;
+                    }, {}),
+                ).map(([seasonNumber, picks]) => (
+                  <div key={seasonNumber} className="hub-roster-pick-season-group">
+                    <h4>Season {seasonNumber}</h4>
+                    <table className="hub-roster-table">
+                      <thead>
+                        <tr>
+                          <th>Round</th>
+                          <th>Pick #</th>
+                          <th>Original owner</th>
+                          <th>History</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {picks.map((pick) => (
+                          <tr key={pick.id}>
+                            <td>Round {pick.round}</td>
+                            <td>{pick.pickNumber ?? "TBD"}</td>
+                            <td>{pick.isOwnPick ? "Own pick" : pick.originalTeamName}</td>
+                            <td>
+                              {pick.tradeChain.length === 0 ? (
+                                "—"
+                              ) : (
+                                <span className="hub-roster-pick-chain">
+                                  {pick.tradeChain.length} trade{pick.tradeChain.length === 1 ? "" : "s"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
+              )}
             </div>
           ) : (
             <>

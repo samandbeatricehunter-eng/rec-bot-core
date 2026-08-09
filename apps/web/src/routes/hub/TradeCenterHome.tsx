@@ -76,10 +76,18 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
   const selectedKeys = new Set(selected.map(legKey));
 
   const query = searchQuery.trim().toLowerCase();
-  const rows = players
+  const showingDraftPicks = positionFilter === "Draft Picks";
+  const rows = showingDraftPicks ? [] : players
     .filter((p) => positionFilter === "All" || p.positionGroup === positionFilter)
     .filter((p) => !query || p.fullName.toLowerCase().includes(query))
     .sort((a, b) => (b.overallRating ?? -1) - (a.overallRating ?? -1));
+  const picksBySeason = useMemo(() => {
+    const groups: Record<number, TeamDraftPick[]> = {};
+    for (const pick of [...(roster?.draftPicks ?? [])].sort((a, b) => a.seasonNumber - b.seasonNumber || a.round - b.round)) {
+      (groups[pick.seasonNumber] ??= []).push(pick);
+    }
+    return Object.entries(groups);
+  }, [roster]);
 
   const selectedPlayers = selected
     .filter((leg): leg is Extract<TradeLegInput, { type: "player" }> => leg.type === "player")
@@ -95,18 +103,44 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
   return (
     <div className="hub-trade-pool">
       <div className="fantasy-draft-toolbar">
-        <div className="fantasy-draft-filter-tabs">
-          {["All", ...groups].map((group) => (
-            <button key={group} type="button" className={positionFilter === group ? "active" : ""} onClick={() => setPositionFilter(group)}>{group}</button>
-          ))}
-        </div>
-        <label className="fantasy-draft-search">
-          <Search size={14} />
-          <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        <label className="form-field hub-trade-pool-position-select">
+          <span className="form-label">Position</span>
+          <select className="form-input" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
+            <option value="All">All positions</option>
+            {roster.draftPicks.length > 0 && <option value="Draft Picks">Draft Picks</option>}
+            {groups.map((group) => <option key={group} value={group}>{group}</option>)}
+          </select>
         </label>
+        {!showingDraftPicks && (
+          <label className="fantasy-draft-search">
+            <Search size={14} />
+            <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </label>
+        )}
       </div>
 
-      {rows.length === 0 ? (
+      {showingDraftPicks ? (
+        picksBySeason.length === 0 ? (
+          <p className="hub-empty">No draft picks on this roster.</p>
+        ) : (
+          picksBySeason.map(([seasonNumber, picks]) => (
+            <div key={seasonNumber} className="hub-trade-pick-season-group">
+              <h5>Season {seasonNumber}</h5>
+              {picks.map((pick) => {
+                const leg: TradeLegInput = { type: "pick", draftPickId: pick.id };
+                const checked = selectedKeys.has(legKey(leg));
+                return (
+                  <label key={pick.id} className="hub-trade-asset-row">
+                    <input type="checkbox" checked={checked} disabled={disabled && !checked} onChange={() => onToggle(leg)} />
+                    <span>Round {pick.round} · Pick {pick.pickNumber ?? "TBD"}</span>
+                    <span className="hub-trade-asset-meta">{pick.isOwnPick ? "Own pick" : `via ${pick.originalTeamName}`}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ))
+        )
+      ) : rows.length === 0 ? (
         <p className="hub-empty">No roster players match this filter.</p>
       ) : (
         <div className="fantasy-draft-pool-table-scroll">
@@ -136,23 +170,6 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
               })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {roster.draftPicks.length > 0 && (
-        <div className="hub-trade-asset-group">
-          <h5>Draft Picks</h5>
-          {roster.draftPicks.map((pick) => {
-            const leg: TradeLegInput = { type: "pick", draftPickId: pick.id };
-            const checked = selectedKeys.has(legKey(leg));
-            return (
-              <label key={pick.id} className="hub-trade-asset-row">
-                <input type="checkbox" checked={checked} disabled={disabled && !checked} onChange={() => onToggle(leg)} />
-                <span>Season {pick.seasonNumber} · Round {pick.round}</span>
-                <span className="hub-trade-asset-meta">{pick.isOwnPick ? "Own pick" : `via ${pick.originalTeamName}`}</span>
-              </label>
-            );
-          })}
         </div>
       )}
 
