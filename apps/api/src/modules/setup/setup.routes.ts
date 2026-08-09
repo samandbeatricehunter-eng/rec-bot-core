@@ -345,13 +345,18 @@ export async function setupRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  // Directly links a created league to a Discord server the creator owns/manages — the
-  // replacement for the token + /claim-league round-trip (see linkSiteLeagueToServer).
+  // Directly links a league to a Discord server the owner owns/manages — the replacement for
+  // the token + /claim-league round-trip (see linkSiteLeagueToServer). Reachable from "Connect
+  // a Discord Server" on any league the caller owns, not just the gated site-league-creation
+  // beta surface — requireSiteLeagueCreator's allowlist would wrongly 403 everyone else here,
+  // so this only resolves the caller's site identity; linkSiteLeagueToServer itself still
+  // rejects anyone who isn't that league's owner_user_id.
   app.post("/v1/site-leagues/link-server", async (request, reply) => {
     try {
       const body = LinkSiteLeagueServerSchema.parse(request.body);
-      const { userId } = await requireSiteLeagueCreator(request);
-      return reply.send(await linkSiteLeagueToServer({ ...body, requestedByUserId: userId }));
+      const resolved = await resolveSiteLeagueCreator(request);
+      if (!resolved) throw new ApiError(401, "Sign in to link a Discord server.");
+      return reply.send(await linkSiteLeagueToServer({ ...body, requestedByUserId: resolved.userId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

@@ -438,6 +438,12 @@ export const siteApi = {
       { providerToken },
     );
   },
+  // Replacement for the old invite-token + /claim-league round-trip: creates the server +
+  // primary league link immediately, using the same fresh "guilds"-scoped Discord OAuth token
+  // already used to list the picker's guild options — no separate in-Discord step required.
+  linkLeagueToServer(input: { leagueId: string; providerToken: string; guildId: string; serverName?: string }) {
+    return request<{ linked: true; server: { id: string; name: string } }>("/v1/site-leagues/link-server", input);
+  },
   enableLeagueBot(leagueId: string) {
     return request<{
       league: {

@@ -8,11 +8,13 @@ import { supabase } from "../lib/supabase-client.js";
 type DiscordGuild = { id: string; name: string; icon: string | null };
 
 /**
- * Replaces the old "invite a generic bot link, hope you pick the right server" flow: a fresh
- * Discord OAuth round-trip (see auth.pickDiscordGuild) grants "guilds" scope just long enough
- * to list the servers this user can install the bot into, so they pick the right one from a
- * dropdown instead. The final /claim-league step in Discord still happens — that's the
- * server-owner-only security check — this only removes the guesswork before it.
+ * A fresh Discord OAuth round-trip (see auth.pickDiscordGuild) grants "guilds" scope just long
+ * enough to (1) list the servers this user owns or manages, so they pick the right one from a
+ * dropdown instead of guessing which invite link goes where, and (2) link that server to the
+ * league immediately using the same token — no separate in-Discord "/claim-league" step. The
+ * server-owner-only security check that step used to provide is now the OAuth grant itself:
+ * Discord only lists servers this user actually owns/manages, and the backend re-verifies that
+ * against a fresh token before creating the link (see linkSiteLeagueToServer).
  */
 export function DiscordGuildPicker() {
   const auth = useAuth();
@@ -24,7 +26,8 @@ export function DiscordGuildPicker() {
   const [error, setError] = useState<string | null>(null);
   const [guilds, setGuilds] = useState<DiscordGuild[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState("");
-  const [connectResult, setConnectResult] = useState<{ inviteUrl: string; token: string } | null>(null);
+  const [providerToken, setProviderToken] = useState<string | null>(null);
+  const [connectResult, setConnectResult] = useState<{ inviteUrl: string } | null>(null);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -62,17 +65,18 @@ export function DiscordGuildPicker() {
           );
         }
 
-        const providerToken = session.provider_token;
-        if (!providerToken) {
+        const token = session.provider_token;
+        if (!token) {
           throw new Error("Discord didn't return a fresh permission grant — try again.");
         }
-        const result = await siteApi.listDiscordGuilds(providerToken);
+        const result = await siteApi.listDiscordGuilds(token);
         if (cancelled) return;
         if (!result.guilds.length) {
           setError("No Discord servers found where you're the owner or have Manage Server permission.");
           setPhase("error");
           return;
         }
+        setProviderToken(token);
         setGuilds(result.guilds);
         setSelectedGuildId(result.guilds[0].id);
         setPhase("picking");
@@ -101,18 +105,25 @@ export function DiscordGuildPicker() {
   }
 
   async function connectToLeague() {
-    if (!leagueId || !selectedGuildId) return;
+    if (!leagueId || !selectedGuildId || !providerToken) return;
     setPhase("connecting");
     setError(null);
     try {
-      const [enabled, invite] = await Promise.all([
-        siteApi.enableLeagueBot(leagueId),
-        siteApi.getBotInviteUrl(selectedGuildId),
-      ]);
-      setConnectResult({ inviteUrl: invite.inviteUrl, token: enabled.league.discord_bot_invite_token ?? "" });
+      const selectedGuild = guilds.find((g) => g.id === selectedGuildId);
+      await siteApi.enableLeagueBot(leagueId);
+      // Creates the server + primary league link right now, using this same OAuth grant —
+      // by the time the bot actually joins below, the server is already linked.
+      await siteApi.linkLeagueToServer({
+        leagueId,
+        providerToken,
+        guildId: selectedGuildId,
+        serverName: selectedGuild?.name,
+      });
+      const invite = await siteApi.getBotInviteUrl(selectedGuildId);
+      setConnectResult({ inviteUrl: invite.inviteUrl });
       setPhase("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to enable the Discord bot.");
+      setError(err instanceof Error ? err.message : "Failed to link this Discord server.");
       setPhase("picking");
     }
   }
@@ -169,16 +180,14 @@ export function DiscordGuildPicker() {
 
         {phase === "done" && connectResult && (
           <>
-            <p className="site-muted">Finish linking this league to your Discord server:</p>
+            <p className="site-muted">This league is now linked to that server. One step left:</p>
             <ol className="site-muted">
               <li>
                 <a href={connectResult.inviteUrl} target="_blank" rel="noreferrer">Invite the REC bot</a> — the server is
                 already pre-selected, just confirm the permissions.
               </li>
-              <li>In that server, run <code>/claim-league</code> and paste this token when prompted:</li>
             </ol>
-            <code className="site-league-card-token">{connectResult.token}</code>
-            <p className="site-muted">Only that server's owner can run /claim-league — anyone else running it will be rejected.</p>
+            <p className="site-muted">That's it — no further setup needed once the bot joins.</p>
             <Link className="site-btn site-btn-ghost" to={next}>Back to Leagues</Link>
           </>
         )}
