@@ -132,8 +132,10 @@ const CreateUnclaimedLeagueSchema = z.object({
   injuryPolicy: z.string().optional(),
   difficulty: z.string().optional(),
   cfbDifficulty: z.string().optional(),
-  tradeDifficulty: z.string().optional(),
-  freeAgentMotivationImpact: z.string().optional(),
+  // Madden-only (26 & 27) — CFB has no in-game trade-difficulty slider.
+  tradeDifficulty: z.enum(["very_easy", "easy", "normal", "hard", "very_hard"]).optional(),
+  // Madden 26 only — this setting does not exist in Madden 27 or CFB.
+  freeAgentMotivationImpact: z.enum(["off", "normal", "high", "very_high"]).optional(),
   slidersAdjusted: z.boolean().optional(),
   difficultyCustomSettings: z.string().optional().nullable(),
   coachXpSetting: z.string().optional().nullable(),

@@ -95,7 +95,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [coreAttributes, setCoreAttributes] = useState<string[]>([]);
   const [coreAttributeCapOverrides, setCoreAttributeCapOverrides] = useState<Record<string, number>>({});
   const [nonCoreAttributeCapOverrides, setNonCoreAttributeCapOverrides] = useState<Record<string, number>>({});
-  const [coinEconomyMinimumLinkedUsers, setCoinEconomyMinimumLinkedUsers] = useState(8);
 
   const [contractAdjustmentPurchasesEnabled, setContractAdjustmentPurchasesEnabled] = useState(false);
   const [contractPurchasesSeasonCap, setContractPurchasesSeasonCap] = useState(0);
@@ -432,7 +431,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       customCoachesRequired,
       customPlaybooksAllowed,
       coinEconomyEnabled,
-      coinEconomyMinimumLinkedUsers: coinEconomyEnabled ? coinEconomyMinimumLinkedUsers : undefined,
       customPlayersEnabled: coinEconomyEnabled ? customPlayersEnabled : false,
       customPlayersSeasonCap: coinEconomyEnabled && customPlayersEnabled ? customPlayersSeasonCap : 0,
       legendsEnabled: coinEconomyEnabled ? legendsEnabled : false,
@@ -517,7 +515,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     attributePurchasesEnabled, coreAttributePurchasesSeasonCap,
     coreAttributeGroupCap, nonCoreAttributePurchasesSeasonCap,
     coreAttributes, coreAttributeCapOverrides, nonCoreAttributeCapOverrides,
-    coinEconomyMinimumLinkedUsers,
     contractAdjustmentPurchasesEnabled, contractPurchasesSeasonCap,
     purchaseDeadlines, customRules,
     difficulty, cfbDifficulty, tradeDifficulty, freeAgentMotivationImpact, quarterLengthMinutes,
@@ -560,7 +557,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.cpuTradingPolicy !== undefined) setCpuTradingPolicy(template.cpuTradingPolicy);
     if (template.positionChangePolicy !== undefined) setPositionChangePolicy(template.positionChangePolicy);
     if (template.coinEconomyEnabled !== undefined) setCoinEconomyEnabled(template.coinEconomyEnabled);
-    if (template.coinEconomyMinimumLinkedUsers !== undefined) setCoinEconomyMinimumLinkedUsers(template.coinEconomyMinimumLinkedUsers);
     if (template.customPlayersEnabled !== undefined) setCustomPlayersEnabled(template.customPlayersEnabled);
     if (template.customPlayersSeasonCap !== undefined) setCustomPlayersSeasonCap(template.customPlayersSeasonCap);
     if (template.legendsEnabled !== undefined) setLegendsEnabled(template.legendsEnabled);
@@ -1024,10 +1020,11 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 checked={coinEconomyEnabled} onChange={setCoinEconomyEnabled} />
               {coinEconomyEnabled && (
                 <>
-                  <CounterField label="Minimum linked users before economy activates"
-                    hint="Payouts stay locked until this many users are linked to teams. Prevents abuse in tiny leagues."
-                    desc="Below this threshold the economy is dormant — no coins flow and no purchases can be made. Set to 0 to activate immediately."
-                    value={coinEconomyMinimumLinkedUsers} onChange={setCoinEconomyMinimumLinkedUsers} min={0} max={30} unlimitedLabel={false} />
+                  <p className="wizard-field-desc">
+                    The coin economy requires at least 8 users linked to teams before it activates — this is a fixed
+                    platform-wide minimum and isn't configurable per league. Below that threshold the economy stays
+                    dormant: no coins flow and no purchases can be made.
+                  </p>
 
                   <ToggleField label="Custom players" hint="Allow users to spend coins to create custom players for their roster."
                     desc="Users buy a custom player build (position, size, ratings) and add them to their team. Capped by the season cap below."
