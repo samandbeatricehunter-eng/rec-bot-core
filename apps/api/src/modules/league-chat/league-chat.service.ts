@@ -239,7 +239,9 @@ export async function ingestDiscordLeagueChatMessage(input: {
     is_discord_only: author.isDiscordOnly,
     source: "discord",
     discord_message_id: input.discordMessageId,
-    body: trimmed.slice(0, 2000),
+    // body has a >=1-char CHECK constraint — an image-only Discord message (no caption) trims
+    // to "", which would otherwise fail that constraint and 500 on every such message.
+    body: (trimmed || "📎 Image").slice(0, 2000),
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   if (inserted.error) throw new ApiError(500, "Failed to ingest Discord league chat message.", inserted.error);
   broadcastChatEvent("league", context.leagueId, { kind: "message", row: inserted.data });

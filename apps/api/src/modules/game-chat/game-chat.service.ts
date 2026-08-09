@@ -204,7 +204,9 @@ export async function ingestDiscordGameChatMessage(input: {
     is_discord_only: !isRegistered,
     source: "discord",
     discord_message_id: input.discordMessageId,
-    body: trimmed.slice(0, 2000),
+    // body has a >=1-char CHECK constraint — an image-only Discord message (no caption) trims
+    // to "", which would otherwise fail that constraint and 500 on every such message.
+    body: (trimmed || "📎 Image").slice(0, 2000),
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   // Unique partial index on discord_message_id — a retried ingest hits a conflict, which is
   // "already ingested", not a real failure.
