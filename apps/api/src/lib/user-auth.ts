@@ -160,19 +160,48 @@ export async function assertGuildPermission(guildId: string, discordId: string, 
     return assertSiteNativePermission(guildId.slice(SITE_ONLY_PREFIX.length), discordId, required);
   }
 
-  const roleNames = await getGuildMemberRoleNames(guildId, discordId);
-  if (roleNames === null) throw new ApiError(403, "Not a member of this guild");
-  if (required === "member") return;
-
-  const { isCommissioner, isCoCommissioner } = classifyGuildRoleNames(roleNames);
-  const permissionBits = await resolveMemberPermissionBits(guildId, discordId);
-  const isFullAdmin = isCommissioner || hasAdministratorOrManageGuild(permissionBits);
-  if (required === "commissioner") {
-    if (!isFullAdmin) throw new ApiError(403, "Insufficient permission");
-    return;
+  // getGuildMemberRoleNames/resolveMemberPermissionBits hit Discord's API with the bot's own
+  // token — if the bot isn't actually in this guild anymore (left, kicked, or a broken/never-
+  // completed Discord link), every one of those calls 404s or throws. A site-authenticated user
+  // whose league is otherwise fine shouldn't get locked out of it just because the Discord side
+  // is broken, so any Discord-side failure here falls back to our own membership/ownership
+  // records for the linked league — the same source of truth assertSiteNativePermission above
+  // already uses for leagues with no Discord server at all.
+  let roleNames: string[] | null;
+  let discordUnavailable = false;
+  try {
+    roleNames = await getGuildMemberRoleNames(guildId, discordId);
+  } catch {
+    roleNames = null;
+    discordUnavailable = true;
   }
-  // co_commissioner: full admins already qualify, or a dedicated co-commissioner role.
-  if (!isFullAdmin && !isCoCommissioner) throw new ApiError(403, "Insufficient permission");
+
+  if (roleNames !== null) {
+    if (required === "member") return;
+    const { isCommissioner, isCoCommissioner } = classifyGuildRoleNames(roleNames);
+    let permissionBits = 0n;
+    try {
+      permissionBits = await resolveMemberPermissionBits(guildId, discordId);
+    } catch {
+      discordUnavailable = true;
+    }
+    const isFullAdmin = isCommissioner || hasAdministratorOrManageGuild(permissionBits);
+    if (isFullAdmin || isCoCommissioner || !discordUnavailable) {
+      if (required === "commissioner") {
+        if (!isFullAdmin) throw new ApiError(403, "Insufficient permission");
+        return;
+      }
+      // co_commissioner: full admins already qualify, or a dedicated co-commissioner role.
+      if (!isFullAdmin && !isCoCommissioner) throw new ApiError(403, "Insufficient permission");
+      return;
+    }
+    // Confirmed guild membership but the permission-bit lookup itself failed — fall through to
+    // the DB-backed fallback below rather than silently denying a legitimate commissioner.
+  }
+
+  const context = await getCurrentLeagueContext(guildId).catch(() => null);
+  if (!context) throw new ApiError(403, "Not a member of this guild");
+  return assertSiteNativePermission(context.leagueId, discordId, required);
 }
 
 // Lowest-level branch: is this the bot (server-to-server, unchanged trust model) or a

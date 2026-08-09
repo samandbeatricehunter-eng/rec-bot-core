@@ -340,6 +340,16 @@ async function getGuildRoles(guildId: string): Promise<Map<string, { name: strin
     if (!res.ok) {
       const stale = staleCacheValue(roleListCache, guildId);
       if (res.status === 429 && stale) return stale;
+      // 404 here means the bot isn't actually in this guild (removed, kicked, or a broken/
+      // never-completed Discord link) — every sub-resource request 404s uniformly in that
+      // case, the same way getMemberRoleIds already treats it as "no data" rather than a hard
+      // failure. Degrading to an empty role list keeps callers (permission checks, role
+      // dropdowns) working instead of 502ing the whole page.
+      if (res.status === 404) {
+        const empty = new Map<string, { name: string; permissions: bigint }>();
+        toCache(roleListCache, guildId, empty);
+        return empty;
+      }
       throw new ApiError(res.status === 429 ? 503 : 502, `Failed to fetch guild roles (${res.status})`);
     }
     const roles = (await res.json()) as Array<{ id: string; name: string; permissions: string }>;
