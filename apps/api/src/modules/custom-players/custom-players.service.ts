@@ -171,7 +171,11 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // still the untouched default baseline) — the purchase can't proceed until the user tracks
     // a recruit or manually adds a player via Edit Roster.
     blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
-    contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only. Choose a replacement player whose in-game appearance matches your physical preferences.",
+    contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only.",
+    // In-game roster editors don't let you change a player's face/model — only body sliders
+    // (height, weight, body type). The created player keeps the replaced player's in-game
+    // appearance, so pick a replacement you're actually comfortable looking like.
+    appearanceNotice: "This player inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.",
     versions: { package: REC_CUSTOM_PLAYER_PACKAGE_VERSION, cost: REC_CUSTOM_PLAYER_COST_VERSION, archetype: REC_ARCHETYPE_CONFIG_VERSION, rules: REC_BUILD_RULES_VERSION, ovr: REC_OVR_MODEL_VERSION, names: REC_NAME_CORPUS_VERSION },
   };
 }

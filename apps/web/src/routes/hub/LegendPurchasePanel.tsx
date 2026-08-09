@@ -117,6 +117,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
     <div className="legend-purchase-panel">
       {notice && <p style={{ color: "var(--success)" }}>{notice}</p>}
       {error && <ErrorState message={error} />}
+      <p className="form-hint">This legend inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.</p>
 
       <label className="form-field">
         <span className="form-label">Position</span>
