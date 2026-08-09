@@ -568,6 +568,7 @@ export function HubHome() {
   const [devUpgradePlayer, setDevUpgradePlayer] = useState<RosterPlayer | null>(null);
   const [devUpgradeTargetTier, setDevUpgradeTargetTier] = useState<RecDevTier | "">("");
   const [ageResetPlayer, setAgeResetPlayer] = useState<RosterPlayer | null>(null);
+  const [contractPlayer, setContractPlayer] = useState<RosterPlayer | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
@@ -1357,7 +1358,7 @@ export function HubHome() {
           const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
           const used = storeContext?.seasonActive[product.type];
           const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
-          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setDevUpgradePlayer(null); setDevUpgradeTargetTier(""); setAgeResetPlayer(null); setPurchaseStatus(null); void loadStoreContext(); }}>
+          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setDevUpgradePlayer(null); setDevUpgradeTargetTier(""); setAgeResetPlayer(null); setContractPlayer(null); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
             <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
@@ -1401,8 +1402,8 @@ export function HubHome() {
 
           {purchaseType === "contract" && <>
             <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>
-            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
-            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.variant} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={contractPlayer} onChange={setContractPlayer} /></label>
+            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !contractPlayer || !purchaseDetails.variant} onClick={() => void submitPurchase({ playerId: contractPlayer!.id, playerName: contractPlayer!.fullName, variant: purchaseDetails.variant })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 
           {purchaseType === "age_reset" && <>

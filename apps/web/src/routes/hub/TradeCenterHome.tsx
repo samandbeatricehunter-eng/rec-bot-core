@@ -1,51 +1,144 @@
 import { useEffect, useMemo, useState } from "react";
+import { Search, Trash2 } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { Trade, TradeLegInput, TeamRosterResponse, RosterPlayer } from "../../types/api.js";
+import type { Trade, TradeLegInput, TeamRosterResponse, RosterPlayer, TeamDraftPick } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
+import { Modal } from "../../components/ui/Modal.js";
+import { Button } from "../../components/ui/Button.js";
 
 const MAX_LEGS = 7;
+const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
 function legKey(leg: TradeLegInput) {
   return leg.type === "player" ? `player:${leg.playerId}` : `pick:${leg.draftPickId}`;
 }
 
-function AssetPicker({
-  roster,
-  selected,
-  onToggle,
-  disabled,
-}: {
+/** Modal opened by tapping a player in a trade pool — mirrors the fantasy draft room's player
+ * card, minus the attributes/abilities tabs (RosterPlayer doesn't carry a full attribute map).
+ * The one action here is toggling this player into/out of the side of the trade being built. */
+function TradePlayerCardModal({ player, isSelected, onToggle, onClose }: {
+  player: RosterPlayer;
+  isSelected: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={player.fullName} onClose={onClose} panelClassName="fantasy-draft-player-card">
+      <div className="fantasy-draft-player-card-header">
+        {player.photoUrl ? (
+          <img className="fantasy-draft-player-card-photo" src={player.photoUrl} alt={player.fullName} />
+        ) : (
+          <div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>
+        )}
+        <div className="fantasy-draft-player-card-bio">
+          <p className="fantasy-draft-player-card-position">{player.position} · {player.overallRating ?? "—"} OVR</p>
+          {player.devTrait && <p className="fantasy-draft-player-card-devtrait">{player.devTrait.replaceAll("_", " ")}</p>}
+          <dl className="fantasy-draft-player-card-facts">
+            <div><dt>Height / Weight</dt><dd>{player.heightInches ? `${Math.floor(player.heightInches / 12)}'${player.heightInches % 12}"` : "—"}{player.weightLbs ? ` · ${player.weightLbs} lbs` : ""}</dd></div>
+            <div><dt>Class</dt><dd>{player.classYear ?? "—"}</dd></div>
+            <div><dt>Hand</dt><dd>{player.handedness ?? "—"}</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div className="fantasy-draft-form-actions">
+        <Button variant={isSelected ? "secondary" : "primary"} onClick={onToggle}>
+          {isSelected ? "Remove from Trade" : "Add to Trade"}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+      </div>
+    </Modal>
+  );
+}
+
+/** One side of the trade builder: a sortable/filterable pool table of that team's roster
+ * (position tabs + search, tap a name to open the player card) plus their available draft
+ * picks below it, and — mirroring the draft room's board — a running list of the up to 7
+ * items selected so far for this side, each removable without reopening the card. */
+function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
+  sideLabel: string;
   roster: TeamRosterResponse | null;
   selected: TradeLegInput[];
   onToggle: (leg: TradeLegInput) => void;
   disabled: boolean;
 }) {
-  if (!roster) return <p className="hub-empty">Select a team to see their assets.</p>;
+  const [positionFilter, setPositionFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openPlayer, setOpenPlayer] = useState<RosterPlayer | null>(null);
+
+  const players = useMemo(
+    () => (roster?.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus)),
+    [roster],
+  );
+  const groups = useMemo(() => (roster?.positionGroups ?? []).map((g) => g.group), [roster]);
   const selectedKeys = new Set(selected.map(legKey));
+
+  const query = searchQuery.trim().toLowerCase();
+  const rows = players
+    .filter((p) => positionFilter === "All" || p.positionGroup === positionFilter)
+    .filter((p) => !query || p.fullName.toLowerCase().includes(query))
+    .sort((a, b) => (b.overallRating ?? -1) - (a.overallRating ?? -1));
+
+  const selectedPlayers = selected
+    .filter((leg): leg is Extract<TradeLegInput, { type: "player" }> => leg.type === "player")
+    .map((leg) => players.find((p) => p.id === leg.playerId))
+    .filter((p): p is RosterPlayer => p != null);
+  const selectedPicks = selected
+    .filter((leg): leg is Extract<TradeLegInput, { type: "pick" }> => leg.type === "pick")
+    .map((leg) => (roster?.draftPicks ?? []).find((pick) => pick.id === leg.draftPickId))
+    .filter((pick): pick is TeamDraftPick => pick != null);
+
+  if (!roster) return <p className="hub-empty">Select a team to see their assets.</p>;
+
   return (
-    <div className="hub-trade-asset-list">
-      <div className="hub-trade-asset-group">
-        <h5>Players</h5>
-        {roster.players.filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in").map((player) => {
-          const leg: TradeLegInput = { type: "player", playerId: player.id };
-          const checked = selectedKeys.has(legKey(leg));
-          return (
-            <label key={player.id} className="hub-trade-asset-row">
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={disabled && !checked}
-                onChange={() => onToggle(leg)}
-              />
-              <span>{player.fullName}</span>
-              <span className="hub-trade-asset-meta">{player.position} · {player.overallRating ?? "—"} OVR</span>
-            </label>
-          );
-        })}
+    <div className="hub-trade-pool">
+      <div className="fantasy-draft-toolbar">
+        <div className="fantasy-draft-filter-tabs">
+          {["All", ...groups].map((group) => (
+            <button key={group} type="button" className={positionFilter === group ? "active" : ""} onClick={() => setPositionFilter(group)}>{group}</button>
+          ))}
+        </div>
+        <label className="fantasy-draft-search">
+          <Search size={14} />
+          <input className="form-input" placeholder="Search players…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </label>
       </div>
+
+      {rows.length === 0 ? (
+        <p className="hub-empty">No roster players match this filter.</p>
+      ) : (
+        <div className="fantasy-draft-pool-table-scroll">
+          <table className="fantasy-draft-pool-table hub-trade-pool-table">
+            <thead>
+              <tr><th className="fantasy-draft-pool-table-name-col">Player</th><th>OVR</th><th className="fantasy-draft-pool-table-action-col" /></tr>
+            </thead>
+            <tbody>
+              {rows.map((player) => {
+                const checked = selectedKeys.has(legKey({ type: "player", playerId: player.id }));
+                return (
+                  <tr key={player.id}>
+                    <td className="fantasy-draft-pool-table-name-col">
+                      <button type="button" className="fantasy-draft-player-name-btn" onClick={() => setOpenPlayer(player)}>
+                        {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt="" loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                        <span><strong>{player.fullName}</strong><small>{player.position}</small></span>
+                      </button>
+                    </td>
+                    <td>{player.overallRating ?? "—"}</td>
+                    <td className="fantasy-draft-pool-table-action-col">
+                      <Button variant={checked ? "secondary" : "primary"} size="compact" disabled={disabled && !checked} onClick={() => onToggle({ type: "player", playerId: player.id })}>
+                        {checked ? "Remove" : "Add"}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {roster.draftPicks.length > 0 && (
         <div className="hub-trade-asset-group">
           <h5>Draft Picks</h5>
@@ -54,18 +147,38 @@ function AssetPicker({
             const checked = selectedKeys.has(legKey(leg));
             return (
               <label key={pick.id} className="hub-trade-asset-row">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={disabled && !checked}
-                  onChange={() => onToggle(leg)}
-                />
+                <input type="checkbox" checked={checked} disabled={disabled && !checked} onChange={() => onToggle(leg)} />
                 <span>Season {pick.seasonNumber} · Round {pick.round}</span>
                 <span className="hub-trade-asset-meta">{pick.isOwnPick ? "Own pick" : `via ${pick.originalTeamName}`}</span>
               </label>
             );
           })}
         </div>
+      )}
+
+      <div className="hub-trade-selected-items">
+        <h5>{sideLabel} ({selected.length}/{MAX_LEGS})</h5>
+        {selected.length === 0 ? (
+          <p className="hub-empty">Nothing selected yet — tap a player or pick above to add it.</p>
+        ) : (
+          <ul>
+            {selectedPlayers.map((player) => (
+              <li key={player.id}><span><strong>{player.fullName}</strong> · {player.position} · {player.overallRating ?? "—"} OVR</span><button type="button" aria-label={`Remove ${player.fullName}`} onClick={() => onToggle({ type: "player", playerId: player.id })}><Trash2 size={14} /></button></li>
+            ))}
+            {selectedPicks.map((pick) => (
+              <li key={pick.id}><span>Season {pick.seasonNumber} · Round {pick.round}</span><button type="button" aria-label="Remove pick" onClick={() => onToggle({ type: "pick", draftPickId: pick.id })}><Trash2 size={14} /></button></li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {openPlayer && (
+        <TradePlayerCardModal
+          player={openPlayer}
+          isSelected={selectedKeys.has(legKey({ type: "player", playerId: openPlayer.id }))}
+          onToggle={() => onToggle({ type: "player", playerId: openPlayer.id })}
+          onClose={() => setOpenPlayer(null)}
+        />
       )}
     </div>
   );
@@ -296,7 +409,7 @@ export function TradeCenterHome() {
         <div className="hub-trade-sides">
           <div className="hub-trade-side">
             <h4>You offer ({offeredLegs.length}/{MAX_LEGS})</h4>
-            <AssetPicker roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
+            <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
             <label className="form-field">
               <span className="form-label">Coins to include</span>
               <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} />
@@ -304,7 +417,7 @@ export function TradeCenterHome() {
           </div>
           <div className="hub-trade-side">
             <h4>You request ({requestedLegs.length}/{MAX_LEGS})</h4>
-            <AssetPicker roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
+            <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
             <label className="form-field">
               <span className="form-label">Coins to request</span>
               <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || teams.find((t) => t.id === opponentTeamId)?.isCpu} />
