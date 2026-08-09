@@ -1,4 +1,4 @@
-import { canonicalConferenceName, isRegularSeasonWeek, regularSeasonGamesPerTeam } from "@rec/shared";
+import { canonicalConferenceName, isRegularSeasonWeek, regularSeasonGamesPerTeam, stageHasScheduledGames } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -45,6 +45,11 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
   const game = context.rec_leagues.game ?? null;
   const resolvedSeasonNumber = resolveSeasonNumber(context, seasonNumber);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  // Preseason (or any pre-regular-season stage) has current_week reset to a low number that
+  // happens to collide with real Week 1+ games already sitting in the schedule from
+  // commissioner setup — without this gate, every team's Week 1 game reads as "missing" the
+  // moment the schedule exists, even though the season hasn't actually started yet.
+  const seasonHasStarted = stageHasScheduledGames(String(context.rec_leagues.season_stage ?? "regular_season"), game);
 
   const teamsRes = await listScheduleTeams(guildId);
   const teamRows = teamsRes.teams.filter((team: any) => !isSchedulePlaceholderTeam(team));
@@ -117,7 +122,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
         }
       } else if (isH2hGame && extra?.pendingBoxScoreSubmissionId) {
         awaitingReviewCount++;
-      } else if (isH2hGame && g.week_number <= currentWeek) {
+      } else if (isH2hGame && seasonHasStarted && g.week_number <= currentWeek) {
         // Only a game whose week has already been reached counts as "missing" — a
         // confirmed-but-future matchup just hasn't been played yet. CPU/filler games
         // can be entered manually, so they don't create missing box-score work.
