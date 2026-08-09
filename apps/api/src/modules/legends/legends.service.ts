@@ -155,11 +155,6 @@ export async function createLegendPurchaseRequest(input: {
 
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
 
-  // Only one legend can be reserved/purchased by a team at a time.
-  if (teamId && activePurchases.some((row: any) => row.details?.purchasingTeamId === teamId)) {
-    throw new ApiError(409, "Your team already has a legend purchase pending or approved — only one at a time.");
-  }
-
   // Only recruits/manually-added players are eligible replacement targets — same rule as
   // custom-player builds (the default baseline roster is never selectable here).
   let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
