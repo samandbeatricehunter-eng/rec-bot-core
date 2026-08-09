@@ -469,6 +469,11 @@ button.poty:disabled {
 .hub-roster-row-selected { background: color-mix(in srgb, var(--accent) 14%, transparent) !important; }
 .hub-roster-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .hub-roster-sortable:hover { color: var(--text); }
+
+.hub-roster-table-spreadsheet-wrap { overflow: auto; max-height: 34rem; }
+.hub-roster-table-spreadsheet thead th { position: sticky; top: 0; z-index: 2; background: #171b21; }
+.hub-roster-name-col { position: sticky; left: 0; z-index: 1; background: #101318; text-align: left !important; }
+.hub-roster-table-spreadsheet thead .hub-roster-name-col { z-index: 3; background: #171b21; }
 .hub-roster-moves { margin: var(--space-3) 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-roster-moves-toggle { width: 100%; padding: var(--space-2) var(--space-3); background: none; border: none; color: var(--text); font-weight: 700; text-align: left; cursor: pointer; }
 .hub-roster-moves-body { padding: 0 var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }

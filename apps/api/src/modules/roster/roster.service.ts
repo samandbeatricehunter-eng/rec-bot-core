@@ -51,6 +51,7 @@ export type RosterPlayer = {
   recentIncrease: null;
   devTrait: string | null;
   photoUrl: string | null;
+  attributes: Record<string, number | null>;
 };
 
 export type RosterPositionGroup = {
@@ -71,7 +72,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
 
   const players = await supabase
     .from("rec_players")
-    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url")
+    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url,attributes")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
     .order("position", { ascending: true })
@@ -95,6 +96,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     recentIncrease: null,
     devTrait: p.dev_trait ?? null,
     photoUrl: p.photo_url ?? null,
+    attributes: (p.attributes ?? {}) as Record<string, number | null>,
   }));
 
   const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;

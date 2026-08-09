@@ -8,6 +8,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { RosterMovesPanel } from "./RosterMovesPanel.js";
+import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 
 type ViewMode = "grid" | "list";
 
@@ -97,8 +98,9 @@ export function RosterHome() {
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [statsPlayer, setStatsPlayer] = useState<RosterPlayer | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<"fullName" | "overallRating" | "classYear" | "heightInches" | "weightLbs">("overallRating");
+  const [sortKey, setSortKey] = useState<string>("overallRating");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs"]);
 
   function load() {
     recApi
@@ -127,8 +129,8 @@ export function RosterHome() {
   const sortedPlayers = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
     return [...filteredPlayers].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = BASE_SORT_KEYS.has(sortKey) ? (a as any)[sortKey] : a.attributes[sortKey];
+      const bv = BASE_SORT_KEYS.has(sortKey) ? (b as any)[sortKey] : b.attributes[sortKey];
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
@@ -137,7 +139,7 @@ export function RosterHome() {
     });
   }, [filteredPlayers, sortKey, sortDir]);
 
-  function toggleSort(key: typeof sortKey) {
+  function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir(key === "fullName" ? "asc" : "desc"); }
   }
@@ -278,15 +280,20 @@ export function RosterHome() {
                   </div>
                 </div>
               )}
-              <div className="hub-roster-table-wrap">
-              <table className="hub-roster-table hub-roster-table-sortable">
+              <div className="hub-roster-table-wrap hub-roster-table-spreadsheet-wrap">
+              <table className="hub-roster-table hub-roster-table-sortable hub-roster-table-spreadsheet">
                 <thead>
                   <tr>
-                    <th className="hub-roster-sortable" onClick={() => toggleSort("fullName")}>Player{sortKey === "fullName" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
+                    <th className="hub-roster-sortable hub-roster-name-col" onClick={() => toggleSort("fullName")}>Player{sortKey === "fullName" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th className="hub-roster-sortable" onClick={() => toggleSort("heightInches")}>Ht{sortKey === "heightInches" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th className="hub-roster-sortable" onClick={() => toggleSort("weightLbs")}>Wt{sortKey === "weightLbs" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     {!isMadden && <th className="hub-roster-sortable" onClick={() => toggleSort("classYear")}>Class{sortKey === "classYear" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>}
                     <th className="hub-roster-sortable" onClick={() => toggleSort("overallRating")}>OVR{sortKey === "overallRating" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
+                    {ATTRIBUTE_ALL_KEYS.map((key) => (
+                      <th key={key} className="hub-roster-sortable" title={attributeFullName(key)} onClick={() => toggleSort(key)}>
+                        {attributeLabel(key)}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                      </th>
+                    ))}
                     <th />
                     {data.canEditRosterStatus && <th>Status</th>}
                   </tr>
@@ -294,7 +301,7 @@ export function RosterHome() {
                 <tbody>
                   {sortedPlayers.map((player) => (
                     <tr key={player.id} className={player.id === selectedPlayer?.id ? "hub-roster-row-selected" : ""} onClick={() => setSelectedPlayerId(player.id)}>
-                      <td>
+                      <td className="hub-roster-name-col">
                         <strong>{player.fullName}</strong>
                         <span className="hub-roster-pos">{player.position}</span>
                       </td>
@@ -305,6 +312,7 @@ export function RosterHome() {
                         {player.overallRating ?? "—"}
                         {player.recentIncrease ? <span className="hub-roster-increase">+{player.recentIncrease}</span> : null}
                       </td>
+                      {ATTRIBUTE_ALL_KEYS.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
                       <td>
                         <button type="button" className="btn btn-secondary btn-compact" onClick={(event) => { event.stopPropagation(); setStatsPlayer(player); }}>
                           Add Stats
@@ -315,7 +323,7 @@ export function RosterHome() {
                   ))}
                   {sortedPlayers.length === 0 && (
                     <tr>
-                      <td colSpan={(isMadden ? 5 : 6) + (data.canEditRosterStatus ? 1 : 0)} className="hub-empty">
+                      <td colSpan={(isMadden ? 5 : 6) + ATTRIBUTE_ALL_KEYS.length + (data.canEditRosterStatus ? 1 : 0)} className="hub-empty">
                         No players in this group.
                       </td>
                     </tr>

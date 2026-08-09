@@ -712,6 +712,7 @@ export type RosterPlayer = {
   recentIncrease: number | null;
   devTrait: string | null;
   photoUrl: string | null;
+  attributes: Record<string, number | null>;
 };
 export type RosterPositionGroup = {
   group: string;

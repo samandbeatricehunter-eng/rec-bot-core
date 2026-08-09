@@ -8,6 +8,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
+import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
@@ -67,6 +68,8 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
   const [positionFilter, setPositionFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [openPlayer, setOpenPlayer] = useState<RosterPlayer | null>(null);
+  const [sortKey, setSortKey] = useState("overallRating");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const players = useMemo(
     () => (roster?.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus)),
@@ -80,7 +83,21 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
   const rows = showingDraftPicks ? [] : players
     .filter((p) => positionFilter === "All" || p.positionGroup === positionFilter)
     .filter((p) => !query || p.fullName.toLowerCase().includes(query))
-    .sort((a, b) => (b.overallRating ?? -1) - (a.overallRating ?? -1));
+    .sort((a, b) => {
+      const av = sortKey === "overallRating" ? a.overallRating ?? -1 : a.attributes[sortKey] ?? -1;
+      const bv = sortKey === "overallRating" ? b.overallRating ?? -1 : b.attributes[sortKey] ?? -1;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+
+  function handleHeaderClick(key: string) {
+    if (sortKey !== key) { setSortKey(key); setSortDir("desc"); return; }
+    if (sortDir === "desc") { setSortDir("asc"); return; }
+    setSortKey("overallRating"); setSortDir("desc");
+  }
+  function sortIndicator(key: string) {
+    if (sortKey !== key) return null;
+    return sortDir === "desc" ? "▼" : "▲";
+  }
   const picksBySeason = useMemo(() => {
     const groups: Record<number, TeamDraftPick[]> = {};
     for (const pick of [...(roster?.draftPicks ?? [])].sort((a, b) => a.seasonNumber - b.seasonNumber || a.round - b.round)) {
@@ -146,7 +163,16 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
         <div className="fantasy-draft-pool-table-scroll">
           <table className="fantasy-draft-pool-table hub-trade-pool-table">
             <thead>
-              <tr><th className="fantasy-draft-pool-table-name-col">Player</th><th>OVR</th><th className="fantasy-draft-pool-table-action-col" /></tr>
+              <tr>
+                <th className="fantasy-draft-pool-table-name-col">Player</th>
+                <th className="is-sortable" onClick={() => handleHeaderClick("overallRating")}>OVR {sortIndicator("overallRating")}</th>
+                {ATTRIBUTE_ALL_KEYS.map((key) => (
+                  <th key={key} className="is-sortable" title={attributeFullName(key)} onClick={() => handleHeaderClick(key)}>
+                    {attributeLabel(key)} {sortIndicator(key)}
+                  </th>
+                ))}
+                <th className="fantasy-draft-pool-table-action-col" />
+              </tr>
             </thead>
             <tbody>
               {rows.map((player) => {
@@ -160,6 +186,7 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
                       </button>
                     </td>
                     <td>{player.overallRating ?? "—"}</td>
+                    {ATTRIBUTE_ALL_KEYS.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
                     <td className="fantasy-draft-pool-table-action-col">
                       <Button variant={checked ? "secondary" : "primary"} size="compact" disabled={disabled && !checked} onClick={() => onToggle({ type: "player", playerId: player.id })}>
                         {checked ? "Remove" : "Add"}
