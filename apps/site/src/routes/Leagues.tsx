@@ -13,6 +13,7 @@ import {
   type SiteOpenTeam,
 } from "../lib/site-api.js";
 import { CreateLeagueWizard } from "../components/CreateLeagueWizard.js";
+import { LEAGUE_TEMPLATES } from "../lib/league-templates.js";
 
 type Tab = "search" | "mine";
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
@@ -205,18 +206,8 @@ function Pill({
   value: ReactNode;
   title?: string;
 }) {
-  const compactLabels = new Set([
-    "Coin economy",
-    "Advance timing",
-    "Difficulty",
-    "Quarter length",
-    "Accel clock",
-    "Injuries",
-    "Wear & tear",
-    "Coach mode",
-  ]);
   return (
-    <li className={`site-league-pill${compactLabels.has(label) ? " is-card-summary" : ""}`} title={title}>
+    <li className="site-league-pill" title={title}>
       <span className="site-league-pill-label">{label}</span>
       <span className="site-league-pill-value">{value}</span>
     </li>
@@ -266,6 +257,8 @@ function LeagueSearchCard({
     league.regularSeasonStreamingRequirement === "recommended" ||
     league.postseasonStreamingRequirement === "required" ||
     league.postseasonStreamingRequirement === "recommended";
+  const templateMeta = league.templateId ? LEAGUE_TEMPLATES.find((t) => t.id === league.templateId) ?? null : null;
+  const [showAllSettings, setShowAllSettings] = useState(false);
 
   return (
     <article className={["site-league-search-card", expanded ? "is-expanded" : ""].join(" ")}>
@@ -275,6 +268,7 @@ function LeagueSearchCard({
             <h2>
               {league.isMember ? <MemberStar tier={memberTier} /> : null}
               {league.name}
+              {templateMeta ? <span className="site-league-template-badge"> ({templateMeta.name})</span> : null}
               {!league.crossPlayEnabled && league.requiredConsole && (
                 <span className="site-console-badge" title={`${consoleLabel(league.requiredConsole)} only — cross play is disabled`}>
                   {consoleLabel(league.requiredConsole)}
@@ -306,113 +300,136 @@ function LeagueSearchCard({
           </div>
 
           <ul className="site-league-search-meta">
-            <Pill label="Coin economy" value={onOff(league.coinEconomyEnabled)} />
-            {league.coinEconomyEnabled && !league.economyPayoutsActive ? (
-              <Pill
-                label="Economy payouts"
-                value={`Needs ${league.economyMembersShort} more linked`}
-                title={`Payouts require ${league.economyMinimumLinkedUsers} linked users. This league has ${league.economyLinkedUserCount}.`}
-              />
-            ) : null}
-            <Pill
-              label="Advance timing"
-              value={
-                league.advanceTiming === "other"
-                  ? (league.advanceTimingOther?.trim() || "Other")
-                  : (league.advanceTiming ?? "24hr")
-              }
-            />
-            <Pill
-              label="Reg streaming"
-              value={streamingLabel(league.regularSeasonStreamingRequirement)}
-            />
-            <Pill
-              label="Post streaming"
-              value={streamingLabel(league.postseasonStreamingRequirement)}
-            />
-            <Pill label="Custom coaches" value={yesNo(league.customCoachesRequired)} />
-            <Pill label="Custom playbooks" value={yesNo(league.customPlaybooksAllowed)} />
             <Pill label="Difficulty" value={difficultyLabel(league.difficulty, league.game)} />
-            <Pill label="Sliders adjusted" value={yesNo(league.slidersAdjusted)} />
-            <Pill
-              label="Quarter length"
-              value={
-                league.quarterLengthMinutes != null ? `${league.quarterLengthMinutes} min` : "-"
-              }
-            />
-            <Pill
-              label="Accel clock"
-              value={
-                league.acceleratedClockEnabled
-                  ? `On${
-                      league.acceleratedClockMinimumSeconds != null
-                        ? ` · ${league.acceleratedClockMinimumSeconds}s`
-                        : ""
-                    }`
-                  : "Off"
-              }
-            />
-            <Pill label="Injuries" value={injuryLabel(league.injuryPolicy)} />
-            <Pill label="Wear & tear" value={onOff(league.wearAndTearEnabled)} />
-            <Pill
-              label="4th down (reg)"
-              value={fourthDownLabel(league.fourthDownRuleTypeRegular)}
-              title={
-                league.fourthDownRuleTypeRegular === "standard_rec" ? STANDARD_REC_4TH : undefined
-              }
-            />
-            <Pill
-              label="4th down (playoff)"
-              value={fourthDownLabel(league.fourthDownRuleTypePlayoff)}
-              title={
-                league.fourthDownRuleTypePlayoff === "standard_rec" ? STANDARD_REC_4TH : undefined
-              }
-            />
+            <Pill label="Coin economy" value={onOff(league.coinEconomyEnabled)} />
+            <Pill label="League type" value={titleCase(league.rosterType)} />
+            <li className="site-league-pill-info-wrap">
+              <button
+                type="button"
+                className="site-league-pill-info"
+                aria-expanded={showAllSettings}
+                aria-label="Show all league settings"
+                title="Show all league settings"
+                onClick={(e) => { e.stopPropagation(); setShowAllSettings((v) => !v); }}
+              >
+                i
+              </button>
+              {showAllSettings ? (
+                <div className="site-league-pill-info-panel" onClick={(e) => e.stopPropagation()}>
+                  {templateMeta ? (
+                    <p className="site-league-template-desc">
+                      <strong>{templateMeta.name}</strong> — {templateMeta.tagline}. {templateMeta.description}
+                    </p>
+                  ) : null}
+                  <ul className="site-league-search-meta">
+                    {league.coinEconomyEnabled && !league.economyPayoutsActive ? (
+                      <Pill
+                        label="Economy payouts"
+                        value={`Needs ${league.economyMembersShort} more linked`}
+                        title={`Payouts require ${league.economyMinimumLinkedUsers} linked users. This league has ${league.economyLinkedUserCount}.`}
+                      />
+                    ) : null}
+                    <Pill
+                      label="Advance timing"
+                      value={
+                        league.advanceTiming === "other"
+                          ? (league.advanceTimingOther?.trim() || "Other")
+                          : (league.advanceTiming ?? "24hr")
+                      }
+                    />
+                    <Pill
+                      label="Reg streaming"
+                      value={streamingLabel(league.regularSeasonStreamingRequirement)}
+                    />
+                    <Pill
+                      label="Post streaming"
+                      value={streamingLabel(league.postseasonStreamingRequirement)}
+                    />
+                    <Pill label="Custom coaches" value={yesNo(league.customCoachesRequired)} />
+                    <Pill label="Custom playbooks" value={yesNo(league.customPlaybooksAllowed)} />
+                    <Pill label="Sliders adjusted" value={yesNo(league.slidersAdjusted)} />
+                    <Pill
+                      label="Quarter length"
+                      value={
+                        league.quarterLengthMinutes != null ? `${league.quarterLengthMinutes} min` : "-"
+                      }
+                    />
+                    <Pill
+                      label="Accel clock"
+                      value={
+                        league.acceleratedClockEnabled
+                          ? `On${
+                              league.acceleratedClockMinimumSeconds != null
+                                ? ` · ${league.acceleratedClockMinimumSeconds}s`
+                                : ""
+                            }`
+                          : "Off"
+                      }
+                    />
+                    <Pill label="Injuries" value={injuryLabel(league.injuryPolicy)} />
+                    <Pill label="Wear & tear" value={onOff(league.wearAndTearEnabled)} />
+                    <Pill
+                      label="4th down (reg)"
+                      value={fourthDownLabel(league.fourthDownRuleTypeRegular)}
+                      title={
+                        league.fourthDownRuleTypeRegular === "standard_rec" ? STANDARD_REC_4TH : undefined
+                      }
+                    />
+                    <Pill
+                      label="4th down (playoff)"
+                      value={fourthDownLabel(league.fourthDownRuleTypePlayoff)}
+                      title={
+                        league.fourthDownRuleTypePlayoff === "standard_rec" ? STANDARD_REC_4TH : undefined
+                      }
+                    />
 
-            {!cfb ? (
-              <>
-                <Pill label="League type" value={titleCase(league.rosterType)} />
-                <Pill
-                  label="Coach abilities restricted"
-                  value={onOff(league.coachAbilitiesRestricted)}
-                  title={league.coachAbilitiesRestrictionNotes || undefined}
-                />
-                <Pill label="Trade approval" value={titleCase(league.tradeApprovalPolicy)} />
-                <Pill
-                  label="CPU trading"
-                  value={titleCase(league.cpuTradingPolicy)}
-                  title={league.cpuTradingRestriction || undefined}
-                />
-                <Pill label="Salary cap" value={onOff(league.salaryCapEnabled)} />
-                <Pill label="Abilities" value={onOff(league.abilitiesEnabled)} />
-              </>
-            ) : (
-              <>
-                <Pill label="Coach mode" value={onOff(league.coachModeEnabled)} />
-                <Pill label="Active rosters" value={onOff(Boolean(league.activeRostersEnabled))} />
-                <Pill
-                  label="Teams replaced with customs"
-                  value={yesNo(league.dynastyType === "mixed")}
-                />
-                <Pill
-                  label="Conference realignment"
-                  value={
-                    league.conferenceRealignment === "allowed"
-                      ? league.conferenceReassignments.length > 0
-                        ? `Allowed · ${league.conferenceReassignments.length} reassigned`
-                        : "Allowed"
-                      : "Locked"
-                  }
-                />
-                <Pill label="Recruiting difficulty" value={titleCase(league.recruitingDifficulty)} />
-                <Pill label="Coach XP" value={titleCase(league.coachXpSetting ?? "casual")} />
-                <Pill label="Transfer portal" value={onOff(Boolean(league.transferPortalEnabled))} />
-                <Pill
-                  label="Home field advantage"
-                  value={onOff(Boolean(league.homeFieldAdvantageEnabled))}
-                />
-              </>
-            )}
+                    {!cfb ? (
+                      <>
+                        <Pill
+                          label="Coach abilities restricted"
+                          value={onOff(league.coachAbilitiesRestricted)}
+                          title={league.coachAbilitiesRestrictionNotes || undefined}
+                        />
+                        <Pill label="Trade approval" value={titleCase(league.tradeApprovalPolicy)} />
+                        <Pill
+                          label="CPU trading"
+                          value={titleCase(league.cpuTradingPolicy)}
+                          title={league.cpuTradingRestriction || undefined}
+                        />
+                        <Pill label="Salary cap" value={onOff(league.salaryCapEnabled)} />
+                        <Pill label="Abilities" value={onOff(league.abilitiesEnabled)} />
+                      </>
+                    ) : (
+                      <>
+                        <Pill label="Coach mode" value={onOff(league.coachModeEnabled)} />
+                        <Pill label="Active rosters" value={onOff(Boolean(league.activeRostersEnabled))} />
+                        <Pill
+                          label="Teams replaced with customs"
+                          value={yesNo(league.dynastyType === "mixed")}
+                        />
+                        <Pill
+                          label="Conference realignment"
+                          value={
+                            league.conferenceRealignment === "allowed"
+                              ? league.conferenceReassignments.length > 0
+                                ? `Allowed · ${league.conferenceReassignments.length} reassigned`
+                                : "Allowed"
+                              : "Locked"
+                          }
+                        />
+                        <Pill label="Recruiting difficulty" value={titleCase(league.recruitingDifficulty)} />
+                        <Pill label="Coach XP" value={titleCase(league.coachXpSetting ?? "casual")} />
+                        <Pill label="Transfer portal" value={onOff(Boolean(league.transferPortalEnabled))} />
+                        <Pill
+                          label="Home field advantage"
+                          value={onOff(Boolean(league.homeFieldAdvantageEnabled))}
+                        />
+                      </>
+                    )}
+                  </ul>
+                </div>
+              ) : null}
+            </li>
           </ul>
         </div>
       </button>

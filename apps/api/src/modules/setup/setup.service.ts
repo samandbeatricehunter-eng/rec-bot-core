@@ -606,6 +606,7 @@ export async function createUnclaimedLeague(input: {
   game: "madden_26" | "madden_27" | "cfb_27";
   leaguePassword?: string | null;
   leagueType?: string;
+  templateId?: string | null;
   customRostersPreseedRequested?: boolean;
   isOnline?: boolean;
   crossPlayEnabled?: boolean;
@@ -751,6 +752,7 @@ export async function createUnclaimedLeague(input: {
     trust_mode: "manual",
     fantasy_draft_status: leagueType === "fantasy_draft" ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
+    template_id: input.templateId ?? null,
   };
 
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();

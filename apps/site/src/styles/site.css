@@ -831,6 +831,65 @@ h1, h2, h3, .site-wordmark {
   font-weight: 600;
   text-transform: capitalize;
 }
+.site-league-template-badge {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.site-league-pill-info-wrap {
+  position: relative;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+.site-league-pill-info {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 13px;
+  font-weight: 800;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  cursor: pointer;
+}
+.site-league-pill-info:hover,
+.site-league-pill-info[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.site-league-pill-info-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(28rem, 80vw);
+  max-height: 24rem;
+  overflow: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.site-league-template-desc {
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.site-league-template-desc strong {
+  color: var(--text);
+}
+.site-league-pill-info-panel .site-league-search-meta {
+  margin: 0;
+}
 .site-league-search-expanded {
   width: 100%;
   margin-top: var(--space-3);
@@ -2985,9 +3044,8 @@ h1, h2, h3, .site-wordmark {
   background: linear-gradient(135deg, rgb(255 255 255 / 8%), transparent);
 }
 .site-comp-shot-examples span { display: block; margin-top: 8px; }
-.site-league-search-card:not(.is-expanded) .site-league-pill:not(.is-card-summary) {
-  display: none;
-}
+/* The default-visible pill set is now controlled by which pills are actually rendered
+   (see LeagueSearchCard's 3-pill summary + "i" tooltip panel), not this CSS toggle. */
 @media (max-width: 760px) {
   .site-comp-queue,
   .site-comp-user-modal { width: calc(100vw - 20px); }

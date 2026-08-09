@@ -634,7 +634,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     try {
       let createdId = leagueId;
       if (!createdId) {
-        const payload = { name: name.trim(), game, ...collectConfig() };
+        const payload = { name: name.trim(), game, templateId: templateId ?? undefined, ...collectConfig() };
         const result = await siteApi.createLeague(payload);
         createdId = result.league.id;
         setLeagueId(createdId);

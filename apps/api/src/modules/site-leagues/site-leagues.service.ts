@@ -564,6 +564,7 @@ export type SiteLeagueConferenceReassignment = {
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
+  templateId: string | null;
   game: string;
   gameLabel: string;
   seasonStage: string;
@@ -772,6 +773,7 @@ export async function searchSiteLeagues(input: {
       select
         l.id,
         l.name,
+        l.template_id,
         l.game,
         l.season_stage,
         l.season_number,
@@ -957,6 +959,7 @@ export async function searchSiteLeagues(input: {
     return {
       id: String(row.id),
       name: String(row.name),
+      templateId: (row.template_id as string | null) ?? null,
       game,
       gameLabel: gameLabelFor(game),
       seasonStage,

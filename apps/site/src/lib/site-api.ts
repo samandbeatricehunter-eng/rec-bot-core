@@ -213,6 +213,7 @@ export type SiteLeagueConferenceReassignment = {
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
+  templateId: string | null;
   game: string;
   gameLabel: string;
   seasonStage: string;

@@ -34,6 +34,7 @@ const CreateUnclaimedLeagueSchema = z.object({
   game: z.enum(["madden_26", "madden_27", "cfb_27"]),
   leaguePassword: z.string().optional().nullable(),
   leagueType: z.string().optional(),
+  templateId: z.string().max(60).optional().nullable(),
   isOnline: z.boolean().optional(),
   crossPlayEnabled: z.boolean().optional(),
   requiredConsole: z.enum(["ps5", "xbox", "pc"]).optional().nullable(),
