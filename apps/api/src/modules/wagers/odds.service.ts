@@ -15,6 +15,7 @@ import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { getMatchupPreview } from "../hub/matchup-preview.service.js";
 
 // Relocated/custom teams keep the original `abbreviation`; the custom abbr lives in
 // `display_abbr`. Prefer the display abbr so wager labels match the rest of the bot.
@@ -33,6 +34,7 @@ const HOME_FIELD_ADVANTAGE = 3;
 const MIN_TURNOVER_LINE = 1;
 const LEAGUE_BASELINE_PPG = 24;
 const LEAGUE_BASELINE = {
+  points: LEAGUE_BASELINE_PPG,
   total_yards: 350,
   rush_yards: 120,
   pass_yards: 230,
@@ -202,6 +204,14 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   const homeAvg = averagesByTeam.get(game.home_team_id ?? "") ?? null;
   const awayAvg = averagesByTeam.get(game.away_team_id ?? "") ?? null;
 
+  // The matchup page's "Projected Final" score already blends each side's PPG against the
+  // other's points-allowed rate (with a season-neutral fallback, never 0) — reuse it here so
+  // the points-based wager lines agree with that projection instead of being computed
+  // independently and, in the no-history case, defaulting to a nonsensical 0.
+  const preview = await getMatchupPreview({ guildId, discordId: "", gameId }).catch(() => null);
+  const projectedHomeScore = preview?.prediction.predictedHomeScore ?? null;
+  const projectedAwayScore = preview?.prediction.predictedAwayScore ?? null;
+
   const markets: WagerMarketOption[] = [];
   for (const def of marketsForGame(humanInvolved)) {
     if (def.kind === "moneyline") {
@@ -224,7 +234,9 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
         ],
       });
     } else if (def.kind === "team_total") {
-      const line = teamTotalLine(def.statKey ?? "points", homeAvg, awayAvg, def.team ?? "home");
+      const isHomeSide = (def.team ?? "home") === "home";
+      const projected = isHomeSide ? projectedHomeScore : projectedAwayScore;
+      const line = def.statKey === "points" && projected != null ? projected : teamTotalLine(def.statKey ?? "points", homeAvg, awayAvg, def.team ?? "home");
       const teamLabel = def.team === "away" ? awayLabel : homeLabel;
       markets.push({
         market: def.key, label: `${teamLabel} Total Points O/U`, kind: def.kind, line, unit: def.unit,
@@ -234,7 +246,8 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
         ],
       });
     } else {
-      const line = totalLine(def.statKey ?? "points", homeAvg, awayAvg);
+      const projectedTotal = projectedHomeScore != null && projectedAwayScore != null ? projectedHomeScore + projectedAwayScore : null;
+      const line = def.statKey === "points" && projectedTotal != null ? projectedTotal : totalLine(def.statKey ?? "points", homeAvg, awayAvg);
       markets.push({
         market: def.key, label: def.label, kind: def.kind, line, unit: def.unit,
         sides: [
