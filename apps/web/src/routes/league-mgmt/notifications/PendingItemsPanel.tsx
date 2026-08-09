@@ -108,7 +108,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
-                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{notification.subtitle}</p>
+                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line" }}>{notification.subtitle}</p>
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>
                 {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}><CoinAmount amount={notification.amount} /></span>}
@@ -130,7 +130,7 @@ function CompletedTransactions({ transactions }: { transactions: CompletedCommis
   if (!transactions.length) return <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>No approved or issued transactions yet.</p></Card>;
   return <div className="completed-transaction-list">{transactions.map((transaction) => <Card key={transaction.id}>
     <div className="completed-transaction-heading">
-      <div><div className="completed-transaction-title"><Badge status="approved">{transaction.statusLabel}</Badge><strong>{transaction.title}</strong></div><p>{transaction.subtitle}</p></div>
+      <div><div className="completed-transaction-title"><Badge status="approved">{transaction.statusLabel}</Badge><strong>{transaction.title}</strong></div><p style={{ whiteSpace: "pre-line" }}>{transaction.subtitle}</p></div>
       {transaction.amount != null && <strong className="completed-transaction-amount"><CoinAmount amount={transaction.amount} /></strong>}
     </div>
     {transaction.details.length > 0 && <dl className="completed-transaction-details">{transaction.details.map((detail, index) => <div key={`${detail.label}-${index}`}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl>}

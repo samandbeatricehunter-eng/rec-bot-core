@@ -1,7 +1,8 @@
 import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
@@ -29,6 +30,123 @@ const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player"
 
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";
+}
+
+// rec_legend_catalog.attributes is keyed by the same full display names shown in the
+// purchase-review notification (e.g. "Throwing Power"); rec_players.attributes (what the
+// roster viewer's spreadsheet columns read) is keyed by the snake_case codes every other
+// player source uses (e.g. throw_power). "Long Snap" has no equivalent in our 53-attribute
+// set and is dropped. Exhaustive — verified against every key actually stored on a legend row.
+const LEGEND_ATTRIBUTE_NAME_TO_KEY: Record<string, string> = {
+  "Press": "press", "Speed": "speed", "Injury": "injury", "Agility": "agility", "Jumping": "jumping",
+  "Pursuit": "pursuit", "Release": "release", "Stamina": "stamina", "Carrying": "carrying",
+  "Catching": "catching", "Strength": "strength", "Tackling": "tackle", "Trucking": "trucking",
+  "Awareness": "awareness", "BC Vision": "bc_vision", "Hit Power": "hit_power", "Juke Move": "juke_move",
+  "Spin Move": "spin_move", "Stiff Arm": "stiff_arm", "Toughness": "toughness", "Break Sack": "break_sack",
+  "Lead Block": "lead_block", "Play Action": "play_action", "Power Moves": "power_moves",
+  "Acceleration": "acceleration", "Break Tackle": "break_tackle", "Man Coverage": "man_coverage",
+  "Run Blocking": "run_block", "Deep Accuracy": "throw_accuracy_deep", "Finesse Moves": "finesse_moves",
+  "Kicking Power": "kick_power", "Pass Blocking": "pass_block", "Zone Coverage": "zone_coverage",
+  "Block Shedding": "block_shedding", "Short Accuracy": "throw_accuracy_short", "Throwing Power": "throw_power",
+  "Impact Blocking": "impact_blocking", "Medium Accuracy": "throw_accuracy_mid", "Run Block Power": "run_block_power",
+  "Catch in Traffic": "catch_in_traffic", "Kick/Punt Return": "kick_return", "Kicking Accuracy": "kick_accuracy",
+  "Pass Block Power": "pass_block_power", "Play Recognition": "play_recognition", "Throw on the Run": "throw_on_the_run",
+  "Run Block Finesse": "run_block_finesse", "Spectacular Catch": "spectacular_catch", "Deep Route Running": "route_running_deep",
+  "Pass Block Finesse": "pass_block_finesse", "Change of Direction": "change_of_direction",
+  "Short Route Running": "route_running_short", "Medium Route Running": "route_running_medium",
+  "Throw Under Pressure": "throw_under_pressure",
+};
+
+// rec_legend_catalog.height is a formatted string like 6'9" — parse to total inches for
+// rec_players.height_inches (which every other player source stores as a plain integer).
+function parseLegendHeightInches(height: string | null | undefined): number | null {
+  const match = /^(\d+)'(\d+)"?$/.exec(String(height ?? "").trim());
+  if (!match) return null;
+  return Number(match[1]) * 12 + Number(match[2]);
+}
+
+function mapLegendAttributes(raw: Record<string, number> | null | undefined): Record<string, number> {
+  const mapped: Record<string, number> = {};
+  for (const [name, value] of Object.entries(raw ?? {})) {
+    const key = LEGEND_ATTRIBUTE_NAME_TO_KEY[name];
+    if (key) mapped[key] = value;
+  }
+  return mapped;
+}
+
+/** Fires once a legend purchase is approved ("Approved & Applied In-Game") — creates the
+ * actual rec_players row with the legend's full mapped attributes and photo, and removes
+ * whichever roster player it replaces. Mirrors apply_custom_player_build's shape, just from
+ * JS instead of a DB function since there's no atomic-CP-refund step to protect here. */
+async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
+  const details = (purchase.details ?? {}) as Record<string, any>;
+  const leagueId = purchase.league_id as string;
+  const teamId = details.purchasingTeamId as string | null;
+  if (!teamId) return; // buyer had no team at purchase time — nothing to attach the player to
+
+  const league = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
+  const game = String(league.data?.game ?? "cfb_27");
+  const isCfbLeague = game === "cfb_27";
+
+  const legend = await supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle();
+  const photoUrl = legend.data?.photo_url ?? null;
+
+  // Commissioner's final call (name-based, from the review UI) wins over the buyer's original
+  // pick (a real player id) when given; otherwise fall back to the buyer's request.
+  let replacementPlayerId: string | null = details.replaceTarget?.playerId ?? null;
+  if (details.finalReplaceTarget) {
+    const match = await supabase.from("rec_players").select("id")
+      .eq("league_id", leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false)
+      .eq("position", details.finalReplaceTarget.position).eq("first_name", details.finalReplaceTarget.firstName).eq("last_name", details.finalReplaceTarget.lastName)
+      .maybeSingle();
+    if (match.data?.id) replacementPlayerId = match.data.id;
+  }
+
+  const nameParts = String(details.name ?? "").trim().split(/\s+/);
+  const firstName = nameParts[0] ?? details.name;
+  const lastName = nameParts.slice(1).join(" ") || details.name;
+
+  const inserted = await supabase.from("rec_players").insert({
+    league_id: leagueId,
+    team_id: teamId,
+    madden_player_id: `legend:${details.legendId}:${purchase.id}`,
+    first_name: firstName,
+    last_name: lastName,
+    full_name: details.name,
+    position: details.position,
+    height_inches: parseLegendHeightInches(details.height),
+    weight_lbs: details.weight ?? null,
+    handedness: details.hand ?? null,
+    jersey_number: details.jerseyNumber ?? null,
+    college: !isCfbLeague ? (details.college ?? null) : null,
+    dev_trait: details.devTrait ?? null,
+    overall_rating: details.estOvr ?? null,
+    archetype: details.archetype ?? null,
+    attributes: mapLegendAttributes(details.attributes),
+    photo_url: photoUrl,
+    is_free_agent: false,
+    is_default_player: false,
+    roster_status: "active",
+    player_source: "legend",
+    raw_payload: { legend: true, legendId: details.legendId, purchaseId: purchase.id },
+  });
+  if (inserted.error) throw new ApiError(500, "Legend purchase was approved, but creating the roster player failed.", inserted.error);
+
+  if (replacementPlayerId) {
+    await supabase.from("rec_players").delete().eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId);
+  }
+
+  const linked = await findServerRoutesForLeague(leagueId).catch(() => null);
+  const announcementsChannelId = (linked?.routes as any)?.announcements_channel_id as string | null | undefined;
+  if (announcementsChannelId) {
+    await postDiscordChannelMessage(announcementsChannelId, {
+      embeds: [{
+        title: "Legend Acquired",
+        color: 0xd4af37,
+        description: `**${details.purchasingTeamName ?? "A team"}** has purchased legend **${details.name}** (${details.position}, ${details.estOvr ?? "?"} OVR).`,
+      }],
+    }).catch((err) => console.error("[ERROR] Failed to post legend purchase announcement (non-fatal):", err));
+  }
 }
 
 type AttributeAllocation = { code: string; points: number; core: boolean };
@@ -499,6 +617,14 @@ export async function reviewPurchase(input: {
     .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
     .eq("source_table", "rec_purchases")
     .eq("source_id", input.purchaseId);
+
+  // "Approved & Applied In-Game" is the actual trigger for legends — this is the one moment
+  // the commissioner has confirmed the player really exists in the save, so it's also the
+  // one moment we can safely create the roster row (full attributes + photo) automatically.
+  if (existing.data.purchase_type === "legend") {
+    await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
+  }
+
   return { updated: true, action: "approve" as const, purchase: approved.data, buyerDiscordId: existing.data.discord_id };
 }
 

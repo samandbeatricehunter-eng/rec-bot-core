@@ -23,9 +23,11 @@ async function ownTeamId(leagueId: string, userId: string) {
   return { teamId: assignment.data.team_id as string, teamName: team?.name ?? null };
 }
 
-/** The "Edit Roster" My Team quick action. Commissioners get an immediate add (they're the
- * approver anyway); everyone else's request queues in the unified commissioner inbox for
- * review, exactly like every other pending-action source in this app. */
+/** The "Edit Roster" / "Add Player to Roster" quick action — adds the player straight to the
+ * caller's own team, no commissioner approval needed (a user can only add to their own
+ * roster, so there's nothing here for a commissioner to gatekeep). listRosterAddRequests/
+ * approveRosterAddRequest/denyRosterAddRequest below are kept for any already-queued rows
+ * from before this changed, but nothing new is ever queued into that flow now. */
 export async function submitRosterAddRequest(input: {
   guildId: string;
   discordId: string;
@@ -38,7 +40,7 @@ export async function submitRosterAddRequest(input: {
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
-  const { teamId, teamName } = await ownTeamId(context.leagueId, userId);
+  const { teamId } = await ownTeamId(context.leagueId, userId);
 
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
@@ -46,37 +48,12 @@ export async function submitRosterAddRequest(input: {
   const position = input.position.trim().toUpperCase();
   if (!position) throw new ApiError(400, "Position is required.");
 
-  const isCommish = await assertGuildPermission(input.guildId, input.discordId, "co_commissioner").then(() => true).catch(() => false);
-  if (isCommish) {
-    const player = await addRosterPlayer({
-      guildId: input.guildId, discordId: input.discordId, teamId,
-      firstName, lastName, position,
-      heightInches: input.heightInches, weightLbs: input.weightLbs, overallRating: input.overallRating,
-    });
-    return { status: "approved" as const, player };
-  }
-
-  const inserted = await supabase.from("rec_commissioners_inbox").insert({
-    guild_id: input.guildId,
-    league_id: context.leagueId,
-    queue_type: QUEUE_TYPE,
-    status: "pending",
-    priority: 0,
-    header: `Roster addition: ${firstName} ${lastName} (${position})`,
-    summary: `${teamName ?? "A team"} wants to add ${firstName} ${lastName} (${position}${input.overallRating != null ? `, ${input.overallRating} OVR` : ""}) to their roster.`,
-    requester_user_id: userId,
-    requester_discord_id: input.discordId,
-    team_id: teamId,
-    source_table: "rec_players",
-    source_reference: {},
-    payload: {
-      teamId, firstName, lastName, position,
-      heightInches: input.heightInches ?? null, weightLbs: input.weightLbs ?? null, overallRating: input.overallRating ?? null,
-    },
-    awaiting_user_response: false,
-  }).select("id").single();
-  if (inserted.error) throw new ApiError(500, "Failed to submit roster addition request.", inserted.error);
-  return { status: "pending" as const, requestId: inserted.data.id };
+  const player = await addRosterPlayer({
+    guildId: input.guildId, discordId: input.discordId, teamId,
+    firstName, lastName, position,
+    heightInches: input.heightInches, weightLbs: input.weightLbs, overallRating: input.overallRating,
+  });
+  return { status: "approved" as const, player };
 }
 
 export async function listRosterAddRequests(guildId: string) {

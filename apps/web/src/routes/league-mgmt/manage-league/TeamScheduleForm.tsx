@@ -156,6 +156,7 @@ export function TeamScheduleForm() {
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [customBowl, setCustomBowl] = useState<{ weekNumber: number; name: string } | null>(null);
+  const [editingWeeks, setEditingWeeks] = useState<Set<number>>(new Set());
 
   const load = useCallback(() => {
     if (!teamId) return Promise.resolve();
@@ -198,6 +199,7 @@ export function TeamScheduleForm() {
     try {
       const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions, byeWeeks, firstRoundByeWeeks });
       setResults(result.saved);
+      setEditingWeeks(new Set());
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.
       await load();
@@ -210,6 +212,28 @@ export function TeamScheduleForm() {
 
   function closeModal() {
     setActiveModal(null);
+  }
+
+  async function removeGame(week: TeamScheduleManualWeek) {
+    if (!teamId) return;
+    if (!window.confirm(`Remove the Week ${week.weekNumber} matchup vs ${week.confirmedOpponentName}? This can't be undone — you'll need to re-enter it if that was a mistake.`)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await recApi.removeTeamScheduleGame({ guildId, teamId, weekNumber: week.weekNumber });
+      setNotice(`Week ${week.weekNumber} matchup removed.`);
+      setEditingWeeks((prev) => { const next = new Set(prev); next.delete(week.weekNumber); return next; });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove the matchup.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelEditWeek(week: TeamScheduleManualWeek) {
+    setPicks((prev) => ({ ...prev, [week.weekNumber]: pickForWeek(week, teams ?? []) }));
+    setEditingWeeks((prev) => { const next = new Set(prev); next.delete(week.weekNumber); return next; });
   }
 
   async function afterResolved(message: string) {
@@ -256,7 +280,7 @@ export function TeamScheduleForm() {
               // box-score submission to already exist, which meant a playoff game entered
               // through this screen (no auto-generated placeholder result row, unlike
               // regular-season games) could never reach those actions at all.
-              const showConfirmedView = week.alreadyConfirmed;
+              const showConfirmedView = week.alreadyConfirmed && !editingWeeks.has(week.weekNumber);
 
               if (showConfirmedView) {
                 return (
@@ -320,6 +344,16 @@ export function TeamScheduleForm() {
                             >
                               {week.result ? "Correct Results" : "Enter Results"}
                             </Button>
+                            {!week.result && !week.boxScoreSubmissionId && (
+                              <>
+                                <Button variant="secondary" disabled={saving} onClick={() => setEditingWeeks((prev) => new Set(prev).add(week.weekNumber))}>
+                                  Edit
+                                </Button>
+                                <Button variant="danger" disabled={saving} onClick={() => void removeGame(week)}>
+                                  Remove
+                                </Button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
@@ -421,8 +455,13 @@ export function TeamScheduleForm() {
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (
                       <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
-                        {week.alreadyConfirmed ? "Edit then Save Season to resubmit" : "Pick an opponent and Save Season to unlock box score entry"}
+                        {week.alreadyConfirmed ? "Update the matchup, then Save Schedule Changes to resubmit" : "Pick an opponent and Save Season to unlock box score entry"}
                       </span>
+                    )}
+                    {editingWeeks.has(week.weekNumber) && (
+                      <div style={{ marginTop: "var(--space-2)" }}>
+                        <Button variant="ghost" disabled={saving} onClick={() => cancelEditWeek(week)}>Cancel</Button>
+                      </div>
                     )}
                   </Td>
                 </tr>

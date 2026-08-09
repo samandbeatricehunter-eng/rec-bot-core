@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { addRosterPlayer, addTransferInPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture, uploadPlayerPhoto } from "./roster.service.js";
+import { addRosterPlayer, addTransferInPlayer, deleteRosterPlayer, getTeamRoster, reinstatePlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture, uploadPlayerPhoto } from "./roster.service.js";
 import { approveRosterAddRequest, denyRosterAddRequest, listRosterAddRequests, submitRosterAddRequest } from "./roster-add-requests.service.js";
 
 export async function teamRosterRoutes(app: FastifyInstance) {
@@ -83,6 +83,23 @@ export async function teamRosterRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/v1/roster/lifecycle/delete", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        playerId: z.string().uuid(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await deleteRosterPlayer({ guildId: body.guildId, discordId: body.discordId, playerId: body.playerId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/roster/lifecycle/transfer-in", async (request, reply) => {
     try {
       const body = z.object({
@@ -94,6 +111,9 @@ export async function teamRosterRoutes(app: FastifyInstance) {
         position: z.string().min(1),
         classYear: z.enum(["FR", "SO", "JR", "SR"]).optional().nullable(),
         overallRating: z.number().int().min(0).max(99).optional().nullable(),
+        heightInches: z.number().int().min(60).max(90).optional().nullable(),
+        weightLbs: z.number().int().min(100).max(450).optional().nullable(),
+        handedness: z.enum(["left", "right"]).optional().nullable(),
         note: z.string().max(280).optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });

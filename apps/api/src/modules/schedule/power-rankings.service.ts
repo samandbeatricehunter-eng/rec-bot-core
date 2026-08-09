@@ -184,6 +184,17 @@ async function loadLatestSnapshotWeek(leagueId: string, seasonNumber: number, be
   return data?.[0]?.week_number ?? null;
 }
 
+// A new season starts with zero games played, which would otherwise make every team's
+// score tie at the defaults and rank essentially arbitrarily. Carry over last season's
+// final power rankings instead, until this season has actually recorded a result.
+async function loadPreviousSeasonFinalRankings(leagueId: string, seasonNumber: number): Promise<RankedTeam[] | null> {
+  if (seasonNumber <= 1) return null;
+  const prevSeason = seasonNumber - 1;
+  const latestWeek = await loadLatestSnapshotWeek(leagueId, prevSeason);
+  if (latestWeek == null) return null;
+  return loadSnapshotRankings(leagueId, prevSeason, latestWeek);
+}
+
 async function loadSnapshotRankings(leagueId: string, seasonNumber: number, weekNumber: number): Promise<RankedTeam[] | null> {
   const { data, error } = await supabase
     .from("rec_power_ranking_snapshots")
@@ -205,9 +216,15 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const leagueGame = context.rec_leagues.game;
-  const ranked = completedWeekNumber
-    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame)
-    : await rankTeams(guildId, leagueId, currentSeason, leagueGame);
+  let ranked: RankedTeam[];
+  if (completedWeekNumber) {
+    ranked = (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame);
+  } else {
+    const seasonHasResults = (await aggregateTeams(leagueId, currentSeason)).size > 0;
+    ranked = seasonHasResults
+      ? await rankTeams(guildId, leagueId, currentSeason, leagueGame)
+      : (await loadPreviousSeasonFinalRankings(leagueId, currentSeason)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame);
+  }
 
   const [teamsRes, assignmentsRes, latestWeek] = await Promise.all([
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference").eq("league_id", leagueId),

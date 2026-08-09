@@ -248,7 +248,9 @@ function LegendDetailModal({
       )}
       {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
-          {replacementPlayers.length > 0 && (
+          {(() => {
+            const samePositionPlayers = replacementPlayers.filter((player: any) => player.position === legend.position);
+            return samePositionPlayers.length > 0 && (
             <>
               <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
                 <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
@@ -256,10 +258,10 @@ function LegendDetailModal({
               </label>
               {designateReplacement ? (
                 <label className="form-field">
-                  <span className="form-label">Replace</span>
+                  <span className="form-label">Replace ({legend.position})</span>
                   <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
                     <option value="">Select player</option>
-                    {replacementPlayers.map((player) => (
+                    {samePositionPlayers.map((player: any) => (
                       <option key={player.id} value={player.id}>
                         {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
                       </option>
@@ -270,7 +272,8 @@ function LegendDetailModal({
                 <p className="form-hint">Leave unchecked to let your commissioner choose which player this replaces.</p>
               )}
             </>
-          )}
+            );
+          })()}
           <div className="hub-store-total">
             <span>Total: <strong><CoinAmount amount={REC_LEGEND_PRICE} /></strong></span>
             <Button

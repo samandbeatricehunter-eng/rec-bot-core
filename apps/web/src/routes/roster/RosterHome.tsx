@@ -12,19 +12,28 @@ import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib
 
 type ViewMode = "grid" | "list";
 
-type RosterUiStatus = "no_change" | "drafted" | "graduated" | "transferred_out";
+type RosterUiStatus = "no_change" | "drafted" | "graduated" | "transferred_out" | "delete";
 const STATUS_OPTIONS: Array<{ value: RosterUiStatus; label: string }> = [
   { value: "no_change", label: "No Change" },
   { value: "drafted", label: "Went Pro" },
   { value: "graduated", label: "Graduated/Retired" },
   { value: "transferred_out", label: "Transferred" },
+  { value: "delete", label: "Delete" },
 ];
+const STATUS_CONFIRM_COPY: Partial<Record<RosterUiStatus, (name: string) => string>> = {
+  no_change: (name) => `Reinstate ${name} to the active roster?`,
+  drafted: (name) => `Mark ${name} as drafted/gone pro? They'll be removed from the active roster.`,
+  graduated: (name) => `Mark ${name} as graduated/retired? They'll be removed from the active roster.`,
+};
 
 // Per-player offseason status change — only rendered when canEditRosterStatus is true
 // (CFB leagues, outside the regular season/postseason). "No Change" just reinstates a
-// player back to active if they'd previously been marked departed; the other three call
-// setPlayerDeparture, which removes the player from the active roster view. Transferred
-// requires a destination school, captured as the departure note.
+// player back to active if they'd previously been marked departed; drafted/graduated/
+// transferred call setPlayerDeparture, which removes the player from the active roster view
+// (transferred requires a destination school, captured as the departure note); "Delete"
+// hard-removes the player entirely (deleteRosterPlayer) — for correcting a mistaken add, not
+// a real roster transition. Every change here is irreversible or roster-affecting enough to
+// confirm before it fires; none of it needs commissioner approval, just the player's coach.
 function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; player: RosterPlayer; onChanged: () => void }) {
   const current: RosterUiStatus = player.rosterStatus === "drafted" || player.rosterStatus === "graduated" || player.rosterStatus === "retired" || player.rosterStatus === "transferred_out"
     ? (player.rosterStatus === "retired" ? "graduated" : (player.rosterStatus as RosterUiStatus))
@@ -34,7 +43,7 @@ function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; pla
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function apply(status: RosterUiStatus, note?: string) {
+  async function apply(status: Exclude<RosterUiStatus, "delete">, note?: string) {
     setBusy(true);
     setError(null);
     try {
@@ -52,12 +61,31 @@ function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; pla
     }
   }
 
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await recApi.deleteRosterPlayer({ guildId, playerId: player.id });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove player.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleChange(next: RosterUiStatus) {
     if (next === "transferred_out") {
       setPending("transferred_out");
       setDestination("");
       return;
     }
+    if (next === "delete") {
+      if (window.confirm(`Permanently delete ${player.fullName} from the roster? This can't be undone.`)) void remove();
+      return;
+    }
+    const confirmCopy = STATUS_CONFIRM_COPY[next]?.(player.fullName);
+    if (confirmCopy && !window.confirm(confirmCopy)) return;
     void apply(next);
   }
 
@@ -67,7 +95,17 @@ function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; pla
       {pending === "transferred_out" ? (
         <div className="hub-roster-status-transfer">
           <input className="form-input" placeholder="Transferred to…" value={destination} onChange={(event) => setDestination(event.target.value)} />
-          <button type="button" className="btn btn-secondary btn-compact" disabled={busy || !destination.trim()} onClick={() => void apply("transferred_out", destination)}>Save</button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-compact"
+            disabled={busy || !destination.trim()}
+            onClick={() => {
+              if (!window.confirm(`Mark ${player.fullName} as transferred to ${destination.trim()}? They'll be removed from the active roster.`)) return;
+              void apply("transferred_out", destination);
+            }}
+          >
+            Save
+          </button>
           <button type="button" className="btn btn-ghost btn-compact" onClick={() => setPending(null)}>Cancel</button>
         </div>
       ) : (

@@ -265,8 +265,10 @@ export const recApi = {
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/departure", { method: "POST", body: JSON.stringify(input) }),
   reinstatePlayer: (input: { guildId: string; playerId: string }) =>
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/reinstate", { method: "POST", body: JSON.stringify(input) }),
-  addTransferInPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; classYear?: string | null; overallRating?: number | null; note?: string | null }) =>
+  addTransferInPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; classYear?: string | null; overallRating?: number | null; heightInches?: number | null; weightLbs?: number | null; handedness?: string | null; note?: string | null }) =>
     recApiFetch<RosterLifecycleResult>("/v1/roster/lifecycle/transfer-in", { method: "POST", body: JSON.stringify(input) }),
+  deleteRosterPlayer: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<{ removed: true; fullName: string }>("/v1/roster/lifecycle/delete", { method: "POST", body: JSON.stringify(input) }),
   addRosterPlayer: (input: { guildId: string; teamId: string; firstName: string; lastName: string; position: string; heightInches?: number | null; weightLbs?: number | null; handedness?: string | null; overallRating?: number | null }) =>
     recApiFetch<RosterLifecycleResult>("/v1/roster/add-player", { method: "POST", body: JSON.stringify(input) }),
   submitRosterAddRequest: (input: { guildId: string; firstName: string; lastName: string; position: string; heightInches?: number | null; weightLbs?: number | null; overallRating?: number | null }) =>
@@ -357,6 +359,8 @@ export const recApi = {
     recApiFetch<TeamScheduleManualState>(REC_API_ROUTES.teamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
   commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[]; byeWeeks?: number[]; firstRoundByeWeeks?: number[] }) =>
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
+  removeTeamScheduleGame: (input: { guildId: string; teamId: string; weekNumber: number }) =>
+    recApiFetch<{ removed: true }>("/v1/schedule/team-schedule-remove-game", { method: "POST", body: JSON.stringify(input) }),
   getCfpPostseason: (guildId: string) =>
     recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/state", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveCfpTop25: (input: { guildId: string; rankings: Array<{ rank: number; teamId: string; conferenceChampion: boolean }> }) =>

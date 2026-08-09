@@ -11,7 +11,7 @@ import { computePowerRankings } from "./power-rankings.service.js";
 import { setGameRivalry } from "../rivalries/rivalries.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { generateCfpBracket, getCfpPostseasonState, saveCfpTop25 } from "./cfp-bracket.service.js";
-import { commitTeamScheduleDecisionsTransactional } from "./team-schedule-transaction.service.js";
+import { commitTeamScheduleDecisionsTransactional, removeTeamScheduleGame } from "./team-schedule-transaction.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
 
@@ -209,6 +209,23 @@ export async function scheduleRoutes(app: FastifyInstance) {
       // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.
       if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId;
       return reply.send(await commitTeamScheduleDecisionsTransactional(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Clears a mistakenly-entered confirmed matchup — only when unlocked (no result/box score).
+  // Game-generic (cfb_27 | madden_26 | madden_27).
+  app.post("/v1/schedule/team-schedule-remove-game", async (request, reply) => {
+    try {
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        weekNumber: z.number().int().min(0),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await removeTeamScheduleGame(input));
     } catch (error) {
       return sendError(reply, error);
     }

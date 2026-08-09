@@ -282,7 +282,7 @@ export async function submitCustomPlayer(input: {
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
     const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").eq("is_default_player", false).maybeSingle();
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
     if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
     replacement = found as { data: Record<string, unknown> };
   } else if (config.replacementRequired) {

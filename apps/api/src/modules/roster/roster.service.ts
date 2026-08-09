@@ -302,6 +302,35 @@ export async function reinstatePlayer(input: { guildId: string; discordId: strin
   return updated.data;
 }
 
+/** Hard-removes a player from the roster entirely — for correcting a mistaken entry (wrong
+ * position/name on an add, a duplicate, etc.), not a real roster-status transition like
+ * graduated/drafted/transferred (those stay reversible via reinstatePlayer). No commissioner
+ * approval needed, same as every other status change here — team ownership is the only gate.
+ * The frontend is expected to confirm with the user before calling this; it's irreversible. */
+export async function deleteRosterPlayer(input: { guildId: string; discordId: string; playerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const player = await supabase.from("rec_players").select("id,team_id,full_name").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
+
+  await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
+
+  if (isCfb(context.rec_leagues?.game)) {
+    const stage = String(context.rec_leagues?.season_stage ?? "regular_season");
+    if (gameplaySeasonStages(context.rec_leagues?.game).has(stage)) {
+      throw new ApiError(400, "Roster changes open once the season ends — not during the regular season or postseason.");
+    }
+  }
+
+  const deleted = await supabase.from("rec_players").delete().eq("id", input.playerId).select("id,full_name").maybeSingle();
+  if (deleted.error) throw new ApiError(500, "Failed to remove player.", deleted.error);
+  return { removed: true as const, fullName: player.data.full_name as string };
+}
+
 /** Log an incoming transfer — a brand-new rec_players row, never a baseline/default player
  * (is_default_player stays false), so it's naturally exempt from the default-player purchase
  * restriction that's planned for the attribute-upgrade flow. */
@@ -314,6 +343,9 @@ export async function addTransferInPlayer(input: {
   position: string;
   classYear?: string | null;
   overallRating?: number | null;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  handedness?: string | null;
   note?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -339,6 +371,9 @@ export async function addTransferInPlayer(input: {
       position,
       class_year: input.classYear ?? null,
       overall_rating: input.overallRating ?? null,
+      height_inches: input.heightInches ?? null,
+      weight_lbs: input.weightLbs ?? null,
+      handedness: input.handedness ?? null,
       is_free_agent: false,
       is_default_player: false,
       roster_status: "transferred_in",

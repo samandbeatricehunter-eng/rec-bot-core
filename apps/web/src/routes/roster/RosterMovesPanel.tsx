@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CFB_POSITIONS } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { RosterDepartureStatus, RosterPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -96,6 +97,9 @@ function TransferInModal({
   const [position, setPosition] = useState("");
   const [classYear, setClassYear] = useState("");
   const [overallRating, setOverallRating] = useState("");
+  const [heightInches, setHeightInches] = useState("");
+  const [weightLbs, setWeightLbs] = useState("");
+  const [handedness, setHandedness] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +120,9 @@ function TransferInModal({
         position: position.trim(),
         classYear: classYear || null,
         overallRating: overallRating.trim() ? Number(overallRating) : null,
+        heightInches: heightInches.trim() ? Number(heightInches) : null,
+        weightLbs: weightLbs.trim() ? Number(weightLbs) : null,
+        handedness: handedness || null,
         note: note.trim() || null,
       });
       onDone();
@@ -139,7 +146,10 @@ function TransferInModal({
       </label>
       <label className="form-field">
         <span className="form-label">Position</span>
-        <input className="form-input" value={position} onChange={(event) => setPosition(event.target.value.toUpperCase())} placeholder="e.g. WR" />
+        <select className="form-input" value={position} onChange={(event) => setPosition(event.target.value)}>
+          <option value="">Select position</option>
+          {CFB_POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+        </select>
       </label>
       <label className="form-field">
         <span className="form-label">Class (optional)</span>
@@ -154,6 +164,22 @@ function TransferInModal({
       <label className="form-field">
         <span className="form-label">Overall (optional)</span>
         <input className="form-input" type="number" min={0} max={99} value={overallRating} onChange={(event) => setOverallRating(event.target.value)} />
+      </label>
+      <label className="form-field">
+        <span className="form-label">Height, inches (optional)</span>
+        <input className="form-input" type="number" min={60} max={90} value={heightInches} onChange={(event) => setHeightInches(event.target.value)} placeholder="e.g. 74" />
+      </label>
+      <label className="form-field">
+        <span className="form-label">Weight, lbs (optional)</span>
+        <input className="form-input" type="number" min={100} max={450} value={weightLbs} onChange={(event) => setWeightLbs(event.target.value)} />
+      </label>
+      <label className="form-field">
+        <span className="form-label">Handedness (optional)</span>
+        <select className="form-input" value={handedness} onChange={(event) => setHandedness(event.target.value)}>
+          <option value="">Unknown</option>
+          <option value="right">Right</option>
+          <option value="left">Left</option>
+        </select>
       </label>
       <label className="form-field">
         <span className="form-label">Note (optional)</span>

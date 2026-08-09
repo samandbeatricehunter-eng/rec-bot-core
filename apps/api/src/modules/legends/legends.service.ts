@@ -155,6 +155,11 @@ export async function createLegendPurchaseRequest(input: {
 
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
 
+  // Only one legend can be reserved/purchased by a team at a time.
+  if (teamId && activePurchases.some((row: any) => row.details?.purchasingTeamId === teamId)) {
+    throw new ApiError(409, "Your team already has a legend purchase pending or approved — only one at a time.");
+  }
+
   // Only recruits/manually-added players are eligible replacement targets — same rule as
   // custom-player builds (the default baseline roster is never selectable here).
   let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
@@ -162,7 +167,7 @@ export async function createLegendPurchaseRequest(input: {
     if (!teamId) throw new ApiError(403, "A linked league team is required.");
     const found = await supabase.from("rec_players").select("id,first_name,last_name,position")
       .eq("id", input.replacementPlayerId).eq("league_id", context.leagueId).eq("team_id", teamId)
-      .eq("roster_status", "active").eq("is_default_player", false).maybeSingle();
+      .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
     if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
     replaceTarget = { playerId: found.data.id, position: found.data.position, firstName: found.data.first_name, lastName: found.data.last_name };
   }
@@ -195,17 +200,31 @@ export async function createLegendPurchaseRequest(input: {
 
   // createPurchaseRequest files this under the generic "purchase" inbox category — legends
   // get their own tab, and the notification needs the full attribute list plus an explicit
-  // warning not to approve until the player actually exists in the game save.
+  // warning not to approve until the player actually exists in the game save. One line per
+  // detail/attribute (not a run-on paragraph) so it's actually readable in the Pending panel.
   const attrLines = Object.entries((legend.data.attributes as Record<string, number>) ?? {})
     .sort(([, a], [, b]) => b - a)
-    .map(([key, value]) => `${key} ${value}`)
-    .join(", ");
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+  const summaryLines = [
+    "DO NOT mark Approved & Applied In-Game until you have actually created this player.",
+    `Team: ${teamName ?? "unassigned"}`,
+    details.replaceTarget
+      ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`
+      : "Buyer left the replaced player up to you.",
+    `Dev trait: ${details.devTrait}`,
+    ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
+    "Final in-league OVR is normalized to 88 — nudge attributes as needed.",
+    "",
+    "Attributes:",
+    attrLines,
+  ];
   await supabase
     .from("rec_commissioners_inbox")
     .update({
       queue_type: "legend",
       header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
-      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${details.devTrait}.${details.bodyType ? ` Body type: ${details.bodyType}.` : ""} Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+      summary: summaryLines.join("\n"),
       payload: { purchaseId: result.purchase.id, purchaseType: "legend", cost: result.price, replaceTarget: details.replaceTarget },
     })
     .eq("source_table", "rec_purchases")

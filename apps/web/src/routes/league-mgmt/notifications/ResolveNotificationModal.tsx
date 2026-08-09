@@ -322,7 +322,7 @@ export function ResolveNotificationModal({
     <Modal title={notification.title} onClose={onClose}>
       {error && <ErrorState message={error} />}
       <Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge>
-      <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}>{notification.subtitle}</p>
+      <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)", whiteSpace: "pre-line" }}>{notification.subtitle}</p>
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
       )}
