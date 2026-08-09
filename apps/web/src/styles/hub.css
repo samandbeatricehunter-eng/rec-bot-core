@@ -4025,6 +4025,10 @@ details.fantasy-draft-checkin .fantasy-draft-checkin-status { margin-top: var(--
 .fantasy-draft-player-card-attribute-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .35rem .55rem; background: #101318; border: 1px solid #3d434c; border-radius: var(--radius-sm); }
 .fantasy-draft-player-card-attribute-name { color: var(--text-secondary); font-size: var(--text-xs); }
 .fantasy-draft-player-card-attribute-value { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; }
+.fantasy-draft-player-card-abilities { display: flex; flex-direction: column; gap: .5rem; max-height: 20rem; overflow: auto; }
+.fantasy-draft-player-card-ability { padding: .5rem .65rem; background: #101318; border: 1px solid #3d434c; border-left: 3px solid var(--accent, #d9a521); border-radius: var(--radius-sm); }
+.fantasy-draft-player-card-ability-name { color: var(--accent, #d9a521); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .04em; }
+.fantasy-draft-player-card-ability-description { margin: .2rem 0 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.45; }
 
 @media (max-width: 960px) {
   .fantasy-draft-split { grid-template-columns: 1fr; }

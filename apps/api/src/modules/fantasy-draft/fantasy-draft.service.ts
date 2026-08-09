@@ -196,7 +196,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
   const [pickOrder, picks, pool, pickRequests] = await Promise.all([
     session ? listPickOrder(session.id) : Promise.resolve<Array<{ pickInRound: number; teamId: string }>>([]),
     session ? listPicks(session.id) : Promise.resolve<PickRow[]>([]),
-    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait,attributes,height_inches,weight_lbs,birth_year,college,years_pro")
+    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait,attributes,abilities,height_inches,weight_lbs,birth_year,college,years_pro")
       .eq("league_id", leagueId)
       .order("overall_rating", { ascending: false }),
     session ? listPendingPickRequests(session.id) : Promise.resolve<PickRequestRow[]>([]),
@@ -265,6 +265,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       draftedByTeamId: draftedTeamByPlayer.get(p.id) ?? null,
       isDefaultPlayer: Boolean(p.is_default_player),
       attributes: (p.attributes ?? {}) as Record<string, number | null>,
+      abilities: (p.abilities ?? null) as Array<{ name: string; description: string }> | null,
       heightInches: p.height_inches ?? null,
       weightLbs: p.weight_lbs ?? null,
       birthYear: p.birth_year ?? null,

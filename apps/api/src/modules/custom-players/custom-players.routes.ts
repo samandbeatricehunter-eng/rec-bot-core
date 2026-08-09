@@ -15,7 +15,7 @@ const IdentitySchema = z.object({
   jerseyNumber: z.number().int().min(0).max(99), handedness: z.enum(["left", "right"]),
   heightInches: z.number().int().min(60).max(84), weightLbs: z.number().int().min(140).max(400),
   hometownCity: z.string().trim().max(80).optional(), hometownState: z.string().trim().max(40).optional(),
-  college: z.string().trim().max(100).optional(),
+  college: z.string().trim().max(100).optional(), bodyType: z.string().trim().max(20).optional(),
 });
 
 export async function customPlayerRoutes(app: FastifyInstance) {

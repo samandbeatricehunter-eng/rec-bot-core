@@ -7,6 +7,7 @@
 // team name (e.g. "Buffalo Bills"), matching rec_teams.name — not rec_teams.abbreviation.
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
+import { parseAbilitiesRaw } from "./abilities.js";
 
 export type MaddenBaselinePlayer = {
   id: string;
@@ -121,6 +122,8 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
     const attributes: Record<string, number | null> = {};
     for (const col of ATTRIBUTE_DB_COLUMNS) attributes[col] = (p[col] as number | null) ?? null;
 
+    const abilities = p.abilities_raw ? parseAbilitiesRaw(p.abilities_raw) : null;
+
     rows.push({
       league_id,
       team_id: teamId,
@@ -133,6 +136,8 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       jersey_number: p.jersey_number,
       archetype: p.archetype,
       attributes,
+      abilities,
+      ability_count: abilities ? abilities.length : null,
       college: p.college,
       birth_year: p.date_of_birth ? new Date(p.date_of_birth).getUTCFullYear() : null,
       years_pro: p.years_pro,

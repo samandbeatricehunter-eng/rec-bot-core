@@ -131,27 +131,47 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     setAttributes(entry ? baselineAttributesFor(entry, tier) : {});
   }
   function mutate(code: string, delta: number) {
-    setAttributes((current) => {
-      const candidate = { ...current, [code]: Math.max(0, Math.min(99, (current[code] ?? 0) + delta)) };
+    const current = attributes;
+    const candidate = { ...current, [code]: Math.max(0, Math.min(99, (current[code] ?? 0) + delta)) };
+    if (delta > 0) {
       try {
         const key = isCustomBuildMode ? detectBestArchetypeKey(config.archetypes[position] ?? [], candidate) : effectiveArchetypeKey;
         const result = evaluateRecCustomPlayerBuild({ game, position, archetypeKey: key, packageTier: tier, attributes: candidate, netDevelopmentCost: netDev, mode: "preview" });
         const blocking = result.violations.find((v) => v.code !== "ARCHETYPE_IDENTITY");
-        if (delta > 0 && blocking) {
+        if (blocking) {
           setNotice(null);
           setCeilingBlock({
             attribute: code,
             message: blocking.message,
             deficientAttributes: blocking.deficientAttributes ?? [],
           });
-          return current;
+          return;
         }
       } catch {
-        return current;
+        return;
       }
-      setNotice(null);
-      return candidate;
-    });
+    }
+    setNotice(null);
+    setAttributes(candidate);
+  }
+  function validatePlayerDetails(): string | null {
+    if (!identity.firstName?.trim()) return "First name is required.";
+    if (!identity.lastName?.trim()) return "Last name is required.";
+    if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) return "Jersey number must be a whole number from 0 to 99.";
+    if (game === "CFB") {
+      if (!identity.hometownCity?.trim()) return "Hometown is required.";
+      if (!identity.hometownState?.trim()) return "State is required.";
+      const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
+      const heightMax = heightRule?.max ?? 84;
+      if (!Number.isInteger(identity.heightInches) || identity.heightInches < 65 || identity.heightInches > heightMax) return `Height for ${position} must be between 5'5" and ${formatFeetInches(heightMax)}.`;
+      const weightRule = CFB_BODY_TYPE_WEIGHT[identity.bodyType] ?? CFB_BODY_TYPE_WEIGHT.standard;
+      if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < weightRule.min || identity.weightLbs > weightRule.max) return `Weight for the ${identity.bodyType} body type must be between ${weightRule.min} and ${weightRule.max} pounds.`;
+    } else {
+      if (!identity.college?.trim()) return "College is required.";
+      if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) return "Height must be between 5'0\" and 7'0\".";
+      if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) return "Weight must be between 140 and 400 pounds.";
+    }
+    return null;
   }
   async function generateName() { const result = await recApi.generateCustomPlayerName(guildId, `${Date.now()}:${Math.random()}`); setIdentity((value: any) => ({ ...value, firstName: result.firstName, lastName: result.lastName })); }
   async function submit() { if (!evaluation || !effectiveArchetypeKey) return; setBusy(true); setNotice(null); try { const result = await recApi.submitCustomPlayer({ guildId, idempotencyKey: crypto.randomUUID(), packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, attributes, replacementPlayerId: replacementPlayerId || null, identity: game === "CFB" ? { ...identity, college: undefined } : { ...identity, hometownCity: undefined, hometownState: undefined } }); setHydrated(false); setNotice(`Submitted. ${result.build.unused_cp_refund_coins} coins will be refunded after approval and application.`); onPurchased(); } catch (error) { setSubmitError(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }
@@ -191,7 +211,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     })()}
     {step === 4 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={0} max={99} value={attributes[code] ?? 0} onChange={(e) => mutate(code, Math.max(0, Math.min(99, Number(e.target.value) || 0)) - (attributes[code] ?? 0))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
     {step === 5 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position} · {effectiveArchetypeKey.replaceAll("_"," ")}{isCustomBuildMode ? " (detected)" : ""}</p><p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint"><strong>88 OVR maximum:</strong> if the applied player evaluates above 88 OVR, the commissioner must reduce ratings to reach the cap. Identity or rating edits are logged and sent to you; position, archetype, and development trait remain locked to this purchase.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{Math.ceil(((evaluation?.pointsRemaining ?? 0) * .5) / 15)} coin refund after application</strong></p>{config.replacementRequired ? <label>Replace active player ({position})<select className="form-input" value={replacementPlayerId} onChange={(e) => setReplacementPlayerId(e.target.value)}><option value="">Select player</option>{config.replacementPlayers.filter((player: any) => player.position === position).map((player: any) => <option key={player.id} value={player.id}>{player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR</option>)}</select></label> : <p className="form-hint">Your team has no active players yet (unseeded league) — this custom player will be added to the roster as a brand-new player instead of replacing anyone.</p>}</>}
-    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < 5 ? <Button variant="primary" onClick={() => setStep(step + 1)}>Continue</Button> : <Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId)} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
+    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < 5 ? <Button variant="primary" onClick={() => { if (step === 2) { const problem = validatePlayerDetails(); if (problem) { setNotice(problem); return; } } setNotice(null); setStep(step + 1); }}>Continue</Button> : <Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId)} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
     {ceilingBlock && (
       <Modal title={`${getRecAttributeDisplayName(ceilingBlock.attribute)} Ceiling Reached`} onClose={() => setCeilingBlock(null)}>
         <p>{ceilingBlock.message}</p>

@@ -15,3 +15,6 @@ apps/site/public/assets/
 *.traineddata
 # Local OCR debug scratch output
 sea-debug.txt
+
+# madden-ratings-scraper resumable cache (regenerated on demand, can grow to MBs)
+apps/api/scripts/.cache/

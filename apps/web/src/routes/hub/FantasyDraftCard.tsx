@@ -588,6 +588,15 @@ function PlayerCardModal({ player, isOnBoard, canDraft, draftLabel, busy, onTogg
             ))}
           </div>
         )
+      ) : player.abilities && player.abilities.length > 0 ? (
+        <div className="fantasy-draft-player-card-abilities">
+          {player.abilities.map((ability, index) => (
+            <div key={`${ability.name}-${index}`} className="fantasy-draft-player-card-ability">
+              <strong className="fantasy-draft-player-card-ability-name">{ability.name}</strong>
+              <p className="fantasy-draft-player-card-ability-description">{ability.description}</p>
+            </div>
+          ))}
+        </div>
       ) : (
         <p className="hub-empty">No ability data is on file for this player.</p>
       )}
@@ -757,7 +766,10 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
                       <Button variant="primary" size="compact" disabled={busy} onClick={() => onDraftClick(player)}>Draft</Button>
                     )}
                     {isCommissioner && (
-                      <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => onPoolAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`)}><Trash2 size={15} /></Button>
+                      <Button variant="ghost" size="compact" aria-label={`Remove ${player.name} from pool`} disabled={busy} onClick={() => {
+                        if (!window.confirm(`Remove ${player.name} from the draft pool? This cannot be undone.`)) return;
+                        onPoolAction(() => recApi.removeFantasyDraftPoolPlayer({ guildId, playerId: player.id }), `${player.name} removed from the pool.`);
+                      }}><Trash2 size={15} /></Button>
                     )}
                   </td>
                 </tr>

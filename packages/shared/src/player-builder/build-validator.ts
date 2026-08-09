@@ -18,7 +18,7 @@ import {
   type RecPackageTier,
 } from "./archetypes.js";
 
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.1.0" as const;
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.2.0" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -84,12 +84,32 @@ export const REC_ATTRIBUTE_FLOOR_RELATIONS: Readonly<Record<string, readonly str
   pow: ["str"],
 } as const;
 
+// Position-aware cap on how far the speed/quick package may spread. Once any of SPD, AGI,
+// ACC, or COD reaches REC_QUICK_CLUSTER_GAP_THRESHOLD, the whole cluster must stay within
+// REC_POSITION_QUICK_CLUSTER_GAP[position] points of each other. Positions that depend on
+// quickness (WR, CB, HB) keep the four close together — a WR with 89 SPD has no business at
+// 60 AGI — while positions where straight-line speed can carry a player (TE, OL, DL) allow a
+// wider spread. The threshold sits above every archetype baseline (primary attributes start
+// at the tier identity floor, max 70 on tier 5), so picking an archetype never trips the rule
+// before the user actually builds speed.
+export const REC_QUICK_CLUSTER_ATTRIBUTES = ["spd", "agi", "acc", "cod"] as const;
+export const REC_QUICK_CLUSTER_GAP_THRESHOLD = 75;
+export const REC_POSITION_QUICK_CLUSTER_GAP: Readonly<Partial<Record<RecOvrPosition, number>>> = {
+  WR: 14, CB: 14, HB: 16,
+  FS: 18, SS: 18,
+  ROLB: 20, LOLB: 20, MLB: 20,
+  QB: 24,
+  TE: 26, FB: 26, LE: 28, RE: 28,
+  DT: 30, LT: 32, LG: 32, C: 32, RG: 32, RT: 32,
+};
+
 export type RecBuildViolationCode =
   | "UNSUPPORTED_ATTRIBUTE"
   | "INVALID_RATING"
   | "INSUFFICIENT_POINTS"
   | "PACKAGE_ATTRIBUTE_CAP"
   | "ATTRIBUTE_FLOOR_REQUIRED"
+  | "QUICK_CLUSTER_GAP"
   | "ARCHETYPE_IDENTITY"
   | "OVR_CAP_EXCEEDED";
 
@@ -345,6 +365,39 @@ function validateHighImpactAttributes(
   return violations;
 }
 
+function validateQuickClusterGap(
+  position: RecOvrPosition,
+  attributes: RecPlayerAttributes
+): RecBuildViolation[] {
+  const maxGap = REC_POSITION_QUICK_CLUSTER_GAP[position];
+  if (maxGap === undefined) return [];
+  const ratings = REC_QUICK_CLUSTER_ATTRIBUTES.map((code) => {
+    const raw = attributes[code];
+    const rating = typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
+    return { code, rating };
+  }).sort((a, b) => b.rating - a.rating);
+  const highest = ratings[0]!;
+  if (highest.rating < REC_QUICK_CLUSTER_GAP_THRESHOLD) return [];
+  const lowest = ratings[ratings.length - 1]!;
+  const spread = highest.rating - lowest.rating;
+  if (spread <= maxGap) return [];
+  const required = highest.rating - maxGap;
+  return [{
+    code: "QUICK_CLUSTER_GAP",
+    attribute: highest.code,
+    requestedRating: highest.rating,
+    current: lowest.rating,
+    required,
+    deficientAttributes: [{ attribute: lowest.code, current: lowest.rating, required }],
+    message:
+      `${position} keeps Speed, Agility, Acceleration, and Change of Direction within ` +
+      `${maxGap} points of each other once any reaches ${REC_QUICK_CLUSTER_GAP_THRESHOLD}+. ` +
+      `${highest.code.toUpperCase()} ${highest.rating} vs ${lowest.code.toUpperCase()} ` +
+      `${lowest.rating} is a ${spread}-point spread — raise ${lowest.code.toUpperCase()} to at ` +
+      `least ${required} (or lower ${highest.code.toUpperCase()}).`,
+  }];
+}
+
 export function evaluateRecCustomPlayerBuild(
   input: RecBuildEvaluationInput
 ): RecBuildEvaluationResult {
@@ -383,6 +436,7 @@ export function evaluateRecCustomPlayerBuild(
   }
 
   violations.push(...validateHighImpactAttributes(normalizedInput));
+  violations.push(...validateQuickClusterGap(position, attributes));
 
   const attributeCost = calculateRecBuildAttributeCost(normalizedInput);
   const netDevelopmentCost = Math.max(

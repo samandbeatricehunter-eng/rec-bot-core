@@ -946,6 +946,7 @@ export type FantasyDraftPoolPlayer = {
   draftedByTeamId: string | null;
   isDefaultPlayer: boolean;
   attributes: Record<string, number | null>;
+  abilities: Array<{ name: string; description: string }> | null;
   heightInches: number | null;
   weightLbs: number | null;
   birthYear: number | null;

@@ -59,4 +59,22 @@ const blocked = evaluateRecCustomPlayerBuild({
 assert(!blocked.valid, "Min-maxed WR must be blocked");
 assert(blocked.violations.some((v) => v.code === "PACKAGE_ATTRIBUTE_CAP"), "Expected package attribute cap violation");
 assert(blocked.violations.some((v) => v.code === "ATTRIBUTE_FLOOR_REQUIRED"), "Expected attribute-floor violation");
-console.log("REC custom-player v1.1 fixtures passed");
+const wrSpeedGap = evaluateRecCustomPlayerBuild({
+  game: "CFB",
+  position: "WR",
+  archetypeKey: "speedster",
+  packageTier: 5,
+  netDevelopmentCost: 0,
+  attributes: { spd: 89, agi: 60, acc: 89, cod: 60 },
+});
+assert(wrSpeedGap.violations.some((v) => v.code === "QUICK_CLUSTER_GAP"), "WR with 89 SPD and 60 AGI must be gapped");
+const teSpeedGap = evaluateRecCustomPlayerBuild({
+  game: "CFB",
+  position: "TE",
+  archetypeKey: "vertical_threat",
+  packageTier: 5,
+  netDevelopmentCost: 0,
+  attributes: { spd: 89, agi: 70, acc: 89, cod: 70 },
+});
+assert(!teSpeedGap.violations.some((v) => v.code === "QUICK_CLUSTER_GAP"), "TE with a wider speed/quick spread is fine");
+console.log("REC custom-player v1.2 fixtures passed");

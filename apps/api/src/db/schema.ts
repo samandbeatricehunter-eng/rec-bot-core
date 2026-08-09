@@ -1381,6 +1381,7 @@ export const recPlayers = pgTable("rec_players", {
   isFreeAgent: boolean("is_free_agent"),
   isXfactor: boolean("is_xfactor"),
   abilityCount: integer("ability_count"),
+  abilities: jsonb("abilities").$type<Array<{ name: string; description: string }> | null>(),
   teamId: uuid("team_id")
 });
 
