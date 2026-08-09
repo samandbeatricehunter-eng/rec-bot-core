@@ -3860,6 +3860,16 @@ button.poty:disabled {
 .fantasy-draft-checkin-team small { color: var(--text-muted); font-size: var(--text-xs); }
 .fantasy-draft-checkin-status-pill { flex: 0 0 auto; padding: .2rem .55rem; border: 1px solid color-mix(in srgb, #e6b84c 50%, var(--border)); border-radius: 999px; color: #e6b84c; font-size: var(--text-xs); font-weight: 800; }
 .fantasy-draft-checkin-list li.checked-in .fantasy-draft-checkin-status-pill { border-color: color-mix(in srgb, #2ecc71 55%, var(--border)); color: #2ecc71; }
+.fantasy-draft-checkin-list li.is-cpu { opacity: .7; }
+.fantasy-draft-checkin-list li.is-cpu .fantasy-draft-checkin-status-pill { border-color: color-mix(in srgb, var(--text-muted) 50%, var(--border)); color: var(--text-muted); }
+.fantasy-draft-checkin-panel > summary,
+details.fantasy-draft-checkin > summary { cursor: pointer; list-style: none; }
+.fantasy-draft-checkin-panel > summary::-webkit-details-marker,
+details.fantasy-draft-checkin > summary::-webkit-details-marker { display: none; }
+details.fantasy-draft-checkin > summary { display: flex; align-items: center; gap: .55rem; }
+details.fantasy-draft-checkin .fantasy-draft-checkin-status { margin-top: var(--space-2); display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+@keyframes fantasy-draft-checkin-flash { 0%, 100% { background: color-mix(in srgb, #e6b84c 8%, transparent); } 50% { background: color-mix(in srgb, #e6b84c 32%, transparent); } }
+.fantasy-draft-checkin-flash { animation: fantasy-draft-checkin-flash 1.4s ease-in-out infinite; border-radius: var(--radius-md); }
 
 /* Split-screen draft board: left = personal board/roster, right = live tracker */
 .fantasy-draft-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: var(--space-4); align-items: start; }

@@ -181,4 +181,11 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     label: "First-Time Setup",
     fields: [],
   },
+  // Special-cased in SettingsHome.tsx to render <DeleteLeagueHome /> instead of the generic
+  // field list — a destructive standalone action, not a settings form.
+  {
+    key: "delete-league",
+    label: "Delete League",
+    fields: [],
+  },
 ];

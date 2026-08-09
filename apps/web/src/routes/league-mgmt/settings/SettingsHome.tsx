@@ -17,9 +17,11 @@ import { TransactionMaintenance } from "./TransactionMaintenance.js";
 import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
 import { ModerationSettings } from "./ModerationSettings.js";
 import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
+import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
 const EOS_PAYOUTS_KEY = "eos-payouts";
+const DELETE_LEAGUE_KEY = "delete-league";
 const PURCHASE_DEADLINE_TYPES = [
   ["custom_player", "Custom Players"], ["legend", "Legends"], ["attribute", "Attributes"],
   ["dev_upgrade", "Development Upgrades"], ["age_reset", "Age Resets"],
@@ -133,6 +135,8 @@ export function SettingsHome() {
 
       {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
+      ) : activeCategory === DELETE_LEAGUE_KEY ? (
+        <DeleteLeagueHome />
       ) : (
         <>
           <Card>

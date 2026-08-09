@@ -778,12 +778,32 @@ export async function createUnclaimedLeague(input: {
           (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
       const activeMaddenDataset = await getActiveMaddenDataset();
       if (activeMaddenDataset) {
+        // Non-fatal (a roster-seed hiccup shouldn't block league creation), but retried once
+        // and — if it still fails — written to the audit log instead of only ever existing as
+        // a Railway console line nobody's watching. Without this a league can silently end up
+        // with zero pool players and no visible sign anything went wrong.
         await applyMaddenBaselineToLeague({
           league_id: league.data.id,
           dataset_id: activeMaddenDataset.id,
           fantasyDraftMode: input.leagueType === "fantasy_draft",
-        }).catch((err) => {
-          console.error("[ERROR] Failed to apply Madden baseline roster to new league (non-fatal):", err);
+        }).catch(async (err) => {
+          console.error("[ERROR] Failed to apply Madden baseline roster to new league, retrying once:", err);
+          try {
+            await applyMaddenBaselineToLeague({
+              league_id: league.data.id,
+              dataset_id: activeMaddenDataset.id,
+              fantasyDraftMode: input.leagueType === "fantasy_draft",
+            });
+          } catch (retryErr) {
+            console.error("[ERROR] Failed to apply Madden baseline roster again after retry:", retryErr);
+            await writeAuditLog({
+              action: "league.madden_baseline_seed_failed",
+              entityType: "rec_leagues",
+              entityId: league.data.id,
+              reason: retryErr instanceof Error ? retryErr.message : String(retryErr),
+              newValue: { game: input.game, leagueType: input.leagueType },
+            }).catch(() => undefined);
+          }
         });
       }
     }

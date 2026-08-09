@@ -352,20 +352,20 @@ function CheckinBar({ state, guildId, busy, onChanged, onError }: {
       }
     }
     return (
-      <div className={`fantasy-draft-checkin${checkedIn ? " checked-in" : ""}`}>
-        <div className="fantasy-draft-checkin-status">
+      <details className={`fantasy-draft-checkin${checkedIn ? " checked-in" : ""}`}>
+        <summary className={checkedIn ? "" : "fantasy-draft-checkin-flash"}>
           {checkedIn ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-          <div>
-            <strong>{checkedIn ? "You're checked in" : "You haven't checked in yet"}</strong>
-            <p>{checkedIn
-              ? "You're all set for the draft — your pick won't be skipped."
-              : "Check in before or during the draft, or your pick will be skipped when it comes up."}</p>
-          </div>
+          <strong>{checkedIn ? "You're checked in" : "You haven't checked in yet — tap to check in"}</strong>
+        </summary>
+        <div className="fantasy-draft-checkin-status">
+          <p>{checkedIn
+            ? "You're all set for the draft — your pick won't be skipped."
+            : "Check in before or during the draft, or your pick will be skipped when it comes up."}</p>
+          <Button variant={checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || saving} onClick={() => void toggle()}>
+            {saving ? "Saving…" : checkedIn ? "Check Out" : "Check In"}
+          </Button>
         </div>
-        <Button variant={checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || saving} onClick={() => void toggle()}>
-          {saving ? "Saving…" : checkedIn ? "Check Out" : "Check In"}
-        </Button>
-      </div>
+      </details>
     );
   }
   return null;
@@ -385,7 +385,10 @@ function CommissionerCheckinPanel({ state, guildId, busy, onChanged, onError }: 
   if (!caller.isCommissioner || !session) return null;
   if (session.status === "concluded") return null;
 
-  const checkedCount = checkins.filter((c) => c.checkedIn).length;
+  const linkedCheckins = checkins.filter((c) => !c.isCpu);
+  const checkedCount = linkedCheckins.filter((c) => c.checkedIn).length;
+  const myCheckin = caller.myTeamId ? checkins.find((c) => c.teamId === caller.myTeamId) : null;
+  const iNeedToCheckIn = Boolean(myCheckin && !myCheckin.isCpu && !myCheckin.checkedIn);
   async function toggle(checkin: FantasyDraftCheckin) {
     setTogglingTeamId(checkin.teamId);
     try {
@@ -399,30 +402,36 @@ function CommissionerCheckinPanel({ state, guildId, busy, onChanged, onError }: 
   }
 
   return (
-    <div className="fantasy-draft-checkin-panel">
-      <div className="fantasy-draft-checkin-panel-head">
+    <details className="fantasy-draft-checkin-panel">
+      <summary className={`fantasy-draft-checkin-panel-head${iNeedToCheckIn ? " fantasy-draft-checkin-flash" : ""}`}>
         <h4>Check-Ins</h4>
-        <span className="fantasy-draft-checkin-count">{checkedCount}/{checkins.length} checked in</span>
-      </div>
-      <p className="fantasy-draft-checkin-panel-hint">Who's present for the draft. Teams not checked in get skipped when their pick comes up.</p>
+        <span className="fantasy-draft-checkin-count">{checkedCount}/{linkedCheckins.length} linked teams checked in</span>
+      </summary>
+      <p className="fantasy-draft-checkin-panel-hint">Who's present for the draft. CPU teams are skipped automatically; linked teams not checked in get skipped when their pick comes up.</p>
       <ul className="fantasy-draft-checkin-list">
         {checkins.map((checkin) => {
           const discord = checkin.discordGlobalName ?? checkin.discordUsername;
           return (
-            <li key={checkin.teamId} className={checkin.checkedIn ? "checked-in" : ""}>
+            <li key={checkin.teamId} className={checkin.isCpu ? "is-cpu" : checkin.checkedIn ? "checked-in" : ""}>
               <span className="fantasy-draft-checkin-team">
                 <strong>{checkin.teamName}</strong>
-                <small>{discord ? `@${discord}` : "No Discord linked"}</small>
+                <small>{checkin.isCpu ? "CPU-controlled" : discord ? `@${discord}` : "No Discord linked"}</small>
               </span>
-              <span className="fantasy-draft-checkin-status-pill">{checkin.checkedIn ? "Checked In" : "NOT Checked In"}</span>
-              <Button variant={checkin.checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || togglingTeamId === checkin.teamId} onClick={() => void toggle(checkin)}>
-                {togglingTeamId === checkin.teamId ? "Saving…" : checkin.checkedIn ? "Check Out" : "Check In"}
-              </Button>
+              {checkin.isCpu ? (
+                <span className="fantasy-draft-checkin-status-pill">CPU</span>
+              ) : (
+                <>
+                  <span className="fantasy-draft-checkin-status-pill">{checkin.checkedIn ? "Checked In" : "NOT Checked In"}</span>
+                  <Button variant={checkin.checkedIn ? "secondary" : "primary"} size="compact" disabled={busy || togglingTeamId === checkin.teamId} onClick={() => void toggle(checkin)}>
+                    {togglingTeamId === checkin.teamId ? "Saving…" : checkin.checkedIn ? "Check Out" : "Check In"}
+                  </Button>
+                </>
+              )}
             </li>
           );
         })}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -801,15 +810,22 @@ function PickOrderModal({ teams, initialMode, busy, onClose, onConfirm }: {
         </select></label>
       </div>
       <div className="fantasy-draft-pickorder-grid">
-        {slots.map((teamId, index) => (
-          <label key={index} className="fantasy-draft-pickorder-slot">
-            <span>{index + 1}</span>
-            <select className="form-input" value={teamId} onChange={(e) => setSlot(index, e.target.value)}>
-              <option value="">Select team</option>
-              {teamOptions.map((team) => <option key={team.id} value={team.id}>{team.displayName}</option>)}
-            </select>
-          </label>
-        ))}
+        {slots.map((teamId, index) => {
+          // No team picks twice in a fantasy draft — once a team is assigned to a slot, hide
+          // it from every other slot's dropdown (but keep it in its own, so re-opening the
+          // select still shows the current pick).
+          const takenElsewhere = new Set(slots.filter((_, i) => i !== index && slots[i]));
+          const availableOptions = teamOptions.filter((team) => team.id === teamId || !takenElsewhere.has(team.id));
+          return (
+            <label key={index} className="fantasy-draft-pickorder-slot">
+              <span>{index + 1}</span>
+              <select className="form-input" value={teamId} onChange={(e) => setSlot(index, e.target.value)}>
+                <option value="">Select team</option>
+                {availableOptions.map((team) => <option key={team.id} value={team.id}>{team.displayName}</option>)}
+              </select>
+            </label>
+          );
+        })}
       </div>
       {error && <p className="hub-error">{error}</p>}
       <div className="fantasy-draft-form-actions">

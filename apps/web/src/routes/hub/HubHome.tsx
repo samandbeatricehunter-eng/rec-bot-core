@@ -33,6 +33,7 @@ import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestMo
 import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
+import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { FantasyDraftCard } from "./FantasyDraftCard.js";
 
@@ -61,11 +62,11 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
 };
 type Story = HubResponse["headlines"][number];
-type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules";
+type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules" | "tradeCenter";
 type LeagueSubTab = "buzz" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
-const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules"]);
+const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules", "tradeCenter"]);
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -602,7 +603,7 @@ export function HubHome() {
     if (rawSub === "rankings" || searchParams.get("matchupView") === "rankings") {
       setMatchupView("rankings");
     }
-    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "openTeams" || nextSection === "schedules") {
+    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "openTeams" || nextSection === "schedules" || nextSection === "tradeCenter") {
       setSection(nextSection);
     } else if (nextSection === "league" || nextSubTab) {
       setSection("league");
@@ -1298,6 +1299,7 @@ export function HubHome() {
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<BoxScoreIcon size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<HighlightReelIcon size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("tradeCenter")}><IconWell size="sm" icon={<RefreshCw size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review trades</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
           {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
@@ -1451,7 +1453,7 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
-    </section> : section === "roster" ? <RosterHome /> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <RosterHome /> : section === "tradeCenter" ? <TradeCenterHome /> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
@@ -1552,6 +1554,7 @@ export function HubHome() {
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("tradeCenter")}><IconWell size="sm" icon={<RefreshCw size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review trades</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
             {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}

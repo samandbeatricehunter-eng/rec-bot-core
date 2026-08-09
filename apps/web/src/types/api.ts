@@ -928,6 +928,7 @@ export type FantasyDraftPoolPlayer = {
   overallRating: number | null;
   jerseyNumber: number | null;
   archetype: string | null;
+  devTrait: string | null;
   photoUrl: string | null;
   teamId: string | null;
   isDrafted: boolean;
@@ -951,6 +952,7 @@ export type FantasyDraftCheckin = {
   teamId: string;
   teamName: string;
   checkedIn: boolean;
+  isCpu: boolean;
   ownerUserId: string | null;
   discordUsername: string | null;
   discordGlobalName: string | null;

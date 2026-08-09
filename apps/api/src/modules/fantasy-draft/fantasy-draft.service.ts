@@ -167,7 +167,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
   const [pickOrder, picks, pool] = await Promise.all([
     session ? listPickOrder(session.id) : Promise.resolve<Array<{ pickInRound: number; teamId: string }>>([]),
     session ? listPicks(session.id) : Promise.resolve<PickRow[]>([]),
-    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source")
+    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait")
       .eq("league_id", leagueId)
       .order("overall_rating", { ascending: false }),
   ]);
@@ -228,6 +228,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       overallRating: p.overall_rating,
       jerseyNumber: p.jersey_number,
       archetype: p.archetype,
+      devTrait: p.dev_trait ?? null,
       photoUrl: p.photo_url ?? null,
       teamId: p.team_id,
       isDrafted: draftedIds.has(p.id),
@@ -275,6 +276,7 @@ export type FantasyDraftCheckin = {
   teamId: string;
   teamName: string;
   checkedIn: boolean;
+  isCpu: boolean;
   ownerUserId: string | null;
   discordUsername: string | null;
   discordGlobalName: string | null;
@@ -312,10 +314,15 @@ async function buildCheckinList(
   return teams.map((team) => {
     const ownerUserId = ownerByTeam.get(team.id) ?? null;
     const identity = ownerUserId ? identityByUser.get(ownerUserId) : null;
+    // CPU-controlled teams (no active user assignment) don't need to check in — they're
+    // always treated as ready so the draft never waits on one, and the commissioner fills
+    // their picks in later via the wrap-up flow.
+    const isCpu = !ownerUserId;
     return {
       teamId: team.id,
       teamName: team.displayName,
-      checkedIn: Boolean(byTeam.get(team.id)?.checked_in),
+      checkedIn: isCpu ? true : Boolean(byTeam.get(team.id)?.checked_in),
+      isCpu,
       ownerUserId: includeIdentity ? ownerUserId : null,
       discordUsername: includeIdentity ? (identity?.username ?? null) : null,
       discordGlobalName: includeIdentity ? (identity?.global_name ?? null) : null,
@@ -375,14 +382,15 @@ async function persistCheckin(input: {
 async function buildCheckinEmbedData(leagueId: string, session: SessionRow) {
   const teams = await listTeams(leagueId);
   const checkins = await buildCheckinList(session.id, leagueId, teams, false);
-  const checkedCount = checkins.filter((c) => c.checkedIn).length;
+  const linkedCheckins = checkins.filter((c) => !c.isCpu);
+  const checkedCount = linkedCheckins.filter((c) => c.checkedIn).length;
   return {
     title: "Fantasy Draft Check-In",
     color: CHECKIN_EMBED_COLOR,
-    description: `The fantasy draft is live! Tap **Check In** so your pick doesn't get skipped.\n\n${checkins
-      .map((c) => (c.checkedIn ? `✅ **${c.teamName}** — Checked In` : `❌ **${c.teamName}** — NOT Checked In`))
+    description: `The fantasy draft is live! Tap **Check In** so your pick doesn't get skipped. CPU teams are skipped automatically.\n\n${checkins
+      .map((c) => (c.isCpu ? `🤖 **${c.teamName}** — CPU` : c.checkedIn ? `✅ **${c.teamName}** — Checked In` : `❌ **${c.teamName}** — NOT Checked In`))
       .join("\n")}`,
-    footer: { text: `Checked in: ${checkedCount}/${checkins.length}` },
+    footer: { text: `Checked in: ${checkedCount}/${linkedCheckins.length} linked teams` },
   };
 }
 
