@@ -439,13 +439,22 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
 
   const defenseNickname = await getMyDefenseNicknameStatus(input.guildId, input.discordId).catch(() => null);
 
+  // No box score submitted (or Madden stat import run) for this user yet this season — every
+  // evalTeamStat branch defaults to 0 when games=0, and 0 can fall inside a tier's synthetic
+  // progress window (e.g. a negative D-tier floor), so a coach with zero real games would
+  // otherwise see a partially-filled progress bar toward a tier they haven't actually made any
+  // progress on. Show a real zero instead of a computed-from-nothing one.
+  const hasSubmittedStats = rows.length > 0;
+
   const teamStats: EosPayoutProgressCard[] = TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
     const value = evalTeamStat(definition.statKey, rows, game);
     return {
       key: definition.key,
       label: definition.label,
-      currentValue: Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
-      progress: computeTierProgress(value, definition.tiers, definition.direction),
+      currentValue: hasSubmittedStats && Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
+      progress: hasSubmittedStats
+        ? computeTierProgress(value, definition.tiers, definition.direction)
+        : { currentTier: null, currentAmount: 0, nextTier: definition.tiers[definition.tiers.length - 1] ?? null, percent: 0 },
       tiers: definition.tiers,
       direction: definition.direction,
       triggerNote: definition.triggerNote,
