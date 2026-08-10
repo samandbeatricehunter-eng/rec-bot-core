@@ -28,11 +28,16 @@ export const REC_TRADE_POSITION_MULTIPLIERS: Record<string, number> = {
 };
 const DEFAULT_POSITION_MULTIPLIER = 1.2;
 
+// Calibrated against real trades (DeVonta Smith + a 7th vs. CeeDee Lamb; Crosby+Thornton vs.
+// Verse+Jeudy+Howard) — the original spread (1.0/1.15/1.35/1.65) overweighted dev trait so
+// heavily it swamped OVR/position, producing a 21% "favors proposing" read on a trade the
+// community calls fair, while missing an obvious Browns-favored trade entirely (0.3% vs. the
+// ~15-20% lean it should show). A much smaller spread tracks both correctly.
 export const REC_TRADE_DEV_TRAIT_MULTIPLIERS: Record<string, number> = {
   normal: 1.0,
-  star: 1.15,
-  superstar: 1.35,
-  xfactor: 1.65,
+  star: 1.03,
+  superstar: 1.06,
+  xfactor: 1.10,
 };
 
 function clamp(value: number, min: number, max: number): number {
