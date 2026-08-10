@@ -1,6 +1,13 @@
 // Frontend-local response shapes for the pilot endpoints — pragmatic, not exhaustive
 // (matches apps/bot/src/lib/rec-api.ts's own convention of loosely-typed responses for
 // most calls). Add fields here as screens need them rather than modeling every column.
+import type { RecTradeFairnessReport } from "@rec/shared";
+
+export type TradeAssetDisplay = {
+  id: string; type: "player" | "pick"; label: string; position: string | null;
+  overallRating: number | null; devTrait: string | null; speed: number | null; age: number | null;
+};
+export type TradeEvaluatorReport = RecTradeFairnessReport & { proposingAssets: TradeAssetDisplay[]; receivingAssets: TradeAssetDisplay[] };
 
 export type ScheduleTeam = {
   id: string;
@@ -757,6 +764,7 @@ export type Trade = {
   receiving_team_id: string; receiving_user_id: string;
   proposing_coins: number; receiving_coins: number;
   status: TradeStatus; approval_policy_snapshot: string;
+  value_snapshot: TradeEvaluatorReport | null;
   reviewed_by_discord_id: string | null; review_note: string | null;
   proposed_at: string; accepted_at: string | null; applied_at: string | null;
   declined_at: string | null; withdrawn_at: string | null; rejected_at: string | null;

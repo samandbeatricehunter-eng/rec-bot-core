@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { createTradeBlockListing, getTradeDetail, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
+import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
 
 const LegSchema = z.union([
   z.object({ type: z.literal("player"), playerId: z.string().uuid() }),
@@ -148,6 +148,44 @@ export async function tradesRoutes(app: FastifyInstance) {
       const { guildId, tradeId } = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
       return reply.send(await getTradeDetail(guildId, tradeId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/fairness-preview", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), proposingTeamId: z.string().uuid(), receivingTeamId: z.string().uuid(),
+        offeredLegs: z.array(LegSchema).max(7), requestedLegs: z.array(LegSchema).max(7),
+        offeredCoins: z.number().int().min(0).default(0), requestedCoins: z.number().int().min(0).default(0),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await getTradeFairnessPreview(body.guildId, body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/vote-status", async (request, reply) => {
+    try {
+      const { guildId, tradeId } = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(await getTradeVoteStatus(guildId, tradeId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), vote: z.enum(["approve", "reject"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Trade voting requires a website session.");
+      return reply.send(await castTradeVote({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/vote-force-close", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), action: z.enum(["approve", "reject"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Trade voting requires a website session.");
+      return reply.send(await forceCloseTradeVote({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

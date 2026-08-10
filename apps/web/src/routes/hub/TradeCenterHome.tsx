@@ -3,7 +3,7 @@ import { Search, Trash2 } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { Trade, TradeBlockListing, TradeLegInput, TeamRosterResponse, RosterPlayer, TeamDraftPick } from "../../types/api.js";
+import type { Trade, TradeBlockListing, TradeLegInput, TeamRosterResponse, RosterPlayer, TeamDraftPick, TradeEvaluatorReport, TradeAssetDisplay } from "../../types/api.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -404,6 +404,159 @@ function TradeBlockSection({
   );
 }
 
+function evaluatorBadge(report: TradeEvaluatorReport, proposingLabel: string, receivingLabel: string): { text: string; tone: "fair" | "lean" } {
+  if (report.verdict === "balanced") return { text: "FAIR TRADE", tone: "fair" };
+  const leaningTeam = report.verdict === "favors_proposing" ? proposingLabel : receivingLabel;
+  return { text: `LEAN: ${leaningTeam.toUpperCase()}`, tone: "lean" };
+}
+
+function assetLine(asset: TradeAssetDisplay): string {
+  if (asset.type === "pick") return asset.label;
+  const parts = [`${asset.overallRating ?? "—"} OVR`];
+  if (asset.devTrait) parts.push(asset.devTrait.replace(/\b\w/g, (c) => c.toUpperCase()));
+  const specs: string[] = [];
+  if (asset.speed != null) specs.push(`${asset.speed} SPD`);
+  const specSuffix = specs.length ? ` (${specs.join(", ")})` : "";
+  const ageSuffix = asset.age != null ? ` Age ${asset.age}` : "";
+  return `${asset.label} — ${parts.join(" ")}${specSuffix}${ageSuffix}`;
+}
+
+/** Always-visible trade evaluator while building a trade — recomputed on every leg/coin change
+ * against the REC trade value model (OVR, position, dev trait, contract/cap, and each side's
+ * positional need). Madden-only; silently hides for CFB leagues. */
+function TradeEvaluatorPanel({ guildId, proposingTeamId, receivingTeamId, proposingLabel, receivingLabel, offeredLegs, requestedLegs, offeredCoins, requestedCoins }: {
+  guildId: string;
+  proposingTeamId: string;
+  receivingTeamId: string;
+  proposingLabel: string;
+  receivingLabel: string;
+  offeredLegs: TradeLegInput[];
+  requestedLegs: TradeLegInput[];
+  offeredCoins: number;
+  requestedCoins: number;
+}) {
+  const [report, setReport] = useState<TradeEvaluatorReport | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!receivingTeamId || (offeredLegs.length === 0 && requestedLegs.length === 0 && !offeredCoins && !requestedCoins)) {
+      setReport(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      recApi.getTradeFairnessPreview({ guildId, proposingTeamId, receivingTeamId, offeredLegs, requestedLegs, offeredCoins, requestedCoins })
+        .then((res) => { if (!cancelled) { setReport(res); setUnavailable(false); } })
+        .catch(() => { if (!cancelled) setUnavailable(true); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [guildId, proposingTeamId, receivingTeamId, offeredLegs, requestedLegs, offeredCoins, requestedCoins]);
+
+  if (unavailable) return null;
+  if (!receivingTeamId) return null;
+
+  if (loading && !report) return <div className="hub-trade-evaluator-card"><p className="hub-empty">Calculating…</p></div>;
+  if (!report) return <div className="hub-trade-evaluator-card"><p className="hub-empty">Add players, picks, or coins to see a live value estimate.</p></div>;
+
+  const badge = evaluatorBadge(report, proposingLabel, receivingLabel);
+  // 50% = perfectly centered; positive deltaPct favors the proposing (left) side, so the marker
+  // — and the colored "lean" fill behind it — shifts toward whichever side is winning the trade.
+  const markerPct = Math.max(4, Math.min(96, 50 - report.deltaPct / 2));
+  const fillStyle = report.verdict === "favors_receiving"
+    ? { left: `${markerPct}%`, width: `${100 - markerPct}%` }
+    : { left: 0, width: `${report.verdict === "balanced" ? 100 : markerPct}%` };
+
+  return (
+    <div className="hub-trade-evaluator-card">
+      <div className="hub-trade-evaluator-header">
+        <span className={`hub-trade-evaluator-badge hub-trade-evaluator-badge-${badge.tone}`}>{badge.text}</span>
+      </div>
+      <div className={`hub-trade-evaluator-bar-track hub-trade-evaluator-bar-track-${badge.tone}`}>
+        <div className="hub-trade-evaluator-bar-fill" style={fillStyle} />
+        <div className="hub-trade-evaluator-bar-marker" style={{ left: `${markerPct}%` }} />
+      </div>
+      <div className="hub-trade-evaluator-sides">
+        {/* Each team's header score is the value of what THAT team receives — same total the
+            RECEIVE list below it sums to (offeredLegs flow proposing→receiving, so receivingAssets
+            is what the proposing side gets, valued via report.receiving; and vice versa). */}
+        <div className="hub-trade-evaluator-side">
+          <h5 className="hub-trade-evaluator-team hub-trade-evaluator-team-a">{proposingLabel} <span>{report.receiving.needAdjustedTotal}</span></h5>
+          <p className="hub-trade-evaluator-receive">RECEIVE</p>
+          {report.receivingAssets.length === 0 ? <p className="hub-empty">Nothing yet.</p> : report.receivingAssets.map((asset) => <p key={asset.id}>{assetLine(asset)}</p>)}
+        </div>
+        <div className="hub-trade-evaluator-side">
+          <h5 className="hub-trade-evaluator-team hub-trade-evaluator-team-b">{receivingLabel} <span>{report.proposing.needAdjustedTotal}</span></h5>
+          <p className="hub-trade-evaluator-receive">RECEIVE</p>
+          {report.proposingAssets.length === 0 ? <p className="hub-empty">Nothing yet.</p> : report.proposingAssets.map((asset) => <p key={asset.id}>{assetLine(asset)}</p>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Committee-vote widget for a pending_review trade under competition_committee_review — every
+ * commissioner/co-commissioner casts approve/reject; once everyone eligible has voted the
+ * majority auto-applies. The head commissioner can force an early close, but only after
+ * confirming in a popup that not everyone has voted yet. */
+function TradeVotePanel({ guildId, tradeId, isHeadCommissioner, busy, onChanged }: {
+  guildId: string;
+  tradeId: string;
+  isHeadCommissioner: boolean;
+  busy: boolean;
+  onChanged: () => void;
+}) {
+  const [tally, setTally] = useState<{ electorCount: number; votedCount: number; approve: number; reject: number; allVoted: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    recApi.getTradeVoteStatus({ guildId, tradeId }).then(setTally).catch(() => undefined);
+  }
+  useEffect(load, [guildId, tradeId]);
+
+  async function vote(choice: "approve" | "reject") {
+    setError(null);
+    try {
+      await recApi.castTradeVote({ guildId, tradeId, vote: choice });
+      load();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cast your vote.");
+    }
+  }
+
+  async function forceClose(action: "approve" | "reject") {
+    if (!window.confirm(`${tally?.votedCount ?? 0}/${tally?.electorCount ?? 0} commissioners have voted. Force-${action} this trade now without waiting for the rest?`)) return;
+    setError(null);
+    try {
+      await recApi.forceCloseTradeVote({ guildId, tradeId, action });
+      load();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to force-close the vote.");
+    }
+  }
+
+  return (
+    <div className="hub-trade-vote-panel">
+      {error && <p className="hub-error">{error}</p>}
+      {tally && <p className="hub-trade-vote-tally">{tally.votedCount}/{tally.electorCount} voted · {tally.approve} approve · {tally.reject} reject</p>}
+      <div className="hub-trade-row-actions">
+        <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void vote("approve")}>Cast Approve Vote</button>
+        <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void vote("reject")}>Cast Reject Vote</button>
+        {isHeadCommissioner && (
+          <>
+            <button type="button" className="btn btn-ghost btn-compact" disabled={busy} onClick={() => void forceClose("approve")}>Force Approve</button>
+            <button type="button" className="btn btn-ghost btn-compact" disabled={busy} onClick={() => void forceClose("reject")}>Force Reject</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TradeCenterHome() {
   const { guildId } = useReadyAuth();
   const hub = useHubChrome();
@@ -594,6 +747,20 @@ export function TradeCenterHome() {
           </div>
         </div>
 
+        {opponentTeamId && (
+          <TradeEvaluatorPanel
+            guildId={guildId}
+            proposingTeamId={myRoster.team.id}
+            receivingTeamId={opponentTeamId}
+            proposingLabel={myRoster.team.name ?? "Your team"}
+            receivingLabel={otherTeams.find((t) => t.id === opponentTeamId)?.name ?? "Other team"}
+            offeredLegs={offeredLegs}
+            requestedLegs={requestedLegs}
+            offeredCoins={offeredCoins}
+            requestedCoins={requestedCoins}
+          />
+        )}
+
         <button type="button" className="btn btn-primary" disabled={busy || !opponentTeamId || (offeredLegs.length === 0 && requestedLegs.length === 0 && offeredCoins === 0 && requestedCoins === 0)} onClick={() => void submitProposal()}>
           Propose Trade
         </button>
@@ -603,12 +770,21 @@ export function TradeCenterHome() {
         <section className="hub-trade-review">
           <h3>Pending Committee/Commissioner Review ({reviewTrades.length})</h3>
           {reviewTrades.map((trade) => (
-            <div key={trade.id} className="hub-trade-row">
-              <span>Trade {trade.id.slice(0, 8)} · {trade.proposing_coins > 0 ? `+${trade.proposing_coins} coins` : ""} {trade.receiving_coins > 0 ? `/ -${trade.receiving_coins} coins` : ""}</span>
-              <div className="hub-trade-row-actions">
-                <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "approve")}>Approve</button>
-                <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "reject")}>Reject</button>
-              </div>
+            <div key={trade.id} className="hub-trade-row hub-trade-row-review">
+              <span>
+                Trade {trade.id.slice(0, 8)} · {trade.proposing_coins > 0 ? `+${trade.proposing_coins} coins` : ""} {trade.receiving_coins > 0 ? `/ -${trade.receiving_coins} coins` : ""}
+                {trade.value_snapshot && (
+                  <> · {evaluatorBadge(trade.value_snapshot, "proposing team", "receiving team").text} ({trade.value_snapshot.deltaPct > 0 ? "+" : ""}{trade.value_snapshot.deltaPct}%) — proposing gives {trade.value_snapshot.proposing.needAdjustedTotal}, gets {trade.value_snapshot.receiving.needAdjustedTotal}</>
+                )}
+              </span>
+              {trade.approval_policy_snapshot === "competition_committee_review" ? (
+                <TradeVotePanel guildId={guildId} tradeId={trade.id} isHeadCommissioner={true} busy={busy} onChanged={loadCore} />
+              ) : (
+                <div className="hub-trade-row-actions">
+                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "approve")}>Approve</button>
+                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "reject")}>Reject</button>
+                </div>
+              )}
             </div>
           ))}
         </section>

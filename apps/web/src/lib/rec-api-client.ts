@@ -1,5 +1,6 @@
 import { REC_API_ROUTES } from "@rec/shared";
 import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary } from "@rec/shared";
+import type { TradeEvaluatorReport } from "../types/api.js";
 import type {
   ActiveCheckReview,
   AdvanceResultInput,
@@ -339,6 +340,14 @@ export const recApi = {
     recApiFetch<{ seasonNumber: number; teams: Array<{ teamId: string; teamName: string; abbreviation: string | null; coachName: string; humanTrades: number; cpuTrades: number; totalTrades: number }> }>("/v1/trades/season-counts", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTradeDetail: (input: { guildId: string; tradeId: string }) =>
     recApiFetch<{ trade: Trade; legs: TradeLeg[] }>("/v1/trades/detail", { method: "POST", body: JSON.stringify(input) }),
+  getTradeFairnessPreview: (input: { guildId: string; proposingTeamId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
+    recApiFetch<TradeEvaluatorReport>("/v1/trades/fairness-preview", { method: "POST", body: JSON.stringify(input) }),
+  getTradeVoteStatus: (input: { guildId: string; tradeId: string }) =>
+    recApiFetch<{ status: string; electorCount: number; votedCount: number; approve: number; reject: number; allVoted: boolean }>("/v1/trades/vote-status", { method: "POST", body: JSON.stringify(input) }),
+  castTradeVote: (input: { guildId: string; tradeId: string; vote: "approve" | "reject" }) =>
+    recApiFetch<{ status: string; tally?: { electorCount: number; votedCount: number; approve: number; reject: number } }>("/v1/trades/vote", { method: "POST", body: JSON.stringify(input) }),
+  forceCloseTradeVote: (input: { guildId: string; tradeId: string; action: "approve" | "reject" }) =>
+    recApiFetch<{ status: string }>("/v1/trades/vote-force-close", { method: "POST", body: JSON.stringify(input) }),
   listTradeableTeams: (guildId: string) =>
     recApiFetch<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>("/v1/trades/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
   listTradeBlockPlayers: (guildId: string) =>

@@ -1,3 +1,11 @@
+import {
+  computeRecTeamPositionNeeds,
+  evaluateRecTradeFairness,
+  type RecTeamPositionNeeds,
+  type RecTradeFairnessReport,
+  type RecTradePickInput,
+  type RecTradePlayerInput,
+} from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -76,6 +84,96 @@ async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Trade value model wiring — resolves DB rows into the shared calculator's inputs. Madden-only
+// (position multipliers and contract/cap fields don't apply to CFB rosters).
+// ---------------------------------------------------------------------------
+
+async function teamPositionNeeds(leagueId: string, teamId: string): Promise<RecTeamPositionNeeds> {
+  const roster = await supabase.from("rec_players").select("position,overall_rating").eq("league_id", leagueId).eq("team_id", teamId).eq("roster_status", "active");
+  if (roster.error) throw new ApiError(500, "Failed to load roster for trade-need evaluation.", roster.error);
+  return computeRecTeamPositionNeeds((roster.data ?? []).map((row: any) => ({ position: row.position, overallRating: row.overall_rating })));
+}
+
+export type TradeAssetDisplay = {
+  id: string;
+  type: "player" | "pick";
+  label: string;
+  position: string | null;
+  overallRating: number | null;
+  devTrait: string | null;
+  speed: number | null;
+  age: number | null;
+};
+
+async function resolveLegAssets(leagueId: string, legs: LegInput[]): Promise<{ players: RecTradePlayerInput[]; picks: RecTradePickInput[]; displays: TradeAssetDisplay[] }> {
+  const playerIds = legs.filter((l) => l.type === "player").map((l: any) => l.playerId);
+  const pickIds = legs.filter((l) => l.type === "pick").map((l: any) => l.draftPickId);
+  const [players, picks, teamsCount] = await Promise.all([
+    playerIds.length
+      ? supabase.from("rec_players").select("id,full_name,position,overall_rating,dev_trait,years_pro,contract_years_left,cap_hit,attributes").in("id", playerIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    pickIds.length
+      ? supabase.from("rec_draft_picks").select("id,season_number,round,pick_number").in("id", pickIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
+  ]);
+  if (players.error) throw new ApiError(500, "Failed to load players for trade valuation.", players.error);
+  if (picks.error) throw new ApiError(500, "Failed to load draft picks for trade valuation.", picks.error);
+  const teamsInLeague = teamsCount.count ?? 32;
+  const displays: TradeAssetDisplay[] = [
+    ...(players.data ?? []).map((row: any) => ({
+      id: row.id, type: "player" as const, label: `${row.position} ${row.full_name}`,
+      position: row.position, overallRating: row.overall_rating, devTrait: row.dev_trait,
+      speed: row.attributes?.spd ?? null, age: 21 + Math.max(0, row.years_pro ?? 3),
+    })),
+    ...(picks.data ?? []).map((row: any) => ({
+      id: row.id, type: "pick" as const, label: `Round ${row.round} Pick ${row.pick_number ?? "TBD"} (S${row.season_number})`,
+      position: null, overallRating: null, devTrait: null, speed: null, age: null,
+    })),
+  ];
+  return {
+    players: (players.data ?? []).map((row: any) => ({
+      id: row.id, position: row.position, overallRating: row.overall_rating, devTrait: row.dev_trait,
+      yearsPro: row.years_pro, contractYearsLeft: row.contract_years_left, capHit: row.cap_hit,
+    })),
+    picks: (picks.data ?? []).map((row: any) => ({ id: row.id, round: row.round, pickNumber: row.pick_number, teamsInLeague })),
+    displays,
+  };
+}
+
+export type TradeEvaluatorReport = RecTradeFairnessReport & { proposingAssets: TradeAssetDisplay[]; receivingAssets: TradeAssetDisplay[] };
+
+async function buildTradeFairnessReport(input: {
+  leagueId: string; proposingTeamId: string; receivingTeamId: string;
+  offeredLegs: LegInput[]; requestedLegs: LegInput[]; offeredCoins: number; requestedCoins: number;
+}): Promise<TradeEvaluatorReport> {
+  const [proposingNeeds, receivingNeeds, offered, requested] = await Promise.all([
+    teamPositionNeeds(input.leagueId, input.proposingTeamId),
+    teamPositionNeeds(input.leagueId, input.receivingTeamId),
+    resolveLegAssets(input.leagueId, input.offeredLegs),
+    resolveLegAssets(input.leagueId, input.requestedLegs),
+  ]);
+  const report = evaluateRecTradeFairness({
+    proposingPlayers: offered.players, proposingPicks: offered.picks, proposingCoins: input.offeredCoins,
+    receivingPlayers: requested.players, receivingPicks: requested.picks, receivingCoins: input.requestedCoins,
+    proposingTeamNeeds: proposingNeeds, receivingTeamNeeds: receivingNeeds,
+  });
+  return { ...report, proposingAssets: offered.displays, receivingAssets: requested.displays };
+}
+
+/** Live trade-evaluator preview for the Trade Center builder screen — no trade needs to exist
+ * yet. Madden-only; CFB rosters don't carry the contract/cap/dev-trait fields the model uses. */
+export async function getTradeFairnessPreview(guildId: string, input: {
+  proposingTeamId: string; receivingTeamId: string;
+  offeredLegs: LegInput[]; requestedLegs: LegInput[]; offeredCoins: number; requestedCoins: number;
+}): Promise<TradeEvaluatorReport> {
+  const context = await getCurrentLeagueContext(guildId);
+  if (!String(context.league.game).startsWith("madden")) throw new ApiError(400, "The trade value calculator is available for Madden leagues only.");
+  if (input.proposingTeamId === input.receivingTeamId) throw new ApiError(400, "Select two different teams.");
+  return buildTradeFairnessReport({ leagueId: context.leagueId, ...input });
+}
+
 export async function proposeTrade(input: {
   guildId: string; discordId: string; receivingTeamId: string;
   offeredLegs: LegInput[]; requestedLegs: LegInput[]; offeredCoins: number; requestedCoins: number;
@@ -122,6 +220,17 @@ export async function proposeTrade(input: {
   await validateLegs(context.leagueId, proposingTeamId, input.offeredLegs);
   await validateLegs(context.leagueId, input.receivingTeamId, input.requestedLegs);
 
+  // Snapshotted once at propose time so the review UI shows a stable value even if rosters
+  // change before the trade is reviewed — Madden only (buildTradeFairnessReport assumes
+  // Madden-shaped rosters), non-fatal so a valuation hiccup never blocks a real trade.
+  const valueSnapshot = String(context.league.game).startsWith("madden")
+    ? await buildTradeFairnessReport({
+        leagueId: context.leagueId, proposingTeamId, receivingTeamId: input.receivingTeamId,
+        offeredLegs: input.offeredLegs, requestedLegs: input.requestedLegs,
+        offeredCoins: input.offeredCoins, requestedCoins: input.requestedCoins,
+      }).catch((error) => { console.error("[WARN] Failed to compute trade fairness snapshot:", error); return null; })
+    : null;
+
   const trade = await supabase.from("rec_trades").insert({
     league_id: context.leagueId,
     season_number: seasonNumber,
@@ -133,6 +242,7 @@ export async function proposeTrade(input: {
     receiving_coins: input.requestedCoins,
     approval_policy_snapshot: effectivePolicy,
     involves_cpu: !receivingUserId,
+    value_snapshot: valueSnapshot,
   }).select("*").single();
   if (trade.error) throw new ApiError(500, "Failed to propose trade.", trade.error);
 
@@ -233,10 +343,18 @@ async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, gu
   }
   await supabase.from("rec_trades").update({ status: "pending_review", accepted_at: now, updated_at: now }).eq("id", tradeId);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "accepted", previous_status: "pending_response", next_status: "pending_review" });
+  const snapshotRow = await supabase.from("rec_trades").select("value_snapshot").eq("id", tradeId).maybeSingle();
+  const snapshot = snapshotRow.data?.value_snapshot as TradeEvaluatorReport | null | undefined;
+  const verdictLine = snapshot
+    ? snapshot.verdict === "balanced"
+      ? `Estimated fair value (within ${Math.abs(snapshot.deltaPct)}%).`
+      : `Estimated value favors ${snapshot.verdict === "favors_proposing" ? "the proposing" : "the receiving"} team by ~${Math.abs(snapshot.deltaPct)}%.`
+    : null;
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: guildId, league_id: leagueId, queue_type: "trade", status: "pending", priority: 0,
-    header: "Trade pending review", summary: "A trade has been accepted by both teams and needs review.",
-    source_table: "rec_trades", source_id: tradeId, payload: { tradeId, approvalPolicy },
+    header: "Trade pending review",
+    summary: ["A trade has been accepted by both teams and needs review.", verdictLine].filter(Boolean).join(" "),
+    source_table: "rec_trades", source_id: tradeId, payload: { tradeId, approvalPolicy, valueSnapshot: snapshot ?? null },
   });
   void notifyLeagueCommissionersOfPendingItem(leagueId);
   return { status: "pending_review" };
@@ -262,6 +380,9 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
   if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
+  if (trade.data.approval_policy_snapshot === "competition_committee_review") {
+    throw new ApiError(400, "This league uses committee voting for trades — cast a vote instead of a direct approve/reject.");
+  }
 
   if (input.action === "reject") {
     const now = new Date().toISOString();
@@ -273,6 +394,105 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
   if (applied.error) throw new ApiError(500, "Failed to apply trade.", applied.error);
   void announceAppliedTrade(input.guildId, context.leagueId, trade.data.id);
   return { status: "applied" };
+}
+
+// ---------------------------------------------------------------------------
+// Competition-committee voting — each commissioner/co-commissioner casts approve/reject;
+// once everyone eligible has voted, the majority result auto-applies/rejects. The league owner
+// (head commissioner) can also force an early close short of full votes, but the frontend must
+// get an explicit confirmation from them first — this endpoint doesn't re-confirm.
+// ---------------------------------------------------------------------------
+
+async function tradeCommitteeElectors(leagueId: string): Promise<Set<string>> {
+  const memberships = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId).eq("status", "active").in("role", ["commissioner", "co_commissioner"]);
+  if (memberships.error) throw new ApiError(500, "Failed to load league commissioners.", memberships.error);
+  return new Set((memberships.data ?? []).map((row: any) => String(row.user_id)));
+}
+
+async function tradeVoteTally(tradeId: string, leagueId: string) {
+  const [electors, votes] = await Promise.all([
+    tradeCommitteeElectors(leagueId),
+    supabase.from("rec_trade_votes").select("voter_user_id,vote").eq("trade_id", tradeId),
+  ]);
+  if (votes.error) throw new ApiError(500, "Failed to load trade votes.", votes.error);
+  const approve = (votes.data ?? []).filter((v: any) => v.vote === "approve").length;
+  const reject = (votes.data ?? []).filter((v: any) => v.vote === "reject").length;
+  const voted = new Set((votes.data ?? []).map((v: any) => String(v.voter_user_id)));
+  return { electorCount: electors.size, votedCount: voted.size, approve, reject, allVoted: electors.size > 0 && voted.size >= electors.size };
+}
+
+export async function getTradeVoteStatus(guildId: string, tradeId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const trade = await supabase.from("rec_trades").select("id,status,approval_policy_snapshot,league_id").eq("id", tradeId).eq("league_id", context.leagueId).maybeSingle();
+  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (!trade.data) throw new ApiError(404, "Trade not found.");
+  const tally = await tradeVoteTally(tradeId, context.leagueId);
+  return { status: trade.data.status, ...tally };
+}
+
+async function resolveTradeVoteOutcome(tradeId: string, leagueId: string, guildId: string) {
+  const tally = await tradeVoteTally(tradeId, leagueId);
+  if (tally.approve > tally.reject) {
+    const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: `Committee vote: ${tally.approve}-${tally.reject}` });
+    if (applied.error) throw new ApiError(500, "Trade passed committee vote but could not be applied.", applied.error);
+    void announceAppliedTrade(guildId, leagueId, tradeId);
+    return { status: "applied", tally };
+  }
+  const now = new Date().toISOString();
+  await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, review_note: `Committee vote: ${tally.approve}-${tally.reject}` }).eq("id", tradeId);
+  await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "rejected", previous_status: "pending_review", next_status: "rejected", details: { committeeVote: tally } });
+  return { status: "rejected", tally };
+}
+
+export async function castTradeVote(input: { guildId: string; reviewerDiscordId: string; tradeId: string; vote: "approve" | "reject" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.reviewerDiscordId);
+  if (!userId) throw new ApiError(404, "REC account not found.");
+  const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
+  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (!trade.data) throw new ApiError(404, "Trade not found.");
+  if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
+  if (trade.data.approval_policy_snapshot !== "competition_committee_review") throw new ApiError(400, "This trade doesn't use committee voting.");
+  const electors = await tradeCommitteeElectors(context.leagueId);
+  if (!electors.has(userId)) throw new ApiError(403, "Only this league's commissioners can vote on trades.");
+
+  const upserted = await supabase.from("rec_trade_votes").upsert(
+    { trade_id: input.tradeId, voter_user_id: userId, voter_discord_id: input.reviewerDiscordId, vote: input.vote, voted_at: new Date().toISOString() },
+    { onConflict: "trade_id,voter_user_id" },
+  );
+  if (upserted.error) throw new ApiError(500, "Failed to record your vote.", upserted.error);
+  await supabase.from("rec_trade_audit_log").insert({ trade_id: input.tradeId, action: "vote_cast", actor_user_id: userId, actor_discord_id: input.reviewerDiscordId, details: { vote: input.vote } });
+
+  const tally = await tradeVoteTally(input.tradeId, context.leagueId);
+  if (tally.allVoted) return resolveTradeVoteOutcome(input.tradeId, context.leagueId, input.guildId);
+  return { status: "pending_review" as const, tally };
+}
+
+/** Head-commissioner override — closes a committee vote early even if not everyone has voted
+ * yet. The frontend is responsible for the "you're closing this without all votes logged" popup
+ * confirmation before calling this; this endpoint just enforces that the caller actually is the
+ * league owner. */
+export async function forceCloseTradeVote(input: { guildId: string; reviewerDiscordId: string; tradeId: string; action: "approve" | "reject" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.reviewerDiscordId);
+  if (!userId || String(context.league.ownerUserId ?? "") !== userId) throw new ApiError(403, "Only the head commissioner can force-close a committee vote.");
+  const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
+  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (!trade.data) throw new ApiError(404, "Trade not found.");
+  if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
+  if (trade.data.approval_policy_snapshot !== "competition_committee_review") throw new ApiError(400, "This trade doesn't use committee voting.");
+
+  const tally = await tradeVoteTally(input.tradeId, context.leagueId);
+  await supabase.from("rec_trade_audit_log").insert({ trade_id: input.tradeId, action: "vote_force_closed", actor_user_id: userId, actor_discord_id: input.reviewerDiscordId, details: { action: input.action, tally } });
+  if (input.action === "reject") {
+    const now = new Date().toISOString();
+    await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, reviewed_by_discord_id: input.reviewerDiscordId, review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): reject` }).eq("id", input.tradeId);
+    return { status: "rejected", tally };
+  }
+  const applied = await supabase.rpc("apply_trade", { p_trade_id: input.tradeId, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): approve` });
+  if (applied.error) throw new ApiError(500, "Failed to apply trade.", applied.error);
+  void announceAppliedTrade(input.guildId, context.leagueId, input.tradeId);
+  return { status: "applied", tally };
 }
 
 export async function listTradeBlockPlayers(guildId: string) {
