@@ -43,6 +43,7 @@ export async function requireLinkedRecUser(authUserId: string): Promise<{
 export type SiteLeagueSummary = {
   id: string;
   name: string;
+  logoUrl: string | null;
   game: string;
   gameLabel: string;
   teamName: string | null;
@@ -73,6 +74,7 @@ export async function listMySiteLeagues(input: {
         select
           l.id,
           l.name,
+          l.logo_url,
           l.game,
           l.owner_user_id,
           l.discord_bot_enabled
@@ -93,6 +95,7 @@ export async function listMySiteLeagues(input: {
         select
           l.id,
           l.name,
+          l.logo_url,
           l.game,
           l.owner_user_id,
           l.discord_bot_enabled
@@ -112,7 +115,7 @@ export async function listMySiteLeagues(input: {
           )
       )
       select distinct on (id)
-        id, name, game, owner_user_id, discord_bot_enabled, team_name, membership_role
+        id, name, logo_url, game, owner_user_id, discord_bot_enabled, team_name, membership_role
       from linked
       order by id, team_name nulls last
     `,
@@ -122,6 +125,7 @@ export async function listMySiteLeagues(input: {
   const leagues: SiteLeagueSummary[] = (result.rows as Array<{
     id: string;
     name: string;
+    logo_url: string | null;
     game: string;
     owner_user_id: string | null;
     team_name: string | null;
@@ -138,6 +142,7 @@ export async function listMySiteLeagues(input: {
     return {
       id: row.id,
       name: row.name,
+      logoUrl: row.logo_url ?? null,
       game: row.game,
       gameLabel: gameLabelFor(row.game),
       teamName: row.team_name ?? null,
@@ -775,6 +780,7 @@ export async function searchSiteLeagues(input: {
       select
         l.id,
         l.name,
+        l.logo_url,
         l.template_id,
         l.game,
         l.season_stage,
@@ -961,6 +967,7 @@ export async function searchSiteLeagues(input: {
     return {
       id: String(row.id),
       name: String(row.name),
+      logoUrl: (row.logo_url as string | null) ?? null,
       templateId: (row.template_id as string | null) ?? null,
       game,
       gameLabel: gameLabelFor(game),

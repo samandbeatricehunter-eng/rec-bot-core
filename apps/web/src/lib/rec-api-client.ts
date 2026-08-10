@@ -155,6 +155,11 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const recApi = {
+  uploadLeagueLogo: (guildId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return recApiFetch<{ logoUrl: string }>(`/v1/setup/league/logo?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
+  },
   getMyLeagueHistory: (guildId: string) => recApiFetch<{ leagues: Array<any> }>(`/v1/users/me/league-history?guildId=${encodeURIComponent(guildId)}`),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),

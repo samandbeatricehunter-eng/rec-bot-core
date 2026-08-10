@@ -44,6 +44,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");
   const [leagueType, setLeagueType] = useState("");
   const [name, setName] = useState("");
+  const [leagueLogoFile, setLeagueLogoFile] = useState<File | null>(null);
   const [customMaxMembers, setCustomMaxMembers] = useState(false);
   const [maxMembers, setMaxMembers] = useState(32);
   const [leaguePassword, setLeaguePassword] = useState("");
@@ -676,6 +677,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         createdId = result.league.id;
         setLeagueId(createdId);
       }
+      if (leagueLogoFile && createdId) {
+        await siteApi.uploadLeagueLogo(createdId, leagueLogoFile);
+        setLeagueLogoFile(null);
+      }
       // Team picker keys off the shared default-team catalog (abbreviation) because the league
       // doesn't exist until now; resolve it to the real team id before completing the wizard.
       if (leagueId && selectedTeamId && createdId) {
@@ -925,6 +930,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           <>
             <Section title="League Name">
               <TextField label="League name" value={name} onChange={setName} placeholder="e.g. REC OG" maxLength={80} />
+              <label className="site-field">
+                <span>League logo (optional)</span>
+                <input className="site-input" type="file" accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => setLeagueLogoFile(event.target.files?.[0] ?? null)} />
+                <small>PNG, JPEG, or WebP. GIFs are rejected. If omitted, REC displays the league abbreviation.</small>
+              </label>
             </Section>
             <Section title="Maximum Members">
               <ToggleField label="Set a custom member limit" hint="Leagues default to 32. Registered users, commissioners, and Discord-only users assigned to teams all count toward this limit. Economy features require at least eight linked users."

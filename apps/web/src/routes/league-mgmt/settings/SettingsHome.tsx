@@ -62,6 +62,7 @@ export function SettingsHome() {
   const [newRuleCategory, setNewRuleCategory] = useState("");
   const [newRuleTitle, setNewRuleTitle] = useState("");
   const [newRuleText, setNewRuleText] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
     recApi
@@ -137,6 +138,30 @@ export function SettingsHome() {
       <PageHeader title="Settings" subtitle="League configuration — economy, rules, gameplay, and more." />
       {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       {error && <ErrorState message={error} />}
+
+      <Card>
+        <div className="form-field">
+          <label className="form-label" htmlFor="league-logo-upload">League logo</label>
+          <input id="league-logo-upload" className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              setLogoUploading(true);
+              setError(null);
+              setNotice(null);
+              try {
+                await recApi.uploadLeagueLogo(guildId, file);
+                setNotice("League logo updated.");
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Failed to upload league logo.");
+              } finally {
+                setLogoUploading(false);
+                event.target.value = "";
+              }
+            }} />
+          <p className="form-hint">PNG, JPEG, or WebP, up to 5 MB. Animated GIFs are rejected. Without a logo, REC uses the league abbreviation.</p>
+        </div>
+      </Card>
 
       <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
         {SETTINGS_CATEGORIES.filter((c) => c.key !== "play_call").map((c) => (

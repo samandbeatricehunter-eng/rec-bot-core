@@ -27,6 +27,8 @@ import {
   updateSiteLeagueConfig,
   checkLeagueLinked,
   completeWizard,
+  uploadLeagueLogo,
+  uploadGuildLeagueLogo,
 } from "./setup.service.js";
 
 const CreateUnclaimedLeagueSchema = z.object({
@@ -339,6 +341,28 @@ export async function setupRoutes(app: FastifyInstance) {
       const body = UpdateSiteLeagueConfigSchema.parse(request.body);
       const { userId } = await requireSiteLeagueCreator(request);
       return reply.send(await updateSiteLeagueConfig({ ...body, requestedByUserId: userId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/setup/league/logo", async (request, reply) => {
+    try {
+      const guildId = z.string().min(1).parse((request.query as { guildId?: string })?.guildId);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Choose a league logo image.");
+      return reply.send(await uploadGuildLeagueLogo({ guildId, buffer: await file.toBuffer(), contentType: file.mimetype }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/site-leagues/upload-logo", async (request, reply) => {
+    try {
+      const leagueId = z.string().uuid().parse((request.query as { leagueId?: string })?.leagueId);
+      const creator = await resolveSiteLeagueCreator(request);
+      if (!creator) throw new ApiError(401, "Sign in to upload a league logo.");
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Choose a league logo image.");
+      const buffer = await file.toBuffer();
+      return reply.send(await uploadLeagueLogo({ leagueId, requestedByUserId: creator.userId, buffer, contentType: file.mimetype }));
     } catch (error) { return sendError(reply, error); }
   });
 

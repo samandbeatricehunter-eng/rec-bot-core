@@ -177,6 +177,7 @@ export type DmTarget = {
 export type SiteLeagueSummary = {
   id: string;
   name: string;
+  logoUrl: string | null;
   game: string;
   gameLabel: string;
   teamName: string | null;
@@ -213,6 +214,7 @@ export type SiteLeagueConferenceReassignment = {
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
+  logoUrl: string | null;
   templateId: string | null;
   game: string;
   gameLabel: string;
@@ -782,6 +784,19 @@ export const siteApi = {
   },
   createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; [key: string]: unknown }) {
     return request<{ league: { id: string; name: string; game: string } }>("/v1/site-leagues/create", input);
+  },
+  async uploadLeagueLogo(leagueId: string, file: File) {
+    const base = requireApiBaseUrl();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("You are not signed in.");
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${base}/v1/site-leagues/upload-logo?leagueId=${encodeURIComponent(leagueId)}`, {
+      method: "POST", headers: { authorization: `Bearer ${session.access_token}` }, body: form,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Logo upload failed.");
+    return payload as { logoUrl: string };
   },
   updateLeagueConfig(leagueId: string, config: Record<string, unknown>) {
     return request<{ configuration: unknown }>("/v1/site-leagues/update-config", { leagueId, ...config });

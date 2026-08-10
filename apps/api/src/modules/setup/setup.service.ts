@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, type LeagueTemplateId } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -942,6 +943,37 @@ export async function checkLeagueLinked(leagueId: string) {
     guildId: server?.guild_id ?? null,
     serverName: server?.name ?? null,
   };
+}
+
+async function storeLeagueLogo(input: { leagueId: string; buffer: Buffer; contentType: string }) {
+  if (input.buffer.byteLength > 5 * 1024 * 1024) throw new ApiError(400, "League logos must be 5 MB or smaller.");
+  if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(input.contentType)) throw new ApiError(400, "League logos must be PNG, JPEG, or WebP. Animated GIFs are not accepted.");
+  const extension = input.contentType === "image/jpeg" ? "jpg" : input.contentType.split("/")[1];
+  const path = `${input.leagueId}/league-logo-${randomUUID()}.${extension}`;
+  const stored = await supabase.storage.from("rec-media").upload(path, input.buffer, { contentType: input.contentType, cacheControl: "31536000", upsert: false });
+  if (stored.error) throw new ApiError(500, "Failed to upload league logo.", stored.error);
+  const logoUrl = supabase.storage.from("rec-media").getPublicUrl(path).data.publicUrl;
+  const updated = await supabase.from("rec_leagues").update({ logo_url: logoUrl }).eq("id", input.leagueId).select("id,logo_url").single();
+  if (updated.error) {
+    await supabase.storage.from("rec-media").remove([path]);
+    throw new ApiError(500, "Failed to save league logo.", updated.error);
+  }
+  return { logoUrl: updated.data.logo_url };
+}
+
+export async function uploadLeagueLogo(input: { leagueId: string; requestedByUserId: string; buffer: Buffer; contentType: string }) {
+  const league = await supabase.from("rec_leagues").select("id,owner_user_id").eq("id", input.leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (!league.data || league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league owner can change its logo.");
+  return storeLeagueLogo(input);
+}
+
+export async function uploadGuildLeagueLogo(input: { guildId: string; buffer: Buffer; contentType: string }) {
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", input.guildId).maybeSingle();
+  if (server.error || !server.data) throw new ApiError(404, "This Discord server is not linked to REC.", server.error ?? undefined);
+  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).maybeSingle();
+  if (link.error || !link.data?.league_id) throw new ApiError(404, "No league is linked to this server.", link.error ?? undefined);
+  return storeLeagueLogo({ leagueId: link.data.league_id, buffer: input.buffer, contentType: input.contentType });
 }
 
 export async function completeWizard(input: {

@@ -259,6 +259,7 @@ function LeagueSearchCard({
     league.postseasonStreamingRequirement === "recommended";
   const templateMeta = league.templateId ? LEAGUE_TEMPLATES.find((t) => t.id === league.templateId) ?? null : null;
   const [showAllSettings, setShowAllSettings] = useState(false);
+  const leagueAbbreviation = league.name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 4).toUpperCase() || "REC";
 
   return (
     <article className={["site-league-search-card", expanded ? "is-expanded" : ""].join(" ")}>
@@ -271,6 +272,7 @@ function LeagueSearchCard({
       >
         <div className="site-league-search-card-main">
           <div className="site-league-search-card-top">
+            {league.logoUrl ? <img src={league.logoUrl} alt={`${league.name} logo`} style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flex: "0 0 auto" }} /> : <span aria-hidden="true" style={{ width: 44, height: 44, display: "grid", placeItems: "center", border: "1px solid currentColor", borderRadius: 8, fontWeight: 800, flex: "0 0 auto" }}>{leagueAbbreviation}</span>}
             <h2>
               {league.isMember ? <MemberStar tier={memberTier} /> : null}
               {league.name}
