@@ -224,7 +224,7 @@ function Routed() {
       <Route path="/help" element={<Help />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
-      <Route path="/league/:guildId" element={<PublicLeague />} />
+      <Route path="/league/:slug" element={<PublicLeague />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

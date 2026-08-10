@@ -966,11 +966,18 @@ export const siteApi = {
       body: JSON.stringify({ guildId }),
     });
   },
+  getPublicLeagueSnapshotBySlug(slug: string) {
+    return publicRequest<PublicLeagueSnapshot>("/v1/public-league/snapshot-by-slug", {
+      method: "POST",
+      body: JSON.stringify({ slug }),
+    });
+  },
 };
 
 export type PublicLeagueSnapshot = {
   league: {
     name: string;
+    slug: string;
     game: string | null;
     seasonNumber: number;
     currentWeek: number;
@@ -980,6 +987,7 @@ export type PublicLeagueSnapshot = {
   matchups: Array<{ homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string }>;
   linkedTeams: Array<{ teamId: string; teamName: string; coachName: string | null }>;
   standings: Array<{ teamId: string; teamName: string; wins: number; losses: number; ties: number }>;
+  openTeams: Array<{ conference: string; teams: Array<{ teamId: string; teamName: string }> }>;
 };
 
 export type CompUserSummary = {

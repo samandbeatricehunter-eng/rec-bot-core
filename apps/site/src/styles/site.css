@@ -384,6 +384,13 @@ h1, h2, h3, .site-wordmark {
 .site-public-league-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .site-public-league-table th, .site-public-league-table td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
 .site-public-league-table th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+.site-public-league-collapse-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: none; border: none; padding: 0; cursor: pointer; color: inherit; font: inherit;
+}
+.site-public-league-collapse-toggle span { color: var(--accent-bright); font-size: 13px; font-weight: 700; }
+.site-public-league-open-groups { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-2); }
+.site-public-league-open-group h3 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
 .site-legal-notice {
   padding: var(--space-3) var(--space-4);

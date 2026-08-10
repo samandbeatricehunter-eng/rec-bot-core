@@ -8,14 +8,18 @@ import { SiteFooter } from "../components/SiteFooter.js";
 // required to view: status, this week's matchups, linked teams, season standings only.
 export function PublicLeague() {
   const auth = useAuth();
-  const { guildId } = useParams<{ guildId: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<PublicLeagueSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openTeamsExpanded, setOpenTeamsExpanded] = useState(false);
 
   useEffect(() => {
-    if (!guildId) return;
-    siteApi.getPublicLeagueSnapshot(guildId).then(setData).catch((err) => setError(err instanceof Error ? err.message : "Failed to load this league."));
-  }, [guildId]);
+    if (!slug) return;
+    // Old links shared before the slug URL existed used the raw Discord guild ID (a 17-20
+    // digit snowflake) — keep those working instead of breaking anything already bookmarked.
+    const lookup = /^\d{17,20}$/.test(slug) ? siteApi.getPublicLeagueSnapshot(slug) : siteApi.getPublicLeagueSnapshotBySlug(slug);
+    lookup.then(setData).catch((err) => setError(err instanceof Error ? err.message : "Failed to load this league."));
+  }, [slug]);
 
   return (
     <div className="site-page site-landing">
@@ -74,10 +78,38 @@ export function PublicLeague() {
               <h2>Linked Teams</h2>
               <ul className="site-public-league-list">
                 {data.linkedTeams.map((t) => (
-                  <li key={t.teamId}><span>{t.teamName}</span><strong>{t.coachName ?? "Open"}</strong></li>
+                  <li key={t.teamId}><span>{t.teamName}</span><strong>{t.coachName}</strong></li>
                 ))}
               </ul>
             </section>
+
+            {data.openTeams.length > 0 && (
+              <section className="site-public-league-section">
+                <button
+                  type="button"
+                  className="site-public-league-collapse-toggle"
+                  aria-expanded={openTeamsExpanded}
+                  onClick={() => setOpenTeamsExpanded((value) => !value)}
+                >
+                  <h2>Open Teams ({data.openTeams.reduce((sum, g) => sum + g.teams.length, 0)})</h2>
+                  <span>{openTeamsExpanded ? "Hide" : "Show"}</span>
+                </button>
+                {openTeamsExpanded && (
+                  <div className="site-public-league-open-groups">
+                    {data.openTeams.map((group) => (
+                      <div key={group.conference} className="site-public-league-open-group">
+                        <h3>{group.conference}</h3>
+                        <ul className="site-public-league-list">
+                          {group.teams.map((t) => (
+                            <li key={t.teamId}><span>{t.teamName}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
       </main>
