@@ -23,7 +23,7 @@ function CommissionerTradeBuilderCard() {
 
   useEffect(() => {
     if (!hub.currentLeague?.game?.startsWith("madden")) return;
-    recApi.listTradeableTeams(guildId).then((rows) => setTeams(rows.filter((team) => !team.isCpu))).catch((cause) => setMessage(cause instanceof Error ? cause.message : "Failed to load teams."));
+    recApi.listTradeableTeams(guildId).then(setTeams).catch((cause) => setMessage(cause instanceof Error ? cause.message : "Failed to load teams."));
   }, [guildId, hub.currentLeague?.game]);
 
   async function selectTeam(side: 0 | 1, teamId: string) {
@@ -43,14 +43,14 @@ function CommissionerTradeBuilderCard() {
     try {
       await recApi.logCommissionerTrade({ guildId, proposingTeamId: teamIds[0], receivingTeamId: teamIds[1], offeredLegs: legs[0], requestedLegs: legs[1], offeredCoins: coins[0], requestedCoins: coins[1], classification, note: note.trim() || undefined });
       setTeamIds(["", ""]); setRosters([null, null]); setLegs([[], []]); setCoins([0, 0]); setNote(""); setClassification("general");
-      setMessage("Trade applied, recorded, announced on the site, and sent to the trade-block channel if assigned.");
+      setMessage("Trade details published on the site and sent to the trade-block channel if assigned. No roster, pick, coin, or wallet data was changed.");
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Failed to log trade."); }
     finally { setBusy(false); }
   }
   if (!hub.currentLeague?.game?.startsWith("madden")) return null;
   return <Card>
     <h2>Log Confirmed Trade</h2>
-    <p className="form-hint">Record a completed human-to-human trade. Selected players, draft picks, and coins move immediately. The public site announcement is mirrored only to the assigned Trade Block channel.</p>
+    <p className="form-hint">Publish the details of an already-completed human or CPU trade. This editorial tool does not move players, picks, or coins in REC. The site announcement is mirrored only to the assigned Trade Block channel.</p>
     {message && <p className="form-hint">{message}</p>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "var(--space-4)" }}>
       {([0, 1] as const).map((side) => <div key={side}>
@@ -64,7 +64,7 @@ function CommissionerTradeBuilderCard() {
     </div>
     <label className="form-field"><span className="form-label">Announcement label</span><select className="form-select" value={classification} onChange={(event) => setClassification(event.target.value as "general" | "blockbuster")}><option value="general">General Trade</option><option value="blockbuster">Blockbuster Trade</option></select></label>
     <label className="form-field"><span className="form-label">Commissioner note (optional)</span><textarea className="form-input" rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-    <Button variant="tactical" disabled={busy || !teamIds[0] || !teamIds[1] || (!legs[0].length && !legs[1].length && !coins[0] && !coins[1])} onClick={() => void submit()}>{busy ? "Applying…" : "Apply & Announce Trade"}</Button>
+        <Button variant="tactical" disabled={busy || !teamIds[0] || !teamIds[1] || (!legs[0].length && !legs[1].length && !coins[0] && !coins[1])} onClick={() => void submit()}>{busy ? "Publishing…" : "Publish Trade"}</Button>
   </Card>;
 }
 

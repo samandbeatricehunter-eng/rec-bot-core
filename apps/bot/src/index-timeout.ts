@@ -1508,7 +1508,7 @@ async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
     const window = buildSettingsPickerWindow(draft as LeagueSetupDraft);
     return interaction.editReply({ ...window, components: window.components });
   } catch {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Settings").setDescription("No league configuration found. Run First-Time Setup first.")], components: buildAdminPanelRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Settings").setDescription("No league configuration was found. Create or finish the league on the REC website first.")], components: buildAdminPanelRows() });
   }
 }
 
@@ -1696,7 +1696,7 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
       embeds: [new EmbedBuilder().setTitle("League Data Deleted").setColor(COLORS.success).setDescription([
         `**${result?.leagueName ?? "The league"}** has been permanently erased (${rows} row${rows === 1 ? "" : "s"} removed across league tables).`,
         "",
-        "Run the League Setup Wizard to set up a new league for this server."
+        "Create a replacement league from the REC website, then link this Discord server during setup."
       ].join("\n"))],
       components: buildAdminPanelRows()
     });

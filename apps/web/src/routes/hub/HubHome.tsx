@@ -1203,15 +1203,15 @@ export function HubHome() {
   if (setupAccess && !setupAccess.leagueExists) return <div className="hub-state">
     <h1>Welcome to REC League</h1>
     {setupAccess.canSetup ? <>
-      <p>This Discord server doesn't have a league set up yet. Run First-Time Setup to create one — once it's done, this page becomes your league's normal Hub.</p>
-    </> : <p>This Discord server doesn't have a league set up yet. Ask a server admin or commissioner to run First-Time Setup.</p>}
+      <p>This Discord server doesn't have a league linked yet. Create or open the league on the REC website, then link this server during league setup.</p>
+    </> : <p>This Discord server doesn't have a league linked yet. Ask the league owner to create and link it from the REC website.</p>}
   </div>;
   if (!hub) return <div className="hub-state"><h1>Loading League Hub…</h1></div>;
   if (!hub.league) {
     return (
       <div className="hub-state">
         <h1>League Hub</h1>
-        <p>This server’s league data is incomplete. Ask a commissioner to finish First-Time Setup, then refresh.</p>
+        <p>This server’s league data is incomplete. Ask a commissioner to finish its website setup and Discord linking, then refresh.</p>
         <button className="btn btn-primary" onClick={() => void load()}>Try again</button>
       </div>
     );

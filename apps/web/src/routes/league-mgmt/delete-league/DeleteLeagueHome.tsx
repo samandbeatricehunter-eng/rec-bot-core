@@ -59,7 +59,7 @@ export function DeleteLeagueHome() {
         <Card style={{ borderColor: "var(--error)" }}>
           <h2 style={{ marginTop: 0, color: "var(--error)" }}>WARNING: Delete League Data — Permanent</h2>
           <p>This deletes every league-scoped record for <strong>{leagueName}</strong>: teams, rosters, standings, game history, wallet ledger and purchases, badges/awards, active checks, streams, and all league settings.</p>
-          <p>Kept: every member's Discord account, global career record, and wallet balance — and this Discord server itself, so you can re-run First-Time Setup afterward.</p>
+          <p>Kept: every member's Discord account, global career record, and wallet balance — and this Discord server itself, so a replacement league can be created on the REC website.</p>
           <p style={{ fontWeight: 700 }}>This cannot be undone.</p>
 
           <div className="form-field">
@@ -83,7 +83,7 @@ export function DeleteLeagueHome() {
         <Card>
           <h2 style={{ marginTop: 0, color: "var(--success)" }}>League Data Deleted</h2>
           <p>{result.leagueName} — {result.rowsDeleted} row(s) removed across league tables.</p>
-          <p className="form-hint">Run First-Time Setup from Discord (/menu → League Mgmt → First-Time Setup) to set up a new league for this server.</p>
+          <p className="form-hint">Create a replacement league from the REC website, then link this Discord server during setup.</p>
         </Card>
       )}
     </div>

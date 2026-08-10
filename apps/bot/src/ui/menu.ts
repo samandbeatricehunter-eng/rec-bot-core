@@ -260,7 +260,7 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "**Schedule** — Upload a schedule screenshot, enter it manually, or review the current schedule. Playoff schedules usually need an in-game advance first.",
       "**Advance** — Upload score catch-up tools and active checks live here; advancing the league week, GOTW, game channels, and EOS payouts moved to the web dashboard.",
       "**Settings** — Update league & server configuration (channels, economy, rules, activity requirements).",
-      "**First-Time Setup / Delete League** — Re-run initial setup (can rebuild league data) or permanently delete this server's league.",
+      "**Delete League** — Permanently archive historical results and remove this server's active league. New leagues are created on the REC website.",
     ];
 
   return new EmbedBuilder()
@@ -325,7 +325,7 @@ export function buildDeleteLeagueWarningPayload(leagueName: string) {
           "**Deleted:** all teams, rosters, records, standings, payouts/economy ledger for this league, badges, awards, GOTW polls, game channels data, imports, settings/rules, and every user-to-team link in this league.",
           "**Kept:** each member's Discord account, global career record, wallet balance, legacy history, and the Discord server itself.",
           "",
-          "Use this to wipe a league that needs to start over before it goes inactive. After deletion you can run the League Setup Wizard to set up a new league.",
+          "Use this to wipe a league that needs to start over before it goes inactive. After deletion, create its replacement from the REC website.",
           "",
           "Press **Delete League Data** to confirm by typing the league name, or **Cancel**."
         ].join("\n"))
