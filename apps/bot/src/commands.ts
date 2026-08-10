@@ -1,6 +1,18 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { env } from "./config/env.js";
+import { recApi } from "./lib/rec-api.js";
 
+const CLAIM_LEAGUE_COMMAND = new SlashCommandBuilder()
+  .setName("claim-league")
+  .setDescription("Link this Discord server to a REC league using its invite token.")
+  .addStringOption((option) =>
+    option.setName("token").setDescription("Invite token from the site's Enable Discord Bot page.").setRequired(true),
+  )
+  .toJSON();
+
+// /claim-league only makes sense before a server is linked — once claimed, running it again
+// is a no-op at best and confusing at worst, so it's dropped from the guild's command set
+// the moment rec_discord_servers exists for this guild (see registerGuildCommands below).
 export const commands = [
   new SlashCommandBuilder()
     .setName("app")
@@ -22,13 +34,7 @@ export const commands = [
     .setName("viewleague")
     .setDescription("Get a link to this league's public status page.")
     .toJSON(),
-  new SlashCommandBuilder()
-    .setName("claim-league")
-    .setDescription("Link this Discord server to a REC league using its invite token.")
-    .addStringOption((option) =>
-      option.setName("token").setDescription("Invite token from the site's Enable Discord Bot page.").setRequired(true),
-    )
-    .toJSON(),
+  CLAIM_LEAGUE_COMMAND,
 ];
 
 function discordRest() {
@@ -48,6 +54,13 @@ export async function registerApplicationCommands() {
 
 export async function registerGuildCommands(guildId: string) {
   const rest = discordRest();
-  await rest.put(Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, guildId), { body: commands });
-  console.log(`Registered guild application commands for ${guildId}.`);
+  let linked = false;
+  try {
+    linked = (await recApi.getGuildLinkStatus(guildId)).linked;
+  } catch (error) {
+    console.error(`Failed to check link status for guild ${guildId} before registering commands (defaulting to unlinked):`, error);
+  }
+  const body = linked ? commands.filter((command) => command.name !== CLAIM_LEAGUE_COMMAND.name) : commands;
+  await rest.put(Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, guildId), { body });
+  console.log(`Registered guild application commands for ${guildId} (${linked ? "linked — claim-league hidden" : "unlinked"}).`);
 }

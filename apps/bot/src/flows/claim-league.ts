@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
+import { registerGuildCommands } from "../commands.js";
 
 // Closes the loop the site's "Enable Discord bot" flow starts: it issues an invite token and
 // a generic "Add to Discord" OAuth link, but has no way to know which server the bot ends up
@@ -26,6 +27,7 @@ export async function handleClaimLeagueSlash(interaction: ChatInputCommandIntera
       requestedByDiscordId: interaction.user.id,
     });
     await interaction.editReply(`League linked! **${result.league?.name ?? "Your league"}** is now connected to this server.`);
+    await registerGuildCommands(interaction.guildId).catch((error) => console.error(`Failed to refresh commands after claiming guild ${interaction.guildId}:`, error));
   } catch (error) {
     await interaction.editReply(error instanceof Error ? error.message : "Failed to claim this server for a league.");
   }
