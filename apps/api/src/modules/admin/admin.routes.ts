@@ -17,7 +17,21 @@ import {
   searchAdminUsers,
   updateAdminAnnouncement,
 } from "./admin.service.js";
-import { getDiscordGovernanceSnapshot, getSiteDiscordConfig, updateSiteDiscordConfig } from "./site-discord-config.service.js";
+import { getDiscordGovernanceSnapshot, getSiteDiscordConfig, syncAllRecruitingAds, updateSiteDiscordConfig } from "./site-discord-config.service.js";
+
+const optionalDiscordSnowflake = z.preprocess(
+  (value) => {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    if (typeof value === "number" && Number.isFinite(value)) return String(Math.trunc(value));
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return value;
+  },
+  z.union([z.string().regex(/^\d{17,20}$/, "Must be a Discord snowflake ID"), z.null()]).optional(),
+);
 
 export async function adminRoutes(app: FastifyInstance) {
   app.post("/v1/admin/whoami", async (request, reply) => {
@@ -193,18 +207,27 @@ export async function adminRoutes(app: FastifyInstance) {
       await requireSiteAdmin(request);
       const body = z
         .object({
-          managementGuildId: z.string().trim().min(1).nullable().optional(),
+          managementGuildId: optionalDiscordSnowflake,
           leaguePostChannels: z
             .object({
-              madden_26: z.string().trim().min(1).nullable().optional(),
-              madden_27: z.string().trim().min(1).nullable().optional(),
-              cfb_27: z.string().trim().min(1).nullable().optional(),
+              madden_26: optionalDiscordSnowflake,
+              madden_27: optionalDiscordSnowflake,
+              cfb_27: optionalDiscordSnowflake,
             })
             .partial()
             .optional(),
         })
         .parse(request.body ?? {});
       return reply.send(await updateSiteDiscordConfig(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/discord-config/sync-ads", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      return reply.send(await syncAllRecruitingAds());
     } catch (error) {
       return sendError(reply, error);
     }
