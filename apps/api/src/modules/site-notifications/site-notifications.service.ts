@@ -99,15 +99,15 @@ export async function listSiteNotifications(input: {
   const commissionerLeagueIds = leagues.filter((league) => league.isCommissioner).map((league) => league.id);
 
   // One aggregate row per league ("You have N pending items in {league}"), not one row per
-  // rec_commissioners_inbox item — item-level review now lives in the Commissioner Chat
-  // window's Payouts tab (League Mgmt), so the bell only needs to say where to look.
+  // rec_commissioners_inbox item — item-level review lives in League Mgmt's Notifications
+  // page (PendingItemsPanel), so the bell only needs to say where to look.
   const summaries = await getCommissionerPendingSummaries(input.recUserId, commissionerLeagueIds);
   const commissioner: SiteNotificationItem[] = summaries.map((item) => ({
     id: `pending-summary:${item.leagueId}`,
     kind: "commissioner",
     title: summaryTitle(item),
-    body: `${item.gameLabel} · Open the Commissioner’s Office to review.`,
-    href: `/l/${item.leagueId}/mgmt/commissioner-chat?officeTab=payouts`,
+    body: `${item.gameLabel} · Open League Mgmt to review.`,
+    href: `/l/${item.leagueId}/mgmt/notifications`,
     leagueId: item.leagueId,
     leagueName: item.leagueName,
     createdAt: item.latestCreatedAt,

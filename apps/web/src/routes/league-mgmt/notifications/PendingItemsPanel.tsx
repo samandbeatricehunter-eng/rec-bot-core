@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { CASE_STATUS_BADGE } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -20,6 +21,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   eos_payout: "EOS Payout", eos_award: "EOS Award", active_check: "Active Check",
   weekly_score_review: "Weekly Scores", wager: "Wager", team_request: "Team Request",
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
+  custom_player: "Custom Player",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue",
 };
@@ -34,6 +36,8 @@ const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "str
 // (NotificationsHome.tsx) and inline as a tab in the Commissioner's Office chat window.
 export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
+  const navigate = useNavigate();
+  const { leagueId } = useParams<{ leagueId: string }>();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
@@ -64,6 +68,10 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const typesPresent = new Set(cardNotifications.map((notification) => notification.type));
 
   function openNotification(notification: CommissionerNotification) {
+    // Custom-player review needs the full identity/attribute-edit UI that only
+    // CustomPlayerReviewQueue (League Mgmt > Settings) has — no generic approve/deny modal
+    // for it, so route straight there instead of opening ResolveNotificationModal.
+    if (notification.type === "custom_player" && leagueId) return navigate(`/l/${leagueId}/mgmt/settings`);
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);

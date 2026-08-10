@@ -10,6 +10,7 @@ import {
   canonicalReplacementPosition,
   calculateRecAttributeCost,
   evaluateRecCustomPlayerBuild,
+  formatCoins,
   generateRecPlayerName,
   getRecArchetype,
   getRecAttributeDisplayName,
@@ -30,6 +31,7 @@ import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.servi
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { assertPurchaseDeadlineOpen } from "../purchases/purchase-deadlines.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 type Identity = {
   firstName: string; lastName: string; jerseyNumber: number; handedness: string;
@@ -364,6 +366,44 @@ export async function submitCustomPlayer(input: {
   if (attributeRows.length) await supabase.from("rec_custom_player_build_attributes").insert(attributeRows);
   await supabase.from("rec_custom_player_wizard_sessions").update({ status: "submitted", submitted_build_id: build.data.id, updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft");
+
+  // Custom-player builds never went through the generic createPurchaseRequest path (they have
+  // their own season-cap/CP/wallet logic), so unlike every other purchase type they never got
+  // a rec_commissioners_inbox row — meaning they never showed up in League Mgmt's Pending
+  // Items list or counted toward the notification bell. Insert one directly.
+  const attrLines = Object.entries(input.attributes)
+    .filter(([, value]) => value > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([code, value]) => `${getRecAttributeDisplayName(code)}: ${value}`)
+    .join("\n");
+  const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: context.leagueId,
+    season_number: seasonNumber,
+    week_number: null,
+    queue_type: "custom_player",
+    status: "pending",
+    priority: 0,
+    header: `Custom Player: ${input.identity.firstName} ${input.identity.lastName} (${effectivePosition}, ${evaluation.displayOverall} OVR)`,
+    summary: [
+      `Package: ${pkg.displayName} (${formatCoins(pkg.coinPrice)})`,
+      replacement.data ? `Replaces: ${String(replacement.data.first_name)} ${String(replacement.data.last_name)}` : "New player (no roster replacement).",
+      `Archetype: ${evaluation.inferredArchetypeKey ?? input.archetypeKey}`,
+      "",
+      "Attributes:",
+      attrLines,
+    ].join("\n"),
+    requester_discord_id: input.discordId,
+    requester_user_id: baseline.user.id,
+    amount: pkg.coinPrice,
+    source_table: "rec_custom_player_builds",
+    source_id: build.data.id,
+    payload: { buildId: build.data.id, position: effectivePosition, estimatedOvr: evaluation.displayOverall },
+  });
+  if (inboxInsert.error) console.error("[ERROR] Failed to create commissioner-inbox row for custom-player submission (non-fatal):", inboxInsert.error);
+  void notifyLeagueCommissionersOfPendingItem(context.leagueId);
+
   return { build: { ...build.data, debit_ledger_id: ledger.data }, duplicate: false, walletBalance: config.walletBalance - pkg.coinPrice };
 }
 
@@ -386,6 +426,10 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
       p_build_id: build.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note.trim(),
     });
     if (rejected.error) throw new ApiError(500, "Failed to reject and refund the custom player atomically.", rejected.error);
+    await supabase.from("rec_commissioners_inbox").update({ status: "denied", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(), review_reason: input.note.trim() })
+      .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
+    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_denied", title: "Your custom player was denied", body: input.note.trim(), href: "/app" })
+      .catch((error) => console.error("[WARN] Failed to notify custom-player purchaser of denial:", error));
     return rejected.data;
   }
   const adjusted = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
@@ -406,9 +450,13 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     p_unused_cp_refund_coins: Math.ceil((reevaluated.pointsRemaining * .5) / 15), p_changes: changes,
   });
   if (applied.error) throw new ApiError(500, "Failed to apply the custom player atomically.", applied.error);
+  await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
+    .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
   if (changes.length) {
     const summary = changes.map((change) => `${change.field}: ${String(change.from ?? "blank")} → ${String(change.to ?? "blank")}`).join("; ");
     await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_adjusted", title: "Your custom player was applied with commissioner edits", body: summary, href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
+  } else {
+    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_approved", title: "Your custom player was approved & applied", body: "It has been added to your roster.", href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
   }
   const playerId = (applied.data as { playerId?: string } | null)?.playerId;
   const player = playerId ? await supabase.from("rec_players").select("*").eq("id", playerId).maybeSingle() : null;

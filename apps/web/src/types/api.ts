@@ -220,6 +220,7 @@ export type CommissionerNotificationType =
   | "media"
   | "game_of_the_year"
   | "legend"
+  | "custom_player"
   | "force_win_request"
   | "autopilot_request"
   | "matchup_issue_report";
