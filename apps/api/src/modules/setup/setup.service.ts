@@ -622,6 +622,7 @@ export async function createUnclaimedLeague(input: {
   leaguePassword?: string | null;
   leagueType?: string;
   templateId?: string | null;
+  initialTeamAbbreviation: string;
   customRostersPreseedRequested?: boolean;
   isOnline?: boolean;
   crossPlayEnabled?: boolean;
@@ -787,6 +788,26 @@ export async function createUnclaimedLeague(input: {
 
     const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
 
+    const initialTeam = defaultTeams.teams.find((team) =>
+      String(team.abbreviation).toUpperCase() === input.initialTeamAbbreviation.trim().toUpperCase());
+    if (!initialTeam) throw new ApiError(400, "The selected team is not available for this game.");
+
+    const membership = await supabase.from("rec_league_memberships").upsert(
+      { league_id: league.data.id, user_id: input.requestedByUserId, status: "active", role: "commissioner" },
+      { onConflict: "league_id,user_id" },
+    );
+    if (membership.error) throw new ApiError(500, "Failed to create commissioner membership.", membership.error);
+
+    const assignment = await supabase.from("rec_team_assignments").insert({
+      league_id: league.data.id,
+      team_id: initialTeam.id,
+      user_id: input.requestedByUserId,
+      assignment_status: "active",
+      source: "manual_admin_entry",
+      notes: "Authority: commissioner; assigned atomically during league creation",
+    }).select("*").single();
+    if (assignment.error) throw new ApiError(500, "Failed to assign the commissioner's team.", assignment.error);
+
     // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
     // that function's comment above its own applyMaddenBaselineToLeague call for the full
     // leagueType decision table.
@@ -855,7 +876,7 @@ export async function createUnclaimedLeague(input: {
       source: "manual_admin_entry",
     });
 
-    return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams };
+    return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams, assignment: assignment.data };
   } catch (err) {
     const rollback = await supabase.rpc("rec_delete_league", { p_league_id: league.data.id });
     if (rollback.error) {

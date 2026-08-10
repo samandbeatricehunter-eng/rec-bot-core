@@ -664,14 +664,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     try {
       let createdId = leagueId;
       if (!createdId) {
-        const payload = { name: name.trim(), game, templateId: templateId ?? undefined, ...collectConfig() };
+        const payload = { name: name.trim(), game, templateId: templateId ?? undefined, initialTeamAbbreviation: selectedTeamId, ...collectConfig() };
         const result = await siteApi.createLeague(payload);
         createdId = result.league.id;
         setLeagueId(createdId);
       }
       // Team picker keys off the shared default-team catalog (abbreviation) because the league
       // doesn't exist until now; resolve it to the real team id before completing the wizard.
-      if (selectedTeamId && createdId) {
+      if (leagueId && selectedTeamId && createdId) {
         const open = await siteApi.listOpenLeagueTeams(createdId);
         const team = open.teams.find((t) => t.abbreviation === selectedTeamId);
         // Don't silently continue to the success screen if the assignment can't be resolved —
