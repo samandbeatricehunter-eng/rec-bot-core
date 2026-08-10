@@ -7,6 +7,7 @@ import {
   REC_DEV_TRAITS,
   REC_NAME_CORPUS_VERSION,
   REC_OVR_MODEL_VERSION,
+  canonicalReplacementPosition,
   calculateRecAttributeCost,
   evaluateRecCustomPlayerBuild,
   generateRecPlayerName,
@@ -286,8 +287,10 @@ export async function submitCustomPlayer(input: {
   // CFB position is locked to the replaced player — the in-game roster editor can't change a
   // player's position, so this recruit inherits it. The client's position input is ignored
   // for CFB (authoritative: derived from the replacement row); with no replacement (an
-  // unseeded-league brand-new add) the submitted position stands.
-  const effectivePosition = game === "CFB" && replacement.data ? String(replacement.data.position) : input.position;
+  // unseeded-league brand-new add) the submitted position stands. The replaced player's
+  // position is the roster's raw code (SAM/WILL/MIKE/LEDGE/REDGE for CFB edge/LB slots) —
+  // canonicalize it, or isRecCustomPlayerPosition/getRecArchetype below reject it outright.
+  const effectivePosition = game === "CFB" && replacement.data ? canonicalReplacementPosition(String(replacement.data.position)) : input.position;
   validateIdentity(game, input.identity, effectivePosition);
   await assertNameNotLegend(game, input.identity);
 

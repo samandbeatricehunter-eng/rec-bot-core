@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Dices } from "lucide-react";
-import { CFB_27_TEAMS, MADDEN_ATTRIBUTE_SELECTION_GROUPS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, isCompatibleReplacementPosition, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, MADDEN_ATTRIBUTE_SELECTION_GROUPS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, isCompatibleReplacementPosition, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -132,7 +132,11 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     setReplacementPlayerId(playerId);
     if (playerId) {
       const player = config.replacementPlayers.find((entry: any) => entry.id === playerId);
-      if (player) setPositionAndReset(player.position);
+      // player.position is the roster's raw code, which for CFB edge/LB slots (SAM/WILL/MIKE/
+      // LEDGE/REDGE) isn't one of the canonical codes the position picker, archetype catalog,
+      // and attribute editor are keyed by (LOLB/MLB/ROLB/LE/RE) — canonicalize before using it
+      // as `position`, or config.archetypes[position] comes back undefined and crashes.
+      if (player) setPositionAndReset(canonicalReplacementPosition(player.position));
     }
   }
   function selectArchetype(value: string) {

@@ -43,6 +43,20 @@ export function isCompatibleReplacementPosition(targetPosition: string | null | 
   return aliases ? aliases.includes(roster) : target === roster;
 }
 
+const CANONICAL_POSITION_BY_ROSTER_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(POSITION_ALIASES).flatMap(([canonical, variants]) => variants.map((variant) => [variant, canonical])),
+);
+
+/** Maps a roster player's raw position code (which may be a CFB-only variant like SAM/WILL/
+ * MIKE/LEDGE/REDGE) to the canonical code the legend/custom-player position lists and
+ * archetype catalogs are keyed by (LOLB/MLB/ROLB/LE/RE). Positions that already agree between
+ * the two schemes (QB, CB, FS, SS, etc.) pass through unchanged. */
+export function canonicalReplacementPosition(rosterPosition: string | null | undefined): string {
+  if (!rosterPosition) return "";
+  const roster = rosterPosition.trim().toUpperCase();
+  return CANONICAL_POSITION_BY_ROSTER_CODE[roster] ?? roster;
+}
+
 const GRADE_BANDS: Array<{ min: number; grade: string }> = [
   { min: 90, grade: "A+" },
   { min: 85, grade: "A" },
