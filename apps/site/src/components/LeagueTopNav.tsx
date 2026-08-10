@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
-import { NotificationsBell } from "./NotificationsBell.js";
 import {
   IconBuzz,
   IconMatchups,
@@ -70,7 +69,6 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
 
   return (
     <>
-      <div className="site-league-top-nav-row">
       <nav className="site-league-top-nav" aria-label="League">
         {items.map((item) => {
           const active = isActive(location.pathname, item.to);
@@ -98,8 +96,6 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
           <span>League</span>
         </button>
       </nav>
-      <NotificationsBell />
-      </div>
 
       {menuOpen ? (
         <div className="site-league-menu" role="dialog" aria-modal="true" aria-label="League menu">
