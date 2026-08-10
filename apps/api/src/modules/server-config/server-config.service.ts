@@ -37,12 +37,21 @@ function routePayload(input: Record<string, unknown>) {
 }
 
 // Used by the bot's post-join grace-period check: a guild the bot sits in without a
-// rec_discord_servers row means /claim-league was never run (invite went stale, wrong server,
-// or someone added the bot without ever creating/claiming a league). The bot should never
-// linger in a server it has no league link to.
+// primary rec_server_league_links row (via rec_discord_servers.guild_id) means the site
+// Connect-Discord flow never finished — stale invite, wrong server, or a manual add.
+// The column is guild_id (not discord_guild_id); querying the wrong name always returned
+// unlinked and made the bot leave every newly invited league server after the grace period.
 export async function isGuildLinkedToLeague(guildId: string): Promise<boolean> {
-  const result = await supabase.from("rec_discord_servers").select("id").eq("discord_guild_id", guildId).maybeSingle();
-  return Boolean(result.data);
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
+  if (server.error || !server.data) return false;
+  const link = await supabase
+    .from("rec_server_league_links")
+    .select("id")
+    .eq("server_id", server.data.id)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (link.error) return false;
+  return Boolean(link.data);
 }
 
 export async function getServerConfig(guildId: string) {

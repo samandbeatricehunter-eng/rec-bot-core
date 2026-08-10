@@ -248,10 +248,24 @@ export async function cancelCustomPlayerDraft(guildId: string, discordId: string
 
 export function evaluateCustomPlayer(input: { game: RecGameFamily; packageTier: RecPackageTier; position: string; archetypeKey: string; developmentTrait: string; attributes: Record<string, number>; mode?: "preview" | "submit" }) {
   if (!isRecCustomPlayerPosition(input.position)) throw new ApiError(400, "Unsupported custom-player position. Kicker and punter are not eligible.");
-  getRecArchetype(input.game, input.position, input.archetypeKey);
+  try {
+    getRecArchetype(input.game, input.position, input.archetypeKey);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : "Unsupported archetype for this position.");
+  }
   // CFB dev trait is inherited from the replaced player, never purchased — no CP cost for it.
-  const netDevelopmentCost = input.game === "CFB" ? 0 : getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
-  const evaluation = evaluateRecCustomPlayerBuild({ ...input, netDevelopmentCost, mode: input.mode ?? "preview" });
+  let netDevelopmentCost = 0;
+  try {
+    netDevelopmentCost = input.game === "CFB" ? 0 : getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : "Unsupported development trait for this package.");
+  }
+  let evaluation;
+  try {
+    evaluation = evaluateRecCustomPlayerBuild({ ...input, netDevelopmentCost, mode: input.mode ?? "preview" });
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : "Could not evaluate this custom-player build.");
+  }
   return { ...evaluation, inferredArchetypeKey: inferArchetype(input.game, input.position, input.attributes) };
 }
 
@@ -294,6 +308,15 @@ export async function submitCustomPlayer(input: {
   // position is the roster's raw code (SAM/WILL/MIKE/LEDGE/REDGE for CFB edge/LB slots) —
   // canonicalize it, or isRecCustomPlayerPosition/getRecArchetype below reject it outright.
   const effectivePosition = game === "CFB" && replacement.data ? canonicalReplacementPosition(String(replacement.data.position)) : input.position;
+  // CFB locks the recruit's position to the replaced player. The wizard must build for that
+  // position — a cross-position replacement (e.g. LG agile build replacing a TE) used to throw
+  // an uncaught "Unsupported archetype" 500 from getRecArchetype. Reject with a clear 400.
+  if (game === "CFB" && replacement.data) {
+    const submittedPosition = canonicalReplacementPosition(input.position) || input.position.trim().toUpperCase();
+    if (effectivePosition !== submittedPosition) {
+      throw new ApiError(400, `CFB custom players inherit the replaced player's position (${effectivePosition}). Rebuild this player as a ${effectivePosition}, or pick a ${submittedPosition} replacement.`);
+    }
+  }
   validateIdentity(game, input.identity, effectivePosition);
   await assertNameNotLegend(game, input.identity);
 
@@ -378,9 +401,22 @@ export async function submitCustomPlayer(input: {
     supabase.from("rec_purchases").update({ debit_ledger_id: ledger.data, already_deducted: true }).eq("id", purchase.data.id),
     supabase.from("rec_custom_player_audit_log").insert({ build_id: build.data.id, action: "submitted", actor_user_id: baseline.user.id, actor_discord_id: input.discordId, next_status: "pending_review", details: { evaluation } }),
   ]);
-  const attributeRows = Object.entries(input.attributes).filter(([, rating]) => rating > 0).map(([code, rating]) => ({ build_id: build.data.id, attribute_key: code,
-    rating, points_spent: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, index + 1)).reduce((a, b) => a + b, 0),
-    per_point_cost_ledger: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, index + 1)) }));
+  // points_spent is the total CP to reach `rating`; per_point_cost_ledger is the marginal
+  // cost of each successive point. Don't call calculateRecAttributeCost(1..rating) and sum —
+  // that double-counts (triangular) and is O(n²) per attribute.
+  let attributeRows: Array<{ build_id: string; attribute_key: string; rating: number; points_spent: number; per_point_cost_ledger: number[] }>;
+  try {
+    attributeRows = Object.entries(input.attributes).filter(([, rating]) => rating > 0).map(([code, rating]) => {
+      const perPoint = Array.from({ length: rating }, (_, index) => {
+        const at = index + 1;
+        return calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, at)
+          - (at > 1 ? calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, at - 1) : 0);
+      });
+      return { build_id: build.data.id, attribute_key: code, rating, points_spent: perPoint.reduce((a, b) => a + b, 0), per_point_cost_ledger: perPoint };
+    });
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : "Could not record attribute costs for this build.");
+  }
   if (attributeRows.length) await supabase.from("rec_custom_player_build_attributes").insert(attributeRows);
   await supabase.from("rec_custom_player_wizard_sessions").update({ status: "submitted", submitted_build_id: build.data.id, updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft");

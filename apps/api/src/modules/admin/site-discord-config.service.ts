@@ -53,15 +53,23 @@ export async function updateSiteDiscordConfig(patch: {
 /** What the bot's daily sweep needs: the one exempt guild, plus every guild actually linked
  * to a league on the site — anything else the bot sits in gets left. */
 export async function getDiscordGovernanceSnapshot(): Promise<{ managementGuildId: string | null; linkedGuildIds: string[] }> {
-  const [config, links] = await Promise.all([
+  const [config, servers] = await Promise.all([
     getSiteDiscordConfig(),
-    supabase.from("rec_server_league_links").select("server:rec_discord_servers(guild_id)"),
+    // Join from servers → primary links so we always get guild_id without relying on
+    // PostgREST embed relationship naming (a prior bare embed could return empty and the
+    // daily sweep would leave every league server).
+    supabase
+      .from("rec_discord_servers")
+      .select("guild_id, rec_server_league_links!inner(id, is_primary)")
+      .eq("rec_server_league_links.is_primary", true),
   ]);
-  if (links.error) throw new ApiError(500, "Failed to load linked guilds.", links.error);
-  const linkedGuildIds: string[] = Array.from(new Set<string>(
-    (links.data ?? [])
-      .map((row: any) => (Array.isArray(row.server) ? row.server[0]?.guild_id : row.server?.guild_id))
-      .filter((id: unknown): id is string => Boolean(id)),
-  ));
+  if (servers.error) throw new ApiError(500, "Failed to load linked guilds.", servers.error);
+  const linkedGuildIds = Array.from(
+    new Set(
+      (servers.data ?? [])
+        .map((row) => row.guild_id)
+        .filter((id: unknown): id is string => Boolean(id)),
+    ),
+  );
   return { managementGuildId: config.managementGuildId, linkedGuildIds };
 }

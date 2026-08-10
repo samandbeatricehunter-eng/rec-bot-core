@@ -545,6 +545,13 @@ client.on("guildCreate", async (guild) => {
 // nickname/role set is a best-effort no-op while they're not in the guild yet.
 client.on("guildMemberAdd", async (member) => {
   if (member.user.bot) return;
+  // Management guild has no league roster — skip nickname/role sync (avoids noisy 404s).
+  try {
+    const governance = await recApi.getDiscordGovernanceSnapshot();
+    if (governance.managementGuildId && governance.managementGuildId === member.guild.id) return;
+  } catch {
+    // Fall through to sync attempt if governance lookup fails.
+  }
   await recApi.syncMemberForGuildJoin(member.guild.id, member.id).catch((error) => {
     console.error(`Failed to sync team nickname/role for ${member.id} joining guild ${member.guild.id} (non-fatal)`, error);
   });

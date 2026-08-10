@@ -452,7 +452,14 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 // nickname/role set is best-effort and silently no-ops while they're not in the guild yet.
 // Called from the bot's guildMemberAdd handler; a no-op if they have no active assignment.
 export async function syncMemberForGuildJoin(guildId: string, discordId: string): Promise<{ synced: boolean }> {
-  const { league } = await getCurrentLeagueForGuild(guildId);
+  let league: { id: string; game: string };
+  try {
+    ({ league } = await getCurrentLeagueForGuild(guildId));
+  } catch (error) {
+    // Management guild / unlinked servers have no league — nothing to sync.
+    if (error instanceof ApiError && error.statusCode === 404) return { synced: false };
+    throw error;
+  }
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
   if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
