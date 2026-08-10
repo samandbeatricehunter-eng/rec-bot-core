@@ -479,6 +479,10 @@ export const recApi = {
   }) =>
     recFetch<any>("/v1/highlights/award-review", { method: "POST", body: JSON.stringify(input) }),
 
+  getRecruitingBoardOpenTeams: (leagueId: string) =>
+    recFetch<{ leagueName: string; game: string; openTeams: Array<{ id: string; name: string; conference: string | null; division: string | null }> }>(`/v1/recruiting-board/leagues/${leagueId}/open-teams`),
+  createRecruitingBoardTeamRequest: (input: { leagueId: string; discordId: string; teamId: string }) =>
+    recFetch<{ request: any; teamName: string; leagueName: string }>("/v1/recruiting-board/request", { method: "POST", body: JSON.stringify(input) }),
   getLeagueConferences: (guildId: string) =>
     recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) }),
 

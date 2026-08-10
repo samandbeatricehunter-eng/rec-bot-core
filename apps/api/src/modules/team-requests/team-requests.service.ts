@@ -7,6 +7,7 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 import { createDiscordChannelInvite } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
+import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -131,6 +132,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     payload: { requestId: inserted.data.id, teamId: input.teamId },
   });
   void notifyLeagueCommissionersOfPendingItem(leagueId);
+  void syncLeagueRecruitingAd(leagueId);
 
   const teamDisplayName = formatTeamDisplayName(team.data) ?? team.data.name;
   const notifyUserIds = new Set<string>();
@@ -269,6 +271,7 @@ export async function rejectTeamLinkRequest(input: { requestId: string; leagueId
     .update({ status: "denied", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
     .eq("source_table", "rec_team_link_requests")
     .eq("source_id", input.requestId);
+  void syncLeagueRecruitingAd(updated.data.league_id);
   return updated.data;
 }
 
@@ -306,6 +309,7 @@ export async function completeTeamLinkRequest(input: {
       .single();
     if (assignment.error) throw new ApiError(500, "Failed to assign the requested team.", assignment.error);
     link = { assignment: assignment.data, authority: "member", accountKind: "site" };
+    void syncLeagueRecruitingAd(request.league_id);
   } else {
     link = await linkUserToTeam({
       guildId: request.guild_id,

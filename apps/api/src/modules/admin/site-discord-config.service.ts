@@ -33,6 +33,13 @@ export async function updateSiteDiscordConfig(patch: {
 
   const { data, error } = await supabase.from("rec_site_discord_config").upsert({ id: true, ...update }).select("*").single();
   if (error) throw new ApiError(500, "Failed to save Discord config.", error);
+
+  // Backfill: a league with open teams that predates this channel being set shouldn't have to
+  // wait for its next roster event to appear on the board.
+  if (patch.leaguePostChannels?.madden_26 !== undefined) void import("../recruiting-board/recruiting-board.service.js").then((mod) => mod.syncAllRecruitingAdsForGame("madden_26"));
+  if (patch.leaguePostChannels?.madden_27 !== undefined) void import("../recruiting-board/recruiting-board.service.js").then((mod) => mod.syncAllRecruitingAdsForGame("madden_27"));
+  if (patch.leaguePostChannels?.cfb_27 !== undefined) void import("../recruiting-board/recruiting-board.service.js").then((mod) => mod.syncAllRecruitingAdsForGame("cfb_27"));
+
   return {
     managementGuildId: data.management_guild_id ?? null,
     leaguePostChannels: {

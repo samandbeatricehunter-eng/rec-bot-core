@@ -40,6 +40,14 @@ function defaultTeamResetDescription(game?: string | null) {
   return "default Madden NFL 26 teams";
 }
 
+// Dynamic import avoids a static circular dependency: recruiting-board.service.ts itself
+// imports listOpenTeamsForLeagueId from this file.
+function syncRecruitingAd(leagueId: string) {
+  import("../recruiting-board/recruiting-board.service.js")
+    .then((mod) => mod.syncLeagueRecruitingAd(leagueId))
+    .catch((error) => console.error("[WARN] Failed to sync recruiting-board ad after team-ownership change:", error));
+}
+
 function normalizeAbbreviation(value: string) {
   return value.trim().toUpperCase();
 }
@@ -85,6 +93,7 @@ export async function createDefaultTeamsForLeague(leagueId: string, game: string
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
   await ensureLeagueRivalries(leagueId, game ?? null);
+  syncRecruitingAd(leagueId);
   return { teams: result.data };
 }
 
@@ -115,6 +124,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
   await ensureLeagueRivalries(league.id, league.game);
+  syncRecruitingAd(league.id);
 
   await writeAuditLog({
     action: league.game === "cfb_27" ? "teams.default_cfb.upserted" : "teams.default_nfl.upserted",
@@ -163,6 +173,7 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to reset default league teams.", result.error);
   await ensureLeagueRivalries(league.id, league.game);
+  syncRecruitingAd(league.id);
 
   await writeAuditLog({
     action: league.game === "cfb_27" ? "teams.default_cfb.reset" : "teams.default_nfl.reset",
@@ -422,6 +433,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   await releaseBacklogForLeague(league.id, seasonNumber).catch((error) => {
     console.error("[ERROR] releaseBacklogForLeague failed after team link (non-fatal):", error);
   });
+  syncRecruitingAd(league.id);
 
   const isDiscordOnly = !linkedUser.data?.supabase_auth_user_id;
   return {
@@ -518,18 +530,19 @@ export async function getTeamLinkMatrix(guildId: string) {
   };
 }
 
-export async function listOpenTeams(guildId: string) {
-  const { league } = await getCurrentLeagueForGuild(guildId);
-  const teams = await supabase.from("rec_teams").select("*").eq("league_id", league.id).order("conference").order("name");
+// Guild-free core so the recruiting board (which advertises leagues that may have no linked
+// Discord server yet) can compute the same open-teams set without a guildId to resolve from.
+export async function listOpenTeamsForLeagueId(leagueId: string) {
+  const teams = await supabase.from("rec_teams").select("*").eq("league_id", leagueId).order("conference").order("name");
   if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
 
   const [assignments, pendingRequests] = await Promise.all([
-    supabase.from("rec_team_assignments").select("team_id").eq("league_id", league.id).is("ended_at", null),
+    supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).is("ended_at", null),
     // A team with a pending (unapproved) request shouldn't show as open — otherwise a second
     // member could request the same team while the first request is still awaiting the
     // commissioner. Only "pending"/"approved" hold the team; "rejected"/"completed" don't
     // (completed teams are already caught by the assignment it created).
-    supabase.from("rec_team_link_requests").select("team_id").eq("league_id", league.id).in("status", ["pending", "approved"]),
+    supabase.from("rec_team_link_requests").select("team_id").eq("league_id", leagueId).in("status", ["pending", "approved"]),
   ]);
   if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
   if (pendingRequests.error) throw new ApiError(500, "Failed to load pending team requests.", pendingRequests.error);
@@ -540,7 +553,13 @@ export async function listOpenTeams(guildId: string) {
   // defaults) from "every team is already linked" (openTeams.length === 0 too, but seeding here
   // would destructively wipe every existing team/conference/link).
   const playableTeams = teams.data.filter((team: any) => !isSchedulePlaceholderTeam(team));
-  return { league, openTeams: playableTeams.filter((team) => !assigned.has(team.id)), totalTeams: playableTeams.length };
+  return { openTeams: playableTeams.filter((team) => !assigned.has(team.id)), totalTeams: playableTeams.length, allTeams: playableTeams };
+}
+
+export async function listOpenTeams(guildId: string) {
+  const { league } = await getCurrentLeagueForGuild(guildId);
+  const result = await listOpenTeamsForLeagueId(league.id);
+  return { league, ...result };
 }
 
 export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
@@ -563,6 +582,7 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
     reason: "Single team assignment unlinked through Team Ownership admin command.",
     source: "manual_admin_entry"
   });
+  syncRecruitingAd(league.id);
 
   return { league, unlinkedCount: result.data?.length ?? 0 };
 }
@@ -586,6 +606,7 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
     reason: "All team assignments unlinked through Team Ownership admin command.",
     source: "manual_admin_entry"
   });
+  syncRecruitingAd(league.id);
 
   return { league, unlinkedCount: result.data?.length ?? 0 };
 }
