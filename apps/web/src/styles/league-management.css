@@ -455,6 +455,16 @@
   color: var(--text-primary);
   font-size: var(--text-lg);
 }
+/* Advance Readiness "Next Advance" label — white text with a colored stroke so it reads
+   clearly against the panel background whether the week is blocked or ready to go. */
+.advance-not-ready-label,
+.advance-ready-label {
+  color: #fff !important;
+  -webkit-text-stroke: 1.5px var(--stroke-color);
+  paint-order: stroke fill;
+}
+.advance-not-ready-label { --stroke-color: var(--error); }
+.advance-ready-label { --stroke-color: var(--success); }
 .advance-control-row {
   margin-top: var(--space-3);
 }

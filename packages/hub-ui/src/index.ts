@@ -19,7 +19,6 @@ export { PlayerStatsReview } from "../../../apps/web/src/routes/league-mgmt/mana
 export { NotificationsHome } from "../../../apps/web/src/routes/league-mgmt/notifications/NotificationsHome.js";
 export { DeleteLeagueHome } from "../../../apps/web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 export { SettingsHome } from "../../../apps/web/src/routes/league-mgmt/settings/SettingsHome.js";
-export { AdvanceHome } from "../../../apps/web/src/routes/league-mgmt/advance/AdvanceHome.js";
 export { CommissionerChatHome } from "../../../apps/web/src/routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
 export { PublishingHome } from "../../../apps/web/src/routes/league-mgmt/publishing/PublishingHome.js";
 export { RecruitingHome } from "../../../apps/web/src/routes/league-mgmt/recruiting/RecruitingHome.js";

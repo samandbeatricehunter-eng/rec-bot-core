@@ -651,12 +651,6 @@ export const recApi = {
     recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
-  getAdvanceJumpTargets: (guildId: string) =>
-    recApiFetch<{ currentWeek: number; currentStage: string; currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> }>("/v1/league-week/advance-jump/targets", { method: "POST", body: JSON.stringify({ guildId }) }),
-  getAdvanceJumpPlan: (input: { guildId: string; targetWeekNumber: number; targetSeasonStage: string }) =>
-    recApiFetch<{ steps: Array<{ weekNumber: number; seasonStage: string; label: string; gamesNeedingInput: AdvanceWeekGames["gamesNeedingInput"] }>; targetLabel: string; reachable: boolean }>("/v1/league-week/advance-jump/plan", { method: "POST", body: JSON.stringify(input) }),
-  completeAdvanceJump: (input: { guildId: string; targetWeekNumber: number; targetSeasonStage: string; results: AdvanceResultInput[] }) =>
-    recApiFetch<{ landedLabel: string; steps: number; discord?: { announcementPosted: boolean; error?: string } | null }>("/v1/league-week/advance-jump/complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
   getDivisionWinnerOptions: (guildId: string) =>
     recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>

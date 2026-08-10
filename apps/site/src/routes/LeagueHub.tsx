@@ -6,7 +6,6 @@ import { siteApi } from "../lib/site-api.js";
 import { IconBack } from "../components/icons.js";
 import { LeagueTopNav } from "../components/LeagueTopNav.js";
 import {
-  AdvanceHome,
   ChatDrawerProvider,
   CommissionerChatHome,
   CfpPostseasonManager,
@@ -227,7 +226,6 @@ function HubMgmtRoutes() {
       <Route path="manage-league/:teamId" element={<MgmtSubPage><TeamScheduleForm /></MgmtSubPage>} />
       <Route path="delete-league" element={<MgmtSubPage><DeleteLeagueHome /></MgmtSubPage>} />
       <Route path="settings" element={<MgmtSubPage><SettingsHome /></MgmtSubPage>} />
-      <Route path="advance" element={<MgmtSubPage><AdvanceHome /></MgmtSubPage>} />
       <Route path="commissioner-chat" element={<MgmtSubPage><CommissionerChatHome /></MgmtSubPage>} />
       <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
       <Route path="recruiting" element={<MgmtSubPage><RecruitingHome /></MgmtSubPage>} />

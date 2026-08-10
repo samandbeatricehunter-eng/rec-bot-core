@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, GraduationCap, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { BarChart3, ChevronRight, GraduationCap, Newspaper, Settings, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -133,6 +133,12 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
               <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
                 <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
+                <Settings size={16} /> Settings
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
+                <Newspaper size={16} /> Media
               </Button>
             </div>
           )
