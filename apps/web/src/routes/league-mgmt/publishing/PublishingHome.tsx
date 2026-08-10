@@ -6,7 +6,67 @@ import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
-import type { CommissionerPoll } from "../../../types/api.js";
+import type { CommissionerPoll, TeamRosterResponse, TradeLegInput } from "../../../types/api.js";
+
+function CommissionerTradeBuilderCard() {
+  const { guildId } = useReadyAuth();
+  const hub = useHubChrome();
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>([]);
+  const [teamIds, setTeamIds] = useState<[string, string]>(["", ""]);
+  const [rosters, setRosters] = useState<[TeamRosterResponse | null, TeamRosterResponse | null]>([null, null]);
+  const [legs, setLegs] = useState<[TradeLegInput[], TradeLegInput[]]>([[], []]);
+  const [coins, setCoins] = useState<[number, number]>([0, 0]);
+  const [classification, setClassification] = useState<"general" | "blockbuster">("general");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hub.currentLeague?.game?.startsWith("madden")) return;
+    recApi.listTradeableTeams(guildId).then((rows) => setTeams(rows.filter((team) => !team.isCpu))).catch((cause) => setMessage(cause instanceof Error ? cause.message : "Failed to load teams."));
+  }, [guildId, hub.currentLeague?.game]);
+
+  async function selectTeam(side: 0 | 1, teamId: string) {
+    const nextIds: [string, string] = [...teamIds]; nextIds[side] = teamId; setTeamIds(nextIds);
+    const nextLegs: [TradeLegInput[], TradeLegInput[]] = [...legs]; nextLegs[side] = []; setLegs(nextLegs);
+    const nextRosters: [TeamRosterResponse | null, TeamRosterResponse | null] = [...rosters];
+    nextRosters[side] = teamId ? await recApi.getTeamRoster({ guildId, teamId }) : null; setRosters(nextRosters);
+  }
+  function toggle(side: 0 | 1, leg: TradeLegInput) {
+    const key = leg.type === "player" ? `p:${leg.playerId}` : `d:${leg.draftPickId}`;
+    const current = legs[side];
+    const exists = current.some((item) => (item.type === "player" ? `p:${item.playerId}` : `d:${item.draftPickId}`) === key);
+    const next: [TradeLegInput[], TradeLegInput[]] = [...legs]; next[side] = exists ? current.filter((item) => (item.type === "player" ? `p:${item.playerId}` : `d:${item.draftPickId}`) !== key) : current.length < 7 ? [...current, leg] : current; setLegs(next);
+  }
+  async function submit() {
+    setBusy(true); setMessage(null);
+    try {
+      await recApi.logCommissionerTrade({ guildId, proposingTeamId: teamIds[0], receivingTeamId: teamIds[1], offeredLegs: legs[0], requestedLegs: legs[1], offeredCoins: coins[0], requestedCoins: coins[1], classification, note: note.trim() || undefined });
+      setTeamIds(["", ""]); setRosters([null, null]); setLegs([[], []]); setCoins([0, 0]); setNote(""); setClassification("general");
+      setMessage("Trade applied, recorded, announced on the site, and sent to the trade-block channel if assigned.");
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Failed to log trade."); }
+    finally { setBusy(false); }
+  }
+  if (!hub.currentLeague?.game?.startsWith("madden")) return null;
+  return <Card>
+    <h2>Log Confirmed Trade</h2>
+    <p className="form-hint">Record a completed human-to-human trade. Selected players, draft picks, and coins move immediately. The public site announcement is mirrored only to the assigned Trade Block channel.</p>
+    {message && <p className="form-hint">{message}</p>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "var(--space-4)" }}>
+      {([0, 1] as const).map((side) => <div key={side}>
+        <label className="form-field"><span className="form-label">{side === 0 ? "Team A sends" : "Team B sends"}</span><select className="form-select" value={teamIds[side]} onChange={(event) => void selectTeam(side, event.target.value)}><option value="">Select team</option>{teams.filter((team) => team.id !== teamIds[side === 0 ? 1 : 0]).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
+        {rosters[side] && <div style={{ maxHeight: 260, overflow: "auto", border: "1px solid var(--border)", padding: "var(--space-2)" }}>
+          <strong>Players</strong>{rosters[side]!.players.filter((player) => ["active", "transferred_in"].includes(player.rosterStatus)).map((player) => <label key={player.id} style={{ display: "block" }}><input type="checkbox" checked={legs[side].some((leg) => leg.type === "player" && leg.playerId === player.id)} onChange={() => toggle(side, { type: "player", playerId: player.id })} /> {player.position} {player.fullName} ({player.overallRating ?? "—"} OVR)</label>)}
+          {rosters[side]!.draftPicks.length > 0 && <><strong style={{ display: "block", marginTop: "var(--space-2)" }}>Draft picks</strong>{rosters[side]!.draftPicks.map((pick) => <label key={pick.id} style={{ display: "block" }}><input type="checkbox" checked={legs[side].some((leg) => leg.type === "pick" && leg.draftPickId === pick.id)} onChange={() => toggle(side, { type: "pick", draftPickId: pick.id })} /> Season {pick.seasonNumber}, Round {pick.round}{pick.pickNumber ? `, Pick ${pick.pickNumber}` : ""}</label>)}</>}
+        </div>}
+        <label className="form-field"><span className="form-label">Coins sent</span><input className="form-input" type="number" min={0} value={coins[side]} onChange={(event) => { const next: [number, number] = [...coins]; next[side] = Math.max(0, Number(event.target.value)); setCoins(next); }} /></label>
+      </div>)}
+    </div>
+    <label className="form-field"><span className="form-label">Announcement label</span><select className="form-select" value={classification} onChange={(event) => setClassification(event.target.value as "general" | "blockbuster")}><option value="general">General Trade</option><option value="blockbuster">Blockbuster Trade</option></select></label>
+    <label className="form-field"><span className="form-label">Commissioner note (optional)</span><textarea className="form-input" rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+    <Button variant="tactical" disabled={busy || !teamIds[0] || !teamIds[1] || (!legs[0].length && !legs[1].length && !coins[0] && !coins[1])} onClick={() => void submit()}>{busy ? "Applying…" : "Apply & Announce Trade"}</Button>
+  </Card>;
+}
 
 function CommissionerPollsCard() {
   const { guildId, discordId } = useReadyAuth();
@@ -238,6 +298,7 @@ export function PublishingHome() {
         )}
       </Card>
       <RoundtableHostsCard />
+      <CommissionerTradeBuilderCard />
       <CommissionerPollsCard />
     </div>
   </div>;

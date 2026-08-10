@@ -318,6 +318,8 @@ export const recApi = {
     recApiFetch<Array<{ id: string; league_id: string; season_number: number; round: number; original_team_id: string; current_team_id: string; pick_number: number | null }>>("/v1/draft-picks/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   proposeTrade: (input: { guildId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
     recApiFetch<{ status: string } | Trade>("/v1/trades/propose", { method: "POST", body: JSON.stringify(input) }),
+  logCommissionerTrade: (input: { guildId: string; proposingTeamId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number; classification: "general" | "blockbuster"; note?: string }) =>
+    recApiFetch<{ status: string; tradeId: string }>("/v1/trades/commissioner-log", { method: "POST", body: JSON.stringify(input) }),
   respondToTrade: (input: { guildId: string; tradeId: string; action: "accept" | "decline" }) =>
     recApiFetch<{ status: string }>("/v1/trades/respond", { method: "POST", body: JSON.stringify(input) }),
   withdrawTrade: (input: { guildId: string; tradeId: string }) =>

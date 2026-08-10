@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { createTradeBlockListing, getTradeDetail, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
+import { createTradeBlockListing, getTradeDetail, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
 
 const LegSchema = z.union([
   z.object({ type: z.literal("player"), playerId: z.string().uuid() }),
@@ -64,6 +64,20 @@ export async function tradesRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send(await listPendingReviewTrades(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/commissioner-log", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), proposingTeamId: z.string().uuid(), receivingTeamId: z.string().uuid(),
+        offeredLegs: z.array(LegSchema).max(7), requestedLegs: z.array(LegSchema).max(7),
+        offeredCoins: z.number().int().min(0).default(0), requestedCoins: z.number().int().min(0).default(0),
+        classification: z.enum(["general", "blockbuster"]), note: z.string().max(1000).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Commissioner trade logging requires a website session.");
+      return reply.send(await logCommissionerTrade({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

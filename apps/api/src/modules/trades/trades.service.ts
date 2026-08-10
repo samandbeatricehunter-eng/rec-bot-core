@@ -342,6 +342,59 @@ export async function listPendingReviewTrades(guildId: string) {
   return { trades: trades.data ?? [] };
 }
 
+export async function logCommissionerTrade(input: {
+  guildId: string; reviewerDiscordId: string; proposingTeamId: string; receivingTeamId: string;
+  offeredLegs: LegInput[]; requestedLegs: LegInput[]; offeredCoins: number; requestedCoins: number;
+  classification: "general" | "blockbuster"; note?: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  if (!String(context.league.game).startsWith("madden")) throw new ApiError(400, "The commissioner trade builder is available for Madden leagues only.");
+  if (input.proposingTeamId === input.receivingTeamId) throw new ApiError(400, "Select two different teams.");
+  if (input.offeredCoins < 0 || input.requestedCoins < 0) throw new ApiError(400, "Coin amounts can't be negative.");
+  if (!input.offeredLegs.length && !input.requestedLegs.length && !input.offeredCoins && !input.requestedCoins) throw new ApiError(400, "Add at least one trade asset.");
+
+  const [proposingUserId, receivingUserId] = await Promise.all([
+    userForTeam(context.leagueId, input.proposingTeamId), userForTeam(context.leagueId, input.receivingTeamId),
+  ]);
+  if (!proposingUserId || !receivingUserId) throw new ApiError(400, "Commissioner-logged trades require two user-controlled teams.");
+  await Promise.all([
+    validateLegs(context.leagueId, input.proposingTeamId, input.offeredLegs),
+    validateLegs(context.leagueId, input.receivingTeamId, input.requestedLegs),
+  ]);
+  if (input.offeredCoins > 0 && await walletBalance(proposingUserId) < input.offeredCoins) throw new ApiError(400, "The first team does not have enough coins.");
+  if (input.requestedCoins > 0 && await walletBalance(receivingUserId) < input.requestedCoins) throw new ApiError(400, "The second team does not have enough coins.");
+
+  const seasonNumber = resolveSeasonNumber(context);
+  const created = await supabase.from("rec_trades").insert({
+    league_id: context.leagueId, season_number: seasonNumber,
+    proposing_team_id: input.proposingTeamId, proposing_user_id: proposingUserId,
+    receiving_team_id: input.receivingTeamId, receiving_user_id: receivingUserId,
+    proposing_coins: input.offeredCoins, receiving_coins: input.requestedCoins,
+    approval_policy_snapshot: "commissioner_logged", status: "accepted", accepted_at: new Date().toISOString(), involves_cpu: false,
+    review_note: input.note?.trim() || null, reviewed_by_discord_id: input.reviewerDiscordId,
+  }).select("id").single();
+  if (created.error) throw new ApiError(500, "Failed to create the trade record.", created.error);
+  const tradeId = String(created.data.id);
+  const rows = [
+    ...input.offeredLegs.map((leg) => legRow(tradeId, leg, input.proposingTeamId, input.receivingTeamId)),
+    ...input.requestedLegs.map((leg) => legRow(tradeId, leg, input.receivingTeamId, input.proposingTeamId)),
+  ];
+  if (rows.length) {
+    const inserted = await supabase.from("rec_trade_legs").insert(rows);
+    if (inserted.error) { await supabase.from("rec_trades").delete().eq("id", tradeId); throw new ApiError(500, "Failed to save the trade assets.", inserted.error); }
+  }
+  await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "commissioner_logged", actor_discord_id: input.reviewerDiscordId, next_status: "accepted", details: { classification: input.classification, note: input.note ?? null } });
+  const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note?.trim() || "Commissioner logged confirmed trade" });
+  if (applied.error) throw new ApiError(409, "The trade could not be applied because an asset or balance changed.", applied.error);
+
+  const [firstName, secondName] = await Promise.all([teamLabel(context.leagueId, input.proposingTeamId), teamLabel(context.leagueId, input.receivingTeamId)]);
+  const title = input.classification === "blockbuster" ? `BLOCKBUSTER TRADE: ${firstName} and ${secondName}` : `Trade Confirmed: ${firstName} and ${secondName}`;
+  const body = `${firstName} and ${secondName} have completed a confirmed trade.${input.note?.trim() ? `\n\nCommissioner note: ${input.note.trim()}` : ""}`;
+  await supabase.from("rec_hub_announcements").insert({ league_id: context.leagueId, title, body, season_number: seasonNumber, week_number: context.league.currentWeek ?? null });
+  void postToTradeBlockChannel(context.leagueId, { embeds: [{ title, color: input.classification === "blockbuster" ? 0xf0b429 : 0x2fb86a, description: body.slice(0, 4096) }] });
+  return { status: "applied", tradeId };
+}
+
 export async function listSeasonTradeCounts(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = resolveSeasonNumber(context);
