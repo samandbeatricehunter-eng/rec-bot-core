@@ -5,7 +5,7 @@ import { stageLabel } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { AdvanceWeekGames, CompletedCommissionerTransaction } from "../../types/api.js";
+import type { AdvanceWeekGames } from "../../types/api.js";
 import { Card } from "../ui/Card.js";
 import { Button } from "../ui/Button.js";
 import { LoadingState } from "../ui/LoadingState.js";
@@ -194,37 +194,6 @@ function LeagueActionsSection() {
   );
 }
 
-function RecentActivitySection() {
-  const { guildId } = useReadyAuth();
-  const [items, setItems] = useState<CompletedCommissionerTransaction[] | null>(null);
-
-  useEffect(() => {
-    recApi.listCompletedCommissionerTransactions(guildId).then((res) => setItems(res.transactions)).catch(() => setItems([]));
-  }, [guildId]);
-
-  return (
-    <CollapsibleSection title="Recent Activity" defaultOpen={false} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>}>
-      {!items ? (
-        <LoadingState label="Loading…" />
-      ) : items.length === 0 ? (
-        <p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing resolved yet.</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {items.slice(0, 10).map((item) => (
-            <div key={item.id} style={{ fontSize: "var(--text-sm)" }}>
-              <strong>{item.title}</strong> — {item.statusLabel}
-              <div style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
-                {item.reviewedByName ? `By ${item.reviewedByName} — ` : ""}
-                {new Date(item.completedAt).toLocaleString()}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </CollapsibleSection>
-  );
-}
-
 function LinkedCoachesSection() {
   const { guildId } = useReadyAuth();
   const [entries, setEntries] = useState<any[] | null>(null);
@@ -273,7 +242,7 @@ function LinkedCoachesSection() {
 }
 
 // Urgency-ordered Commissioner Command Center dashboard:
-// Advance Readiness → League Actions → Awaiting Review → Recent Activity
+// Advance Readiness → League Actions → Awaiting Review
 export function CommandCenterDashboard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -283,7 +252,6 @@ export function CommandCenterDashboard() {
         <SectionHeading>Awaiting Review</SectionHeading>
         <PendingItemsPanel />
       </Card>
-      <RecentActivitySection />
     </div>
   );
 }

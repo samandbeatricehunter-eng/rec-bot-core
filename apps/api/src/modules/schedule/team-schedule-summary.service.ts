@@ -8,6 +8,12 @@ import { loadResultsAndPendingSubmissions } from "./team-schedule.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 
+// Discord-only accounts that never went through site signup get auto-provisioned with their
+// raw Discord snowflake as rec_users.username — a truthy string, so `??` against it never
+// falls through to the live guild-nickname lookup below. Treat a bare 17-20 digit string as
+// "no real name set" so those accounts still resolve to their actual server nickname.
+const isRawDiscordSnowflake = (value: string | null | undefined) => Boolean(value && /^\d{17,20}$/.test(value));
+
 export type TeamManagementSummaryRow = {
   id: string;
   name: string;
@@ -146,7 +152,11 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
         ? {
             userId: assignment.userId,
             discordId: assignmentDiscordId,
-            displayName: assignment.displayName ?? (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ?? null,
+            displayName:
+              (!isRawDiscordSnowflake(assignment.displayName) ? assignment.displayName : null) ??
+              (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ??
+              assignment.displayName ??
+              null,
           }
         : null,
       scheduleStatus,

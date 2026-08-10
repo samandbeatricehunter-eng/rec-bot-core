@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LeagueSettingsDraft } from "../../../types/api.js";
@@ -47,7 +48,15 @@ export function SettingsHome() {
   const { guildId } = useReadyAuth();
   const [draft, setDraft] = useState<LeagueSettingsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState(SETTINGS_CATEGORIES[0].key);
+  const [searchParams] = useSearchParams();
+  // Deep-linked here from the commissioner Pending Items panel (custom-player review has no
+  // generic approve/deny modal, so that click navigates straight to Settings > Purchases) —
+  // without reading this, the link landed on whatever category is first in the list, which
+  // looked from the Pending Items side like the click had done nothing at all.
+  const requestedCategory = searchParams.get("category");
+  const [activeCategory, setActiveCategory] = useState(
+    requestedCategory && SETTINGS_CATEGORIES.some((c) => c.key === requestedCategory) ? requestedCategory : SETTINGS_CATEGORIES[0].key,
+  );
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [newNonCoreCode, setNewNonCoreCode] = useState("");

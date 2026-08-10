@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dices } from "lucide-react";
 import { CFB_27_TEAMS, MADDEN_ATTRIBUTE_SELECTION_GROUPS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, isCompatibleReplacementPosition, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -88,6 +88,14 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   const [notice, setNotice] = useState<string | null>(null); const [busy, setBusy] = useState(false); const [hydrated, setHydrated] = useState(false);
   const [ceilingBlock, setCeilingBlock] = useState<{ attribute: string; message: string; deficientAttributes: Array<{ attribute: string; current: number; required: number }> } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // A double-click/double-tap on Purchase can fire submit() twice before React re-renders the
+  // disabled prop (setBusy(true) is async) — a synchronous ref check closes that race, and
+  // reusing one idempotency key for the whole wizard session means even a slipped-through
+  // second call hits the backend's own duplicate-key short-circuit instead of minting a second
+  // build row (crypto.randomUUID() used to be called fresh inside submit() every time,
+  // defeating that dedup entirely).
+  const submittingRef = useRef(false);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
   useEffect(() => { let active = true; Promise.all([recApi.getCustomPlayerConfig(guildId), recApi.getCustomPlayerDraft(guildId)]).then(([value, saved]) => {
     if (!active) return;
     setConfig(value); const draft = saved.draft;
@@ -189,7 +197,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     return null;
   }
   async function generateName() { const result = await recApi.generateCustomPlayerName(guildId, `${Date.now()}:${Math.random()}`); setIdentity((value: any) => ({ ...value, firstName: result.firstName, lastName: result.lastName })); }
-  async function submit() { if (!evaluation || !effectiveArchetypeKey) return; setBusy(true); setNotice(null); try { const result = await recApi.submitCustomPlayer({ guildId, idempotencyKey: crypto.randomUUID(), packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, attributes, replacementPlayerId: replacementPlayerId || null, identity: game === "CFB" ? { ...identity, college: undefined, hometownCity: undefined, hometownState: undefined } : identity }); setHydrated(false); setNotice(`Submitted. ${result.build.unused_cp_refund_coins} coins will be refunded after approval and application.`); onPurchased(); } catch (error) { setSubmitError(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }
+  async function submit() { if (!evaluation || !effectiveArchetypeKey || submittingRef.current) return; submittingRef.current = true; setBusy(true); setNotice(null); try { const result = await recApi.submitCustomPlayer({ guildId, idempotencyKey: idempotencyKeyRef.current, packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, attributes, replacementPlayerId: replacementPlayerId || null, identity: game === "CFB" ? { ...identity, college: undefined, hometownCity: undefined, hometownState: undefined } : identity }); setHydrated(false); setNotice(`Submitted. ${result.build.unused_cp_refund_coins} coins will be refunded after approval and application.`); onPurchased(); } catch (error) { setSubmitError(error instanceof Error ? error.message : String(error)); submittingRef.current = false; } finally { setBusy(false); } }
   if (!config) return <p className="hub-empty">{notice ?? "Loading custom-player builder…"}</p>;
   if (!config.enabled) return <p className="hub-empty">Custom-player purchases are disabled.</p>;
   if (config.blockedNoEligibleReplacement) return <p className="hub-empty">Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the "Edit Roster" quick action on My Team first.</p>;

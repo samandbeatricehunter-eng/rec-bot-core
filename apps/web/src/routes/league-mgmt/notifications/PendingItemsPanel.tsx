@@ -71,7 +71,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     // Custom-player review needs the full identity/attribute-edit UI that only
     // CustomPlayerReviewQueue (League Mgmt > Settings) has — no generic approve/deny modal
     // for it, so route straight there instead of opening ResolveNotificationModal.
-    if (notification.type === "custom_player" && leagueId) return navigate(`/l/${leagueId}/mgmt/settings`);
+    if (notification.type === "custom_player" && leagueId) return navigate(`/l/${leagueId}/mgmt/settings?category=purchases`);
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);

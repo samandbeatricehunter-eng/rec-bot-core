@@ -618,9 +618,17 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle EOS award poll.", updated.error);
 
+  // The inbox row's summary/payload are set once at poll-creation time ("Voting open for
+  // X (5 nominees)") and were never touched again on settlement — so the Approved & Issued
+  // list kept showing the pre-vote placeholder text forever instead of who actually won.
   await supabase
     .from("rec_commissioners_inbox")
-    .update({ status: "approved", reviewed_at: new Date().toISOString() })
+    .update({
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+      summary: `${poll.data.category_label} winner: ${winner.displayName ?? "REC Member"} (${winner.teamName ?? "Team"}) — ${formatCoins(amount)}${tiebreakerNeeded ? ", settled by tiebreaker" : ""}.`,
+      payload: { pollId: poll.data.id, categoryKey: poll.data.category_key, winnerUserId: winner.userId, winnerName: winner.displayName ?? null, winnerTeamName: winner.teamName ?? null, amount },
+    })
     .eq("source_table", "rec_eos_award_polls")
     .eq("source_id", poll.data.id);
 
