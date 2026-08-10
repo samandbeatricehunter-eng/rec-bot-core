@@ -131,7 +131,6 @@ import {
 } from "./flows/open-teams-slash.js";
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
-import { handleClaimLeagueSlash } from "./flows/claim-league.js";
 import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
@@ -473,10 +472,12 @@ client.on("error", (error) => {
 const UNLINKED_GUILD_GRACE_PERIOD_MS = 15 * 60 * 1000;
 
 // The bot should never sit in a server that isn't tied to a league. Every legitimate join comes
-// from the site's "Enable Discord bot" invite link followed by the owner running /claim-league,
-// which creates the rec_discord_servers row. If that row never shows up within the grace period
-// (stale/reused invite link, bot added to the wrong server, or added without ever starting the
-// site flow), leave — staying around would let an unlinked server treat this as a live league bot.
+// from the site's Discord guild picker (apps/site/src/routes/DiscordGuildPicker.tsx), which
+// creates the rec_discord_servers/rec_server_league_links rows BEFORE handing the user the bot
+// invite link — so by the time the bot actually joins, the guild should already be linked. If
+// it isn't within the grace period (stale/reused invite link, bot added to the wrong server, or
+// added without ever starting the site flow), leave — staying around would let an unlinked
+// server treat this as a live league bot.
 function scheduleUnlinkedGuildCheck(guildId: string, guildName: string) {
   setTimeout(() => {
     void (async () => {
@@ -485,12 +486,12 @@ function scheduleUnlinkedGuildCheck(guildId: string, guildName: string) {
         if (linked) return;
         const guild = client.guilds.cache.get(guildId);
         if (!guild) return;
-        console.warn(`Leaving guild ${guildId} (${guildName}) — no league claimed via /claim-league within the grace period.`);
+        console.warn(`Leaving guild ${guildId} (${guildName}) — never linked to a league within the grace period.`);
         try {
           const owner = await guild.fetchOwner();
           await owner.send(
-            "This server was never linked to a REC league (no `/claim-league` was run within 15 minutes of adding the bot), so I'm leaving. " +
-              "Start a league from the REC site and use its Discord invite link to add me back once you're ready to link this server."
+            "This server was never linked to a REC league, so I'm leaving. " +
+              "Start (or open) a league on the REC site, use its \"Connect a Discord Server\" flow to pick this server, then add me back with the invite link it gives you."
           ).catch(() => {});
         } catch {
           // Owner not fetchable or DMs closed — leaving is still the right move.
@@ -558,11 +559,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "schedule") {
       await handleScheduleSlash(interaction);
-      return;
-    }
-
-    if (interaction.isChatInputCommand() && interaction.commandName === "claim-league") {
-      await handleClaimLeagueSlash(interaction);
       return;
     }
 

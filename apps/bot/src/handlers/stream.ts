@@ -31,7 +31,7 @@ function scheduleMatchup(schedule: any) {
 
 function matchupTitle(matchup: any) {
   if (!matchup) return "Week ? - Stream";
-  return `Week ${matchup.weekNumber ?? "?"} - ${matchup.awayTeamName} vs ${matchup.homeTeamName}`;
+  return `Week ${matchup.weekNumber ?? "?"} - ${matchup.awayTeamName} at ${matchup.homeTeamName}`;
 }
 
 function boldUserTeam(matchup: any) {
@@ -153,7 +153,8 @@ export async function handleStreamChannelMessage(message: Message) {
       embeds: [new EmbedBuilder()
         .setTitle(matchupTitle(matchup))
         .setDescription([
-          [mentions.away, mentions.home].filter(Boolean).join(" vs "),
+          [mentions.away, mentions.home].filter(Boolean).join(" at "),
+          `**STREAMER:** <@${message.author.id}>`,
           "",
           `[WATCH STREAM](${watchUrl})`,
           "",
@@ -226,7 +227,7 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
     embeds: [new EmbedBuilder()
       .setTitle(title)
       .setDescription([
-        `Streamer: <@${interaction.user.id}>`,
+        `**STREAMER:** <@${interaction.user.id}>`,
         `Service: **${serviceLabel(service)}**`,
         link ? `[Watch Stream](${link})` : "Streaming live on Discord."
       ].join("\n"))],

@@ -88,11 +88,6 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "matchup", description: "Show your current-week matchup." },
   { name: "schedule", description: "Show your team's full season schedule." },
   { name: "viewleague", description: "Get a link to this league's public status page." },
-  {
-    name: "claim-league",
-    description: "Link this Discord server to a REC league using its invite token.",
-    options: [{ type: 3, name: "token", description: "Invite token from the site's Enable Discord Bot page.", required: true }],
-  },
 ];
 const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
 

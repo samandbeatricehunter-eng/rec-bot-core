@@ -995,9 +995,10 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const gamesByWeek = new Map<number, any>();
   for (const game of scheduledGames ?? []) {
     const weekNumber = Number(game.week_number ?? 0);
-    // Include playoff weeks (19–22) too, so the current-week matchup resolves in
-    // the postseason. The `games` array below stays regular-season only.
-    if (weekNumber >= 1 && weekNumber <= 22) gamesByWeek.set(weekNumber, game);
+    // Include Week 0 (CFB preseason/Game of the Week) and playoff weeks (19–22) too, so the
+    // current-week matchup resolves outside the regular season. The `games` array below
+    // stays regular-season only.
+    if (weekNumber >= 0 && weekNumber <= 22) gamesByWeek.set(weekNumber, game);
   }
 
   function resolveGameUserId(game: any, side: "home" | "away") {

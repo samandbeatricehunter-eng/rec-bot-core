@@ -24,7 +24,6 @@ import {
   handleStripeWebhook,
   redeemPublicCheckoutSession,
 } from "./stripe.service.js";
-import { claimBotInvite } from "./bot-invite.service.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { getBotUserId } from "../../lib/discord-guild.js";
 
@@ -367,23 +366,6 @@ export async function subscriptionRoutes(app: FastifyInstance) {
         claimantUserId: recUserId,
       });
       return reply.send({ league });
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/subscriptions/bot/claim-invite", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const body = z
-        .object({
-          token: z.string().min(1),
-          guildId: z.string().min(1),
-          serverName: z.string().min(1).optional(),
-          requestedByDiscordId: z.string().min(1).optional(),
-        })
-        .parse(request.body ?? {});
-      return reply.send(await claimBotInvite(body));
     } catch (error) {
       return sendError(reply, error);
     }

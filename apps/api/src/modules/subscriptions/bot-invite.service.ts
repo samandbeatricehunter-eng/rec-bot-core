@@ -4,16 +4,8 @@ import { supabase } from "../../lib/supabase.js";
 import { registerServer } from "../setup/setup.service.js";
 import { assertLeagueNotFrozen } from "./entitlements.service.js";
 
-export type ClaimBotInviteInput = {
-  token: string;
-  guildId: string;
-  serverName?: string;
-  requestedByDiscordId?: string;
-};
-
 /**
- * Creates or promotes the primary league link between a registered Discord server and a
- * league. Shared by the token flow (/claim-league) and the site's direct-link flow.
+ * Creates or promotes the primary league link between a registered Discord server and a league.
  */
 async function ensurePrimaryServerLeagueLink(serverId: string, leagueId: string) {
   const existingPrimary = await supabase
@@ -72,46 +64,6 @@ async function ensurePrimaryServerLeagueLink(serverId: string, leagueId: string)
   }
 
   return link;
-}
-
-/**
- * Attaches a Discord guild to a Platinum-owned league using the invite token
- * generated when the owner enables the Discord bot on the site.
- * Keeps the invite token so the owner can re-share; does not disable the bot.
- */
-export async function claimBotInvite(input: ClaimBotInviteInput) {
-  const token = input.token?.trim();
-  if (!token) throw new ApiError(400, "Invite token is required.");
-  if (!input.guildId?.trim()) throw new ApiError(400, "guildId is required.");
-
-  const leagueResult = await supabase
-    .from("rec_leagues")
-    .select("*")
-    .eq("discord_bot_invite_token", token)
-    .eq("discord_bot_enabled", true)
-    .maybeSingle();
-
-  if (leagueResult.error) throw new ApiError(500, "Failed to look up invite token.", leagueResult.error);
-  if (!leagueResult.data) throw new ApiError(404, "Invalid or expired Discord bot invite token.");
-
-  const league = leagueResult.data;
-  await assertLeagueNotFrozen(league.id);
-
-  const serverResult = await registerServer({
-    guildId: input.guildId,
-    name: input.serverName?.trim() || input.guildId,
-    setupMode: "manual_first",
-    requestedByDiscordId: input.requestedByDiscordId,
-  });
-
-  const link = await ensurePrimaryServerLeagueLink(serverResult.server.id, league.id);
-
-  return {
-    league,
-    server: serverResult.server,
-    linked: true as const,
-    serverLeagueLink: link,
-  };
 }
 
 export type LinkSiteLeagueToServerInput = {
