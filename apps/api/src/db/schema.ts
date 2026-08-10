@@ -972,6 +972,7 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   customFourthDownRulePlayoff: text("custom_fourth_down_rule_playoff"),
   cpuTradingPolicy: text("cpu_trading_policy").notNull().default("allowed"),
   cpuTradingRestriction: text("cpu_trading_restriction"),
+  cpuTradesSeasonCap: integer("cpu_trades_season_cap").notNull().default(0),
   difficultyCustomSettings: text("difficulty_custom_settings"),
   defaultScheduleSeedRequested: boolean("default_schedule_seed_requested").notNull().default(false),
   defaultScheduleSeededAt: timestamp("default_schedule_seeded_at", { withTimezone: true, mode: "string" }),

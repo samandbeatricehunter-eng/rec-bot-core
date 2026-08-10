@@ -133,6 +133,7 @@ const CreateUnclaimedLeagueSchema = z.object({
   tradeApprovalPolicy: z.string().optional(),
   cpuTradingPolicy: z.string().optional(),
   cpuTradingRestriction: z.string().optional().nullable(),
+  cpuTradesSeasonCap: z.coerce.number().int().min(0).max(5).optional(),
   injuryPolicy: z.string().optional(),
   difficulty: z.string().optional(),
   cfbDifficulty: z.string().optional(),

@@ -88,7 +88,7 @@ export async function proposeTrade(input: {
   if (proposingTeamId === input.receivingTeamId) throw new ApiError(400, "You can't trade with your own team.");
   if (input.offeredCoins < 0 || input.requestedCoins < 0) throw new ApiError(400, "Coin amounts can't be negative.");
 
-  const config = await supabase.from("rec_league_configuration").select("trade_approval_policy,cpu_trading_policy").eq("league_id", context.leagueId).maybeSingle();
+  const config = await supabase.from("rec_league_configuration").select("trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "Failed to load league trade settings.", config.error);
   const approvalPolicy = config.data?.trade_approval_policy ?? "competition_committee_review";
   const cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
@@ -96,6 +96,17 @@ export async function proposeTrade(input: {
   const receivingUserId = await userForTeam(context.leagueId, input.receivingTeamId);
   if (!receivingUserId) {
     if (cpuPolicy === "not_allowed") throw new ApiError(400, "This league does not allow trades with CPU-controlled teams.");
+    const cpuTradeCap = Number(config.data?.cpu_trades_season_cap ?? 0);
+    if (cpuTradeCap > 0) {
+      const used = await supabase.from("rec_trades").select("id", { count: "exact", head: true })
+        .eq("league_id", context.leagueId)
+        .eq("season_number", seasonNumber)
+        .eq("proposing_team_id", proposingTeamId)
+        .eq("involves_cpu", true)
+        .eq("status", "applied");
+      if (used.error) throw new ApiError(500, "Failed to check the CPU trade season cap.", used.error);
+      if ((used.count ?? 0) >= cpuTradeCap) throw new ApiError(409, `Your team has reached its limit of ${cpuTradeCap} CPU trade${cpuTradeCap === 1 ? "" : "s"} this season.`);
+    }
   }
   // A CPU-side trade always needs a human to review it even if the league otherwise allows
   // trades to auto-apply — there's no GM on the other side to have agreed to it.
@@ -121,6 +132,7 @@ export async function proposeTrade(input: {
     proposing_coins: input.offeredCoins,
     receiving_coins: input.requestedCoins,
     approval_policy_snapshot: effectivePolicy,
+    involves_cpu: !receivingUserId,
   }).select("*").single();
   if (trade.error) throw new ApiError(500, "Failed to propose trade.", trade.error);
 

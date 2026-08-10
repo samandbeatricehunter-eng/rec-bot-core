@@ -132,6 +132,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [tradeApprovalPolicy, setTradeApprovalPolicy] = useState("competition_committee_review");
   const [cpuTradingPolicy, setCpuTradingPolicy] = useState("allowed");
   const [cpuTradingRestriction, setCpuTradingRestriction] = useState("");
+  const [cpuTradesSeasonCap, setCpuTradesSeasonCap] = useState(0);
   const [coachAbilitiesRestricted, setCoachAbilitiesRestricted] = useState(false);
   const [coachAbilitiesRestrictionNotes, setCoachAbilitiesRestrictionNotes] = useState("");
   const [difficultyCustomSettings, setDifficultyCustomSettings] = useState("");
@@ -492,6 +493,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       tradeApprovalPolicy: isMadden ? tradeApprovalPolicy : undefined,
       cpuTradingPolicy: isMadden ? cpuTradingPolicy : undefined,
       cpuTradingRestriction: isMadden && cpuTradingPolicy === "restricted" ? cpuTradingRestriction || undefined : undefined,
+      cpuTradesSeasonCap: isMadden && cpuTradingPolicy !== "not_allowed" ? cpuTradesSeasonCap : 0,
       coachAbilitiesRestricted: isMadden ? coachAbilitiesRestricted : undefined,
       coachAbilitiesRestrictionNotes: isMadden && coachAbilitiesRestricted ? coachAbilitiesRestrictionNotes || undefined : undefined,
       difficultyCustomSettings: difficultyCustomSettings || undefined,
@@ -537,7 +539,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     coachModeCpuManageFacilitiesEnabled,
     ballHawk, heatSeeker, switchAssist,
     positionChangePolicy, positionChangePolicyDescription,
-    tradeApprovalPolicy, cpuTradingPolicy, cpuTradingRestriction,
+    tradeApprovalPolicy, cpuTradingPolicy, cpuTradingRestriction, cpuTradesSeasonCap,
     coachAbilitiesRestricted, coachAbilitiesRestrictionNotes,
     difficultyCustomSettings, slidersAdjusted, coachXpSetting,
     isCfb, isMadden, isSeasonOne,
@@ -564,6 +566,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.tradeDeadlineEnabled !== undefined) setTradeDeadlineEnabled(template.tradeDeadlineEnabled);
     if (template.tradeApprovalPolicy !== undefined) setTradeApprovalPolicy(template.tradeApprovalPolicy);
     if (template.cpuTradingPolicy !== undefined) setCpuTradingPolicy(template.cpuTradingPolicy);
+    setCpuTradesSeasonCap(template.cpuTradesSeasonCap);
     if (template.positionChangePolicy !== undefined) setPositionChangePolicy(template.positionChangePolicy);
     setCoachFiringPolicy(template.coachFiringPolicy);
     setPreorderBonusesEnabled(template.preorderBonusesEnabled);
@@ -1279,8 +1282,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                     value={tradeApprovalPolicy} onChange={setTradeApprovalPolicy} options={TRADE_APPROVAL_OPTIONS} />
                   <SelectField label="CPU trading policy" hint="Controls whether users may trade with CPU-controlled teams."
                     value={cpuTradingPolicy} onChange={setCpuTradingPolicy} options={CPU_TRADING_OPTIONS} />
-                  {cpuTradingPolicy === "restricted" && (
-                    <TextareaField label="CPU trading restriction details" value={cpuTradingRestriction} onChange={setCpuTradingRestriction} placeholder="Describe the restriction..." />
+                  {cpuTradingPolicy !== "not_allowed" && (
+                    <SelectField label="CPU trades allowed per team, per season" hint="Counts only trades where at least one side is CPU-controlled. Zero means unlimited."
+                      value={String(cpuTradesSeasonCap)} onChange={(value) => setCpuTradesSeasonCap(Number(value))}
+                      options={[0, 1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: value === 0 ? "Unlimited" : String(value) }))} />
                   )}
                 </Section>
 

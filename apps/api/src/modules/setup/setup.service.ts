@@ -273,6 +273,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : input.cpuTradingAllowed,
     cpu_trading_policy: input.cpuTradingPolicy,
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
+    cpu_trades_season_cap: input.cpuTradingPolicy === "not_allowed" ? 0 : (input.cpuTradesSeasonCap ?? 0),
     cpu_free_agency_policy: "disabled",
 
     injury_policy: input.injuryPolicy,
@@ -527,6 +528,7 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     cpu_trading_policy: input.cpuTradingPolicy ?? "allowed",
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : (input.cpuTradingAllowed ?? true),
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
+    cpu_trades_season_cap: input.cpuTradingPolicy === "not_allowed" ? 0 : (input.cpuTradesSeasonCap ?? 0),
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy ?? "on_standard",
     difficulty: isCfbGame ? null : (input.difficulty ?? "all_madden"),
@@ -709,6 +711,7 @@ export async function createUnclaimedLeague(input: {
   tradeApprovalPolicy?: string;
   cpuTradingPolicy?: string;
   cpuTradingRestriction?: string | null;
+  cpuTradesSeasonCap?: number;
   injuryPolicy?: string;
   difficulty?: string;
   cfbDifficulty?: string;
@@ -1152,6 +1155,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : input.cpuTradingAllowed,
     cpu_trading_policy: input.cpuTradingPolicy,
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
+    cpu_trades_season_cap: input.cpuTradingPolicy === "not_allowed" ? 0 : (input.cpuTradesSeasonCap ?? 0),
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
@@ -1324,6 +1328,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     cpuTradingAllowed: c.cpu_trading_policy ? c.cpu_trading_policy === "allowed" : c.cpu_trading_allowed ?? true,
     cpuTradingPolicy: c.cpu_trading_policy ?? (c.cpu_trading_allowed === false ? "not_allowed" : "allowed"),
     cpuTradingRestriction: c.cpu_trading_restriction ?? "",
+    cpuTradesSeasonCap: c.cpu_trades_season_cap ?? 0,
     cpuFreeAgencyPolicy: "disabled",
     injuryPolicy: c.injury_policy ?? "on_standard",
     difficulty: c.difficulty === "custom" ? "all_madden" : (c.difficulty ?? "all_madden"),

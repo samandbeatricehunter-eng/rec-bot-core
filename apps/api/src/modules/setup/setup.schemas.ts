@@ -170,6 +170,7 @@ export const CreateLeagueSchema = z.object({
   cpuTradingAllowed: z.boolean().default(true),
   cpuTradingPolicy: z.enum(["allowed", "restricted", "not_allowed"]).default("allowed"),
   cpuTradingRestriction: z.string().optional().nullable(),
+  cpuTradesSeasonCap: z.number().int().min(0).max(5).default(0),
   cpuFreeAgencyPolicy: z.enum(["open", "restricted", "disabled"]).default("open"),
   injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
 
