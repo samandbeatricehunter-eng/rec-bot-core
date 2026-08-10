@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dices } from "lucide-react";
-import { CFB_27_TEAMS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -16,37 +16,22 @@ function groupEditableAttributes(editable: readonly string[]): Array<{ label: st
   return [{ label: "Attributes", codes: sortRecAttributeCodes(editable) }];
 }
 
-// Short, auto-generated blurb of what an archetype actually affects: its primary/secondary
-// attributes cost more creation points to raise (per REC_ARCHETYPE_COST_MULTIPLIERS), so
-// naming them tells the user exactly what this pick will make expensive vs. cheap to build.
-function archetypeDescription(entry: any): string {
-  const primary = (entry.primaryAttributes ?? []).map((c: string) => getRecAttributeDisplayName(c)).join(", ");
-  const secondary = (entry.secondaryAttributes ?? []).map((c: string) => getRecAttributeDisplayName(c)).join(", ");
-  if (!primary && !secondary) return "";
-  return `Prioritizes ${primary}${secondary ? ` (and, to a lesser extent, ${secondary})` : ""} — these attributes cost more creation points to raise under this archetype than under others.`;
-}
-
-// Picking an archetype starts the build from that archetype's own identity floor (the same
-// REC_ARCHETYPE_IDENTITY_FLOORS number evaluateRecArchetypeIdentity requires primary
-// attributes to average at) instead of 0 — primary attributes start there, secondary a step
-// below. The CP cost of those starting points is charged the same way any other point is
-// (evaluateRecCustomPlayerBuild computes cost from the final attribute values, not from how
-// the user got there), so pre-filling this is the "baseline costs CP" behavior with no
-// changes needed to the shared cost/validation engine itself.
-function baselineAttributesFor(entry: any, tier: RecPackageTier): Record<string, number> {
-  const floor = REC_ARCHETYPE_IDENTITY_FLOORS[tier] ?? 50;
-  const secondaryFloor = Math.max(0, floor - 15);
+// There's no archetype picker any more — every editable attribute on every build starts at
+// REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR and can't be lowered below it. The CP cost of those
+// starting points is charged the same way any other point is (evaluateRecCustomPlayerBuild
+// computes cost from the final attribute values, not from how the user got there), so
+// pre-filling this already "spends" that CP with no changes needed to the shared
+// cost/validation engine itself.
+function baselineAttributes(game: RecGameFamily, position: string): Record<string, number> {
   const result: Record<string, number> = {};
-  for (const code of entry.primaryAttributes ?? []) result[code] = floor;
-  for (const code of entry.secondaryAttributes ?? []) result[code] = secondaryFloor;
+  for (const code of getRecEditableAttributes(game, position, "")) result[code] = REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
   return result;
 }
 
-// "Determine archetype from custom build": the player starts every attribute at 0 and the
-// user free-builds; whichever archetype's primary attributes best match the current build
-// (highest average) is treated as the real archetype for cost/validation/OVR purposes and is
-// what actually gets submitted.
-const CUSTOM_BUILD_ARCHETYPE_KEY = "__custom_build__";
+// The archetype concept still exists under the hood (it drives per-attribute cost
+// multipliers and identity validation server-side) — it's just never user-selected any
+// more. Whichever archetype's primary attributes best match the current build (highest
+// average) is auto-detected and is what actually gets submitted.
 function detectBestArchetypeKey(archetypes: any[], attributes: Record<string, number>): string {
   let best = archetypes[0]?.key ?? "";
   let bestAvg = -1;
@@ -76,7 +61,7 @@ function formatFeetInches(inches: number) { return `${Math.floor(inches / 12)}'$
 
 export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; onPurchased: () => void }) {
   const [config, setConfig] = useState<any>(null); const [step, setStep] = useState(1); const [tier, setTier] = useState<RecPackageTier>(1);
-  const [position, setPosition] = useState("QB"); const [archetype, setArchetype] = useState(""); const [devTrait, setDevTrait] = useState("normal");
+  const [position, setPosition] = useState("QB"); const [devTrait, setDevTrait] = useState("normal");
   const [identity, setIdentity] = useState<any>(EMPTY_IDENTITY); const [attributes, setAttributes] = useState<Record<string, number>>({}); const [replacementPlayerId, setReplacementPlayerId] = useState("");
   const [notice, setNotice] = useState<string | null>(null); const [busy, setBusy] = useState(false); const [hydrated, setHydrated] = useState(false);
   const [ceilingBlock, setCeilingBlock] = useState<{ attribute: string; message: string; deficientAttributes: Array<{ attribute: string; current: number; required: number }> } | null>(null);
@@ -96,35 +81,29 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       const savedIdentity = draft.identity ?? {};
       setStep(Math.max(1, Math.min(5, Number(String(draft.current_step ?? "1").replace("step_", "")) || 1)));
       setTier((draft.package_tier ?? 1) as RecPackageTier); setPosition(draft.position ?? "QB");
-      setArchetype(draft.archetype_key ?? value.archetypes?.[draft.position ?? "QB"]?.[0]?.key ?? ""); setDevTrait(draft.development_trait ?? "normal");
+      setDevTrait(draft.development_trait ?? "normal");
       setIdentity({ ...EMPTY_IDENTITY, ...savedIdentity, replacementPlayerId: undefined }); setReplacementPlayerId(savedIdentity.replacementPlayerId ?? ""); setAttributes(draft.attributes ?? {});
       setNotice("Your saved custom-player draft was restored.");
     } else {
-      const entry = value.archetypes?.QB?.[0];
-      setArchetype(entry?.key ?? "");
-      if (entry) setAttributes(baselineAttributesFor(entry, 1));
+      setAttributes(baselineAttributes((value.game ?? "CFB") as RecGameFamily, "QB"));
     }
     setHydrated(true);
   }).catch((error) => setNotice(error instanceof Error ? error.message : String(error))); return () => { active = false; }; }, [guildId]);
-  useEffect(() => { if (!hydrated || !config) return; const timer = window.setTimeout(() => {
-    void recApi.saveCustomPlayerDraft({ guildId, currentStep: `step_${step}`, packageTier: tier, position, archetypeKey: archetype, developmentTrait: devTrait, identity, attributes, replacementPlayerId }).catch(() => undefined);
-  }, 600); return () => window.clearTimeout(timer); }, [hydrated, config, guildId, step, tier, position, archetype, devTrait, identity, attributes, replacementPlayerId]);
   const game = (config?.game ?? "CFB") as RecGameFamily; const pkg = config?.packages?.find((entry: any) => entry.tier === tier);
-  const isCustomBuildMode = archetype === CUSTOM_BUILD_ARCHETYPE_KEY;
-  const detectedArchetypeKey = useMemo(
-    () => isCustomBuildMode && config ? detectBestArchetypeKey(config.archetypes[position] ?? [], attributes) : "",
-    [isCustomBuildMode, config, position, attributes],
+  const effectiveArchetypeKey = useMemo(
+    () => config ? detectBestArchetypeKey(config.archetypes[position] ?? [], attributes) : "",
+    [config, position, attributes],
   );
-  const effectiveArchetypeKey = isCustomBuildMode ? detectedArchetypeKey : archetype;
   const editable = useMemo(() => effectiveArchetypeKey ? getRecEditableAttributes(game, position, effectiveArchetypeKey) : [], [game, position, effectiveArchetypeKey]);
+  useEffect(() => { if (!hydrated || !config) return; const timer = window.setTimeout(() => {
+    void recApi.saveCustomPlayerDraft({ guildId, currentStep: `step_${step}`, packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, identity, attributes, replacementPlayerId }).catch(() => undefined);
+  }, 600); return () => window.clearTimeout(timer); }, [hydrated, config, guildId, step, tier, position, effectiveArchetypeKey, devTrait, identity, attributes, replacementPlayerId]);
   // CFB dev trait is inherited from the replaced player, not purchased — no CP cost for it.
   const netDev = useMemo(() => { if (game === "CFB") return 0; try { return getRecNetDevelopmentCost(game, tier, devTrait); } catch { return 0; } }, [game, tier, devTrait]);
   const evaluation = useMemo(() => { try { return effectiveArchetypeKey ? evaluateRecCustomPlayerBuild({ game, position, archetypeKey: effectiveArchetypeKey, packageTier: tier, attributes, netDevelopmentCost: netDev, mode: "preview" }) : null; } catch { return null; } }, [game, position, effectiveArchetypeKey, tier, attributes, netDev]);
   function setPositionAndReset(value: string) {
     setPosition(value);
-    const entry = config.archetypes[value]?.[0];
-    setArchetype(entry?.key ?? "");
-    setAttributes(entry ? baselineAttributesFor(entry, tier) : {});
+    setAttributes(baselineAttributes(game, value));
   }
   // CFB position is inherited from the replaced player — the in-game roster editor can't
   // change a player's position. Choosing a replacement locks position to that player's
@@ -140,18 +119,12 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       if (player) setPositionAndReset(canonicalReplacementPosition(player.position));
     }
   }
-  function selectArchetype(value: string) {
-    setArchetype(value);
-    if (value === CUSTOM_BUILD_ARCHETYPE_KEY) { setAttributes({}); return; }
-    const entry = config.archetypes[position]?.find((e: any) => e.key === value);
-    setAttributes(entry ? baselineAttributesFor(entry, tier) : {});
-  }
   function mutate(code: string, delta: number) {
     const current = attributes;
-    const candidate = { ...current, [code]: Math.max(0, Math.min(99, (current[code] ?? 0) + delta)) };
+    const candidate = { ...current, [code]: Math.max(REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, Math.min(99, (current[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR) + delta)) };
     if (delta > 0) {
       try {
-        const key = isCustomBuildMode ? detectBestArchetypeKey(config.archetypes[position] ?? [], candidate) : effectiveArchetypeKey;
+        const key = detectBestArchetypeKey(config.archetypes[position] ?? [], candidate);
         const result = evaluateRecCustomPlayerBuild({ game, position, archetypeKey: key, packageTier: tier, attributes: candidate, netDevelopmentCost: netDev, mode: "preview" });
         const blocking = result.violations.find((v) => v.code !== "ARCHETYPE_IDENTITY");
         if (blocking) {
@@ -197,7 +170,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   return <div className="custom-player-wizard"><p className="hub-eyebrow">Step {step} of 5</p>
     {config.devTraitInherited && <p className="form-hint">CFB recruits don't get a purchased development trait — whichever trait the player you replace already has carries over to this one. With no replacement (an unseeded roster), the new player starts at Normal.</p>}
     {config.appearanceNotice && <p className="form-hint">{config.appearanceNotice}</p>}
-    {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); if (!isCustomBuildMode) { const archEntry = config.archetypes[position]?.find((e: any) => e.key === archetype); if (archEntry) setAttributes(baselineAttributesFor(archEntry, entry.tier)); } }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>Target {entry.targetOvrMin}-{entry.targetOvrMax} OVR · Estimated OVR Cap: {entry.rawOvrCap}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
+    {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>Target {entry.targetOvrMin}-{entry.targetOvrMax} OVR · Estimated OVR Cap: {entry.rawOvrCap}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
     {step === 2 && (() => {
       const heightRule = game === "CFB" ? (CFB_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84, avg: 72 }) : null;
       const weightRule = game === "CFB" ? (CFB_BODY_TYPE_WEIGHT[identity.bodyType] ?? CFB_BODY_TYPE_WEIGHT.standard) : null;
@@ -222,15 +195,12 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     {step === 3 && (() => {
       const positionLocked = false;
       const selectedReplacement = positionLocked ? config.replacementPlayers.find((player: any) => player.id === replacementPlayerId) : null;
-      const selectedArchetype = config.archetypes[position].find((entry: any) => entry.key === archetype);
-      const detectedArchetype = isCustomBuildMode ? config.archetypes[position].find((entry: any) => entry.key === detectedArchetypeKey) : null;
+      const detectedArchetype = config.archetypes[position]?.find((entry: any) => entry.key === effectiveArchetypeKey);
       const showBuildOptions = !positionLocked || Boolean(selectedReplacement);
-      return <><h4>{positionLocked ? "Replacement, Archetype &amp; Development" : "Position, Archetype &amp; Development"}</h4>
+      return <><h4>{positionLocked ? "Replacement &amp; Development" : "Position &amp; Development"}</h4>
         {positionLocked ? <label>Replace active player<select className="form-input" value={replacementPlayerId} onChange={(e) => onReplacementChange(e.target.value)}><option value="">Select player to replace</option>{config.replacementPlayers.map((player: any) => <option key={player.id} value={player.id}>{player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR</option>)}</select></label> : <label>Position<select className="form-input" value={position} onChange={(e) => setPositionAndReset(e.target.value)}>{config.positions.map((value: string) => <option key={value}>{value}</option>)}</select></label>}
         {selectedReplacement && <p className="form-hint">This recruit inherits the replaced player's position (<strong>{selectedReplacement.position}</strong>) — the in-game roster editor can't change a player's position.</p>}
-        {showBuildOptions && <label>Archetype<select className="form-input" value={archetype} onChange={(e) => selectArchetype(e.target.value)}>{config.archetypes[position].map((entry: any) => <option key={entry.key} value={entry.key}>{entry.name ?? entry.label ?? entry.key.replaceAll("_", " ")}</option>)}<option value={CUSTOM_BUILD_ARCHETYPE_KEY}>Determine archetype from custom build</option></select></label>}
-        {showBuildOptions && selectedArchetype && <p className="form-hint">Starts every primary/secondary attribute at this archetype's baseline (a {REC_ARCHETYPE_IDENTITY_FLOORS[tier] ?? 50} average is required) — that baseline is deducted from your CP budget. {archetypeDescription(selectedArchetype)}</p>}
-        {showBuildOptions && isCustomBuildMode && <p className="form-hint">Every attribute starts at 0 — build freely, and the archetype that best matches your build (currently <strong>{detectedArchetype?.name ?? detectedArchetype?.label ?? detectedArchetypeKey.replaceAll("_", " ") ?? "none yet"}</strong>) is what actually gets submitted.</p>}
+        {showBuildOptions && <p className="form-hint">Every attribute starts at a {REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} baseline and can't be lowered — that baseline is deducted from your CP budget. Build freely; the archetype that best matches your attributes (currently <strong>{detectedArchetype?.name ?? detectedArchetype?.label ?? effectiveArchetypeKey.replaceAll("_", " ") ?? "none yet"}</strong>) is what actually gets submitted.</p>}
         {config.devTraitInherited ? (
           <p className="form-hint">Development trait: inherited from the player this replaces — the in-game editor can't change it.</p>
         ) : (
@@ -239,8 +209,8 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
         {positionLocked && !selectedReplacement && <p className="form-hint">Select the active player this recruit replaces first — its position decides the archetype and attributes you can build.</p>}
       </>;
     })()}
-    {step === 4 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={0} max={99} value={attributes[code] ?? 0} onChange={(e) => mutate(code, Math.max(0, Math.min(99, Number(e.target.value) || 0)) - (attributes[code] ?? 0))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
-    {step === 5 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position} · {effectiveArchetypeKey.replaceAll("_"," ")}{isCustomBuildMode ? " (detected)" : ""}</p><p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint"><strong>88 OVR maximum:</strong> if the applied player evaluates above 88 OVR, the commissioner must reduce ratings to reach the cap. Identity or rating edits are logged and sent to you; position, archetype, and development trait remain locked to this purchase.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{Math.ceil((evaluation?.pointsRemaining ?? 0) * .10)} coin refund after application</strong></p>{config.replacementRequired ? <label>Replace active player{game === "CFB" ? ` (must be ${position} — CFB recruits inherit that player's position)` : " (any position)"}<select className="form-input" value={replacementPlayerId} onChange={(e) => {
+    {step === 4 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} max={99} value={attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} onChange={(e) => mutate(code, Math.max(REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, Math.min(99, Number(e.target.value) || REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)) - (attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
+    {step === 5 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position} · {effectiveArchetypeKey.replaceAll("_"," ")} (auto-detected)</p><p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint"><strong>88 OVR maximum:</strong> if the applied player evaluates above 88 OVR, the commissioner must reduce ratings to reach the cap. Identity or rating edits are logged and sent to you; position, archetype, and development trait remain locked to this purchase.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{Math.ceil((evaluation?.pointsRemaining ?? 0) * .10)} coin refund after application</strong></p>{config.replacementRequired ? <label>Replace active player{game === "CFB" ? ` (must be ${position} — CFB recruits inherit that player's position)` : " (any position)"}<select className="form-input" value={replacementPlayerId} onChange={(e) => {
       const nextId = e.target.value;
       if (game === "CFB" && nextId) {
         const player = config.replacementPlayers.find((entry: any) => entry.id === nextId);

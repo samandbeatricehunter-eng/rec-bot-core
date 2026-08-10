@@ -429,6 +429,8 @@ export async function submitCustomPlayer(input: {
     .filter((code) => input.attributes[code]! > 0)
     .map((code) => `${getRecAttributeDisplayName(code)}: ${input.attributes[code]}`)
     .join("\n");
+  const purchasingTeam = await supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("id", teamId).maybeSingle();
+  const teamName = (purchasingTeam.data as any)?.name ?? (purchasingTeam.data as any)?.display_abbr ?? (purchasingTeam.data as any)?.abbreviation ?? null;
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
     server_id: null,
@@ -438,8 +440,9 @@ export async function submitCustomPlayer(input: {
     queue_type: "custom_player",
     status: "pending",
     priority: 0,
-    header: `Custom Player: ${input.identity.firstName} ${input.identity.lastName} (${effectivePosition}, ${evaluation.displayOverall} OVR)`,
+    header: `Custom Player: ${input.identity.firstName} ${input.identity.lastName} (${effectivePosition}, ${evaluation.displayOverall} OVR) — ${teamName ?? "Unassigned"}`,
     summary: [
+      `Team: ${teamName ?? "Unassigned"}`,
       `Package: ${pkg.displayName} (${formatCoins(pkg.coinPrice)})`,
       replacement.data ? `Replaces: ${String(replacement.data.first_name)} ${String(replacement.data.last_name)}` : "New player (no roster replacement).",
       `Archetype: ${evaluation.inferredArchetypeKey ?? input.archetypeKey}`,
@@ -452,7 +455,7 @@ export async function submitCustomPlayer(input: {
     amount: pkg.coinPrice,
     source_table: "rec_custom_player_builds",
     source_id: build.data.id,
-    payload: { buildId: build.data.id, position: effectivePosition, estimatedOvr: evaluation.displayOverall },
+    payload: { buildId: build.data.id, position: effectivePosition, estimatedOvr: evaluation.displayOverall, teamName },
   });
   if (inboxInsert.error) console.error("[ERROR] Failed to create commissioner-inbox row for custom-player submission (non-fatal):", inboxInsert.error);
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);

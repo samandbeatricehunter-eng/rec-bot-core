@@ -113,13 +113,13 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
           {visible.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
           <div className="pending-items-scroll-list" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {visible.map((notification) => <Card key={notification.id} style={{ cursor: "pointer" }} onClick={() => openNotification(notification)}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)" }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
-                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line" }}>{notification.subtitle}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)", flexWrap: "wrap" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{notification.title}</span></div>
+                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>
-                {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}><CoinAmount amount={notification.amount} /></span>}
+                {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)", flexShrink: 0 }}><CoinAmount amount={notification.amount} /></span>}
               </div>
             </Card>)}
           </div>

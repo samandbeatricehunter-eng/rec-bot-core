@@ -51,6 +51,12 @@ export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>
   5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 6545, rawOverallCap: 88, highImpactAttributeCap: 99 },
 } as const;
 
+// No more archetype picker — every editable attribute on every build, regardless of tier,
+// starts here and can never be lowered. The starting CP cost of every attribute sitting at
+// this floor comes out of the package's budget before the user allocates anything further
+// (cost is derived from the final value, so pre-filling to this floor already "spends" it).
+export const REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR = 35;
+
 export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, number>> = {
   spd: 2.10,
   thp: 2.00,
@@ -508,6 +514,28 @@ export function evaluateRecCustomPlayerBuild(
         requestedRating: raw,
         message: `${attribute} must be an integer from 0 through 99.`,
       });
+    }
+  }
+
+  // Every editable attribute starts at REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR and can never drop
+  // below it — there's no archetype picker anymore, so this replaces the old per-archetype
+  // primary/secondary baseline as the one universal starting point, charged as CP the same
+  // way any other point is (cost is derived from the final value, not from how you got
+  // there). Only enforced at submit — preview stays lenient while the client is still
+  // hydrating its defaults.
+  if ((input.mode ?? "submit") === "submit") {
+    for (const attribute of editable) {
+      const raw = attributes[attribute];
+      const rating = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+      if (rating < REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR) {
+        violations.push({
+          code: "INVALID_RATING",
+          attribute,
+          requestedRating: rating,
+          required: REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR,
+          message: `${attribute} must be at least ${REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} — every attribute starts there and can't be lowered.`,
+        });
+      }
     }
   }
 

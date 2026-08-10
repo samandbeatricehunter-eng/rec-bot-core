@@ -219,7 +219,7 @@ export async function createLegendPurchaseRequest(input: {
     .from("rec_commissioners_inbox")
     .update({
       queue_type: "legend",
-      header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
+      header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR) — ${teamName ?? "Unassigned"}`,
       summary: summaryLines.join("\n"),
       payload: {
         purchaseId: result.purchase.id,
