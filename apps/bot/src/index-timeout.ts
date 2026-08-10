@@ -503,6 +503,8 @@ function scheduleUnlinkedGuildCheck(guildId: string, guildName: string) {
   setTimeout(() => {
     void (async () => {
       try {
+        const governance = await recApi.getDiscordGovernanceSnapshot();
+        if (governance.managementGuildId === guildId) return;
         const { linked } = await recApi.getGuildLinkStatus(guildId);
         if (linked) return;
         const guild = client.guilds.cache.get(guildId);

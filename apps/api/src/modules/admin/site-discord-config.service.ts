@@ -31,9 +31,16 @@ export async function updateSiteDiscordConfig(patch: {
   if (patch.leaguePostChannels?.madden_27 !== undefined) update.league_post_channel_madden_27 = patch.leaguePostChannels.madden_27;
   if (patch.leaguePostChannels?.cfb_27 !== undefined) update.league_post_channel_cfb_27 = patch.leaguePostChannels.cfb_27;
 
-  const { error } = await supabase.from("rec_site_discord_config").upsert({ id: true, ...update });
+  const { data, error } = await supabase.from("rec_site_discord_config").upsert({ id: true, ...update }).select("*").single();
   if (error) throw new ApiError(500, "Failed to save Discord config.", error);
-  return getSiteDiscordConfig();
+  return {
+    managementGuildId: data.management_guild_id ?? null,
+    leaguePostChannels: {
+      madden_26: data.league_post_channel_madden_26 ?? null,
+      madden_27: data.league_post_channel_madden_27 ?? null,
+      cfb_27: data.league_post_channel_cfb_27 ?? null,
+    },
+  };
 }
 
 /** What the bot's daily sweep needs: the one exempt guild, plus every guild actually linked

@@ -77,4 +77,4 @@ const teSpeedGap = evaluateRecCustomPlayerBuild({
   attributes: { spd: 89, agi: 70, acc: 89, cod: 70 },
 });
 assert(!teSpeedGap.violations.some((v) => v.code === "QUICK_CLUSTER_GAP"), "TE with a wider speed/quick spread is fine");
-console.log("REC custom-player v1.2 fixtures passed");
+console.log("REC custom-player v1.3 fixtures passed");

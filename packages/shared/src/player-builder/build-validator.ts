@@ -18,7 +18,12 @@ import {
   type RecPackageTier,
 } from "./archetypes.js";
 
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.2.0" as const;
+// v1.3.0: attribute-cost floor raised 0.75->0.90 (no attribute is "nearly free" to max
+// regardless of position relevance), and relational floor/ceiling gating extended from the
+// original 9 high-impact attributes to ~34 (coverage, tackling, blocking, pass rush, route
+// running, catching, ball-carrier) — both aimed at the same problem: leftover CP getting
+// dumped into OVR-irrelevant attributes at 99 with no real cost or prerequisite.
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.3.0" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -72,6 +77,17 @@ export const REC_ATTRIBUTE_CEILING_TIERS = [
 // so these floors are always satisfiable no matter what the player is. Keeps a build from
 // pumping one number (e.g. Speed) while everything that would realistically make that
 // number possible (Agility, Change of Direction, Acceleration) stays untouched.
+//
+// Originally covered only the 9 REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS attributes — every
+// other editable attribute (coverage, tackling, blocking, pass rush, route running,
+// catching) had zero relational gating, constrained only by raw CP cost. Combined with
+// low-coefficient attributes being cheap to buy (see getRecPositionAttributeWeight), that
+// let a build max out several OVR-irrelevant attributes with leftover CP once its primary
+// stats and OVR cap were already satisfied — an OVR-legal player with a handful of
+// unrelated 90s+ ratings that don't look like a real player. This extension requires a
+// believable supporting attribute (mental processing via Awareness, or the physical
+// tool the skill actually depends on) before the gated attribute can run high, the same
+// way the original 9 already required for Speed/Throw Power/etc.
 export const REC_ATTRIBUTE_FLOOR_RELATIONS: Readonly<Record<string, readonly string[]>> = {
   spd: ["agi", "cod", "acc"],
   acc: ["spd", "agi"],
@@ -81,7 +97,38 @@ export const REC_ATTRIBUTE_FLOOR_RELATIONS: Readonly<Record<string, readonly str
   jmp: ["agi", "str"],
   thp: ["str"],
   kpw: ["str"],
-  pow: ["str"],
+  pow: ["awr", "str"],
+  // Coverage — reading the play matters as much as raw hips/change of direction.
+  mcv: ["awr", "agi"],
+  zcv: ["awr", "prc"],
+  prc: ["awr"],
+  prs: ["awr", "agi"],
+  // Tackling / pass rush — technique (Awareness) plus the physical tool.
+  tak: ["awr", "str"],
+  bsh: ["awr", "str"],
+  pmv: ["str", "awr"],
+  fmv: ["agi", "awr"],
+  pur: ["awr", "spd"],
+  // Blocking — a lineman's hands/technique need Strength and Awareness behind them.
+  pbk: ["awr", "str"],
+  pbp: ["str"],
+  pbf: ["agi", "awr"],
+  rbk: ["awr", "str"],
+  rbp: ["str"],
+  rbf: ["agi", "awr"],
+  ibl: ["awr", "str"],
+  lbk: ["awr", "str"],
+  // Route running / receiving — Awareness (reads the defense) and Agility (separation).
+  srr: ["awr", "agi"],
+  mrr: ["awr", "agi"],
+  drr: ["awr", "spd"],
+  cth: ["awr"],
+  cit: ["awr", "str"],
+  spc: ["jmp", "agi"],
+  // Ball carrier — vision/protection need Awareness/Strength behind the raw move.
+  bcv: ["awr"],
+  btk: ["str", "tou"],
+  trk: ["str"],
 } as const;
 
 // Position-aware cap on how far the speed/quick package may spread. Once any of SPD, AGI,
@@ -197,7 +244,12 @@ export function getRecPositionAttributeWeight(
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const coefficient = coefficients[attributeCode.trim().toLowerCase()];
   if (coefficient === undefined) return 1;
-  return clamp(coefficient / mean, 0.75, 1.50);
+  // Floor raised from 0.75 — an attribute the OVR model barely weights for this position
+  // was previously up to 25% cheaper than an average-importance one, on top of already
+  // being nearly free to max since it moves OVR/the raw-overall cap so little. That gap is
+  // exactly what let leftover CP get dumped into unrelated attributes at 99 with no real
+  // cost, producing OVR-capped players with several unrelated maxed-out ratings.
+  return clamp(coefficient / mean, 0.90, 1.50);
 }
 
 export function getRecEffectiveAttributeMultiplier(
@@ -325,38 +377,49 @@ function validateHighImpactAttributes(
   const attributes = normalizeRecAttributeMap(input.attributes);
   const violations: RecBuildViolation[] = [];
 
+  // Package's hard high-impact numeric cap — scoped to the original 9 "obviously game-
+  // breaking at 99" attributes (Speed, Throw Power, etc.), not every gated attribute below.
   for (const attribute of Object.keys(REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS)) {
     const raw = attributes[attribute];
     const rating =
       typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
+    if (rating <= packageRules.highImpactAttributeCap) continue;
 
     const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
+    // Distinct from the ATTRIBUTE_FLOOR_REQUIRED message: this one is about the package's
+    // hard high-impact ceiling, and it names the concrete path when one exists — the gated
+    // attribute's related quickness stats (ACC/AGI/COD, etc.) must reach the floor of the
+    // next ceiling tier before running the attribute anywhere near the cap.
+    const path =
+      ceiling.applicable && ceiling.deficientAttributes.length > 0
+        ? ` To run ${attribute.toUpperCase()} at the cap, ` +
+          `${ceiling.deficientAttributes.map((entry) => entry.attribute.toUpperCase()).join(", ")} ` +
+          `${ceiling.deficientAttributes.length === 1 ? "must reach" : "must each reach"} ` +
+          `at least ${ceiling.requiredFloor}.`
+        : ` Lower ${attribute.toUpperCase()} to ${packageRules.highImpactAttributeCap} or below.`;
+    violations.push({
+      code: "PACKAGE_ATTRIBUTE_CAP",
+      attribute,
+      requestedRating: rating,
+      current: rating,
+      required: packageRules.highImpactAttributeCap,
+      message:
+        `${attribute.toUpperCase()} ${rating} exceeds the Tier ` +
+        `${input.packageTier} high-impact cap of ` +
+        `${packageRules.highImpactAttributeCap}.${path}`,
+    });
+  }
 
-    if (rating > packageRules.highImpactAttributeCap) {
-      // Distinct from the ATTRIBUTE_FLOOR_REQUIRED message: this one is about the package's
-      // hard high-impact ceiling, and it names the concrete path when one exists — the gated
-      // attribute's related quickness stats (ACC/AGI/COD, etc.) must reach the floor of the
-      // next ceiling tier before running the attribute anywhere near the cap.
-      const path =
-        ceiling.applicable && ceiling.deficientAttributes.length > 0
-          ? ` To run ${attribute.toUpperCase()} at the cap, ` +
-            `${ceiling.deficientAttributes.map((entry) => entry.attribute.toUpperCase()).join(", ")} ` +
-            `${ceiling.deficientAttributes.length === 1 ? "must reach" : "must each reach"} ` +
-            `at least ${ceiling.requiredFloor}.`
-          : ` Lower ${attribute.toUpperCase()} to ${packageRules.highImpactAttributeCap} or below.`;
-      violations.push({
-        code: "PACKAGE_ATTRIBUTE_CAP",
-        attribute,
-        requestedRating: rating,
-        current: rating,
-        required: packageRules.highImpactAttributeCap,
-        message:
-          `${attribute.toUpperCase()} ${rating} exceeds the Tier ` +
-          `${input.packageTier} high-impact cap of ` +
-          `${packageRules.highImpactAttributeCap}.${path}`,
-      });
-    }
-
+  // Relational floor/ceiling gating — every attribute in REC_ATTRIBUTE_FLOOR_RELATIONS
+  // (the original 9 high-impact ones plus the broader set covering coverage, tackling,
+  // blocking, pass rush, route running, and catching), not just the high-impact 9. This is
+  // what actually stops a build from maxing an unrelated attribute with leftover CP once
+  // its primary stats and OVR cap are already satisfied.
+  for (const attribute of Object.keys(REC_ATTRIBUTE_FLOOR_RELATIONS)) {
+    const raw = attributes[attribute];
+    const rating =
+      typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
+    const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
     if (ceiling.applicable && ceiling.deficientAttributes.length > 0) {
       violations.push({
         code: "ATTRIBUTE_FLOOR_REQUIRED",

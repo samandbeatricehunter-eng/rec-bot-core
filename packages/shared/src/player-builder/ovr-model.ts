@@ -1,15 +1,29 @@
 /**
  * REC Custom Player estimated OVR model.
  *
- * Model version: rec-ovr-cfb27-positional-v1.0.0
- * Calibration source: active CFB 27 baseline roster (11,728 players).
+ * Model version: rec-ovr-cfb27-positional-v2.0.0
+ * Calibration source (v1): active CFB 27 baseline roster (11,728 players), fit via
+ * per-position linear regression (Lasso), the same general method documented in
+ * Randal Olson's "Machine Learning Madden NFL" reverse-engineering writeup.
+ * Calibration source (v2, current): real EA attribute-weight percentages per position
+ * (FiveThirtyEight/Neil Paine chart, sourced from EA Sports) applied directly wherever
+ * REC has a matching attribute code. Chart categories REC splits into finer sub-attributes
+ * (Pass/Run Block -> base+Power+Finesse, Route Running -> Short/Medium/Deep) keep v1's
+ * internal ratio among those sub-codes, rescaled to the chart's real total. Attributes with
+ * no chart analog (TUP, BSK, and similar newer/omitted attributes) retain their v1
+ * regression-derived weight unchanged — the two calibration sources are mixed within the
+ * same normalized coefficient set, which is safe since estimateRecPlayerOverall always
+ * divides by the coefficient total regardless of where each weight came from.
  *
- * This is an empirical REC estimator, not EA's undisclosed proprietary OVR formula.
+ * This is an empirical REC estimator, not EA's undisclosed proprietary in-game OVR
+ * formula — the chart itself is several Madden years old and EA's real weights have surely
+ * shifted since, but it's real EA-sourced data rather than a regression approximation, so
+ * every attribute it covers now uses the real weight instead of the fitted one.
  * CFB 27 and Madden 26/27 may share this version initially, but each game/year must
  * reference its own versioned configuration record so later recalibration is safe.
  */
 
-export const REC_OVR_MODEL_VERSION = "rec-ovr-cfb27-positional-v1.0.0" as const;
+export const REC_OVR_MODEL_VERSION = "rec-ovr-cfb27-positional-v2.0.0" as const;
 
 export type RecOvrPosition =
   | "QB"
@@ -104,7 +118,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
 > = {
   QB: {
     gamma: 1.30,
-    coefficients: { acc: 0.028083, awr: 0.125266, bsk: 0.048211, cod: 0.028492, dac: 0.122948, mac: 0.15936, pac: 0.059371, run: 0.057974, sac: 0.13633, spd: 0.028067, thp: 0.123379, tup: 0.082519 },
+    coefficients: { acc: 0.01, agi: 0.03, awr: 0.2, bsk: 0.048211, cod: 0.028492, dac: 0.1, mac: 0.15, pac: 0.08, run: 0.03, sac: 0.15, spd: 0.05, thp: 0.2, tup: 0.082519 },
     validation: {
       trainN: 470,
       testN: 129,
@@ -115,7 +129,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   HB: {
     gamma: 1.12,
-    coefficients: { acc: 0.081443, agi: 0.063231, awr: 0.062462, bcv: 0.147065, btk: 0.100807, car: 0.135144, cod: 0.067919, cth: 0.025632, jkm: 0.076654, sfa: 0.034776, spd: 0.096148, spm: 0.056693, trk: 0.052027 },
+    coefficients: { acc: 0.08, agi: 0.08, awr: 0.13, bcv: 0.13, btk: 0.100807, car: 0.13, cod: 0.067919, cth: 0.025632, jkm: 0.04, sfa: 0.02, spd: 0.13, spm: 0.04, str: 0.02, trk: 0.08 },
     validation: {
       trainN: 604,
       testN: 152,
@@ -126,7 +140,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   FB: {
     gamma: 0.99,
-    coefficients: { acc: 0.036508, awr: 0.078302, bcv: 0.083434, car: 0.110584, cth: 0.062831, ibl: 0.132756, lbk: 0.106928, rbk: 0.137507, sfa: 0.056105, spd: 0.042061, str: 0.09551, trk: 0.057476 },
+    coefficients: { acc: 0.06, agi: 0.03, awr: 0.18, bcv: 0.03, car: 0.09, cth: 0.03, ibl: 0.12, lbk: 0.106928, pbf: 0.03, pbk: 0.03, pbp: 0.03, rbk: 0.18, sfa: 0.03, spd: 0.06, str: 0.03, trk: 0.06 },
     validation: {
       trainN: 20,
       testN: 3,
@@ -137,7 +151,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   WR: {
     gamma: 1.18,
-    coefficients: { acc: 0.0729, agi: 0.0465, awr: 0.070336, cit: 0.100797, cod: 0.045145, cth: 0.152922, drr: 0.074766, mrr: 0.097164, rls: 0.081079, spc: 0.082444, spd: 0.090474, srr: 0.085473 },
+    coefficients: { acc: 0.08, agi: 0.06, awr: 0.12, bcv: 0.02, car: 0.04, cit: 0.08, cod: 0.045145, cth: 0.12, drr: 0.034856, jkm: 0.01, jmp: 0.04, mrr: 0.045297, rls: 0.08, sfa: 0.01, spc: 0.04, spd: 0.12, spm: 0.01, srr: 0.039847, str: 0.02, trk: 0.01 },
     validation: {
       trainN: 995,
       testN: 250,
@@ -148,7 +162,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   TE: {
     gamma: 1.01,
-    coefficients: { acc: 0.04044, awr: 0.075651, cit: 0.111895, cth: 0.130828, drr: 0.032399, ibl: 0.062192, lbk: 0.079471, mrr: 0.068263, rbk: 0.079859, rls: 0.055567, spc: 0.07099, spd: 0.064716, srr: 0.08105, str: 0.046679 },
+    coefficients: { acc: 0.04, agi: 0.04, awr: 0.12, bcv: 0.02, car: 0.02, cit: 0.08, cth: 0.08, drr: 0.014264, ibl: 0.062192, jkm: 0.01, jmp: 0.02, lbk: 0.079471, mrr: 0.030053, pbf: 0.013333, pbk: 0.013333, pbp: 0.013333, rbk: 0.12, rls: 0.02, sfa: 0.01, spc: 0.04, spd: 0.06, spm: 0.01, srr: 0.035683, str: 0.06, trk: 0.02 },
     validation: {
       trainN: 609,
       testN: 147,
@@ -159,7 +173,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   LT: {
     gamma: 1.23,
-    coefficients: { awr: 0.129266, ibl: 0.052146, lbk: 0.029672, pbf: 0.124698, pbk: 0.167317, pbp: 0.132553, rbf: 0.07955, rbk: 0.127702, rbp: 0.085556, str: 0.071541 },
+    coefficients: { acc: 0.03, agi: 0.03, awr: 0.17, ibl: 0.06, lbk: 0.029672, pbf: 0.114545, pbk: 0.153694, pbp: 0.121761, rbf: 0.051619, rbk: 0.082864, rbp: 0.055516, spd: 0.03, str: 0.11 },
     validation: {
       trainN: 410,
       testN: 94,
@@ -170,7 +184,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   LG: {
     gamma: 1.25,
-    coefficients: { awr: 0.129203, ibl: 0.062723, lbk: 0.0198, pbf: 0.098772, pbk: 0.147671, pbp: 0.111214, rbf: 0.097364, rbk: 0.147845, rbp: 0.105211, str: 0.080197 },
+    coefficients: { acc: 0.06, agi: 0.06, awr: 0.18, ibl: 0.09, lbk: 0.0198, pbf: 0.080088, pbk: 0.119736, pbp: 0.090176, rbf: 0.050013, rbk: 0.075943, rbp: 0.054044, spd: 0.03, str: 0.12 },
     validation: {
       trainN: 381,
       testN: 97,
@@ -181,7 +195,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   C: {
     gamma: 1.30,
-    coefficients: { awr: 0.153484, ibl: 0.050706, lbk: 0.019103, pbf: 0.10159, pbk: 0.161738, pbp: 0.105617, rbf: 0.091996, rbk: 0.149728, rbp: 0.093066, str: 0.072972 },
+    coefficients: { acc: 0.03, agi: 0.03, awr: 0.2, ibl: 0.07, lbk: 0.019103, pbf: 0.074345, pbk: 0.118363, pbp: 0.077292, rbf: 0.074193, rbk: 0.120752, rbp: 0.075055, spd: 0.03, str: 0.1 },
     validation: {
       trainN: 318,
       testN: 85,
@@ -192,7 +206,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   RG: {
     gamma: 1.25,
-    coefficients: { awr: 0.132833, ibl: 0.063146, lbk: 0.019763, pbf: 0.094564, pbk: 0.147632, pbp: 0.114889, rbf: 0.091235, rbk: 0.147084, rbp: 0.107516, str: 0.081339 },
+    coefficients: { acc: 0.06, agi: 0.06, awr: 0.18, ibl: 0.09, lbk: 0.019763, pbf: 0.076798, pbk: 0.119897, pbp: 0.093305, rbf: 0.047486, rbk: 0.076554, rbp: 0.05596, spd: 0.03, str: 0.12 },
     validation: {
       trainN: 375,
       testN: 90,
@@ -203,7 +217,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   RT: {
     gamma: 1.23,
-    coefficients: { awr: 0.132977, ibl: 0.06288, lbk: 0.030262, pbf: 0.090565, pbk: 0.140534, pbp: 0.120025, rbf: 0.093084, rbk: 0.151951, rbp: 0.097447, str: 0.080275 },
+    coefficients: { acc: 0.03, agi: 0.03, awr: 0.2, ibl: 0.07, lbk: 0.030262, pbf: 0.051586, pbk: 0.080048, pbp: 0.068366, rbf: 0.089691, rbk: 0.146413, rbp: 0.093895, spd: 0.03, str: 0.1 },
     validation: {
       trainN: 390,
       testN: 96,
@@ -214,7 +228,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   LE: {
     gamma: 1.12,
-    coefficients: { acc: 0.077937, awr: 0.068335, bsh: 0.131308, fmv: 0.122511, pmv: 0.123879, pow: 0.062119, prc: 0.101881, pur: 0.088062, spd: 0.055675, str: 0.063337, tak: 0.104958 },
+    coefficients: { acc: 0.1, agi: 0.05, awr: 0.14, bsh: 0.1, fmv: 0.12, pmv: 0.12, pow: 0.01, prc: 0.07, pur: 0.05, spd: 0.1, str: 0.05, tak: 0.1 },
     validation: {
       trainN: 467,
       testN: 121,
@@ -225,7 +239,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   RE: {
     gamma: 1.11,
-    coefficients: { acc: 0.072786, awr: 0.071642, bsh: 0.128924, fmv: 0.13155, pmv: 0.122168, pow: 0.059465, prc: 0.100192, pur: 0.086428, spd: 0.058129, str: 0.068669, tak: 0.100046 },
+    coefficients: { acc: 0.1, agi: 0.05, awr: 0.14, bsh: 0.1, fmv: 0.12, pmv: 0.12, pow: 0.01, prc: 0.07, pur: 0.05, spd: 0.1, str: 0.05, tak: 0.1 },
     validation: {
       trainN: 453,
       testN: 112,
@@ -236,7 +250,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   DT: {
     gamma: 1.15,
-    coefficients: { acc: 0.034272, awr: 0.069892, bsh: 0.175684, fmv: 0.057527, pmv: 0.163278, pow: 0.083187, prc: 0.106802, pur: 0.063965, str: 0.109723, tak: 0.13567 },
+    coefficients: { acc: 0.06, agi: 0.03, awr: 0.17, bsh: 0.11, fmv: 0.11, pmv: 0.11, pow: 0.083187, prc: 0.06, pur: 0.03, spd: 0.06, str: 0.17, tak: 0.09 },
     validation: {
       trainN: 708,
       testN: 184,
@@ -247,7 +261,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   LOLB: {
     gamma: 1.17,
-    coefficients: { acc: 0.056567, agi: 0.030984, awr: 0.086415, bsh: 0.096129, fmv: 0.073334, mcv: 0.05783, pmv: 0.075431, pow: 0.04107, prc: 0.130904, pur: 0.100541, spd: 0.065091, tak: 0.134966, zcv: 0.050738 },
+    coefficients: { acc: 0.05, agi: 0.03, awr: 0.16, bsh: 0.08, cth: 0.02, fmv: 0.08, mcv: 0.04, pmv: 0.08, pow: 0.03, prc: 0.1, pur: 0.05, spd: 0.08, str: 0.05, tak: 0.1, zcv: 0.05 },
     validation: {
       trainN: 167,
       testN: 34,
@@ -258,7 +272,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   MLB: {
     gamma: 1.30,
-    coefficients: { acc: 0.05765, agi: 0.031082, awr: 0.108318, bsh: 0.100348, cth: 0.038154, mcv: 0.055329, pow: 0.061189, prc: 0.14932, pur: 0.121706, spd: 0.063282, tak: 0.152115, zcv: 0.061506 },
+    coefficients: { acc: 0.04, agi: 0.04, awr: 0.13, bsh: 0.13, cth: 0.038154, fmv: 0.03, mcv: 0.02, pmv: 0.03, pow: 0.04, prc: 0.13, pur: 0.09, spd: 0.06, str: 0.04, tak: 0.17, zcv: 0.03 },
     validation: {
       trainN: 470,
       testN: 124,
@@ -269,7 +283,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   ROLB: {
     gamma: 1.19,
-    coefficients: { acc: 0.057231, agi: 0.031665, awr: 0.088392, bsh: 0.102147, fmv: 0.067089, mcv: 0.057309, pmv: 0.070269, pow: 0.041459, prc: 0.130074, pur: 0.101811, spd: 0.066619, tak: 0.136321, zcv: 0.049615 },
+    coefficients: { acc: 0.05, agi: 0.03, awr: 0.16, bsh: 0.08, cth: 0.02, fmv: 0.08, mcv: 0.04, pmv: 0.08, pow: 0.03, prc: 0.1, pur: 0.05, spd: 0.08, str: 0.05, tak: 0.1, zcv: 0.05 },
     validation: {
       trainN: 420,
       testN: 99,
@@ -280,7 +294,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   CB: {
     gamma: 1.16,
-    coefficients: { acc: 0.073533, agi: 0.055478, awr: 0.085066, cod: 0.053554, cth: 0.044252, mcv: 0.172919, prc: 0.109074, prs: 0.102878, pur: 0.039975, spd: 0.091795, tak: 0.024961, zcv: 0.146514 },
+    coefficients: { acc: 0.14, agi: 0.05, awr: 0.14, cod: 0.053554, cth: 0.03, jmp: 0.05, mcv: 0.19, prc: 0.09, prs: 0.05, pur: 0.039975, spd: 0.14, str: 0.02, tak: 0.05, zcv: 0.09 },
     validation: {
       trainN: 814,
       testN: 223,
@@ -291,7 +305,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   FS: {
     gamma: 1.14,
-    coefficients: { acc: 0.058959, agi: 0.035006, awr: 0.097103, cod: 0.032869, cth: 0.027158, mcv: 0.103361, pow: 0.036147, prc: 0.146386, prs: 0.050105, pur: 0.082163, spd: 0.069543, tak: 0.076331, zcv: 0.184869 },
+    coefficients: { acc: 0.05, agi: 0.05, awr: 0.16, cod: 0.032869, cth: 0.02, jmp: 0.05, mcv: 0.05, pow: 0.03, prc: 0.11, prs: 0.050105, pur: 0.082163, spd: 0.11, str: 0.03, tak: 0.11, zcv: 0.16 },
     validation: {
       trainN: 483,
       testN: 104,
@@ -302,7 +316,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   SS: {
     gamma: 1.13,
-    coefficients: { acc: 0.047864, agi: 0.032595, awr: 0.098994, cod: 0.030016, cth: 0.027169, mcv: 0.094172, pow: 0.065878, prc: 0.137425, prs: 0.049654, pur: 0.095303, spd: 0.057384, tak: 0.11028, zcv: 0.153265 },
+    coefficients: { acc: 0.03, agi: 0.03, awr: 0.18, cod: 0.030016, cth: 0.03, jmp: 0.03, mcv: 0.06, pow: 0.06, prc: 0.12, prs: 0.049654, pur: 0.095303, spd: 0.09, str: 0.06, tak: 0.12, zcv: 0.12 },
     validation: {
       trainN: 447,
       testN: 110,
@@ -313,7 +327,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   K: {
     gamma: 1.23,
-    coefficients: { awr: 0.083635, kac: 0.454038, kpw: 0.462327 },
+    coefficients: { awr: 0.27, kac: 0.45, kpw: 0.27 },
     validation: {
       trainN: 216,
       testN: 53,
@@ -324,7 +338,7 @@ export const REC_POSITION_OVR_MODELS: Readonly<
   },
   P: {
     gamma: 1.26,
-    coefficients: { awr: 0.089395, kac: 0.447492, kpw: 0.463113 },
+    coefficients: { awr: 0.3, kac: 0.4, kpw: 0.3 },
     validation: {
       trainN: 165,
       testN: 39,
@@ -468,135 +482,136 @@ export interface RecOvrTestVector {
 }
 
 /**
- * Deterministic mixed-attribute fixtures generated from the frozen v1 coefficients.
+ * Deterministic mixed-attribute fixtures generated from the frozen v2 coefficients
+ * (same attribute inputs as v1; expected outputs recomputed for the v2 recalibration).
  * These catch coefficient, exponent, alias, and rounding drift.
  */
 export const REC_OVR_TEST_VECTORS: readonly RecOvrTestVector[] = [
   {
     position: "QB",
     attributes: { acc: 72, awr: 83, bsk: 61, cod: 72, dac: 83, mac: 61, pac: 72, run: 83, sac: 61, spd: 72, thp: 83, tup: 61 },
-    expectedRawOverall: 65.480663,
-    expectedDisplayOverall: 65,
+    expectedRawOverall: 64.353252,
+    expectedDisplayOverall: 64,
   },
   {
     position: "HB",
     attributes: { acc: 72, agi: 83, awr: 61, bcv: 72, btk: 83, car: 61, cod: 72, cth: 83, jkm: 61, sfa: 72, spd: 83, spm: 61, trk: 72 },
-    expectedRawOverall: 68.765477,
-    expectedDisplayOverall: 69,
+    expectedRawOverall: 67.817986,
+    expectedDisplayOverall: 68,
   },
   {
     position: "FB",
     attributes: { acc: 72, awr: 83, bcv: 61, car: 72, cth: 83, ibl: 61, lbk: 72, rbk: 83, sfa: 61, spd: 72, str: 83, trk: 61 },
-    expectedRawOverall: 72.714464,
-    expectedDisplayOverall: 73,
+    expectedRawOverall: 66.197075,
+    expectedDisplayOverall: 66,
   },
   {
     position: "WR",
     attributes: { acc: 72, agi: 83, awr: 61, cit: 72, cod: 83, cth: 61, drr: 72, mrr: 83, rls: 61, spc: 72, spd: 83, srr: 61 },
-    expectedRawOverall: 66.636251,
-    expectedDisplayOverall: 67,
+    expectedRawOverall: 54.61611,
+    expectedDisplayOverall: 55,
   },
   {
     position: "TE",
     attributes: { acc: 72, awr: 83, cit: 61, cth: 72, drr: 83, ibl: 61, lbk: 72, mrr: 83, rbk: 61, rls: 72, spc: 83, spd: 61, srr: 72, str: 83 },
-    expectedRawOverall: 71.497760,
-    expectedDisplayOverall: 71,
+    expectedRawOverall: 57.814109,
+    expectedDisplayOverall: 58,
   },
   {
     position: "LT",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 68.166776,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 60.925846,
+    expectedDisplayOverall: 61,
   },
   {
     position: "LG",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 68.042972,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 56.058944,
+    expectedDisplayOverall: 56,
   },
   {
     position: "C",
     attributes: { awr: 65, ibl: 76, lbk: 87, pbf: 65, pbk: 76, pbp: 87, rbf: 65, rbk: 76, rbp: 87, str: 65 },
-    expectedRawOverall: 67.544942,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 58.783403,
+    expectedDisplayOverall: 59,
   },
   {
     position: "RG",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 67.962359,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 56.0081,
+    expectedDisplayOverall: 56,
   },
   {
     position: "RT",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 68.270853,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 60.986453,
+    expectedDisplayOverall: 61,
   },
   {
     position: "LE",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, spd: 61, str: 72, tak: 83 },
-    expectedRawOverall: 70.916732,
-    expectedDisplayOverall: 71,
+    expectedRawOverall: 67.807937,
+    expectedDisplayOverall: 68,
   },
   {
     position: "RE",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, spd: 61, str: 72, tak: 83 },
-    expectedRawOverall: 71.100334,
-    expectedDisplayOverall: 71,
+    expectedRawOverall: 68.037443,
+    expectedDisplayOverall: 68,
   },
   {
     position: "DT",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, str: 61, tak: 72 },
-    expectedRawOverall: 67.780468,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 61.540474,
+    expectedDisplayOverall: 62,
   },
   {
     position: "LOLB",
     attributes: { acc: 86, agi: 64, awr: 75, bsh: 86, fmv: 64, mcv: 75, pmv: 86, pow: 64, prc: 75, pur: 86, spd: 64, tak: 75, zcv: 86 },
-    expectedRawOverall: 73.620632,
-    expectedDisplayOverall: 74,
+    expectedRawOverall: 66.811332,
+    expectedDisplayOverall: 67,
   },
   {
     position: "MLB",
     attributes: { acc: 79, agi: 90, awr: 68, bsh: 79, cth: 90, mcv: 68, pow: 79, prc: 90, pur: 68, spd: 79, tak: 90, zcv: 68 },
-    expectedRawOverall: 74.146985,
-    expectedDisplayOverall: 74,
+    expectedRawOverall: 65.923828,
+    expectedDisplayOverall: 66,
   },
   {
     position: "ROLB",
     attributes: { acc: 86, agi: 64, awr: 75, bsh: 86, fmv: 64, mcv: 75, pmv: 86, pow: 64, prc: 75, pur: 86, spd: 64, tak: 75, zcv: 86 },
-    expectedRawOverall: 73.315118,
-    expectedDisplayOverall: 73,
+    expectedRawOverall: 66.363721,
+    expectedDisplayOverall: 66,
   },
   {
     position: "CB",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, prc: 72, prs: 83, pur: 61, spd: 72, tak: 83, zcv: 61 },
-    expectedRawOverall: 65.800125,
-    expectedDisplayOverall: 66,
+    expectedRawOverall: 60.591427,
+    expectedDisplayOverall: 61,
   },
   {
     position: "FS",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, pow: 72, prc: 83, prs: 61, pur: 72, spd: 83, tak: 61, zcv: 72 },
-    expectedRawOverall: 68.275446,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 62.288685,
+    expectedDisplayOverall: 62,
   },
   {
     position: "SS",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, pow: 72, prc: 83, prs: 61, pur: 72, spd: 83, tak: 61, zcv: 72 },
-    expectedRawOverall: 67.906259,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 61.267917,
+    expectedDisplayOverall: 61,
   },
   {
     position: "K",
     attributes: { awr: 65, kac: 76, kpw: 87 },
-    expectedRawOverall: 76.367625,
-    expectedDisplayOverall: 76,
+    expectedRawOverall: 71.516232,
+    expectedDisplayOverall: 72,
   },
   {
     position: "P",
     attributes: { awr: 65, kac: 76, kpw: 87 },
-    expectedRawOverall: 75.820434,
-    expectedDisplayOverall: 76,
+    expectedRawOverall: 70.951238,
+    expectedDisplayOverall: 71,
   }
 ] as const;
 
