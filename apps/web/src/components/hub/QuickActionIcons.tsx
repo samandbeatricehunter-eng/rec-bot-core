@@ -16,32 +16,6 @@ export function InterviewMicIcon({ size = 16 }: IconProps) {
   );
 }
 
-export function BoxScoreIcon({ size = 16 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <path d="M9 2.5h6a1 1 0 0 1 1 1V5H8V3.5a1 1 0 0 1 1-1Z" fill="currentColor" stroke="none" />
-      <path d="M7.5 12v4" />
-      <path d="M12 9.5v6.5" />
-      <path d="M16.5 13.5v2.5" />
-    </svg>
-  );
-}
-
-export function HighlightReelIcon({ size = 16 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="m3 8 1.6-4.2A1 1 0 0 1 5.5 3H19a2 2 0 0 1 2 2v.5" />
-      <rect x="3" y="8" width="18" height="13" rx="2" />
-      <path d="m3 8 1-2.5" />
-      <path d="m8 8 1-3" />
-      <path d="m13 8 1-3" />
-      <path d="m18 8 1-3" />
-      <path d="M10.3 12.2v4.6a.6.6 0 0 0 .92.5l3.6-2.3a.6.6 0 0 0 0-1l-3.6-2.3a.6.6 0 0 0-.92.5Z" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 export function ManageTeamIcon({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

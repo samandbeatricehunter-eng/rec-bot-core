@@ -18,3 +18,7 @@ sea-debug.txt
 
 # madden-ratings-scraper resumable cache (regenerated on demand, can grow to MBs)
 apps/api/scripts/.cache/
+
+# Raw Madden 27 EA team-page dumps (large; the compact, committed CSV in
+# data/madden27/madden27_ea_players.csv is the seed/crossref input, re-scrape to refresh)
+apps/api/scripts/data/madden27/ea/

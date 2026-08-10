@@ -140,7 +140,7 @@
   .hub-highlight-arrow.previous { left: calc(50% - 54px); }
   .hub-highlight-arrow.next { right: calc(50% - 54px); }
   .hub-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hub-transfer-form, .box-score-review__grid { grid-template-columns: minmax(0, 1fr); }
+  .hub-wallet-card-balances, .hub-wallet-card-actions, .box-score-review__grid { grid-template-columns: minmax(0, 1fr); }
   .hub-store-row { grid-template-columns: minmax(0, 1fr); }
   .hub-store-products button { align-items: center; text-align: center; }
   .hub-profile-panel, .hub-profile-sections summary { text-align: center; }

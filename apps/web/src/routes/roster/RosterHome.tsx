@@ -8,6 +8,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { RosterMovesPanel } from "./RosterMovesPanel.js";
+import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 
 type ViewMode = "grid" | "list";
@@ -134,6 +135,7 @@ export function RosterHome() {
   const [data, setData] = useState<TeamRosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("grid");
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [statsPlayer, setStatsPlayer] = useState<RosterPlayer | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -203,8 +205,13 @@ export function RosterHome() {
           <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Roster List
           </button>
+          <button type="button" onClick={() => setAddPlayerOpen(true)}>
+            Add Player
+          </button>
         </div>
       </div>
+
+      {addPlayerOpen && <EditRosterRequestModal guildId={guildId} onClose={() => setAddPlayerOpen(false)} onDone={() => { setAddPlayerOpen(false); load(); }} />}
 
       <RosterMovesPanel
         guildId={guildId}

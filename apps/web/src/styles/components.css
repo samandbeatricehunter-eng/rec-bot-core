@@ -512,7 +512,6 @@
 .hub-profile-panel { padding: 0 var(--space-4) var(--space-4); }
 .hub-profile-panel > p { margin: 0 0 var(--space-2); }
 .hub-muted { color: var(--text-muted); font-size: var(--text-sm); }
-.hub-transfer-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(120px, 1fr) auto; gap: var(--space-2); align-items: end; margin-top: var(--space-3); }
 .hub-transfer-status { margin-top: var(--space-3) !important; color: var(--gold); font-weight: 700; }
 .hub-record-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
 .hub-record-grid article { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); }

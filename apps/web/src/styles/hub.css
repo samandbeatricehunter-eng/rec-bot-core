@@ -220,43 +220,40 @@
   gap: 8px;
 }
 .hub-hero-metric-scores > div { min-width: 0; }
-.hub-hero-funds-row {
-  display: grid;
+/* Condensed wallet/savings block — one card, balances row + actions row (View Transactions /
+   Transfer Coins), shared by the Campus Buzz hero and the My Team Funds & Savings panel. */
+.hub-wallet-card {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
   width: 100%;
-  /* minmax(0, 1fr), not plain 1fr — grid items default to min-width: auto, so a plain 1fr
-     track still grows to fit its content before space is split evenly. Savings' extra line
-     ("Next advance +...") was winning width off Wallet as a result. */
-  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
-  gap: 8px;
-  align-items: stretch;
-}
-.hub-hero-funds-row > article {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   padding: 10px 12px;
-  border-color: color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,.08));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,.08));
+  border-radius: 4px;
   background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
 }
-.hub-hero-funds-row > article strong { margin-top: 4px; font-size: 20px; white-space: nowrap; }
-.hub-hero-funds-row > article .rec-coin-amount__icon { width: 18px; height: 18px; }
-.hub-hero-transfer-btn {
-  align-self: center;
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
+.hub-wallet-card-balances {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.hub-wallet-card-balances > div { display: flex; flex-direction: column; min-width: 0; }
+.hub-wallet-card-balances > div:last-child { align-items: flex-end; text-align: right; }
+.hub-wallet-card-balances span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+.hub-wallet-card-balances strong { margin-top: 4px; font-size: 20px; white-space: nowrap; }
+.hub-wallet-card-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,.14); }
+.hub-wallet-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hub-wallet-transfer-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hub-wallet-transfer-toggle button {
+  padding: 10px;
   border: 1px solid rgba(255,255,255,.18);
   border-radius: 4px;
   background: #1a1a1a;
   color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 700;
   cursor: pointer;
 }
-.hub-hero-transfer-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hub-wallet-transfer-toggle button.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, #1a1a1a); }
 button.poty:disabled {
   opacity: 0.45;
   cursor: not-allowed;

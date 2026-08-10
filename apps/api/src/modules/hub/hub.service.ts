@@ -1120,6 +1120,30 @@ export async function getMyTeamSchedule(guildId: string, discordId: string) {
   return getTeamScheduleManualState({ guildId, teamId: assignment.team_id });
 }
 
+// Wallet card's "View Transactions" modal — most-recent N ledger rows regardless of age,
+// unlike the Financial Profile panel's last30Days.transactions (a date window, not a count).
+export async function getMyRecentTransactions(guildId: string, discordId: string, limit = 50) {
+  const context = await getCurrentLeagueContext(guildId);
+  const userId = await userIdForDiscord(discordId);
+  const { data, error } = await supabase
+    .from("rec_dollar_ledger")
+    .select("id,amount,transaction_type,description,created_at")
+    .eq("user_id", userId)
+    .eq("league_id", context.leagueId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 50));
+  if (error) throw new ApiError(500, "Failed to load recent transactions.", error);
+  return {
+    transactions: (data ?? []).map((row: any) => ({
+      id: row.id,
+      amount: Number(row.amount ?? 0),
+      transactionType: row.transaction_type ?? null,
+      description: row.description ?? null,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
 export async function getHubMediaPortal(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);

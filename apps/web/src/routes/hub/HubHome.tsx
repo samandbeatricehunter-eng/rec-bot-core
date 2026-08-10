@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactEle
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_TIER_LABELS, REC_LEGEND_PRICE, coinsNumber, devTierOrderForGame, priceForDevUpgradeSteps, type RecDevTier, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
-import { ArrowLeftRight, Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
-import { BoxScoreIcon, HighlightReelIcon, InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
+import { InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
+import { WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -550,11 +551,6 @@ export function HubHome() {
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
   const [commentBody, setCommentBody] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferDirection, setTransferDirection] = useState<"to_savings" | "from_savings">("to_savings");
-  const [transferStatus, setTransferStatus] = useState<string | null>(null);
-  const [transferBusy, setTransferBusy] = useState(false);
-  const [heroTransferOpen, setHeroTransferOpen] = useState(false);
   const [deadHighlightIds, setDeadHighlightIds] = useState<string[]>([]);
   const [purchaseType, setPurchaseType] = useState("");
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, string>>({});
@@ -939,18 +935,6 @@ export function HubHome() {
       setCommentBody(body);
     }
   }
-  async function transferFunds() {
-    if (auth.status !== "ready") return;
-    const amount = Number(transferAmount);
-    if (!Number.isFinite(amount) || amount <= 0) { setTransferStatus("Enter a positive amount."); return; }
-    setTransferBusy(true); setTransferStatus(null);
-    try {
-      const result = await recApi.transferMyFunds({ guildId: auth.guildId, amount, direction: transferDirection });
-      setTransferStatus(`Transfer complete. Wallet ${coinsNumber(result.wallet_balance)} · Savings ${coinsNumber(result.savings_balance)}`);
-      setTransferAmount(""); await load();
-    } catch (cause) { setTransferStatus(cause instanceof Error ? cause.message : "Transfer failed."); }
-    finally { setTransferBusy(false); }
-  }
   async function loadStoreContext() {
     if (auth.status !== "ready" || storeContext) return;
     try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
@@ -1302,23 +1286,20 @@ export function HubHome() {
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<BoxScoreIcon size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<HighlightReelIcon size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
-          {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
           {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
-          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setEditRosterOpen(true)}><IconWell size="sm" icon={<UserPlus size={16} />} /><div><strong>Edit Roster</strong><span>Add a player</span></div></button>}
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+          {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
         </div>
       </div>
       <div className="hub-stat-grid">
       <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
     </div><div className="hub-profile-sections">
-      <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><div className="hub-hero-funds-row"><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><span /><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article></div><p>Projected next-advance interest: <strong><CoinAmount amount={Number(my.projectedInterest ?? 0)} /></strong></p><p className="hub-muted">Savings interest continues to accrue when the league advances.</p><div className="hub-transfer-form"><select className="form-input" value={transferDirection} onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}><option value="to_savings">Wallet to Savings</option><option value="from_savings">Savings to Wallet</option></select><input className="form-input" type="number" min="0.01" step="0.01" max={transferDirection === "to_savings" ? Number(my.wallet ?? 0) : Number(my.savings ?? 0)} placeholder="Amount" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /><Button variant="primary" disabled={transferBusy || !transferAmount} onClick={() => void transferFunds()}>{transferBusy ? "Transferring…" : "Transfer Funds"}</Button></div>{transferStatus && <p className="hub-transfer-status">{transferStatus}</p>}</div></details>
+      <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>Active streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
       <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
@@ -1501,31 +1482,12 @@ export function HubHome() {
                     <small>{heroUserMeta}</small>
                   </div>
                 </article>
-                <div className="hub-hero-funds-row">
-                  <article>
-                    <span>Wallet</span>
-                    <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong>
-                  </article>
-                  <button
-                    type="button"
-                    className="hub-hero-transfer-btn"
-                    title="Transfer between wallet and savings"
-                    aria-label="Transfer funds"
-                    onClick={() => {
-                      setTransferDirection("to_savings");
-                      setTransferAmount("");
-                      setTransferStatus(null);
-                      setHeroTransferOpen(true);
-                    }}
-                  >
-                    ↔
-                  </button>
-                  <article>
-                    <span>Savings</span>
-                    <strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong>
-                    <small>Next advance +<CoinAmount amount={Number(my.projectedInterest ?? 0)} /></small>
-                  </article>
-                </div>
+                <WalletSavingsCard
+                  guildId={auth.status === "ready" ? auth.guildId : ""}
+                  wallet={Number(my.wallet ?? 0)}
+                  savings={Number(my.savings ?? 0)}
+                  onTransferred={load}
+                />
               </div>
             </aside>
           </section>
@@ -1567,15 +1529,14 @@ export function HubHome() {
         <div className="hub-gameday-card hub-quick-actions-card">
           <p className="hub-eyebrow">Quick actions</p>
           <div className="hub-gameday-actions hub-quick-actions-row">
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
-            {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
             <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
-            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
+            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
+            {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
           </div>
         </div>
 
@@ -1909,62 +1870,6 @@ export function HubHome() {
       <div>{AWARD_REACTIONS.map((reaction) => <label key={reaction.key} className={potyCategory === reaction.key ? "active" : ""}><input type="radio" name="poty-category" value={reaction.key} checked={potyCategory === reaction.key} onChange={() => setPotyCategory(reaction.key)} /><span>{reaction.label}</span></label>)}</div>
       <Button variant="primary" disabled={!potyCategory} onClick={async () => { if (!potyCategory) return; await highlightReact(potyHighlightId, potyCategory); setPotyHighlightId(null); setPotyCategory(""); }}>Submit Nomination</Button>
     </div></Modal>}
-    {heroTransferOpen && (
-      <Modal title="Transfer Funds" onClose={() => setHeroTransferOpen(false)}>
-        <div className="hub-poty-modal">
-          <p>Move coins between wallet and savings. Amount cannot exceed your available balance.</p>
-          <label className="form-field">
-            <span className="form-label">Direction</span>
-            <select
-              className="form-input"
-              value={transferDirection}
-              onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}
-            >
-              <option value="to_savings">Wallet → Savings</option>
-              <option value="from_savings">Savings → Wallet</option>
-            </select>
-          </label>
-          <label className="form-field">
-            <span className="form-label">Amount</span>
-            <input
-              className="form-input"
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={
-                transferDirection === "to_savings"
-                  ? Number(my.wallet ?? 0)
-                  : Number(my.savings ?? 0)
-              }
-              placeholder="Amount"
-              value={transferAmount}
-              onChange={(event) => setTransferAmount(event.target.value)}
-            />
-          </label>
-          <p className="hub-muted">
-            Available:{" "}
-            <CoinAmount
-              amount={
-                transferDirection === "to_savings"
-                  ? Number(my.wallet ?? 0)
-                  : Number(my.savings ?? 0)
-              }
-            />
-          </p>
-          {transferStatus ? <p className="hub-transfer-status">{transferStatus}</p> : null}
-          <Button
-            variant="primary"
-            disabled={transferBusy || !transferAmount}
-            onClick={async () => {
-              await transferFunds();
-              setHeroTransferOpen(false);
-            }}
-          >
-            {transferBusy ? "Transferring…" : "Transfer"}
-          </Button>
-        </div>
-      </Modal>
-    )}
     {activeStory ? (
       <ExpandedArticleView
         stories={headlines}
