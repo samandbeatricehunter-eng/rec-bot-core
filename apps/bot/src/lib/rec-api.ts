@@ -546,6 +546,8 @@ export const recApi = {
     ),
   listUnattendedCommissionerNotifications: (guildId: string) =>
     recFetch<{ notifications: Array<{ id: string; header: string; summary: string | null }> }>("/v1/notifications/dm-pending", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getDiscordGovernanceSnapshot: () =>
+    recFetch<{ managementGuildId: string | null; linkedGuildIds: string[] }>("/v1/admin/discord-governance/snapshot", { method: "POST", body: JSON.stringify({}) }),
   markCommissionerNotificationDms: (guildId: string, ids: string[]) =>
     recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
   ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>

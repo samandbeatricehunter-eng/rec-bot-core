@@ -4,6 +4,7 @@ import { startImpersonation } from "../lib/impersonation.js";
 import {
   siteApi,
   type AdminAnnouncement,
+  type AdminDiscordConfig,
   type AdminLeagueMember,
   type AdminLeagueSummary,
   type AdminStats,
@@ -12,7 +13,7 @@ import {
   type PromoCodeEffectType,
 } from "../lib/site-api.js";
 
-type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes";
+type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "discord";
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "stats", label: "Stats" },
@@ -20,6 +21,7 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "leagues", label: "Leagues" },
   { id: "impersonate", label: "View As" },
   { id: "promo-codes", label: "Promo Codes" },
+  { id: "discord", label: "Discord" },
 ];
 
 const EMPTY_DRAFT = {
@@ -612,6 +614,86 @@ function PromoCodesPanel() {
   );
 }
 
+function DiscordConfigPanel() {
+  const [config, setConfig] = useState<AdminDiscordConfig | null>(null);
+  const [managementGuildId, setManagementGuildId] = useState("");
+  const [madden26Channel, setMadden26Channel] = useState("");
+  const [madden27Channel, setMadden27Channel] = useState("");
+  const [cfb27Channel, setCfb27Channel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function applyConfig(next: AdminDiscordConfig) {
+    setConfig(next);
+    setManagementGuildId(next.managementGuildId ?? "");
+    setMadden26Channel(next.leaguePostChannels.madden_26 ?? "");
+    setMadden27Channel(next.leaguePostChannels.madden_27 ?? "");
+    setCfb27Channel(next.leaguePostChannels.cfb_27 ?? "");
+  }
+
+  useEffect(() => {
+    siteApi.getAdminDiscordConfig().then(applyConfig).catch((err) => setError(err instanceof Error ? err.message : "Could not load Discord config."));
+  }, []);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const next = await siteApi.updateAdminDiscordConfig({
+        managementGuildId: managementGuildId.trim() || null,
+        leaguePostChannels: {
+          madden_26: madden26Channel.trim() || null,
+          madden_27: madden27Channel.trim() || null,
+          cfb_27: cfb27Channel.trim() || null,
+        },
+      });
+      applyConfig(next);
+      setNotice("Saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save Discord config.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!config) return <p className="site-muted">Loading…</p>;
+
+  return (
+    <div className="site-billing-panel">
+      <p className="site-muted">
+        The management server is the only Discord server REC Scout is allowed to sit in without being linked to
+        an active site league — the bot leaves any other unlinked server automatically once a day. League-post
+        channels are where the bot advertises open teams for newly created leagues of that game type.
+      </p>
+      {error && <p className="site-auth-error">{error}</p>}
+      {notice && <p className="site-muted">{notice}</p>}
+      <label className="site-field">
+        <span>Management server (Discord guild ID)</span>
+        <input value={managementGuildId} onChange={(e) => setManagementGuildId(e.target.value)} placeholder="e.g. 1536368873870336071" />
+      </label>
+      <label className="site-field">
+        <span>Madden 26 league-post channel ID</span>
+        <input value={madden26Channel} onChange={(e) => setMadden26Channel(e.target.value)} />
+      </label>
+      <label className="site-field">
+        <span>Madden 27 league-post channel ID</span>
+        <input value={madden27Channel} onChange={(e) => setMadden27Channel(e.target.value)} />
+      </label>
+      <label className="site-field">
+        <span>CFB 27 league-post channel ID</span>
+        <input value={cfb27Channel} onChange={(e) => setCfb27Channel(e.target.value)} />
+      </label>
+      <div className="site-profile-actions">
+        <button className="site-btn site-btn-primary" type="button" disabled={busy} onClick={() => void save()}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ImpersonatePanel() {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -727,6 +809,7 @@ export function AdminPage() {
       {tab === "leagues" ? <LeaguesPanel /> : null}
       {tab === "impersonate" ? <ImpersonatePanel /> : null}
       {tab === "promo-codes" ? <PromoCodesPanel /> : null}
+      {tab === "discord" ? <DiscordConfigPanel /> : null}
     </div>
   );
 }

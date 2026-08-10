@@ -409,6 +409,27 @@ setInterval(() => {
   pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
 }, 150_000).unref();
 
+// REC Scout is only meant to sit in servers actively running a site league, plus the one
+// server used to manage the site/bot itself (rec_site_discord_config.management_guild_id).
+// Any other guild it somehow ends up in (a stale invite, a league that got deleted without
+// the bot being removed, testing) gets left automatically — checked once a day, which is
+// resilient to a bot restart landing mid-cycle since it's just re-checked next time regardless.
+async function sweepUnlinkedGuilds() {
+  const snapshot = await recApi.getDiscordGovernanceSnapshot();
+  const allowed = new Set(snapshot.linkedGuildIds);
+  if (snapshot.managementGuildId) allowed.add(snapshot.managementGuildId);
+  for (const guild of client.guilds.cache.values()) {
+    if (allowed.has(guild.id)) continue;
+    console.warn(`[WARN] Leaving unlinked guild ${guild.id} (${guild.name}) — no active league or management-server link.`);
+    await guild.leave().catch((error) => console.error(`[ERROR] Failed to leave unlinked guild ${guild.id}:`, error));
+  }
+}
+
+sweepUnlinkedGuilds().catch((error) => console.error("[ERROR] Unlinked-guild sweep failed:", error));
+setInterval(() => {
+  sweepUnlinkedGuilds().catch((error) => console.error("[ERROR] Unlinked-guild sweep failed:", error));
+}, 24 * 60 * 60_000).unref();
+
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Open the REC site (**rec-leagues.com**) to proceed.";
 
 async function expireWindow(interaction: Interaction) {

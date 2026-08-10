@@ -771,6 +771,12 @@ export const siteApi = {
   getAdminStatus() {
     return request<{ isAdmin: boolean }>("/v1/admin/whoami", {});
   },
+  getAdminDiscordConfig() {
+    return request<AdminDiscordConfig>("/v1/admin/discord-config/get", {});
+  },
+  updateAdminDiscordConfig(patch: { managementGuildId?: string | null; leaguePostChannels?: Partial<AdminDiscordConfig["leaguePostChannels"]> }) {
+    return request<AdminDiscordConfig>("/v1/admin/discord-config/set", patch);
+  },
   getLeagueCreatorStatus() {
     return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
   },
@@ -1130,6 +1136,10 @@ export type AdminUserSummary = {
   hasSiteAccount: boolean;
 };
 
+export type AdminDiscordConfig = {
+  managementGuildId: string | null;
+  leaguePostChannels: { madden_26: string | null; madden_27: string | null; cfb_27: string | null };
+};
 export type AdminStats = {
   totalUsers: number;
   siteLinkedUsers: number;

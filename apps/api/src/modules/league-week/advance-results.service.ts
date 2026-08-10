@@ -360,7 +360,7 @@ export async function getAdvanceWeekGames(guildId: string) {
 // Discord channel (tagging them) if one is tracked and still active, and the site's game
 // chat for that matchup either way. Dynamic import of game-channels.service.js avoids a
 // circular static import (it already imports getAdvanceWeekGames from this file).
-async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string; userIds: string[] }) {
+async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string; userIds: string[]; headline?: string; chatBody?: string }) {
   const { getGameChannelByGameId } = await import("../game-channels/game-channels.service.js");
   const channel = await getGameChannelByGameId(input.gameId);
   if (!channel) return;
@@ -368,11 +368,12 @@ async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string;
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", input.userIds);
   if (accounts.error) throw new ApiError(500, "Failed to load Discord mentions for schedule notice.", accounts.error);
   const discordIds = (accounts.data ?? []).map((row: any) => String(row.discord_id)).filter(Boolean);
+  const headline = input.headline ?? "**SCHEDULE YOUR GAME ASAP**";
 
   if (channel.discord_channel_id) {
     const mentions = discordIds.map((id) => `<@${id}>`).join(" ");
     await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `${mentions ? `${mentions} ` : ""}**SCHEDULE YOUR GAME ASAP**`.trim(),
+      content: `${mentions ? `${mentions} ` : ""}${headline}`.trim(),
       allowed_mentions: { users: discordIds },
     });
   }
@@ -381,7 +382,7 @@ async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string;
     gameChannelId: channel.id,
     leagueId: input.leagueId,
     gameId: input.gameId,
-    body: "**SCHEDULE YOUR GAME ASAP** — a commissioner flagged this matchup as overdue.",
+    body: input.chatBody ?? `${headline} — a commissioner flagged this matchup as overdue.`,
   });
 }
 
@@ -403,8 +404,14 @@ export async function notifyMissingBoxScore(input: { guildId: string; gameId: st
     url: `/matchups/${game.gameId}`,
   });
 
-  await notifyScheduleGameAsap({ leagueId: context.leagueId, gameId: game.gameId, userIds }).catch((err) =>
-    console.error("[ERROR] Failed to post SCHEDULE YOUR GAME ASAP notice (non-fatal):", err),
+  await notifyScheduleGameAsap({
+    leagueId: context.leagueId,
+    gameId: game.gameId,
+    userIds,
+    headline: "**BOX SCORE NEEDED**",
+    chatBody: `**BOX SCORE NEEDED** — a commissioner is waiting on this game's final result before the league can advance.`,
+  }).catch((err) =>
+    console.error("[ERROR] Failed to post BOX SCORE NEEDED notice (non-fatal):", err),
   );
 
   await writeAuditLog({
