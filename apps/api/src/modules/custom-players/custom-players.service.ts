@@ -7,6 +7,7 @@ import {
   REC_DEV_TRAITS,
   REC_NAME_CORPUS_VERSION,
   REC_OVR_MODEL_VERSION,
+  canonicalReplacementPosition,
   calculateRecAttributeCost,
   evaluateRecCustomPlayerBuild,
   formatCoins,
@@ -93,7 +94,6 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
   if (game === "CFB") {
     if (identity.college) throw new ApiError(400, "CFB custom players do not use a college field.");
-    if (!identity.hometownCity?.trim() || !identity.hometownState?.trim()) throw new ApiError(400, "CFB custom players require a hometown and state.");
     // Only first/last name, jersey #, handedness, height, weight, and body type are editable
     // for a CFB custom player — hometown/state are not editable in-game (the wizard no longer
     // collects them) and everything else about their physical build comes from ratings.
@@ -147,7 +147,9 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   // Only recruits/manually-added players are eligible replacement targets — the default
   // baseline roster (is_default_player = true) is never selectable here.
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).order("position");
+    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
+  const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
   const wallet = Number(baseline.wallet?.wallet_balance ?? 0);
   const attributes = new Set<string>();
   for (const position of REC_CUSTOM_PLAYER_POSITIONS) for (const code of getRecEditableAttributes(game, position)) attributes.add(code);
@@ -160,7 +162,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     devTraits: REC_DEV_TRAITS[game],
     // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
     // trait the replaced player already has (or "normal" with no replacement).
-    devTraitInherited: false,
+    devTraitInherited: game === "CFB",
     archetypes: Object.fromEntries(REC_CUSTOM_PLAYER_POSITIONS.map((position) => [position, listRecArchetypes(game, position)])),
     attributes: [...attributes].sort().map((code) => ({ code, displayName: getRecAttributeDisplayName(code) })),
     replacementPlayers: roster.data ?? [],
@@ -172,7 +174,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // Active players exist, but none are eligible replacement targets (the whole roster is
     // still the untouched default baseline) — the purchase can't proceed until the user tracks
     // a recruit or manually adds a player via Edit Roster.
-    blockedNoEligibleReplacement: false,
+    blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
     contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only.",
     // In-game roster editors don't let you change a player's face/model — only body sliders
     // (height, weight, body type). The created player keeps the replaced player's in-game
@@ -278,7 +280,7 @@ export async function submitCustomPlayer(input: {
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
     const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).maybeSingle();
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
     if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
     replacement = found as { data: Record<string, unknown> };
   } else if (config.replacementRequired) {
@@ -291,14 +293,14 @@ export async function submitCustomPlayer(input: {
   // unseeded-league brand-new add) the submitted position stands. The replaced player's
   // position is the roster's raw code (SAM/WILL/MIKE/LEDGE/REDGE for CFB edge/LB slots) —
   // canonicalize it, or isRecCustomPlayerPosition/getRecArchetype below reject it outright.
-  const effectivePosition = input.position;
+  const effectivePosition = game === "CFB" && replacement.data ? canonicalReplacementPosition(String(replacement.data.position)) : input.position;
   validateIdentity(game, input.identity, effectivePosition);
   await assertNameNotLegend(game, input.identity);
 
   // CFB dev trait is earned in-game, not purchased — the wizard never lets a CFB build
   // choose one. The inserted player inherits whatever trait the replaced player already
   // has (or starts "normal" when there's no replacement, i.e. an unseeded-league new add).
-  const effectiveDevTrait = input.developmentTrait;
+  const effectiveDevTrait = game === "CFB" ? String(replacement.data?.dev_trait ?? "normal") : input.developmentTrait;
 
   const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));

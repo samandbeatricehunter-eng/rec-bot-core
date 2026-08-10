@@ -175,8 +175,6 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     if (!identity.lastName?.trim()) return "Last name is required.";
     if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) return "Jersey number must be a whole number from 0 to 99.";
     if (game === "CFB") {
-      if (!identity.hometownCity?.trim()) return "Hometown is required.";
-      if (!identity.hometownState?.trim()) return "State is required.";
       const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
       const heightMax = heightRule?.max ?? 84;
       if (!Number.isInteger(identity.heightInches) || identity.heightInches < 65 || identity.heightInches > heightMax) return `Height for ${position} must be between 5'5" and ${formatFeetInches(heightMax)}.`;
