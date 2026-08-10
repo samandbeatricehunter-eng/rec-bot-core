@@ -15,11 +15,6 @@ export const MADDEN_LEAGUE_TYPES = [
   { value: "custom_rosters", label: "Custom Rosters", desc: "Import a custom roster file before starting. Useful for roster sharing communities." },
 ] as const;
 
-export const CFB_ROSTER_OPTIONS = [
-  { value: "activeRosters", label: "Active Rosters", desc: "Seed the league with the current CFB baseline dataset. Recommended for most leagues." },
-  { value: "trackRosters", label: "Track Rosters", desc: "Enable recruiting, transfer portal, and roster progression tracking. Only check this if your league uses REC's dynasty tracking features." },
-] as const;
-
 export const MADDEN_DIFFICULTY = [
   { value: "rookie", label: "Rookie" },
   { value: "pro", label: "Pro" },
@@ -40,8 +35,9 @@ export const MADDEN_SEASON_STAGES = [
 ] as const;
 
 export const CFB_SEASON_STAGES = [
-  "preseason", "regular_season", "wild_card", "divisional",
-  "conference_championship", "national_championship", "offseason", "draft",
+  "preseason", "week_0", "regular_season", "conference_championship",
+  "bowl_season", "cfp_first_round", "cfp_quarterfinal", "cfp_semifinal",
+  "national_championship", "offseason",
 ] as const;
 
 export const STREAMING_OPTIONS = [

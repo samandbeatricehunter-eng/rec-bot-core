@@ -88,6 +88,7 @@ export * from "./purchases.js";
 export * from "./legends.js";
 export * from "./wagers.js";
 export * from "./league-sliders.js";
+export * from "./league-templates.js";
 export * from "./chat.js";
 export * from "./case-status.js";
 export * from "./import-provenance.js";

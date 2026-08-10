@@ -7,10 +7,11 @@ import {
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
 import {
-  CFB_TEMPLATE_PRESETS,
+  CFB_LEAGUE_TEMPLATES,
+  BASE_TEMPLATE_PRESET,
   describeTemplateSettings,
-  LEAGUE_TEMPLATES,
-  MADDEN_TEMPLATE_PRESETS,
+  getLeagueTemplatePreset,
+  MADDEN_LEAGUE_TEMPLATES,
   type LeagueTemplateId,
   type LeagueTemplatePreset,
 } from "../lib/league-templates.js";
@@ -20,7 +21,7 @@ import {
 } from "./wizard/fields.js";
 import {
   ADVANCE_TIMING_OPTIONS, BALL_HAWK_OPTIONS, CFB_CONFERENCE_REALIGNMENT, CFB_DIFFICULTY,
-  CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY, CFB_ROSTER_OPTIONS, CFB_SEASON_STAGES,
+  CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY, CFB_SEASON_STAGES,
   CHAMP_GAME_CRITERIA_OPTIONS, CHAMP_GAME_LOCATION_OPTIONS, COACH_FIRING_OPTIONS,
   CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS, GAME_OPTIONS,
   INJURY_OPTIONS, MADDEN_DIFFICULTY, MADDEN_LEAGUE_TYPES, MADDEN_SEASON_STAGES,
@@ -42,8 +43,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [crossPlayEnabled, setCrossPlayEnabled] = useState(true);
   const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");
   const [leagueType, setLeagueType] = useState("");
-  const [activeRostersEnabled, setActiveRostersEnabled] = useState(true);
-  const [trackRostersEnabled, setTrackRostersEnabled] = useState(false);
   const [name, setName] = useState("");
   const [leaguePassword, setLeaguePassword] = useState("");
   const [seasonNumber, setSeasonNumber] = useState(1);
@@ -382,8 +381,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       crossPlayEnabled,
       requiredConsole: crossPlayEnabled ? undefined : requiredConsole,
       leagueType: leagueType || undefined,
-      activeRostersEnabled: isCfb ? activeRostersEnabled : undefined,
-      trackRostersEnabled: isCfb ? trackRostersEnabled : undefined,
+      activeRostersEnabled: isCfb ? true : undefined,
+      trackRostersEnabled: isCfb ? true : undefined,
       dynastyType: isCfb ? dynastyType : undefined,
       recruitingDifficulty: isCfb ? recruitingDifficulty : undefined,
       transferPortalEnabled: isCfb ? transferPortalEnabled : undefined,
@@ -499,7 +498,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       leaguePassword: leaguePassword || undefined,
     };
   }, [
-    game, isOnline, crossPlayEnabled, requiredConsole, leagueType, activeRostersEnabled, trackRostersEnabled, name, leaguePassword,
+    game, isOnline, crossPlayEnabled, requiredConsole, leagueType, name, leaguePassword,
     seasonNumber, seasonStage, currentWeek, skipToStage, skipToStageValue,
     regularSeasonStreamingRequirement, regularSeasonStreamingSide,
     postseasonStreamingRequirement, postseasonStreamingSide,
@@ -556,11 +555,22 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.acceleratedClockEnabled !== undefined) setAcceleratedClockEnabled(template.acceleratedClockEnabled);
     if (template.acceleratedClockMinimumSeconds !== undefined) setAcceleratedClockMinimumSeconds(template.acceleratedClockMinimumSeconds);
     if (template.tradeDifficulty !== undefined) setTradeDifficulty(template.tradeDifficulty);
+    setFreeAgentMotivationImpact(template.freeAgentMotivationImpact);
     if (template.salaryCapEnabled !== undefined) setSalaryCapEnabled(template.salaryCapEnabled);
     if (template.tradeDeadlineEnabled !== undefined) setTradeDeadlineEnabled(template.tradeDeadlineEnabled);
     if (template.tradeApprovalPolicy !== undefined) setTradeApprovalPolicy(template.tradeApprovalPolicy);
     if (template.cpuTradingPolicy !== undefined) setCpuTradingPolicy(template.cpuTradingPolicy);
     if (template.positionChangePolicy !== undefined) setPositionChangePolicy(template.positionChangePolicy);
+    setCoachFiringPolicy(template.coachFiringPolicy);
+    setPreorderBonusesEnabled(template.preorderBonusesEnabled);
+    setAbilitiesEnabled(template.abilitiesEnabled);
+    setWearAndTearEnabled(template.wearAndTearEnabled);
+    setBallHawk(template.ballHawk);
+    setHeatSeeker(template.heatSeeker);
+    setSwitchAssist(template.switchAssist);
+    setInjuryPolicy(template.injuryPolicy);
+    setCustomCoachesRequired(template.customCoachesRequired);
+    setCustomPlaybooksAllowed(template.customPlaybooksAllowed);
     if (template.coinEconomyEnabled !== undefined) setCoinEconomyEnabled(template.coinEconomyEnabled);
     if (template.customPlayersEnabled !== undefined) setCustomPlayersEnabled(template.customPlayersEnabled);
     if (template.customPlayersSeasonCap !== undefined) setCustomPlayersSeasonCap(template.customPlayersSeasonCap);
@@ -578,8 +588,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.nonCoreAttributePurchasesSeasonCap !== undefined) setNonCoreAttributePurchasesSeasonCap(template.nonCoreAttributePurchasesSeasonCap);
     if (template.coreAttributes !== undefined) {
       setCoreAttributes(template.coreAttributes);
-      setCoreAttributeCapOverrides({});
-      setNonCoreAttributeCapOverrides({});
+      setCoreAttributeCapOverrides(template.coreAttributeCapOverrides);
+      setNonCoreAttributeCapOverrides(template.nonCoreAttributeCapOverrides);
     }
     if (template.contractAdjustmentPurchasesEnabled !== undefined) setContractAdjustmentPurchasesEnabled(template.contractAdjustmentPurchasesEnabled);
     if (template.contractPurchasesSeasonCap !== undefined) setContractPurchasesSeasonCap(template.contractPurchasesSeasonCap);
@@ -599,12 +609,24 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.defensivePlayCallLimit !== undefined) setDefensivePlayCallLimit(template.defensivePlayCallLimit);
     if (template.defensivePlayCallCooldownEnabled !== undefined) setDefensivePlayCallCooldownEnabled(template.defensivePlayCallCooldownEnabled);
     if (template.defensivePlayCallCooldown !== undefined) setDefensivePlayCallCooldown(template.defensivePlayCallCooldown);
+    const deadline = { stage: template.purchaseDeadlineStage, week: template.purchaseDeadlineWeek };
+    setPurchaseDeadlines(Object.fromEntries(Object.keys(PURCHASE_DEADLINE_TYPES).map((key) => [key, deadline])));
   }
 
   function handleTemplateSelect(id: LeagueTemplateId | null) {
     setTemplateId(id);
-    if (id && game) {
-      applyTemplate(game === "cfb_27" ? CFB_TEMPLATE_PRESETS[id] : MADDEN_TEMPLATE_PRESETS[id]);
+    if (!game) return;
+    const preset = id ? getLeagueTemplatePreset(game, id) : BASE_TEMPLATE_PRESET;
+    if (preset) applyTemplate(preset);
+    if (!id) {
+      setLeagueType("");
+      setCoinEconomyEnabled(false);
+      setCustomPlayersEnabled(false);
+      setLegendsEnabled(false);
+      setDevUpgradesEnabled(false);
+      setAttributePurchasesEnabled(false);
+      setAgeResetsEnabled(false);
+      setContractAdjustmentPurchasesEnabled(false);
     }
   }
 
@@ -633,7 +655,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   }, [game]);
 
   async function finishWizard() {
-    if (!game || !name.trim()) return;
+    if (!game || !name.trim() || !selectedTeamId) {
+      setError("Choose your team before creating the league.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -751,24 +776,50 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 1 && (
           <>
+            <Section title="Game">
+              <p className="site-muted">Choose the game first so REC can offer only compatible templates and settings.</p>
+              <div className="wizard-game-grid">
+                {GAME_OPTIONS.map((option) => (
+                  <button key={option.value} type="button"
+                    className={`wizard-game-card ${game === option.value ? "wizard-game-card-active" : ""}`}
+                    onClick={() => {
+                      setGame(option.value);
+                      setTemplateId("rec_recommended");
+                      const preset = getLeagueTemplatePreset(option.value, "rec_recommended");
+                      if (preset) applyTemplate(preset);
+                      setCoachModeEnabled(false);
+                    }}>{option.label}</button>
+                ))}
+              </div>
+            </Section>
+            {(game === "madden_27" || game === "cfb_27") && (
+              <Section title="Coach Mode">
+                <ToggleField label="Is this a Coach Mode-only league?" hint="Coach Mode leagues are identified in league search and league advertisements."
+                  checked={coachModeEnabled} onChange={setCoachModeEnabled} />
+              </Section>
+            )}
+            {game && <>
             <Section title="Start From a Template">
               <p className="site-muted">
                 Templates prefill the league's rules, difficulty, streaming, and economy settings. You can still
-                change anything after picking one — or start blank and set everything yourself. Settings shown are
-                the Madden defaults; CFB leagues start from the same template minus age resets and contract purchases.
+                change anything after picking one — or start blank and set everything yourself. Every card below
+                reflects the selected game's actual defaults; incompatible templates are not offered.
               </p>
               <div className="wizard-template-grid">
-                {LEAGUE_TEMPLATES.map((template) => {
-                  const settingsGroups = describeTemplateSettings(MADDEN_TEMPLATE_PRESETS[template.id], "madden");
+                {(isCfb ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES).map((template) => {
+                  const preset = getLeagueTemplatePreset(game, template.id);
+                  if (!preset) return null;
+                  const settingsGroups = describeTemplateSettings(preset, isCfb ? "cfb" : "madden");
+                  const selected = templateId === template.id;
                   return (
                     <div key={template.id}
                       className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}>
                       <button type="button" className="wizard-template-card-select" onClick={() => handleTemplateSelect(template.id)}>
                         <strong>{template.name}</strong>
-                        <span className="site-muted wizard-template-tagline">{template.tagline}</span>
-                        <span className="site-muted wizard-template-desc">{template.description}</span>
+                        {selected && <><span className="site-muted wizard-template-tagline">{template.tagline}</span>
+                        <span className="site-muted wizard-template-desc">{template.description}</span></>}
                       </button>
-                      <details className="wizard-template-settings">
+                      {selected && <details className="wizard-template-settings" open>
                         <summary>View settings</summary>
                         <div className="wizard-template-settings-groups">
                           {settingsGroups.map((group) => (
@@ -786,7 +837,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                             </div>
                           ))}
                         </div>
-                      </details>
+                      </details>}
                     </div>
                   );
                 })}
@@ -799,37 +850,16 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 </div>
               </div>
             </Section>
+            </>}
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(0)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(2)}>Next</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={!game} onClick={() => setStep(2)}>Next</button>
             </div>
           </>
         )}
 
         {step === 2 && (
           <>
-            <Section title="Game">
-              <p className="site-muted">Choose which game this league will use. This cannot be changed later.</p>
-              <div className="wizard-game-grid">
-                {GAME_OPTIONS.map((option) => (
-                  <button key={option.value} type="button"
-                    className={`wizard-game-card ${game === option.value ? "wizard-game-card-active" : ""}`}
-                    onClick={() => {
-                      setGame(option.value);
-                      setLeagueType("");
-                      if (templateId) {
-                        const preset = option.value === "cfb_27"
-                          ? CFB_TEMPLATE_PRESETS[templateId]
-                          : MADDEN_TEMPLATE_PRESETS[templateId];
-                        applyTemplate(preset);
-                      }
-                    }}>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
             {game && (
               <Section title="Online or Offline">
                 <p className="site-muted">Offline dynasties/franchises don't show up in league search, but still count toward your league-owner limit.</p>
@@ -857,14 +887,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </Section>
             )}
 
-            {isMadden && (
+            {isMadden && (templateId === null || templateId === "rec_recommended") && (
               <Section title="League Type">
                 <p className="site-muted">Choose how rosters are populated. This cannot be changed after creation.</p>
                 {MADDEN_LEAGUE_TYPES.map((option) => (
                   <label key={option.value} className={`wizard-option-card ${leagueType === option.value ? "wizard-option-card-active" : ""}`}>
                     <input type="radio" name="leagueType" value={option.value} checked={leagueType === option.value}
-                      onChange={() => setLeagueType(option.value)} className="sr-only" />
-                    <strong>{option.label}</strong>
+                      disabled={option.value === "custom_rosters"} onChange={() => setLeagueType(option.value)} className="sr-only" />
+                    <strong>{option.label}{option.value === "custom_rosters" ? " (Coming Soon)" : ""}</strong>
                     <span className="site-muted">{option.desc}</span>
                   </label>
                 ))}
@@ -872,15 +902,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             )}
 
             {isCfb && (
-              <Section title="Roster Setup">
-                <p className="site-muted">Choose how rosters are initialized for this dynasty.</p>
-                <ToggleField label="Seed active rosters from the current CFB baseline dataset"
-                  hint="Recommended — populates all teams with the latest real-world CFB rosters."
-                  checked={activeRostersEnabled} onChange={setActiveRostersEnabled} />
-                <ToggleField label="Enable roster tracking (recruiting, transfer portal, progression)"
-                  hint="Only enable this if your league uses REC's dynasty tracking features. This adds recruiting classes, transfer portal entries, and player progression over seasons."
-                  checked={trackRostersEnabled} onChange={setTrackRostersEnabled} />
-              </Section>
+              <div className="wizard-notice">
+                <strong>CFB roster setup is automatic.</strong> REC seeds the current baseline roster and enables recruiting, transfer-portal, progression, and roster-history tracking for every CFB league.
+              </div>
             )}
 
             <div className="site-modal-actions">
@@ -1405,7 +1429,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void finishWizard()}>Skip for Now</button>
               <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
                 {busy ? "Finishing..." : "Assign Team & Finish"}
               </button>

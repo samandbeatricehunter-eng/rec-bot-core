@@ -11,11 +11,18 @@ const streamingRequirement = z.enum(["required", "recommended", "disabled"]);
 
 export const SeasonStageSchema = z.enum([
   "preseason_training_camp",
+  "preseason",
+  "week_0",
   "regular_season",
   "wild_card",
   "divisional",
   "conference_championship",
   "super_bowl",
+  "bowl_season",
+  "cfp_first_round",
+  "cfp_quarterfinal",
+  "cfp_semifinal",
+  "national_championship",
   "offseason",
   "coach_hiring",
   "final_resigning",
@@ -43,7 +50,7 @@ export const CreateLeagueSchema = z.object({
   // CFB 27 only: replaces the League Type question.
   activeRostersEnabled: z.boolean().default(true),
   // CFB 27 only: seed the league's initial rosters from the CFB baseline dataset at creation.
-  trackRostersEnabled: z.boolean().default(false),
+  trackRostersEnabled: z.boolean().default(true),
 
   dynastyType: z.enum(["real", "mixed"]).default("real"),
   recruitingDifficulty: z.enum(["easy", "normal", "hard"]).default("normal"),
@@ -80,7 +87,7 @@ export const CreateLeagueSchema = z.object({
 
   seasonNumber: z.number().int().min(1).default(1),
   seasonStage: SeasonStageSchema.default("preseason_training_camp"),
-  currentWeek: z.number().int().min(1).max(30).default(1),
+  currentWeek: z.number().int().min(0).max(30).default(1),
 
   currentPhase: z.enum([
     "fantasy_draft",
