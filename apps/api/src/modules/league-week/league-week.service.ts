@@ -8,6 +8,7 @@ import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.serv
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
+import { generateRollingDraftClass } from "../draft-picks/draft-picks.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -55,6 +56,31 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   if (result.error) throw new ApiError(500, "Failed to update league week.", result.error);
 
   if (effectiveSeasonNumber && effectiveSeasonNumber !== previousSeasonNumber) {
+    if (context.rec_leagues.game === "madden_26" || context.rec_leagues.game === "madden_27") {
+      await generateRollingDraftClass({
+        leagueId: context.leagueId,
+        completedSeasonNumber: previousSeasonNumber,
+        targetSeasonNumber: effectiveSeasonNumber + 2,
+      }).catch(async (error) => {
+        console.error("[ERROR] Failed to generate the rolling Madden draft class on season rollover:", error);
+        const errorName = error instanceof Error ? error.name : "NonErrorThrown";
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const incident = await supabase.from("rec_admin_incidents").insert({
+          league_id: context.leagueId,
+          guild_id: input.guildId,
+          process: "generate_rolling_madden_draft_class",
+          severity: "high",
+          status: "open",
+          title: "Madden season rollover could not generate future draft picks",
+          detail: `${errorName}: ${errorMessage}`,
+          error_name: errorName,
+          error_message: errorMessage,
+          error_stack: error instanceof Error ? error.stack ?? null : null,
+          context: { previousSeasonNumber, targetSeasonNumber: effectiveSeasonNumber + 2 },
+        });
+        if (incident.error) console.error("[ERROR] Failed to record draft-generation incident:", incident.error);
+      });
+    }
     await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
     });

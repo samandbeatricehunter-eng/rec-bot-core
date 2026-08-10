@@ -7,6 +7,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-baseline/madden-baseline.service.js";
+import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
 import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
@@ -372,6 +373,12 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
 
+  // Draft capital is independent of roster/template selection. Every Madden league starts
+  // with the game-version-specific first three draft classes, including traded ownership.
+  const maddenDraftPickSeed = input.game === "madden_26" || input.game === "madden_27"
+    ? await seedMaddenDraftPicks(league.data.id, input.game)
+    : null;
+
   // CFB 27 only: when "seed active rosters" is on, seed the league's initial rosters from the
   // active, approved baseline dataset. Runs after default teams exist — applyCfbBaselineToLeague
   // matches baseline teams to them by abbreviation, so no duplicate teams are created.
@@ -438,6 +445,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     defaultTeams: defaultTeams.teams,
     defaultScheduleSeed: defaultTeams.defaultScheduleSeed,
     baselineSeed,
+    maddenDraftPickSeed,
   };
 }
 
@@ -800,6 +808,10 @@ export async function createUnclaimedLeague(input: {
     await upsertConferenceRules(league.data.id, input.conferenceRules);
 
     const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+
+    if (input.game === "madden_26" || input.game === "madden_27") {
+      await seedMaddenDraftPicks(league.data.id, input.game);
+    }
 
     const initialTeam = defaultTeams.teams.find((team) =>
       String(team.abbreviation).toUpperCase() === input.initialTeamAbbreviation.trim().toUpperCase());

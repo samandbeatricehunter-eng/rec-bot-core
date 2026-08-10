@@ -760,6 +760,7 @@ export const recDraftPicks = pgTable("rec_draft_picks", {
   seasonId: uuid("season_id").references(() => recSeasons.id),
   seasonOffset: integer("season_offset").notNull().default(0),
   roundNumber: integer("round_number").notNull(),
+  assetKey: text("asset_key").notNull(),
   pickNumber: integer("pick_number"),
   originalTeamId: uuid("original_team_id").references(() => recTeams.id),
   currentTeamId: uuid("current_team_id").references(() => recTeams.id),

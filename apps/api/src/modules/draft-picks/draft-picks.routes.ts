@@ -7,6 +7,7 @@ import {
   generateSeasonDraftPicks,
   listDraftPicksForLeague,
   listDraftPicksForTeam,
+  setUpcomingDraftOrder,
   updateDraftPick,
   upsertManualDraftPick,
 } from "./draft-picks.service.js";
@@ -66,6 +67,15 @@ export async function draftPicksRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Draft pick generation requires a website session.");
       return reply.send(await generateSeasonDraftPicks({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/draft-picks/set-order", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().min(1), orderedTeamIds: z.array(z.string().uuid()).length(32) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Draft order management requires a website session.");
+      return reply.send(await setUpcomingDraftOrder({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

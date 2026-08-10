@@ -39,6 +39,7 @@ import type {
   LinkedRosterEntry,
   LeagueSettingsDraft,
   LeagueWeekView,
+  TeamDraftPick,
   LinkedTeamsResponse,
   ManualScoreRecordResult,
   MentionableList,
@@ -316,6 +317,10 @@ export const recApi = {
     recApiFetch<{ reversed: true; ledgerId: string; amount: number }>("/v1/admin-economy/reverse-transaction", { method: "POST", body: JSON.stringify(input) }),
   listLeagueDraftPicks: (guildId: string) =>
     recApiFetch<Array<{ id: string; league_id: string; season_number: number; round: number; original_team_id: string; current_team_id: string; pick_number: number | null }>>("/v1/draft-picks/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  moveDraftPick: (input: { guildId: string; pickId: string; currentTeamId: string }) =>
+    recApiFetch<TeamDraftPick>("/v1/draft-picks/update", { method: "POST", body: JSON.stringify(input) }),
+  setUpcomingDraftOrder: (input: { guildId: string; seasonNumber: number; orderedTeamIds: string[] }) =>
+    recApiFetch<{ seasonNumber: number; updated: number }>("/v1/draft-picks/set-order", { method: "POST", body: JSON.stringify(input) }),
   proposeTrade: (input: { guildId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
     recApiFetch<{ status: string } | Trade>("/v1/trades/propose", { method: "POST", body: JSON.stringify(input) }),
   logCommissionerTrade: (input: { guildId: string; proposingTeamId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number; classification: "general" | "blockbuster"; note?: string }) =>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, GraduationCap, Newspaper, Settings, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { BarChart3, ChevronRight, GraduationCap, ListOrdered, Newspaper, Settings, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -48,6 +48,8 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
   const [missing, setMissing] = useState<MissingFilter>("all");
   const [conferenceFilter, setConferenceFilter] = useState<string>("all");
+  const [draftOrderOpen, setDraftOrderOpen] = useState(false);
+  const isMadden = game === "madden_26" || game === "madden_27";
 
   useEffect(() => {
     recApi
@@ -128,6 +130,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                 <Shield size={16} /> Manage Roles
               </Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
+              {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
@@ -145,6 +148,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         }
       />
       {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
+      {mode === "schedule" && isMadden && draftOrderOpen && summary && <UpcomingDraftOrder guildId={guildId} teams={summary.teams} />}
       {error && <ErrorState message={error} />}
       {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}
@@ -277,4 +281,48 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       )}
     </div>
   );
+}
+
+function UpcomingDraftOrder({ guildId, teams }: { guildId: string; teams: TeamManagementSummaryRow[] }) {
+  const [picks, setPicks] = useState<Array<{ season_number: number; round: number; original_team_id: string; pick_number: number | null }>>([]);
+  const [seasonNumber, setSeasonNumber] = useState(1);
+  const [slots, setSlots] = useState<string[]>(Array(32).fill(""));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => { void recApi.listLeagueDraftPicks(guildId).then(setPicks); }, [guildId]);
+  const seasons = useMemo(() => [...new Set(picks.map((pick) => pick.season_number))].sort((a, b) => a - b), [picks]);
+  useEffect(() => { if (seasons.length && !seasons.includes(seasonNumber)) setSeasonNumber(seasons[0]); }, [seasons, seasonNumber]);
+  useEffect(() => {
+    const classPicks = picks.filter((pick) => pick.season_number === seasonNumber);
+    const seeded = Array(32).fill("") as string[];
+    for (const pick of [...classPicks].sort((a, b) => a.round - b.round)) {
+      if (pick.pick_number && !seeded[pick.pick_number - 1]) seeded[pick.pick_number - 1] = pick.original_team_id;
+    }
+    const assigned = new Set(seeded.filter(Boolean));
+    const remaining = teams.map((team) => team.id).filter((id) => !assigned.has(id));
+    for (let index = 0; index < seeded.length; index++) if (!seeded[index]) seeded[index] = remaining.shift() ?? "";
+    setSlots(seeded);
+  }, [picks, seasonNumber, teams]);
+  const complete = slots.length === 32 && new Set(slots.filter(Boolean)).size === 32;
+  async function save() {
+    setBusy(true); setMessage(null);
+    try {
+      const result = await recApi.setUpcomingDraftOrder({ guildId, seasonNumber, orderedTeamIds: slots });
+      setMessage(`Saved Season ${result.seasonNumber} order across ${result.updated} standard picks.`);
+      setPicks(await recApi.listLeagueDraftPicks(guildId));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Failed to save draft order."); }
+    finally { setBusy(false); }
+  }
+  return <Card style={{ marginBottom: "var(--space-4)" }}>
+    <h3 style={{ marginTop: 0 }}>Upcoming Draft Order</h3>
+    <p className="form-hint">The generated NFL-style order is preloaded from the league's current pick positions. Assigning a team to a slot applies that pick number in all seven rounds; traded ownership stays intact.</p>
+    <label className="form-field" style={{ maxWidth: 220 }}><span className="form-label">Draft year</span><select className="form-select" value={seasonNumber} onChange={(event) => setSeasonNumber(Number(event.target.value))}>{seasons.map((season) => <option key={season} value={season}>Season {season}</option>)}</select></label>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "var(--space-2)" }}>
+      {slots.map((teamId, index) => <label className="form-field" style={{ margin: 0 }} key={index}><span className="form-label">{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"}</span>
+        <select className="form-select" value={teamId} onChange={(event) => setSlots((current) => current.map((value, slotIndex) => slotIndex === index ? event.target.value : value))}>
+          <option value="">Select team</option>{teams.filter((team) => team.id === teamId || !slots.includes(team.id)).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select></label>)}
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-4)" }}><Button disabled={!complete || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save Draft Order"}</Button>{message && <span className="form-hint">{message}</span>}</div>
+  </Card>;
 }

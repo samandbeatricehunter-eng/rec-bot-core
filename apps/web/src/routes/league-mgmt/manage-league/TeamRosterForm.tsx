@@ -3,7 +3,8 @@ import { useParams } from "react-router-dom";
 import { CFB_POSITIONS } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { RosterPlayer, TeamRosterResponse } from "../../../types/api.js";
+import { useLeagueTheme } from "../../../lib/league-theme-context.js";
+import type { RosterPlayer, TeamDraftPick, TeamManagementSummaryRow, TeamRosterResponse } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -181,9 +182,12 @@ function AddPlayerForm({ guildId, teamId, onAdded }: { guildId: string; teamId: 
 export function TeamRosterForm() {
   const { teamId } = useParams<{ teamId: string }>();
   const { guildId } = useReadyAuth();
+  const { game } = useLeagueTheme();
   const [data, setData] = useState<TeamRosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState("ALL");
+  const [teams, setTeams] = useState<TeamManagementSummaryRow[]>([]);
+  const isMadden = game === "madden_26" || game === "madden_27";
 
   function load() {
     if (!teamId) return;
@@ -193,6 +197,7 @@ export function TeamRosterForm() {
   }
 
   useEffect(load, [guildId, teamId]);
+  useEffect(() => { if (isMadden) void recApi.getTeamManagementSummary(guildId).then((result) => setTeams(result.teams)); }, [guildId, isMadden]);
 
   const filtered = useMemo(() => {
     const players = data?.players ?? [];
@@ -205,19 +210,22 @@ export function TeamRosterForm() {
   return (
     <div>
       <PageHeader title={data.team.name ?? "Team Roster"} subtitle="Add players directly, or review who's currently on this roster." />
-      <div style={{ marginBottom: "var(--space-4)" }}>
+      {positionFilter !== "Draft Picks" && <div style={{ marginBottom: "var(--space-4)" }}>
         <AddPlayerForm guildId={guildId} teamId={teamId} onAdded={load} />
-      </div>
+      </div>}
       <Card style={{ marginBottom: "var(--space-4)" }}>
         <label className="form-field" style={{ margin: 0, maxWidth: 200 }}>
           <span className="form-label">Position</span>
           <select className="form-select" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)}>
             <option value="ALL">ALL</option>
             {CFB_POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+            {isMadden && <option value="Draft Picks">Draft Picks</option>}
           </select>
         </label>
       </Card>
-      <Card style={{ padding: 0 }}>
+      {positionFilter === "Draft Picks" ? (
+        <DraftPickManager guildId={guildId} currentTeamId={teamId} picks={data.draftPicks} teams={teams} onMoved={load} />
+      ) : <Card style={{ padding: 0 }}>
         <Table>
           <thead>
             <tr>
@@ -247,7 +255,39 @@ export function TeamRosterForm() {
             )}
           </tbody>
         </Table>
-      </Card>
+      </Card>}
     </div>
   );
+}
+
+function DraftPickManager({ guildId, currentTeamId, picks, teams, onMoved }: {
+  guildId: string; currentTeamId: string; picks: TeamDraftPick[]; teams: TeamManagementSummaryRow[]; onMoved: () => void;
+}) {
+  const [destinations, setDestinations] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function movePick(pick: TeamDraftPick) {
+    const currentTeamIdTarget = destinations[pick.id];
+    if (!currentTeamIdTarget) return;
+    setBusyId(pick.id); setError(null);
+    try { await recApi.moveDraftPick({ guildId, pickId: pick.id, currentTeamId: currentTeamIdTarget }); onMoved(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to move pick."); }
+    finally { setBusyId(null); }
+  }
+  return <Card style={{ padding: 0 }}>
+    {error && <ErrorState message={error} />}
+    <Table><thead><tr><Th>Year</Th><Th>Round</Th><Th>Pick #</Th><Th>Acquired From</Th><Th>Original Owner</Th><Th>Move Pick</Th></tr></thead>
+      <tbody>{[...picks].sort((a, b) => a.seasonNumber - b.seasonNumber || a.round - b.round).map((pick) => <tr key={pick.id}>
+        <Td>Season {pick.seasonNumber}</Td><Td>{pick.round}</Td><Td>{pick.pickNumber ?? "TBD"}</Td>
+        <Td>{pick.acquiredFromTeamName ?? "Original allocation"}</Td><Td>{pick.originalTeamName}</Td>
+        <Td><div style={{ display: "flex", gap: "var(--space-2)", minWidth: 280 }}>
+          <select className="form-select" aria-label={`Move season ${pick.seasonNumber} round ${pick.round} pick`} value={destinations[pick.id] ?? ""} onChange={(event) => setDestinations((value) => ({ ...value, [pick.id]: event.target.value }))}>
+            <option value="">Select destination</option>
+            {teams.filter((team) => team.id !== currentTeamId).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+          </select>
+          <Button size="compact" disabled={!destinations[pick.id] || busyId === pick.id} onClick={() => void movePick(pick)}>{busyId === pick.id ? "Moving…" : "Move Pick"}</Button>
+        </div></Td>
+      </tr>)}{picks.length === 0 && <tr><Td colSpan={6}>No draft picks are currently owned by this team.</Td></tr>}</tbody>
+    </Table>
+  </Card>;
 }

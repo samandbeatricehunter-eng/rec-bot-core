@@ -769,6 +769,7 @@ export type TeamDraftPick = {
   pickNumber: number | null;
   originalTeamId: string;
   originalTeamName: string;
+  acquiredFromTeamName: string | null;
   isOwnPick: boolean;
   manualLock: boolean;
   adminNotes: string | null;

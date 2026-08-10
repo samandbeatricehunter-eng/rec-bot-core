@@ -48,9 +48,9 @@ export async function listDraftPicksForTeam(guildId: string, teamId: string) {
     .order("season_number", { ascending: true }).order("round", { ascending: true });
   if (picks.error) throw new ApiError(500, "Failed to load draft picks.", picks.error);
   const rows = (picks.data ?? []) as DraftPickRow[];
-  const originalTeamIds = [...new Set(rows.map((r) => r.original_team_id))];
-  const names = await teamNames(context.leagueId, originalTeamIds);
   const chains = await Promise.all(rows.map((r) => getDraftPickChain(r.id)));
+  const relevantTeamIds = [...new Set(rows.flatMap((r, i) => [r.original_team_id, ...chains[i].flatMap((link) => [link.fromTeamId, link.toTeamId]).filter((id): id is string => Boolean(id))]))];
+  const names = await teamNames(context.leagueId, relevantTeamIds);
   return rows.map((r, i) => ({
     id: r.id,
     seasonNumber: r.season_number,
@@ -58,6 +58,7 @@ export async function listDraftPicksForTeam(guildId: string, teamId: string) {
     pickNumber: r.pick_number,
     originalTeamId: r.original_team_id,
     originalTeamName: names.get(r.original_team_id) ?? "Unknown",
+    acquiredFromTeamName: chains[i].length ? names.get(chains[i][chains[i].length - 1].fromTeamId ?? "") ?? "Unknown" : null,
     isOwnPick: r.original_team_id === r.current_team_id,
     manualLock: r.manual_lock,
     adminNotes: r.admin_notes,
@@ -88,13 +89,14 @@ export async function upsertManualDraftPick(input: {
     league_id: context.leagueId,
     season_number: input.seasonNumber,
     round: input.round,
+    asset_key: `${input.originalTeamId}:R${input.round}`,
     original_team_id: input.originalTeamId,
     current_team_id: input.currentTeamId ?? input.originalTeamId,
     pick_number: input.pickNumber ?? null,
     source: "manual",
     created_by_user_id: userId,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "league_id,season_number,round,original_team_id" }).select("*").single();
+  }, { onConflict: "league_id,season_number,asset_key" }).select("*").single();
   if (upsert.error) throw new ApiError(500, "Failed to save draft pick.", upsert.error);
   return upsert.data;
 }
@@ -120,10 +122,10 @@ export async function updateDraftPick(input: {
   await supabase.from("rec_draft_pick_audit").insert({
     draft_pick_id: input.pickId,
     changed_by_user_id: userId,
-    change_type: "manual_edit",
+    change_type: input.currentTeamId !== undefined && input.currentTeamId !== existing.data.current_team_id ? "traded" : "manual_edit",
     previous_value: existing.data,
     new_value: updated.data,
-    reason: "Commissioner correction",
+    reason: input.currentTeamId !== undefined && input.currentTeamId !== existing.data.current_team_id ? "Commissioner moved pick" : "Commissioner correction",
   });
 
   return updated.data;
@@ -147,60 +149,103 @@ export async function generateSeasonDraftPicks(input: { guildId: string; discord
   if (input.seasonNumber <= MANUAL_SEASON_CEILING) {
     throw new ApiError(400, `Season ${input.seasonNumber} picks are entered manually, not generated.`);
   }
-  const priorSeason = input.seasonNumber - 1;
   const userId = await userIdFromDiscord(input.discordId);
+  return generateRollingDraftClass({
+    leagueId: context.leagueId,
+    targetSeasonNumber: input.seasonNumber,
+    completedSeasonNumber: Math.max(1, input.seasonNumber - 3),
+    createdByUserId: userId,
+  });
+}
 
-  const records = await supabase.from("rec_season_user_records").select("user_id,wins,losses,ties,point_differential")
-    .eq("league_id", context.leagueId).eq("season_number", priorSeason);
-  if (records.error) throw new ApiError(500, "Failed to load prior-season standings.", records.error);
-  if (!records.data?.length) throw new ApiError(409, `No final standings found for season ${priorSeason} yet.`);
+export async function generateRollingDraftClass(input: {
+  leagueId: string;
+  targetSeasonNumber: number;
+  completedSeasonNumber: number;
+  createdByUserId?: string | null;
+}) {
+  const teamsResult = await supabase.from("rec_teams").select("id,name,abbreviation").eq("league_id", input.leagueId);
+  if (teamsResult.error) throw new ApiError(500, "Failed to load teams for the future draft class.", teamsResult.error);
+  const teams = teamsResult.data ?? [];
+  if (teams.length !== 32) throw new ApiError(409, `Madden future-pick generation requires all 32 teams; found ${teams.length}.`);
 
-  const assignments = await supabase.from("rec_team_assignments").select("user_id,team_id")
-    .eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
-  const teamByUser = new Map((assignments.data ?? []).map((a: any) => [a.user_id, a.team_id]));
-
-  // Worst record first: fewest wins, then worst point differential as the tiebreak.
-  const ordered = [...records.data]
-    .filter((r: any) => teamByUser.has(r.user_id))
-    .sort((a: any, b: any) => {
-      const winPctA = (a.wins + a.ties * 0.5) / Math.max(1, a.wins + a.losses + a.ties);
-      const winPctB = (b.wins + b.ties * 0.5) / Math.max(1, b.wins + b.losses + b.ties);
-      if (winPctA !== winPctB) return winPctA - winPctB;
-      return Number(a.point_differential ?? 0) - Number(b.point_differential ?? 0);
-    });
+  const [snapshots, games] = await Promise.all([
+    supabase.from("rec_team_standings_snapshots").select("team_id,total_wins,total_losses,total_ties,win_pct,week_number,created_at")
+      .eq("league_id", input.leagueId).eq("season_number", input.completedSeasonNumber)
+      .order("week_number", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("rec_game_results").select("home_team_id,away_team_id,winning_team_id,losing_team_id,week_number,is_playoff")
+      .eq("league_id", input.leagueId).eq("season_number", input.completedSeasonNumber),
+  ]);
+  if (snapshots.error) throw new ApiError(500, "Failed to load final team standings.", snapshots.error);
+  if (games.error) throw new ApiError(500, "Failed to load completed-season results.", games.error);
+  const latest = new Map<string, any>();
+  for (const row of snapshots.data ?? []) if (!latest.has(String(row.team_id))) latest.set(String(row.team_id), row);
+  const record = new Map<string, { wins: number; losses: number; ties: number }>(teams.map((team: any) => {
+    const row = latest.get(String(team.id));
+    return [String(team.id), { wins: Number(row?.total_wins ?? 0), losses: Number(row?.total_losses ?? 0), ties: Number(row?.total_ties ?? 0) }];
+  }));
+  const opponents = new Map<string, string[]>();
+  const playoffTeams = new Set<string>();
+  const eliminatedAt = new Map<string, number>();
+  let championId: string | null = null;
+  let latestPlayoffWeek = -1;
+  for (const game of games.data ?? []) {
+    const home = game.home_team_id ? String(game.home_team_id) : null;
+    const away = game.away_team_id ? String(game.away_team_id) : null;
+    if (home && away) { (opponents.get(home) ?? opponents.set(home, []).get(home)!).push(away); (opponents.get(away) ?? opponents.set(away, []).get(away)!).push(home); }
+    if (game.is_playoff) {
+      if (home) playoffTeams.add(home); if (away) playoffTeams.add(away);
+      if (game.losing_team_id) eliminatedAt.set(String(game.losing_team_id), Number(game.week_number ?? 0));
+      if (game.winning_team_id && Number(game.week_number ?? 0) >= latestPlayoffWeek) { latestPlayoffWeek = Number(game.week_number ?? 0); championId = String(game.winning_team_id); }
+    }
+  }
+  const winPct = (teamId: string) => { const r = record.get(teamId)!; return (r.wins + r.ties * 0.5) / Math.max(1, r.wins + r.losses + r.ties); };
+  const sos = (teamId: string) => { const list = opponents.get(teamId) ?? []; return list.length ? list.reduce((sum, id) => sum + winPct(id), 0) / list.length : 0; };
+  const ordered = [...teams].sort((a: any, b: any) => {
+    const aId = String(a.id), bId = String(b.id), aPlayoff = playoffTeams.has(aId), bPlayoff = playoffTeams.has(bId);
+    if (aPlayoff !== bPlayoff) return aPlayoff ? 1 : -1;
+    if (aPlayoff) {
+      if (aId === championId) return 1; if (bId === championId) return -1;
+      const roundDifference = (eliminatedAt.get(aId) ?? latestPlayoffWeek) - (eliminatedAt.get(bId) ?? latestPlayoffWeek);
+      if (roundDifference) return roundDifference;
+    }
+    const pctDifference = winPct(aId) - winPct(bId); if (pctDifference) return pctDifference;
+    const sosDifference = sos(aId) - sos(bId); if (sosDifference) return sosDifference;
+    return String(a.abbreviation).localeCompare(String(b.abbreviation));
+  });
 
   // Re-running this (e.g. after a standings correction) must never reset a pick that's
   // already been traded away — only pick_number is safe to recompute on an existing row;
   // current_team_id is only set for genuinely new rows. manual_lock rows are skipped
   // entirely either way.
-  const existing = await supabase.from("rec_draft_picks").select("id,original_team_id,round,manual_lock")
-    .eq("league_id", context.leagueId).eq("season_number", input.seasonNumber);
+  const existing = await supabase.from("rec_draft_picks").select("*")
+    .eq("league_id", input.leagueId).eq("season_number", input.targetSeasonNumber);
   if (existing.error) throw new ApiError(500, "Failed to check existing picks.", existing.error);
-  const existingByKey = new Map<string, { id: string; manual_lock: boolean }>(
+  const existingByKey = new Map<string, Record<string, any>>(
     (existing.data ?? []).map((r: any) => [`${r.original_team_id}:${r.round}`, r]),
   );
 
   const newRows: Record<string, unknown>[] = [];
-  const pickNumberUpdates: Array<{ id: string; pick_number: number }> = [];
+  const pickNumberUpdates: Array<Record<string, any>> = [];
   for (let round = 1; round <= 7; round++) {
     ordered.forEach((record: any, index: number) => {
-      const teamId = teamByUser.get(record.user_id);
+      const teamId = record.id;
       const key = `${teamId}:${round}`;
       const found = existingByKey.get(key);
       if (found?.manual_lock) return;
       if (found) {
-        pickNumberUpdates.push({ id: found.id, pick_number: index + 1 });
+        pickNumberUpdates.push({ ...found, pick_number: index + 1 });
       } else {
         newRows.push({
-          league_id: context.leagueId,
-          season_number: input.seasonNumber,
+          league_id: input.leagueId,
+          season_number: input.targetSeasonNumber,
+          asset_key: `${teamId}:R${round}`,
           round,
           original_team_id: teamId,
           current_team_id: teamId,
           pick_number: index + 1,
           source: "generated",
-          created_by_user_id: userId,
+          created_by_user_id: input.createdByUserId ?? null,
           updated_at: new Date().toISOString(),
         });
       }
@@ -224,4 +269,39 @@ export async function generateSeasonDraftPicks(input: { guildId: string; discord
     if (result.error) throw new ApiError(500, "Failed to update draft pick order.", result.error);
   }
   return { generated: newRows.length, reordered: pickNumberUpdates.length };
+}
+
+export async function setUpcomingDraftOrder(input: {
+  guildId: string;
+  discordId: string;
+  seasonNumber: number;
+  orderedTeamIds: string[];
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  if (context.rec_leagues.game !== "madden_26" && context.rec_leagues.game !== "madden_27") {
+    throw new ApiError(400, "Draft order is only available for Madden leagues.");
+  }
+  if (input.orderedTeamIds.length !== 32 || new Set(input.orderedTeamIds).size !== 32) {
+    throw new ApiError(400, "Draft order must assign every team exactly once from 1 through 32.");
+  }
+  const teams = await supabase.from("rec_teams").select("id").eq("league_id", context.leagueId);
+  if (teams.error) throw new ApiError(500, "Failed to validate draft-order teams.", teams.error);
+  const validTeamIds = new Set((teams.data ?? []).map((team: any) => String(team.id)));
+  if (validTeamIds.size !== 32 || input.orderedTeamIds.some((id) => !validTeamIds.has(id))) {
+    throw new ApiError(400, "Draft order contains a team outside this league.");
+  }
+  const picks = await supabase.from("rec_draft_picks").select("*")
+    .eq("league_id", context.leagueId).eq("season_number", input.seasonNumber);
+  if (picks.error) throw new ApiError(500, "Failed to load the upcoming draft class.", picks.error);
+  const slot = new Map(input.orderedTeamIds.map((teamId, index) => [teamId, index + 1]));
+  const now = new Date().toISOString();
+  const standardPicks = (picks.data ?? []).filter((pick: any) => !String(pick.asset_key ?? "").endsWith(":COMP"));
+  const update = await supabase.from("rec_draft_picks").upsert(standardPicks.map((pick: any) => ({
+    ...pick,
+    pick_number: slot.get(String(pick.original_team_id)),
+    manual_lock: true,
+    updated_at: now,
+  })), { onConflict: "id" });
+  if (update.error) throw new ApiError(500, "Failed to save the upcoming draft order.", update.error);
+  return { seasonNumber: input.seasonNumber, updated: standardPicks.length };
 }
