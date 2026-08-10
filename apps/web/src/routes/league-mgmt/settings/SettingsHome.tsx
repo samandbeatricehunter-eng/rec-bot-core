@@ -9,7 +9,6 @@ import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
-import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
 import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 import { BadgeMaintenance } from "./BadgeMaintenance.js";
@@ -20,8 +19,8 @@ import { ModerationSettings } from "./ModerationSettings.js";
 import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
+import { SliderSettingsPanel } from "./SliderSettingsPanel.js";
 
-const FIRST_TIME_SETUP_KEY = "first-time-setup";
 const EOS_PAYOUTS_KEY = "eos-payouts";
 const DELETE_LEAGUE_KEY = "delete-league";
 const PURCHASE_DEADLINE_TYPES = [
@@ -73,6 +72,10 @@ export function SettingsHome() {
 
   function setField(key: string, value: unknown) {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  function setFields(patch: Record<string, unknown>) {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
   async function handleSave() {
@@ -143,12 +146,16 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
-        <FirstTimeSetupHome />
-      ) : activeCategory === DELETE_LEAGUE_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>
+          {category.key === "gameplay" && (game === "cfb_27" || game === "madden_26" || game === "madden_27") && (
+            <SliderSettingsPanel game={game} enabled={Boolean(draft.slidersAdjusted)}
+              presetId={String(draft.sliderPresetId ?? "")}
+              values={draft.sliderSettings && typeof draft.sliderSettings === "object" ? draft.sliderSettings as Record<string, number> : {}}
+              onChange={setFields} />
+          )}
           <Card>
             {visibleFields.map((field) => {
               if (field.dependsOn && !field.dependsOn(draft)) return null;

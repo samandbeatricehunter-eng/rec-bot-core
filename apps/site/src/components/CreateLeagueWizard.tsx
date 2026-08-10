@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, NFC_TEAMS,
+  LEAGUE_SLIDER_CATALOG_VERSION, defaultLeagueSliderValues,
   type MaddenAttributeCode,
 } from "@rec/shared";
 import { siteApi, type SiteOpenTeam } from "../lib/site-api.js";
@@ -133,6 +134,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [coachAbilitiesRestricted, setCoachAbilitiesRestricted] = useState(false);
   const [coachAbilitiesRestrictionNotes, setCoachAbilitiesRestrictionNotes] = useState("");
   const [difficultyCustomSettings, setDifficultyCustomSettings] = useState("");
+  const [slidersAdjusted, setSlidersAdjusted] = useState(false);
   const [coachXpSetting, setCoachXpSetting] = useState("casual");
 
   const [dynastyType, setDynastyType] = useState("real");
@@ -490,6 +492,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       coachAbilitiesRestricted: isMadden ? coachAbilitiesRestricted : undefined,
       coachAbilitiesRestrictionNotes: isMadden && coachAbilitiesRestricted ? coachAbilitiesRestrictionNotes || undefined : undefined,
       difficultyCustomSettings: difficultyCustomSettings || undefined,
+      slidersAdjusted,
+      sliderCatalogVersion: game ? LEAGUE_SLIDER_CATALOG_VERSION[game] : undefined,
+      sliderSettings: game ? defaultLeagueSliderValues(game) : {},
       coachXpSetting: isCfb ? coachXpSetting : undefined,
       leaguePassword: leaguePassword || undefined,
     };
@@ -531,7 +536,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     positionChangePolicy, positionChangePolicyDescription,
     tradeApprovalPolicy, cpuTradingPolicy, cpuTradingRestriction,
     coachAbilitiesRestricted, coachAbilitiesRestrictionNotes,
-    difficultyCustomSettings, coachXpSetting,
+    difficultyCustomSettings, slidersAdjusted, coachXpSetting,
     isCfb, isMadden, isSeasonOne,
   ]);
 
@@ -655,6 +660,15 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     } finally {
       setBusy(false);
     }
+  }
+
+  function leaveWizard() {
+    if (!leagueId) return;
+    if (slidersAdjusted) {
+      window.location.assign(`/l/${leagueId}/mgmt/settings?category=gameplay&configureSliders=1`);
+      return;
+    }
+    onCreated(leagueId);
   }
 
   function addRule() {
@@ -1196,7 +1210,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <>
                 <Section title="Difficulty &amp; Gameplay">
                   <SelectField label="Difficulty" value={difficulty} onChange={setDifficulty} options={MADDEN_DIFFICULTY} />
-                  <TextareaField label="Custom difficulty settings" hint="Advanced slider overrides (paste from Madden if needed)." value={difficultyCustomSettings} onChange={setDifficultyCustomSettings} placeholder="Optional" />
+                  <ToggleField label="Custom sliders" hint="After Discord linking and the rest of setup are complete, you will be routed to League Management → Settings → Gameplay to choose a community template or enter values." checked={slidersAdjusted} onChange={setSlidersAdjusted} />
                   <NumberField label="Quarter length (minutes)" value={quarterLengthMinutes} onChange={setQuarterLengthMinutes} min={1} max={15} />
                   <ToggleField label="Accelerated clock" checked={acceleratedClockEnabled} onChange={setAcceleratedClockEnabled} />
                   {acceleratedClockEnabled && (
@@ -1248,7 +1262,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <>
                 <Section title="Difficulty &amp; Gameplay">
                   <SelectField label="Difficulty" value={cfbDifficulty} onChange={setCfbDifficulty} options={CFB_DIFFICULTY} />
-                  <TextareaField label="Custom difficulty settings" value={difficultyCustomSettings} onChange={setDifficultyCustomSettings} placeholder="Optional" />
+                  <ToggleField label="Custom sliders" hint="After Discord linking and the rest of setup are complete, you will be routed to League Management → Settings → Gameplay to choose a community template or enter values." checked={slidersAdjusted} onChange={setSlidersAdjusted} />
                   <NumberField label="Quarter length (minutes)" value={quarterLengthMinutes} onChange={setQuarterLengthMinutes} min={1} max={15} />
                   <ToggleField label="Accelerated clock" checked={acceleratedClockEnabled} onChange={setAcceleratedClockEnabled} />
                   {acceleratedClockEnabled && (
@@ -1447,8 +1461,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => { if (leagueId) onCreated(leagueId); }}>
-                Done
+              <button type="button" className="site-btn site-btn-ghost" onClick={leaveWizard}>
+                {slidersAdjusted ? "Configure Sliders" : "Done"}
               </button>
               <button type="button" className="site-btn site-btn-primary" disabled={!leagueId} onClick={() => setStep(9)}>
                 Invite Friends
@@ -1541,8 +1555,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(8)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => { if (leagueId) onCreated(leagueId); }}>
-                Done
+              <button type="button" className="site-btn site-btn-primary" onClick={leaveWizard}>
+                {slidersAdjusted ? "Continue to Slider Settings" : "Done"}
               </button>
             </div>
           </>

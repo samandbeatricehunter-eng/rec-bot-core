@@ -104,6 +104,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: "gameplay",
     label: "Gameplay",
     fields: [
+      { key: "slidersAdjusted", label: "Custom Sliders Enabled", type: "toggle", hint: "When enabled, choose a sourced community template or enter every slider value below." },
       { key: "difficulty", label: "Difficulty", type: "enum", gameFilter: notCfb, options: [{ value: "rookie", label: "Rookie" }, { value: "pro", label: "Pro" }, { value: "all_pro", label: "All-Pro" }, { value: "all_madden", label: "All-Madden" }] },
       { key: "cfbDifficulty", label: "Difficulty", type: "enum", gameFilter: isCfb, options: [{ value: "freshman", label: "Freshman" }, { value: "varsity", label: "Varsity" }, { value: "all_american", label: "All-American" }, { value: "heisman", label: "Heisman" }] },
       { key: "tradeDifficulty", label: "Trade Difficulty", type: "enum", gameFilter: notCfb, hint: "Mirrors the in-game 'Trade Difficulty' league setting — how willing CPU teams are to accept trades.", options: [{ value: "very_easy", label: "Very Easy" }, { value: "easy", label: "Easy" }, { value: "normal", label: "Normal" }, { value: "hard", label: "Hard" }, { value: "very_hard", label: "Very Hard" }] },
@@ -176,11 +177,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   // Special-cased in SettingsHome.tsx to render <FirstTimeSetupHome /> instead of the
   // generic field list — a fundamentally different UI shape (a whole self-contained
   // create-league form/wizard, not a SettingsField[] list), so `fields` is unused here.
-  {
-    key: "first-time-setup",
-    label: "First-Time Setup",
-    fields: [],
-  },
   // Special-cased in SettingsHome.tsx to render <DeleteLeagueHome /> instead of the generic
   // field list — a destructive standalone action, not a settings form.
   {

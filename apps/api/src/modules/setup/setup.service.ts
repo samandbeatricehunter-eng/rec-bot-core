@@ -1,4 +1,4 @@
-import { REC_ROUTE_CHANNELS } from "@rec/shared";
+import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, resolveLeagueSliderValues } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -22,11 +22,15 @@ import type {
 } from "./setup.schemas.js";
 
 function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput {
-  if (input.game !== "cfb_27") return input;
+  const sliderSettings = resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings);
+  const sliderCatalogVersion = LEAGUE_SLIDER_CATALOG_VERSION[input.game];
+  if (input.game !== "cfb_27") return { ...input, sliderSettings, sliderCatalogVersion };
 
   const dynastyType = input.dynastyType ?? "real";
   return {
     ...input,
+    sliderSettings,
+    sliderCatalogVersion,
     dynastyType,
     teamBuilderAllowed: dynastyType === "mixed",
     ageResetsEnabled: false,
@@ -275,7 +279,10 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
     trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
-    sliders_adjusted: input.slidersAdjusted ?? false,
+    sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
+    slider_preset_id: input.sliderPresetId ?? null,
+    slider_catalog_version: input.sliderCatalogVersion ?? LEAGUE_SLIDER_CATALOG_VERSION[input.game],
+    slider_settings: resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes,
@@ -442,6 +449,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
  * once the commissioner is ready, same as any other league.
  */
 function buildConfigurationPayload(leagueId: string, input: Record<string, unknown>, isCfbGame: boolean) {
+  const sliderGame = input.game === "cfb_27" || input.game === "madden_27" ? input.game : "madden_26";
   return {
     league_id: leagueId,
     league_password: input.leaguePassword ?? null,
@@ -523,7 +531,14 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     cfb_difficulty: isCfbGame ? (input.cfbDifficulty ?? "heisman") : null,
     trade_difficulty: isCfbGame ? null : (input.tradeDifficulty ?? "normal"),
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
-    sliders_adjusted: input.slidersAdjusted ?? false,
+    sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
+    slider_preset_id: input.sliderPresetId ?? null,
+    slider_catalog_version: input.sliderCatalogVersion ?? LEAGUE_SLIDER_CATALOG_VERSION[sliderGame],
+    slider_settings: resolveLeagueSliderValues(
+      sliderGame,
+      typeof input.sliderPresetId === "string" ? input.sliderPresetId : null,
+      input.sliderSettings && typeof input.sliderSettings === "object" ? input.sliderSettings as Record<string, number> : {},
+    ),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: isCfbGame ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes ?? 8,
@@ -1112,7 +1127,10 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
     trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
-    sliders_adjusted: input.slidersAdjusted ?? false,
+    sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
+    slider_preset_id: input.sliderPresetId ?? null,
+    slider_catalog_version: input.sliderCatalogVersion ?? LEAGUE_SLIDER_CATALOG_VERSION[input.game],
+    slider_settings: resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes,
@@ -1281,6 +1299,9 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     tradeDifficulty: c.trade_difficulty ?? "normal",
     freeAgentMotivationImpact: c.free_agent_motivation_impact ?? "normal",
     slidersAdjusted: c.sliders_adjusted ?? Boolean(String(c.difficulty_custom_settings ?? "").trim()),
+    sliderPresetId: c.slider_preset_id ?? null,
+    sliderCatalogVersion: c.slider_catalog_version ?? null,
+    sliderSettings: c.slider_settings ?? {},
     difficultyCustomSettings: c.difficulty_custom_settings ?? "",
     coachXpSetting: c.coach_xp_setting ?? "casual",
     quarterLengthMinutes: c.quarter_length_minutes ?? 8,

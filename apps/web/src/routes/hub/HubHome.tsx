@@ -1204,7 +1204,6 @@ export function HubHome() {
     <h1>Welcome to REC League</h1>
     {setupAccess.canSetup ? <>
       <p>This Discord server doesn't have a league set up yet. Run First-Time Setup to create one — once it's done, this page becomes your league's normal Hub.</p>
-      <Link className="btn btn-primary" to="/league-mgmt/first-time-setup">First Time Setup</Link>
     </> : <p>This Discord server doesn't have a league set up yet. Ask a server admin or commissioner to run First-Time Setup.</p>}
   </div>;
   if (!hub) return <div className="hub-state"><h1>Loading League Hub…</h1></div>;

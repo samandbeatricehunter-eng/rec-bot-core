@@ -868,7 +868,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtPotyTallies) return handlePotyTallies(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSettings) return handleLeagueMgmtSettings(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup) return handleLeagueMgmtFirstTimeSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtDeleteLeague) return handleLeagueMgmtDeleteLeague(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtRoles) return handleLeagueMgmtRoles(interaction);
       if (
@@ -1120,13 +1119,13 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
         // Cannot showModal after defer — offer a button that opens the setup modal.
         await interaction.editReply({
           content:
-            "No league is linked for this server yet. Start First-Time Setup to create one, then open the REC site (**rec-leagues.com**).",
+            "No league is linked for this server yet. League creation is available on the REC website.",
           components: [
             new ActionRowBuilder<ButtonBuilder>().addComponents(
               new ButtonBuilder()
-                .setCustomId(MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup)
-                .setLabel("First-Time Setup")
-                .setStyle(ButtonStyle.Danger),
+                .setURL("https://rec-leagues.com/leagues")
+                .setLabel("Create League on REC")
+                .setStyle(ButtonStyle.Link),
             ),
           ],
         });
@@ -1504,13 +1503,6 @@ async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
   } catch {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Settings").setDescription("No league configuration found. Run First-Time Setup first.")], components: buildAdminPanelRows() });
   }
-}
-
-async function handleLeagueMgmtFirstTimeSetup(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) {
-    return replyFullAdminOnly(interaction, "run first-time setup");
-  }
-  return interaction.showModal(buildSetupDangerModal("league_setup"));
 }
 
 async function getRoleMgmtMembers(interaction: ButtonInteraction | StringSelectMenuInteraction) {

@@ -10,7 +10,6 @@ import {
   CommissionerChatHome,
   CfpPostseasonManager,
   DeleteLeagueHome,
-  FirstTimeSetupHome,
   HubChromeProvider,
   HubHome,
   InjectedAuthProvider,
@@ -213,7 +212,6 @@ function HubMgmtRoutes() {
   return (
     <Routes>
       <Route index element={<LeagueMgmtHome />} />
-      <Route path="first-time-setup" element={<MgmtSubPage><FirstTimeSetupHome /></MgmtSubPage>} />
       <Route path="notifications" element={<MgmtSubPage><NotificationsHome /></MgmtSubPage>} />
       <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />

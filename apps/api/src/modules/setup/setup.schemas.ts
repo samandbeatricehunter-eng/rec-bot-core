@@ -173,6 +173,9 @@ export const CreateLeagueSchema = z.object({
   // setting does not exist in Madden 27). Null/omitted for everything else.
   freeAgentMotivationImpact: z.enum(["off", "normal", "high", "very_high"]).default("normal"),
   slidersAdjusted: z.boolean().default(false),
+  sliderPresetId: z.string().trim().max(100).optional().nullable(),
+  sliderCatalogVersion: z.string().trim().max(100).optional().nullable(),
+  sliderSettings: z.record(z.number().min(0).max(300)).default({}),
   difficultyCustomSettings: z.string().optional().nullable(),
   coachXpSetting: z.enum(["casual", "career", "simulation"]).optional().nullable(),
   quarterLengthMinutes: z.number().int().min(1).max(15).default(8),

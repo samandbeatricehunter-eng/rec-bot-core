@@ -68,7 +68,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtPotyTallies: "rec:league_mgmt:advance:poty_tallies",
   leagueMgmtAdvanceBack: "rec:league_mgmt:advance:back",
   leagueMgmtSettings: "rec:league_mgmt:settings",
-  leagueMgmtFirstTimeSetup: "rec:league_mgmt:first_time_setup",
   leagueMgmtDeleteLeague: "rec:league_mgmt:delete_league",
   leagueMgmtRoles: "rec:league_mgmt:roles",
   leagueMgmtBack: "rec:league_mgmt:back",
@@ -303,7 +302,6 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup).setLabel("First-Time Setup").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtDeleteLeague).setLabel("Delete League").setStyle(ButtonStyle.Danger)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
