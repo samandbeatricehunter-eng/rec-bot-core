@@ -32,6 +32,37 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 
+const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
+  custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
+  dev_upgrade: "development upgrades", age_reset: "age resets", contract: "contract adjustments",
+};
+
+async function publishPurchaseDeadlineReminder(input: { guildId: string; leagueId: string; nextStage: string; nextWeek: number }) {
+  const config = await supabase.from("rec_league_configuration").select("purchase_deadlines").eq("league_id", input.leagueId).maybeSingle();
+  if (config.error) throw config.error;
+  const deadlines = config.data?.purchase_deadlines && typeof config.data.purchase_deadlines === "object"
+    ? config.data.purchase_deadlines as Record<string, { stage?: string; week?: number }>
+    : {};
+  const upcoming = Object.entries(deadlines).filter(([, deadline]) => {
+    const deadlineWeek = Number(deadline?.week ?? 0);
+    return deadline?.stage === input.nextStage && (deadlineWeek - input.nextWeek === 1 || deadlineWeek - input.nextWeek === 2);
+  });
+  if (!upcoming.length) return;
+  const grouped = new Map<number, string[]>();
+  for (const [kind, deadline] of upcoming) {
+    const week = Number(deadline.week);
+    grouped.set(week, [...(grouped.get(week) ?? []), PURCHASE_DEADLINE_LABELS[kind] ?? kind.replaceAll("_", " ")]);
+  }
+  const lines = [...grouped.entries()].sort(([a], [b]) => a - b).map(([week, labels]) =>
+    `Week ${week}: ${labels.join(", ")}. Purchases close when that week begins.`,
+  );
+  await recordHubAnnouncement({
+    guildId: input.guildId,
+    title: "Purchase deadline approaching",
+    body: lines.join("\n"),
+  });
+}
+
 async function notifyLeagueMembersOfAdvance(input: {
   leagueId: string;
   leagueName: string;
@@ -802,6 +833,15 @@ export async function completeAdvanceWeek(input: {
     nextAdvanceLabel,
   }).catch((err) => {
     console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
+  });
+
+  await publishPurchaseDeadlineReminder({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    nextStage: nextTarget.seasonStage,
+    nextWeek: nextTarget.weekNumber,
+  }).catch((err) => {
+    console.error("[ERROR] purchase-deadline reminder failed after advance (non-fatal):", err);
   });
 
   await publishPowerRankingsToDiscord({
