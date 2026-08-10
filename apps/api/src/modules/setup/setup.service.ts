@@ -1,4 +1,4 @@
-import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, resolveLeagueSliderValues } from "@rec/shared";
+import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, type LeagueTemplateId } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -623,6 +623,7 @@ export async function createUnclaimedLeague(input: {
   leagueType?: string;
   templateId?: string | null;
   initialTeamAbbreviation: string;
+  maxMembers?: number;
   customRostersPreseedRequested?: boolean;
   isOnline?: boolean;
   crossPlayEnabled?: boolean;
@@ -752,6 +753,9 @@ export async function createUnclaimedLeague(input: {
   await assertCanCreateLeague(input.requestedByUserId, input.game);
 
   const isCfbGame = input.game === "cfb_27";
+  if (input.templateId && !getLeagueTemplatePreset(input.game, input.templateId as LeagueTemplateId)) {
+    throw new ApiError(400, "That template is not available for the selected game.");
+  }
   const leagueType = input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm");
   const seasonNumber = input.seasonNumber ?? 1;
 
@@ -768,6 +772,8 @@ export async function createUnclaimedLeague(input: {
     trust_mode: "manual",
     fantasy_draft_status: leagueType === "fantasy_draft" ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
+    advertisement_eligible: input.isOnline ?? true,
+    max_members: input.maxMembers ?? 32,
     template_id: input.templateId ?? null,
   };
 

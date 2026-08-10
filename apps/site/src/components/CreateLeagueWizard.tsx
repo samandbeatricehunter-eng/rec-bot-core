@@ -44,6 +44,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");
   const [leagueType, setLeagueType] = useState("");
   const [name, setName] = useState("");
+  const [customMaxMembers, setCustomMaxMembers] = useState(false);
+  const [maxMembers, setMaxMembers] = useState(32);
   const [leaguePassword, setLeaguePassword] = useState("");
   const [seasonNumber, setSeasonNumber] = useState(1);
   const [seasonStage, setSeasonStage] = useState("");
@@ -381,6 +383,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       crossPlayEnabled,
       requiredConsole: crossPlayEnabled ? undefined : requiredConsole,
       leagueType: leagueType || undefined,
+      maxMembers: customMaxMembers ? maxMembers : 32,
       activeRostersEnabled: isCfb ? true : undefined,
       trackRostersEnabled: isCfb ? true : undefined,
       dynastyType: isCfb ? dynastyType : undefined,
@@ -498,7 +501,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       leaguePassword: leaguePassword || undefined,
     };
   }, [
-    game, isOnline, crossPlayEnabled, requiredConsole, leagueType, name, leaguePassword,
+    game, isOnline, crossPlayEnabled, requiredConsole, leagueType, customMaxMembers, maxMembers, name, leaguePassword,
     seasonNumber, seasonStage, currentWeek, skipToStage, skipToStageValue,
     regularSeasonStreamingRequirement, regularSeasonStreamingSide,
     postseasonStreamingRequirement, postseasonStreamingSide,
@@ -918,6 +921,11 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           <>
             <Section title="League Name">
               <TextField label="League name" value={name} onChange={setName} placeholder="e.g. REC OG" maxLength={80} />
+            </Section>
+            <Section title="Maximum Members">
+              <ToggleField label="Set a custom member limit" hint="Leagues default to 32. Registered users, commissioners, and Discord-only users assigned to teams all count toward this limit. Economy features require at least eight linked users."
+                checked={customMaxMembers} onChange={setCustomMaxMembers} />
+              {customMaxMembers && <NumberField label="Maximum members" value={maxMembers} onChange={setMaxMembers} min={2} max={32} />}
             </Section>
             <Section title="League Password (Optional)">
               <p className="site-muted">Optional — users never need it to request an open team. If set, the password is stored with your league and shared with a user once you approve their request.</p>
