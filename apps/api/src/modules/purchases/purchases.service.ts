@@ -7,6 +7,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { assertPurchaseDeadlineOpen } from "./purchase-deadlines.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 
 // purchase_type → the rec_league_configuration columns that gate it. seasonCap null means the
 // type uses a more specific cap model handled elsewhere (attributes use per-attribute caps).
@@ -588,6 +589,15 @@ export async function reviewPurchase(input: {
       .update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now, review_reason: input.deniedReason ?? null })
       .eq("source_table", "rec_purchases")
       .eq("source_id", input.purchaseId);
+    const denyBody = input.deniedReason ? `${input.deniedReason}${cost > 0 ? ` — ${cost} coins refunded.` : ""}` : `Your ${label.toLowerCase()} purchase was denied${cost > 0 ? ` and ${cost} coins were refunded.` : "."}`;
+    await createSiteNotification({
+      userId: existing.data.user_id,
+      leagueId: existing.data.league_id,
+      kind: `${existing.data.purchase_type}_denied`,
+      title: `${label} denied`,
+      body: denyBody,
+      href: "/app",
+    }).catch((err) => console.error("[ERROR] Failed to notify purchaser of denial (non-fatal):", err));
     return { updated: true, action: "deny" as const, purchase: denied.data, refunded: cost, buyerDiscordId: existing.data.discord_id };
   }
 
@@ -632,6 +642,21 @@ export async function reviewPurchase(input: {
       throw err;
     }
   }
+
+  // Nothing told the buyer their purchase actually went through — approving silently updated
+  // the DB and the buyer had no way to know short of refreshing their roster on a hunch.
+  const purchaseDetails = existing.data.details as Record<string, unknown>;
+  const legendName = existing.data.purchase_type === "legend" ? String(purchaseDetails?.name ?? "Legend") : null;
+  const approveTitle = legendName ? `${legendName} approved & applied` : `${label} approved`;
+  const approveBody = legendName ? `${legendName} has been added to your roster.` : `Your ${label.toLowerCase()} purchase was approved.`;
+  await createSiteNotification({
+    userId: existing.data.user_id,
+    leagueId: existing.data.league_id,
+    kind: `${existing.data.purchase_type}_approved`,
+    title: approveTitle,
+    body: approveBody,
+    href: "/app",
+  }).catch((err) => console.error("[ERROR] Failed to notify purchaser of approval (non-fatal):", err));
 
   return { updated: true, action: "approve" as const, purchase: approved.data, buyerDiscordId: existing.data.discord_id };
 }

@@ -40,6 +40,13 @@ const ATTRIBUTE_DB_COLUMNS = [
   "kick_power", "kick_accuracy", "kick_return",
 ] as const;
 
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&apos;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+
 export async function getActiveMaddenDataset(): Promise<{ id: string } | null> {
   const { data, error } = await supabase
     .from("rec_madden_roster_datasets")
@@ -115,9 +122,13 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       else skippedNoTeamMatch++;
     }
 
-    const nameParts = p.name.trim().split(/\s+/);
-    const firstName = nameParts[0] ?? p.name;
-    const lastName = nameParts.slice(1).join(" ") || p.name;
+    // The scraped source occasionally leaves an HTML entity un-decoded (e.g. "&#8217;" for an
+    // apostrophe) — decode defensively here too, not just at scrape time, so a dirty source
+    // row can never surface as a literal entity in a player's name.
+    const cleanName = decodeHtmlEntities(p.name);
+    const nameParts = cleanName.trim().split(/\s+/);
+    const firstName = nameParts[0] ?? cleanName;
+    const lastName = nameParts.slice(1).join(" ") || cleanName;
 
     const attributes: Record<string, number | null> = {};
     for (const col of ATTRIBUTE_DB_COLUMNS) attributes[col] = (p[col] as number | null) ?? null;
@@ -130,7 +141,7 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       madden_player_id: maddenPlayerId,
       first_name: firstName,
       last_name: lastName,
-      full_name: p.name,
+      full_name: cleanName,
       position: p.position,
       overall_rating: p.overall_rating,
       jersey_number: p.jersey_number,

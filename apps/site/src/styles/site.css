@@ -1428,17 +1428,30 @@ h1, h2, h3, .site-wordmark {
 }
 
 /* —— League top nav (in-page, league-scoped) —— */
+.site-league-top-nav-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: var(--nav-bg);
+  position: sticky;
+  top: 56px;
+  z-index: 90;
+}
 .site-league-top-nav {
   display: flex;
   align-items: stretch;
   gap: 2px;
   padding: 6px 6px;
-  border-bottom: 1px solid var(--border);
-  background: var(--nav-bg);
   overflow-x: auto;
-  position: sticky;
-  top: 56px;
-  z-index: 90;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.site-league-top-nav-row .site-notif-bell {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-left: 1px solid var(--border);
 }
 .site-league-top-nav-btn {
   display: flex;
