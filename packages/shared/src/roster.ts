@@ -21,6 +21,27 @@ export function normalizeCfbPosition(rawPosition: string): string {
   return rawPosition.replace(/\s*\((left|right)\)\s*$/i, "").trim().toUpperCase();
 }
 
+// The legend catalog and the custom-player position picker use LE/RE/LOLB/MLB/ROLB — the
+// actual CFB roster/baseline data uses LEDG/REDG/WILL/MIKE/SAM for the same real positions
+// (edge and outside/middle linebacker respectively). Everywhere else (QB, CB, FS, SS, etc.)
+// the two schemes already agree, so only these need an explicit alias — a plain position
+// group merge would incorrectly treat CB/FS/SS as interchangeable, which they're not.
+const POSITION_ALIASES: Record<string, string[]> = {
+  LE: ["LE", "LEDG"], RE: ["RE", "REDG"],
+  LOLB: ["LOLB", "WILL"], MLB: ["MLB", "MIKE"], ROLB: ["ROLB", "SAM"],
+};
+
+/** Whether a roster player's position is eligible to be replaced by a legend/custom-player
+ * build targeting `targetPosition` — exact match, except for the LE/RE and LB slots where
+ * the roster data and the builder's position list use different position codes. */
+export function isCompatibleReplacementPosition(targetPosition: string | null | undefined, rosterPosition: string | null | undefined): boolean {
+  if (!targetPosition || !rosterPosition) return false;
+  const target = targetPosition.trim().toUpperCase();
+  const roster = rosterPosition.trim().toUpperCase();
+  const aliases = POSITION_ALIASES[target];
+  return aliases ? aliases.includes(roster) : target === roster;
+}
+
 const GRADE_BANDS: Array<{ min: number; grade: string }> = [
   { min: 90, grade: "A+" },
   { min: 85, grade: "A" },

@@ -19,7 +19,14 @@ const POSITION_TO_GROUP: Record<string, RecLegendPositionGroup> = {
   TE: "TE",
   OL: "OLine", LT: "OLine", LG: "OLine", C: "OLine", RG: "OLine", RT: "OLine", G: "OLine", T: "OLine",
   DL: "DLine", LE: "DLine", RE: "DLine", DT: "DLine", DE: "DLine",
+  // LEDG/REDG are the actual CFB roster/baseline-data position codes for edge (vs. the
+  // LE/RE used by the legend catalog and custom-player position list) — same DLine group.
+  LEDG: "DLine", REDG: "DLine",
   LB: "LB", LOLB: "LB", MLB: "LB", ROLB: "LB",
+  // WILL/MIKE/SAM are the CFB roster's real linebacker slot codes (weak/middle/strong side) —
+  // scheme-relative, not directly left/right like LOLB/ROLB, but the same LB group for
+  // replacement-eligibility purposes.
+  WILL: "LB", MIKE: "LB", SAM: "LB",
   DB: "Secondary", CB: "Secondary", FS: "Secondary", SS: "Secondary", S: "Secondary",
 };
 

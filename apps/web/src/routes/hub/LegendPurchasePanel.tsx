@@ -17,7 +17,7 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
+import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LegendAvailabilityEntry, LegendCatalogEntry } from "../../types/api.js";
@@ -254,7 +254,7 @@ function LegendDetailModal({
       {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
           {(() => {
-            const samePositionPlayers = replacementPlayers.filter((player: any) => player.position === legend.position);
+            const samePositionPlayers = replacementPlayers.filter((player: any) => isCompatibleReplacementPosition(legend.position, player.position));
             return samePositionPlayers.length > 0 && (
             <>
               <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
