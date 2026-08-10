@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, GraduationCap, ListOrdered, Newspaper, Settings, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { BarChart3, ChevronRight, GraduationCap, ListOrdered, Newspaper, Settings, Shield, ShieldAlert, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -133,7 +133,8 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
-              {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
               <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
                 <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
               </Button>
