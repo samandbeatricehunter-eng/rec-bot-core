@@ -23,7 +23,7 @@ import {
 // original 9 high-impact attributes to ~34 (coverage, tackling, blocking, pass rush, route
 // running, catching, ball-carrier) — both aimed at the same problem: leftover CP getting
 // dumped into OVR-irrelevant attributes at 99 with no real cost or prerequisite.
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.3.0" as const;
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.4.0" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -40,15 +40,15 @@ export interface RecPackageRules {
  * gate-respecting build (primaries maxed, floor-relation attributes held above their
  * thresholds, everything else dumped low) fall well short of a tier's rawOverallCap after
  * the OVR model's real-EA-data recalibration — a Tier 5 build topped out in the low-80s
- * against an 88 cap. Cutting only 10% keeps *some* scarcity (hitting the cap still takes a
- * real min-maxed build, not a flat spread) while actually leaving that a reachable target.
+ * against an 88 cap. Settled on a 15% cut: still real scarcity (hitting the cap takes a
+ * genuinely min-maxed build, not a flat spread), but leaves that a reachable target.
  */
 export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>> = {
-  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 4140, rawOverallCap: 65, highImpactAttributeCap: 88 },
-  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4590, rawOverallCap: 71, highImpactAttributeCap: 91 },
-  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 5220, rawOverallCap: 78, highImpactAttributeCap: 94 },
-  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 6030, rawOverallCap: 84, highImpactAttributeCap: 97 },
-  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 6930, rawOverallCap: 88, highImpactAttributeCap: 99 },
+  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 3910, rawOverallCap: 65, highImpactAttributeCap: 88 },
+  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4335, rawOverallCap: 71, highImpactAttributeCap: 91 },
+  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 4930, rawOverallCap: 78, highImpactAttributeCap: 94 },
+  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 5695, rawOverallCap: 84, highImpactAttributeCap: 97 },
+  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 6545, rawOverallCap: 88, highImpactAttributeCap: 99 },
 } as const;
 
 export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, number>> = {

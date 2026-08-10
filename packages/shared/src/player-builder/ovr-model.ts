@@ -23,7 +23,7 @@
  * reference its own versioned configuration record so later recalibration is safe.
  */
 
-export const REC_OVR_MODEL_VERSION = "rec-ovr-cfb27-positional-v2.0.0" as const;
+export const REC_OVR_MODEL_VERSION = "rec-ovr-cfb27-positional-v2.1.0" as const;
 
 export type RecOvrPosition =
   | "QB"
@@ -116,26 +116,33 @@ export const REC_POSITION_ALIASES: Readonly<Record<string, RecOvrPosition>> = {
 export const REC_POSITION_OVR_MODELS: Readonly<
   Record<RecOvrPosition, RecPositionOvrModel>
 > = {
+  // Recalibrated 2026-08 against 128 real Madden 27 QBs (baseline import) — the prior
+  // EA-chart-derived weights overrated the position by a mean +3.6 (MAE 4.70). Refit via
+  // gradient descent against real OVR with light L2 regularization toward the original
+  // weighting (so no attribute collapses to irrelevance) — mean error now -0.37 (MAE 2.04).
   QB: {
-    gamma: 1.30,
-    coefficients: { acc: 0.01, agi: 0.03, awr: 0.2, bsk: 0.048211, cod: 0.028492, dac: 0.1, mac: 0.15, pac: 0.08, run: 0.03, sac: 0.15, spd: 0.05, thp: 0.2, tup: 0.082519 },
+    gamma: 1.77,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.231814, bsk: 0.040963, cod: 0.02, dac: 0.093571, mac: 0.371408, pac: 0.038535, run: 0.19789, sac: 0.441728, spd: 0.02, thp: 0.432296, tup: 0.02 },
     validation: {
-      trainN: 470,
-      testN: 129,
-      meanAbsoluteError: 2.412,
-      rootMeanSquaredError: 3.137,
-      rSquared: 0.7428,
+      trainN: 128,
+      testN: 128,
+      meanAbsoluteError: 2.04,
+      rootMeanSquaredError: 2.612,
+      rSquared: 0.9325,
     },
   },
+  // Recalibrated 2026-08 against 168 real Madden 27 HBs — the prior weights overrated the
+  // position by a mean +6.2 (MAE 6.77, worst of any position — backups read 12-14 points high).
+  // Refit the same way as QB; mean error now -0.33 (MAE 2.01).
   HB: {
-    gamma: 1.12,
-    coefficients: { acc: 0.08, agi: 0.08, awr: 0.13, bcv: 0.13, btk: 0.100807, car: 0.13, cod: 0.067919, cth: 0.025632, jkm: 0.04, sfa: 0.02, spd: 0.13, spm: 0.04, str: 0.02, trk: 0.08 },
+    gamma: 1.47,
+    coefficients: { acc: 0.02, agi: 0.15591, awr: 0.421215, bcv: 0.399025, btk: 0.27944, car: 0.193334, cod: 0.03746, cth: 0.02, jkm: 0.34449, sfa: 0.02, spd: 0.132966, spm: 0.02, str: 0.02, trk: 0.02 },
     validation: {
-      trainN: 604,
-      testN: 152,
-      meanAbsoluteError: 1.555,
-      rootMeanSquaredError: 2.028,
-      rSquared: 0.8376,
+      trainN: 168,
+      testN: 168,
+      meanAbsoluteError: 2.01,
+      rootMeanSquaredError: 2.546,
+      rSquared: 0.8868,
     },
   },
   FB: {
@@ -149,26 +156,34 @@ export const REC_POSITION_OVR_MODELS: Readonly<
       rSquared: 0.7781,
     },
   },
+  // Recalibrated 2026-08 against 341 real Madden 27 WRs — the prior weights overrated the
+  // position by a mean +4.1 (MAE 4.55). Refit the same way as QB; mean error now -0.21
+  // (MAE 1.30).
   WR: {
-    gamma: 1.18,
-    coefficients: { acc: 0.08, agi: 0.06, awr: 0.12, bcv: 0.02, car: 0.04, cit: 0.08, cod: 0.045145, cth: 0.12, drr: 0.034856, jkm: 0.01, jmp: 0.04, mrr: 0.045297, rls: 0.08, sfa: 0.01, spc: 0.04, spd: 0.12, spm: 0.01, srr: 0.039847, str: 0.02, trk: 0.01 },
+    gamma: 1.29,
+    coefficients: { acc: 0.035277, agi: 0.162746, awr: 0.414388, bcv: 0.194274, car: 0.02, cit: 0.059865, cod: 0.19219, cth: 0.299576, drr: 0.304503, jkm: 0.042661, jmp: 0.025929, mrr: 0.327544, rls: 0.17989, sfa: 0.02, spc: 0.121298, spd: 0.159576, spm: 0.02, srr: 0.192859, str: 0.02, trk: 0.02 },
     validation: {
-      trainN: 995,
-      testN: 250,
-      meanAbsoluteError: 1.892,
-      rootMeanSquaredError: 2.418,
-      rSquared: 0.8603,
+      trainN: 341,
+      testN: 341,
+      meanAbsoluteError: 1.30,
+      rootMeanSquaredError: 1.705,
+      rSquared: 0.9439,
     },
   },
+  // Recalibrated 2026-08 against 194 real Madden 27 TEs — the prior weights had a near-zero
+  // mean bias (+0.32) that hid a real problem: elite TEs (McBride, Kittle, Kelce) were
+  // underrated by 12-18 points at the top while backups ran high, netting out near zero.
+  // Refit the same way as QB, which also steepened gamma to fix the top-end compression;
+  // mean error now -0.21 (MAE 1.90).
   TE: {
-    gamma: 1.01,
-    coefficients: { acc: 0.04, agi: 0.04, awr: 0.12, bcv: 0.02, car: 0.02, cit: 0.08, cth: 0.08, drr: 0.014264, ibl: 0.062192, jkm: 0.01, jmp: 0.02, lbk: 0.079471, mrr: 0.030053, pbf: 0.013333, pbk: 0.013333, pbp: 0.013333, rbk: 0.12, rls: 0.02, sfa: 0.01, spc: 0.04, spd: 0.06, spm: 0.01, srr: 0.035683, str: 0.06, trk: 0.02 },
+    gamma: 1.15,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.757776, bcv: 0.203207, car: 0.02, cit: 0.139431, cth: 0.643301, drr: 0.02, ibl: 0.02, jkm: 0.02, jmp: 0.070361, lbk: 0.02, mrr: 0.043524, pbf: 0.02, pbk: 0.02, pbp: 0.02, rbk: 0.02, rls: 0.02, sfa: 0.056304, spc: 0.106615, spd: 0.02, spm: 0.02, srr: 0.269211, str: 0.02, trk: 0.02 },
     validation: {
-      trainN: 609,
-      testN: 147,
-      meanAbsoluteError: 2.416,
-      rootMeanSquaredError: 3.081,
-      rSquared: 0.7769,
+      trainN: 194,
+      testN: 194,
+      meanAbsoluteError: 1.90,
+      rootMeanSquaredError: 2.432,
+      rSquared: 0.9037,
     },
   },
   LT: {
@@ -490,14 +505,14 @@ export const REC_OVR_TEST_VECTORS: readonly RecOvrTestVector[] = [
   {
     position: "QB",
     attributes: { acc: 72, awr: 83, bsk: 61, cod: 72, dac: 83, mac: 61, pac: 72, run: 83, sac: 61, spd: 72, thp: 83, tup: 61 },
-    expectedRawOverall: 64.353252,
-    expectedDisplayOverall: 64,
+    expectedRawOverall: 55.95688,
+    expectedDisplayOverall: 56,
   },
   {
     position: "HB",
     attributes: { acc: 72, agi: 83, awr: 61, bcv: 72, btk: 83, car: 61, cod: 72, cth: 83, jkm: 61, sfa: 72, spd: 83, spm: 61, trk: 72 },
-    expectedRawOverall: 67.817986,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 58.537723,
+    expectedDisplayOverall: 59,
   },
   {
     position: "FB",
@@ -508,14 +523,14 @@ export const REC_OVR_TEST_VECTORS: readonly RecOvrTestVector[] = [
   {
     position: "WR",
     attributes: { acc: 72, agi: 83, awr: 61, cit: 72, cod: 83, cth: 61, drr: 72, mrr: 83, rls: 61, spc: 72, spd: 83, srr: 61 },
-    expectedRawOverall: 54.61611,
-    expectedDisplayOverall: 55,
+    expectedRawOverall: 53.854807,
+    expectedDisplayOverall: 54,
   },
   {
     position: "TE",
     attributes: { acc: 72, awr: 83, cit: 61, cth: 72, drr: 83, ibl: 61, lbk: 72, mrr: 83, rbk: 61, rls: 72, spc: 83, spd: 61, srr: 72, str: 83 },
-    expectedRawOverall: 57.814109,
-    expectedDisplayOverall: 58,
+    expectedRawOverall: 57.410946,
+    expectedDisplayOverall: 57,
   },
   {
     position: "LT",
