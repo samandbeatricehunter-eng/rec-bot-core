@@ -21,13 +21,14 @@ export function normalizeCfbPosition(rawPosition: string): string {
   return rawPosition.replace(/\s*\((left|right)\)\s*$/i, "").trim().toUpperCase();
 }
 
-// The legend catalog and the custom-player position picker use LE/RE/LOLB/MLB/ROLB — the
-// actual CFB roster/baseline data uses LEDG/REDG/WILL/MIKE/SAM for the same real positions
-// (edge and outside/middle linebacker respectively). Everywhere else (QB, CB, FS, SS, etc.)
-// the two schemes already agree, so only these need an explicit alias — a plain position
-// group merge would incorrectly treat CB/FS/SS as interchangeable, which they're not.
+// The legend catalog and the custom-player position picker use LE/RE/LOLB/MLB/ROLB — actual
+// CFB roster data uses LEDG/REDG (and inconsistently LEDGE/REDGE — both spellings exist
+// across different import sources) plus WILL/MIKE/SAM for the same real positions (edge and
+// outside/middle linebacker respectively). Everywhere else (QB, CB, FS, SS, etc.) the two
+// schemes already agree, so only these need an explicit alias — a plain position group merge
+// would incorrectly treat CB/FS/SS as interchangeable, which they're not.
 const POSITION_ALIASES: Record<string, string[]> = {
-  LE: ["LE", "LEDG"], RE: ["RE", "REDG"],
+  LE: ["LE", "LEDG", "LEDGE"], RE: ["RE", "REDG", "REDGE"],
   LOLB: ["LOLB", "WILL"], MLB: ["MLB", "MIKE"], ROLB: ["ROLB", "SAM"],
 };
 
