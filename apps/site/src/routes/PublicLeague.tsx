@@ -148,6 +148,8 @@ function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeas
   );
 }
 
+type PublicLeagueTab = "this-week" | "linked" | "open" | "history";
+
 // Unauthenticated — /viewleague on Discord links here. No REC account or Discord login
 // required to view: status, this week's matchups, linked teams, season standings only.
 export function PublicLeague() {
@@ -155,9 +157,9 @@ export function PublicLeague() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<PublicLeagueSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [openTeamsExpanded, setOpenTeamsExpanded] = useState(false);
   const [history, setHistory] = useState<PublicLeagueHistory | null>(null);
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<PublicLeagueTab>("this-week");
 
   useEffect(() => {
     if (!slug) return;
@@ -169,6 +171,20 @@ export function PublicLeague() {
     const historyLookup = isRawGuildId ? siteApi.getPublicLeagueHistory(slug) : siteApi.getPublicLeagueHistoryBySlug(slug);
     historyLookup.then((res) => { setHistory(res); setActiveSeason(res.seasons[0]?.seasonNumber ?? null); }).catch(() => undefined);
   }, [slug]);
+
+  const hasOpenTeams = (data?.openTeams.length ?? 0) > 0;
+  const hasHistory = (history?.seasons.length ?? 0) > 0;
+  const tabs: Array<{ id: PublicLeagueTab; label: string; show: boolean }> = [
+    { id: "this-week", label: "This Week", show: true },
+    { id: "linked", label: "Linked Teams", show: true },
+    { id: "open", label: "Open Teams", show: hasOpenTeams },
+    { id: "history", label: "History", show: hasHistory },
+  ];
+
+  useEffect(() => {
+    if (activeTab === "open" && !hasOpenTeams) setActiveTab("this-week");
+    if (activeTab === "history" && !hasHistory) setActiveTab("this-week");
+  }, [activeTab, hasOpenTeams, hasHistory]);
 
   return (
     <div className="site-page site-landing">
@@ -195,72 +211,90 @@ export function PublicLeague() {
             <h1>{data.league.name}</h1>
             <p className="site-muted">{data.league.statusLabel}</p>
 
-            <section className="site-public-league-section">
-              <h2>This Week's Matchups</h2>
-              {data.matchups.length === 0 ? (
-                <p className="site-muted">No games scheduled this week.</p>
-              ) : (
-                <ul className="site-public-league-list">
-                  {data.matchups.map((m, i) => (
-                    <li key={i}>
-                      <span>{m.awayTeam} @ {m.homeTeam}</span>
-                      {m.status === "completed" && <strong>{m.awayScore} - {m.homeScore}</strong>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="site-public-league-section">
-              <h2>Season Standings</h2>
-              <table className="site-public-league-table">
-                <thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead>
-                <tbody>
-                  {data.standings.map((s) => (
-                    <tr key={s.teamId}><td>{s.teamName}</td><td>{s.wins}</td><td>{s.losses}</td><td>{s.ties}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-
-            <section className="site-public-league-section">
-              <h2>Linked Teams</h2>
-              <ul className="site-public-league-list">
-                {data.linkedTeams.map((t) => (
-                  <li key={t.teamId}><span>{t.teamName}</span><strong>{t.coachName}</strong></li>
-                ))}
-              </ul>
-            </section>
-
-            {data.openTeams.length > 0 && (
-              <section className="site-public-league-section">
+            <div className="site-public-league-season-tabs" role="tablist" aria-label="League sections">
+              {tabs.filter((tab) => tab.show).map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  className="site-public-league-collapse-toggle"
-                  aria-expanded={openTeamsExpanded}
-                  onClick={() => setOpenTeamsExpanded((value) => !value)}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={activeTab === tab.id ? "active" : ""}
+                  onClick={() => setActiveTab(tab.id)}
                 >
-                  <h2>Open Teams ({data.openTeams.reduce((sum, g) => sum + g.teams.length, 0)})</h2>
-                  <span>{openTeamsExpanded ? "Hide" : "Show"}</span>
+                  {tab.label}
+                  {tab.id === "open"
+                    ? ` (${data.openTeams.reduce((sum, g) => sum + g.teams.length, 0)})`
+                    : ""}
                 </button>
-                {openTeamsExpanded && (
-                  <div className="site-public-league-open-groups">
-                    {data.openTeams.map((group) => (
-                      <div key={group.conference} className="site-public-league-open-group">
-                        <h3>{group.conference}</h3>
-                        <ul className="site-public-league-list">
-                          {group.teams.map((t) => (
-                            <li key={t.teamId}><span>{t.teamName}</span></li>
-                          ))}
-                        </ul>
-                      </div>
+              ))}
+            </div>
+
+            {activeTab === "this-week" && (
+              <>
+                <section className="site-public-league-section">
+                  <h2>This Week's Matchups</h2>
+                  {data.matchups.length === 0 ? (
+                    <p className="site-muted">No games scheduled this week.</p>
+                  ) : (
+                    <ul className="site-public-league-list">
+                      {data.matchups.map((m, i) => (
+                        <li key={i}>
+                          <span>{m.awayTeam} @ {m.homeTeam}</span>
+                          {m.status === "completed" && <strong>{m.awayScore} - {m.homeScore}</strong>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section className="site-public-league-section">
+                  <h2>Season Standings</h2>
+                  <table className="site-public-league-table">
+                    <thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead>
+                    <tbody>
+                      {data.standings.map((s) => (
+                        <tr key={s.teamId}><td>{s.teamName}</td><td>{s.wins}</td><td>{s.losses}</td><td>{s.ties}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              </>
+            )}
+
+            {activeTab === "linked" && (
+              <section className="site-public-league-section">
+                <h2>Linked Teams</h2>
+                {data.linkedTeams.length === 0 ? (
+                  <p className="site-muted">No linked teams yet.</p>
+                ) : (
+                  <ul className="site-public-league-list">
+                    {data.linkedTeams.map((t) => (
+                      <li key={t.teamId}><span>{t.teamName}</span><strong>{t.coachName}</strong></li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </section>
             )}
 
-            {history && history.seasons.length > 0 && (
+            {activeTab === "open" && hasOpenTeams && (
+              <section className="site-public-league-section">
+                <h2>Open Teams</h2>
+                <div className="site-public-league-open-groups">
+                  {data.openTeams.map((group) => (
+                    <div key={group.conference} className="site-public-league-open-group">
+                      <h3>{group.conference}</h3>
+                      <ul className="site-public-league-list">
+                        {group.teams.map((t) => (
+                          <li key={t.teamId}><span>{t.teamName}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeTab === "history" && history && hasHistory && (
               <section className="site-public-league-section">
                 <h2>League History</h2>
                 <div className="site-public-league-season-tabs">

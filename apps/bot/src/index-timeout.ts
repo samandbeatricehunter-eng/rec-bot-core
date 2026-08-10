@@ -458,7 +458,7 @@ async function expireWindow(interaction: Interaction) {
 async function safeInteractionError(interaction: Interaction, error: unknown) {
   console.error("Interaction handling failed", error);
   if (!interaction.isRepliable()) return;
-  const content = "REC Bot hit an error while handling that action. Please reopen /app and try again.";
+  const content = "REC Bot hit an error while handling that action. Please try again, or open the league on the REC site.";
   if (interaction.isMessageComponent()) {
     const payload = { content, embeds: [], components: [] };
     if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
@@ -577,11 +577,6 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "app") {
-      await handleAppOpenDashboard(interaction);
-      return;
-    }
-
     if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
       await handleOpenTeamsSlash(interaction);
       return;
@@ -836,12 +831,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+        if (!draft) return interaction.reply({ content: "Session expired. Open League Management on the REC site to continue.", flags: MessageFlags.Ephemeral });
         return interaction.showModal(buildActivityRequirementsModal(draft));
       }
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip) {
         const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+        if (!draft) return interaction.reply({ content: "Session expired. Open League Management on the REC site to continue.", flags: MessageFlags.Ephemeral });
         draft.step = draft.editMode ? "settings_picker" : getNextLeagueSetupStep(draft.step, draft);
         leagueSetupSessions.set(interaction.user.id, draft);
         return interaction.update(buildLeagueSetupWindow(draft));
@@ -1061,7 +1056,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
 
   if (!guildId) {
     return {
-      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /app inside a REC Discord server", canManageLeague: isAdmin })],
+      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open this league on the REC site", canManageLeague: isAdmin })],
       components: buildLeagueMenuRows(false)
     };
   }
@@ -1215,7 +1210,7 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   await interaction.update(buildAdminPanelPayload(interaction));
 }
 
-// Mints a Discord→site handoff and opens League Mgmt on rec-leagues.com (same site as /app).
+// Mints a Discord→site handoff and opens League Mgmt on rec-leagues.com.
 async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction | ChatInputCommandInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) {

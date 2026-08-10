@@ -37,6 +37,11 @@ type SessionRow = {
   checkin_message_id: string | null;
   on_clock_message_channel_id: string | null;
   on_clock_message_id: string | null;
+  schedule_message_channel_id: string | null;
+  schedule_message_id: string | null;
+  notified_1hr_at?: string | null;
+  notified_30min_at?: string | null;
+  notified_10min_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -106,6 +111,8 @@ function scheduleDraftCommandVisibility(guildId: string, scheduledAt: string) {
     syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (immediate window):", error));
     return;
   }
+  // Reschedule out of the 1hr window must hide /draft again (bot ready/guildCreate never includes it).
+  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (outside window):", error));
   const timer = setTimeout(() => {
     draftVisibilityTimers.delete(guildId);
     syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (scheduled window):", error));
@@ -600,6 +607,7 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
   const { leagueId } = context;
   const userId = await resolveRecUserId(discordId);
   let session = await getActiveSession(leagueId);
+  const wasAlreadyScheduled = session?.status === "scheduled";
 
   if (!session) {
     const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
@@ -607,22 +615,70 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
       status: "scheduled",
       scheduled_at: scheduledAt,
       commenced_by_user_id: userId,
+      notified_1hr_at: null,
+      notified_30min_at: null,
+      notified_10min_at: null,
     }).select("*").single();
     if (error) throw new ApiError(500, "Failed to create the fantasy draft session.", error);
     session = data as SessionRow;
   } else {
     requireSessionStatus(session, ["not_scheduled", "scheduled"]);
-    const { error } = await supabase.from("rec_fantasy_draft_sessions").update({
+    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").update({
       status: "scheduled",
       scheduled_at: scheduledAt,
+      notified_1hr_at: null,
+      notified_30min_at: null,
+      notified_10min_at: null,
       updated_at: new Date().toISOString(),
-    }).eq("id", session.id);
+    }).eq("id", session.id).select("*").single();
     if (error) throw new ApiError(500, "Failed to schedule the fantasy draft.", error);
-    session = { ...session, status: "scheduled", scheduled_at: scheduledAt };
+    session = data as SessionRow;
   }
 
   await setLeagueFantasyDraftStatus(leagueId, "scheduled");
   scheduleDraftCommandVisibility(guildId, scheduledAt);
+
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+  if (announcementsChannelId) {
+    const scheduledUnix = Math.floor(new Date(scheduledAt).getTime() / 1000);
+    const embed = {
+      title: wasAlreadyScheduled ? "Fantasy Draft Rescheduled" : "Fantasy Draft Scheduled",
+      color: 0xd9a521,
+      description:
+        `${wasAlreadyScheduled ? "The fantasy draft has a new start time" : "The fantasy draft is scheduled"} ` +
+        `<t:${scheduledUnix}:F> (<t:${scheduledUnix}:R>).\n\n` +
+        `Use **/draft** to check in once the command appears (within about an hour of start).`,
+      footer: { text: "REC Leagues" },
+    };
+    const payload = { embeds: [embed] };
+    let edited = false;
+    if (session.schedule_message_channel_id && session.schedule_message_id) {
+      edited = Boolean(await editDiscordMessage(session.schedule_message_channel_id, session.schedule_message_id, payload).catch(() => null));
+    }
+    if (!edited) {
+      const posted = await postDiscordChannelMessage(announcementsChannelId, {
+        content: "@everyone",
+        ...payload,
+        allowed_mentions: { parse: ["everyone"] },
+      }).catch((error) => {
+        console.error("[ERROR] Fantasy draft schedule announcement failed (non-fatal):", error);
+        return null;
+      });
+      if (posted?.id) {
+        await supabase.from("rec_fantasy_draft_sessions").update({
+          schedule_message_channel_id: announcementsChannelId,
+          schedule_message_id: posted.id,
+          updated_at: new Date().toISOString(),
+        }).eq("id", session.id);
+        session = {
+          ...session,
+          schedule_message_channel_id: announcementsChannelId,
+          schedule_message_id: posted.id,
+        };
+      }
+    }
+  }
+
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return serializeSession(session);
 }

@@ -10,6 +10,8 @@ import { migrateMirroredHighlightsToStream } from "./modules/media/media.service
 import { hasValidInternalApiKey } from "./lib/auth.js";
 import { startChatDatabaseListener } from "./modules/chat/chat-database-listener.js";
 import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/fantasy-draft.service.js";
+import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
+import { supabase } from "./lib/supabase.js";
 
 const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
 await app.register(helmet, {
@@ -66,6 +68,21 @@ catch (error) { app.log.error(error); process.exit(1); }
 setInterval(() => {
   checkFantasyDraftScheduleNotifications().catch((error) => app.log.error({ err: error }, "Fantasy draft schedule-notification poll failed"));
 }, 60_000).unref();
+
+// One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
+// were written directly in Supabase), backfill open-league embeds once on boot.
+void (async () => {
+  try {
+    const existing = await supabase.from("rec_league_recruiting_ads").select("league_id").limit(1);
+    if ((existing.data?.length ?? 0) > 0) return;
+    const result = await syncAllRecruitingAds();
+    if (result.synced.length) {
+      console.log("[recruiting-ads] Boot backfill synced games:", result.synced.join(", "));
+    }
+  } catch (error) {
+    console.error("[recruiting-ads] Boot backfill failed (non-fatal)", error);
+  }
+})();
 
 const migrateOnBoot = shouldMigrateMirroredHighlightsOnBoot();
 app.log.info(

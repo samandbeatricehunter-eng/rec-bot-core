@@ -306,7 +306,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const commissionerActions: { label: string; icon: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }[] = [];
   if (isCommissioner) {
     if (status === "not_scheduled") commissionerActions.push({ label: "Schedule", icon: <Clock size={16} />, onClick: () => setScheduleOpen(true) });
-    if (status === "scheduled") commissionerActions.push({ label: "Commence Draft", icon: <Trophy size={16} />, onClick: () => void runAction(() => recApi.commenceFantasyDraft(guildId), "Draft commenced.") });
+    if (status === "scheduled") {
+      commissionerActions.push({ label: "Reschedule Draft", icon: <Clock size={16} />, onClick: () => setScheduleOpen(true) });
+      commissionerActions.push({ label: "Commence Draft", icon: <Trophy size={16} />, onClick: () => void runAction(() => recApi.commenceFantasyDraft(guildId), "Draft commenced.") });
+    }
     if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: hasPickOrder ? "Edit Pick Order" : "Set Pick Order", icon: <CheckCircle2 size={16} />, onClick: () => setPickOrderOpen(true) });
     if (["scheduled", "live", "wrap_up"].includes(status)) commissionerActions.push({ label: "Add Player", icon: <Plus size={16} />, onClick: () => setCustomPlayerOpen(true) });
     if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: "Ping Users", icon: <AlertTriangle size={16} />, onClick: () => setPingModeOpen(true) });
@@ -480,7 +483,15 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
           </div>
         </Modal>
       )}
-      {scheduleOpen && <ScheduleModal guildId={guildId} onClose={() => setScheduleOpen(false)} onScheduled={() => void runAction(() => Promise.resolve(), "Draft scheduled.")} />}
+      {scheduleOpen && (
+        <ScheduleModal
+          guildId={guildId}
+          initialValue={status === "scheduled" ? session?.scheduledAt ?? null : null}
+          title={status === "scheduled" ? "Reschedule the Fantasy Draft" : "Schedule the Fantasy Draft"}
+          onClose={() => setScheduleOpen(false)}
+          onScheduled={() => void runAction(() => Promise.resolve(), status === "scheduled" ? "Draft rescheduled." : "Draft scheduled.")}
+        />
+      )}
       {pickOrderOpen && session && (
         <PickOrderModal
           teams={teams}
@@ -1174,8 +1185,26 @@ function PickHistory({ picks, playerNameById }: { picks: FantasyDraftState["pick
   );
 }
 
-function ScheduleModal({ guildId, onClose, onScheduled }: { guildId: string; onClose: () => void; onScheduled: () => void }) {
-  const [value, setValue] = useState("");
+function ScheduleModal({
+  guildId,
+  onClose,
+  onScheduled,
+  initialValue = null,
+  title = "Schedule the Fantasy Draft",
+}: {
+  guildId: string;
+  onClose: () => void;
+  onScheduled: () => void;
+  initialValue?: string | null;
+  title?: string;
+}) {
+  const [value, setValue] = useState(() => {
+    if (!initialValue) return "";
+    const date = new Date(initialValue);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function submit() {
@@ -1187,13 +1216,13 @@ function ScheduleModal({ guildId, onClose, onScheduled }: { guildId: string; onC
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
   }
   return (
-    <Modal title="Schedule the Fantasy Draft" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <p className="form-hint">Pick a date/time for the league draft. The board stays closed until you commence it — scheduling is just for the calendar.</p>
       <label className="fantasy-draft-form-row">Draft time<input className="form-input" type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} /></label>
       {error && <p className="hub-error">{error}</p>}
       <div className="fantasy-draft-form-actions">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={busy} onClick={() => void submit()}>{busy ? "Saving…" : "Schedule"}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void submit()}>{busy ? "Saving…" : initialValue ? "Reschedule" : "Schedule"}</Button>
       </div>
     </Modal>
   );

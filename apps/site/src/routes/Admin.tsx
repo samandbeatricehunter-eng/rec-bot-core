@@ -650,9 +650,30 @@ function DiscordConfigPanel() {
         },
       });
       applyConfig(next);
-      setNotice("Saved.");
+      try {
+        const sync = await siteApi.syncAdminDiscordRecruitingAds();
+        const games = sync.synced.length ? sync.synced.join(", ") : "none configured";
+        setNotice(`Saved. Recruiting ads refreshed (${games}).`);
+      } catch (syncErr) {
+        setNotice(`Saved, but recruiting-ad refresh failed: ${syncErr instanceof Error ? syncErr.message : "unknown error"}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save Discord config.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function refreshAds() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const sync = await siteApi.syncAdminDiscordRecruitingAds();
+      const games = sync.synced.length ? sync.synced.join(", ") : "none configured";
+      setNotice(`Recruiting ads refreshed (${games}).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not refresh recruiting ads.");
     } finally {
       setBusy(false);
     }
@@ -688,6 +709,9 @@ function DiscordConfigPanel() {
       <div className="site-profile-actions">
         <button className="site-btn site-btn-primary" type="button" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save"}
+        </button>
+        <button className="site-btn site-btn-ghost" type="button" disabled={busy} onClick={() => void refreshAds()}>
+          {busy ? "Working…" : "Post/refresh ads"}
         </button>
       </div>
     </div>

@@ -366,7 +366,7 @@ async function saveChannelEditIfNeeded(interaction: { guildId: string | null; us
 export async function handleAttributeCapModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
 
   const code = interaction.customId.split(":").at(-1)!;
   const raw = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.attrCapModalInput);
@@ -392,7 +392,7 @@ export async function handleAttributeCapModal(interaction: Extract<Interaction, 
 export async function handleLeagueSetupButton(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "League Setup session expired. Open /app again.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Continue from the REC site.", flags: MessageFlags.Ephemeral });
 
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cancelWizard) {
     leagueSetupSessions.delete(interaction.user.id);
@@ -520,7 +520,7 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
 export async function handleActivityRequirementsModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
 
   draft.fairSimRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput).trim();
   draft.forceWinRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput).trim();
@@ -548,7 +548,7 @@ export async function handleActivityRequirementsModal(interaction: Extract<Inter
 export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
 
   draft.coachAbilitiesRestricted = true;
   draft.coachAbilitiesRestrictionNotes = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionInput).trim();
@@ -593,7 +593,7 @@ async function finishModalStep(interaction: ModalSubmitInteraction, draft: Leagu
 export async function handleLeagueSetupServerChannelModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   const channelType = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelModal}:`.length);
   const value = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelInput).trim() || null;
   const option = LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS[channelType as keyof typeof LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS];
@@ -609,7 +609,7 @@ export async function handleLeagueSetupServerChannelModal(interaction: Extract<I
 export async function handleFourthDownCustomModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   const phase = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomModal}:`.length);
   const value = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomInput).trim();
   if (phase === "playoff") draft.customFourthDownRulePlayoff = value;
@@ -620,7 +620,7 @@ export async function handleFourthDownCustomModal(interaction: Extract<Interacti
 export async function handlePositionRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   draft.positionChangePolicyDescription = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionInput).trim();
   return finishModalStep(interaction, draft);
 }
@@ -628,7 +628,7 @@ export async function handlePositionRestrictionModal(interaction: Extract<Intera
 export async function handleCpuTradingRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   draft.cpuTradingPolicy = "restricted";
   draft.cpuTradingRestriction = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionInput).trim();
   return finishModalStep(interaction, draft);
@@ -637,7 +637,7 @@ export async function handleCpuTradingRestrictionModal(interaction: Extract<Inte
 export async function handleDifficultyCustomModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   // Legacy custom-difficulty modal: map notes into Sliders Adjusted = Yes.
   draft.slidersAdjusted = true;
   draft.difficultyCustomSettings = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomInput).trim();
@@ -650,7 +650,7 @@ export async function handleDifficultyCustomModal(interaction: Extract<Interacti
 export async function handleAdvanceTimingOtherModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
+  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   draft.advanceTiming = "other";
   draft.advanceTimingOther = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherInput).trim();
   return finishModalStep(interaction, draft);

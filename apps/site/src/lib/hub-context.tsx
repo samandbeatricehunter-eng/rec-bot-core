@@ -118,7 +118,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
       setTheme("app");
       return;
     }
-    // Keep league scope while the route still points at that league (Discord /app
+    // Keep league scope while the route still points at that league (Discord handoff
     // can land before mine-list resolves). Only drop stale ids after load.
     if (leaguesReady && !leaguesLoading && !leaguesError) {
       const stillOnLeagueRoute = location.pathname.startsWith(`/l/${scope.leagueId}`);

@@ -33,7 +33,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   return [
     base(1, "What REC Leagues Is", [
       `**REC Leagues** connects commissioner-run football leagues at ${SITE_URL} with Discord. **${league.name ?? "This league"}** uses REC for ${cfb ? "College Football 27" : "Madden 27"} schedules, results, media, records, commissioner workflows, and historical profiles.`,
-      "Run **/app** for a private site link. The app includes Campus Buzz, matchups, streams, headlines, rankings, My Team, schedules, wagers, the Store, and commissioner tools enabled for this league.",
+      `Open the league hub at **${SITE_URL}** (or run **/viewleague**). The site includes Campus Buzz, matchups, streams, headlines, rankings, My Team, schedules, wagers, the Store, and commissioner tools enabled for this league.`,
     ]),
     base(2, "Register, Link Discord & Plans", [
       `Register at **${SITE_URL}**, choose a username, and link the Discord account used in this server. Linking gives the site and bot one identity for records, payouts, media, wallet activity, and League History.`,
@@ -82,18 +82,17 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       customRules.length ? customRules.map((rule: any) => `**${rule.category ?? "Custom"}:** ${rule.title ?? "Rule"}${rule.text ? ` — ${rule.text}` : ""}`).join("\n") : "Commissioner-created custom rules will appear here when configured.",
     ]),
     base(economy ? 8 : 7, "FAQ & Support", [
-      "**No team?** Run /openteams, switch to the desired conference, choose Request Team, and wait for commissioner approval. Discord-only users may submit requests. **Expired link?** Run /app again.",
+      "**No team?** Run /openteams, switch to the desired conference, choose Request Team, and wait for commissioner approval. Discord-only users may submit requests. **Need the public page?** Run /viewleague.",
       "**Submission blocked?** Confirm that this is your scheduled week/stage, the feature is enabled, and no shared submission already exists. Box scores require both images within 60 seconds in Discord.",
       economy ? "**Purchase or wager blocked?** Check balance, league/season availability, caps, restrictions, and whether the game has already locked." : null,
       `Announcements: ${mention(routes.announcements_channel_id, "not assigned")}. Headlines: ${mention(routes.headlines_channel_id, "not assigned")}. League-specific Rules & Policies on the site are authoritative.`,
     ]),
     base(economy ? 9 : 8, "Discord Bot Commands", [
-      "**/app** — sends you a private, expiring link to open the REC Leagues website/app for this server.",
       "**/openteams** — displays open and claimed teams by conference and lets you request an available team.",
       "**/matchup** — displays your current-week matchup and its available game information.",
       "**/schedule** — displays your linked team's full season schedule.",
       "**/viewleague** — provides the league's public status-page link.",
-      "**/draft** — opens fantasy-draft controls when the league uses a fantasy draft.",
+      "**/draft** — opens fantasy-draft check-in when a fantasy draft is within about an hour or live.",
       "League creation and Discord-server linking are website-only commissioner workflows; there is no Discord creation or claim command.",
     ]),
   ].filter((embed): embed is NonNullable<typeof embed> => Boolean(embed));

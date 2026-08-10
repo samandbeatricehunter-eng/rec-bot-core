@@ -1193,6 +1193,7 @@ export function LeaguesPage() {
           onCreated={() => {
             setCreateWizardOpen(false);
             setParams((current) => { const next = new URLSearchParams(current); next.set("tab", "mine"); return next; });
+            void hub.refreshLeagues();
           }}
         />
       )}

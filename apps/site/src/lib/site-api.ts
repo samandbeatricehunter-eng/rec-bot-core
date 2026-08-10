@@ -779,6 +779,9 @@ export const siteApi = {
   updateAdminDiscordConfig(patch: { managementGuildId?: string | null; leaguePostChannels?: Partial<AdminDiscordConfig["leaguePostChannels"]> }) {
     return request<AdminDiscordConfig>("/v1/admin/discord-config/set", patch);
   },
+  syncAdminDiscordRecruitingAds() {
+    return request<{ synced: string[] }>("/v1/admin/discord-config/sync-ads", {});
+  },
   getLeagueCreatorStatus() {
     return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
   },

@@ -1,13 +1,10 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { env } from "./config/env.js";
 
-// A Discord server is linked to a league from the site's Discord guild picker
-// (apps/site/src/routes/DiscordGuildPicker.tsx) — no in-Discord command needed anymore.
+// Base guild commands only — /draft is registered conditionally by the API via
+// syncGuildCommands when a fantasy draft is within ~1hr or live. Do not include /draft
+// here: registerGuildCommands runs on ready/guildCreate and would otherwise force it on.
 export const commands = [
-  new SlashCommandBuilder()
-    .setName("app")
-    .setDescription("Open this league in the REC Leagues website/app.")
-    .toJSON(),
   new SlashCommandBuilder()
     .setName("openteams")
     .setDescription("View open and claimed teams in this league.")
@@ -23,10 +20,6 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("viewleague")
     .setDescription("Get a link to this league's public status page.")
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("draft")
-    .setDescription("Open this league's fantasy draft controls and board.")
     .toJSON(),
 ];
 

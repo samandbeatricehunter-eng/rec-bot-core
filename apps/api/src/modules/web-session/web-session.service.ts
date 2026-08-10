@@ -55,13 +55,13 @@ async function verifyAppHandoff(handoff: string): Promise<{
     const verified = await jwtVerify(handoff, jwtKey());
     payload = verified.payload as HandoffPayload;
   } catch {
-    throw new ApiError(401, "This Open my league link expired or is invalid. Run /app again in Discord.");
+    throw new ApiError(401, "This Open my league link expired or is invalid. Sign in on the REC site and open your league from Home.");
   }
   if (payload.purpose !== APP_HANDOFF_PURPOSE) {
-    throw new ApiError(401, "Invalid Open my league link. Run /app again in Discord.");
+    throw new ApiError(401, "Invalid Open my league link. Sign in on the REC site and open your league from Home.");
   }
   if (typeof payload.discordId !== "string" || typeof payload.guildId !== "string") {
-    throw new ApiError(401, "Invalid Open my league link. Run /app again in Discord.");
+    throw new ApiError(401, "Invalid Open my league link. Sign in on the REC site and open your league from Home.");
   }
   return {
     discordId: payload.discordId,
@@ -113,7 +113,7 @@ async function userHasLeagueAccess(recUserId: string, leagueId: string): Promise
 }
 
 /**
- * Exchange Discord /app handoff for a site deep-link (stays on rec-leagues.com).
+ * Exchange Discord→site handoff for a site deep-link (stays on rec-leagues.com).
  * No longer redirects into the Discord-JWT webapp.
  */
 export async function exchangeAppHandoff(
@@ -131,7 +131,7 @@ export async function exchangeAppHandoff(
   if (siteDiscord.data?.discord_id && siteDiscord.data.discord_id !== handoff.discordId) {
     throw new ApiError(
       403,
-      "Your REC Leagues account is linked to a different Discord user. Sign in with the matching account, or run /app from that Discord account.",
+      "Your REC Leagues account is linked to a different Discord user. Sign in with the matching account, or open the league from that Discord account's site login.",
     );
   }
 

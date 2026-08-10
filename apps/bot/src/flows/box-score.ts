@@ -304,7 +304,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
           embeds: [new EmbedBuilder()
             .setTitle("Box Score Not Accepted")
             .setColor(COLORS.error)
-            .setDescription("You aren't linked to a team in this league. Open **/app** and use Team Ownership → Request Team first.")],
+            .setDescription("You aren't linked to a team in this league. Use **/openteams** to request a team, or open the league on the REC site.")],
         }).catch(() => undefined);
         return;
       }

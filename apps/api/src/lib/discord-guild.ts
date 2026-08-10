@@ -83,7 +83,6 @@ async function getApplicationId(): Promise<string> {
 // partial "add one command" call. If the base command list in apps/bot/src/commands.ts ever
 // changes, update this to match or guilds will silently lose whichever command was dropped.
 const BASE_GUILD_COMMANDS_JSON = [
-  { name: "app", description: "Open the REC Leagues app." },
   { name: "openteams", description: "View open and claimed teams in this league." },
   { name: "matchup", description: "Show your current-week matchup." },
   { name: "schedule", description: "Show your team's full season schedule." },
