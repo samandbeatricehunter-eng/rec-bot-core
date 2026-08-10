@@ -424,6 +424,8 @@ export const recApi = {
     recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),
   getMyRecentTransactions: (input: { guildId: string; limit?: number }) =>
     recApiFetch<{ transactions: Array<{ id: string; amount: number; transactionType: string | null; description: string | null; createdAt: string }> }>("/v1/hub/my-transactions", { method: "POST", body: JSON.stringify(input) }),
+  getLeagueHistory: (guildId: string) =>
+    recApiFetch<import("../types/api.js").LeagueHistoryResponse>("/v1/hub/league-history", { method: "POST", body: JSON.stringify({ guildId }) }),
   createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown>; idempotencyKey?: string }) =>
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>

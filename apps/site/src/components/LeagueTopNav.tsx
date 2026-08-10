@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import {
   IconBuzz,
+  IconHistory,
   IconMatchups,
   IconMenu,
   IconMgmt,
@@ -116,6 +117,14 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
                 <IconStore /> Store
               </NavLink>
             ) : null}
+            <NavLink
+              to={`/l/${leagueId}/history`}
+              role="menuitem"
+              className="site-account-menu-item"
+              onClick={() => setMenuOpen(false)}
+            >
+              <IconHistory /> League History
+            </NavLink>
             <NavLink
               to={`/l/${leagueId}/rules`}
               role="menuitem"

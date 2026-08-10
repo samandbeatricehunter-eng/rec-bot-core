@@ -391,6 +391,14 @@ h1, h2, h3, .site-wordmark {
 .site-public-league-collapse-toggle span { color: var(--accent-bright); font-size: 13px; font-weight: 700; }
 .site-public-league-open-groups { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-2); }
 .site-public-league-open-group h3 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.site-public-league-season-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+.site-public-league-season-tabs button { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-weight: 700; font-size: 13px; }
+.site-public-league-season-tabs button.active { border-color: var(--accent-bright); color: var(--accent-bright); }
+.site-public-league-rankings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.site-public-league-rankings-grid h4 { margin: 0 0 var(--space-2); font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+@media (max-width: 700px) {
+  .site-public-league-rankings-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 .site-legal-notice {
   padding: var(--space-3) var(--space-4);

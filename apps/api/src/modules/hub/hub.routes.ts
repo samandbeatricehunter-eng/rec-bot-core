@@ -6,6 +6,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getMatchupPreview } from "./matchup-preview.service.js";
+import { getLeagueHistory } from "../league-history/league-history.service.js";
 import { buildArticlePromptDigest } from "./article-prompt.service.js";
 import { generateRoundtableHostName, getRoundtableHostConfig, resetRoundtableHost, updateRoundtableHost } from "./roundtable-hosts.service.js";
 import {
@@ -95,6 +96,15 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "My Team schedule is a browser-only endpoint.");
       return reply.send(await getMyTeamSchedule(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/league-history", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "League history is a browser-only endpoint.");
+      return reply.send(await getLeagueHistory(body.guildId));
     } catch (error) { return sendError(reply, error); }
   });
 

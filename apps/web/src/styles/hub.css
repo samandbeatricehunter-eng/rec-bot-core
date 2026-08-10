@@ -434,6 +434,21 @@ button.poty:disabled {
 .hub-rules-row:first-of-type { border-top: none; }
 .hub-rules-label { color: var(--text-secondary); font-size: var(--text-sm); }
 .hub-rules-value { color: var(--text); font-weight: 700; text-align: right; }
+
+.hub-history-season-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.hub-history-season-tabs button { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-weight: 700; }
+.hub-history-season-tabs button.active { border-color: var(--gold); color: var(--gold); background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised)); }
+.hub-history-season { display: flex; flex-direction: column; gap: var(--space-4); }
+.hub-history-category h3 { margin: 0 0 var(--space-3); font-size: var(--text-lg); text-transform: uppercase; letter-spacing: .03em; }
+.hub-history-table { display: flex; flex-direction: column; }
+.hub-history-table-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr 1fr; gap: var(--space-2); padding: var(--space-2) 0; border-top: 1px solid var(--border); align-items: center; }
+.hub-history-table-row:first-of-type { border-top: none; }
+.hub-history-table-head { color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
+.hub-history-bowl-row, .hub-history-top25-row { grid-template-columns: 1fr 2fr; }
+.hub-history-rankings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.hub-history-rankings-col h4 { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.hub-history-rankings-row { display: flex; justify-content: space-between; gap: var(--space-2); padding: 4px 0; border-top: 1px solid var(--border); }
+.hub-history-rankings-row:first-of-type { border-top: none; }
 .hub-rules-custom-group + .hub-rules-custom-group { margin-top: var(--space-2); }
 .hub-roster-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .hub-roster-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }

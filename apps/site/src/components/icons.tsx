@@ -219,6 +219,17 @@ export function IconRules(props: IconProps) {
   );
 }
 
+export function IconHistory(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M3 12a9 9 0 1 0 2.6-6.3" />
+      <path d="M3 4.5v4h4" />
+      <path d="M12 7.5V12l3 2" />
+    </>,
+  );
+}
+
 export function IconMenu(props: IconProps) {
   return base(
     props,

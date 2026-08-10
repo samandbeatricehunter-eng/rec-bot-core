@@ -420,6 +420,24 @@ export type CommissionerPoll = {
   hasVoted?: boolean;
   myVoteOptionId?: number | null;
 };
+export type LeagueHistorySeason = {
+  seasonNumber: number;
+  teamRecords: Array<{ userId: string; coachName: string; teamId: string | null; teamName: string; abbr: string | null; wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number }>;
+  postseasonGames: Array<{ weekNumber: number | null; homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isBowl: boolean; bowlName: string | null; isNationalChampionship: boolean; isSuperBowl: boolean; postseasonRound: string | null }>;
+  bowlWinners: Array<{ bowlName: string | null; winner: string | null; loser: string | null; score: string | null }>;
+  championship: { winner: string | null; runnerUp: string | null; score: string | null } | null;
+  powerRankings: {
+    start: Array<{ rank: number; teamName: string; score: number }>; startWeek: number | null;
+    mid: Array<{ rank: number; teamName: string; score: number }>; midWeek: number | null;
+    end: Array<{ rank: number; teamName: string; score: number }>; endWeek: number | null;
+  };
+  finalTop25: Array<{ rank: number; teamName: string; conferenceChampion: boolean }>;
+};
+export type LeagueHistoryResponse = {
+  league: { name: string; game: string | null };
+  currentSeason: number;
+  seasons: LeagueHistorySeason[];
+};
 export type MyEosPayoutProgress = {
   seasonNumber: number;
   teamStats: EosPayoutProgressCard[];
