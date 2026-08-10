@@ -16,13 +16,15 @@ export function AttributePurchaseBuilder({
   storeContext,
   wallet,
   busy,
+  excludeDefault = false,
   onSubmit,
 }: {
   guildId: string;
   storeContext: StorePurchaseContext | null;
   wallet: number;
   busy: boolean;
-  onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string) => void;
+  excludeDefault?: boolean;
+  onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string, playerId: string) => void;
 }) {
   const [points, setPoints] = useState<Record<string, number>>({});
   const [player, setPlayer] = useState<RosterPlayer | null>(null);
@@ -85,7 +87,7 @@ export function AttributePurchaseBuilder({
 
   return (
     <div className="attr-builder">
-      <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={guildId} value={player} onChange={setPlayer} /></label>
+      <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={guildId} value={player} onChange={setPlayer} excludeDefault={excludeDefault} /></label>
 
       {(Object.entries(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS) as Array<[string, typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[keyof typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS]]>).map(([groupKey, group]) => (
         <details key={groupKey} className="attr-builder-group">
@@ -117,7 +119,7 @@ export function AttributePurchaseBuilder({
 
       <div className="attr-builder-total">
         <span>Total: <strong><CoinAmount amount={totalPrice} /></strong> of <CoinAmount amount={wallet} /> available</span>
-        <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, player!.fullName)}>
+        <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, player!.fullName, player!.id)}>
           {busy ? "Submitting…" : `Submit (${allocations.reduce((sum, a) => sum + a.points, 0)} pts)`}
         </Button>
       </div>

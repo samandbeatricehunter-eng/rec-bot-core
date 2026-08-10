@@ -1,4 +1,4 @@
-import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, type RecPurchaseType, type RecDevTier } from "@rec/shared";
+import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -215,16 +215,47 @@ async function enforceAttributeCaps(args: {
   }
 }
 
+// Shared for every player-targeting purchase type (dev upgrades, attribute points, age
+// resets, contract adjustments): resolves the target to a real, active player on the
+// buyer's own team, and enforces the CFB store's core rule that DEFAULT SEEDED players
+// can't be purchased on at all — only players the coach added (recruits, transfers,
+// manual adds, legends, custom recruits) are eligible. Madden has no such restriction;
+// its baseline roster is the exact pool teams are supposed to build from. The
+// madden_player_id prefix check is belt-and-suspenders on top of is_default_player so
+// leagues seeded before the flag was backfilled still get the guard.
+async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: string; game: string; playerId: string; label: string }) {
+  const playerId = opts.playerId ?? "";
+  if (!playerId) throw new ApiError(400, "Select a player.");
+  const player = await supabase
+    .from("rec_players")
+    .select("id,team_id,full_name,roster_status,is_default_player,madden_player_id")
+    .eq("id", playerId)
+    .eq("league_id", opts.leagueId)
+    .maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
+  const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", opts.leagueId).eq("user_id", opts.userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only make purchases for your own team's players.");
+
+  if (isCfb(opts.game) && (player.data.is_default_player || String(player.data.madden_player_id ?? "").startsWith("cfb27:"))) {
+    throw new ApiError(400, `${player.data.full_name} is part of the default seeded roster — ${opts.label} can only be purchased for players you've added (recruits, transfers, or manually added players).`);
+  }
+  return { id: player.data.id, fullName: player.data.full_name };
+}
+
 // Re-derives fromTier from the player's actual current dev_trait (never trust the client for
 // this) and validates toTier is a real forward step on this league's game-family tier ladder.
 async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leagueId: string, game: string, userId: string): Promise<Record<string, unknown>> {
   const playerId = String((details as any).playerId ?? "");
   if (!playerId) throw new ApiError(400, "Select a player to upgrade.");
-  const player = await supabase.from("rec_players").select("id,team_id,full_name,dev_trait,roster_status").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
+  const player = await supabase.from("rec_players").select("id,team_id,full_name,dev_trait,roster_status,is_default_player,madden_player_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
   if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only upgrade your own team's players.");
+  if (isCfb(game) && (player.data.is_default_player || String(player.data.madden_player_id ?? "").startsWith("cfb27:"))) {
+    throw new ApiError(400, `${player.data.full_name} is part of the default seeded roster — dev upgrades can only be purchased for players you've added (recruits, transfers, or manually added players).`);
+  }
 
   const order = devTierOrderForGame(game);
   const fromTier = (order.includes(player.data.dev_trait as RecDevTier) ? player.data.dev_trait : "normal") as RecDevTier;
@@ -317,12 +348,20 @@ export async function createPurchaseRequest(input: {
 
   // Attributes carry an allocation list; dev upgrades carry a player + target tier — both
   // get normalized server-side (authoritative) so pricing and cap enforcement can't be
-  // spoofed by client-supplied core/tier flags.
+  // spoofed by client-supplied core/tier flags. Player-targeting types (attribute, age
+  // reset, contract, dev upgrade) also resolve their target player server-side so team
+  // ownership and the CFB default-seeded-player rule are enforced against the real row.
   let details: Record<string, unknown> = input.details ?? {};
+  const game = String(context.rec_leagues?.game ?? "madden_27");
   if (input.purchaseType === "attribute") {
     details = normalizeAttributeAllocations(details, cfgRow);
+    const target = await loadAndValidatePurchaseTarget({ leagueId, userId, game, playerId: String((details as any).playerId ?? ""), label });
+    details = { ...details, playerId: target.id, playerName: target.fullName };
   } else if (input.purchaseType === "dev_upgrade") {
-    details = await normalizeDevUpgradeDetails(details, leagueId, String(context.rec_leagues?.game ?? "madden_27"), userId);
+    details = await normalizeDevUpgradeDetails(details, leagueId, game, userId);
+  } else if (input.purchaseType === "age_reset" || input.purchaseType === "contract") {
+    const target = await loadAndValidatePurchaseTarget({ leagueId, userId, game, playerId: String((details as any).playerId ?? ""), label });
+    details = { ...details, playerId: target.id, playerName: target.fullName };
   }
 
   const price = priceForPurchase(input.purchaseType, details, String(context.rec_leagues?.game ?? ""));

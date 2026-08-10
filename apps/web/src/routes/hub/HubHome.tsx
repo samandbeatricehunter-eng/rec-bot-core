@@ -1342,7 +1342,7 @@ export function HubHome() {
 
         {purchaseType && !hub.store.products.find((product) => product.type === purchaseType)?.locked && <div className="hub-store-form"><h3>{hub.store.products.find((product) => product.type === purchaseType)?.label}</h3>
 
-          {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} onSubmit={(allocations, playerName) => void submitPurchase({ playerName, allocations })} />}
+          {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} onSubmit={(allocations, playerName, playerId) => void submitPurchase({ playerId, playerName, allocations })} />}
 
           {purchaseType === "legend" && <LegendPurchasePanel onPurchased={() => { setStoreContext(null); void load(); }} />}
 
@@ -1367,7 +1367,7 @@ export function HubHome() {
             const availableTargets = order.filter((tier) => order.indexOf(tier) > order.indexOf(presentTier));
             const devPrice = devUpgradeTargetTier ? priceForDevUpgradeSteps(game, presentTier, devUpgradeTargetTier) : 0;
             return <>
-              <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={devUpgradePlayer} onChange={(player) => { setDevUpgradePlayer(player); setDevUpgradeTargetTier(""); }} /></label>
+              <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={devUpgradePlayer} onChange={(player) => { setDevUpgradePlayer(player); setDevUpgradeTargetTier(""); }} excludeDefault={isCfbLeague} /></label>
               {devUpgradePlayer && <p className="form-hint">Present tier: <strong>{REC_DEV_TIER_LABELS[presentTier]}</strong></p>}
               <label className="form-field"><span className="form-label">Purchasing tier</span><select className="form-input" value={devUpgradeTargetTier} disabled={!devUpgradePlayer} onChange={(event) => setDevUpgradeTargetTier(event.target.value as RecDevTier)}><option value="">Select tier</option>{availableTargets.map((tier) => <option key={tier} value={tier}>{REC_DEV_TIER_LABELS[tier]}</option>)}</select></label>
               <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={devPrice} /></strong></span><Button variant="primary" disabled={purchaseBusy || !devUpgradePlayer || !devUpgradeTargetTier} onClick={() => void submitPurchase({ playerId: devUpgradePlayer!.id, playerName: devUpgradePlayer!.fullName, toTier: devUpgradeTargetTier })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
@@ -1376,12 +1376,12 @@ export function HubHome() {
 
           {purchaseType === "contract" && <>
             <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>
-            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={contractPlayer} onChange={setContractPlayer} /></label>
+            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={contractPlayer} onChange={setContractPlayer} excludeDefault={isCfbLeague} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !contractPlayer || !purchaseDetails.variant} onClick={() => void submitPurchase({ playerId: contractPlayer!.id, playerName: contractPlayer!.fullName, variant: purchaseDetails.variant })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 
           {purchaseType === "age_reset" && <>
-            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={ageResetPlayer} onChange={setAgeResetPlayer} /></label>
+            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={ageResetPlayer} onChange={setAgeResetPlayer} excludeDefault={isCfbLeague} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={REC_AGE_RESET_PRICE} /></strong></span><Button variant="primary" disabled={purchaseBusy || !ageResetPlayer} onClick={() => void submitPurchase({ playerId: ageResetPlayer!.id, playerName: ageResetPlayer!.fullName })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 

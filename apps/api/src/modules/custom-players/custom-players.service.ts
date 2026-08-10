@@ -89,10 +89,10 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
   if (!identity.firstName?.trim() || !identity.lastName?.trim()) throw new ApiError(400, "First and last name are required.");
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
   if (game === "CFB") {
-    if (!identity.hometownCity?.trim() || !identity.hometownState?.trim()) throw new ApiError(400, "CFB players require a hometown and state.");
     if (identity.college) throw new ApiError(400, "CFB custom players do not use a college field.");
-    // Only first/last name, jersey #, handedness, height, and weight are editable for a CFB
-    // custom player — everything else about their physical build comes from ratings.
+    // Only first/last name, jersey #, handedness, height, weight, and body type are editable
+    // for a CFB custom player — hometown/state are not editable in-game (the wizard no longer
+    // collects them) and everything else about their physical build comes from ratings.
     const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
     const heightMax = heightRule?.max ?? 84;
     if (!Number.isInteger(identity.heightInches) || identity.heightInches < CFB_HEIGHT_FLOOR || identity.heightInches > heightMax) {
@@ -258,8 +258,6 @@ export async function submitCustomPlayer(input: {
 }) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(input.guildId, input.discordId);
   const game = gameFamily(context.rec_leagues.game); const year = gameYear(context.rec_leagues.game);
-  validateIdentity(game, input.identity, input.position);
-  await assertNameNotLegend(game, input.identity);
   const config = await getCustomPlayerConfig(input.guildId, input.discordId);
   if (!config.enabled) throw new ApiError(400, "Custom-player purchases are disabled for this league.");
   if (config.seasonCap > 0 && config.seasonUsed >= config.seasonCap) throw new ApiError(409, "You have reached this season's custom-player cap.");
@@ -285,16 +283,24 @@ export async function submitCustomPlayer(input: {
     throw new ApiError(400, "This team has eligible players — select one to replace. Skipping the replacement is only allowed while none are eligible yet.");
   }
 
+  // CFB position is locked to the replaced player — the in-game roster editor can't change a
+  // player's position, so this recruit inherits it. The client's position input is ignored
+  // for CFB (authoritative: derived from the replacement row); with no replacement (an
+  // unseeded-league brand-new add) the submitted position stands.
+  const effectivePosition = game === "CFB" && replacement.data ? String(replacement.data.position) : input.position;
+  validateIdentity(game, input.identity, effectivePosition);
+  await assertNameNotLegend(game, input.identity);
+
   // CFB dev trait is earned in-game, not purchased — the wizard never lets a CFB build
   // choose one. The inserted player inherits whatever trait the replaced player already
   // has (or starts "normal" when there's no replacement, i.e. an unseeded-league new add).
   const effectiveDevTrait = game === "CFB" ? String(replacement.data?.dev_trait ?? "normal") : input.developmentTrait;
 
-  const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
+  const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
   // CFB-only surcharge for building above a position's real-world average height — deducted
   // from the same creation-point budget as attributes/development, not a separate coin cost.
-  const heightSurcharge = game === "CFB" ? heightOverageCost(input.position, input.identity.heightInches) : 0;
+  const heightSurcharge = game === "CFB" ? heightOverageCost(effectivePosition, input.identity.heightInches) : 0;
   if (heightSurcharge > evaluation.pointsRemaining) {
     throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
   }
@@ -307,13 +313,13 @@ export async function submitCustomPlayer(input: {
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   const purchase = await supabase.from("rec_purchases").insert({ league_id: context.leagueId, season_id: seasonId, season_number: seasonNumber,
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
-    details: { packageTier: input.packageTier, position: input.position, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
+    details: { packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
   const refundCoins = Math.ceil((pointsRemainingAfterHeight * .5) / 15);
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
-    game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: input.position.toUpperCase(),
+    game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: effectivePosition,
     selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: effectiveDevTrait,
     identity: input.identity, body_type: game === "CFB" ? input.identity.bodyType : null, height_overage_cost: heightSurcharge,
     attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,

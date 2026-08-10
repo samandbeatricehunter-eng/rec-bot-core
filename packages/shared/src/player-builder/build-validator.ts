@@ -330,7 +330,20 @@ function validateHighImpactAttributes(
     const rating =
       typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
 
+    const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
+
     if (rating > packageRules.highImpactAttributeCap) {
+      // Distinct from the ATTRIBUTE_FLOOR_REQUIRED message: this one is about the package's
+      // hard high-impact ceiling, and it names the concrete path when one exists — the gated
+      // attribute's related quickness stats (ACC/AGI/COD, etc.) must reach the floor of the
+      // next ceiling tier before running the attribute anywhere near the cap.
+      const path =
+        ceiling.applicable && ceiling.deficientAttributes.length > 0
+          ? ` To run ${attribute.toUpperCase()} at the cap, ` +
+            `${ceiling.deficientAttributes.map((entry) => entry.attribute.toUpperCase()).join(", ")} ` +
+            `${ceiling.deficientAttributes.length === 1 ? "must reach" : "must each reach"} ` +
+            `at least ${ceiling.requiredFloor}.`
+          : ` Lower ${attribute.toUpperCase()} to ${packageRules.highImpactAttributeCap} or below.`;
       violations.push({
         code: "PACKAGE_ATTRIBUTE_CAP",
         attribute,
@@ -340,11 +353,9 @@ function validateHighImpactAttributes(
         message:
           `${attribute.toUpperCase()} ${rating} exceeds the Tier ` +
           `${input.packageTier} high-impact cap of ` +
-          `${packageRules.highImpactAttributeCap}.`,
+          `${packageRules.highImpactAttributeCap}.${path}`,
       });
     }
-
-    const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
 
     if (ceiling.applicable && ceiling.deficientAttributes.length > 0) {
       violations.push({

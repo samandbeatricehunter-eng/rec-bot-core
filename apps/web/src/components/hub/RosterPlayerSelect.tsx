@@ -5,16 +5,20 @@ import type { RosterPlayer } from "../../types/api.js";
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
 // Shared player-target picker for store purchases (attribute points, dev upgrades, age
-// resets): a position-group toggle row above a dropdown scoped to that group, replacing
-// free-text player-name entry so submissions always resolve to a real roster player.
+// resets, contract adjustments): a position-group toggle row above a dropdown scoped to
+// that group, replacing free-text player-name entry so submissions always resolve to a
+// real roster player. excludeDefault filters out baseline-seeded players (isDefaultPlayer)
+// — used by CFB leagues where the store can't be spent on the default seeded roster.
 export function RosterPlayerSelect({
   guildId,
   value,
   onChange,
+  excludeDefault = false,
 }: {
   guildId: string;
   value: RosterPlayer | null;
   onChange: (player: RosterPlayer | null) => void;
+  excludeDefault?: boolean;
 }) {
   const [players, setPlayers] = useState<RosterPlayer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +27,10 @@ export function RosterPlayerSelect({
   useEffect(() => {
     let active = true;
     recApi.getTeamRoster({ guildId })
-      .then((data) => { if (active) setPlayers((data.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus))); })
+      .then((data) => { if (active) setPlayers((data.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus) && (!excludeDefault || !p.isDefaultPlayer))); })
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : "Failed to load your roster."); });
     return () => { active = false; };
-  }, [guildId]);
+  }, [guildId, excludeDefault]);
 
   const groups = useMemo(() => {
     const set = new Set<string>();

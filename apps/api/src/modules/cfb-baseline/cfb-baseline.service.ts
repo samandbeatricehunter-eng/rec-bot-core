@@ -295,9 +295,12 @@ export async function applyCfbBaselineToLeague(input: ApplyBaselineToLeagueInput
       height_inches: bp.height_inches,
       weight_lbs: bp.weight_lbs,
       overall_rating: bp.overall_rating,
-      // CFB baseline players are rostered (not free agents) and have no dev trait in the
-      // baseline attribute set (physicals/mentals/utility + numeric ratings only).
+      // CFB baseline players are rostered (not free agents), flagged as default/protected so
+      // the CFB store's no-purchases-on-default-seeded-players rule applies to them, and have
+      // no dev trait in the baseline attribute set (physicals/mentals/utility + numeric
+      // ratings only).
       is_free_agent: false,
+      is_default_player: true,
       raw_payload: {
         source_player_id: bp.source_player_id,
         jersey_number: bp.jersey_number,

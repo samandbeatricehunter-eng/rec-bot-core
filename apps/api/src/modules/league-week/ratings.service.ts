@@ -5,6 +5,9 @@
 // well," on purpose decoupled from the team's win/loss record. Madden displays the
 // raw number; CFB converts the same 0-100 scale to a letter grade (this feature's
 // original ask was "numeric for Madden, letter grade for CFB").
+// Both ratings are CUMULATIVE across every season the league has played — the numbers
+// carry forward over season turnover instead of resetting to baseline, so a coach's
+// body of work in Season 1 still shows up when Season 2 starts.
 import { isCfb } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -50,12 +53,14 @@ type TeamAgg = {
 };
 const emptyAgg = (): TeamAgg => ({ wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, scored: 0, madePlayoffs: false, playoffWins: 0, wonBowlOrRing: false });
 
-async function aggregateTeamResults(leagueId: string, seasonNumber: number): Promise<Map<string, TeamAgg>> {
+// Career scope, not per-season: every stored result across all seasons the league has
+// played. Coach Rating is deliberately cumulative so it never resets to baseline when a
+// season turns over — the rating carries the team's full body of work forward.
+async function aggregateTeamResults(leagueId: string): Promise<Map<string, TeamAgg>> {
   const { data, error } = await supabase
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,is_playoff,is_super_bowl")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber);
+    .eq("league_id", leagueId);
   if (error) throw new ApiError(500, "Failed to load results for Coach Rating.", error);
 
   const map = new Map<string, TeamAgg>();
@@ -102,11 +107,10 @@ export type CoachRatingRow = {
 async function computeCoachRatingsBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
-  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const game = context.rec_leagues.game;
 
   const [aggs, sos, teamsRes, assignmentsRes] = await Promise.all([
-    aggregateTeamResults(leagueId, seasonNumber),
+    aggregateTeamResults(leagueId),
     computeLeagueSos(guildId).catch(() => null),
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
@@ -192,13 +196,12 @@ const BADGE_TIER_WEIGHT: Record<string, number> = {
  * security (turnovers/game), opportunism (takeaways/game), and moving the chains
  * (first downs/game) — the fields both Madden and CFB track identically, same
  * cross-game-compatible approach as the Most Heart EOS award formula. badgeScore
- * folds in this season's game+season badge mix (tier-weighted, negative badges
- * subtract). Final rating blends 65% stats / 35% badges.
+ * folds in the coach's career game+season badge mix (tier-weighted, negative badges
+ * subtract), averaged per season played. Final rating blends 65% stats / 35% badges.
  */
 async function computeUserRatingsBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
-  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const game = context.rec_leagues.game;
 
   const assignmentsRes = await supabase
@@ -214,17 +217,22 @@ async function computeUserRatingsBase(guildId: string) {
 
   const [statTotalsRes, badgesRes] = await Promise.all([
     // Aggregated server-side (rec_user_rating_stat_totals, see supabase/migrations) instead
-    // of pulling every rec_team_game_stats row for the season over the wire — this returns
+    // of pulling every rec_team_game_stats row for the league over the wire — this returns
     // one row per user with the exact totals computeUserRatings needs, computed by
     // replicating rowToGameStats' quarantine checks + seasonTotalsFromGames' sums/averages
     // directly in SQL. Cuts a hundreds-of-wide-rows fetch down to ~10-30 small rows.
+    // Career scope: the RPC aggregates ALL seasons (p_season_number <= 0), so the rating
+    // carries every season's production forward instead of resetting on season turnover.
     supabase.rpc("rec_user_rating_stat_totals", {
       p_league_id: leagueId,
-      p_season_number: seasonNumber,
+      p_season_number: 0,
       p_user_ids: userIds,
       p_is_cfb: isCfb(game),
     }),
-    supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count").eq("league_id", leagueId).eq("season", seasonNumber).in("badge_scope", ["game", "season"]).in("user_id", userIds),
+    // All seasons' game+season badges (career-scope badges are excluded by the scope filter
+    // above) — the mix a coach has built up over their whole tenure in the league, not just
+    // the current season. Averaged per season below so a long career doesn't saturate it.
+    supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count,season").eq("league_id", leagueId).in("badge_scope", ["game", "season"]).in("user_id", userIds),
   ]);
   if (statTotalsRes.error) throw new ApiError(500, "Failed to load stats for User Rating.", statTotalsRes.error);
   if (badgesRes.error) throw new ApiError(500, "Failed to load badges for User Rating.", badgesRes.error);
@@ -244,11 +252,15 @@ async function computeUserRatingsBase(guildId: string) {
   );
 
   const badgeScoreByUser = new Map<string, number>();
+  const badgeSeasonsByUser = new Map<string, Set<number | null>>();
   for (const row of badgesRes.data ?? []) {
     const weight = BADGE_TIER_WEIGHT[row.tier as string] ?? 2;
     const sign = row.polarity === "negative" ? -1 : 1;
     const multiplier = Math.max(1, Math.min(Number(row.earned_count ?? 1), 3));
     badgeScoreByUser.set(row.user_id, (badgeScoreByUser.get(row.user_id) ?? 0) + sign * weight * multiplier);
+    const seasons = badgeSeasonsByUser.get(row.user_id) ?? new Set<number | null>();
+    seasons.add(row.season ?? null);
+    badgeSeasonsByUser.set(row.user_id, seasons);
   }
 
   const rows: UserRatingRow[] = (assignmentsRes.data ?? []).map((a: any) => {
@@ -266,7 +278,11 @@ async function computeUserRatingsBase(guildId: string) {
     const normTakeaways = clamp((Number(totals?.opponent_turnovers ?? 0) / gp) / 2, 0, 1);
     const normFirstDowns = clamp((Number(totals?.first_downs ?? 0) / gp) / 22, 0, 1);
     const statScore = clamp(30 * normYards + 20 * normRedZone + 20 * normTurnovers + 15 * normTakeaways + 15 * normFirstDowns, 0, 100);
-    const badgeScore = badgeScoreByUser.get(a.user_id) ?? 0;
+    // Cumulative badge mix, averaged per season played so a multi-season career stays on the
+    // same 0-100 scale as the per-game stat component instead of saturating over time.
+    const totalBadgeScore = badgeScoreByUser.get(a.user_id) ?? 0;
+    const seasonsPlayed = Math.max(1, badgeSeasonsByUser.get(a.user_id)?.size ?? 1);
+    const badgeScore = totalBadgeScore / seasonsPlayed;
     const badgeComponent = clamp(50 + badgeScore * 2, 0, 100);
     const rating = clamp(0.65 * statScore + 0.35 * badgeComponent, 0, 100);
     return {
