@@ -39,6 +39,31 @@ function formatScheduledAt(value: string | null): string {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "starting now";
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+// Ticking countdown to a scheduled draft start — mirrors the native `<t:UNIX:R>` timestamp
+// the Discord side already gets for free, since a plain web push can't do the same trick.
+function Countdown({ target }: { target: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const remaining = new Date(target).getTime() - now;
+  return <span className="fantasy-draft-countdown">{formatCountdown(remaining)}</span>;
+}
+
 function sortByPosition(a: FantasyDraftPoolPlayer, b: FantasyDraftPoolPlayer): number {
   const ka = POSITION_GROUP_ORDER.indexOf(a.position);
   const kb = POSITION_GROUP_ORDER.indexOf(b.position);
@@ -89,6 +114,9 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [concludeResult, setConcludeResult] = useState<{ teamName: string; draftedCount: number }[] | null>(null);
   const [openPlayer, setOpenPlayer] = useState<FantasyDraftPoolPlayer | null>(null);
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
+  const [pingModeOpen, setPingModeOpen] = useState(false);
+  const [pinging, setPinging] = useState(false);
+  const [cpuPingNotice, setCpuPingNotice] = useState<string | null>(null);
   const prevStatusRef = useRef<string | null>(null);
   const [wrapupBannerDismissed, setWrapupBannerDismissed] = useState(() => {
     try { return sessionStorage.getItem(`rec-fantasy-draft-wrapup-${leagueId}`) === "1"; } catch { return false; }
@@ -237,13 +265,31 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     }
   }
 
+  async function pingOnClock() {
+    setPinging(true);
+    setCpuPingNotice(null);
+    setError(null);
+    try {
+      const result = await recApi.pingFantasyDraftOnClock(guildId);
+      setNotice(`Pinged ${result.teamName ?? "the team on the clock"}.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("CPU_TEAM_ON_CLOCK")) setCpuPingNotice("Can't ping a CPU team — it's not linked to a coach.");
+      else setError(message);
+    } finally {
+      setPinging(false);
+    }
+  }
+
   const commissionerActions: { label: string; icon: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }[] = [];
   if (isCommissioner) {
     if (status === "not_scheduled") commissionerActions.push({ label: "Schedule", icon: <Clock size={16} />, onClick: () => setScheduleOpen(true) });
     if (status === "scheduled") commissionerActions.push({ label: "Commence Draft", icon: <Trophy size={16} />, onClick: () => void runAction(() => recApi.commenceFantasyDraft(guildId), "Draft commenced.") });
     if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: hasPickOrder ? "Edit Pick Order" : "Set Pick Order", icon: <CheckCircle2 size={16} />, onClick: () => setPickOrderOpen(true) });
     if (["scheduled", "live", "wrap_up"].includes(status)) commissionerActions.push({ label: "Add Player", icon: <Plus size={16} />, onClick: () => setCustomPlayerOpen(true) });
+    if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: "Ping Users", icon: <AlertTriangle size={16} />, onClick: () => setPingModeOpen(true) });
     if (status === "live" && hasPickOrder) {
+      commissionerActions.push({ label: "Ping On-The-Clock", icon: <AlertTriangle size={16} />, disabled: pinging, onClick: () => void pingOnClock() });
       commissionerActions.push({ label: "Undo", icon: <Undo2 size={16} />, onClick: () => void runAction(() => recApi.undoFantasyDraftPick(guildId)) });
       commissionerActions.push({
         label: "Skip to End", icon: <SkipForward size={16} />,
@@ -275,6 +321,11 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         </div>
       )}
       {error && <p className="hub-error">{error}</p>}
+      {cpuPingNotice && <p className="fantasy-draft-notice">{cpuPingNotice}</p>}
+
+      {status === "scheduled" && session?.scheduledAt && (
+        <p className="fantasy-draft-notice">Starts in <Countdown target={session.scheduledAt} /></p>
+      )}
 
       {status !== "concluded" && (
         <>
@@ -363,6 +414,27 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         </>
       )}
 
+      {pingModeOpen && (
+        <Modal title="Ping Users" onClose={() => setPingModeOpen(false)}>
+          <p className="form-hint">Quote the scheduled start time, or announce the draft is starting now?</p>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <Button
+              variant="secondary"
+              disabled={pinging || !session?.scheduledAt}
+              onClick={() => void runAction(async () => { setPinging(true); try { await recApi.pingFantasyDraftUsers({ guildId, mode: "countdown" }); } finally { setPinging(false); } setPingModeOpen(false); }, "Users pinged with the countdown.")}
+            >
+              Quote Countdown
+            </Button>
+            <Button
+              variant="tactical"
+              disabled={pinging}
+              onClick={() => void runAction(async () => { setPinging(true); try { await recApi.pingFantasyDraftUsers({ guildId, mode: "starting_now" }); } finally { setPinging(false); } setPingModeOpen(false); }, "Users pinged — starting now.")}
+            >
+              Starting Now
+            </Button>
+          </div>
+        </Modal>
+      )}
       {scheduleOpen && <ScheduleModal guildId={guildId} onClose={() => setScheduleOpen(false)} onScheduled={() => void runAction(() => Promise.resolve(), "Draft scheduled.")} />}
       {pickOrderOpen && session && (
         <PickOrderModal

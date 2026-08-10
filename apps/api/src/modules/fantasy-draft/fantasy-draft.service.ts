@@ -13,6 +13,7 @@ import { broadcastChatEvent } from "../chat/chat-realtime.js";
 import { editDiscordMessage, postDiscordChannelMessage, syncGuildCommands } from "../../lib/discord-guild.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import {
+  findServerRoutesForLeague,
   getCurrentLeagueContext,
   isSiteOnlyDiscordId,
   recUserIdFromSiteOnlyDiscordId,
@@ -701,6 +702,140 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const };
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled-draft reminders (T-1hr / T-30min / T-10min) and manual pings.
+// ---------------------------------------------------------------------------
+
+async function scheduledDraftMemberUserIds(leagueId: string): Promise<string[]> {
+  const members = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId);
+  return [...new Set((members.data ?? []).map((m: any) => m.user_id).filter(Boolean))] as string[];
+}
+
+async function fireScheduleReminder(
+  session: { id: string; league_id: string; scheduled_at: string },
+  label: string,
+  flagColumn: "notified_1hr_at" | "notified_30min_at" | "notified_10min_at",
+  bodyText: string,
+) {
+  const scheduledUnix = Math.floor(new Date(session.scheduled_at).getTime() / 1000);
+  const userIds = await scheduledDraftMemberUserIds(session.league_id);
+  if (userIds.length) {
+    await sendPushToUsers(userIds, { title: "Fantasy draft starting soon", body: bodyText }).catch((error) =>
+      console.error(`[ERROR] Fantasy draft ${label} push reminder failed (non-fatal):`, error),
+    );
+  }
+  const routes = await findServerRoutesForLeague(session.league_id).catch(() => null);
+  const announcementsChannelId = (routes?.routes as any)?.announcements_channel_id ?? null;
+  if (announcementsChannelId) {
+    await postDiscordChannelMessage(announcementsChannelId, {
+      content: "@everyone",
+      embeds: [{
+        title: "Fantasy Draft Starting Soon",
+        color: 0xd9a521,
+        description: `${bodyText}\n\nStarts <t:${scheduledUnix}:R> (<t:${scheduledUnix}:f>). Use **/draft** to check in — if you're not checked in when your pick comes up, it gets skipped.`,
+        footer: { text: "REC Leagues" },
+      }],
+      allowed_mentions: { parse: ["everyone"] },
+    }).catch((error) => console.error(`[ERROR] Fantasy draft ${label} Discord reminder failed (non-fatal):`, error));
+  }
+  await supabase.from("rec_fantasy_draft_sessions").update({ [flagColumn]: new Date().toISOString() }).eq("id", session.id);
+}
+
+/** Polled every ~60s from the API process (see server bootstrap) rather than scheduled with a
+ * one-shot timer — a restart between scheduling and any threshold just means the next tick
+ * catches it, instead of silently losing the reminder. Each threshold is independent (not
+ * else-if) so a session discovered late (e.g. after downtime) still catches up on whichever
+ * reminders it missed rather than skipping straight to the next one. */
+export async function checkFantasyDraftScheduleNotifications() {
+  const { data, error } = await supabase
+    .from("rec_fantasy_draft_sessions")
+    .select("id,league_id,scheduled_at,notified_1hr_at,notified_30min_at,notified_10min_at")
+    .eq("status", "scheduled")
+    .not("scheduled_at", "is", null);
+  if (error) { console.error("[ERROR] Failed to load scheduled fantasy drafts for reminder poll:", error); return; }
+
+  const now = Date.now();
+  for (const row of data ?? []) {
+    const minutesUntil = (new Date(row.scheduled_at).getTime() - now) / 60_000;
+    if (minutesUntil <= 60 && !row.notified_1hr_at) {
+      await fireScheduleReminder(row as any, "1hr", "notified_1hr_at", "The fantasy draft starts in about an hour.").catch((err) => console.error("[ERROR] 1hr fantasy draft reminder failed:", err));
+    }
+    if (minutesUntil <= 30 && !row.notified_30min_at) {
+      await fireScheduleReminder(row as any, "30min", "notified_30min_at", "The fantasy draft starts in about 30 minutes.").catch((err) => console.error("[ERROR] 30min fantasy draft reminder failed:", err));
+    }
+    if (minutesUntil <= 10 && !row.notified_10min_at) {
+      await fireScheduleReminder(row as any, "10min", "notified_10min_at", "The fantasy draft starts in about 10 minutes.").catch((err) => console.error("[ERROR] 10min fantasy draft reminder failed:", err));
+    }
+  }
+}
+
+/** Commissioner "Ping Users" button, usable any time before/during the draft — either quotes
+ * the scheduled start time (native Discord countdown) or announces it's starting now. Distinct
+ * from the automatic T-1hr/30min/10min reminders above: this is an on-demand, commissioner-
+ * triggered nudge (e.g. turnout looks light, or they want one more reminder right before). */
+export async function pingFantasyDraftUsers(guildId: string, discordId: string, mode: "countdown" | "starting_now") {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["scheduled", "live"]);
+  if (mode === "countdown" && !session.scheduled_at) throw new ApiError(400, "No scheduled time is set for this draft — use \"Starting now\" instead.");
+
+  const userIds = await scheduledDraftMemberUserIds(leagueId);
+  const bodyText = mode === "starting_now"
+    ? "The fantasy draft is starting now — check in with /draft."
+    : "Reminder: get checked in for the fantasy draft with /draft.";
+  if (userIds.length) {
+    await sendPushToUsers(userIds, { title: "Fantasy draft", body: bodyText }).catch(() => undefined);
+  }
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+  if (announcementsChannelId) {
+    const scheduledUnix = session.scheduled_at ? Math.floor(new Date(session.scheduled_at).getTime() / 1000) : null;
+    const description = mode === "starting_now"
+      ? "The fantasy draft is starting **now**. Use **/draft** to check in immediately."
+      : `Starts <t:${scheduledUnix}:R> (<t:${scheduledUnix}:f>). Use **/draft** to check in — if you're not checked in when your pick comes up, it gets skipped.`;
+    await postDiscordChannelMessage(announcementsChannelId, {
+      content: "@everyone",
+      embeds: [{ title: "Fantasy Draft Reminder", color: 0xd9a521, description, footer: { text: "REC Leagues" } }],
+      allowed_mentions: { parse: ["everyone"] },
+    }).catch(() => undefined);
+  }
+  return { ok: true as const, notifiedUserIds: userIds };
+}
+
+/** Commissioner on-the-clock "Ping" button during a live draft — distinct from the automatic
+ * mention already baked into the persistent on-the-clock embed (postOrUpdateOnTheClockEmbed):
+ * this is an explicit push + Discord ping the commissioner fires on demand, with round/pick
+ * context. Throws a typed error for a CPU team so the caller can show a plain "can't ping a
+ * CPU team" message instead of a generic failure. */
+export async function pingFantasyDraftOnTheClock(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+
+  const teams = await listTeams(leagueId);
+  const pickOrder = await listPickOrder(session.id);
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  if (!onTheClockTeamId) throw new ApiError(400, "No team is currently on the clock.");
+  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
+
+  const ownerUserId = await resolveTeamOwnerUserId(leagueId, onTheClockTeamId);
+  if (!ownerUserId) throw new ApiError(409, "CPU_TEAM_ON_CLOCK");
+  const ownerDiscordId = await resolveTeamOwnerDiscordId(leagueId, onTheClockTeamId);
+
+  const body = `You're on the clock! Round ${session.current_round}, Pick ${session.current_pick_in_round} (${onTheClockTeam?.displayName ?? "your team"}).`;
+  await sendPushToUsers([ownerUserId], { title: "You're on the clock", body }).catch(() => undefined);
+
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+  if (announcementsChannelId && ownerDiscordId) {
+    await postDiscordChannelMessage(announcementsChannelId, {
+      content: `<@${ownerDiscordId}> ${body}`,
+      allowed_mentions: { users: [ownerDiscordId] },
+    }).catch(() => undefined);
+  }
+  return { ok: true as const, teamName: onTheClockTeam?.displayName ?? null };
 }
 
 export async function setFantasyDraftPickOrder(guildId: string, discordId: string, orderMode: FantasyDraftOrderMode, picks: Array<{ pickInRound: number; teamId: string }>) {

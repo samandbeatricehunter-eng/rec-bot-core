@@ -11,6 +11,8 @@ import {
   getFantasyDraftState,
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
+  pingFantasyDraftOnTheClock,
+  pingFantasyDraftUsers,
   removeFantasyDraftPoolPlayer,
   requestFantasyDraftPick,
   resolveFantasyDraftPickRequest,
@@ -64,6 +66,24 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new Error("Commencing the fantasy draft requires a website session.");
       return reply.send(await commenceFantasyDraft(guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/ping-users", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), mode: z.enum(["countdown", "starting_now"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Pinging users requires a website session.");
+      return reply.send(await pingFantasyDraftUsers(body.guildId, auth.discordId, body.mode));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/ping-on-clock", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Pinging the on-the-clock team requires a website session.");
+      return reply.send(await pingFantasyDraftOnTheClock(guildId, auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 

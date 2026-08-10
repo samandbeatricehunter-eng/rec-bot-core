@@ -9,6 +9,7 @@ import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 import { hasValidInternalApiKey } from "./lib/auth.js";
 import { startChatDatabaseListener } from "./modules/chat/chat-database-listener.js";
+import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/fantasy-draft.service.js";
 
 const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
 await app.register(helmet, {
@@ -58,6 +59,13 @@ await registerRoutes(app);
 await startChatDatabaseListener();
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
+
+// Scheduled fantasy-draft T-1hr/30min/10min reminders — polled rather than one-shot
+// setTimeout'd, so a deploy/restart between scheduling and any threshold just means the next
+// tick catches it instead of silently losing the notification.
+setInterval(() => {
+  checkFantasyDraftScheduleNotifications().catch((error) => app.log.error({ err: error }, "Fantasy draft schedule-notification poll failed"));
+}, 60_000).unref();
 
 const migrateOnBoot = shouldMigrateMirroredHighlightsOnBoot();
 app.log.info(

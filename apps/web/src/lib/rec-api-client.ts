@@ -792,6 +792,10 @@ export const recApi = {
     recApiFetch<FantasyDraftSession>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
   commenceFantasyDraft: (guildId: string) =>
     recApiFetch<{ ok: true }>("/v1/fantasy-draft/commence", { method: "POST", body: JSON.stringify({ guildId }) }),
+  pingFantasyDraftUsers: (input: { guildId: string; mode: "countdown" | "starting_now" }) =>
+    recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/fantasy-draft/ping-users", { method: "POST", body: JSON.stringify(input) }),
+  pingFantasyDraftOnClock: (guildId: string) =>
+    recApiFetch<{ ok: true; teamName: string | null }>("/v1/fantasy-draft/ping-on-clock", { method: "POST", body: JSON.stringify({ guildId }) }),
   setFantasyDraftPickOrder: (input: { guildId: string; orderMode: FantasyDraftOrderMode; picks: Array<{ pickInRound: number; teamId: string }> }) =>
     recApiFetch<{ ok: true; orderMode: FantasyDraftOrderMode; count: number }>("/v1/fantasy-draft/set-pick-order", { method: "POST", body: JSON.stringify(input) }),
   addFantasyDraftCustomPlayer: (input: { guildId: string; firstName: string; lastName: string; position: string; jerseyNumber?: number | null; archetype?: string | null; devTrait?: string | null; overallRating?: number | null; attributes: Record<string, number> }) =>
