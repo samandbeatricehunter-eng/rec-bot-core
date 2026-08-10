@@ -10,13 +10,15 @@ export type BillingStatus =
   | "lifetime_comp"
   | "past_due"
   | "canceled"
-  | "grace";
+  | "grace"
+  | "promo_trial";
 
 export type EntitlementSummary = {
   tier: SubscriptionTier;
   billingStatus: BillingStatus;
   graceUntil: string | null;
   currentPeriodEnd: string | null;
+  promoTrialEndsAt: string | null;
   siteAccess: boolean;
   canCreateLeague: boolean;
   canEnableDiscordBot: boolean;
@@ -1111,7 +1113,7 @@ export type AdminAnnouncement = {
   updated_at: string;
 };
 
-export type PromoCodeEffectType = "lifetime_platinum" | "lifetime_gold" | "bonus_coins";
+export type PromoCodeEffectType = "lifetime_platinum" | "lifetime_gold" | "bonus_coins" | "trial_gold" | "trial_platinum";
 
 export type PromoCode = {
   id: string;

@@ -21,7 +21,8 @@ export type BillingStatus =
   | "lifetime_comp"
   | "past_due"
   | "canceled"
-  | "grace";
+  | "grace"
+  | "promo_trial";
 
 export type EntitlementUser = {
   id: string;
@@ -33,6 +34,9 @@ export type EntitlementUser = {
   stripe_subscription_id?: string | null;
   supabase_auth_user_id?: string | null;
   trial_ends_at?: string | null;
+  /** Set by a redeemed trial_gold/trial_platinum promo code — distinct from trial_ends_at
+   * (Stripe's own 7-day checkout trial) so the two mechanisms can't clobber each other. */
+  promo_trial_ends_at?: string | null;
 };
 
 /** True while the user is inside their current 7-day Stripe trial window — during which
@@ -52,6 +56,7 @@ export type EntitlementSummary = {
   billingStatus: BillingStatus;
   graceUntil: string | null;
   currentPeriodEnd: string | null;
+  promoTrialEndsAt: string | null;
   siteAccess: boolean;
   canCreateLeague: boolean;
   canEnableDiscordBot: boolean;
@@ -73,7 +78,8 @@ function asBillingStatus(value: string | null | undefined): BillingStatus {
     value === "lifetime_comp" ||
     value === "past_due" ||
     value === "canceled" ||
-    value === "grace"
+    value === "grace" ||
+    value === "promo_trial"
   ) {
     return value;
   }
@@ -95,6 +101,7 @@ export function hasSiteAccess(user: EntitlementUser, now = new Date()): boolean 
     if (status === "grace" && !graceStillValid(user.subscription_grace_until, now)) return false;
     return true;
   }
+  if (status === "promo_trial") return graceStillValid(user.promo_trial_ends_at, now);
   if (status === "past_due" && graceStillValid(user.subscription_grace_until, now)) {
     return true;
   }
@@ -165,7 +172,7 @@ async function loadUser(userId: string): Promise<EntitlementUser> {
   const result = await supabase
     .from("rec_users")
     .select(
-      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id,trial_ends_at",
+      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id,trial_ends_at,promo_trial_ends_at",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -371,6 +378,7 @@ export async function getEntitlementSummary(userId: string): Promise<Entitlement
     billingStatus: asBillingStatus(user.billing_status),
     graceUntil: user.subscription_grace_until ?? null,
     currentPeriodEnd: user.subscription_current_period_end ?? null,
+    promoTrialEndsAt: user.promo_trial_ends_at ?? null,
     siteAccess: hasSiteAccess(user),
     canCreateLeague: canCreateLeague(user),
     canEnableDiscordBot: canEnableDiscordBot(user),
@@ -601,6 +609,22 @@ export async function claimFrozenLeagueOwnership(input: {
 export async function refreshUserGraceState(userId: string): Promise<void> {
   const user = await loadUser(userId);
   const status = asBillingStatus(user.billing_status);
+
+  // A trial_gold/trial_platinum promo code's free window has lapsed — drop billing_status
+  // back to "none" (subscription_tier is left as-is; hasSiteAccess denies access on status
+  // alone) so the user is required to pay, same as any other lapsed-access path.
+  if (status === "promo_trial") {
+    if (graceStillValid(user.promo_trial_ends_at)) return;
+    const now = new Date().toISOString();
+    const result = await supabase
+      .from("rec_users")
+      .update({ billing_status: "none", updated_at: now })
+      .eq("id", userId);
+    if (result.error) throw new ApiError(500, "Failed to refresh promo trial state.", result.error);
+    await freezeOwnedLeagues(userId, "promo_trial_expired");
+    return;
+  }
+
   if (status !== "canceled" && status !== "past_due" && status !== "grace") return;
   if (graceStillValid(user.subscription_grace_until)) return;
 

@@ -14,6 +14,7 @@ import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
+import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -42,7 +43,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [summary, setSummary] = useState<{ teams: TeamManagementSummaryRow[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [repairingChannels, setRepairingChannels] = useState(false);
+  const [repairChannelsOpen, setRepairChannelsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
@@ -58,18 +59,9 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load teams."));
   }, [guildId]);
 
-  async function handleRepairGameChannels() {
-    setRepairingChannels(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await recApi.repairGameChannelsForCurrentWeek(guildId);
-      setNotice(`Repaired game channels: ${result.created.length} added for matchups missing one, ${result.skipped} already had a channel (untouched).`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to repair game channels.");
-    } finally {
-      setRepairingChannels(false);
-    }
+  function handleGameChannelsRepaired(message: string) {
+    setRepairChannelsOpen(false);
+    setNotice(message);
   }
 
   // Built off the full team list (not the filtered subset) so picking a conference never
@@ -135,8 +127,8 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
-              <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
-                <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
+              <Button variant="secondary" onClick={() => setRepairChannelsOpen(true)}>
+                <Wrench size={16}/> Repair Game Channels
               </Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
                 <Settings size={16} /> Settings
@@ -279,6 +271,13 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
             ))}
           </div>
         </>
+      )}
+      {repairChannelsOpen && (
+        <RepairGameChannelsModal
+          guildId={guildId}
+          onClose={() => setRepairChannelsOpen(false)}
+          onDone={handleGameChannelsRepaired}
+        />
       )}
     </div>
   );

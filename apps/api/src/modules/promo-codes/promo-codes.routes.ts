@@ -6,7 +6,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import { supabase } from "../../lib/supabase.js";
 import { createPromoCode, deletePromoCode, listPromoCodes, redeemPromoCode, updatePromoCode } from "./promo-codes.service.js";
 
-const EffectType = z.enum(["lifetime_platinum", "lifetime_gold", "bonus_coins"]);
+const EffectType = z.enum(["lifetime_platinum", "lifetime_gold", "bonus_coins", "trial_gold", "trial_platinum"]);
 
 export async function promoCodeRoutes(app: FastifyInstance) {
   app.post("/v1/admin/promo-codes/list", async (request, reply) => {

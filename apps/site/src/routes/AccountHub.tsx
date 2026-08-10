@@ -36,6 +36,7 @@ function tierLabel(tier: EntitlementSummary["tier"]): string {
 
 function monthlyFee(tier: EntitlementSummary["tier"], billingStatus: string): string {
   if (billingStatus === "lifetime_comp") return "Comp / lifetime";
+  if (billingStatus === "promo_trial") return "Free trial";
   if (tier === "platinum") return "$6/mo";
   if (tier === "gold") return "$3/mo";
   return "—";
@@ -484,11 +485,13 @@ export function AccountHub({
                 </p>
                 <p className="site-muted">
                   Status: {entitlements.billingStatus}
-                  {entitlements.currentPeriodEnd
-                    ? ` · Next renewal ${new Date(entitlements.currentPeriodEnd).toLocaleDateString()}`
-                    : entitlements.billingStatus === "lifetime_comp"
-                      ? " · No renewal"
-                      : ""}
+                  {entitlements.billingStatus === "promo_trial" && entitlements.promoTrialEndsAt
+                    ? ` · Free until ${new Date(entitlements.promoTrialEndsAt).toLocaleDateString()}, then payment is required`
+                    : entitlements.currentPeriodEnd
+                      ? ` · Next renewal ${new Date(entitlements.currentPeriodEnd).toLocaleDateString()}`
+                      : entitlements.billingStatus === "lifetime_comp"
+                        ? " · No renewal"
+                        : ""}
                 </p>
                 {billingError ? <p className="site-auth-error">{billingError}</p> : null}
                 <div className="site-profile-actions">

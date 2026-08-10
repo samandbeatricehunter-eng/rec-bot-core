@@ -691,6 +691,12 @@ export const recApi = {
   // never touches an existing tracked channel.
   repairGameChannelsForCurrentWeek: (guildId: string) =>
     recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; skipped: number; eligible: number }>("/v1/game-channels/repair-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
+  // Repair picker modal — list current-week matchups to choose from, then wipe+recreate only
+  // the selected ones.
+  listCurrentWeekGameChannelCandidates: (guildId: string) =>
+    recApiFetch<{ candidates: Array<{ gameId: string; name: string; hasActiveChannel: boolean }> }>("/v1/game-channels/current-week-candidates", { method: "POST", body: JSON.stringify({ guildId }) }),
+  recreateGameChannelsForGames: (input: { guildId: string; gameIds: string[] }) =>
+    recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; deleted: number; eligible: number }>("/v1/game-channels/recreate-selected", { method: "POST", body: JSON.stringify(input) }),
 
   // GOTW — commissioner assigns a game from League Mgmt; voting/closing live on the Hub
   // matchup page.

@@ -304,6 +304,15 @@ async function applyActiveSubscription(userId: string, subscription: Stripe.Subs
 }
 
 async function applySubscriptionDeleted(userId: string, subscription: Stripe.Subscription) {
+  // Guard against a stale/delayed webhook (including the one fired by our own promo-code
+  // redemption canceling a still-trialing Stripe subscription — see promo-codes.service.ts)
+  // knocking a still-valid free-trial promo down to a 14-day grace period mid-window.
+  const current = await supabase.from("rec_users").select("billing_status,promo_trial_ends_at").eq("id", userId).maybeSingle();
+  if (current.data?.billing_status === "promo_trial") {
+    const promoTrialEndsAt = current.data.promo_trial_ends_at ? new Date(current.data.promo_trial_ends_at) : null;
+    if (promoTrialEndsAt && promoTrialEndsAt.getTime() > Date.now()) return;
+  }
+
   const now = new Date();
   const graceUntil = addDays(now, GRACE_DAYS).toISOString();
   const result = await supabase

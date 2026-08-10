@@ -1,7 +1,12 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { getStripe } from "../subscriptions/stripe.service.js";
 
-export type PromoCodeEffectType = "lifetime_platinum" | "lifetime_gold" | "bonus_coins";
+export type PromoCodeEffectType = "lifetime_platinum" | "lifetime_gold" | "bonus_coins" | "trial_gold" | "trial_platinum";
+
+function isTrialEffect(effectType: PromoCodeEffectType): boolean {
+  return effectType === "trial_gold" || effectType === "trial_platinum";
+}
 
 export type PromoCode = {
   id: string;
@@ -61,6 +66,10 @@ export async function createPromoCode(input: {
   if (input.effectType === "bonus_coins" && (!input.effectValue || input.effectValue <= 0)) {
     throw new ApiError(400, "Bonus coin codes need a positive coin amount.");
   }
+  if (isTrialEffect(input.effectType)) {
+    if (!input.effectValue || input.effectValue <= 0) throw new ApiError(400, "Free-trial codes need a positive number of months.");
+    if (input.maxRedemptions !== 1) throw new ApiError(400, "Free-trial codes must be one-time use (max redemptions = 1).");
+  }
   const result = await supabase
     .from("rec_promo_codes")
     .insert({
@@ -93,6 +102,19 @@ export async function updatePromoCode(input: {
   startsAt?: string | null;
   endsAt?: string | null;
 }): Promise<PromoCode> {
+  if (input.effectType !== undefined || input.effectValue !== undefined || input.maxRedemptions !== undefined) {
+    const existing = await supabase.from("rec_promo_codes").select("effect_type,effect_value,max_redemptions").eq("id", input.id).maybeSingle();
+    if (existing.error) throw new ApiError(500, "Failed to load promo code.", existing.error);
+    if (!existing.data) throw new ApiError(404, "Promo code not found.");
+    const effectiveType = input.effectType ?? (existing.data.effect_type as PromoCodeEffectType);
+    const effectiveValue = input.effectValue !== undefined ? input.effectValue : existing.data.effect_value;
+    const effectiveMaxRedemptions = input.maxRedemptions !== undefined ? input.maxRedemptions : existing.data.max_redemptions;
+    if (isTrialEffect(effectiveType)) {
+      if (!effectiveValue || effectiveValue <= 0) throw new ApiError(400, "Free-trial codes need a positive number of months.");
+      if (effectiveMaxRedemptions !== 1) throw new ApiError(400, "Free-trial codes must be one-time use (max redemptions = 1).");
+    }
+  }
+
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.code !== undefined) update.code = normalizeCode(input.code);
   if (input.description !== undefined) update.description = input.description;
@@ -131,11 +153,57 @@ async function applyPromoEffect(userId: string, promo: { id: string; effect_type
     return;
   }
 
-  // lifetime_platinum / lifetime_gold — never downgrade an active paid Stripe subscriber.
-  const user = await supabase.from("rec_users").select("billing_status").eq("id", userId).maybeSingle();
+  // lifetime_platinum / lifetime_gold / trial_gold / trial_platinum — never downgrade an
+  // active paid Stripe subscriber or an existing lifetime comp.
+  const user = await supabase.from("rec_users").select("billing_status,trial_ends_at,stripe_subscription_id").eq("id", userId).maybeSingle();
   if (user.error) throw new ApiError(500, "Failed to load user for promo redemption.", user.error);
-  if (user.data?.billing_status === "active") return;
+  if (user.data?.billing_status === "lifetime_comp") return;
 
+  // "active" covers both a genuinely paid subscription and Stripe's own 7-day checkout
+  // trial (billingStatusForStripeStatus maps "trialing" to "active" too) — trial_ends_at in
+  // the future is what actually distinguishes the two.
+  const stripeTrialEndsAt = user.data?.trial_ends_at ? new Date(user.data.trial_ends_at) : null;
+  const onStripeTrial = user.data?.billing_status === "active" && stripeTrialEndsAt !== null && stripeTrialEndsAt.getTime() > Date.now();
+  const isPaidActive = user.data?.billing_status === "active" && !onStripeTrial;
+
+  if (isTrialEffect(promo.effect_type)) {
+    // A promo free-trial code is meant to override the shorter 7-day Stripe checkout trial,
+    // not stack behind it — cancel the still-trialing subscription (no charge has happened
+    // yet) so the card on file never gets billed before the promo's own free window ends.
+    // A genuinely paid, non-trialing subscriber is left alone; they're already getting more
+    // than a free trial would give them.
+    if (isPaidActive) return;
+    if (onStripeTrial && user.data?.stripe_subscription_id) {
+      try {
+        await getStripe().subscriptions.cancel(String(user.data.stripe_subscription_id));
+      } catch (error) {
+        console.error("[WARN] Failed to cancel Stripe trial subscription while applying a free-trial promo code (non-fatal):", error);
+      }
+    }
+    const tier = promo.effect_type === "trial_platinum" ? "platinum" : "gold";
+    const months = promo.effect_value ?? 0;
+    const trialEndsAt = new Date();
+    trialEndsAt.setMonth(trialEndsAt.getMonth() + months);
+    const updated = await supabase
+      .from("rec_users")
+      .update({
+        subscription_tier: tier,
+        billing_status: "promo_trial",
+        promo_trial_ends_at: trialEndsAt.toISOString(),
+        // Clear Stripe's own trial bookkeeping so isCurrentlyTrialing() doesn't also impose
+        // the tighter 7-day-trial league limits on top of the promo's full-tier access.
+        trial_ends_at: null,
+        stripe_subscription_id: onStripeTrial ? null : user.data?.stripe_subscription_id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+    if (updated.error) throw new ApiError(500, "Failed to apply promo code.", updated.error);
+    return;
+  }
+
+  // lifetime_platinum / lifetime_gold — leave any active Stripe relationship (paid or
+  // trialing) alone; unlike a free-trial code, a lifetime grant isn't meant to preempt it.
+  if (user.data?.billing_status === "active") return;
   const tier = promo.effect_type === "lifetime_platinum" ? "platinum" : "gold";
   const updated = await supabase
     .from("rec_users")

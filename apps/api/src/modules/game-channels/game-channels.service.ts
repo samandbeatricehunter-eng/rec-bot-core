@@ -289,6 +289,68 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
   return { created, deleted: deletedIds.length, eligible: h2hGames.length };
 }
 
+// Backs the "Repair Game Channels" picker modal — lists every current-week H2H matchup so
+// the commissioner can choose which ones to wipe+recreate, rather than only offering
+// wipe-everything (createGameChannelsForCurrentWeek) or fill-only (repairGameChannelsForCurrentWeek).
+export async function listCurrentWeekGameChannelCandidates(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const week = await getAdvanceWeekGames(guildId);
+  const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+  if (!h2hGames.length) return { candidates: [] };
+
+  const existing = await supabase
+    .from("rec_game_channels")
+    .select("game_id")
+    .eq("league_id", context.leagueId)
+    .eq("status", "active")
+    .in("game_id", h2hGames.map((game) => game.gameId));
+  if (existing.error) throw new ApiError(500, "Failed to check existing game channels.", existing.error);
+  const hasChannel = new Set((existing.data ?? []).map((row: any) => row.game_id));
+
+  return {
+    candidates: h2hGames.map((game) => ({
+      gameId: game.gameId as string,
+      name: `${game.awayTeamName} at ${game.homeTeamName}`,
+      hasActiveChannel: hasChannel.has(game.gameId),
+    })),
+  };
+}
+
+// Recreate variant: wipes+recreates only the specific current-week matchups the commissioner
+// selected in the picker modal, leaving every other tracked channel untouched. Shares
+// createChannelsForGames with the two whole-week variants above.
+export async function recreateGameChannelsForGames(guildId: string, gameIds: string[]) {
+  const context = await getCurrentLeagueContext(guildId);
+  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
+  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+  if (!gameIds.length) return { created: [], deleted: 0, eligible: 0 };
+
+  const week = await getAdvanceWeekGames(guildId);
+  const selectedIds = new Set(gameIds);
+  const h2hGames = (week.games as any[]).filter((game) => game.isH2h && selectedIds.has(game.gameId));
+  if (!h2hGames.length) return { created: [], deleted: 0, eligible: 0 };
+
+  const existing = await supabase
+    .from("rec_game_channels")
+    .select("discord_channel_id")
+    .eq("league_id", context.leagueId)
+    .eq("status", "active")
+    .in("game_id", h2hGames.map((game) => game.gameId));
+  if (existing.error) throw new ApiError(500, "Failed to load existing game channels for the selected matchups.", existing.error);
+
+  const deletedIds: string[] = [];
+  for (const row of existing.data ?? []) {
+    const channelId = String((row as any).discord_channel_id ?? "");
+    if (!channelId) continue;
+    const deleted = await deleteGuildChannel(channelId, "Recreating this REC game channel by commissioner request.");
+    if (deleted) deletedIds.push(channelId);
+  }
+  if (deletedIds.length) await markTrackedGameChannelsDeleted(deletedIds);
+
+  const created = await createChannelsForGames(context, guildId, categoryId, week, h2hGames);
+  return { created, deleted: deletedIds.length, eligible: h2hGames.length };
+}
+
 // Repair variant: never deletes or touches an existing tracked channel — only creates one
 // for a current-week H2H matchup that doesn't have an active channel yet. Covers a league
 // that advanced with an incomplete schedule (channels already ran once) and then had more

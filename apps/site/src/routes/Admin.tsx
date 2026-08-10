@@ -402,13 +402,20 @@ const PROMO_EFFECT_LABELS: Record<PromoCodeEffectType, string> = {
   lifetime_platinum: "Free lifetime Platinum",
   lifetime_gold: "Free lifetime Gold",
   bonus_coins: "Coin bonus",
+  trial_gold: "Free trial — Gold",
+  trial_platinum: "Free trial — Platinum",
 };
+
+function isTrialPromoEffect(effectType: PromoCodeEffectType): boolean {
+  return effectType === "trial_gold" || effectType === "trial_platinum";
+}
 
 const EMPTY_PROMO_DRAFT = {
   code: "",
   description: "",
   effectType: "lifetime_platinum" as PromoCodeEffectType,
   coinAmount: "1000",
+  trialMonths: "1",
   reusable: true,
   hasExpiration: false,
   endsAt: "",
@@ -436,6 +443,7 @@ function PromoCodesPanel() {
       description: promo.description ?? "",
       effectType: promo.effectType,
       coinAmount: String(promo.effectValue ?? 1000),
+      trialMonths: String(promo.effectValue ?? 1),
       reusable: promo.maxRedemptions == null,
       hasExpiration: promo.endsAt != null,
       endsAt: promo.endsAt ? promo.endsAt.slice(0, 16) : "",
@@ -452,12 +460,15 @@ function PromoCodesPanel() {
     setBusy(true);
     setError(null);
     try {
+      const isTrial = isTrialPromoEffect(draft.effectType);
       const payload = {
         code: draft.code.trim(),
         description: draft.description.trim() || null,
         effectType: draft.effectType,
-        effectValue: draft.effectType === "bonus_coins" ? Number(draft.coinAmount) || 0 : null,
-        maxRedemptions: draft.reusable ? null : 1,
+        effectValue: draft.effectType === "bonus_coins" ? Number(draft.coinAmount) || 0 : isTrial ? Number(draft.trialMonths) || 0 : null,
+        // Free-trial codes are always one-time use — a single code can't be handed out to
+        // many people, since each redemption grants a real (if temporary) paid tier for free.
+        maxRedemptions: isTrial ? 1 : draft.reusable ? null : 1,
         endsAt: draft.hasExpiration && draft.endsAt ? new Date(draft.endsAt).toISOString() : null,
       };
       if (editingId) {
@@ -541,14 +552,29 @@ function PromoCodesPanel() {
           />
         </label>
       ) : null}
-      <label className="site-field-checkbox">
-        <input
-          type="checkbox"
-          checked={draft.reusable}
-          onChange={(e) => setDraft((d) => ({ ...d, reusable: e.target.checked }))}
-        />
-        <span>Reusable (unchecked = one-time use, then no one else can redeem it)</span>
-      </label>
+      {isTrialPromoEffect(draft.effectType) ? (
+        <label className="site-field">
+          <span>Free trial length (months)</span>
+          <input
+            type="number"
+            min={1}
+            value={draft.trialMonths}
+            onChange={(e) => setDraft((d) => ({ ...d, trialMonths: e.target.value }))}
+          />
+        </label>
+      ) : null}
+      {isTrialPromoEffect(draft.effectType) ? (
+        <p className="site-muted">Free-trial codes are always one-time use — this code can only be redeemed once, by one person.</p>
+      ) : (
+        <label className="site-field-checkbox">
+          <input
+            type="checkbox"
+            checked={draft.reusable}
+            onChange={(e) => setDraft((d) => ({ ...d, reusable: e.target.checked }))}
+          />
+          <span>Reusable (unchecked = one-time use, then no one else can redeem it)</span>
+        </label>
+      )}
       <label className="site-field-checkbox">
         <input
           type="checkbox"
@@ -591,6 +617,7 @@ function PromoCodesPanel() {
               <span>
                 {PROMO_EFFECT_LABELS[promo.effectType]}
                 {promo.effectType === "bonus_coins" ? ` · ${promo.effectValue ?? 0} coins` : ""}
+                {isTrialPromoEffect(promo.effectType) ? ` · ${promo.effectValue ?? 0} month${promo.effectValue === 1 ? "" : "s"} free, then payment required` : ""}
                 {" · "}
                 {promo.maxRedemptions == null ? "Reusable" : `One-time (${promo.redemptionCount}/${promo.maxRedemptions} used)`}
                 {promo.endsAt ? ` · Expires ${new Date(promo.endsAt).toLocaleString()}` : " · No expiration"}
