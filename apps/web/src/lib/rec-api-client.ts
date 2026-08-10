@@ -804,6 +804,12 @@ export const recApi = {
     recApiFetch<{ removed: true }>("/v1/fantasy-draft/remove-pool-player", { method: "POST", body: JSON.stringify(input) }),
   logFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
     recApiFetch<{ ok: true; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick", { method: "POST", body: JSON.stringify(input) }),
+  skipFantasyDraftPick: (guildId: string) =>
+    recApiFetch<{ ok: true; skippedSlotId: string; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick/skip", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listSkippedFantasyDraftPicks: (guildId: string) =>
+    recApiFetch<{ skipped: Array<{ id: string; teamId: string; teamName: string; round: number; pickInRound: number; overallPickNumber: number }> }>("/v1/fantasy-draft/pick/skipped", { method: "POST", body: JSON.stringify({ guildId }) }),
+  fillSkippedFantasyDraftPick: (input: { guildId: string; skippedSlotId: string; playerId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/pick/skipped/fill", { method: "POST", body: JSON.stringify(input) }),
   requestFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
     recApiFetch<{ ok: true; requestId: string; pending: true }>("/v1/fantasy-draft/pick/request", { method: "POST", body: JSON.stringify(input) }),
   resolveFantasyDraftPickRequest: (input: { guildId: string; requestId: string; action: "approve" | "deny" }) =>

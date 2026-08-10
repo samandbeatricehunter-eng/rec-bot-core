@@ -1172,6 +1172,108 @@ export async function logFantasyDraftPick(guildId: string, discordId: string, pl
 }
 
 // ---------------------------------------------------------------------------
+// Skipped picks — a team's turn the commissioner couldn't see in-game gets flagged instead
+// of guessed. The clock still advances so the draft keeps moving; the slot stays open to
+// fill in later (mid-draft, once it's known, or during wrap-up).
+// ---------------------------------------------------------------------------
+
+export async function skipFantasyDraftPick(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to skip a pick.");
+
+  const pickOrder = await listPickOrder(session.id);
+  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before logging picks.");
+  const teamId = teamOnTheClock(session, pickOrder);
+  if (!teamId) throw new ApiError(409, "No team is on the clock — is the pick order set?");
+
+  const round = session.current_round;
+  const pickInRound = session.current_pick_in_round;
+  const overallPickNumber = (round - 1) * 32 + pickInRound;
+
+  const inserted = await supabase.from("rec_fantasy_draft_skipped_picks").insert({
+    session_id: session.id, team_id: teamId, round, pick_in_round: pickInRound,
+    overall_pick_number: overallPickNumber, skipped_by_user_id: userId,
+  }).select("id").single();
+  if (inserted.error) throw new ApiError(500, "Failed to record the skipped pick.", inserted.error);
+
+  let nextRound = round;
+  let nextPick = pickInRound + 1;
+  const roundJustCompleted = nextPick > 32;
+  if (roundJustCompleted) { nextRound += 1; nextPick = 1; }
+  const { error: advanceError } = await supabase.from("rec_fantasy_draft_sessions").update({
+    current_round: nextRound, current_pick_in_round: nextPick, updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+  if (advanceError) throw new ApiError(500, "Failed to advance the draft clock.", advanceError);
+
+  const teams = await listTeams(leagueId);
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+  const nextSession = { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow;
+  // No real player attached to a skip — the on-the-clock embed just shows "waiting for the
+  // next pick" for this transition instead of a fabricated previous-pick line.
+  await postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, null).catch(() => undefined);
+  if (roundJustCompleted) {
+    await postRoundConclusionEmbed(announcementsChannelId, leagueId, teams, session, round).catch(() => undefined);
+  }
+  await pushOnTheClock(leagueId, nextSession);
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, skippedSlotId: inserted.data.id, round, pickInRound, teamId, overallPickNumber };
+}
+
+export async function listSkippedFantasyDraftPicks(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  const [teams, { data, error }] = await Promise.all([
+    listTeams(leagueId),
+    supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("session_id", session.id).is("resolved_at", null).order("overall_pick_number", { ascending: true }),
+  ]);
+  if (error) throw new ApiError(500, "Failed to load skipped picks.", error);
+  const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
+  return {
+    skipped: (data ?? []).map((row: any) => ({
+      id: row.id, teamId: row.team_id, teamName: teamById.get(row.team_id) ?? "Unknown team",
+      round: row.round, pickInRound: row.pick_in_round, overallPickNumber: row.overall_pick_number,
+    })),
+  };
+}
+
+/** Fills in a previously-skipped slot once the actual pick is known — recorded at the
+ * slot's ORIGINAL round/pick position (not appended at the end like a wrap-up pick), so
+ * draft-order history stays accurate. Usable any time the draft is live or in wrap-up. */
+export async function fillSkippedFantasyDraftPick(guildId: string, discordId: string, skippedSlotId: string, playerId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live", "wrap_up"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to fill a skipped pick.");
+
+  const slot = await supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("id", skippedSlotId).eq("session_id", session.id).maybeSingle();
+  if (slot.error) throw new ApiError(500, "Failed to load the skipped pick.", slot.error);
+  if (!slot.data) throw new ApiError(404, "Skipped pick not found.");
+  if (slot.data.resolved_at) throw new ApiError(409, "This skipped pick has already been filled.");
+
+  await recordPick({
+    session, leagueId, playerId, teamId: slot.data.team_id,
+    round: slot.data.round, pickInRound: slot.data.pick_in_round, overallPickNumber: slot.data.overall_pick_number,
+    isWrapupPick: false, loggedByUserId: userId,
+  });
+
+  const resolved = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", playerId).maybeSingle();
+  await supabase.from("rec_fantasy_draft_skipped_picks").update({
+    resolved_at: new Date().toISOString(), resolved_pick_id: resolved.data?.id ?? null,
+  }).eq("id", skippedSlotId);
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const };
+}
+
+// ---------------------------------------------------------------------------
 // Pick requests. A non-commissioner "drafting" a player doesn't log the pick directly —
 // it submits a request that only takes effect once the commissioner approves it (they
 // confirmed the pick actually happened in-game). Only valid while the requesting team is

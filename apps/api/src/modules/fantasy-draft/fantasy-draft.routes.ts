@@ -9,11 +9,14 @@ import {
   getFantasyDraftCheckins,
   getFantasyDraftSelfCheckinStatus,
   getFantasyDraftState,
+  fillSkippedFantasyDraftPick,
+  listSkippedFantasyDraftPicks,
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
   pingFantasyDraftOnTheClock,
   pingFantasyDraftUsers,
   removeFantasyDraftPoolPlayer,
+  skipFantasyDraftPick,
   requestFantasyDraftPick,
   resolveFantasyDraftPickRequest,
   saveFantasyDraftBoard,
@@ -136,6 +139,32 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new Error("Logging a pick requires a website session.");
       return reply.send(await logFantasyDraftPick(body.guildId, auth.discordId, body.playerId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/pick/skip", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Skipping a pick requires a website session.");
+      return reply.send(await skipFantasyDraftPick(guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/pick/skipped", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await listSkippedFantasyDraftPicks(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/pick/skipped/fill", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), skippedSlotId: z.string().uuid(), playerId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Filling a skipped pick requires a website session.");
+      return reply.send(await fillSkippedFantasyDraftPick(body.guildId, auth.discordId, body.skippedSlotId, body.playerId));
     } catch (error) { return sendError(reply, error); }
   });
 

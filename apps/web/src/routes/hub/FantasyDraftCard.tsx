@@ -117,6 +117,9 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [pingModeOpen, setPingModeOpen] = useState(false);
   const [pinging, setPinging] = useState(false);
   const [cpuPingNotice, setCpuPingNotice] = useState<string | null>(null);
+  const [skipping, setSkipping] = useState(false);
+  const [skippedPicks, setSkippedPicks] = useState<Array<{ id: string; teamId: string; teamName: string; round: number; pickInRound: number; overallPickNumber: number }>>([]);
+  const [fillSkipTarget, setFillSkipTarget] = useState<{ id: string; teamName: string } | null>(null);
   const prevStatusRef = useRef<string | null>(null);
   const [wrapupBannerDismissed, setWrapupBannerDismissed] = useState(() => {
     try { return sessionStorage.getItem(`rec-fantasy-draft-wrapup-${leagueId}`) === "1"; } catch { return false; }
@@ -130,12 +133,31 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
       const next = await recApi.getFantasyDraftState(guildId);
       setState(next);
       setError(null);
+      if (next.session && ["live", "wrap_up"].includes(next.session.status)) {
+        recApi.listSkippedFantasyDraftPicks(guildId).then((res) => setSkippedPicks(res.skipped)).catch(() => undefined);
+      } else {
+        setSkippedPicks([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
   }, [guildId]);
+
+  async function skipCurrentPick() {
+    setSkipping(true);
+    setError(null);
+    try {
+      await recApi.skipFantasyDraftPick(guildId);
+      setNotice("Pick skipped — fill it in later from Missed Picks.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSkipping(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -290,6 +312,13 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     if (["scheduled", "live"].includes(status)) commissionerActions.push({ label: "Ping Users", icon: <AlertTriangle size={16} />, onClick: () => setPingModeOpen(true) });
     if (status === "live" && hasPickOrder) {
       commissionerActions.push({ label: "Ping On-The-Clock", icon: <AlertTriangle size={16} />, disabled: pinging, onClick: () => void pingOnClock() });
+      commissionerActions.push({
+        label: "Skip Pick", icon: <SkipForward size={16} />, disabled: skipping,
+        onClick: () => {
+          if (!window.confirm("Skip this team's pick for now? The clock moves on — you can fill it in later from Missed Picks.")) return;
+          void skipCurrentPick();
+        },
+      });
       commissionerActions.push({ label: "Undo", icon: <Undo2 size={16} />, onClick: () => void runAction(() => recApi.undoFantasyDraftPick(guildId)) });
       commissionerActions.push({
         label: "Skip to End", icon: <SkipForward size={16} />,
@@ -376,6 +405,22 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
             <p className="fantasy-draft-notice"><Clock size={14} /> Your pick request for <strong>{playerNameById.get(myPendingRequest.playerId) ?? "this player"}</strong> is waiting on your commissioner.</p>
           )}
 
+          {skippedPicks.length > 0 && (
+            <div className="fantasy-draft-pick-requests">
+              <h4><SkipForward size={16} /> Missed picks ({skippedPicks.length})</h4>
+              {skippedPicks.map((slot) => (
+                <div key={slot.id} className="fantasy-draft-pick-request-row">
+                  <span>Round {slot.round}, Pick {slot.pickInRound} — <strong>{slot.teamName}</strong></span>
+                  {isCommissioner && (
+                    <div className="fantasy-draft-pick-request-actions">
+                      <Button variant="primary" size="compact" onClick={() => setFillSkipTarget({ id: slot.id, teamName: slot.teamName })}>Fill In</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {hasPickOrder && (
             <DraftPoolTable
               guildId={guildId}
@@ -458,6 +503,18 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
           onConfirm={(teamId) => void runAction(async () => {
             await recApi.logFantasyDraftWrapupPick({ guildId, playerId: wrapupTarget.id, teamId });
           }, `${wrapupTarget.name} assigned.`)}
+        />
+      )}
+      {fillSkipTarget && (
+        <FillSkippedPickModal
+          teamName={fillSkipTarget.teamName}
+          pool={pool}
+          busy={busy}
+          onClose={() => setFillSkipTarget(null)}
+          onConfirm={(playerId) => void runAction(async () => {
+            await recApi.fillSkippedFantasyDraftPick({ guildId, skippedSlotId: fillSkipTarget.id, playerId });
+            setFillSkipTarget(null);
+          }, "Missed pick filled in.")}
         />
       )}
       {concludeResult && (
@@ -1227,6 +1284,43 @@ function WrapupTeamModal({ player, teams, myTeamId, busy, onClose, onConfirm }: 
       <div className="fantasy-draft-form-actions">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={busy || !teamId} onClick={() => onConfirm(teamId)}>{busy ? "Assigning…" : "Assign"}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function FillSkippedPickModal({ teamName, pool, busy, onClose, onConfirm }: {
+  teamName: string;
+  pool: FantasyDraftPoolPlayer[];
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (playerId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const available = useMemo(() => pool.filter((p) => !p.isDrafted), [pool]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return available.slice(0, 50);
+    return available.filter((p) => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)).slice(0, 50);
+  }, [available, query]);
+
+  return (
+    <Modal title={`Fill missed pick — ${teamName}`} onClose={onClose}>
+      <p className="form-hint">Search for the player {teamName} actually took, then confirm.</p>
+      <input className="form-input" placeholder="Search player or position…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+      <div className="fantasy-draft-pick-requests" style={{ maxHeight: 320, overflowY: "auto" }}>
+        {filtered.map((player) => (
+          <div key={player.id} className="fantasy-draft-pick-request-row">
+            <span>{player.name} — {player.position} · {player.overallRating} OVR</span>
+            <div className="fantasy-draft-pick-request-actions">
+              <Button variant="primary" size="compact" disabled={busy} onClick={() => onConfirm(player.id)}>Select</Button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <p className="form-hint">No matching undrafted players.</p>}
+      </div>
+      <div className="fantasy-draft-form-actions">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
       </div>
     </Modal>
   );
