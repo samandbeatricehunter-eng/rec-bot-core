@@ -33,9 +33,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
           )}
         </div>
         <div className="site-top-bar-end">
-          {/* League pages already render a bell in LeagueTopNav — show this one only outside
-              league scope so the header doesn't end up with two notification bells. */}
-          {!isLeague ? <NotificationsBell /> : null}
+          {/* LeagueTopNav no longer renders its own bell (removed as a duplicate in
+              fb43ca5e) — this is the only notification bell now, on every page. */}
+          <NotificationsBell />
           <ProfileChip />
         </div>
       </header>
