@@ -196,10 +196,28 @@ export async function getTeamLinkRequest(requestId: string) {
   return data;
 }
 
+async function assertLeagueHasMemberCapacity(leagueId: string, incomingUserId: string | null) {
+  const [league, memberships, assignments] = await Promise.all([
+    supabase.from("rec_leagues").select("max_members").eq("id", leagueId).maybeSingle(),
+    supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId).eq("status", "active"),
+    supabase.from("rec_team_assignments").select("user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
+  ]);
+  if (league.error || !league.data) throw new ApiError(404, "League not found.", league.error ?? undefined);
+  if (memberships.error || assignments.error) throw new ApiError(500, "Failed to verify league member capacity.", memberships.error ?? assignments.error);
+  const members = new Set<string>();
+  for (const row of memberships.data ?? []) if (row.user_id) members.add(row.user_id);
+  for (const row of assignments.data ?? []) if (row.user_id) members.add(row.user_id);
+  if (incomingUserId && members.has(incomingUserId)) return;
+  if (members.size >= Number(league.data.max_members ?? 32)) {
+    throw new ApiError(409, `This league has reached its ${Number(league.data.max_members ?? 32)}-member limit.`);
+  }
+}
+
 export async function approveTeamLinkRequest(input: { requestId: string; leagueId?: string | null; reviewerDiscordId: string }) {
   const request = await getTeamLinkRequest(input.requestId);
   if (input.leagueId && request.league_id !== input.leagueId) throw new ApiError(404, "Team request not found.");
   if (request.status !== "pending") throw new ApiError(409, "This request is no longer pending.");
+  await assertLeagueHasMemberCapacity(request.league_id, request.requester_user_id ?? null);
 
   const updated = await supabase
     .from("rec_team_link_requests")
@@ -261,6 +279,7 @@ export async function completeTeamLinkRequest(input: {
 }) {
   const request = await getTeamLinkRequest(input.requestId);
   if (request.status !== "approved") throw new ApiError(409, "Approve the request before assigning a role.");
+  await assertLeagueHasMemberCapacity(request.league_id, request.requester_user_id ?? null);
 
   let link: unknown;
   if (String(request.guild_id).startsWith("site:")) {

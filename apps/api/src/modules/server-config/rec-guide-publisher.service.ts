@@ -79,7 +79,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       `**Fourth down — regular season:** ${ruleLabel(settings.fourth_down_rule_type_regular ?? settings.fourth_down_rule_type)}${settings.custom_fourth_down_rule_regular ? ` — ${settings.custom_fourth_down_rule_regular}` : ""}.`,
       `**Fourth down — playoffs:** ${ruleLabel(settings.fourth_down_rule_type_playoff ?? settings.fourth_down_rule_type)}${settings.custom_fourth_down_rule_playoff ? ` — ${settings.custom_fourth_down_rule_playoff}` : ""}.`,
       `**Streaming:** regular season ${ruleLabel(settings.regular_season_streaming_requirement)} (${ruleLabel(settings.regular_season_streaming_side ?? settings.streaming_side)}); postseason ${ruleLabel(settings.postseason_streaming_requirement)} (${ruleLabel(settings.postseason_streaming_side ?? settings.streaming_side)}); Game of the Week ${ruleLabel(settings.gotw_streaming_requirement)} (${ruleLabel(settings.gotw_streaming_side)}).`,
-      customRules.length ? customRules.map((rule: any) => `**${rule.category ?? "Custom"}:** ${rule.title ?? "Rule"}${rule.description ? ` — ${rule.description}` : ""}`).join("\n") : "Commissioner-created custom rules will appear here when configured.",
+      customRules.length ? customRules.map((rule: any) => `**${rule.category ?? "Custom"}:** ${rule.title ?? "Rule"}${rule.text ? ` — ${rule.text}` : ""}`).join("\n") : "Commissioner-created custom rules will appear here when configured.",
     ]),
     base(economy ? 8 : 7, "FAQ & Support", [
       "**No team?** Run /openteams, switch to the desired conference, choose Request Team, and wait for commissioner approval. Discord-only users may submit requests. **Expired link?** Run /app again.",
