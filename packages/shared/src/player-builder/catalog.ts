@@ -2,8 +2,8 @@ import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
 import type { RecGameFamily, RecPackageTier } from "./archetypes.js";
 import { REC_PACKAGE_RULES } from "./build-validator.js";
 
-export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.1.0" as const;
-export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.1.0" as const;
+export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.2.0" as const;
+export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.2.0" as const;
 
 export const REC_CUSTOM_PLAYER_POSITIONS = [
   "QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT",
@@ -23,8 +23,26 @@ const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   CFB: ["Walk-On", "3-Star Recruit", "4-Star Recruit", "5-Star Recruit", "Campus GOAT"],
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],
 };
-const COIN_PRICES = [400, 600, 800, 1200, 1600] as const;
-const TARGETS = [[58, 63], [64, 69], [70, 76], [77, 82], [83, 87]] as const;
+const COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
+const TARGETS = [[58, 65], [66, 71], [72, 78], [79, 84], [85, 88]] as const;
+
+/** Canonical presentation order. UI aliases map to the actual stored game codes:
+ * CAT=CTH, SPN=SPM, JUK=JKM, TOR=RUN, PLA=PAC, IMP=IBL, TKL=TAK, KPR=RET. */
+export const REC_ATTRIBUTE_DISPLAY_ORDER = [
+  "SPD", "ACC", "AGI", "STR", "AWR", "CAR", "BCV", "BTK", "TRK", "SFA", "COD", "SPM", "JKM",
+  "CTH", "CIT", "SPC", "SRR", "MRR", "DRR", "RLS", "JMP", "THP", "SAC", "MAC", "DAC", "RUN",
+  "TUP", "BSK", "PAC", "PBK", "PBP", "PBF", "RBK", "RBP", "RBF", "LBK", "IBL", "PRC", "TAK",
+  "POW", "BSH", "FMV", "PMV", "PUR", "MCV", "ZCV", "PRS", "RET", "KPW", "KAC", "STA", "TOU", "INJ",
+] as const;
+
+const ATTRIBUTE_DISPLAY_RANK = new Map<string, number>(REC_ATTRIBUTE_DISPLAY_ORDER.map((code, index) => [code, index]));
+export function sortRecAttributeCodes(codes: readonly string[]): string[] {
+  return [...codes].sort((a, b) => (ATTRIBUTE_DISPLAY_RANK.get(a.toUpperCase()) ?? 999) - (ATTRIBUTE_DISPLAY_RANK.get(b.toUpperCase()) ?? 999) || a.localeCompare(b));
+}
+
+export const REC_POSITION_DISPLAY_ORDER = [
+  "QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LEDGE", "REDGE", "DT", "SAM", "MIKE", "WILL", "CB", "FS", "SS", "K", "P",
+] as const;
 
 export function listRecCustomPlayerPackages(game: RecGameFamily, gameYear = 27): RecCustomPlayerPackageDefinition[] {
   return ([1, 2, 3, 4, 5] as RecPackageTier[]).map((tier) => {

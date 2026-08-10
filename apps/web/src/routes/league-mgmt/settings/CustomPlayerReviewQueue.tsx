@@ -3,7 +3,7 @@ import { recApi } from "../../../lib/rec-api-client.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Modal } from "../../../components/ui/Modal.js";
-import { getRecAttributeDisplayName, getRecEditableAttributes, type RecGameFamily } from "@rec/shared";
+import { getRecAttributeDisplayName, getRecEditableAttributes, sortRecAttributeCodes, type RecGameFamily } from "@rec/shared";
 
 function completeRatings(build: any) {
   const codes = getRecEditableAttributes(build.game_family as RecGameFamily, build.position, build.selected_archetype_key);
@@ -42,7 +42,7 @@ function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteCha
     </div>
     <p className="form-hint"><strong>Locked purchase selections:</strong> {build.position} · {String(build.selected_archetype_key).replaceAll("_", " ")} · {build.development_trait}. Commissioners cannot change these during approval.</p>
     <h4>Submitted Ratings</h4>
-    <div className="custom-player-fields">{Object.entries(edit.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([code, rating]) => <label key={code}>{getRecAttributeDisplayName(code)} ({code.toUpperCase()})<input className="form-input" type="number" min={0} max={99} value={Number(rating)} onChange={(event) => onEditChange({ attributes: { ...edit.attributes, [code]: Math.max(0, Math.min(99, Number(event.target.value))) } })} /></label>)}</div>
+    <div className="custom-player-fields">{sortRecAttributeCodes(Object.keys(edit.attributes ?? {})).map((code) => <label key={code}>{getRecAttributeDisplayName(code)} ({code.toUpperCase()})<input className="form-input" type="number" min={0} max={99} value={Number(edit.attributes[code])} onChange={(event) => onEditChange({ attributes: { ...edit.attributes, [code]: Math.max(0, Math.min(99, Number(event.target.value))) } })} /></label>)}</div>
     <textarea className="form-input" rows={2} placeholder="Commissioner note or required rejection reason" value={note} onChange={(event) => onNoteChange(event.target.value)} />
     <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
       <Button variant="primary" disabled={busy} onClick={() => onReview("approve")}>Approve &amp; Apply</Button>

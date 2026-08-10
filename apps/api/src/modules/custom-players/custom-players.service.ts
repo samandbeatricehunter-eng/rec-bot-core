@@ -7,7 +7,6 @@ import {
   REC_DEV_TRAITS,
   REC_NAME_CORPUS_VERSION,
   REC_OVR_MODEL_VERSION,
-  canonicalReplacementPosition,
   calculateRecAttributeCost,
   evaluateRecCustomPlayerBuild,
   formatCoins,
@@ -20,6 +19,7 @@ import {
   isRecCustomPlayerPosition,
   listRecArchetypes,
   listRecCustomPlayerPackages,
+  sortRecAttributeCodes,
   type RecGameFamily,
   type RecPackageTier,
 } from "@rec/shared";
@@ -93,6 +93,7 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
   if (game === "CFB") {
     if (identity.college) throw new ApiError(400, "CFB custom players do not use a college field.");
+    if (!identity.hometownCity?.trim() || !identity.hometownState?.trim()) throw new ApiError(400, "CFB custom players require a hometown and state.");
     // Only first/last name, jersey #, handedness, height, weight, and body type are editable
     // for a CFB custom player — hometown/state are not editable in-game (the wizard no longer
     // collects them) and everything else about their physical build comes from ratings.
@@ -146,9 +147,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   // Only recruits/manually-added players are eligible replacement targets — the default
   // baseline roster (is_default_player = true) is never selectable here.
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
-  const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
-    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).order("position");
   const wallet = Number(baseline.wallet?.wallet_balance ?? 0);
   const attributes = new Set<string>();
   for (const position of REC_CUSTOM_PLAYER_POSITIONS) for (const code of getRecEditableAttributes(game, position)) attributes.add(code);
@@ -161,7 +160,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     devTraits: REC_DEV_TRAITS[game],
     // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
     // trait the replaced player already has (or "normal" with no replacement).
-    devTraitInherited: game === "CFB",
+    devTraitInherited: false,
     archetypes: Object.fromEntries(REC_CUSTOM_PLAYER_POSITIONS.map((position) => [position, listRecArchetypes(game, position)])),
     attributes: [...attributes].sort().map((code) => ({ code, displayName: getRecAttributeDisplayName(code) })),
     replacementPlayers: roster.data ?? [],
@@ -173,7 +172,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // Active players exist, but none are eligible replacement targets (the whole roster is
     // still the untouched default baseline) — the purchase can't proceed until the user tracks
     // a recruit or manually adds a player via Edit Roster.
-    blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
+    blockedNoEligibleReplacement: false,
     contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only.",
     // In-game roster editors don't let you change a player's face/model — only body sliders
     // (height, weight, body type). The created player keeps the replaced player's in-game
@@ -279,7 +278,7 @@ export async function submitCustomPlayer(input: {
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
     const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).maybeSingle();
     if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
     replacement = found as { data: Record<string, unknown> };
   } else if (config.replacementRequired) {
@@ -292,14 +291,14 @@ export async function submitCustomPlayer(input: {
   // unseeded-league brand-new add) the submitted position stands. The replaced player's
   // position is the roster's raw code (SAM/WILL/MIKE/LEDGE/REDGE for CFB edge/LB slots) —
   // canonicalize it, or isRecCustomPlayerPosition/getRecArchetype below reject it outright.
-  const effectivePosition = game === "CFB" && replacement.data ? canonicalReplacementPosition(String(replacement.data.position)) : input.position;
+  const effectivePosition = input.position;
   validateIdentity(game, input.identity, effectivePosition);
   await assertNameNotLegend(game, input.identity);
 
   // CFB dev trait is earned in-game, not purchased — the wizard never lets a CFB build
   // choose one. The inserted player inherits whatever trait the replaced player already
   // has (or starts "normal" when there's no replacement, i.e. an unseeded-league new add).
-  const effectiveDevTrait = game === "CFB" ? String(replacement.data?.dev_trait ?? "normal") : input.developmentTrait;
+  const effectiveDevTrait = input.developmentTrait;
 
   const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
@@ -315,12 +314,29 @@ export async function submitCustomPlayer(input: {
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
   if (existing.data) return { build: existing.data, duplicate: true };
+  // A browser retry can remount the wizard and mint a new client idempotency key. Guard the
+  // economic mutation by payload as well so an identical rapid resubmission cannot charge the
+  // wallet or create a second commissioner item.
+  const recent = await supabase.from("rec_custom_player_builds").select("*")
+    .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
+    .eq("status", "pending_review").order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+  if (recent.error) throw new ApiError(500, "Failed to check for a duplicate custom-player submission.", recent.error);
+  if (recent.data && Date.now() - new Date(recent.data.submitted_at).getTime() < 5 * 60_000) {
+    const samePayload = recent.data.package_tier === input.packageTier
+      && recent.data.position === effectivePosition
+      && recent.data.selected_archetype_key === input.archetypeKey
+      && recent.data.development_trait === effectiveDevTrait
+      && (recent.data.replacement_player_id ?? null) === (input.replacementPlayerId ?? null)
+      && JSON.stringify(recent.data.identity ?? {}) === JSON.stringify(input.identity)
+      && JSON.stringify(recent.data.attributes ?? {}) === JSON.stringify(input.attributes);
+    if (samePayload) return { build: recent.data, duplicate: true, walletBalance: config.walletBalance };
+  }
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   const purchase = await supabase.from("rec_purchases").insert({ league_id: context.leagueId, season_id: seasonId, season_number: seasonNumber,
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
     details: { packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
-  const refundCoins = Math.ceil((pointsRemainingAfterHeight * .5) / 15);
+  const refundCoins = Math.ceil(pointsRemainingAfterHeight * .10);
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
@@ -371,10 +387,9 @@ export async function submitCustomPlayer(input: {
   // their own season-cap/CP/wallet logic), so unlike every other purchase type they never got
   // a rec_commissioners_inbox row — meaning they never showed up in League Mgmt's Pending
   // Items list or counted toward the notification bell. Insert one directly.
-  const attrLines = Object.entries(input.attributes)
-    .filter(([, value]) => value > 0)
-    .sort(([, a], [, b]) => b - a)
-    .map(([code, value]) => `${getRecAttributeDisplayName(code)}: ${value}`)
+  const attrLines = sortRecAttributeCodes(Object.keys(input.attributes))
+    .filter((code) => input.attributes[code]! > 0)
+    .map((code) => `${getRecAttributeDisplayName(code)}: ${input.attributes[code]}`)
     .join("\n");
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
@@ -447,7 +462,7 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     p_estimated_ovr_raw: reevaluated.rawOverall, p_estimated_ovr: reevaluated.displayOverall, p_linear_score: reevaluated.linearScore,
     p_attribute_points_spent: reevaluated.attributeCost, p_development_points_spent: reevaluated.netDevelopmentCost,
     p_creation_points_spent: reevaluated.totalCost, p_creation_points_remaining: reevaluated.pointsRemaining,
-    p_unused_cp_refund_coins: Math.ceil((reevaluated.pointsRemaining * .5) / 15), p_changes: changes,
+    p_unused_cp_refund_coins: Math.ceil(reevaluated.pointsRemaining * .10), p_changes: changes,
   });
   if (applied.error) throw new ApiError(500, "Failed to apply the custom player atomically.", applied.error);
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })

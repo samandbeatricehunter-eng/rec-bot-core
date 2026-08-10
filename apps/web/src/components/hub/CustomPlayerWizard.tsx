@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dices } from "lucide-react";
-import { CFB_27_TEAMS, MADDEN_ATTRIBUTE_SELECTION_GROUPS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, isCompatibleReplacementPosition, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, REC_ARCHETYPE_IDENTITY_FLOORS, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -13,14 +13,7 @@ const CFB_COLLEGE_OPTIONS = [...CFB_27_TEAMS].map((t) => t.name).sort();
 // (physical, passing/ball-carrier, receiving, blocking, defensive/kicking), preserving each
 // group's in-game order, instead of whatever order getRecEditableAttributes happens to return.
 function groupEditableAttributes(editable: readonly string[]): Array<{ label: string; codes: string[] }> {
-  const editableUpper = new Set(editable.map((c) => c.toUpperCase()));
-  const groups = Object.values(MADDEN_ATTRIBUTE_SELECTION_GROUPS).map((group) => ({
-    label: group.label,
-    codes: group.codes.filter((code) => editableUpper.has(code)).map((code) => code.toLowerCase()),
-  })).filter((group) => group.codes.length > 0);
-  const grouped = new Set(groups.flatMap((g) => g.codes));
-  const leftover = editable.filter((code) => !grouped.has(code));
-  return leftover.length ? [...groups, { label: "Other", codes: leftover }] : groups;
+  return [{ label: "Attributes", codes: sortRecAttributeCodes(editable) }];
 }
 
 // Short, auto-generated blurb of what an archetype actually affects: its primary/secondary
@@ -182,6 +175,8 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     if (!identity.lastName?.trim()) return "Last name is required.";
     if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) return "Jersey number must be a whole number from 0 to 99.";
     if (game === "CFB") {
+      if (!identity.hometownCity?.trim()) return "Hometown is required.";
+      if (!identity.hometownState?.trim()) return "State is required.";
       const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
       const heightMax = heightRule?.max ?? 84;
       if (!Number.isInteger(identity.heightInches) || identity.heightInches < 65 || identity.heightInches > heightMax) return `Height for ${position} must be between 5'5" and ${formatFeetInches(heightMax)}.`;
