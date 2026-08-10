@@ -379,8 +379,8 @@ export async function submitCustomPlayer(input: {
     supabase.from("rec_custom_player_audit_log").insert({ build_id: build.data.id, action: "submitted", actor_user_id: baseline.user.id, actor_discord_id: input.discordId, next_status: "pending_review", details: { evaluation } }),
   ]);
   const attributeRows = Object.entries(input.attributes).filter(([, rating]) => rating > 0).map(([code, rating]) => ({ build_id: build.data.id, attribute_key: code,
-    rating, points_spent: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, input.position, input.archetypeKey, code, index + 1)).reduce((a, b) => a + b, 0),
-    per_point_cost_ledger: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, input.position, input.archetypeKey, code, index + 1)) }));
+    rating, points_spent: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, index + 1)).reduce((a, b) => a + b, 0),
+    per_point_cost_ledger: Array.from({ length: rating }, (_, index) => calculateRecAttributeCost(game, effectivePosition, input.archetypeKey, code, index + 1)) }));
   if (attributeRows.length) await supabase.from("rec_custom_player_build_attributes").insert(attributeRows);
   await supabase.from("rec_custom_player_wizard_sessions").update({ status: "submitted", submitted_build_id: build.data.id, updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft");
