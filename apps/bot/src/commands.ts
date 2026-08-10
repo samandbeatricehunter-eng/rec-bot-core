@@ -5,10 +5,6 @@ import { env } from "./config/env.js";
 // (apps/site/src/routes/DiscordGuildPicker.tsx) — no in-Discord command needed anymore.
 export const commands = [
   new SlashCommandBuilder()
-    .setName("app")
-    .setDescription("Open the REC Leagues app.")
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("openteams")
     .setDescription("View open and claimed teams in this league.")
     .toJSON(),

@@ -176,6 +176,8 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       const weightRule = CFB_BODY_TYPE_WEIGHT[identity.bodyType] ?? CFB_BODY_TYPE_WEIGHT.standard;
       if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < weightRule.min || identity.weightLbs > weightRule.max) return `Weight for the ${identity.bodyType} body type must be between ${weightRule.min} and ${weightRule.max} pounds.`;
     } else {
+      if (!identity.hometownCity?.trim()) return "Hometown is required.";
+      if (!identity.hometownState?.trim()) return "State is required.";
       if (!identity.college?.trim()) return "College is required.";
       if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) return "Height must be between 5'0\" and 7'0\".";
       if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) return "Weight must be between 140 and 400 pounds.";
@@ -183,7 +185,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     return null;
   }
   async function generateName() { const result = await recApi.generateCustomPlayerName(guildId, `${Date.now()}:${Math.random()}`); setIdentity((value: any) => ({ ...value, firstName: result.firstName, lastName: result.lastName })); }
-  async function submit() { if (!evaluation || !effectiveArchetypeKey) return; setBusy(true); setNotice(null); try { const result = await recApi.submitCustomPlayer({ guildId, idempotencyKey: crypto.randomUUID(), packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, attributes, replacementPlayerId: replacementPlayerId || null, identity: game === "CFB" ? { ...identity, college: undefined, hometownCity: undefined, hometownState: undefined } : { ...identity, hometownCity: undefined, hometownState: undefined } }); setHydrated(false); setNotice(`Submitted. ${result.build.unused_cp_refund_coins} coins will be refunded after approval and application.`); onPurchased(); } catch (error) { setSubmitError(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }
+  async function submit() { if (!evaluation || !effectiveArchetypeKey) return; setBusy(true); setNotice(null); try { const result = await recApi.submitCustomPlayer({ guildId, idempotencyKey: crypto.randomUUID(), packageTier: tier, position, archetypeKey: effectiveArchetypeKey, developmentTrait: devTrait, attributes, replacementPlayerId: replacementPlayerId || null, identity: game === "CFB" ? { ...identity, college: undefined, hometownCity: undefined, hometownState: undefined } : identity }); setHydrated(false); setNotice(`Submitted. ${result.build.unused_cp_refund_coins} coins will be refunded after approval and application.`); onPurchased(); } catch (error) { setSubmitError(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }
   if (!config) return <p className="hub-empty">{notice ?? "Loading custom-player builder…"}</p>;
   if (!config.enabled) return <p className="hub-empty">Custom-player purchases are disabled.</p>;
   if (config.blockedNoEligibleReplacement) return <p className="hub-empty">Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the "Edit Roster" quick action on My Team first.</p>;
@@ -208,7 +210,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
         </label>
         {game === "CFB" && <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setIdentity({ ...identity, bodyType: e.target.value })}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
         <label>Weight (lb){weightRule ? ` — ${weightRule.min}-${weightRule.max}` : ""}<input className="form-input" type="number" min={weightRule?.min} max={weightRule?.max} value={identity.weightLbs} onChange={(e) => setIdentity({ ...identity, weightLbs: Number(e.target.value) })}/></label>
-        {game !== "CFB" && <label>College<select className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}><option value="">Select college</option>{CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>}</div>
+        {game !== "CFB" && <><label>Hometown<input className="form-input" value={identity.hometownCity} onChange={(e) => setIdentity({ ...identity, hometownCity: e.target.value })}/></label><label>State<input className="form-input" value={identity.hometownState} onChange={(e) => setIdentity({ ...identity, hometownState: e.target.value })}/></label><label>College<select className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}><option value="">Select college</option>{CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></>}</div>
         {overageInches > 0 && <p className="form-hint">Height is {overageInches}" over the {position} average — costs {overageInches * 100} creation points.</p>}
         <p className="form-hint">{config.contractNotice}</p></>;
     })()}

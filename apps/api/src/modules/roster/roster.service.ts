@@ -1,4 +1,4 @@
-import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, gameplaySeasonStages, isCfb } from "@rec/shared";
+import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
@@ -124,9 +124,10 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     ? [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }]
     : groups;
 
-  // CFB-only offseason gate — see the identical check in setPlayerDeparture. Exposed here so
-  // the roster UI can show/hide the per-player status selector without a failed round trip.
-  const canEditRosterStatus = isCfb(context.rec_leagues.game) && !gameplaySeasonStages(context.rec_leagues.game).has(String(context.rec_leagues.season_stage ?? "regular_season"));
+  // CFB leagues let coaches mark departures (Went Pro / Graduated-Retired / Transferred) any
+  // time — including mid-season, so a coach catching up on a missed change isn't blocked.
+  // Exposed here so the roster UI can show the per-player status selector without a round trip.
+  const canEditRosterStatus = isCfb(context.rec_leagues.game);
 
   return {
     team: {
@@ -180,15 +181,6 @@ export async function setPlayerDeparture(input: {
 
   await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
 
-  // CFB-only: roster status changes (Went Pro / Graduated-Retired / Transferred) are an
-  // offseason activity in real college football — only open while the league is out of its
-  // regular-season/postseason game-playing stages (end_of_season_recap through preseason).
-  if (isCfb(context.rec_leagues?.game)) {
-    const stage = String(context.rec_leagues?.season_stage ?? "regular_season");
-    if (gameplaySeasonStages(context.rec_leagues?.game).has(stage)) {
-      throw new ApiError(400, "Roster status changes open once the season ends — not during the regular season or postseason.");
-    }
-  }
   if (input.status === "transferred_out" && !input.note?.trim()) {
     throw new ApiError(400, "Enter the school this player transferred to.");
   }
@@ -318,13 +310,6 @@ export async function deleteRosterPlayer(input: { guildId: string; discordId: st
   if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
 
   await assertCanManageTeamRoster(input.guildId, input.discordId, leagueId, userId, player.data.team_id);
-
-  if (isCfb(context.rec_leagues?.game)) {
-    const stage = String(context.rec_leagues?.season_stage ?? "regular_season");
-    if (gameplaySeasonStages(context.rec_leagues?.game).has(stage)) {
-      throw new ApiError(400, "Roster changes open once the season ends — not during the regular season or postseason.");
-    }
-  }
 
   const deleted = await supabase.from("rec_players").delete().eq("id", input.playerId).select("id,full_name").maybeSingle();
   if (deleted.error) throw new ApiError(500, "Failed to remove player.", deleted.error);

@@ -285,7 +285,7 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
     const weekLabel = weekMatch?.[1] ?? "the next week";
     const lines = [
       `The league has progressed to **${weekLabel}**.`,
-      "Navigate to **/app** for league options and details.",
+      "Open the REC site (**rec-leagues.com**) for league options and details.",
     ];
     if (epochSeconds != null) {
       lines.push(`Next advance: <t:${epochSeconds}:R>.`);

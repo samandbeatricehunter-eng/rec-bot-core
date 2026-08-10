@@ -26,14 +26,15 @@ const STATUS_CONFIRM_COPY: Partial<Record<RosterUiStatus, (name: string) => stri
   graduated: (name) => `Mark ${name} as graduated/retired? They'll be removed from the active roster.`,
 };
 
-// Per-player offseason status change — only rendered when canEditRosterStatus is true
-// (CFB leagues, outside the regular season/postseason). "No Change" just reinstates a
-// player back to active if they'd previously been marked departed; drafted/graduated/
-// transferred call setPlayerDeparture, which removes the player from the active roster view
-// (transferred requires a destination school, captured as the departure note); "Delete"
-// hard-removes the player entirely (deleteRosterPlayer) — for correcting a mistaken add, not
-// a real roster transition. Every change here is irreversible or roster-affecting enough to
-// confirm before it fires; none of it needs commissioner approval, just the player's coach.
+// Per-player status change — only rendered when canEditRosterStatus is true (CFB leagues,
+// available year-round so a coach catching up on a missed change mid-season can still make
+// it). "No Change" just reinstates a player back to active if they'd previously been marked
+// departed; drafted/graduated/transferred call setPlayerDeparture, which removes the player
+// from the active roster view (transferred requires a destination school, captured as the
+// departure note); "Delete" hard-removes the player entirely (deleteRosterPlayer) — for
+// correcting a mistaken add, not a real roster transition. Every change here is irreversible
+// or roster-affecting enough to confirm before it fires; none of it needs commissioner
+// approval, just the player's coach.
 function RosterStatusCell({ guildId, player, onChanged }: { guildId: string; player: RosterPlayer; onChanged: () => void }) {
   const current: RosterUiStatus = player.rosterStatus === "drafted" || player.rosterStatus === "graduated" || player.rosterStatus === "retired" || player.rosterStatus === "transferred_out"
     ? (player.rosterStatus === "retired" ? "graduated" : (player.rosterStatus as RosterUiStatus))

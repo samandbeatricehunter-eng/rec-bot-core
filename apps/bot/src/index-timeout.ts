@@ -365,7 +365,7 @@ async function pollCommissionerNotifications() {
     const serverUrl = landingChannelId
       ? `https://discord.com/channels/${guild.id}/${landingChannelId}`
       : `https://discord.com/channels/${guild.id}`;
-    const message = `**${guild.name}** has ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\n[Open ${guild.name} in Discord](<${serverUrl}>) and run **/app**, then open **League Management** → **Notifications** to review ${count === 1 ? "it" : "them"}.`;
+    const message = `**${guild.name}** has ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\n[Open ${guild.name} in Discord](<${serverUrl}>), then open the REC site (**rec-leagues.com**) → **League Management** → **Notifications** to review ${count === 1 ? "it" : "them"}.`;
     let delivered = false;
     for (const discordId of adminIds) {
       const user = await client.users.fetch(discordId).catch(() => null);
@@ -409,7 +409,7 @@ setInterval(() => {
   pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
 }, 150_000).unref();
 
-const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please run /app again to proceed.";
+const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Open the REC site (**rec-leagues.com**) to proceed.";
 
 async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
@@ -542,11 +542,6 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "app") {
-      await handleAppOpenDashboard(interaction);
-      return;
-    }
-
     if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
       await handleOpenTeamsSlash(interaction);
       return;
@@ -1104,7 +1099,7 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
         // Cannot showModal after defer — offer a button that opens the setup modal.
         await interaction.editReply({
           content:
-            "No league is linked for this server yet. Start First-Time Setup to create one, then run **/app** again.",
+            "No league is linked for this server yet. Start First-Time Setup to create one, then open the REC site (**rec-leagues.com**).",
           components: [
             new ActionRowBuilder<ButtonBuilder>().addComponents(
               new ButtonBuilder()
