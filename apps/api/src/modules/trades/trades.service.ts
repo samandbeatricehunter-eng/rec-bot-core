@@ -342,6 +342,37 @@ export async function listPendingReviewTrades(guildId: string) {
   return { trades: trades.data ?? [] };
 }
 
+export async function listSeasonTradeCounts(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const [teams, assignments, trades] = await Promise.all([
+    supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", context.leagueId).order("name"),
+    supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
+    supabase.from("rec_trades").select("proposing_team_id,receiving_team_id,involves_cpu,status").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "applied"),
+  ]);
+  if (teams.error || assignments.error || trades.error) throw new ApiError(500, "Failed to load season trade counts.", teams.error ?? assignments.error ?? trades.error);
+  const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
+  const users = userIds.length ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds) : { data: [] as any[], error: null };
+  if (users.error) throw new ApiError(500, "Failed to load trade-count coaches.", users.error);
+  const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
+  const userName = new Map((users.data ?? []).map((row: any) => [row.id, row.username ?? row.display_name ?? "REC user"]));
+  return {
+    seasonNumber,
+    teams: (teams.data ?? []).map((team: any) => {
+      const involved = (trades.data ?? []).filter((trade: any) => trade.proposing_team_id === team.id || trade.receiving_team_id === team.id);
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        abbreviation: team.display_abbr ?? team.abbreviation,
+        coachName: userByTeam.has(team.id) ? userName.get(userByTeam.get(team.id)) ?? "Linked user" : "CPU",
+        humanTrades: involved.filter((trade: any) => !trade.involves_cpu).length,
+        cpuTrades: involved.filter((trade: any) => trade.involves_cpu).length,
+        totalTrades: involved.length,
+      };
+    }),
+  };
+}
+
 export async function listTradeableTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const teams = await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", context.leagueId).order("name");

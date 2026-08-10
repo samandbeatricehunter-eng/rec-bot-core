@@ -328,6 +328,8 @@ export const recApi = {
     recApiFetch<{ trades: Trade[] }>("/v1/trades/mine", { method: "POST", body: JSON.stringify({ guildId }) }),
   getPendingReviewTrades: (guildId: string) =>
     recApiFetch<{ trades: Trade[] }>("/v1/trades/pending-review", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getSeasonTradeCounts: (guildId: string) =>
+    recApiFetch<{ seasonNumber: number; teams: Array<{ teamId: string; teamName: string; abbreviation: string | null; coachName: string; humanTrades: number; cpuTrades: number; totalTrades: number }> }>("/v1/trades/season-counts", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTradeDetail: (input: { guildId: string; tradeId: string }) =>
     recApiFetch<{ trade: Trade; legs: TradeLeg[] }>("/v1/trades/detail", { method: "POST", body: JSON.stringify(input) }),
   listTradeableTeams: (guildId: string) =>

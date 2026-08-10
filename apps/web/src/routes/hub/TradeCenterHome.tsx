@@ -419,6 +419,7 @@ export function TradeCenterHome() {
   const [requestedCoins, setRequestedCoins] = useState(0);
   const [myTrades, setMyTrades] = useState<Trade[] | null>(null);
   const [reviewTrades, setReviewTrades] = useState<Trade[] | null>(null);
+  const [tradeCounts, setTradeCounts] = useState<Array<{ teamId: string; teamName: string; abbreviation: string | null; coachName: string; humanTrades: number; cpuTrades: number; totalTrades: number }> | null>(null);
   const [tradeBlock, setTradeBlock] = useState<Array<{ id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null }> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -430,7 +431,10 @@ export function TradeCenterHome() {
     recApi.listTradeableTeams(guildId).then(setTeams).catch(() => undefined);
     recApi.getMyTrades(guildId).then((r) => setMyTrades(r.trades)).catch(() => undefined);
     recApi.listTradeBlockPlayers(guildId).then(setTradeBlock).catch(() => undefined);
-    if (isCommissioner) recApi.getPendingReviewTrades(guildId).then((r) => setReviewTrades(r.trades)).catch(() => undefined);
+    if (isCommissioner) {
+      recApi.getPendingReviewTrades(guildId).then((r) => setReviewTrades(r.trades)).catch(() => undefined);
+      recApi.getSeasonTradeCounts(guildId).then((r) => setTradeCounts(r.teams)).catch(() => undefined);
+    }
   }
 
   useEffect(loadCore, [guildId, isCommissioner]);
@@ -607,6 +611,18 @@ export function TradeCenterHome() {
               </div>
             </div>
           ))}
+        </section>
+      )}
+
+      {isCommissioner && tradeCounts && (
+        <section className="hub-trade-review">
+          <h3>Season Trade Counts</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table className="fantasy-draft-pool-table">
+              <thead><tr><th>Team</th><th>Coach</th><th>Human</th><th>CPU</th><th>Total</th></tr></thead>
+              <tbody>{tradeCounts.map((row) => <tr key={row.teamId}><td>{row.abbreviation || row.teamName}</td><td>{row.coachName}</td><td>{row.humanTrades}</td><td>{row.cpuTrades}</td><td>{row.totalTrades}</td></tr>)}</tbody>
+            </table>
+          </div>
         </section>
       )}
 
