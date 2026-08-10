@@ -1410,28 +1410,24 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </>
             )}
 
-            <Section title="Coach Mode">
-              <ToggleField label="Coach mode enabled" hint="When enabled, users call plays from the sideline instead of directly controlling the team."
-                checked={coachModeEnabled} onChange={setCoachModeEnabled} />
-              {coachModeEnabled && (
-                <>
-                  <ToggleField label="Auto-pass" hint="QB automatically throws to open receivers." checked={coachModeAutoPassEnabled} onChange={setCoachModeAutoPassEnabled} />
-                  <ToggleField label="Auto-snap" hint="Center automatically snaps the ball on the play clock." checked={coachModeAutoSnapEnabled} onChange={setCoachModeAutoSnapEnabled} />
-                  <ToggleField label="Coach suggestions" hint="Show the coach's recommended play on the play call screen." checked={coachModeCoachSuggestionsEnabled} onChange={setCoachModeCoachSuggestionsEnabled} />
-                  {isCfb && (
-                    <>
-                      <ToggleField label="Recruit flipping" hint="Allow coaches to flip recruit commitments during recruiting." checked={coachModeRecruitFlippingEnabled} onChange={setCoachModeRecruitFlippingEnabled} />
-                      <ToggleField label="Auto-recruiting" hint="Let the CPU handle recruiting tasks automatically." checked={coachModeAutoRecruitingEnabled} onChange={setCoachModeAutoRecruitingEnabled} />
-                      <ToggleField label="Auto-progress players" hint="Automatically advance player development each season." checked={coachModeAutoProgressPlayersEnabled} onChange={setCoachModeAutoProgressPlayersEnabled} />
-                      <ToggleField label="User auto-progression" hint="Allow users to manually trigger player progression." checked={coachModeUserAutoProgressionEnabled} onChange={setCoachModeUserAutoProgressionEnabled} />
-                      <ToggleField label="CPU manages budget" hint="Let the CPU handle recruiting budget allocation." checked={coachModeCpuManageBudgetEnabled} onChange={setCoachModeCpuManageBudgetEnabled} />
-                      <ToggleField label="CPU manages staff" hint="Let the CPU handle coaching staff hiring." checked={coachModeCpuManageStaffEnabled} onChange={setCoachModeCpuManageStaffEnabled} />
-                      <ToggleField label="CPU manages facilities" hint="Let the CPU handle facility upgrades." checked={coachModeCpuManageFacilitiesEnabled} onChange={setCoachModeCpuManageFacilitiesEnabled} />
-                    </>
-                  )}
-                </>
-              )}
-            </Section>
+            {coachModeEnabled && (
+              <Section title="Coach Mode">
+                <ToggleField label="Auto-pass" hint="QB automatically throws to open receivers." checked={coachModeAutoPassEnabled} onChange={setCoachModeAutoPassEnabled} />
+                <ToggleField label="Auto-snap" hint="Center automatically snaps the ball on the play clock." checked={coachModeAutoSnapEnabled} onChange={setCoachModeAutoSnapEnabled} />
+                <ToggleField label="Coach suggestions" hint="Show the coach's recommended play on the play call screen." checked={coachModeCoachSuggestionsEnabled} onChange={setCoachModeCoachSuggestionsEnabled} />
+                {isCfb && (
+                  <>
+                    <ToggleField label="Recruit flipping" hint="Allow coaches to flip recruit commitments during recruiting." checked={coachModeRecruitFlippingEnabled} onChange={setCoachModeRecruitFlippingEnabled} />
+                    <ToggleField label="Auto-recruiting" hint="Let the CPU handle recruiting tasks automatically." checked={coachModeAutoRecruitingEnabled} onChange={setCoachModeAutoRecruitingEnabled} />
+                    <ToggleField label="Auto-progress players" hint="Automatically advance player development each season." checked={coachModeAutoProgressPlayersEnabled} onChange={setCoachModeAutoProgressPlayersEnabled} />
+                    <ToggleField label="User auto-progression" hint="Allow users to manually trigger player progression." checked={coachModeUserAutoProgressionEnabled} onChange={setCoachModeUserAutoProgressionEnabled} />
+                    <ToggleField label="CPU manages budget" hint="Let the CPU handle recruiting budget allocation." checked={coachModeCpuManageBudgetEnabled} onChange={setCoachModeCpuManageBudgetEnabled} />
+                    <ToggleField label="CPU manages staff" hint="Let the CPU handle coaching staff hiring." checked={coachModeCpuManageStaffEnabled} onChange={setCoachModeCpuManageStaffEnabled} />
+                    <ToggleField label="CPU manages facilities" hint="Let the CPU handle facility upgrades." checked={coachModeCpuManageFacilitiesEnabled} onChange={setCoachModeCpuManageFacilitiesEnabled} />
+                  </>
+                )}
+              </Section>
+            )}
 
             <Section title="Ball Hawk / Heat Seeker / Switch Assist">
               <SelectField label="Ball Hawk" hint="Assists user in intercepting passes." value={ballHawk} onChange={setBallHawk} options={BALL_HAWK_OPTIONS} />
