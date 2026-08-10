@@ -276,7 +276,7 @@ export function SettingsHome() {
                     } : current);
                   }}
                 />
-                <p className="form-hint">Each selected attribute uses the Core Attribute Default Cap above unless overridden below — and the Core Attribute Group Cap above still applies to their combined total.</p>
+                <p className="form-hint">Each selected attribute uses the Core Attribute Default Cap above unless overridden below. Core attributes do not share a pooled group cap.</p>
                 {coreAttributes.map((code) => (
                   <label key={code} className="attribute-cap-row">
                     <span>{code} season cap</span>
@@ -297,8 +297,9 @@ export function SettingsHome() {
                   </label>
                 ))}
 
-                <label className="form-label" htmlFor="non-core-override-code" style={{ marginTop: "var(--space-3)" }}>Non-Core attribute overrides</label>
-                <p className="form-hint">Any attribute not listed as Core above is Non-Core. It has no individual cap by default — only the Non-Core group cap — unless you add a specific override here.</p>
+                {draft.nonCoreAttributeCapMode === "individual" ? <>
+                <label className="form-label" htmlFor="non-core-override-code" style={{ marginTop: "var(--space-3)" }}>Individual Non-Core attribute caps</label>
+                <p className="form-hint">Individual mode disables the pooled Non-Core group cap. Add only the attributes that need a limit; unlisted Non-Core attributes remain unlimited.</p>
                 {Object.entries(nonCoreOverrides).map(([code, cap]) => (
                   <label key={code} className="attribute-cap-row">
                     <span>{code} season cap</span>
@@ -349,6 +350,7 @@ export function SettingsHome() {
                     Add Override
                   </Button>
                 </div>
+                </> : null}
               </div>
             ) : null}
             {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (

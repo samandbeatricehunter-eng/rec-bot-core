@@ -852,6 +852,7 @@ export type StorePurchaseContext = {
   coreAttributeGroupCap: number;
   nonCoreAttributeCap: number;
   nonCoreAttributeCapOverrides: Record<string, number>;
+  nonCoreAttributeCapMode: "group" | "individual";
   usedCoreByCode: Record<string, number>;
   usedNonCoreByCode: Record<string, number>;
   usedCore: number;

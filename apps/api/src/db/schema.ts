@@ -987,6 +987,7 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   nonCoreAttributePurchasesSeasonCap: integer("non_core_attribute_purchases_season_cap").notNull().default(0),
   coreAttributeGroupCap: integer("core_attribute_group_cap").notNull().default(0),
   nonCoreAttributeCapOverrides: jsonb("non_core_attribute_cap_overrides").$type<Record<string, unknown> | null>(),
+  nonCoreAttributeCapMode: text("non_core_attribute_cap_mode").notNull().default("group"),
   coreAttributes: jsonb("core_attributes").$type<Record<string, unknown> | null>(),
   dynastyType: text("dynasty_type"),
   recruitingDifficulty: text("recruiting_difficulty"),

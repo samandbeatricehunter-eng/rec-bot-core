@@ -133,6 +133,7 @@ export const CreateLeagueSchema = z.object({
   coreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
   coreAttributeGroupCap: z.number().int().min(0).max(99).default(0),
   nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
+  nonCoreAttributeCapMode: z.enum(["group", "individual"]).default("group"),
   coreAttributes: z.array(z.string()).default([]),
   coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
   nonCoreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
-  AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, NFC_TEAMS,
+  AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS, NFC_TEAMS,
   LEAGUE_SLIDER_CATALOG_VERSION, defaultLeagueSliderValues,
   type MaddenAttributeCode,
 } from "@rec/shared";
@@ -66,8 +66,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [advanceTiming, setAdvanceTiming] = useState("24hr");
   const [advanceTimingOther, setAdvanceTimingOther] = useState("");
   const [injuryPolicy, setInjuryPolicy] = useState("on_standard");
-  const [fairSimRequirements, setFairSimRequirements] = useState("");
-  const [forceWinRequirements, setForceWinRequirements] = useState("");
+  const [fairSimRequirements, setFairSimRequirements] = useState("Fair Sims are the default for any game where users fail to schedule their game prior to advance time.");
+  const [forceWinRequirements, setForceWinRequirements] = useState("Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.");
   const [offensivePlayCallLimitsEnabled, setOffensivePlayCallLimitsEnabled] = useState(false);
   const [offensivePlayCallLimit, setOffensivePlayCallLimit] = useState(10);
   const [offensivePlayCallCooldownEnabled, setOffensivePlayCallCooldownEnabled] = useState(false);
@@ -92,8 +92,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [ageResetsSeasonCap, setAgeResetsSeasonCap] = useState(0);
   const [attributePurchasesEnabled, setAttributePurchasesEnabled] = useState(false);
   const [coreAttributePurchasesSeasonCap, setCoreAttributePurchasesSeasonCap] = useState(0);
-  const [coreAttributeGroupCap, setCoreAttributeGroupCap] = useState(0);
   const [nonCoreAttributePurchasesSeasonCap, setNonCoreAttributePurchasesSeasonCap] = useState(0);
+  const [nonCoreAttributeCapMode, setNonCoreAttributeCapMode] = useState<"group" | "individual">("group");
   const [coreAttributes, setCoreAttributes] = useState<string[]>([]);
   const [coreAttributeCapOverrides, setCoreAttributeCapOverrides] = useState<Record<string, number>>({});
   const [nonCoreAttributeCapOverrides, setNonCoreAttributeCapOverrides] = useState<Record<string, number>>({});
@@ -447,11 +447,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       ageResetsSeasonCap: coinEconomyEnabled && isMadden && ageResetsEnabled ? ageResetsSeasonCap : 0,
       attributePurchasesEnabled: coinEconomyEnabled ? attributePurchasesEnabled : false,
       coreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributePurchasesSeasonCap : 0,
-      coreAttributeGroupCap: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributeGroupCap : 0,
-      nonCoreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled ? nonCoreAttributePurchasesSeasonCap : 0,
+      coreAttributeGroupCap: 0,
+      nonCoreAttributePurchasesSeasonCap: coinEconomyEnabled && attributePurchasesEnabled && nonCoreAttributeCapMode === "group" ? nonCoreAttributePurchasesSeasonCap : 0,
+      nonCoreAttributeCapMode,
       coreAttributes: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributes : [],
       coreAttributeCapOverrides: coinEconomyEnabled && attributePurchasesEnabled ? coreAttributeCapOverrides : {},
-      nonCoreAttributeCapOverrides: coinEconomyEnabled && attributePurchasesEnabled ? nonCoreAttributeCapOverrides : {},
+      nonCoreAttributeCapOverrides: coinEconomyEnabled && attributePurchasesEnabled && nonCoreAttributeCapMode === "individual" ? nonCoreAttributeCapOverrides : {},
       // Player trait purchases were retired app-wide — always sent disabled.
       playerTraitPurchasesEnabled: false,
       playerTraitPurchasesSeasonCap: 0,
@@ -520,7 +521,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     devUpgradesSeasonCap, devUpgradesPlayerCap,
     ageResetsEnabled, ageResetsSeasonCap,
     attributePurchasesEnabled, coreAttributePurchasesSeasonCap,
-    coreAttributeGroupCap, nonCoreAttributePurchasesSeasonCap,
+    nonCoreAttributePurchasesSeasonCap, nonCoreAttributeCapMode,
     coreAttributes, coreAttributeCapOverrides, nonCoreAttributeCapOverrides,
     contractAdjustmentPurchasesEnabled, contractPurchasesSeasonCap,
     purchaseDeadlines, customRules,
@@ -587,8 +588,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     if (template.ageResetsSeasonCap !== undefined) setAgeResetsSeasonCap(template.ageResetsSeasonCap);
     if (template.attributePurchasesEnabled !== undefined) setAttributePurchasesEnabled(template.attributePurchasesEnabled);
     if (template.coreAttributePurchasesSeasonCap !== undefined) setCoreAttributePurchasesSeasonCap(template.coreAttributePurchasesSeasonCap);
-    if (template.coreAttributeGroupCap !== undefined) setCoreAttributeGroupCap(template.coreAttributeGroupCap);
     if (template.nonCoreAttributePurchasesSeasonCap !== undefined) setNonCoreAttributePurchasesSeasonCap(template.nonCoreAttributePurchasesSeasonCap);
+    setNonCoreAttributeCapMode(template.nonCoreAttributeCapMode);
     if (template.coreAttributes !== undefined) {
       setCoreAttributes(template.coreAttributes);
       setCoreAttributeCapOverrides(template.coreAttributeCapOverrides);
@@ -1088,22 +1089,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       value={legendsSeasonCap} onChange={setLegendsSeasonCap} min={0} max={5} unlimitedLabel />
                   )}
 
+                  {isMadden && <>
                   <ToggleField label="Dev upgrades" hint="Allow users to spend coins to upgrade a player's development trait (e.g. Normal to Star, Star to Superstar)."
                     desc="Upgrading a player's dev trait lets them earn XP and progress faster. Choose how these are capped below."
                     checked={devUpgradesEnabled} onChange={setDevUpgradesEnabled} />
                   {devUpgradesEnabled && (
                     <>
-                      <SelectField label="Dev upgrade cap type" hint="How dev upgrades are limited."
-                        value={devUpgradeCapMode} onChange={setDevUpgradeCapMode}
-                        options={[{ value: "total_purchases", label: "Limit total upgrade purchases per team" }, { value: "players_per_season", label: "Limit number of players who can be upgraded" }]} />
-                      {devUpgradeCapMode === "total_purchases" && (
-                        <CounterField label="Dev upgrades season cap (total purchases)" hint="0 = unlimited."
-                          value={devUpgradesSeasonCap} onChange={setDevUpgradesSeasonCap} min={0} max={20} unlimitedLabel />
-                      )}
-                      {devUpgradeCapMode === "players_per_season" && (
-                        <CounterField label="Dev upgrades player cap (distinct players per team)" hint="0 = unlimited."
-                          value={devUpgradesPlayerCap} onChange={setDevUpgradesPlayerCap} min={0} max={20} unlimitedLabel />
-                      )}
+                      <CounterField label="Dev upgrades season cap (total purchases per team)" hint="0 = unlimited."
+                        value={devUpgradesSeasonCap} onChange={setDevUpgradesSeasonCap} min={0} max={20} unlimitedLabel />
                     </>
                   )}
 
@@ -1115,12 +1108,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       <CounterField label="Core attribute default cap (points per attribute)"
                         hint="Max points a user can spend on a single core attribute per season, unless that attribute has its own override below. 0 = unlimited."
                         value={coreAttributePurchasesSeasonCap} onChange={setCoreAttributePurchasesSeasonCap} min={0} max={99} unlimitedLabel />
-                      <CounterField label="Core attribute group cap (total across all core)"
-                        hint="Total points usable across all core attributes combined. A purchase must clear both its attribute's individual cap AND this pooled total. 0 = unlimited."
-                        value={coreAttributeGroupCap} onChange={setCoreAttributeGroupCap} min={0} max={99} unlimitedLabel />
-                      <CounterField label="Non-core attribute group cap (total across all non-core)"
+                      <SelectField label="Non-Core cap mode" hint="Use one pooled cap for all Non-Core attributes, or configure individual caps. The two modes are mutually exclusive."
+                        value={nonCoreAttributeCapMode} onChange={(value) => setNonCoreAttributeCapMode(value as "group" | "individual")}
+                        options={[{ value: "group", label: "As a group" }, { value: "individual", label: "Individual caps" }]} />
+                      {nonCoreAttributeCapMode === "group" && <CounterField label="Non-core attribute group cap (total across all non-core)"
                         hint="Total points usable across all non-core attributes combined. 0 = unlimited."
-                        value={nonCoreAttributePurchasesSeasonCap} onChange={setNonCoreAttributePurchasesSeasonCap} min={0} max={99} unlimitedLabel />
+                        value={nonCoreAttributePurchasesSeasonCap} onChange={setNonCoreAttributePurchasesSeasonCap} min={0} max={99} unlimitedLabel />}
 
                       <CoreAttributePicker value={coreAttributes} onChange={setCoreAttributes} />
 
@@ -1150,8 +1143,26 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                           })}
                         </div>
                       )}
+                      {nonCoreAttributeCapMode === "individual" && (
+                        <div className="wizard-override-list">
+                          <p className="wizard-override-heading">Individual Non-Core caps</p>
+                          <p className="site-muted wizard-override-hint">Each Non-Core attribute is capped independently. Attributes without a value remain unlimited.</p>
+                          {MADDEN_ATTRIBUTE_DEFINITIONS.filter((def) => !coreAttributes.includes(def.code)).map((def) => (
+                            <div key={def.code} className="wizard-override-row">
+                              <span className="wizard-override-label"><strong>{def.code}</strong> — {def.name}</span>
+                              <CounterField label={`Cap for ${def.name}`} value={nonCoreAttributeCapOverrides[def.code] ?? 0}
+                                onChange={(value) => {
+                                  const next = { ...nonCoreAttributeCapOverrides };
+                                  if (value === 0) delete next[def.code]; else next[def.code] = value;
+                                  setNonCoreAttributeCapOverrides(next);
+                                }} min={0} max={99} unlimitedLabel />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
+                  </>}
                   {isMadden && (
                     <>
                       <ToggleField label="Contract adjustment purchases" hint="Allow users to spend coins to restructure or adjust player contracts."

@@ -119,6 +119,7 @@ const CreateUnclaimedLeagueSchema = z.object({
   coreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).optional(),
   coreAttributeGroupCap: z.number().int().min(0).max(99).optional(),
   nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).optional(),
+  nonCoreAttributeCapMode: z.enum(["group", "individual"]).optional(),
   coreAttributes: z.array(z.string()).optional(),
   coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).optional(),
   nonCoreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).optional(),
