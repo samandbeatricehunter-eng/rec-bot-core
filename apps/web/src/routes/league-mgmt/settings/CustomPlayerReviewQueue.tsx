@@ -122,7 +122,7 @@ export function CustomPlayerReviewModal({ guildId, buildId, onClose, onResolved 
     if (action === "reject" && !note.trim()) { setMessage("A rejection reason is required."); return; }
     setBusy(true); setMessage(null);
     try {
-      await recApi.reviewCustomPlayer({ guildId, buildId, action, note: note.trim() || undefined, adjustments: action === "approve" ? (edit ?? undefined) : undefined });
+      await recApi.reviewCustomPlayer({ guildId, buildId, action, note: note.trim() || undefined, adjustments: action === "approve" && edit ? { identity: edit.identity, attributes: edit.attributes } : undefined });
       onResolved();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); setBusy(false); }
   }

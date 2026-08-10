@@ -5,6 +5,10 @@ import { env } from "./config/env.js";
 // (apps/site/src/routes/DiscordGuildPicker.tsx) — no in-Discord command needed anymore.
 export const commands = [
   new SlashCommandBuilder()
+    .setName("app")
+    .setDescription("Open this league in the REC Leagues website/app.")
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("openteams")
     .setDescription("View open and claimed teams in this league.")
     .toJSON(),
@@ -19,6 +23,10 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("viewleague")
     .setDescription("Get a link to this league's public status page.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("draft")
+    .setDescription("Open this league's fantasy draft controls and board.")
     .toJSON(),
 ];
 

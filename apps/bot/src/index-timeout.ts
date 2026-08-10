@@ -563,6 +563,11 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
+    if (interaction.isChatInputCommand() && interaction.commandName === "app") {
+      await handleAppOpenDashboard(interaction);
+      return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
       await handleOpenTeamsSlash(interaction);
       return;

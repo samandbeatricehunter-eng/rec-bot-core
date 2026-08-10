@@ -73,7 +73,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
     economy ? base(6, "Economy, Wagers & Store", [
       "This league has the coin economy enabled. Eligible activity can create commissioner-reviewed payouts; purchases reserve funds until approved or fulfilled.",
       "Wagers include enabled house markets, parlays, and peer challenges. A wager is fulfilled only when that game's box score is submitted before league advance. Results, refunds, and net house/peer performance are retained in League History.",
-      attributes ? "Attribute purchases use this league's selected core attributes, overall/individual core caps, and grouped non-core cap." : "Attribute purchases are disabled for this league.",
+      attributes ? `Attribute purchases use this league's selected Core attributes and per-attribute caps. Non-Core attributes use ${settings.non_core_attribute_cap_mode === "individual" ? "individual caps" : "one pooled group cap"}.` : "Attribute purchases are disabled for this league.",
     ]) : null,
     base(economy ? 7 : 6, "Rules & Policies", [
       `**Fourth down — regular season:** ${ruleLabel(settings.fourth_down_rule_type_regular ?? settings.fourth_down_rule_type)}${settings.custom_fourth_down_rule_regular ? ` — ${settings.custom_fourth_down_rule_regular}` : ""}.`,
@@ -92,7 +92,9 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       "**/openteams** — displays open and claimed teams by conference and lets you request an available team.",
       "**/matchup** — displays your current-week matchup and its available game information.",
       "**/schedule** — displays your linked team's full season schedule.",
-      "**/claim-league `token`** — links this Discord server to a REC league invite. This command is restricted to the Discord server owner only.",
+      "**/viewleague** — provides the league's public status-page link.",
+      "**/draft** — opens fantasy-draft controls when the league uses a fantasy draft.",
+      "League creation and Discord-server linking are website-only commissioner workflows; there is no Discord creation or claim command.",
     ]),
   ].filter((embed): embed is NonNullable<typeof embed> => Boolean(embed));
 }
