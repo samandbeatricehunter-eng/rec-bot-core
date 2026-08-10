@@ -386,7 +386,28 @@ async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string;
   });
 }
 
-export async function notifyMissingBoxScore(input: { guildId: string; gameId: string; target: "home" | "away" | "both"; notifiedByDiscordId: string }) {
+const NOTIFY_MISSING_BOX_SCORE_COPY = {
+  box_score: {
+    pushTitle: "Box score needed",
+    pushBody: (away: string, home: string) => `${away} @ ${home} still needs a result before the league can advance.`,
+    headline: "**BOX SCORE NEEDED**",
+    chatBody: "**BOX SCORE NEEDED** — a commissioner is waiting on this game's final result before the league can advance.",
+  },
+  schedule: {
+    pushTitle: "Schedule your game",
+    pushBody: (away: string, home: string) => `${away} @ ${home} hasn't been played yet — get it scheduled.`,
+    headline: "**SCHEDULE YOUR GAME ASAP**",
+    chatBody: "**SCHEDULE YOUR GAME ASAP** — a commissioner flagged this matchup as overdue.",
+  },
+  both: {
+    pushTitle: "Box score needed / schedule your game",
+    pushBody: (away: string, home: string) => `${away} @ ${home} — get it scheduled and played, or submit its result, before the league can advance.`,
+    headline: "**BOX SCORE NEEDED / SCHEDULE YOUR GAME ASAP**",
+    chatBody: "**BOX SCORE NEEDED / SCHEDULE YOUR GAME ASAP** — a commissioner is waiting on this matchup, either to get it played or to get its result submitted.",
+  },
+} as const;
+
+export async function notifyMissingBoxScore(input: { guildId: string; gameId: string; target: "home" | "away" | "both"; reason?: "box_score" | "schedule" | "both"; notifiedByDiscordId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const week = await getAdvanceWeekGames(input.guildId);
   const game = week.gamesNeedingInput.find((g) => g.gameId === input.gameId);
@@ -398,9 +419,11 @@ export async function notifyMissingBoxScore(input: { guildId: string; gameId: st
   ].filter((id): id is string => Boolean(id));
   if (!userIds.length) throw new ApiError(400, "No user to notify for this side.");
 
+  const copy = NOTIFY_MISSING_BOX_SCORE_COPY[input.reason ?? "box_score"];
+
   await sendPushToUsers(userIds, {
-    title: "Box score needed",
-    body: `${game.awayTeamName} @ ${game.homeTeamName} still needs a result before the league can advance.`,
+    title: copy.pushTitle,
+    body: copy.pushBody(game.awayTeamName, game.homeTeamName),
     url: `/matchups/${game.gameId}`,
   });
 
@@ -408,17 +431,17 @@ export async function notifyMissingBoxScore(input: { guildId: string; gameId: st
     leagueId: context.leagueId,
     gameId: game.gameId,
     userIds,
-    headline: "**BOX SCORE NEEDED**",
-    chatBody: `**BOX SCORE NEEDED** — a commissioner is waiting on this game's final result before the league can advance.`,
+    headline: copy.headline,
+    chatBody: copy.chatBody,
   }).catch((err) =>
-    console.error("[ERROR] Failed to post BOX SCORE NEEDED notice (non-fatal):", err),
+    console.error("[ERROR] Failed to post box-score/schedule notice (non-fatal):", err),
   );
 
   await writeAuditLog({
     action: "notify_missing_box_score",
     entityType: "missing_box_score_notice",
     entityId: game.gameId,
-    newValue: { target: input.target, userIds, weekNumber: game.weekNumber, notifiedByDiscordId: input.notifiedByDiscordId, leagueId: context.leagueId },
+    newValue: { target: input.target, notifyReason: input.reason ?? "box_score", userIds, weekNumber: game.weekNumber, notifiedByDiscordId: input.notifiedByDiscordId, leagueId: context.leagueId },
     reason: `Notified ${input.target} for ${game.awayTeamName} @ ${game.homeTeamName}`,
   });
 

@@ -133,6 +133,7 @@ function AdvanceReadinessSection() {
   const [nextGotwGameId, setNextGotwGameId] = useState("");
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [notifyBusyGameId, setNotifyBusyGameId] = useState<string | null>(null);
+  const [notifyPrompt, setNotifyPrompt] = useState<{ gameId: string; target: "home" | "away" | "both" } | null>(null);
 
   function load() {
     recApi
@@ -150,11 +151,12 @@ function AdvanceReadinessSection() {
     setEntries((prev) => ({ ...prev, [gameId]: { ...(prev[gameId] ?? emptyEntry), ...patch } }));
   }
 
-  async function notify(gameId: string, target: "home" | "away" | "both") {
+  async function notify(gameId: string, target: "home" | "away" | "both", reason: "box_score" | "schedule" | "both") {
+    setNotifyPrompt(null);
     setNotifyBusyGameId(gameId);
     setNotice(null);
     try {
-      await recApi.notifyMissingBoxScore({ guildId, gameId, target });
+      await recApi.notifyMissingBoxScore({ guildId, gameId, target, reason });
       setNotice("Notified.");
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to notify.");
@@ -294,9 +296,9 @@ function AdvanceReadinessSection() {
                 <Button variant="ghost" onClick={() => setHighlightGame(g)}>Upload Highlight</Button>
                 {g.needsInput && g.isH2h && (
                   <>
-                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => void notify(g.gameId, "home")}>Notify Home</Button>
-                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => void notify(g.gameId, "away")}>Notify Away</Button>
-                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => void notify(g.gameId, "both")}>Notify Both</Button>
+                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "home" })}>Notify Home</Button>
+                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "away" })}>Notify Away</Button>
+                    <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "both" })}>Notify Both</Button>
                   </>
                 )}
               </div>
@@ -331,6 +333,18 @@ function AdvanceReadinessSection() {
         </div>
       </div>
 
+      {notifyPrompt && (
+        <Modal title="Notify" onClose={() => setNotifyPrompt(null)}>
+          <div className="advance-modal-body">
+            <p className="form-hint">What should this notification be about?</p>
+            <div className="advance-modal-actions" style={{ flexWrap: "wrap" }}>
+              <Button variant="secondary" onClick={() => void notify(notifyPrompt.gameId, notifyPrompt.target, "box_score")}>Submit Box Score</Button>
+              <Button variant="secondary" onClick={() => void notify(notifyPrompt.gameId, notifyPrompt.target, "schedule")}>Schedule Game</Button>
+              <Button variant="tactical" onClick={() => void notify(notifyPrompt.gameId, notifyPrompt.target, "both")}>Both</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {showAdvanceModal && (
         <Modal title="Complete Advance" onClose={() => !advancing && setShowAdvanceModal(false)}>
           <div className="advance-modal-body">

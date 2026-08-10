@@ -647,7 +647,7 @@ export const recApi = {
   // @everyone announcement, all server-side via Discord's REST API.
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
-  notifyMissingBoxScore: (input: { guildId: string; gameId: string; target: "home" | "away" | "both" }) =>
+  notifyMissingBoxScore: (input: { guildId: string; gameId: string; target: "home" | "away" | "both"; reason?: "box_score" | "schedule" | "both" }) =>
     recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),

@@ -82,10 +82,10 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/notify-missing", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), target: z.enum(["home", "away", "both"]) }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), target: z.enum(["home", "away", "both"]), reason: z.enum(["box_score", "schedule", "both"]).optional() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Notifying a coach requires a user session."));
-      return reply.send(await notifyMissingBoxScore({ guildId: body.guildId, gameId: body.gameId, target: body.target, notifiedByDiscordId: auth.discordId }));
+      return reply.send(await notifyMissingBoxScore({ guildId: body.guildId, gameId: body.gameId, target: body.target, reason: body.reason, notifiedByDiscordId: auth.discordId }));
     } catch (error) {
       return sendError(reply, error);
     }
