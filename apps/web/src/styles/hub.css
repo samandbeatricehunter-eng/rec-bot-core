@@ -445,6 +445,10 @@ button.poty:disabled {
 .hub-history-table-row:first-of-type { border-top: none; }
 .hub-history-table-head { color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
 .hub-history-bowl-row, .hub-history-top25-row { grid-template-columns: 1fr 2fr; }
+.hub-history-week-detail .hub-history-table-row { grid-template-columns: 2fr 2fr 1fr; }
+.hub-history-week-detail .hub-history-top25-row { grid-template-columns: 1fr 2fr 1fr; }
+.hub-history-week-detail h4 { margin: var(--space-4) 0 var(--space-2); color: var(--gold); }
+.hub-history-week-tabs { margin-bottom: var(--space-3); }
 .hub-history-rankings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .hub-history-rankings-col h4 { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .hub-history-rankings-row { display: flex; justify-content: space-between; gap: var(--space-2); padding: 4px 0; border-top: 1px solid var(--border); }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LeagueHistoryResponse, LeagueHistorySeason } from "../../types/api.js";
@@ -11,12 +11,72 @@ function isCfbGame(game: string | null) {
   return (game ?? "").startsWith("cfb");
 }
 
+function shiftLabel(delta: number | null): string {
+  if (delta == null) return "new";
+  if (delta === 0) return "—";
+  return delta > 0 ? `▲ ${delta}` : `▼ ${Math.abs(delta)}`;
+}
+
+function WeeklyResults({ weeklyResults }: { weeklyResults: LeagueHistorySeason["weeklyResults"] }) {
+  const [activeWeek, setActiveWeek] = useState<number | null>(weeklyResults[0]?.weekNumber ?? null);
+  const week = useMemo(() => weeklyResults.find((w) => w.weekNumber === activeWeek) ?? null, [weeklyResults, activeWeek]);
+
+  if (weeklyResults.length === 0) return <p className="hub-empty">No weekly results recorded this season.</p>;
+
+  return (
+    <>
+      <div className="hub-history-season-tabs hub-history-week-tabs">
+        {weeklyResults.map((w) => (
+          <button key={w.weekNumber} type="button" className={w.weekNumber === activeWeek ? "active" : ""} onClick={() => setActiveWeek(w.weekNumber)}>
+            Week {w.weekNumber}
+          </button>
+        ))}
+      </div>
+      {week && (
+        <div className="hub-history-week-detail">
+          <div className="hub-history-table">
+            <div className="hub-history-table-row hub-history-table-head">
+              <span>Away</span><span>Home</span><span>Result</span>
+            </div>
+            {week.matchups.map((m, i) => (
+              <div key={i} className="hub-history-table-row">
+                <span>{m.awayTeam}{m.isTie ? "" : m.winner === m.awayTeam ? " ✓" : ""}</span>
+                <span>{m.homeTeam}{m.isTie ? "" : m.winner === m.homeTeam ? " ✓" : ""}</span>
+                <span>{m.awayScore ?? "—"}-{m.homeScore ?? "—"}{m.isTie ? " (T)" : ""}{m.isPlayoff ? " · Playoff" : ""}</span>
+              </div>
+            ))}
+          </div>
+          {week.powerRankingShifts.length > 0 && (
+            <>
+              <h4>Power Ranking Movement</h4>
+              <div className="hub-history-table">
+                {week.powerRankingShifts.map((s) => (
+                  <div key={s.teamName} className="hub-history-table-row hub-history-top25-row">
+                    <span>#{s.newRank}</span>
+                    <span>{s.teamName}{s.previousRank != null ? ` (was #${s.previousRank})` : ""}</span>
+                    <span>{shiftLabel(s.delta)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySeason; game: string | null }) {
   const cfb = isCfbGame(game);
   const championshipLabel = cfb ? "National Championship" : "Super Bowl";
 
   return (
     <div className="hub-history-season">
+      <Card className="hub-history-category">
+        <h3>Weekly Results</h3>
+        <WeeklyResults weeklyResults={season.weeklyResults} />
+      </Card>
+
       <Card className="hub-history-category">
         <h3>Team Records</h3>
         {season.teamRecords.length === 0 ? <p className="hub-empty">No recorded games this season.</p> : (

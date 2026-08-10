@@ -439,6 +439,11 @@ export type LeagueHistorySeason = {
     end: Array<{ rank: number; teamName: string; score: number }>; endWeek: number | null;
   };
   finalTop25: Array<{ rank: number; teamName: string; conferenceChampion: boolean }>;
+  weeklyResults: Array<{
+    weekNumber: number;
+    matchups: Array<{ homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isTie: boolean; isPlayoff: boolean }>;
+    powerRankingShifts: Array<{ teamName: string; previousRank: number | null; newRank: number; delta: number | null }>;
+  }>;
 };
 export type LeagueHistoryResponse = {
   league: { name: string; game: string | null };

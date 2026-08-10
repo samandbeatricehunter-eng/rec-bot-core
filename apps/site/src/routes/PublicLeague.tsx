@@ -8,11 +8,62 @@ function isCfbGame(game: string | null) {
   return (game ?? "").startsWith("cfb");
 }
 
+function shiftLabel(delta: number | null): string {
+  if (delta == null) return "new";
+  if (delta === 0) return "—";
+  return delta > 0 ? `▲ ${delta}` : `▼ ${Math.abs(delta)}`;
+}
+
+function PublicWeeklyResults({ weeklyResults }: { weeklyResults: PublicLeagueHistorySeason["weeklyResults"] }) {
+  const [activeWeek, setActiveWeek] = useState<number | null>(weeklyResults[0]?.weekNumber ?? null);
+  const week = weeklyResults.find((w) => w.weekNumber === activeWeek) ?? null;
+  if (weeklyResults.length === 0) return <p className="site-muted">No weekly results recorded this season.</p>;
+  return (
+    <>
+      <div className="site-public-league-season-tabs">
+        {weeklyResults.map((w) => (
+          <button key={w.weekNumber} type="button" className={w.weekNumber === activeWeek ? "active" : ""} onClick={() => setActiveWeek(w.weekNumber)}>
+            Week {w.weekNumber}
+          </button>
+        ))}
+      </div>
+      {week && (
+        <>
+          <table className="site-public-league-table">
+            <thead><tr><th>Away</th><th>Home</th><th>Result</th></tr></thead>
+            <tbody>
+              {week.matchups.map((m, i) => (
+                <tr key={i}>
+                  <td>{m.awayTeam}{m.isTie ? "" : m.winner === m.awayTeam ? " ✓" : ""}</td>
+                  <td>{m.homeTeam}{m.isTie ? "" : m.winner === m.homeTeam ? " ✓" : ""}</td>
+                  <td>{m.awayScore ?? "—"}-{m.homeScore ?? "—"}{m.isTie ? " (T)" : ""}{m.isPlayoff ? " · Playoff" : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {week.powerRankingShifts.length > 0 && (
+            <ul className="site-public-league-list">
+              {week.powerRankingShifts.map((s) => (
+                <li key={s.teamName}><span>#{s.newRank} {s.teamName}{s.previousRank != null ? ` (was #${s.previousRank})` : ""}</span><strong>{shiftLabel(s.delta)}</strong></li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeason; game: string | null }) {
   const cfb = isCfbGame(game);
   const championshipLabel = cfb ? "National Championship" : "Super Bowl";
   return (
     <>
+      <section className="site-public-league-section">
+        <h3>Weekly Results</h3>
+        <PublicWeeklyResults weeklyResults={season.weeklyResults} />
+      </section>
+
       <section className="site-public-league-section">
         <h3>Team Records</h3>
         <table className="site-public-league-table">

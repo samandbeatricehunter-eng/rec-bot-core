@@ -7,6 +7,12 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
+
+// A placeholder username stored verbatim as the raw Discord snowflake (see
+// team-ownership.service.ts's linkUserToTeam comment) never self-heals — resolve it live
+// instead of ever showing the number.
+const isRawDiscordSnowflake = (value: string | null | undefined) => Boolean(value && /^\d{17,20}$/.test(value));
 
 // "Midpoint" power-ranking week per game type — CFB's regular season peaks around week 7,
 // Madden's around week 9 (Samuel's call; there's no single neutral "half the season" week
@@ -66,9 +72,17 @@ export type LeagueHistorySeason = {
     end: Array<{ rank: number; teamName: string; score: number }>; endWeek: number | null;
   };
   finalTop25: Array<{ rank: number; teamName: string; conferenceChampion: boolean }>;
+  weeklyResults: Array<{
+    weekNumber: number;
+    matchups: Array<{
+      homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null;
+      winner: string | null; isTie: boolean; isPlayoff: boolean;
+    }>;
+    powerRankingShifts: Array<{ teamName: string; previousRank: number | null; newRank: number; delta: number | null }>;
+  }>;
 };
 
-async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: LeagueGame, teamById: Map<string, TeamRow>): Promise<LeagueHistorySeason> {
+async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: LeagueGame, teamById: Map<string, TeamRow>, liveDiscordNames: Map<string, string>): Promise<LeagueHistorySeason> {
   const [resultsRes, recordsRes, snapshotsRes] = await Promise.all([
     supabase.from("rec_game_results")
       .select("id,game_id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,is_playoff,is_super_bowl")
@@ -85,12 +99,26 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
   const results = (resultsRes.data ?? []) as GameResultRow[];
   const primaryTeam = primaryTeamForUsers(results);
 
+  const recordUserIds = (recordsRes.data ?? []).map((r: any) => r.user_id).filter(Boolean);
+  const discordAccounts = recordUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", recordUserIds)
+    : { data: [] as any[], error: null };
+  if (discordAccounts.error) throw new ApiError(500, "Failed to load coach Discord accounts for league history.", discordAccounts.error);
+  const discordIdByUser = new Map<string, string>((discordAccounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+
   const teamRecords = (recordsRes.data ?? []).map((r: any) => {
     const tId = primaryTeam.get(r.user_id) ?? null;
     const t = tId ? teamById.get(tId) : null;
+    const storedName: string | null = r.user?.display_name ?? null;
+    const discordId = discordIdByUser.get(r.user_id) ?? null;
+    const coachName =
+      (!isRawDiscordSnowflake(storedName) ? storedName : null) ??
+      (discordId && liveDiscordNames.get(discordId)) ??
+      storedName ??
+      "REC Member";
     return {
       userId: r.user_id,
-      coachName: r.user?.display_name ?? "REC Member",
+      coachName,
       teamId: tId,
       teamName: t ? teamName(t) : "Unassigned",
       abbr: t?.display_abbr ?? t?.abbreviation ?? null,
@@ -174,7 +202,59 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     finalTop25 = (top25Res.data ?? []).map((r: any) => ({ rank: Number(r.rank), teamName: teamName(teamById.get(r.team_id) ?? null), conferenceChampion: Boolean(r.conference_champion) }));
   }
 
-  return { seasonNumber, teamRecords, postseasonGames, bowlWinners, championship, powerRankings, finalTop25 };
+  // Week-by-week: every logged game grouped by week, plus that week's power-ranking movement
+  // (this week's snapshot rank vs. the prior available snapshot's rank for the same team —
+  // "prior available" rather than strictly "prior week" since snapshots aren't guaranteed for
+  // every single week).
+  const gamesByWeek = new Map<number, GameResultRow[]>();
+  for (const g of results) {
+    if (g.week_number == null) continue;
+    const list = gamesByWeek.get(g.week_number) ?? [];
+    list.push(g);
+    gamesByWeek.set(g.week_number, list);
+  }
+  const snapshotWeeksSorted = weeksAvailable;
+  function priorSnapshotWeek(week: number): number | null {
+    let best: number | null = null;
+    for (const w of snapshotWeeksSorted) if (w < week) best = w;
+    return best;
+  }
+  const rankByTeamForWeek = new Map<number, Map<string, number>>();
+  for (const week of snapshotWeeksSorted) {
+    rankByTeamForWeek.set(week, new Map(snapshots.filter((r: any) => Number(r.week_number) === week).map((r: any) => [r.team_id, Number(r.rank)])));
+  }
+  const weeklyResults: LeagueHistorySeason["weeklyResults"] = Array.from(gamesByWeek.keys()).sort((a, b) => a - b).map((weekNumber) => {
+    const matchups = (gamesByWeek.get(weekNumber) ?? []).map((g) => {
+      const homeName = teamName(teamById.get(g.home_team_id ?? "") ?? null);
+      const awayName = teamName(teamById.get(g.away_team_id ?? "") ?? null);
+      const winnerName = g.winning_team_id ? teamName(teamById.get(g.winning_team_id) ?? null) : null;
+      return {
+        homeTeam: homeName, awayTeam: awayName, homeScore: g.home_score, awayScore: g.away_score,
+        winner: winnerName, isTie: Boolean(g.is_tie), isPlayoff: Boolean(g.is_playoff || g.is_super_bowl),
+      };
+    }).sort((a, b) => a.homeTeam.localeCompare(b.homeTeam));
+
+    const thisWeekRanks = rankByTeamForWeek.get(weekNumber);
+    const priorWeek = priorSnapshotWeek(weekNumber);
+    const priorRanks = priorWeek != null ? rankByTeamForWeek.get(priorWeek) : null;
+    const powerRankingShifts = thisWeekRanks
+      ? Array.from(thisWeekRanks.entries())
+        .map(([teamId, newRank]) => {
+          const previousRank = priorRanks?.get(teamId) ?? null;
+          return {
+            teamName: teamName(teamById.get(teamId) ?? null),
+            previousRank,
+            newRank,
+            delta: previousRank != null ? previousRank - newRank : null, // positive = moved up
+          };
+        })
+        .sort((a, b) => a.newRank - b.newRank)
+      : [];
+
+    return { weekNumber, matchups, powerRankingShifts };
+  });
+
+  return { seasonNumber, teamRecords, postseasonGames, bowlWinners, championship, powerRankings, finalTop25, weeklyResults };
 }
 
 export async function getLeagueHistory(guildId: string) {
@@ -193,7 +273,8 @@ export async function getLeagueHistory(guildId: string) {
   const teamById = new Map<string, TeamRow>((teamsRes.data ?? []).map((t: any) => [t.id, t]));
   const seasonNumbers: number[] = Array.from(new Set<number>((seasonsRes.data ?? []).map((r: any) => Number(r.display_season_number)))).sort((a: number, b: number) => b - a);
 
-  const seasons = await Promise.all(seasonNumbers.map((n: number) => buildSeasonHistory(leagueId, n, game, teamById)));
+  const liveDiscordNames = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
+  const seasons = await Promise.all(seasonNumbers.map((n: number) => buildSeasonHistory(leagueId, n, game, teamById, liveDiscordNames)));
 
   return {
     league: { name: context.rec_leagues.name ?? "REC League", game },
