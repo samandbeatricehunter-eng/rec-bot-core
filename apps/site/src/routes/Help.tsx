@@ -19,7 +19,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "Do I need Discord to use REC Leagues eSports?",
-        a: "No. Leagues can run entirely standalone on the site/app. Linking a Discord server — including the REC Scout bot — is optional and available as a Platinum add-on.",
+        a: "No — a league can operate without ever connecting a Discord server, running entirely on the site/app. Linking a Discord server — including the REC Scout bot — is optional and available as a Platinum add-on.",
       },
       {
         q: "What's the difference between the site, the PWA, and Discord?",

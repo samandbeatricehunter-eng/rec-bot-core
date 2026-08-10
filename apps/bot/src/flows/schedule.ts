@@ -110,7 +110,7 @@ export async function renderScheduleMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Schedule").setDescription("Open /menu inside a REC Discord server to view league schedules.")],
+      embeds: [new EmbedBuilder().setTitle("Schedule").setDescription("Open /app inside a REC Discord server to view league schedules.")],
       components: buildScheduleRows()
     });
   }
@@ -189,7 +189,7 @@ export async function handleScheduleSos(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setDescription("Open /menu inside a REC Discord server to view SOS.")],
+      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setDescription("Open /app inside a REC Discord server to view SOS.")],
       components: buildScheduleRows(),
     });
   }
@@ -239,7 +239,7 @@ export async function handleSchedulePowerRankings(interaction: ButtonInteraction
   await interaction.deferUpdate();
   if (!interaction.guildId) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Power Rankings").setDescription("Open /menu inside a REC Discord server to view power rankings.")],
+      embeds: [new EmbedBuilder().setTitle("Power Rankings").setDescription("Open /app inside a REC Discord server to view power rankings.")],
       components: buildScheduleRows(),
     });
   }
@@ -352,7 +352,7 @@ function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
 export async function startScheduleTeamSelect(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Other Teams").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Other Teams").setDescription("Open /app inside a REC Discord server.")], components: buildScheduleRows() });
   }
   return interaction.editReply(await loadLinkedTeamSelectPayload(
     interaction.guildId,
@@ -383,7 +383,7 @@ export async function handleScheduleTeamSelect(interaction: StringSelectMenuInte
 
 export async function handleScheduleStats(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Stats").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Stats").setDescription("Open /app inside a REC Discord server.")], components: buildScheduleRows() });
   const snapshot = await recApi.getUserSnapshot(interaction.user.id, interaction.guildId);
   const selectPayload = await loadLinkedTeamSelectPayload(
     interaction.guildId,

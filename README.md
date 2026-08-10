@@ -1,14 +1,14 @@
 # REC Bot Core
 
-Clean rebuild for REC League. REC Core API is the source of truth; Discord bot is a thin menu/UI client.
+Clean rebuild for REC League. REC Core API is the source of truth; the website/app (apps/site) is the primary surface, with a thin Discord bot for server-side automation and a handful of slash commands (see `apps/bot/src/commands.ts`).
 
 ## One Command
 
 ```txt
-/menu
+/app
 ```
 
-All features branch through select menus, buttons, and modals.
+Opens the current league in the REC Leagues website/app. Other commands (`/openteams`, `/matchup`, `/schedule`, `/viewleague`, `/draft`) cover quick in-Discord lookups — see `apps/bot/src/commands.ts` for the current registry.
 
 ## Install
 
@@ -66,7 +66,7 @@ Two separate Railway services, one per app.
 
 ### Register slash commands
 
-The bot registers global commands before login and refreshes guild commands for every visible guild on startup, so each Railway deploy refreshes `/menu` automatically. If `DISCORD_GUILD_ID` is set, that guild is also refreshed before login for faster propagation during testing.
+The bot registers global commands before login and refreshes guild commands for every visible guild on startup, so each Railway deploy refreshes the registry (`apps/bot/src/commands.ts`) automatically. If `DISCORD_GUILD_ID` is set, that guild is also refreshed before login for faster propagation during testing.
 
 ```bash
 # Manual refresh, if needed

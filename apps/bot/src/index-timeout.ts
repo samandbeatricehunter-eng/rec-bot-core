@@ -458,7 +458,7 @@ async function expireWindow(interaction: Interaction) {
 async function safeInteractionError(interaction: Interaction, error: unknown) {
   console.error("Interaction handling failed", error);
   if (!interaction.isRepliable()) return;
-  const content = "REC Bot hit an error while handling that action. Please reopen /menu and try again.";
+  const content = "REC Bot hit an error while handling that action. Please reopen /app and try again.";
   if (interaction.isMessageComponent()) {
     const payload = { content, embeds: [], components: [] };
     if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
@@ -829,12 +829,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+        if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
         return interaction.showModal(buildActivityRequirementsModal(draft));
       }
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip) {
         const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+        if (!draft) return interaction.reply({ content: "Session expired. Reopen /app.", flags: MessageFlags.Ephemeral });
         draft.step = draft.editMode ? "settings_picker" : getNextLeagueSetupStep(draft.step, draft);
         leagueSetupSessions.set(interaction.user.id, draft);
         return interaction.update(buildLeagueSetupWindow(draft));
@@ -1054,7 +1054,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
 
   if (!guildId) {
     return {
-      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /menu inside a REC Discord server", canManageLeague: isAdmin })],
+      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /app inside a REC Discord server", canManageLeague: isAdmin })],
       components: buildLeagueMenuRows(false)
     };
   }

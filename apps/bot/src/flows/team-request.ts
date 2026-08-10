@@ -92,7 +92,7 @@ export async function startTeamRequestFlow(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Request Team").setDescription("Open /menu inside a REC Discord server.")],
+      embeds: [new EmbedBuilder().setTitle("Request Team").setDescription("Open /app inside a REC Discord server.")],
       components: [],
     });
   }

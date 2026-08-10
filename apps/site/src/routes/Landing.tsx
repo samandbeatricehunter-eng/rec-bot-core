@@ -14,7 +14,7 @@ const PILLARS = [
   {
     title: "Standalone or Discord-integrated leagues",
     body:
-      "Create a league that lives purely on REC League — no Discord required — or link it to your server for game-day channels, chat forwarding, and (on Platinum) the REC Scout bot posting headlines, announcements, and power rankings straight into your channels.",
+      "A league can operate without ever connecting a Discord server, running entirely on the site/app — or link it to your server for game-day channels, chat forwarding, and (on Platinum) the REC Scout bot posting headlines, announcements, and power rankings straight into your channels.",
   },
   {
     title: "A real coin economy and media system",

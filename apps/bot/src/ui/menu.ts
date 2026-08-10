@@ -15,8 +15,9 @@ import { COLORS } from "../lib/colors.js";
 /**
  * Central custom IDs for the REC menu system.
  *
- * The bot should keep a single slash command: /menu. Every workflow branches
- * from these custom IDs through buttons, select menus, and modals.
+ * /menu was retired in favor of /app (opens the website/app); these embeds/components are
+ * still used in-Discord (posted by /app and other slash commands), branching through buttons,
+ * select menus, and modals via these custom IDs.
  */
 export const MENU_CUSTOM_IDS = {
   openTeams: "rec:menu:open_teams",
@@ -226,11 +227,11 @@ export function buildLeagueMenuEmbed(input: {
 }
 
 // League Mgmt used to have a button here for commissioners/co-commissioners; it's now
-// reached via the standalone /league-mgmt command instead (same isDiscordAdminInteraction
-// gate), which goes straight to the web dashboard now that it has full League Mgmt parity.
+// reached via /app instead (same isDiscordAdminInteraction gate), which goes straight to the
+// web dashboard now that it has full League Mgmt parity.
 // The Store purchase flow moved to the web Hub the same way (2026-07-16) — the REC Store
 // section there covers every purchase type with live pricing/cap previews, so there's no
-// "Purchase" button here any more; run /hub for it.
+// "Purchase" button here any more; run /app for it.
 export function buildLeagueMenuRows(isLinkedToTeam = true) {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
