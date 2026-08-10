@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { CASE_STATUS_BADGE } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -15,6 +14,7 @@ import { ResolveNotificationModal } from "./ResolveNotificationModal.js";
 import { ActiveCheckReviewModal } from "./ActiveCheckReviewModal.js";
 import { EosAwardResolveModal } from "./EosAwardResolveModal.js";
 import { EosPayoutLedgers } from "./EosPayoutLedgers.js";
+import { CustomPlayerReviewModal } from "../settings/CustomPlayerReviewQueue.js";
 
 const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
@@ -36,8 +36,6 @@ const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "str
 // (NotificationsHome.tsx) and inline as a tab in the Commissioner's Office chat window.
 export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
-  const navigate = useNavigate();
-  const { leagueId } = useParams<{ leagueId: string }>();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
@@ -47,6 +45,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
+  const [activeCustomPlayerBuildId, setActiveCustomPlayerBuildId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
@@ -68,10 +67,10 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const typesPresent = new Set(cardNotifications.map((notification) => notification.type));
 
   function openNotification(notification: CommissionerNotification) {
-    // Custom-player review needs the full identity/attribute-edit UI that only
-    // CustomPlayerReviewQueue (League Mgmt > Settings) has — no generic approve/deny modal
-    // for it, so route straight there instead of opening ResolveNotificationModal.
-    if (notification.type === "custom_player" && leagueId) return navigate(`/l/${leagueId}/mgmt/settings?category=purchases`);
+    // Custom-player review needs the full identity/attribute-edit UI, not the generic
+    // approve/deny modal — same idea as legend/box-score/active-check/eos-award below,
+    // opened inline instead of navigating away to Settings.
+    if (notification.type === "custom_player" && notification.sourceId) return setActiveCustomPlayerBuildId(notification.sourceId);
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);
@@ -85,6 +84,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     setActiveActiveCheckId(null);
     setActiveEosAwardId(null);
     setActiveResolve(null);
+    setActiveCustomPlayerBuildId(null);
     load();
     window.dispatchEvent(new Event("rec:notifications-changed"));
   }
@@ -131,6 +131,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     {activeActiveCheckId && <ActiveCheckReviewModal eventId={activeActiveCheckId} onClose={() => setActiveActiveCheckId(null)} onResolved={() => afterResolved("Active check resolved.")} />}
     {activeEosAwardId && <EosAwardResolveModal pollId={activeEosAwardId} onClose={() => setActiveEosAwardId(null)} onResolved={() => afterResolved("Award settled.")} />}
     {activeResolve && <ResolveNotificationModal notification={activeResolve} onClose={() => setActiveResolve(null)} onResolved={() => afterResolved("Resolved.")} />}
+    {activeCustomPlayerBuildId && <CustomPlayerReviewModal guildId={guildId} buildId={activeCustomPlayerBuildId} onClose={() => setActiveCustomPlayerBuildId(null)} onResolved={() => afterResolved("Custom player reviewed.")} />}
   </>;
 }
 
