@@ -142,6 +142,10 @@ export async function createLegendPurchaseRequest(input: {
   discordId: string;
   legendId: string;
   replacementPlayerId?: string | null;
+  /** Free-text replacement request from the bot's purchase modal — not a real roster row
+   * (that's replacementPlayerId), just a name the commissioner can read when deciding who
+   * to swap out in-game. */
+  replacePlayerRequest?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
 
@@ -190,6 +194,9 @@ export async function createLegendPurchaseRequest(input: {
     // added player) this legend replaces. The commissioner can accept, change, or skip this
     // designation independently when they approve; blank means the buyer left it up to them.
     replaceTarget,
+    // Free-text version from the bot's modal, when the buyer didn't pick a real roster row —
+    // just their own description of who they'd like swapped out.
+    replacePlayerRequestText: input.replacePlayerRequest?.trim() || null,
   };
 
   const result = await createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
@@ -207,7 +214,9 @@ export async function createLegendPurchaseRequest(input: {
     `Team: ${teamName ?? "unassigned"}`,
     details.replaceTarget
       ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`
-      : "Buyer left the replaced player up to you.",
+      : details.replacePlayerRequestText
+        ? `Buyer requests replacing: ${details.replacePlayerRequestText}`
+        : "Buyer left the replaced player up to you.",
     `Dev trait: ${details.devTrait}`,
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
     "Final in-league OVR is normalized to 88 — nudge attributes as needed.",
@@ -226,6 +235,7 @@ export async function createLegendPurchaseRequest(input: {
         purchaseType: "legend",
         cost: result.price,
         replaceTarget: details.replaceTarget,
+        replacePlayerRequestText: details.replacePlayerRequestText,
         legendName: legend.data.name,
         legendPosition: legend.data.position,
         estOvr: legend.data.est_ovr,

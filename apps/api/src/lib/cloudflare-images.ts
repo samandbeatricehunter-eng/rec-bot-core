@@ -18,7 +18,7 @@ type UploadPayload = {
   errors?: Array<{ code?: number; message?: string }>;
 } | null;
 
-function deliveryUrl(accountHash: string, id: string, variants: string[] | undefined): string {
+export function deliveryUrl(accountHash: string, id: string, variants?: string[]): string {
   return accountHash ? `https://imagedelivery.net/${accountHash}/${id}/public` : variants?.[0] ?? "";
 }
 

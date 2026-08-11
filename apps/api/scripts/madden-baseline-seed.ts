@@ -24,6 +24,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "../src/config/env.js";
+import { deliveryUrl } from "../src/lib/cloudflare-images.js";
 
 // Plain PostgREST calls instead of @supabase/supabase-js — that package's createClient()
 // unconditionally instantiates a realtime client, which throws on Node <22 (no native
@@ -208,12 +209,48 @@ async function clearDataset(datasetId: string): Promise<void> {
 // upload ultimately fails; callers store "" (silhouette placeholder) rather than a dead
 // source URL.
 const CF_IMAGES_API = "https://api.cloudflare.com/client/v4";
+
+// maddenratings.com blocks plain-fetch image downloads (hotlink protection) — browser-ish
+// headers make the download succeed.
+const IMAGE_DOWNLOAD_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://www.maddenratings.com/",
+};
+
+/**
+ * Photos are permanently hosted on Cloudflare Images under a stable custom id
+ * `madden27-<slug>`, so the delivery URL is deterministic and idempotent:
+ *   https://imagedelivery.net/<hash>/madden27-<slug>/public
+ * Existing images therefore never need re-uploading — a cheap HEAD against the delivery
+ * URL confirms the photo is already permanently hosted and we just record the URL. This is
+ * what makes re-seeds fast and avoids Cloudflare's re-upload rate limits entirely.
+ */
+async function imageExists(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(15_000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Photo re-host: download each photo from the source site and upload the binary to
+// Cloudflare Images (Cloudflare's own URL-fetch is unreliable against maddenratings.com and
+// not idempotent — duplicate custom IDs error instead of replacing). Stable id
+// `madden27-<slug>` lets re-seeds replace images; on an "already exists" error we delete
+// and retry. Delivery URL is built from CLOUDFLARE_ACCOUNT_HASH when set (never serve the
+// source-site URL to end users — see plan doc §8). Returns "" if a photo is absent or the
+// upload ultimately fails; callers store "" (silhouette placeholder) rather than a dead
+// source URL.
 async function rehostPhoto(sourceUrl: string, slug: string, accountId: string, apiToken: string, accountHash: string): Promise<string> {
   if (!sourceUrl) return "";
 
   async function download(): Promise<{ ok: boolean; buffer?: ArrayBuffer; contentType?: string; status: number }> {
     try {
-      const res = await fetch(sourceUrl, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
+      const res = await fetch(sourceUrl, { headers: IMAGE_DOWNLOAD_HEADERS, redirect: "follow", signal: AbortSignal.timeout(30_000) });
       if (!res.ok) return { ok: false, status: res.status };
       return { ok: true, buffer: await res.arrayBuffer(), contentType: res.headers.get("content-type") ?? "image/png", status: res.status };
     } catch {
@@ -245,9 +282,7 @@ async function rehostPhoto(sourceUrl: string, slug: string, accountId: string, a
   async function attempt(): Promise<string> {
     const { ok, payload } = await upload();
     if (!ok) return "";
-    return accountHash
-      ? `https://imagedelivery.net/${accountHash}/madden27-${slug}/public`
-      : payload?.result?.variants?.[0] ?? "";
+    return accountHash ? deliveryUrl(accountHash, `madden27-${slug}`) : payload?.result?.variants?.[0] ?? "";
   }
 
   let url = await attempt();
@@ -348,7 +383,7 @@ async function main() {
     rows.push({
       dataset_id: datasetId,
       source_slug: slug,
-      name: row.name,
+      name: decodeEntities(row.name),
       team_abbreviation: row.team === "Free Agent" ? null : row.team,
       position: row.position,
       position_full: row.positionFull || null,
@@ -396,7 +431,7 @@ async function main() {
     rows.push({
       dataset_id: datasetId,
       source_slug: slug,
-      name: row.name,
+      name: decodeEntities(row.name),
       team_abbreviation: row.team === "Free Agent" ? null : row.team,
       position: row.position || "UNKNOWN",
       position_full: null,
@@ -425,9 +460,12 @@ async function main() {
   const apiToken = env.CLOUDFLARE_API_TOKEN?.trim() ?? "";
   const accountHash = env.CLOUDFLARE_ACCOUNT_HASH?.trim() ?? "";
   const useCloudflare = Boolean(accountId && apiToken);
-  console.log(`Re-hosting ${rows.length} photos${useCloudflare ? " via Cloudflare Images" : " (Cloudflare not configured — using source URLs)"}...`);
+  console.log(
+    `Ensuring ${rows.length} photos are permanently hosted${useCloudflare ? " via Cloudflare Images (skipping already-hosted)" : " (Cloudflare not configured — using source URLs)"}...`,
+  );
   let photosDone = 0;
   let photoFailures = 0;
+  let alreadyHosted = 0;
   const CONCURRENCY = 8;
   let next = 0;
   await Promise.all(
@@ -435,16 +473,28 @@ async function main() {
       while (next < rows.length) {
         const row = rows[next++];
         if (useCloudflare) {
-          const hosted = await rehostPhoto(String(row.photo_url ?? ""), String(row.source_slug), accountId, apiToken, accountHash);
-          if (!hosted) photoFailures++;
-          row.photo_url = hosted;
+          const srcUrl = String(row.photo_url ?? "");
+          if (srcUrl) {
+            // Photos already permanent-hosted under the stable custom id need no upload —
+            // confirm via the deterministic delivery URL and record it.
+            const delivery = accountHash ? deliveryUrl(accountHash, `madden27-${row.source_slug}`) : "";
+            if (delivery && (await imageExists(delivery))) {
+              alreadyHosted++;
+              row.photo_url = delivery;
+            } else {
+              const hosted = await rehostPhoto(srcUrl, String(row.source_slug), accountId, apiToken, accountHash);
+              if (!hosted) photoFailures++;
+              row.photo_url = hosted;
+            }
+          }
+          // rows with no photo source keep "" (silhouette placeholder)
         }
         photosDone++;
-        if (photosDone % 200 === 0) console.log(`  photos: ${photosDone}/${rows.length} (${photoFailures} failed)`);
+        if (photosDone % 200 === 0) console.log(`  photos: ${photosDone}/${rows.length} (${alreadyHosted} already hosted, ${photoFailures} failed)`);
       }
     }),
   );
-  console.log(`Photo pass done: ${photosDone} processed, ${photoFailures} with no hosted URL${useCloudflare ? "" : " (falling back to source URLs)"}.`);
+  console.log(`Photo pass done: ${photosDone} processed, ${alreadyHosted} already hosted, ${photoFailures} with no hosted URL${useCloudflare ? "" : " (falling back to source URLs)"}.`);
 
   console.log(`Inserting ${rows.length} baseline players...`);
   await insertBatched("rec_madden_baseline_players", rows);
