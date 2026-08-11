@@ -71,19 +71,21 @@ function buildAdPayload(league: { id: string; name: string; game: string }, allT
     description: `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
     color: 0x2ecc71,
     fields,
-    footer: { text: "Use the Request Team dropdown below to claim an open team." },
+    footer: { text: "League Settings for a full rundown · Request Team to claim an open team." },
   };
-  const components: any[] = [];
-  if (openCount > 0) {
-    const options = allTeams
-      .filter((team) => openTeamIds.has(team.id))
-      .slice(0, 25)
-      .map((team) => ({ label: (formatTeamDisplayName(team) ?? team.name).slice(0, 100), value: team.id }));
-    components.push({
+  // Both League Settings and Request Team open a paginated ephemeral browser (Discord modals
+  // can't hold buttons/select menus or scrollable content — only up to 5 text-input fields —
+  // so a real "browse this, then pick one" flow has to be an ephemeral message with Prev/Next
+  // buttons, not a modal).
+  const components: any[] = [
+    {
       type: 1,
-      components: [{ type: 3, custom_id: `rec:board:request:${league.id}`, placeholder: "Request a team", options } as any],
-    });
-  }
+      components: [
+        { type: 2, style: 2, label: "League Settings", custom_id: `rec:board:settings:${league.id}:0` },
+        ...(openCount > 0 ? [{ type: 2, style: 1, label: "Request Team", custom_id: `rec:board:reqpage:${league.id}:0` }] : []),
+      ],
+    },
+  ];
   return { embeds: [embed], components };
 }
 
@@ -148,6 +150,95 @@ export async function getRecruitingBoardOpenTeams(leagueId: string) {
       division: team.division ?? null,
     })),
   };
+}
+
+export type RecruitingBoardGroup = {
+  groupLabel: string;
+  teams: Array<{ id: string; name: string; open: boolean }>;
+};
+
+/** Teams grouped by conference (CFB) or division (Madden) for the paginated Request Team
+ * browser — one Discord page per group, since a single 25-option select menu can't hold a
+ * full league and a flat list has no way to convey "these go together." */
+export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<{ leagueName: string; groups: RecruitingBoardGroup[] }> {
+  const league = await loadLeagueForAd(leagueId);
+  if (!league) throw new ApiError(404, "League not found.");
+  const { openTeams, allTeams } = await listOpenTeamsForLeagueId(leagueId);
+  const openTeamIds = new Set<string>(openTeams.map((team: any) => String(team.id)));
+  const isCfb = league.game === "cfb_27";
+  const byGroup = new Map<string, RecruitingBoardGroup["teams"]>();
+  for (const team of allTeams as any[]) {
+    const key = (isCfb ? team.conference : team.division) || (isCfb ? team.division : team.conference) || "Teams";
+    const list = byGroup.get(key) ?? [];
+    list.push({ id: team.id, name: formatTeamDisplayName(team) ?? team.name, open: openTeamIds.has(team.id) });
+    byGroup.set(key, list);
+  }
+  return {
+    leagueName: league.name,
+    groups: [...byGroup.entries()].map(([groupLabel, teams]) => ({ groupLabel, teams })),
+  };
+}
+
+const LEAGUE_SETTINGS_SECTIONS: Array<{ title: string; fields: Array<[label: string, key: string]> }> = [
+  {
+    title: "General & Format",
+    fields: [
+      ["Roster type", "roster_type"], ["Season experience", "season_experience"],
+      ["Quarter length", "quarter_length_minutes"], ["Accelerated clock", "accelerated_clock_enabled"],
+      ["Difficulty", "difficulty"], ["CFB difficulty", "cfb_difficulty"],
+      ["Cross-play", "cross_play_enabled"], ["Required console", "required_console"],
+      ["Advance timing", "advance_timing"],
+    ],
+  },
+  {
+    title: "Purchases & Economy",
+    fields: [
+      ["Coin economy", "coin_economy_enabled"], ["Custom players", "custom_players_enabled"],
+      ["Legends", "legends_enabled"], ["Dev upgrades", "dev_upgrades_enabled"],
+      ["Age resets", "age_resets_enabled"], ["Attribute purchases", "attribute_purchases_enabled"],
+      ["Player trait purchases", "player_trait_purchases_enabled"], ["Contract adjustments", "contract_adjustment_purchases_enabled"],
+    ],
+  },
+  {
+    title: "Gameplay Rules",
+    fields: [
+      ["Salary cap", "salary_cap_enabled"], ["Injuries", "injury_policy"], ["Wear and tear", "wear_and_tear_enabled"],
+      ["Trade approval", "trade_approval_policy"], ["Trade deadline", "trade_deadline_enabled"],
+      ["CPU trading", "cpu_trading_policy"], ["4th down rule (regular)", "fourth_down_rule_type_regular"],
+      ["4th down rule (playoff)", "fourth_down_rule_type_playoff"], ["Custom playbooks", "custom_playbooks_allowed"],
+      ["Position changes", "position_change_policy"],
+    ],
+  },
+  {
+    title: "Streaming & Requirements",
+    fields: [
+      ["Regular season streaming", "regular_season_streaming_requirement"], ["Postseason streaming", "postseason_streaming_requirement"],
+      ["Custom coaches required", "custom_coaches_required"], ["Fair sim requirements", "fair_sim_requirements"],
+      ["Force win requirements", "force_win_requirements"],
+    ],
+  },
+];
+
+function formatSettingValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") return value.trim() ? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
+  return String(value);
+}
+
+/** Curated, recruit-relevant subset of rec_league_configuration's ~130 columns, grouped into
+ * pages — not every raw setting, just what actually helps someone decide whether to join. */
+export async function getRecruitingBoardLeagueSettings(leagueId: string): Promise<{ leagueName: string; pages: Array<{ title: string; lines: string[] }> }> {
+  const league = await loadLeagueForAd(leagueId);
+  if (!league) throw new ApiError(404, "League not found.");
+  const config = await supabase.from("rec_league_configuration").select("*").eq("league_id", leagueId).maybeSingle();
+  if (config.error) throw new ApiError(500, "Failed to load league settings.", config.error);
+  const row: Record<string, unknown> = config.data ?? {};
+  const pages = LEAGUE_SETTINGS_SECTIONS.map((section) => ({
+    title: section.title,
+    lines: section.fields.map(([label, key]) => `**${label}:** ${formatSettingValue(row[key])}`),
+  }));
+  return { leagueName: league.name, pages };
 }
 
 /** Team-request creation for the cross-league recruiting board — the requester is interacting

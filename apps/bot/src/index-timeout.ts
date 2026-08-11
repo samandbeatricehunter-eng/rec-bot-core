@@ -131,8 +131,9 @@ import {
 } from "./flows/open-teams-slash.js";
 import {
   RECRUITING_BOARD_CUSTOM_IDS,
-  handleRecruitingBoardOpenTeams,
-  handleRecruitingBoardRequestSelect,
+  handleRecruitingBoardSettings,
+  handleRecruitingBoardRequestPage,
+  handleRecruitingBoardRequestPick,
 } from "./flows/recruiting-board.js";
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
@@ -610,8 +611,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam) return handleOpenTeamsRequestTeam(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.conferenceSelect) return handleOpenTeamsRequestConference(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.teamSelectPrefix}:`)) return handleOpenTeamsRequestSelect(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.openPrefix}:`)) return handleRecruitingBoardOpenTeams(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPrefix}:`)) return handleRecruitingBoardRequestSelect(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.settingsPagePrefix}:`)) return handleRecruitingBoardSettings(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPagePrefix}:`)) return handleRecruitingBoardRequestPage(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPickPrefix}:`)) return handleRecruitingBoardRequestPick(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores) return handleWeeklyBoxScores(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats) return handleWeeklyPlayerStats(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting) return handleWeeklyRecruiting(interaction);

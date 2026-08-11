@@ -421,6 +421,17 @@ export async function completeTeamLinkRequest(input: {
     console.error("[WARN] Failed to notify approved team requester:", error);
   });
 
+  // A site notification alone strands recruiting-board requesters — they clicked a button in
+  // Discord and may never log into the site to see it. DM the same server-invite info
+  // directly; requester_discord_id is always present on a team_link_request row.
+  if (serverInviteUrl && request.requester_discord_id) {
+    const { sendDiscordDirectMessage } = await import("../../lib/discord-guild.js");
+    await sendDiscordDirectMessage(
+      request.requester_discord_id,
+      `Your request for ${request.team?.name ?? "a team"} in ${leagueDetails.data?.name ?? "REC Leagues"} was approved! Join the server: ${serverInviteUrl}${leagueDetails.data?.league_password ? `\nLeague password: ${leagueDetails.data.league_password}` : ""}`,
+    ).catch((error) => console.error("[WARN] Failed to DM approved team requester their server invite:", error));
+  }
+
   return { request: updated.data, link };
 }
 
