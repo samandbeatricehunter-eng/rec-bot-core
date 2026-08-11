@@ -1,5 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -22,7 +23,15 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
 
   let userId = account.data?.user_id;
   if (!userId) {
-    const createdUser = await supabase.from("rec_users").insert({ display_name: input.discordId, status: "active" }).select("id").single();
+    // Look up the real Discord nickname/username instead of stashing the raw snowflake as
+    // a placeholder — that placeholder was never getting corrected later, so it just showed
+    // up permanently as a number in every team/roster/chat display. Leave it null on a
+    // failed/missed lookup rather than falling back to the raw ID; a later login or hub read
+    // can still resolve a real name, but a written snowflake never self-heals.
+    const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
+    // display_name is NOT NULL — "" (its own column default) stands in for a failed/missed
+    // lookup rather than null, which would fail the insert outright.
+    const createdUser = await supabase.from("rec_users").insert({ display_name: liveName ?? "", status: "active" }).select("id").single();
     if (createdUser.error) throw new ApiError(500, "Failed to create REC user.", createdUser.error);
     userId = createdUser.data.id;
     void grantWelcomeBonus(String(userId));
@@ -215,7 +224,7 @@ async function assertLeagueHasMemberCapacity(leagueId: string, incomingUserId: s
   }
 }
 
-export async function approveTeamLinkRequest(input: { requestId: string; leagueId?: string | null; reviewerDiscordId: string }) {
+export async function approveTeamLinkRequest(input: { requestId: string; leagueId?: string | null; reviewerDiscordId: string; autoComplete?: boolean }) {
   const request = await getTeamLinkRequest(input.requestId);
   if (input.leagueId && request.league_id !== input.leagueId) throw new ApiError(404, "Team request not found.");
   if (request.status !== "pending") throw new ApiError(409, "This request is no longer pending.");
@@ -235,7 +244,13 @@ export async function approveTeamLinkRequest(input: { requestId: string; leagueI
     .eq("source_id", input.requestId);
 
   const teamRow = await supabase.from("rec_teams").select("*").eq("id", request.team_id).maybeSingle();
-  if (input.reviewerDiscordId === "web-dashboard") {
+  // The web dashboard has no separate role-selection step after Approve (unlike the bot's
+  // flow, which explicitly calls completeTeamLinkRequest itself afterward with the chosen
+  // authority) — so a web approval needs to complete the assignment immediately, or the
+  // request is left stuck at "approved" with no team_assignments row and no nickname/role
+  // sync ever fired. This used to key off reviewerDiscordId === "web-dashboard", a sentinel
+  // the route always overwrote with the caller's real Discord id before it ever reached here.
+  if (input.autoComplete) {
     return completeTeamLinkRequest({
       requestId: input.requestId,
       authority: "member",

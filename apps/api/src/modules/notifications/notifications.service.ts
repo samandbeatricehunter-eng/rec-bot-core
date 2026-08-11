@@ -55,6 +55,59 @@ function replaceDiscordMentions(value: string | null | undefined, names: Map<str
   return String(value ?? "").replace(/<@!?(\d+)>/g, (_mention, id: string) => names.get(id) ?? "REC Member");
 }
 
+// createTeamLinkRequest et al. write a synthetic "site:<userId>" requester_discord_id for a
+// requester with no Discord account at all — discordNameMap only ever looks up real Discord
+// snowflakes, so that placeholder always missed and fell through to the generic "REC Member".
+// This resolves both real requester types properly: a genuine site account shows its own
+// name; a Discord-only account (linked, but never logged into the site) is labeled as such
+// instead of blending in as if it were a full site member.
+async function requesterNameMaps(rows: Array<{ requester_discord_id: string | null; requester_user_id?: string | null }>) {
+  const discordIds = [...new Set(
+    rows.map((r) => r.requester_discord_id).filter((id): id is string => id != null && !id.startsWith("site:")),
+  )];
+  const userIds = [...new Set(rows.map((r) => r.requester_user_id).filter((id): id is string => id != null))];
+
+  type AccountRow = { discord_id: string; user_id: string | null; username: string | null; global_name: string | null };
+  type UserRow = { id: string; username: string | null; display_name: string | null; supabase_auth_user_id: string | null };
+
+  const [accounts, users] = await Promise.all([
+    discordIds.length
+      ? supabase.from("rec_discord_accounts").select("discord_id,user_id,username,global_name").in("discord_id", discordIds)
+      : Promise.resolve({ data: [] as AccountRow[], error: null as any }),
+    userIds.length
+      ? supabase.from("rec_users").select("id,username,display_name,supabase_auth_user_id").in("id", userIds)
+      : Promise.resolve({ data: [] as UserRow[], error: null as any }),
+  ]);
+  if (accounts.error) throw new ApiError(500, "Failed to resolve member names.", accounts.error);
+  if (users.error) throw new ApiError(500, "Failed to resolve member names.", users.error);
+
+  const accountRows = (accounts.data ?? []) as AccountRow[];
+  const userRows = (users.data ?? []) as UserRow[];
+
+  const userById = new Map(userRows.map((u): [string, UserRow] => [u.id, u]));
+  const byUserId = new Map<string, string>(userRows.map((u): [string, string] => [u.id, u.username || u.display_name || "Site Member"]));
+  const byDiscordId = new Map<string, string>();
+  for (const account of accountRows) {
+    const user = account.user_id ? userById.get(account.user_id) : undefined;
+    // A real site login (supabase_auth_user_id set) means their own chosen name is the best
+    // identity to show; otherwise they're Discord-only — say so, using their actual Discord
+    // username/nickname rather than the numeric snowflake.
+    const siteAccountName: string | null = user?.supabase_auth_user_id ? (user.username || user.display_name || null) : null;
+    const discordUsername = account.global_name || account.username;
+    byDiscordId.set(account.discord_id, siteAccountName || (discordUsername ? `Discord Member — ${discordUsername}` : "REC Member"));
+  }
+  return { byDiscordId, byUserId };
+}
+
+function resolveRequesterName(row: { requester_discord_id: string | null; requester_user_id?: string | null }, maps: { byDiscordId: Map<string, string>; byUserId: Map<string, string> }): string | null {
+  const discordId = row.requester_discord_id;
+  if (discordId && !discordId.startsWith("site:")) {
+    return maps.byDiscordId.get(discordId) ?? (row.requester_user_id ? maps.byUserId.get(row.requester_user_id) ?? "REC Member" : "REC Member");
+  }
+  if (row.requester_user_id) return maps.byUserId.get(row.requester_user_id) ?? "REC Member";
+  return discordId ? "REC Member" : null;
+}
+
 function scalarDetails(payload: Record<string, unknown> | null | undefined) {
   return Object.entries(payload ?? {})
     .filter(([key, value]) => !/id$/i.test(key) && !/Id$/.test(key) && ["string", "number", "boolean"].includes(typeof value))
@@ -68,7 +121,7 @@ export async function listCommissionerNotifications(
 ): Promise<{ notifications: CommissionerNotification[] }> {
   let query = supabase
     .from("rec_commissioners_inbox")
-    .select("id,queue_type,header,summary,amount,requester_discord_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id,awaiting_user_response")
+    .select("id,queue_type,header,summary,amount,requester_discord_id,requester_user_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id,awaiting_user_response")
     .eq("guild_id", guildId)
     .eq("status", "pending")
     .order("priority", { ascending: false })
@@ -79,6 +132,7 @@ export async function listCommissionerNotifications(
   if (error) throw new ApiError(500, "Failed to load commissioner notifications.", error);
 
   const names = await discordNameMap((data ?? []).flatMap((row: any) => [row.requester_discord_id]));
+  const requesterMaps = await requesterNameMaps(data ?? []);
   return {
     notifications: (data ?? []).map((row: any) => ({
       id: row.id,
@@ -87,7 +141,7 @@ export async function listCommissionerNotifications(
       subtitle: replaceDiscordMentions(row.summary, names),
       amount: row.amount == null ? null : Number(row.amount),
       submittedBy: row.requester_discord_id,
-      submittedByName: row.requester_discord_id ? names.get(row.requester_discord_id) ?? "REC Member" : null,
+      submittedByName: resolveRequesterName(row, requesterMaps),
       submittedAt: row.created_at,
       teamId: row.team_id,
       weekNumber: row.week_number,
@@ -109,7 +163,7 @@ export async function listCommissionerNotifications(
 export async function listCompletedCommissionerTransactions(guildId: string) {
   const { data, error } = await supabase
     .from("rec_commissioners_inbox")
-    .select("id,queue_type,status,header,summary,amount,requester_discord_id,reviewed_by_discord_id,reviewed_at,team_id,week_number,source_table,source_id,payload,created_at,updated_at")
+    .select("id,queue_type,status,header,summary,amount,requester_discord_id,requester_user_id,reviewed_by_discord_id,reviewed_at,team_id,week_number,source_table,source_id,payload,created_at,updated_at")
     .eq("guild_id", guildId)
     .in("queue_type", COMPLETED_TRANSACTION_TYPES)
     .in("status", ["approved", "issued", "fulfilled", "settled", "completed"])
@@ -120,6 +174,7 @@ export async function listCompletedCommissionerTransactions(guildId: string) {
 
   const rows = data ?? [];
   const names = await discordNameMap(rows.flatMap((row: any) => [row.requester_discord_id, row.reviewed_by_discord_id]));
+  const requesterMaps = await requesterNameMaps(rows);
   const sourceIds = (table: string) => rows.filter((row: any) => row.source_table === table && row.source_id).map((row: any) => row.source_id);
   const [purchases, highlights, streams] = await Promise.all([
     sourceIds("rec_purchases").length
@@ -163,7 +218,7 @@ export async function listCompletedCommissionerTransactions(guildId: string) {
         subtitle: replaceDiscordMentions(row.summary, names),
         amount: row.amount == null ? null : Number(row.amount),
         submittedBy: row.requester_discord_id,
-        submittedByName: row.requester_discord_id ? names.get(row.requester_discord_id) ?? "REC Member" : null,
+        submittedByName: resolveRequesterName(row, requesterMaps),
         submittedAt: row.created_at,
         teamId: row.team_id,
         weekNumber: row.week_number,

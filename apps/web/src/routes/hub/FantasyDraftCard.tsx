@@ -424,19 +424,24 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
             </div>
           )}
 
-          {hasPickOrder && (
-            <DraftPoolTable
-              guildId={guildId}
-              pool={pool}
-              busy={busy}
-              isCommissioner={isCommissioner}
-              status={status}
-              onWrapupTarget={setWrapupTarget}
-              onPoolAction={(action, successMessage) => void runAction(action, successMessage)}
-              onOpenPlayer={setOpenPlayer}
-              onDraftClick={(player) => handleDraftClick(player, isCommissioner)}
-            />
-          )}
+          {/* Browsing the pool (and building a personal draft board off it) doesn't need a
+              pick order yet — the players are seeded at league setup, well before the draft
+              is even scheduled. Only used to gate the whole table so nobody could look at
+              or rank players until the commissioner set the order, right before/at draft
+              time. Actual drafting stays impossible either way: the Draft/Assign row actions
+              only render for status "live"/"wrap_up", and the backend independently rejects
+              a pick against a session with no pick order. */}
+          <DraftPoolTable
+            guildId={guildId}
+            pool={pool}
+            busy={busy}
+            isCommissioner={isCommissioner}
+            status={status}
+            onWrapupTarget={setWrapupTarget}
+            onPoolAction={(action, successMessage) => void runAction(action, successMessage)}
+            onOpenPlayer={setOpenPlayer}
+            onDraftClick={(player) => handleDraftClick(player, isCommissioner)}
+          />
 
           <div className="fantasy-draft-split">
             <div className="fantasy-draft-panel">

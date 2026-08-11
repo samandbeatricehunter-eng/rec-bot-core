@@ -66,7 +66,10 @@ export async function teamRequestRoutes(app: FastifyInstance) {
       if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
       const leagueId = canonicalLeagueId ?? body.leagueId;
       if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
-      return reply.send(await approveTeamLinkRequest({ ...body, leagueId: leagueId ?? undefined }));
+      // The web dashboard has no follow-up role-selection step after Approve — auto-complete
+      // the link immediately for an authenticated web session. The bot flow calls
+      // /team-requests/complete itself afterward, so it doesn't need this.
+      return reply.send(await approveTeamLinkRequest({ ...body, leagueId: leagueId ?? undefined, autoComplete: auth.mode === "user" }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -337,9 +337,11 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     // or hub read can still resolve a real name, but a written snowflake never self-heals.
     const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
 
+    // display_name is NOT NULL — "" (its own column default) stands in for a failed/missed
+    // lookup rather than null, which would fail the insert outright.
     const user = await supabase
       .from("rec_users")
-      .insert({ display_name: liveName, status: "active" })
+      .insert({ display_name: liveName ?? "", status: "active" })
       .select("id")
       .single();
 
@@ -405,8 +407,14 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
   // Team linking intentionally starts everyone at Member. Commissioners can elevate the
   // user independently from the Roles screen after the link is established.
+  // Best-effort: a 403 here (bot's role sits below the managed roles it's assigning, or it's
+  // missing Manage Roles in this guild) used to throw and abort the whole link — the database
+  // assignment above had already committed, so the user was left "linked" with no request
+  // ever marked resolved and no chance at a nickname either. Cosmetic Discord-side sync
+  // failing should never block the actual team link.
   const memberRoleId = await ensureManagedRoleId(input.guildId, "member");
-  await addMemberRole(input.guildId, input.discordId, memberRoleId, "REC team linked; default Member role");
+  await addMemberRole(input.guildId, input.discordId, memberRoleId, "REC team linked; default Member role")
+    .catch((error) => console.error(`[WARN] Failed to add Member role for ${input.discordId} in guild ${input.guildId} (non-fatal):`, error));
 
   // Best-effort: fails silently if the member hasn't actually joined this Discord server yet
   // (e.g. they were just approved and haven't clicked their invite link) — bot/index-timeout.ts's
@@ -478,7 +486,8 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
   if (!team) return { synced: false };
 
   const memberRoleId = await ensureManagedRoleId(guildId, "member");
-  await addMemberRole(guildId, discordId, memberRoleId, "REC team linked; default Member role (caught up on guild join)");
+  await addMemberRole(guildId, discordId, memberRoleId, "REC team linked; default Member role (caught up on guild join)")
+    .catch((error) => console.error(`[WARN] Failed to add Member role for ${discordId} in guild ${guildId} (non-fatal):`, error));
   await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team, league.game === "cfb_27"), "REC team linked — nickname set to team (caught up on guild join)").catch(() => undefined);
   return { synced: true };
 }
