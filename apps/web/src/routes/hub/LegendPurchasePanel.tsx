@@ -228,7 +228,8 @@ function LegendDetailModal({
           {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
         </p>
       </div>
-      <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
+      <p>{!isCfb && <><strong>Dev Trait:</strong> {legend.dev_trait} · </>}<strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
+      {isCfb && <p className="form-hint">This legend uses the selected replacement player's in-game development trait. REC does not change or track that trait for CFB legends.</p>}
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
 
       {Object.entries(

@@ -122,12 +122,12 @@ async function main() {
   if (!dataset.length) throw new Error("No active madden_27 dataset found.");
   const datasetId = dataset[0].id;
 
-  const all: Array<{ id: string; source_slug: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }> = [];
+  const all: Array<{ id: string; source_slug: string; position: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }> = [];
   for (let offset = 0; offset < 5000; offset += 1000) {
     const rows = await fetch(
-      `${REST_URL}/rec_madden_baseline_players?select=id,source_slug,photo_url,height_inches,weight_lbs&dataset_id=eq.${datasetId}&offset=${offset}&limit=1000`,
+      `${REST_URL}/rec_madden_baseline_players?select=id,source_slug,position,photo_url,height_inches,weight_lbs&dataset_id=eq.${datasetId}&offset=${offset}&limit=1000`,
       { headers: restHeaders() },
-    ).then((r) => r.json()) as Array<{ id: string; source_slug: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }>;
+    ).then((r) => r.json()) as Array<{ id: string; source_slug: string; position: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }>;
     if (!rows.length) break;
     all.push(...rows);
   }
@@ -172,7 +172,7 @@ async function main() {
   // Keep every imported rec_players copy aligned with its stable baseline source row so the
   // website draft cards show the newly hosted photo plus height and weight immediately.
   let synced = 0;
-  const syncable = all.filter((row) => row.photo_url || row.height_inches != null || row.weight_lbs != null);
+  const syncable = all.filter((row) => row.position || row.photo_url || row.height_inches != null || row.weight_lbs != null);
   next = 0;
   await Promise.all(Array.from({ length: 8 }, async () => {
     while (next < syncable.length) {
@@ -183,6 +183,7 @@ async function main() {
           method: "PATCH",
           headers: restHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({
+            position: row.position || null,
             photo_url: row.photo_url || null,
             height_inches: row.height_inches,
             weight_lbs: row.weight_lbs,

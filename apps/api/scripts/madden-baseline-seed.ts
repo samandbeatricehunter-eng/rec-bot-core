@@ -70,6 +70,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "data", "madden27");
 const M26_DIR = join(__dirname, "data", "madden26");
 const GAME_TITLE = "madden_27";
+const POSITION_CORRECTIONS: Record<string, string> = {
+  // The source free-agent CSV omits his position; EA lists Amadi as a cornerback.
+  "ugo-amadi": "CB",
+};
 const PROVIDER = "maddenratings.com";
 const SOURCE_VERSION = "2026-08-07";
 
@@ -385,7 +389,7 @@ async function main() {
       source_slug: slug,
       name: decodeEntities(row.name),
       team_abbreviation: row.team === "Free Agent" ? null : row.team,
-      position: row.position,
+      position: row.position || POSITION_CORRECTIONS[slug] || "UNKNOWN",
       position_full: row.positionFull || null,
       jersey_number: num(row.jersey),
       archetype: row.archetype || null,

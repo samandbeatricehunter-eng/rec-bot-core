@@ -206,21 +206,15 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
 
   function handleBoardReorder(next: FantasyDraftPoolPlayer[]) {
     const nextIds = next.map((p) => p.id);
-    setBoardOrder((current) => {
-      // When a position/search filter is active the reorder applies to a subsequence of
-      // the full board; merge the new subset order back in so unlisted players keep their slots.
-      if (nextIds.length === current.length) return nextIds;
-      const subsetIds = new Set(nextIds);
-      const result: string[] = [];
-      let cursor = 0;
-      for (const id of current) {
-        result.push(subsetIds.has(id) ? nextIds[cursor++]! : id);
-      }
-      return result;
-    });
+    const subsetIds = new Set(nextIds);
+    let cursor = 0;
+    const merged = nextIds.length === boardOrder.length
+      ? nextIds
+      : boardOrder.map((id) => subsetIds.has(id) ? nextIds[cursor++]! : id);
+    setBoardOrder(merged);
     if (boardSaveTimerRef.current) window.clearTimeout(boardSaveTimerRef.current);
     boardSaveTimerRef.current = window.setTimeout(() => {
-      void runAction(() => recApi.saveFantasyDraftBoard({ guildId, playerIds: nextIds }));
+      void runAction(() => recApi.saveFantasyDraftBoard({ guildId, playerIds: merged }));
     }, 600);
   }
 
@@ -955,7 +949,7 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
   );
 }
 
-const BOARD_ALL_SORT_OPTIONS = ["overallRating", ...ATTRIBUTE_ALL_KEYS];
+const BOARD_ALL_SORT_OPTIONS = ["custom", "overallRating", ...ATTRIBUTE_ALL_KEYS];
 
 /** My Board and My Roster, side by side, sharing one position filter. Board is per-position:
  * filtered to a single position it's a drag-to-reorder ranking of just that position; on "All"
@@ -969,13 +963,17 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
   onReorder: (next: FantasyDraftPoolPlayer[]) => void;
 }) {
   const [positionFilter, setPositionFilter] = useState("All");
-  const [allSortKey, setAllSortKey] = useState("overallRating");
+  const [allSortKey, setAllSortKey] = useState("custom");
 
   const tabs = positionTabs([...boardPlayers, ...myRoster]);
 
   const visibleBoard = positionFilter === "All"
-    ? [...boardPlayers].sort((a, b) => (b.attributes[allSortKey] ?? b.overallRating ?? -1) - (a.attributes[allSortKey] ?? a.overallRating ?? -1))
+    ? allSortKey === "custom"
+      ? boardPlayers
+      : [...boardPlayers].sort((a, b) => (allSortKey === "overallRating" ? b.overallRating ?? -1 : b.attributes[allSortKey] ?? -1) - (allSortKey === "overallRating" ? a.overallRating ?? -1 : a.attributes[allSortKey] ?? -1))
     : boardPlayers.filter((p) => p.position === positionFilter);
+
+  const allSortLabel = allSortKey === "custom" ? "your custom rank" : allSortKey === "overallRating" ? "OVR (high to low)" : `${attributeLabel(allSortKey)} (high to low)`;
 
   const visibleRoster = myRoster
     .filter((p) => positionFilter === "All" || p.position === positionFilter)
@@ -995,7 +993,7 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
           <label className="fantasy-draft-board-sort">
             Sort by
             <select className="form-input" value={allSortKey} onChange={(e) => setAllSortKey(e.target.value)}>
-              {BOARD_ALL_SORT_OPTIONS.map((key) => <option key={key} value={key}>{key === "overallRating" ? "OVR" : attributeLabel(key)}</option>)}
+              {BOARD_ALL_SORT_OPTIONS.map((key) => <option key={key} value={key}>{key === "custom" ? "My custom rank" : key === "overallRating" ? "OVR" : attributeLabel(key)}</option>)}
             </select>
           </label>
         )}
@@ -1006,29 +1004,18 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
           <h4 className="fantasy-draft-column-title">My Board</h4>
           <p className="fantasy-draft-panel-hint">
             {positionFilter === "All"
-              ? "All positions, sorted by the selected attribute. Pick a position tab to drag-reorder your ranking within it."
+              ? `All positions, sorted by ${allSortLabel}. Drag to set your main ranking; moving players at the same position also updates that position's ranking.`
               : "Drag players to rank them (top = most wanted). Drafted players drop off automatically."}
           </p>
           {visibleBoard.length === 0 ? (
             <p className="hub-empty">{boardPlayers.length === 0 ? "Your board is empty — add players from the draft pool." : "No players in this position group yet."}</p>
-          ) : positionFilter === "All" ? (
-            <div className="fantasy-draft-roster">
-              {visibleBoard.map((player) => (
-                <div key={player.id} className="fantasy-draft-roster-row">
-                  <div className="fantasy-draft-player-identity">
-                    {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
-                    <div>
-                      <strong>{player.name}</strong>
-                      <small>{player.position} · {player.overallRating ?? "—"} OVR</small>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : (
             <SortableRankedList
               items={visibleBoard}
-              onReorder={onReorder}
+              onReorder={(next) => {
+                if (positionFilter === "All") setAllSortKey("custom");
+                onReorder(next);
+              }}
               renderContent={(player) => (
                 <div className="fantasy-draft-player-identity">
                   {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}

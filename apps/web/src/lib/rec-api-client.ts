@@ -349,7 +349,7 @@ export const recApi = {
   forceCloseTradeVote: (input: { guildId: string; tradeId: string; action: "approve" | "reject" }) =>
     recApiFetch<{ status: string }>("/v1/trades/vote-force-close", { method: "POST", body: JSON.stringify(input) }),
   listTradeableTeams: (guildId: string) =>
-    recApiFetch<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>("/v1/trades/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean; hasSiteAccount: boolean }>>("/v1/trades/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
   listTradeBlockPlayers: (guildId: string) =>
     recApiFetch<Array<{ id: string; fullName: string; position: string; overallRating: number | null; teamId: string; teamName: string; note: string | null; listedAt: string | null }>>("/v1/trades/trade-block/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   setPlayerTradeBlock: (input: { guildId: string; playerId: string; listed: boolean; note?: string }) =>

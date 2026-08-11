@@ -39,6 +39,12 @@ async function userForTeam(leagueId: string, teamId: string) {
   return assignment.data?.user_id ? String(assignment.data.user_id) : null;
 }
 
+async function hasSiteAccount(userId: string) {
+  const user = await supabase.from("rec_users").select("supabase_auth_user_id").eq("id", userId).maybeSingle();
+  if (user.error) throw new ApiError(500, "Failed to check that coach's site account.", user.error);
+  return Boolean(user.data?.supabase_auth_user_id);
+}
+
 async function walletBalance(userId: string) {
   const wallet = await supabase.from("rec_wallets").select("wallet_balance").eq("user_id", userId).maybeSingle();
   return Number(wallet.data?.wallet_balance ?? 0);
@@ -192,6 +198,10 @@ export async function proposeTrade(input: {
   const cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
 
   const receivingUserId = await userForTeam(context.leagueId, input.receivingTeamId);
+  const receivingHasSiteAccount = receivingUserId ? await hasSiteAccount(receivingUserId) : false;
+  if (receivingUserId && !receivingHasSiteAccount && (input.offeredCoins > 0 || input.requestedCoins > 0)) {
+    throw new ApiError(400, "Coins can't be included until the other coach has registered on the REC site.");
+  }
   if (!receivingUserId) {
     if (cpuPolicy === "not_allowed") throw new ApiError(400, "This league does not allow trades with CPU-controlled teams.");
     const cpuTradeCap = Number(config.data?.cpu_trades_season_cap ?? 0);
@@ -661,11 +671,18 @@ export async function listTradeableTeams(guildId: string) {
   const assignments = await supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null);
   if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
   const userByTeam = new Map((assignments.data ?? []).map((a: any) => [a.team_id, a.user_id]));
+  const assignedUserIds = [...new Set([...userByTeam.values()].filter(Boolean))];
+  const users = assignedUserIds.length
+    ? await supabase.from("rec_users").select("id,supabase_auth_user_id").in("id", assignedUserIds)
+    : { data: [], error: null };
+  if (users.error) throw new ApiError(500, "Failed to load coach site-account status.", users.error);
+  const siteUsers = new Set((users.data ?? []).filter((user: any) => user.supabase_auth_user_id).map((user: any) => user.id));
   return (teams.data ?? []).map((t: any) => ({
     id: t.id,
     name: t.name,
     abbreviation: t.display_abbr || t.abbreviation,
     isCpu: !userByTeam.has(t.id),
+    hasSiteAccount: siteUsers.has(userByTeam.get(t.id)),
   }));
 }
 

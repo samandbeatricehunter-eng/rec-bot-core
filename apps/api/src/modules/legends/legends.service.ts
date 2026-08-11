@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { createPurchaseRequest } from "../purchases/purchases.service.js";
+import { isCompatibleReplacementPosition } from "@rec/shared";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
 
@@ -21,8 +22,8 @@ export async function listLegendCatalog(guildId: string) {
     .order("position", { ascending: true })
     .order("name", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load legend catalog.", error);
-  const highestDevTrait = context.rec_leagues?.game === "cfb_27" ? "elite" : "xfactor";
-  return { legends: (data ?? []).map((legend: any) => ({ ...legend, dev_trait: highestDevTrait })) };
+  const isCfb = context.rec_leagues?.game === "cfb_27";
+  return { legends: (data ?? []).map((legend: any) => ({ ...legend, dev_trait: isCfb ? null : "xfactor" })) };
 }
 
 async function activeLeagueLegendPurchases(leagueId: string) {
@@ -155,6 +156,7 @@ export async function createLegendPurchaseRequest(input: {
   }
 
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
+  const isCfb = context.rec_leagues.game === "cfb_27";
 
   // Only recruits/manually-added players are eligible replacement targets — same rule as
   // custom-player builds (the default baseline roster is never selectable here).
@@ -165,20 +167,26 @@ export async function createLegendPurchaseRequest(input: {
       .eq("id", input.replacementPlayerId).eq("league_id", context.leagueId).eq("team_id", teamId)
       .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
     if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
+    if (isCfb && !isCompatibleReplacementPosition(legend.data.position, found.data.position)) {
+      throw new ApiError(400, `${legend.data.name} must replace an added/recruited player at a compatible ${legend.data.position} position.`);
+    }
     replaceTarget = { playerId: found.data.id, position: found.data.position, firstName: found.data.first_name, lastName: found.data.last_name };
+  }
+  if (isCfb && !replaceTarget) {
+    throw new ApiError(400, "CFB legends require a specific added/recruited roster player to replace so the legend inherits that roster position.");
   }
 
   const details = {
     legendId: legend.data.id,
     name: legend.data.name,
-    position: legend.data.position,
+    position: isCfb ? replaceTarget!.position : legend.data.position,
     positionGroup: legend.data.position_group,
     estOvr: legend.data.est_ovr,
     height: legend.data.height,
     weight: legend.data.weight,
     hand: legend.data.hand,
     jerseyNumber: legend.data.jersey_number,
-    devTrait: context.rec_leagues.game === "cfb_27" ? "elite" : "xfactor",
+    devTrait: isCfb ? null : "xfactor",
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
@@ -186,9 +194,9 @@ export async function createLegendPurchaseRequest(input: {
     attributes: legend.data.attributes,
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
-    // Buyer's requested replacement target, if any — the actual roster row (recruit/manually
-    // added player) this legend replaces. The commissioner can accept, change, or skip this
-    // designation independently when they approve; blank means the buyer left it up to them.
+    isCfb,
+    // CFB requires this exact compatible roster row; Madden may leave it blank or allow the
+    // commissioner to override it during review.
     replaceTarget,
   };
 
@@ -208,7 +216,7 @@ export async function createLegendPurchaseRequest(input: {
     details.replaceTarget
       ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`
       : "Buyer left the replaced player up to you.",
-    `Dev trait: ${details.devTrait}`,
+    ...(!isCfb ? [`Dev trait: ${details.devTrait}`] : []),
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
     "Final in-league OVR is normalized to 88 — nudge attributes as needed.",
     "",
@@ -229,7 +237,8 @@ export async function createLegendPurchaseRequest(input: {
         legendName: legend.data.name,
         legendPosition: legend.data.position,
         estOvr: legend.data.est_ovr,
-        devTrait: details.devTrait,
+        isCfb,
+        ...(!isCfb ? { devTrait: details.devTrait } : {}),
         bodyType: details.bodyType ?? null,
         height: legend.data.height ?? null,
         weight: legend.data.weight ?? null,

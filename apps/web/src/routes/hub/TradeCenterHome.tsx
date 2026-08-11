@@ -563,7 +563,7 @@ export function TradeCenterHome() {
   const isCommissioner = hub.currentLeague?.isCommissioner ?? false;
 
   const [myRoster, setMyRoster] = useState<TeamRosterResponse | null>(null);
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean }>>([]);
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean; hasSiteAccount: boolean }>>([]);
   const [opponentTeamId, setOpponentTeamId] = useState<string>("");
   const [opponentRoster, setOpponentRoster] = useState<TeamRosterResponse | null>(null);
   const [offeredLegs, setOfferedLegs] = useState<TradeLegInput[]>([]);
@@ -615,6 +615,8 @@ export function TradeCenterHome() {
   }
 
   const otherTeams = useMemo(() => teams.filter((t) => t.id !== myRoster?.team.id), [teams, myRoster]);
+  const opponent = teams.find((team) => team.id === opponentTeamId);
+  const opponentIsDiscordOnly = Boolean(opponent && !opponent.isCpu && !opponent.hasSiteAccount);
 
   async function submitProposal() {
     if (!opponentTeamId) { setError("Pick a team to trade with."); return; }
@@ -720,7 +722,13 @@ export function TradeCenterHome() {
         <h3>Propose a Trade</h3>
         <label className="form-field">
           <span className="form-label">Trade with</span>
-          <select className="form-input" value={opponentTeamId} onChange={(event) => { setOpponentTeamId(event.target.value); setRequestedLegs([]); }}>
+          <select className="form-input" value={opponentTeamId} onChange={(event) => {
+            const nextTeamId = event.target.value;
+            const nextTeam = teams.find((team) => team.id === nextTeamId);
+            setOpponentTeamId(nextTeamId);
+            setRequestedLegs([]);
+            if (!nextTeam?.hasSiteAccount) { setOfferedCoins(0); setRequestedCoins(0); }
+          }}>
             <option value="">Select a team…</option>
             {otherTeams.map((team) => (
               <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
@@ -734,7 +742,7 @@ export function TradeCenterHome() {
             <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
             <label className="form-field">
               <span className="form-label">Coins to include</span>
-              <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} />
+              <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={opponentIsDiscordOnly} />
             </label>
           </div>
           <div className="hub-trade-side">
@@ -742,23 +750,30 @@ export function TradeCenterHome() {
             <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
             <label className="form-field">
               <span className="form-label">Coins to request</span>
-              <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || teams.find((t) => t.id === opponentTeamId)?.isCpu} />
+              <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || opponent?.isCpu || opponentIsDiscordOnly} />
             </label>
           </div>
         </div>
 
+        {opponentIsDiscordOnly && (
+          <p className="form-hint">Coins are unavailable for this trade because the other coach does not have a REC site account.</p>
+        )}
+
         {opponentTeamId && (
-          <TradeEvaluatorPanel
-            guildId={guildId}
-            proposingTeamId={myRoster.team.id}
-            receivingTeamId={opponentTeamId}
-            proposingLabel={myRoster.team.name ?? "Your team"}
-            receivingLabel={otherTeams.find((t) => t.id === opponentTeamId)?.name ?? "Other team"}
-            offeredLegs={offeredLegs}
-            requestedLegs={requestedLegs}
-            offeredCoins={offeredCoins}
-            requestedCoins={requestedCoins}
-          />
+          <section className="hub-trade-evaluator">
+            <h4>Trade Evaluator</h4>
+            <TradeEvaluatorPanel
+              guildId={guildId}
+              proposingTeamId={myRoster.team.id}
+              receivingTeamId={opponentTeamId}
+              proposingLabel={myRoster.team.name ?? "Your team"}
+              receivingLabel={otherTeams.find((t) => t.id === opponentTeamId)?.name ?? "Other team"}
+              offeredLegs={offeredLegs}
+              requestedLegs={requestedLegs}
+              offeredCoins={offeredCoins}
+              requestedCoins={requestedCoins}
+            />
+          </section>
         )}
 
         <button type="button" className="btn btn-primary" disabled={busy || !opponentTeamId || (offeredLegs.length === 0 && requestedLegs.length === 0 && offeredCoins === 0 && requestedCoins === 0)} onClick={() => void submitProposal()}>

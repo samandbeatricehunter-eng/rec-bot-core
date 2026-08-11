@@ -94,12 +94,21 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   // Commissioner's final call (name-based, from the review UI) wins over the buyer's original
   // pick (a real player id) when given; otherwise fall back to the buyer's request.
   let replacementPlayerId: string | null = details.replaceTarget?.playerId ?? null;
-  if (details.finalReplaceTarget) {
+  if (!isCfbLeague && details.finalReplaceTarget) {
     const match = await supabase.from("rec_players").select("id")
       .eq("league_id", leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false)
       .eq("position", details.finalReplaceTarget.position).eq("first_name", details.finalReplaceTarget.firstName).eq("last_name", details.finalReplaceTarget.lastName)
       .maybeSingle();
     if (match.data?.id) replacementPlayerId = match.data.id;
+  }
+  let inheritedCfbPosition: string | null = null;
+  if (isCfbLeague) {
+    if (!replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
+    const replacement = await supabase.from("rec_players").select("id,position")
+      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
+      .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
+    if (!replacement.data) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
+    inheritedCfbPosition = replacement.data.position;
   }
 
   const nameParts = String(details.name ?? "").trim().split(/\s+/);
@@ -113,13 +122,13 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     first_name: firstName,
     last_name: lastName,
     full_name: details.name,
-    position: details.position,
+    position: inheritedCfbPosition ?? details.position,
     height_inches: parseLegendHeightInches(details.height),
     weight_lbs: details.weight ?? null,
     handedness: details.hand ?? null,
     jersey_number: details.jerseyNumber ?? null,
     college: !isCfbLeague ? (details.college ?? null) : null,
-    dev_trait: details.devTrait ?? null,
+    dev_trait: isCfbLeague ? null : (details.devTrait ?? null),
     // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
     // is an integer column — round it, or the insert fails outright with a Postgres type error.
     overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,

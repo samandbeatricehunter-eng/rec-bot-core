@@ -78,6 +78,7 @@ function ReplacementDesignator({
 // a sorted attribute table, so a commissioner can actually scan it instead of reading a
 // run-on paragraph or a plain list of newline-separated lines.
 function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> }) {
+  const isCfb = payload.isCfb === true;
   const attributes = Object.entries((payload.attributes as Record<string, number>) ?? {}).sort(([, a], [, b]) => b - a);
   const replaceTarget = payload.replaceTarget as { position: string; firstName: string; lastName: string } | null | undefined;
   const facts: Array<[string, string]> = [
@@ -86,9 +87,9 @@ function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> })
     ["Height", String(payload.height ?? "—")],
     ["Weight", payload.weight != null ? `${payload.weight} lb` : "—"],
     ["Est. OVR", String(payload.estOvr ?? "—")],
-    ["Dev Trait", String(payload.devTrait ?? "—")],
+    ...(!isCfb ? [["Dev Trait", String(payload.devTrait ?? "—")] as [string, string]] : []),
     ...(payload.bodyType ? [["Body Type", String(payload.bodyType)] as [string, string]] : []),
-    ["Replaces", replaceTarget ? `${replaceTarget.position} ${replaceTarget.firstName} ${replaceTarget.lastName}` : "Commissioner's choice"],
+    ["Replaces", replaceTarget ? `${replaceTarget.position} ${replaceTarget.firstName} ${replaceTarget.lastName}` : isCfb ? "Required replacement missing" : "Commissioner's choice"],
   ];
   return (
     <div className="legend-purchase-detail">
@@ -391,7 +392,7 @@ export function ResolveNotificationModal({
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>
       )}
 
-      {notification.type === "legend" && (
+      {notification.type === "legend" && notification.payload?.isCfb !== true && (
         <ReplacementDesignator
           initial={buyerReplaceTarget}
           designate={designateReplacement}

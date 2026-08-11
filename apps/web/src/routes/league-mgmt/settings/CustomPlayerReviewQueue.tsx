@@ -13,6 +13,26 @@ function completeRatings(build: any) {
   return Object.fromEntries(codes.map((code) => [code, Number(build.attributes?.[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)]));
 }
 
+function HeightFields({ heightInches, onChange }: { heightInches: number; onChange: (heightInches: number) => void }) {
+  const safeHeight = Math.max(60, Math.min(84, Number(heightInches) || 72));
+  const feet = Math.floor(safeHeight / 12);
+  const inches = safeHeight % 12;
+  const inchOptions = feet === 7 ? [0] : Array.from({ length: 12 }, (_, value) => value);
+  return <>
+    <label>Height (ft)<select className="form-select" value={feet} onChange={(event) => {
+      const nextFeet = Number(event.target.value);
+      onChange(nextFeet * 12 + (nextFeet === 7 ? 0 : inches));
+    }}>
+      <option value={5}>5 ft</option>
+      <option value={6}>6 ft</option>
+      <option value={7}>7 ft</option>
+    </select></label>
+    <label>Height (in)<select className="form-select" value={feet === 7 ? 0 : inches} onChange={(event) => onChange(feet * 12 + Number(event.target.value))}>
+      {inchOptions.map((value) => <option key={value} value={value}>{value} in</option>)}
+    </select></label>
+  </>;
+}
+
 // Single-build review UI — the identity/attribute-edit form a generic approve/deny modal
 // can't offer. Shared by the full Settings > Purchases queue (every pending build at once)
 // and CustomPlayerReviewModal (one build, opened straight from a Pending Items notification).
@@ -39,11 +59,11 @@ function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteCha
       <label>Last name<input className="form-input" value={identity.lastName ?? ""} onChange={(event) => setIdentity("lastName", event.target.value)} /></label>
       <label>Jersey #<input className="form-input" type="number" min={0} max={99} value={identity.jerseyNumber ?? 0} onChange={(event) => setIdentity("jerseyNumber", Number(event.target.value))} /></label>
       <label>Hand<select className="form-select" value={identity.handedness ?? "right"} onChange={(event) => setIdentity("handedness", event.target.value)}><option value="right">Right</option><option value="left">Left</option></select></label>
-      <label>Height (in)<input className="form-input" type="number" min={60} max={84} value={identity.heightInches ?? 72} onChange={(event) => setIdentity("heightInches", Number(event.target.value))} /></label>
+      <HeightFields heightInches={identity.heightInches ?? 72} onChange={(value) => setIdentity("heightInches", value)} />
       <label>Weight (lb)<input className="form-input" type="number" min={140} max={400} value={identity.weightLbs ?? 200} onChange={(event) => setIdentity("weightLbs", Number(event.target.value))} /></label>
       {build.game_family !== "CFB" ? <><label>Hometown<input className="form-input" value={identity.hometownCity ?? ""} onChange={(event) => setIdentity("hometownCity", event.target.value)} /></label><label>State<input className="form-input" value={identity.hometownState ?? ""} onChange={(event) => setIdentity("hometownState", event.target.value)} /></label><label>College<input className="form-input" value={identity.college ?? ""} onChange={(event) => setIdentity("college", event.target.value)} /></label></> : null}
     </div>
-    <p className="form-hint"><strong>Locked purchase selections:</strong> {build.position} · {String(build.selected_archetype_key).replaceAll("_", " ")} · {build.development_trait}. Commissioners cannot change these during approval.</p>
+    <p className="form-hint"><strong>Locked purchase selections:</strong> {build.position}{build.game_family !== "CFB" ? ` · ${build.development_trait}` : ""}. Commissioners cannot change these during approval.</p>
     <h4>Submitted Ratings</h4>
     <div className="custom-player-fields">{sortRecAttributeCodes(Object.keys(edit.attributes ?? {})).map((code) => <label key={code}>{getRecAttributeDisplayName(code)} ({code.toUpperCase()})<input className="form-input" type="number" min={0} max={99} value={Number(edit.attributes[code])} onChange={(event) => onEditChange({ attributes: { ...edit.attributes, [code]: Math.max(0, Math.min(99, Number(event.target.value))) } })} /></label>)}</div>
     <textarea className="form-input" rows={2} placeholder="Commissioner note or required rejection reason" value={note} onChange={(event) => onNoteChange(event.target.value)} />

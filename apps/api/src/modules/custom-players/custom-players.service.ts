@@ -446,7 +446,6 @@ export async function submitCustomPlayer(input: {
       `Team: ${teamName ?? "Unassigned"}`,
       `Package: ${pkg.displayName} (${formatCoins(pkg.coinPrice)})`,
       replacement.data ? `Replaces: ${String(replacement.data.first_name)} ${String(replacement.data.last_name)}` : "New player (no roster replacement).",
-      `Archetype: ${evaluation.inferredArchetypeKey ?? input.archetypeKey}`,
       "",
       "Attributes:",
       attrLines,
@@ -502,7 +501,10 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
   };
   validateIdentity(build.game_family, adjusted.identity, build.position);
   const reevaluated = evaluateCustomPlayer({ game: build.game_family, packageTier: build.package_tier, position: build.position, archetypeKey: build.selected_archetype_key, developmentTrait: build.development_trait, attributes: adjusted.attributes, mode: "submit" });
-  if (!reevaluated.valid) throw new ApiError(409, "The saved build no longer passes authoritative validation.");
+  if (!reevaluated.valid) {
+    const reason = reevaluated.violations?.[0]?.message;
+    throw new ApiError(409, reason || "The adjusted build does not pass authoritative validation.");
+  }
   if (reevaluated.rawOverall > 88) throw new ApiError(409, "Custom-player OVR cannot exceed the league-wide 88 OVR ceiling. Reduce ratings before applying.");
   const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
   const track = (field: string, from: unknown, to: unknown) => { if (JSON.stringify(from ?? null) !== JSON.stringify(to ?? null)) changes.push({ field, from: from ?? null, to: to ?? null }); };
