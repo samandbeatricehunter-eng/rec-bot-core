@@ -269,6 +269,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [discordBusy, setDiscordBusy] = useState(false);
   const [discordError, setDiscordError] = useState<string | null>(null);
   const [discordConnectResult, setDiscordConnectResult] = useState<{ serverName: string; inviteUrl: string } | null>(null);
+  const [postInviteBusy, setPostInviteBusy] = useState(false);
+  const [postInviteResult, setPostInviteResult] = useState<{ botJoined: boolean; nicknameSet: boolean; channels: Array<{ key: string; label: string; configured: boolean; maddenOnly: boolean }> } | null>(null);
+  const [postInviteError, setPostInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,6 +361,21 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     } catch (err) {
       setDiscordBusy(false);
       setDiscordError(err instanceof Error ? err.message : "Failed to connect the Discord server.");
+    }
+  }
+
+  async function confirmBotJoined() {
+    if (!leagueId) return;
+    setPostInviteBusy(true);
+    setPostInviteError(null);
+    try {
+      const result = await siteApi.completeDiscordPostInviteSetup(leagueId);
+      setPostInviteResult(result);
+      if (!result.botJoined) setPostInviteError("The bot hasn't joined that server yet — click \"Invite the REC bot\" above, complete the Discord authorization, then check again.");
+    } catch (err) {
+      setPostInviteError(err instanceof Error ? err.message : "Failed to check Discord setup.");
+    } finally {
+      setPostInviteBusy(false);
     }
   }
 
@@ -1499,7 +1517,28 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   <a className="site-btn site-btn-primary" href={discordConnectResult.inviteUrl} target="_blank" rel="noreferrer">
                     Invite the REC bot
                   </a>
-                  <p className="site-muted">The bot will be active once invited.</p>
+                  <p className="site-muted">Once you've added it, come back here and confirm:</p>
+                  <button type="button" className="site-btn site-btn-secondary" disabled={postInviteBusy} onClick={() => void confirmBotJoined()}>
+                    {postInviteBusy ? "Checking…" : "I've invited the bot"}
+                  </button>
+                  {postInviteError && <p className="site-auth-error">{postInviteError}</p>}
+                  {postInviteResult?.botJoined && (
+                    <>
+                      <p className="site-muted">
+                        The bot is in your server{postInviteResult.nicknameSet ? " — your commissioner nickname and role are set." : "."}
+                      </p>
+                      <p className="site-muted">Channel routing:</p>
+                      <ul className="site-public-league-list">
+                        {postInviteResult.channels.map((c) => (
+                          <li key={c.key}>
+                            <span>{c.label}</span>
+                            <strong>{c.configured ? "Connected" : "Not set yet"}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="site-muted">Finish assigning any unset channels anytime from League Management → Settings → Channels.</p>
+                    </>
+                  )}
                 </>
               ) : discordGuilds.length > 0 ? (
                 <>

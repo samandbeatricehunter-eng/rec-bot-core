@@ -1,7 +1,10 @@
+import { REC_ROUTE_CHANNELS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { listInstallableDiscordGuilds } from "../../lib/discord-oauth.js";
+import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, isBotInGuild, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { registerServer } from "../setup/setup.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { assertLeagueNotFrozen } from "./entitlements.service.js";
 
 /**
@@ -123,4 +126,78 @@ export async function linkSiteLeagueToServer(input: LinkSiteLeagueToServerInput)
     server: { id: serverResult.server.id, name: serverResult.server.name },
     serverLeagueLink: link,
   };
+}
+
+function buildCommissionerNickname(teamDisplayName: string): string {
+  const suffix = " (Commissioner)";
+  const maxBase = Math.max(0, 32 - suffix.length);
+  const base = teamDisplayName.length > maxBase ? teamDisplayName.slice(0, maxBase).trim() : teamDisplayName;
+  return `${base}${suffix}`;
+}
+
+/**
+ * The "second cycle" of Discord setup — called from the wizard once the commissioner reports
+ * they've clicked the invite link. Confirms the bot has actually landed in the guild (rather
+ * than trusting the click), then does the parts of onboarding that used to require a manual
+ * follow-up: pushes the bot's managed roles as high in the hierarchy as it's allowed, grants
+ * the commissioner their Commissioner role + a nickname built from the team they picked during
+ * setup, and reports which of the standard channel routes are/aren't wired yet so the
+ * commissioner knows exactly what's left before pointing them at League Mgmt > Settings.
+ */
+export async function completeDiscordPostInviteSetup(input: { leagueId: string; requestedByUserId: string }) {
+  const league = await supabase.from("rec_leagues").select("id,game").eq("id", input.leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (!league.data) throw new ApiError(404, "League not found.");
+
+  const link = await supabase.from("rec_server_league_links").select("server_id").eq("league_id", input.leagueId).eq("is_primary", true).maybeSingle();
+  if (link.error) throw new ApiError(500, "Failed to load Discord server link.", link.error);
+  if (!link.data) throw new ApiError(404, "This league has no Discord server connected yet.");
+
+  const server = await supabase.from("rec_discord_servers").select("guild_id").eq("id", link.data.server_id).maybeSingle();
+  if (server.error) throw new ApiError(500, "Failed to load Discord server.", server.error);
+  if (!server.data) throw new ApiError(404, "Discord server record not found.");
+  const guildId = server.data.guild_id;
+
+  const botJoined = await isBotInGuild(guildId).catch(() => false);
+  if (!botJoined) {
+    return { botJoined: false as const, nicknameSet: false, channels: [] as Array<{ key: string; label: string; configured: boolean; maddenOnly: boolean }> };
+  }
+
+  await ensureManagedRolesPositioned(guildId).catch((error) => console.error("[WARN] Failed to position managed roles after bot invite:", error));
+
+  let nicknameSet = false;
+  const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.requestedByUserId).maybeSingle();
+  if (account.data?.discord_id) {
+    try {
+      const commissionerRoleId = await ensureManagedRoleId(guildId, "commissioner");
+      await addMemberRole(guildId, account.data.discord_id, commissionerRoleId, "REC post-invite setup — league commissioner");
+      const assignment = await supabase
+        .from("rec_team_assignments")
+        .select("team:rec_teams(name,display_nick,is_relocated,display_city)")
+        .eq("league_id", input.leagueId)
+        .eq("user_id", input.requestedByUserId)
+        .eq("assignment_status", "active")
+        .is("ended_at", null)
+        .maybeSingle();
+      const team = assignment.data?.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null; display_city?: string | null } | null;
+      const teamDisplayName = team ? (formatTeamDisplayName(team) ?? team.name ?? "Commissioner") : "Commissioner";
+      await setGuildMemberNickname(guildId, account.data.discord_id, buildCommissionerNickname(teamDisplayName), "REC post-invite setup — commissioner nickname");
+      nicknameSet = true;
+    } catch (error) {
+      console.error("[WARN] Failed to set commissioner role/nickname after bot invite:", error);
+    }
+  }
+
+  const routes = await supabase.from("rec_server_routes").select("*").eq("server_id", link.data.server_id).maybeSingle();
+  const routeRow = (routes.data ?? {}) as Record<string, unknown>;
+  const channels = Object.entries(REC_ROUTE_CHANNELS)
+    .filter(([, config]) => !("madden_only" in config && config.madden_only) || league.data.game !== "cfb_27")
+    .map(([key, config]) => ({
+      key,
+      label: config.label,
+      configured: Boolean(routeRow[config.dbField]),
+      maddenOnly: "madden_only" in config && Boolean(config.madden_only),
+    }));
+
+  return { botJoined: true as const, nicknameSet, channels };
 }

@@ -449,6 +449,13 @@ export const siteApi = {
   linkLeagueToServer(input: { leagueId: string; providerToken: string; guildId: string; serverName?: string }) {
     return request<{ linked: true; server: { id: string; name: string } }>("/v1/site-leagues/link-server", input);
   },
+  completeDiscordPostInviteSetup(leagueId: string) {
+    return request<{
+      botJoined: boolean;
+      nicknameSet: boolean;
+      channels: Array<{ key: string; label: string; configured: boolean; maddenOnly: boolean }>;
+    }>("/v1/site-leagues/discord-post-invite", { leagueId });
+  },
   enableLeagueBot(leagueId: string) {
     return request<{
       league: {

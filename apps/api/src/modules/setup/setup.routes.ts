@@ -13,7 +13,7 @@ const DeleteLeagueSchema = z.object({
 });
 import { createLeagueForServer } from "./setup-season.service.js";
 import { publishRecGuideFromApi } from "../server-config/rec-guide-publisher.service.js";
-import { linkSiteLeagueToServer } from "../subscriptions/bot-invite.service.js";
+import { completeDiscordPostInviteSetup, linkSiteLeagueToServer } from "../subscriptions/bot-invite.service.js";
 import { isAllowedLeagueCreator, requireSiteLeagueCreator, resolveSiteLeagueCreator } from "../../lib/site-league-creator.js";
 import {
   registerServer,
@@ -386,6 +386,18 @@ export async function setupRoutes(app: FastifyInstance) {
       const resolved = await resolveSiteLeagueCreator(request);
       if (!resolved) throw new ApiError(401, "Sign in to link a Discord server.");
       return reply.send(await linkSiteLeagueToServer({ ...body, requestedByUserId: resolved.userId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Called from the wizard's Discord step after the commissioner reports clicking the invite
+  // link — confirms the bot is actually in the guild before doing anything, then sets up the
+  // role hierarchy, commissioner nickname/role, and reports channel-routing status.
+  app.post("/v1/site-leagues/discord-post-invite", async (request, reply) => {
+    try {
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body);
+      const resolved = await resolveSiteLeagueCreator(request);
+      if (!resolved) throw new ApiError(401, "Sign in to finish Discord setup.");
+      return reply.send(await completeDiscordPostInviteSetup({ leagueId: body.leagueId, requestedByUserId: resolved.userId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

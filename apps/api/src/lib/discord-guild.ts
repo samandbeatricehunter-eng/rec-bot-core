@@ -57,6 +57,15 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
   });
 }
 
+/** Whether the bot has actually joined this guild yet — distinct from "is this guild linked
+ * to a league in our DB" (registerServer/ensurePrimaryServerLeagueLink happen the moment a
+ * commissioner picks a server, before they've clicked the invite link at all). */
+export async function isBotInGuild(guildId: string): Promise<boolean> {
+  const botId = await getBotUserId();
+  const res = await discordBotFetch(`/guilds/${guildId}/members/${botId}`);
+  return res.ok;
+}
+
 export async function getBotUserId(): Promise<string> {
   if (botUserIdCache && botUserIdCache.expiresAt > Date.now()) return botUserIdCache.value;
   const res = await discordBotFetch("/users/@me");
