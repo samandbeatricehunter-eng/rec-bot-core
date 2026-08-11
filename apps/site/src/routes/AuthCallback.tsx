@@ -47,8 +47,14 @@ export function AuthCallback() {
           setMessage("Applying your promo code…");
           try {
             await siteApi.redeemPromoCode(pendingPromoCode);
-          } catch {
-            // Invalid/expired/already-used codes shouldn't block sign-in — just skip silently.
+          } catch (promoError) {
+            // A bad/expired/already-used code shouldn't block sign-in, but silently eating the
+            // failure left users believing a code worked when it never redeemed at all — show it,
+            // then continue in instead of navigating away before they can read it.
+            if (cancelled) return;
+            const reason = promoError instanceof Error ? promoError.message : "That promo code didn't apply.";
+            setMessage(`Signed in, but ${reason} Continuing to REC Leagues…`);
+            await new Promise((resolve) => window.setTimeout(resolve, 3000));
           }
           if (cancelled) return;
         }
