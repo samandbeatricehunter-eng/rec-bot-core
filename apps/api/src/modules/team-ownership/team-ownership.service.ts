@@ -353,7 +353,13 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
       .select("user_id")
       .single();
 
-    if (created.error) throw new ApiError(500, "Failed to create Discord account link.", created.error);
+    if (created.error) {
+      // Roll back the just-created rec_users row rather than leaving it orphaned — with no
+      // rec_discord_accounts row it can never self-heal its blank display_name later, and it
+      // has no team/league attachment either, so it just sits as a permanent nameless ghost.
+      await supabase.from("rec_users").delete().eq("id", user.data.id);
+      throw new ApiError(500, "Failed to create Discord account link.", created.error);
+    }
     userId = created.data.user_id;
   }
 

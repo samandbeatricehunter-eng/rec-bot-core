@@ -788,7 +788,7 @@ function ImpersonatePanel() {
       <ul className="site-account-notif-list">
         {users.map((user) => (
           <li key={user.id}>
-            <strong>@{user.username ?? user.displayName}</strong>
+            <strong>@{user.username || user.displayName || "Unresolved account"}</strong>
             <span>
               {user.subscriptionTier} {user.hasSiteAccount ? "" : "· no site account"}
             </span>

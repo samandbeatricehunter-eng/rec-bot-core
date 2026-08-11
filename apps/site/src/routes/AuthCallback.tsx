@@ -59,6 +59,19 @@ export function AuthCallback() {
           if (cancelled) return;
         }
 
+        // We don't offer a free tier — every real account needs Gold or Platinum (via the
+        // 7-day trial or a lifetime grant). Signing up with email or "Continue with Discord"
+        // both create a real, usable rec_users row before any of that happens, so without this
+        // check a user can land in the app on tier "none" and silently hit walls later (e.g.
+        // team-request approval rejecting them) with no idea why. Re-check after the promo
+        // code attempt above, since a code may have just granted the tier that was missing.
+        const profile = await siteApi.getLinkProfile().catch(() => null);
+        if (cancelled) return;
+        if (!profile?.entitlements || profile.entitlements.tier === "none") {
+          navigate("/pricing", { replace: true });
+          return;
+        }
+
         setMessage("You're in. Taking you to REC Leagues…");
         navigate(next, { replace: true });
       } catch (cause) {

@@ -17,7 +17,11 @@ export function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
-  if (auth.status === "signed-in") return <Navigate to={next} replace />;
+  // A brand-new email/password account has no tier yet (we don't offer a free tier) — send
+  // them to pick Gold/Platinum instead of straight into the app. This only fires if Supabase
+  // Auth is configured to skip email confirmation and hands back an immediate session; the
+  // confirmation-link path goes through AuthCallback, which has its own version of this check.
+  if (auth.status === "signed-in") return <Navigate to="/pricing" replace />;
 
   // Read by AuthCallback once the session actually exists (email confirmation and Discord
   // OAuth both leave this page before a session is available to redeem against).
