@@ -394,6 +394,9 @@ h1, h2, h3, .site-wordmark {
 .site-public-league-season-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .site-public-league-season-tabs button { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-weight: 700; font-size: 13px; }
 .site-public-league-season-tabs button.active { border-color: var(--accent-bright); color: var(--accent-bright); }
+.site-discord-owner-notice { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--gold, #d4a843); border-radius: var(--radius-md); background: color-mix(in srgb, var(--gold, #d4a843) 9%, var(--surface)); }
+.site-discord-owner-notice strong { display: block; margin-bottom: 4px; color: var(--accent-bright); }
+.site-discord-owner-notice p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
 
 /* Full-fidelity public league preview. This intentionally mirrors the signed-in shell while
    keeping every mutation behind an explicit read-only boundary. */

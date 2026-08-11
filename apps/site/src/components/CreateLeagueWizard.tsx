@@ -1527,6 +1527,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       <p className="site-muted">
                         The bot is in your server{postInviteResult.nicknameSet ? " — your commissioner nickname and role are set." : "."}
                       </p>
+                      <aside className="site-discord-owner-notice" role="note" aria-label="Discord server owner nickname limitation">
+                        <strong>Server owner nickname</strong>
+                        <p>
+                          If you are the current Discord server owner, Discord does not allow REC Scout—or any bot—to change your nickname, even with Administrator permission. Change your own server nickname manually to your {game === "cfb_27" ? "school" : "team"} name. REC Scout can still assign and reconcile your Commissioner, Member, and team roles normally.
+                        </p>
+                      </aside>
                       <p className="site-muted">Channel routing:</p>
                       <ul className="site-public-league-list">
                         {postInviteResult.channels.map((c) => (
