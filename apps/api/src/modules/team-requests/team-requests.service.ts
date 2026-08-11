@@ -259,11 +259,23 @@ export async function approveTeamLinkRequest(input: { requestId: string; leagueI
   // sync ever fired. This used to key off reviewerDiscordId === "web-dashboard", a sentinel
   // the route always overwrote with the caller's real Discord id before it ever reached here.
   if (input.autoComplete) {
-    return completeTeamLinkRequest({
-      requestId: input.requestId,
-      authority: "member",
-      reviewerDiscordId: input.reviewerDiscordId,
-    });
+    try {
+      return await completeTeamLinkRequest({
+        requestId: input.requestId,
+        authority: "member",
+        reviewerDiscordId: input.reviewerDiscordId,
+      });
+    } catch (error) {
+      // completeTeamLinkRequest can still fail here (e.g. the requester's subscription tier no
+      // longer qualifies them to join) even though the request/inbox row was already flipped to
+      // "approved" above — without reverting that, the request is stuck "approved" forever with
+      // no real team assignment, and the pending item silently vanishes from the commissioner's
+      // queue instead of surfacing the failure.
+      await supabase.from("rec_team_link_requests").update({ status: "pending", updated_at: new Date().toISOString() }).eq("id", input.requestId);
+      await supabase.from("rec_commissioners_inbox").update({ status: "pending", reviewed_by_discord_id: null, reviewed_at: null })
+        .eq("source_table", "rec_team_link_requests").eq("source_id", input.requestId);
+      throw error;
+    }
   }
   return {
     ...updated.data,
