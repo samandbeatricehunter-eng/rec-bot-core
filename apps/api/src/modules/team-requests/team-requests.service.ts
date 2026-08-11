@@ -385,19 +385,31 @@ export async function completeTeamLinkRequest(input: {
   if (leagueDetails.data?.discord_bot_enabled) {
     const link = await supabase
       .from("rec_server_league_links")
-      .select("server_id")
+      .select("server_id, server:rec_discord_servers(guild_id)")
       .eq("league_id", request.league_id)
       .eq("is_primary", true)
       .maybeSingle();
     const route = link.data?.server_id
       ? await supabase
         .from("rec_server_routes")
-        .select("main_chat_channel_id")
+        .select("main_chat_channel_id, general_chat_channel_id, announcements_channel_id")
         .eq("server_id", link.data.server_id)
         .maybeSingle()
       : null;
-    if (route?.data?.main_chat_channel_id) {
-      serverInviteUrl = await createDiscordChannelInvite(route.data.main_chat_channel_id);
+    // main_chat_channel_id is frequently never set for a server (it's only wired up by a
+    // specific setup step) — falling back to whatever other invite-able channel actually IS
+    // configured, and finally to any live text channel in the guild, instead of silently
+    // giving up and leaving the requester with no invite at all.
+    let inviteChannelId: string | null =
+      route?.data?.main_chat_channel_id ?? route?.data?.general_chat_channel_id ?? route?.data?.announcements_channel_id ?? null;
+    const guildId = (link.data as any)?.server?.guild_id as string | undefined;
+    if (!inviteChannelId && guildId) {
+      const { listGuildChannels } = await import("../../lib/discord-guild.js");
+      const channels = await listGuildChannels(guildId).catch(() => [] as Awaited<ReturnType<typeof listGuildChannels>>);
+      inviteChannelId = channels.find((c) => c.type === "text")?.id ?? null;
+    }
+    if (inviteChannelId) {
+      serverInviteUrl = await createDiscordChannelInvite(inviteChannelId);
     }
   }
   await createSiteNotification({

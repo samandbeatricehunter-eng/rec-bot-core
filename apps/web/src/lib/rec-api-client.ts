@@ -632,6 +632,12 @@ export const recApi = {
       failed: Array<{ discordId: string; nickname: string; reason: string }>;
       skipped: Array<{ discordId: string; reason: string }>;
     }>("/v1/roles/resync-nicknames", { method: "POST", body: JSON.stringify({ guildId }) }),
+  reconcileRoles: (guildId: string) =>
+    recApiFetch<{
+      corrected: Array<{ discordId: string; from: string[]; to: string | null }>;
+      alreadyCorrect: number;
+      failed: Array<{ discordId: string; reason: string }>;
+    }>("/v1/roles/reconcile", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Settings (Phase 2)
   getServerChannels: (guildId: string) => recApiFetch<{ channels: Array<{ id: string; name: string; type: "text" | "category" }>; routes: Record<string, string | null> }>("/v1/server-config/channels", { method: "POST", body: JSON.stringify({ guildId }) }),

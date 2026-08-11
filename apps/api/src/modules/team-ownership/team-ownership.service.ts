@@ -5,7 +5,8 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
-import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
@@ -550,6 +551,87 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   }
 
   return { synced, failed, skipped };
+}
+
+type AssignableRoleKey = "member" | "compCommittee" | "commissioner";
+
+function authorityToRoleKey(authority: string | null | undefined): AssignableRoleKey {
+  if (authority === "commissioner") return "commissioner";
+  if (authority === "co_commissioner") return "compCommittee";
+  return "member";
+}
+
+/** Bulk fix for a Discord server that previously hosted a different REC league (or whose
+ * roles just drifted from reality over time): every guild member currently holding a REC
+ * managed role gets reconciled against this league's real active team assignments — wrong or
+ * stale commissioner/comp-committee/member roles from a prior season or a prior league on
+ * this same server are stripped, and the correct role for their current assignment (if any)
+ * is (re)applied. Also pushes the bot's own managed roles as high in the hierarchy as it can
+ * (see ensureManagedRolesPositioned) since a reused server commonly has the bot's role sitting
+ * wherever a previous setup left it. */
+export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
+  corrected: Array<{ discordId: string; from: string[]; to: string | null }>;
+  alreadyCorrect: number;
+  failed: Array<{ discordId: string; reason: string }>;
+}> {
+  const { league } = await getCurrentLeagueForGuild(guildId);
+  await ensureManagedRolesPositioned(guildId).catch(() => undefined);
+
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,notes")
+    .eq("league_id", league.id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+
+  const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id).filter(Boolean))];
+  const accounts = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    : { data: [] as any[], error: null };
+  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  const discordIdByUser = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+
+  const expectedRoleKeyByDiscordId = new Map<string, AssignableRoleKey>();
+  for (const row of assignments.data ?? []) {
+    const discordId = discordIdByUser.get(row.user_id);
+    if (!discordId) continue;
+    const authority = String(row.notes ?? "").replace("Authority: ", "");
+    expectedRoleKeyByDiscordId.set(discordId, authorityToRoleKey(authority));
+  }
+
+  const [members, roleIdByKeyEntries] = await Promise.all([
+    listGuildMembers(guildId),
+    Promise.all((["member", "compCommittee", "commissioner"] as const).map(async (key) => [key, await ensureManagedRoleId(guildId, key)] as const)),
+  ]);
+  const roleIdByKey = new Map(roleIdByKeyEntries);
+
+  const corrected: Array<{ discordId: string; from: string[]; to: string | null }> = [];
+  const failed: Array<{ discordId: string; reason: string }> = [];
+  let alreadyCorrect = 0;
+
+  for (const member of members) {
+    if (member.isBot) continue;
+    const expectedKey = expectedRoleKeyByDiscordId.get(member.discordId) ?? null;
+    const heldKey = member.managedRole === "discordOnly" ? null : member.managedRole;
+    if (heldKey === expectedKey) { if (heldKey) alreadyCorrect += 1; continue; }
+    try {
+      const rolesToStrip = (["member", "compCommittee", "commissioner"] as const).filter((key) => key !== expectedKey && key === heldKey);
+      for (const key of rolesToStrip) {
+        const roleId = roleIdByKey.get(key);
+        if (roleId) await removeMemberRole(guildId, member.discordId, roleId, "REC role reconcile — stale/incorrect authority role");
+      }
+      if (expectedKey) {
+        const roleId = roleIdByKey.get(expectedKey);
+        if (roleId) await addMemberRole(guildId, member.discordId, roleId, "REC role reconcile — corrected to current team assignment");
+      }
+      corrected.push({ discordId: member.discordId, from: heldKey ? [REC_MANAGED_ROLES[heldKey].name] : [], to: expectedKey ? REC_MANAGED_ROLES[expectedKey].name : null });
+    } catch (error) {
+      failed.push({ discordId: member.discordId, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { corrected, alreadyCorrect, failed };
 }
 
 export async function listLinkedUsersTeams(guildId: string) {

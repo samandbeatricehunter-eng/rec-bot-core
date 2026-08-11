@@ -11,6 +11,7 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 const LABELS: Record<RoleMgmtRoleKey, string> = { member: roleDisplayTitle("member"), compCommittee: roleDisplayTitle("co_commissioner"), commissioner: roleDisplayTitle("commissioner") };
 const SITE_ASSIGNABLE_ROLES: RoleMgmtRoleKey[] = ["member", "compCommittee"];
 type ResyncResult = { synced: Array<{ discordId: string; nickname: string }>; failed: Array<{ discordId: string; nickname: string; reason: string }>; skipped: Array<{ discordId: string; reason: string }> };
+type ReconcileResult = { corrected: Array<{ discordId: string; from: string[]; to: string | null }>; alreadyCorrect: number; failed: Array<{ discordId: string; reason: string }> };
 
 export function RolesHome() {
   const { guildId } = useReadyAuth();
@@ -19,6 +20,8 @@ export function RolesHome() {
   const [error, setError] = useState<string | null>(null);
   const [resyncBusy, setResyncBusy] = useState(false);
   const [resyncResult, setResyncResult] = useState<ResyncResult | null>(null);
+  const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
   const load = () => recApi.listRoleMgmtMembers(guildId).then((r) => setMembers(r.members)).catch((e) => setError(e instanceof Error ? e.message : "Failed to load roles."));
   useEffect(() => { void load(); }, [guildId]);
   const groups = useMemo(() => (Object.keys(LABELS) as RoleMgmtRoleKey[]).map((role) => [role, (members ?? []).filter((m) => m.managedRole === role)] as const), [members]);
@@ -33,6 +36,12 @@ export function RolesHome() {
     catch (e) { setError(e instanceof Error ? e.message : "Failed to resync nicknames."); }
     finally { setResyncBusy(false); }
   }
+  async function reconcileRoles() {
+    setReconcileBusy(true); setReconcileResult(null); setError(null);
+    try { setReconcileResult(await recApi.reconcileRoles(guildId)); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "Failed to reconcile roles."); }
+    finally { setReconcileBusy(false); }
+  }
   return <div><PageHeader title="Roles" subtitle="Linked users grouped by their current REC role. Changes save immediately." />
     {error && <ErrorState message={error} />}{!members && !error && <LoadingState />}
     <Card style={{ marginBottom: "var(--space-4)" }}>
@@ -45,6 +54,26 @@ export function RolesHome() {
           {resyncResult.failed.length > 0 && (
             <ul style={{ color: "var(--danger, #e05252)", margin: "8px 0 0" }}>
               {resyncResult.failed.map((row) => <li key={row.discordId}>&lt;@{row.discordId}&gt; → "{row.nickname}": {row.reason}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </Card>
+    <Card style={{ marginBottom: "var(--space-4)" }}>
+      <h3 style={{ marginTop: 0 }}>Roles</h3>
+      <p style={{ color: "var(--text-secondary)" }}>Strips Commissioner/Co-Commish/Member roles from anyone who no longer matches this league's current team assignments (common after a Discord server was previously used for a different league or season) and grants the correct one to anyone missing it. Also pushes the bot's managed roles as high in the server's role hierarchy as it's allowed to go.</p>
+      <button type="button" className="btn btn-secondary" disabled={reconcileBusy} onClick={() => void reconcileRoles()}>{reconcileBusy ? "Reconciling…" : "Reconcile Roles"}</button>
+      {reconcileResult && (
+        <div style={{ marginTop: "var(--space-3)" }}>
+          <p style={{ margin: 0 }}><strong>{reconcileResult.corrected.length}</strong> corrected, <strong>{reconcileResult.alreadyCorrect}</strong> already correct, <strong>{reconcileResult.failed.length}</strong> failed.</p>
+          {reconcileResult.corrected.length > 0 && (
+            <ul style={{ margin: "8px 0 0" }}>
+              {reconcileResult.corrected.map((row) => <li key={row.discordId}>&lt;@{row.discordId}&gt;: {row.from.length ? row.from.join(", ") : "none"} → {row.to ?? "none"}</li>)}
+            </ul>
+          )}
+          {reconcileResult.failed.length > 0 && (
+            <ul style={{ color: "var(--danger, #e05252)", margin: "8px 0 0" }}>
+              {reconcileResult.failed.map((row) => <li key={row.discordId}>&lt;@{row.discordId}&gt;: {row.reason}</li>)}
             </ul>
           )}
         </div>

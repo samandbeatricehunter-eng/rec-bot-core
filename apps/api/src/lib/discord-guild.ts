@@ -608,9 +608,10 @@ export async function getGuildMemberDisplayNameMap(guildId: string): Promise<Map
 }
 
 // Find-or-create a REC managed role by name (mirrors apps/bot/src/lib/role-sync.ts's
-// ensureRole, minus hierarchy positioning — a guild only reaches the web dashboard after
-// the bot has already run there at least once, so orderRecRoles will already have placed
-// these roles sensibly; re-ordering them isn't worth porting for this path).
+// ensureRole). Freshly created roles land wherever Discord happens to insert them (usually
+// the bottom of the list) — ensureManagedRolesPositioned pushes it as high as the bot's own
+// role allows, best-effort, so newly-linked members' highest role stays below the bot's and
+// nickname/role changes don't start silently failing the moment a new managed role appears.
 export async function ensureManagedRoleId(guildId: string, roleKey: RecManagedRoleKey): Promise<string> {
   const definition = REC_MANAGED_ROLES[roleKey];
   const roles = await getGuildRoles(guildId);
@@ -625,7 +626,44 @@ export async function ensureManagedRoleId(guildId: string, roleKey: RecManagedRo
   if (!res.ok) throw new Error(`Failed to create role "${definition.name}" (${res.status})`);
   const created = (await res.json()) as { id: string };
   roleListCache.delete(guildId);
+  await ensureManagedRolesPositioned(guildId).catch(() => undefined);
   return created.id;
+}
+
+// REST equivalent of apps/bot/src/lib/role-sync.ts's orderRecRoles — moves the four REC
+// managed roles as high as the bot's own top role allows. A bot can only ever reposition
+// roles up to (never above) its own highest role's current position; if a human placed the
+// bot's role below some other manually-created role, no API call — Administrator or not —
+// can move it higher than that. This just makes sure the bot uses all the headroom it does
+// have, instead of leaving newly-created managed roles wherever Discord happened to insert
+// them (usually the very bottom).
+export async function ensureManagedRolesPositioned(guildId: string): Promise<void> {
+  const botId = await getBotUserId();
+  const [roleIds, roles] = await Promise.all([getMemberRoleIds(guildId, botId), getGuildRoles(guildId)]);
+  if (!roleIds) return;
+  const positionsRes = await discordBotFetch(`/guilds/${guildId}/roles`);
+  if (!positionsRes.ok) return;
+  const allRoles = (await positionsRes.json()) as Array<{ id: string; name: string; position: number }>;
+  const botHighestPosition = Math.max(0, ...allRoles.filter((r) => roleIds.includes(r.id)).map((r) => r.position));
+  if (botHighestPosition <= 0) return;
+
+  const byName = new Map(allRoles.map((r) => [r.name, r]));
+  const order: RecManagedRoleKey[] = ["commissioner", "compCommittee", "member", "discordOnly"];
+  const updates: Array<{ id: string; position: number }> = [];
+  let nextPosition = botHighestPosition - 1;
+  for (const key of order) {
+    const role = byName.get(REC_MANAGED_ROLES[key].name);
+    if (!role || nextPosition <= 0) continue;
+    if (role.position !== nextPosition) updates.push({ id: role.id, position: nextPosition });
+    nextPosition -= 1;
+  }
+  if (!updates.length) return;
+  await discordBotFetch(`/guilds/${guildId}/roles`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": "REC managed role hierarchy sync" },
+    body: JSON.stringify(updates),
+  }).catch(() => undefined);
+  roleListCache.delete(guildId);
 }
 
 export async function addMemberRole(guildId: string, discordId: string, roleId: string, reason: string): Promise<void> {
@@ -668,5 +706,13 @@ export async function setGuildMemberNickname(guildId: string, discordId: string,
     body: JSON.stringify({ nick: nickname.slice(0, 32) }),
   });
   guildMemberListCache.delete(guildId);
-  if (!res.ok) throw new Error(`Failed to update nickname (${res.status})`);
+  if (!res.ok) {
+    // Surface Discord's actual error body, not just the HTTP status — a bare "403" collapses
+    // "target is the guild owner" (code 50013, Discord blocks this for any bot unconditionally)
+    // and "bot's role sits below the target's" (also 50013, but fixable by reordering roles)
+    // into the same unreadable message. Distinguishing them requires the real payload.
+    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    const detail = body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`;
+    throw new Error(`Failed to update nickname: ${detail}`);
+  }
 }
