@@ -316,6 +316,27 @@ export type AdminUserSummary = {
   hasSiteAccount: boolean;
 };
 
+/** Backs the Stats snapshot's expandable "New accounts (7d)" tile — same 7-day window
+ * getAdminStats counts, listed out by name instead of just the number. */
+export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[] }> {
+  const result = await getPgPool().query(`
+    select id, username, display_name, subscription_tier, supabase_auth_user_id
+    from rec_users
+    where created_at >= now() - interval '7 days'
+    order by created_at desc
+    limit 200
+  `);
+  return {
+    users: result.rows.map((row: any) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.username ?? row.display_name ?? "REC Member",
+      subscriptionTier: row.subscription_tier,
+      hasSiteAccount: Boolean(row.supabase_auth_user_id),
+    })),
+  };
+}
+
 export async function searchAdminUsers(input: { query?: string; limit?: number }): Promise<{
   users: AdminUserSummary[];
 }> {

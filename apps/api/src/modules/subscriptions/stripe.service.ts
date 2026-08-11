@@ -111,7 +111,7 @@ export async function createCheckoutSession(input: {
   const stripe = getStripe();
   const existing = await supabase
     .from("rec_users")
-    .select("stripe_subscription_id,billing_status,trial_used_at")
+    .select("stripe_subscription_id,billing_status,trial_used_at,promo_trial_ends_at")
     .eq("id", input.userId)
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to check the current subscription.", existing.error);
@@ -121,6 +121,16 @@ export async function createCheckoutSession(input: {
   const customerId = await ensureStripeCustomer(input.userId, input.email);
   const interval = input.interval ?? "month";
   const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
+
+  // A promo-granted trial (billing_status "promo_trial") already has its own end date, set
+  // independent of Stripe's own once-per-account 7-day trial — checkout must honor whatever's
+  // left of THAT window instead of resetting it back to a flat 7 days, or a user with e.g. 6
+  // weeks left on a 2-month promo trial would get shorted down to one week the moment they
+  // added a card.
+  const promoTrialEndsAt = existing.data?.promo_trial_ends_at ? new Date(existing.data.promo_trial_ends_at) : null;
+  const promoTrialDaysRemaining = promoTrialEndsAt && promoTrialEndsAt.getTime() > Date.now()
+    ? Math.max(1, Math.ceil((promoTrialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -137,8 +147,11 @@ export async function createCheckoutSession(input: {
       // Checkout Sessions don't apply Dashboard-configured Trial Offers — those only kick
       // in when creating subscriptions via the Subscriptions API directly. This is the
       // Checkout-compatible equivalent, applied once per account (trial_used_at gets set
-      // by the webhook the first time a subscription actually enters "trialing").
-      ...(existing.data?.trial_used_at ? {} : { trial_period_days: 7 }),
+      // by the webhook the first time a subscription actually enters "trialing"). A promo
+      // trial's remaining days take priority over the standard one-time 7-day trial.
+      ...(promoTrialDaysRemaining
+        ? { trial_period_days: promoTrialDaysRemaining }
+        : existing.data?.trial_used_at ? {} : { trial_period_days: 7 }),
       metadata: {
         rec_user_id: input.userId,
         tier: input.tier,

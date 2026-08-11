@@ -184,11 +184,16 @@ export const recApi = {
   getLeagueStats: (input: { guildId: string; teamId?: string | null; position?: string | null }) =>
     recApiFetch<{
       league: { id: string; name: string; game: string; season_number: number };
-      teams: Array<{ id: string; name: string; abbreviation: string | null }>;
+      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>;
       positions: string[];
-      players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
+      players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; photoUrl: string | null; devTrait: string | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
       leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
     }>("/v1/hub/league-stats", { method: "POST", body: JSON.stringify(input) }),
+  getLeagueTeamStats: (guildId: string) =>
+    recApiFetch<{
+      league: { id: string; name: string; game: string; season_number: number };
+      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null; stats: Record<string, number> }>;
+    }>("/v1/hub/league-team-stats", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>

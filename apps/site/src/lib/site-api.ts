@@ -878,6 +878,9 @@ export const siteApi = {
   searchAdminUsers(input: { query?: string; limit?: number } = {}) {
     return request<{ users: AdminUserSummary[] }>("/v1/admin/users/search", input);
   },
+  listRecentAdminUsers() {
+    return request<{ users: AdminUserSummary[] }>("/v1/admin/users/recent", {});
+  },
   impersonateUser(userId: string) {
     return request<{ accessToken: string; refreshToken: string; targetUsername: string | null }>(
       "/v1/admin/impersonate",
@@ -1036,6 +1039,21 @@ export const siteApi = {
     return publicRequest<{ players: Array<{ id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> }> }>(
       "/v1/demo-league/fantasy-draft-pool", { method: "POST", body: JSON.stringify({ leagueId }) },
     );
+  },
+  getDemoLeagueStats(leagueId: string, teamId?: string | null, position?: string | null) {
+    return publicRequest<{
+      league: { id: string; name: string; game: string; season_number: number };
+      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>;
+      positions: string[];
+      players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; photoUrl: string | null; devTrait: string | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
+      leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
+    }>("/v1/demo-league/stats", { method: "POST", body: JSON.stringify({ leagueId, teamId: teamId ?? null, position: position ?? null }) });
+  },
+  getDemoLeagueTeamStats(leagueId: string) {
+    return publicRequest<{
+      league: { id: string; name: string; game: string; season_number: number };
+      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null; stats: Record<string, number> }>;
+    }>("/v1/demo-league/team-stats", { method: "POST", body: JSON.stringify({ leagueId }) });
   },
   getDemoStandings(leagueId: string, phase: DemoPhase = "live") {
     return publicRequest<(PublicLeagueSnapshot & { demo: false }) | { demo: true; phaseLabel: string; standings: Array<{ team: string; wins: number; losses: number; ties: number }> }>(

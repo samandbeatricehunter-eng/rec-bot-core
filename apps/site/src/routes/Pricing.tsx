@@ -77,6 +77,12 @@ export function Pricing() {
   const subscribed =
     entitlements != null &&
     (entitlements.tier === "gold" || entitlements.tier === "platinum");
+  // A promo trial has a tier but no real Stripe subscription yet — "Manage billing" would open
+  // a billing portal for a customer that doesn't exist. They need to go through checkout (which
+  // honors whatever's left of the promo trial window instead of resetting it) to add a card.
+  // A lifetime comp grant has no billing relationship at all — nothing to manage or add.
+  const needsCheckoutForTrial = entitlements?.billingStatus === "promo_trial";
+  const hasBillableSubscription = subscribed && entitlements?.billingStatus !== "promo_trial" && entitlements?.billingStatus !== "lifetime_comp";
 
   return (
     <div className="site-page site-landing">
@@ -165,13 +171,22 @@ export function Pricing() {
                   Grace until {new Date(entitlements.graceUntil).toLocaleDateString()}
                 </p>
               )}
-              <button
-                className="site-btn site-btn-primary site-btn-lg"
-                disabled={portalBusy}
-                onClick={() => void openPortal()}
-              >
-                {portalBusy ? "Opening…" : "Manage billing"}
-              </button>
+              {needsCheckoutForTrial && (
+                <p className="site-trial-badge">
+                  {entitlements.promoTrialEndsAt
+                    ? `Your free trial runs through ${new Date(entitlements.promoTrialEndsAt).toLocaleDateString()} — add a payment method below to keep access after it ends.`
+                    : "Add a payment method below to keep access after your free trial ends."}
+                </p>
+              )}
+              {hasBillableSubscription && (
+                <button
+                  className="site-btn site-btn-primary site-btn-lg"
+                  disabled={portalBusy}
+                  onClick={() => void openPortal()}
+                >
+                  {portalBusy ? "Opening…" : "Manage billing"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -195,7 +210,7 @@ export function Pricing() {
                   ))}
                 </ul>
                 {signedIn ? (
-                  subscribed ? (
+                  hasBillableSubscription ? (
                     <button
                       className="site-btn site-btn-ghost site-btn-lg"
                       disabled={portalBusy}
@@ -211,8 +226,8 @@ export function Pricing() {
                     >
                       {busyTier === plan.tier
                         ? "Redirecting…"
-                        : subscribed
-                          ? `Switch to ${plan.name}`
+                        : needsCheckoutForTrial
+                          ? isCurrent ? `Add payment method (${plan.name})` : `Switch to ${plan.name}`
                           : `Subscribe to ${plan.name}`}
                     </button>
                   )

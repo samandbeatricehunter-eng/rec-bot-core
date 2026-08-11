@@ -4,6 +4,8 @@ import { sendError } from "../../lib/errors.js";
 import {
   getDemoLeagueHistory,
   getDemoFantasyDraftPool,
+  getDemoLeagueStats,
+  getDemoLeagueTeamStats,
   getDemoNewsFeed,
   getDemoStandings,
   getDemoTeamMatchup,
@@ -61,6 +63,22 @@ export async function demoLeagueRoutes(app: FastifyInstance) {
     try {
       const { leagueId, phase } = z.object({ leagueId: z.string().uuid(), phase: demoPhase }).parse(request.body);
       return reply.send(await getDemoStandings(leagueId, phase));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/demo-league/stats", async (request, reply) => {
+    try {
+      const { leagueId, teamId, position } = z.object({
+        leagueId: z.string().uuid(), teamId: z.string().uuid().nullable().optional(), position: z.string().max(20).nullable().optional(),
+      }).parse(request.body);
+      return reply.send(await getDemoLeagueStats(leagueId, { teamId, position }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/demo-league/team-stats", async (request, reply) => {
+    try {
+      const { leagueId } = z.object({ leagueId: z.string().uuid() }).parse(request.body);
+      return reply.send(await getDemoLeagueTeamStats(leagueId));
     } catch (error) { return sendError(reply, error); }
   });
 

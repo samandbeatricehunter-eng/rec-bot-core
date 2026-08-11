@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, CalendarDays, Globe2, Home, Menu, MessageSquare, Search, Shield, Trophy, UserRound, Users } from "lucide-react";
+import { formatStatValue, getStatLabel, statCategoriesForPosition, statKeysForCategories } from "@rec/shared";
 import { siteApi, type DemoPhase } from "../lib/site-api.js";
 
 type DemoLeague = { id: string; name: string; game: string; seasonNumber: number; phases: Array<{ value: DemoPhase; label: string }> };
 type DemoTeam = { id: string; name: string; abbr: string | null; conference: string | null; coachName: string };
-type DemoTab = "buzz" | "matchup" | "team" | "trades" | "wagers" | "roster" | "standings";
+type DemoTab = "buzz" | "matchup" | "team" | "trades" | "wagers" | "roster" | "standings" | "stats";
+type DemoStatsResponse = Awaited<ReturnType<typeof siteApi.getDemoLeagueStats>>;
 type NewsState = { posts: Array<{ id: string; title: string; body: string; createdAt: string }>; demo: boolean; phaseLabel?: string } | null;
 type MatchupState = { weekNumber: number | null; matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null; draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>; demo: boolean; phaseLabel?: string } | null;
 type StandingsState = { demo: boolean; phaseLabel?: string; standings: Array<{ teamId?: string; teamName?: string; team?: string; wins: number; losses: number; ties: number }> } | null;
@@ -48,6 +50,54 @@ function DemoFantasyDraftBoard({ players }: { players: DraftPlayer[] }) {
       <div className="demo-personal-board"><header><div><small>PERSONAL DRAFT BOARD</small><h2>Your Rankings</h2></div><span>Demo changes reset when you leave</span></header>{board.length === 0 ? <p>Add players from the pool above to build and adjust your board.</p> : <ol>{board.map((player, index) => <li key={player.id}><b>{index + 1}</b>{player.photoUrl ? <img src={player.photoUrl} alt="" /> : <span className="demo-board-pos">{player.position}</span>}<div><strong>{player.name}</strong><small>{player.position} · {player.overallRating} OVR</small></div><button type="button" disabled={index === 0} onClick={() => moveBoard(player.id, -1)}>↑</button><button type="button" disabled={index === board.length - 1} onClick={() => moveBoard(player.id, 1)}>↓</button><button type="button" onClick={() => toggleBoard(player.id)}>Remove</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></li>)}</ol>}</div>
       <div className="demo-draft-footer"><button type="button" disabled title="Saving is disabled in the public demo">Save Draft Board</button><button type="button" disabled title="Loading saved boards is disabled in the public demo">Load Draft Board</button><label><span>SORT BY</span><select><option>My custom rank</option><option>OVR</option></select></label><strong>{draftedIds.length ? `${draftedIds.length} demo pick${draftedIds.length === 1 ? "" : "s"} logged` : "No picks logged yet."}</strong></div>
     </section>
+  );
+}
+
+function DemoStatsView({ leagueId }: { leagueId: string }) {
+  const [teamId, setTeamId] = useState("");
+  const [position, setPosition] = useState("");
+  const [data, setData] = useState<DemoStatsResponse | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    void siteApi.getDemoLeagueStats(leagueId, teamId || null, position || null).then(setData).catch(() => setData(null));
+  }, [leagueId, teamId, position]);
+
+  const columns = position
+    ? (() => { const keys = statKeysForCategories(statCategoriesForPosition(position)); return keys.length ? keys : []; })()
+    : statKeysForCategories(["passing", "rushing", "receiving", "defense", "kicking", "punting"]);
+
+  if (!data) return <p className="demo-muted">Loading stats…</p>;
+
+  return (
+    <>
+      <div className="demo-roster-toolbar">
+        <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+          <option value="">All teams</option>
+          {data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select>
+        <select value={position} onChange={(e) => setPosition(e.target.value)}>
+          <option value="">All positions</option>
+          {data.positions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </div>
+      <div className="demo-table-card">
+        <table>
+          <thead><tr><th>Player</th><th>Team</th><th>Pos</th>{columns.map((key) => <th key={key}>{getStatLabel(key)}</th>)}</tr></thead>
+          <tbody>
+            {data.players.map((player) => (
+              <tr key={player.id}>
+                <td><strong>{player.fullName}</strong>{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</td>
+                <td>{player.teamAbbreviation ?? player.teamName ?? "FA"}</td>
+                <td>{player.position ?? "—"}</td>
+                {columns.map((key) => <td key={key}>{formatStatValue(key, player.stats[key] ?? 0)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!data.players.length && <p className="demo-muted">No players match these filters.</p>}
+      </div>
+    </>
   );
 }
 
@@ -94,7 +144,8 @@ export function Demo() {
   const isMadden = league?.game.startsWith("madden") ?? false;
   const nav = [
     ["buzz", isMadden ? "League News" : "Campus Buzz", Globe2], ["matchup", phase === "draft" ? "Draft Board" : "Matchups", CalendarDays],
-    ["team", "My team", Users], ["trades", isMadden ? "Trade Center" : "Store", Shield], ["wagers", "Wagers", Trophy], ["roster", "Roster", Users], ["standings", "League", Menu],
+    ["team", "My team", Users], ["trades", isMadden ? "Trade Center" : "Store", Shield], ["wagers", "Wagers", Trophy],
+    ["roster", "Roster", Users], ["stats", "Stats", Trophy], ["standings", "League", Menu],
   ] as const;
 
   return (
@@ -130,6 +181,8 @@ export function Demo() {
           {tab === "team" ? <><header><span>FULL COACH PROFILE</span><h1>{activeTeam?.name ?? "My Team"}</h1><p>{activeTeam?.coachName || "Demo coach"}</p></header><div className="demo-stat-grid"><article><small>SEASON RECORD</small><strong>{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.wins ?? 0}-{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.losses ?? 0}</strong></article><article><small>ROSTER SIZE</small><strong>{roster.length}</strong></article><article><small>CURRENT MATCHUP</small><strong>{matchup?.matchup ? `${matchup.matchup.awayTeam} @ ${matchup.matchup.homeTeam}` : "BYE WEEK"}</strong></article></div></> : null}
 
           {tab === "roster" ? <><header><span>TEAM MANAGEMENT</span><h1>{activeTeam?.name ?? "Team"} Roster</h1><p>Search, filter, compare, and manage the full roster in the member experience.</p></header><div className="demo-roster-toolbar"><select><option>All positions</option></select><label><Search /><input placeholder="Search players…" /></label></div><div className="demo-table-card"><table><thead><tr><th>Player</th><th>Position</th><th>OVR</th><th>Development</th></tr></thead><tbody>{roster.map((player) => <tr key={player.id}><td><strong>{player.name}</strong></td><td>{player.position}</td><td>{player.overallRating ?? "—"}</td><td>{player.devTrait ?? "—"}</td></tr>)}</tbody></table></div></> : null}
+
+          {tab === "stats" && leagueId ? <><header><span>PRODUCTION</span><h1>League Stats</h1><p>Player season totals for the current point in the season.</p></header><DemoStatsView leagueId={leagueId} /></> : null}
 
           {tab === "standings" ? <><header><span>LEAGUE</span><h1>Standings</h1></header><div className="demo-table-card"><table><thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead><tbody>{standings?.standings.map((item, i) => <tr key={item.teamId ?? i}><td><strong>{item.teamName ?? item.team}</strong></td><td>{item.wins}</td><td>{item.losses}</td><td>{item.ties}</td></tr>)}</tbody></table></div></> : null}
 

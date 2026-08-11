@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { Navigate } from "react-router-dom";
 import { startImpersonation } from "../lib/impersonation.js";
@@ -34,9 +34,24 @@ const EMPTY_DRAFT = {
   sortOrder: 0,
 };
 
+function ExpandableStatTile({ label, value, expanded, onToggle, children }: { label: string; value: number; expanded: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <article style={{ gridColumn: expanded ? "1 / -1" : undefined }}>
+      <button type="button" onClick={onToggle} style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", color: "inherit" }}>
+        <span>{label} {expanded ? "▾" : "▸"}</span>
+        <strong>{value.toLocaleString()}</strong>
+      </button>
+      {expanded && <div style={{ marginTop: 8 }}>{children}</div>}
+    </article>
+  );
+}
+
 function StatsPanel() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<"recentUsers" | "recentLeagues" | null>(null);
+  const [recentUsers, setRecentUsers] = useState<AdminUserSummary[] | null>(null);
+  const [recentLeagues, setRecentLeagues] = useState<AdminLeagueSummary[] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -53,25 +68,30 @@ function StatsPanel() {
     };
   }, []);
 
+  function toggleRecentUsers() {
+    setExpanded((current) => (current === "recentUsers" ? null : "recentUsers"));
+    if (!recentUsers) siteApi.listRecentAdminUsers().then((res) => setRecentUsers(res.users)).catch(() => setRecentUsers([]));
+  }
+
+  function toggleRecentLeagues() {
+    setExpanded((current) => (current === "recentLeagues" ? null : "recentLeagues"));
+    if (!recentLeagues) {
+      siteApi.listAdminLeagues({ limit: 300 }).then((res) => {
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        setRecentLeagues(res.leagues.filter((league) => new Date(league.createdAt).getTime() >= cutoff));
+      }).catch(() => setRecentLeagues([]));
+    }
+  }
+
   if (error) return <p className="site-auth-error">{error}</p>;
   if (!stats) return <p className="site-muted">Loading…</p>;
 
   const notLinked = stats.totalUsers - stats.siteLinkedUsers;
-  const topRows: Array<[string, number]> = [
-    ["Total accounts", stats.totalUsers],
-    ["Registered on site", stats.siteLinkedUsers],
-    ["Discord-only (not registered)", notLinked],
-    ["New accounts (7d)", stats.usersLast7d],
-  ];
   const subRows: Array<[string, number]> = [
     ["Platinum — registered", stats.linkedPlatinum],
     ["Platinum — unclaimed (Discord-only)", stats.unlinkedPlatinum],
     ["Gold — registered", stats.linkedGold],
     ["Gold — unclaimed (Discord-only)", stats.unlinkedGold],
-  ];
-  const leagueRows: Array<[string, number]> = [
-    ["Total leagues", stats.totalLeagues],
-    ["New leagues (7d)", stats.leaguesLast7d],
   ];
 
   function grid(rows: Array<[string, number]>) {
@@ -89,7 +109,23 @@ function StatsPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {grid(topRows)}
+      <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+        <article><span>Total accounts</span><strong>{stats.totalUsers.toLocaleString()}</strong></article>
+        <article><span>Registered on site</span><strong>{stats.siteLinkedUsers.toLocaleString()}</strong></article>
+        <article><span>Discord-only (not registered)</span><strong>{notLinked.toLocaleString()}</strong></article>
+        <ExpandableStatTile label="New accounts (7d)" value={stats.usersLast7d} expanded={expanded === "recentUsers"} onToggle={toggleRecentUsers}>
+          {recentUsers == null ? <p className="site-muted">Loading…</p> : recentUsers.length === 0 ? <p className="site-muted">No new accounts in the last 7 days.</p> : (
+            <ul className="site-account-notif-list">
+              {recentUsers.map((user) => (
+                <li key={user.id}>
+                  <strong>@{user.username || user.displayName || "Unresolved account"}</strong>
+                  <span>{user.subscriptionTier}{user.hasSiteAccount ? "" : " · Discord-only"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ExpandableStatTile>
+      </div>
       <p className="site-muted">
         Subscription tier and site registration are independent — a user can hold free
         lifetime Platinum without ever creating a site login (that's who the free-claim DM
@@ -97,7 +133,21 @@ function StatsPanel() {
         {stats.linkedPlatinum} registered, {stats.unlinkedPlatinum} unclaimed.
       </p>
       {grid(subRows)}
-      {grid(leagueRows)}
+      <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+        <article><span>Total leagues</span><strong>{stats.totalLeagues.toLocaleString()}</strong></article>
+        <ExpandableStatTile label="New leagues (7d)" value={stats.leaguesLast7d} expanded={expanded === "recentLeagues"} onToggle={toggleRecentLeagues}>
+          {recentLeagues == null ? <p className="site-muted">Loading…</p> : recentLeagues.length === 0 ? <p className="site-muted">No new leagues in the last 7 days.</p> : (
+            <ul className="site-account-notif-list">
+              {recentLeagues.map((league) => (
+                <li key={league.id}>
+                  <strong>{league.name}</strong>
+                  <span>{league.game} · {league.currentPhase} · {league.memberCount} members · {league.teamCount} teams{league.ownerUsername ? ` · Owner @${league.ownerUsername}` : ""}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ExpandableStatTile>
+      </div>
       <section>
         <h3>Open operational incidents ({stats.openIncidents.length})</h3>
         {stats.openIncidents.length ? stats.openIncidents.map((incident) => (

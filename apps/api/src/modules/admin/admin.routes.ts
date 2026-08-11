@@ -14,6 +14,7 @@ import {
   getAdminStats,
   listAdminLeagueMembers,
   listAdminLeagues,
+  listRecentAdminUsers,
   listAdminAnnouncements,
   searchAdminUsers,
   updateAdminAnnouncement,
@@ -205,6 +206,15 @@ export async function adminRoutes(app: FastifyInstance) {
         .object({ query: z.string().trim().max(80).optional(), limit: z.number().int().optional() })
         .parse(request.body ?? {});
       return reply.send(await searchAdminUsers(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/users/recent", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      return reply.send(await listRecentAdminUsers());
     } catch (error) {
       return sendError(reply, error);
     }

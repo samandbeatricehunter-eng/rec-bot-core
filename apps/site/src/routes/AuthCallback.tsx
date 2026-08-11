@@ -42,11 +42,17 @@ export function AuthCallback() {
         if (cancelled) return;
 
         const pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");
+        let redeemedTrialEffect = false;
         if (pendingPromoCode) {
           sessionStorage.removeItem("rec_pending_promo_code");
           setMessage("Applying your promo code…");
           try {
-            await siteApi.redeemPromoCode(pendingPromoCode);
+            const result = await siteApi.redeemPromoCode(pendingPromoCode);
+            // A lifetime grant needs nothing further — skip straight into the app below. A
+            // time-limited trial still needs a card on file for when it ends, so it must go
+            // through Stripe checkout now rather than being waved straight in with no payment
+            // method captured at all.
+            redeemedTrialEffect = result.effectType === "trial_gold" || result.effectType === "trial_platinum";
           } catch (promoError) {
             // A bad/expired/already-used code shouldn't block sign-in, but silently eating the
             // failure left users believing a code worked when it never redeemed at all — show it,
@@ -57,6 +63,11 @@ export function AuthCallback() {
             await new Promise((resolve) => window.setTimeout(resolve, 3000));
           }
           if (cancelled) return;
+        }
+
+        if (redeemedTrialEffect) {
+          navigate("/pricing?checkoutRequired=1", { replace: true });
+          return;
         }
 
         // We don't offer a free tier — every real account needs Gold or Platinum (via the

@@ -9,6 +9,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { getPublicLeagueSnapshot } from "../public-league/public-league.service.js";
 import { getLeagueHistory } from "../league-history/league-history.service.js";
 import { type DemoPhase, getDemoPhaseContent } from "./demo-league-fixtures.js";
+import { getLeagueStatsForLeagueId, getLeagueTeamStatsForLeagueId } from "../league-stats/league-stats.service.js";
 
 export type { DemoPhase } from "./demo-league-fixtures.js";
 
@@ -145,6 +146,16 @@ export async function getDemoTeamRoster(leagueId: string, teamId: string) {
     .order("overall_rating", { ascending: false });
   if (error) throw new ApiError(500, "Failed to load roster.", error);
   return { players: (data ?? []).map((row: any) => ({ id: row.id, name: row.full_name, position: row.position, overallRating: row.overall_rating, devTrait: row.dev_trait })) };
+}
+
+export async function getDemoLeagueStats(leagueId: string, input: { teamId?: string | null; position?: string | null } = {}) {
+  await requireDemoLeague(leagueId);
+  return getLeagueStatsForLeagueId(leagueId, input);
+}
+
+export async function getDemoLeagueTeamStats(leagueId: string) {
+  await requireDemoLeague(leagueId);
+  return getLeagueTeamStatsForLeagueId(leagueId);
 }
 
 /** A bounded slice of the approved Madden baseline used by the real fantasy-draft room.

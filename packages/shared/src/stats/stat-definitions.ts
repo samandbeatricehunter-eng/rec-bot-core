@@ -213,6 +213,25 @@ const KICKING: StatDefinition[] = [
     valueType: "percentage", derived: true, formula: "xp_made / xp_attempts * 100", dependencies: ["xp_made", "xp_attempts"], usedFor: ["eos_payout"] })
 ];
 
+// ── Punting ────────────────────────────────────────────────────────────────────
+const PUNTING: StatDefinition[] = [
+  d({ canonicalKey: "punts", label: "Punts", shortLabel: "Pnt", scope: "player", side: "special_teams", category: "punting", aggregate: "sum",
+    aliases: ["puntNum", "puntAttempts", "punt_att"] }),
+  d({ canonicalKey: "punt_yards", label: "Punt Yards", shortLabel: "Pnt Yds", scope: "player", side: "special_teams", category: "punting", aggregate: "sum",
+    valueType: "yards", unit: "yards", aliases: ["puntYds", "puntingYards", "punt_yds"] }),
+  d({ canonicalKey: "punt_long", label: "Longest Punt", shortLabel: "Lng", scope: "player", side: "special_teams", category: "punting", aggregate: "max",
+    valueType: "yards", unit: "yards", aliases: ["puntLong", "longestPunt"] }),
+  d({ canonicalKey: "punts_in_20", label: "Punts Inside The 20", shortLabel: "In20", scope: "player", side: "special_teams", category: "punting", aggregate: "sum",
+    aliases: ["puntsIn20", "puntsInside20"] }),
+  d({ canonicalKey: "punts_blocked", label: "Punts Blocked", shortLabel: "Blk", scope: "player", side: "special_teams", category: "punting", aggregate: "sum",
+    higherIsBetter: false, aliases: ["puntsBlocked", "puntBlocked"] }),
+  d({ canonicalKey: "touchbacks", label: "Touchbacks", shortLabel: "TB", scope: "player", side: "special_teams", category: "punting", aggregate: "sum",
+    aliases: ["puntTouchbacks"] }),
+  // derived
+  d({ canonicalKey: "punt_average", label: "Punt Average", shortLabel: "Avg", scope: "player", side: "special_teams", category: "punting", aggregate: "derived",
+    valueType: "ratio", precision: 1, derived: true, formula: "punt_yards / punts", dependencies: ["punt_yards", "punts"] }),
+];
+
 // ── Team offensive ────────────────────────────────────────────────────────────
 const TEAM_OFFENSE: StatDefinition[] = [
   d({ canonicalKey: "points_for", label: "Points For", shortLabel: "PF", scope: "team", side: "offense", category: "team_offense", aggregate: "sum",
@@ -299,10 +318,39 @@ export const STAT_DEFINITIONS: StatDefinition[] = [
   ...RECEIVING,
   ...DEFENSE,
   ...KICKING,
+  ...PUNTING,
   ...TEAM_OFFENSE,
   ...TEAM_DEFENSE,
   ...GAME_RESULT
 ];
+
+// Which stat categories are actually meaningful for a given position — powers the Stats page's
+// dynamic column set (mirrors the Draft Room's per-position attribute columns). Offensive line
+// has no individually-tracked stat category in Madden's export, so it falls back to whatever
+// raw keys the import actually stored (handled client-side, not here).
+export const POSITION_STAT_CATEGORIES: Record<string, StatCategory[]> = {
+  QB: ["passing", "rushing"],
+  HB: ["rushing", "receiving"],
+  FB: ["rushing", "receiving"],
+  WR: ["receiving", "rushing"],
+  TE: ["receiving", "rushing"],
+  LT: [], LG: [], C: [], RG: [], RT: [],
+  LE: ["defense"], RE: ["defense"], DT: ["defense"],
+  LOLB: ["defense"], MLB: ["defense"], ROLB: ["defense"],
+  CB: ["defense"], FS: ["defense"], SS: ["defense"],
+  K: ["kicking"],
+  P: ["punting"],
+};
+
+export function statCategoriesForPosition(position: string | null | undefined): StatCategory[] {
+  if (!position) return [];
+  return POSITION_STAT_CATEGORIES[position.toUpperCase()] ?? [];
+}
+
+export function statKeysForCategories(categories: StatCategory[]): string[] {
+  const set = new Set(categories);
+  return STAT_DEFINITIONS.filter((def) => def.scope === "player" && set.has(def.category as StatCategory) && !def.derived).map((def) => def.canonicalKey);
+}
 
 // ── Identity field maps (not stats — used for labeling) ───────────────────────
 export const PLAYER_IDENTITY_ALIASES: Record<string, string> = {
