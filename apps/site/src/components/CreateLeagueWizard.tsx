@@ -699,6 +699,16 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     }
   }
 
+  // Any way of dismissing the wizard (backdrop click, the × button, "Cancel") must still tell
+  // the caller a league was created if one actually was — onCreated is what refreshes the site
+  // nav/sidebar's league list, and it was only ever wired to the step-8 "Done" button. A user
+  // who clicks × or clicks away after seeing the success screen (the intuitive way to dismiss
+  // a "you're done" modal) got a created league that didn't show up until a manual page refresh.
+  function dismiss() {
+    if (leagueId) onCreated(leagueId);
+    else onClose();
+  }
+
   function leaveWizard() {
     if (!leagueId) return;
     if (slidersAdjusted) {
@@ -765,9 +775,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   ];
 
   return (
-    <div className="site-modal" role="presentation" onMouseDown={onClose}>
+    <div className="site-modal" role="presentation" onMouseDown={dismiss}>
       <section className="site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
-        <button type="button" className="site-modal-close" onClick={onClose} aria-label="Close">&times;</button>
+        <button type="button" className="site-modal-close" onClick={dismiss} aria-label="Close">&times;</button>
         <h2 id="create-league-title">Create League</h2>
         {step > 0 && step < 8 && <p className="site-muted">Step {step} of 7</p>}
         {error && <p className="site-auth-error">{error}</p>}
