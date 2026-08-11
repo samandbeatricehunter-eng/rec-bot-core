@@ -7,6 +7,8 @@ import { getGameWagerOptions } from "../wagers/odds.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { siteOnlyDiscordId } from "../../lib/user-auth.js";
+import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
+import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 
 const CFB_DEFAULT_CONFERENCE = new Map(
   CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
@@ -203,6 +205,9 @@ export async function retireFromSiteLeague(input: {
   if (!updated.rows[0]) {
     throw new ApiError(409, "Could not retire from this league. Try again.");
   }
+
+  await clearDiscordTeamIdentityForUsers({ leagueId: input.leagueId, userIds: [input.recUserId] });
+  await syncLeagueRecruitingAd(input.leagueId);
 
   return { ok: true };
 }

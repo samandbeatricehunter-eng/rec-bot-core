@@ -34,6 +34,8 @@ import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../us
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat.service.js";
 import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
+import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
+import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
 // stream runs longer than that, so anything older is treated as ended for display/watch.
@@ -214,6 +216,9 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
     .eq("league_id", context.leagueId)
     .eq("user_id", userId);
   if (membership.error) throw new ApiError(500, "The team was opened, but league access could not be removed.", membership.error);
+
+  await clearDiscordTeamIdentityForUsers({ leagueId: context.leagueId, guildId, userIds: [userId] });
+  await syncLeagueRecruitingAd(context.leagueId);
 
   return { ok: true };
 }

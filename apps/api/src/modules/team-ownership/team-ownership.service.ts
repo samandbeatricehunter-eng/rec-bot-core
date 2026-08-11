@@ -49,6 +49,43 @@ function syncRecruitingAd(leagueId: string) {
     .catch((error) => console.error("[WARN] Failed to sync recruiting-board ad after team-ownership change:", error));
 }
 
+/** Clears roles/nickname managed by an ended team assignment, regardless of which surface
+ * initiated the unlink. */
+export async function clearDiscordTeamIdentityForUsers(input: { leagueId: string; guildId?: string | null; userIds: string[] }) {
+  const userIds = [...new Set(input.userIds.filter(Boolean))];
+  if (!userIds.length) return { cleared: [] as string[], failed: [] as Array<{ userId: string; reason: string }> };
+  let guildId = input.guildId ?? null;
+  if (!guildId) {
+    const link = await supabase.from("rec_server_league_links").select("server:rec_discord_servers(guild_id)")
+      .eq("league_id", input.leagueId).eq("is_primary", true).maybeSingle();
+    const server = Array.isArray(link.data?.server) ? link.data.server[0] : link.data?.server;
+    guildId = server?.guild_id ?? null;
+  }
+  if (!guildId) return { cleared: [], failed: [] };
+  const active = await supabase.from("rec_team_assignments").select("user_id").eq("league_id", input.leagueId)
+    .eq("assignment_status", "active").is("ended_at", null).in("user_id", userIds);
+  if (active.error) throw new ApiError(500, "Failed to verify unlinked team assignments.", active.error);
+  const activeIds = new Set((active.data ?? []).map((row) => row.user_id));
+  const targets = userIds.filter((userId) => !activeIds.has(userId));
+  if (!targets.length) return { cleared: [], failed: [] };
+  const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", targets);
+  if (accounts.error) throw new ApiError(500, "Failed to load Discord accounts for team cleanup.", accounts.error);
+  const roles = await Promise.all((['member', 'compCommittee', 'commissioner'] as const)
+    .map(async (key) => await ensureManagedRoleId(guildId!, key).catch(() => null)));
+  const cleared: string[] = [];
+  const failed: Array<{ userId: string; reason: string }> = [];
+  for (const account of accounts.data ?? []) {
+    try {
+      for (const roleId of roles) if (roleId) await removeMemberRole(guildId, account.discord_id, roleId, "REC team unlinked - clearing managed role");
+      await setGuildMemberNickname(guildId, account.discord_id, "", "REC team unlinked - clearing managed nickname");
+      cleared.push(account.user_id);
+    } catch (error) {
+      failed.push({ userId: account.user_id, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { cleared, failed };
+}
+
 function normalizeAbbreviation(value: string) {
   return value.trim().toUpperCase();
 }
@@ -621,6 +658,9 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
         const roleId = roleIdByKey.get(key);
         if (roleId) await removeMemberRole(guildId, member.discordId, roleId, "REC role reconcile — stale/incorrect authority role");
       }
+      if (!expectedKey && heldKey) {
+        await setGuildMemberNickname(guildId, member.discordId, "", "REC role reconcile - clearing stale team nickname");
+      }
       if (expectedKey) {
         const roleId = roleIdByKey.get(expectedKey);
         if (roleId) await addMemberRole(guildId, member.discordId, roleId, "REC role reconcile — corrected to current team assignment");
@@ -760,6 +800,7 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
     .select("*");
 
   if (result.error) throw new ApiError(500, "Failed to unlink team assignment.", result.error);
+  const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({
     action: "teams.unlinked",
@@ -770,7 +811,7 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
   });
   syncRecruitingAd(league.id);
 
-  return { league, unlinkedCount: result.data?.length ?? 0 };
+  return { league, unlinkedCount: result.data?.length ?? 0, discordCleanup: cleanup };
 }
 
 export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
@@ -784,6 +825,7 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
     .select("*");
 
   if (result.error) throw new ApiError(500, "Failed to unlink team assignments.", result.error);
+  const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({
     action: "teams.all_unlinked",
@@ -794,5 +836,5 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
   });
   syncRecruitingAd(league.id);
 
-  return { league, unlinkedCount: result.data?.length ?? 0 };
+  return { league, unlinkedCount: result.data?.length ?? 0, discordCleanup: cleanup };
 }
