@@ -10,6 +10,7 @@ import {
   IconRetire,
   IconRoster,
   IconRules,
+  IconStats,
   IconStore,
   IconTeam,
   IconTrade,
@@ -107,6 +108,14 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
             onClick={() => setMenuOpen(false)}
           />
           <div className="site-league-menu-panel">
+            <NavLink
+              to={`/l/${leagueId}/stats`}
+              role="menuitem"
+              className="site-account-menu-item"
+              onClick={() => setMenuOpen(false)}
+            >
+              <IconStats /> League Stats
+            </NavLink>
             {isMadden ? (
               <NavLink
                 to={`/l/${leagueId}/store`}

@@ -100,9 +100,11 @@ export type LinkedRosterEntry = {
 };
 
 export type LeagueHeaderSummary = {
-  league: { name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
+  canManageLeague: boolean;
+  commissionerTier: "commissioner" | "co_commissioner" | null;
 };
 
 export type LinkedTeamRow = {

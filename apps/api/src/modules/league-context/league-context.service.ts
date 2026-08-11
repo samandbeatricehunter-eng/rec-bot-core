@@ -139,9 +139,11 @@ export async function findServerRoutesForLeague(leagueId: string): Promise<{ gui
 const MAX_LINKED_USERS = 32;
 
 export type LeagueHeaderSummary = {
-  league: { name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
+  canManageLeague: boolean;
+  commissionerTier: "commissioner" | "co_commissioner" | null;
 };
 
 // Powers the web dashboard's header bar — deliberately lightweight (three cheap counts, no
@@ -157,7 +159,13 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
     ? Promise.resolve(context.rec_leagues.owner_user_id === (isSiteOnlyDiscordId(discordId) ? recUserIdFromSiteOnlyDiscordId(discordId) : null))
     : isGuildOwner(guildId, discordId);
 
-  const [totalRes, linkedRes, isOwner] = await Promise.all([
+  const identityUserId = isSiteOnlyDiscordId(discordId)
+    ? recUserIdFromSiteOnlyDiscordId(discordId)
+    : (await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle()).data?.user_id ?? null;
+  const membershipPromise = identityUserId
+    ? supabase.from("rec_league_memberships").select("role").eq("league_id", leagueId).eq("user_id", identityUserId).eq("status", "active").maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+  const [totalRes, linkedRes, isOwner, membershipRes] = await Promise.all([
     supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
     supabase
       .from("rec_team_assignments")
@@ -166,7 +174,16 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       .eq("assignment_status", "active")
       .is("ended_at", null),
     ownerCheck,
+    membershipPromise,
   ]);
+  if (membershipRes.error) throw new ApiError(500, "Failed to resolve league permission.", membershipRes.error);
+  const membershipRole = String(membershipRes.data?.role ?? "");
+  const canManageLeague = isOwner || identityUserId === context.rec_leagues.owner_user_id || ["commissioner", "head_commissioner", "co_commissioner", "co"].includes(membershipRole);
+  const commissionerTier: "commissioner" | "co_commissioner" | null = !canManageLeague
+    ? null
+    : ["co_commissioner", "co"].includes(membershipRole) && !isOwner && identityUserId !== context.rec_leagues.owner_user_id
+      ? "co_commissioner"
+      : "commissioner";
   if (totalRes.error) throw new ApiError(500, "Failed to count league teams.", totalRes.error);
   if (linkedRes.error) throw new ApiError(500, "Failed to count linked teams.", linkedRes.error);
 
@@ -174,6 +191,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   const seasonStage = String(context.rec_leagues.season_stage ?? "preseason");
   return {
     league: {
+      id: leagueId,
       name: context.rec_leagues.name ?? "",
       game: String(context.rec_leagues.game ?? "cfb_27"),
       leaguePassword: context.rec_leagues.league_password ?? null,
@@ -189,5 +207,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       availableTeams: Math.max(0, (totalRes.count ?? 0) - (linkedRes.count ?? 0)),
     },
     isGuildOwner: isOwner,
+    canManageLeague,
+    commissionerTier,
   };
 }

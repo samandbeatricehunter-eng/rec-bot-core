@@ -30,7 +30,7 @@ export function DesktopSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const leagues = sortLeagues(hub.leagues);
-  const selectedId = hub.scope.kind === "league" ? hub.scope.leagueId : null;
+  const selectedId = location.pathname.startsWith("/l/") && hub.scope.kind === "league" ? hub.scope.leagueId : null;
 
   return (
     <aside className="site-desktop-sidebar" aria-label="Global navigation">

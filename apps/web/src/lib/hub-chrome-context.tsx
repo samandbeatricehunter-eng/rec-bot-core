@@ -100,24 +100,21 @@ export function HubChromeProvider({
     }
     setLeagueLoading(true);
     try {
-      const [header, hub] = await Promise.all([
-        recApi.getLeagueHeaderSummary(auth.guildId).catch(() => null),
-        recApi.getHub(auth.guildId).catch(() => null),
-      ]);
-      if (!header?.league && !hub?.league) {
+      const header = await recApi.getLeagueHeaderSummary(auth.guildId).catch(() => null);
+      if (!header?.league) {
         setCurrentLeague(null);
         return null;
       }
-      const id = hub?.league?.id ?? "";
-      const name = header?.league?.name ?? hub?.league?.name ?? "League";
-      const game = header?.league?.game ?? hub?.league?.game ?? "cfb_27";
+      const id = header.league.id;
+      const name = header.league.name ?? "League";
+      const game = header.league.game ?? "cfb_27";
       const meta: HubLeagueMeta = {
         id,
         name,
         game,
         gameLabel: gameLabelFor(game),
-        isCommissioner: hub?.canManageLeague ?? false,
-        commissionerTier: hub?.commissionerTier ?? null,
+        isCommissioner: header.canManageLeague,
+        commissionerTier: header.commissionerTier,
       };
       setCurrentLeague(meta);
       return meta;

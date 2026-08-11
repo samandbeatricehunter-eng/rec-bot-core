@@ -1304,6 +1304,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     protectedOpponentsCount: row.protected_opponents_count,
   }));
   const draft = {
+    leagueId: context.leagueId,
     name: league.data.name ?? "League",
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,

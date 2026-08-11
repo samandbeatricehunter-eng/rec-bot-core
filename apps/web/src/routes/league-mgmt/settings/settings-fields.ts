@@ -40,6 +40,7 @@ const isCfb = (game: string) => game === "cfb_27";
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   { key: "channels", label: "Channels", fields: [] },
+  { key: "integrations", label: "Integrations", fields: [] },
   { key: "moderation", label: "Bans & Restrictions", fields: [] },
   {
     key: "features",

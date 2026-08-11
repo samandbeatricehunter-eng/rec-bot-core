@@ -157,6 +157,12 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const recApi = {
+  getMaddenCompanionConnections: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ connections: Array<{ id: string; status: string; external_league_id: string | null; last_health_status: string | null; last_health_check_at: string | null; last_import_at: string | null; import_count: number }> }>("/v1/import/madden/companion/connections", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  createMaddenCompanionConnection: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ connection_token: string; import_path: string; connection: { id: string } }>("/v1/import/madden/companion/register", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  rotateMaddenCompanionConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
+    recApiFetch<{ connection_token: string; import_path: string }>("/v1/import/madden/companion/rotate", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   uploadLeagueLogo: (guildId: string, file: File) => {
     const formData = new FormData();
@@ -164,6 +170,14 @@ export const recApi = {
     return recApiFetch<{ logoUrl: string }>(`/v1/setup/league/logo?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
   },
   getMyLeagueHistory: (guildId: string) => recApiFetch<{ leagues: Array<any> }>(`/v1/users/me/league-history?guildId=${encodeURIComponent(guildId)}`),
+  getLeagueStats: (input: { guildId: string; teamId?: string | null; position?: string | null }) =>
+    recApiFetch<{
+      league: { id: string; name: string; game: string; season_number: number };
+      teams: Array<{ id: string; name: string; abbreviation: string | null }>;
+      positions: string[];
+      players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
+      leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
+    }>("/v1/hub/league-stats", { method: "POST", body: JSON.stringify(input) }),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>

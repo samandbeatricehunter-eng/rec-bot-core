@@ -3556,6 +3556,13 @@ h1, h2, h3, .site-wordmark {
   grid-template-columns: 1fr auto;
   gap: 8px;
 }
+.admin-user-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-items: start;
+}
+.admin-user-card-grid > li {
+  min-width: 0;
+}
 .site-account-friend-search input {
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,.14);

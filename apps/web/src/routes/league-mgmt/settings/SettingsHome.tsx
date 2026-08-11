@@ -20,6 +20,7 @@ import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
 import { SliderSettingsPanel } from "./SliderSettingsPanel.js";
+import { MaddenCompanionSettings } from "./MaddenCompanionSettings.js";
 
 const EOS_PAYOUTS_KEY = "eos-payouts";
 const DELETE_LEAGUE_KEY = "delete-league";
@@ -171,7 +172,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>

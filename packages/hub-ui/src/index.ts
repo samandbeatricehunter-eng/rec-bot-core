@@ -6,6 +6,7 @@ export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
 export { FantasyDraftCard } from "../../../apps/web/src/routes/hub/FantasyDraftCard.js";
 export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
 export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/routes/hub/LeagueHistoryHome.js";
+export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";
 export { MatchupDetailPage } from "../../../apps/web/src/routes/matchups/MatchupDetail.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";

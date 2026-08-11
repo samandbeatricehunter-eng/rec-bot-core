@@ -145,12 +145,20 @@ export async function listAdminLeagues(input: { query?: string; limit?: number }
         l.season_stage,
         l.season_number,
         l.owner_user_id,
-        u.username as owner_username,
+        coalesce(u.username, head_owner.username) as owner_username,
         l.created_at,
         (select count(*)::int from rec_league_memberships m where m.league_id = l.id and m.status = 'active') as member_count,
         (select count(*)::int from rec_teams t where t.league_id = l.id) as team_count
       from rec_leagues l
       left join rec_users u on u.id = l.owner_user_id
+      left join lateral (
+        select hu.username
+        from rec_league_memberships hm
+        join rec_users hu on hu.id = hm.user_id
+        where hm.league_id = l.id and hm.status = 'active' and hm.role = 'head_commissioner'
+        order by hm.created_at asc
+        limit 1
+      ) head_owner on true
       where $1::text is null or l.name ilike $1
       order by l.created_at desc
       limit $2

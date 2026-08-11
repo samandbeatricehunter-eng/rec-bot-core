@@ -1,0 +1,231 @@
+import type { PoolClient } from "pg";
+import type { MaddenEndpointKey } from "./madden-companion.service.js";
+import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
+
+type Json = Record<string, unknown>;
+
+function value(row: Json, keys: string[]) {
+  for (const key of keys) if (row[key] !== undefined && row[key] !== null) return row[key];
+  return null;
+}
+function text(row: Json, keys: string[]) {
+  const found = value(row, keys);
+  return found === null ? null : String(found).trim() || null;
+}
+function integer(row: Json, keys: string[]) {
+  const found = value(row, keys);
+  const parsed = Number(found);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+}
+function bool(row: Json, keys: string[]) {
+  const found = value(row, keys);
+  if (typeof found === "boolean") return found;
+  if (found === 1 || String(found).toLowerCase() === "true") return true;
+  if (found === 0 || String(found).toLowerCase() === "false") return false;
+  return null;
+}
+
+const STAT_METADATA_KEYS = new Set([
+  "id", "statid", "stat_id", "leagueid", "league_id", "seasonid", "season_id", "seasonyear", "season_year",
+  "week", "weekindex", "week_index", "stage", "seasonstage", "season_stage", "teamid", "team_id", "maddenteamid",
+  "madden_team_id", "playerid", "player_id", "maddenplayerid", "madden_player_id", "rosterid", "roster_id", "gameid",
+  "game_id", "scheduleid", "schedule_id", "firstname", "first_name", "lastname", "last_name", "fullname", "full_name",
+  "displayname", "display_name", "playername", "player_name", "teamname", "team_name", "position", "positionname",
+  "positionabbr", "statcategory", "stat_category", "category", "createdat", "created_at", "updatedat", "updated_at",
+]);
+
+function statPayload(row: Json): Json {
+  const stats: Json = {};
+  for (const [key, raw] of Object.entries(row)) {
+    if (STAT_METADATA_KEYS.has(key.toLowerCase())) continue;
+    const number = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : Number.NaN;
+    if (Number.isFinite(number)) stats[key] = number;
+  }
+  return stats;
+}
+
+async function teamId(client: PoolClient, leagueId: string, sourceTeamId: string | null) {
+  if (!sourceTeamId) return null;
+  return (await client.query<{ id: string }>("select id from rec_teams where league_id=$1 and madden_team_id=$2 limit 1", [leagueId, sourceTeamId])).rows[0]?.id ?? null;
+}
+
+async function applyTeam(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
+  const row = record.rawData;
+  const sourceId = record.sourceTeamId ?? text(row, ["teamId", "team_id"]);
+  if (!sourceId) return;
+  const name = text(row, ["displayName", "display_name", "fullName", "full_name", "name", "teamName", "team_name"]);
+  const abbreviation = text(row, ["abbrName", "abbr_name", "abbreviation", "abbr", "teamAbbr"]);
+  const existing = await client.query<{ id: string }>(
+    `select id from rec_teams where league_id=$1 and (madden_team_id=$2 or ($3::text is not null and abbreviation=$3) or ($4::text is not null and name=$4)) order by (madden_team_id=$2) desc limit 1`,
+    [leagueId, sourceId, abbreviation, name],
+  );
+  if (existing.rows[0]) {
+    await client.query(
+      `update rec_teams set madden_team_id=$3, name=coalesce($4,name), abbreviation=coalesce($5,abbreviation),
+       conference=coalesce($6,conference), division=coalesce($7,division), updated_at=now() where id=$1 and league_id=$2`,
+      [existing.rows[0].id, leagueId, sourceId, name, abbreviation, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"])],
+    );
+  }
+}
+
+async function applyRosterPlayer(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
+  const row = record.rawData;
+  const playerId = record.sourcePlayerId;
+  if (!playerId) return;
+  const first = text(row, ["firstName", "first_name", "first"]);
+  const last = text(row, ["lastName", "last_name", "last"]);
+  const full = text(row, ["fullName", "full_name", "displayName", "playerName"]) ?? ([first, last].filter(Boolean).join(" ") || `Player ${playerId}`);
+  const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
+  await client.query(
+    `insert into rec_players
+       (league_id,madden_player_id,first_name,last_name,full_name,position,team_id,overall_rating,dev_trait,
+        jersey_number,years_pro,contract_years_left,attributes,raw_payload,player_source,roster_status,updated_at)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,'madden_companion','active',now())
+     on conflict (league_id,madden_player_id) do update set
+       first_name=coalesce(excluded.first_name,rec_players.first_name), last_name=coalesce(excluded.last_name,rec_players.last_name),
+       full_name=excluded.full_name, position=coalesce(excluded.position,rec_players.position), team_id=coalesce(excluded.team_id,rec_players.team_id),
+       overall_rating=coalesce(excluded.overall_rating,rec_players.overall_rating), dev_trait=coalesce(excluded.dev_trait,rec_players.dev_trait),
+       jersey_number=coalesce(excluded.jersey_number,rec_players.jersey_number), years_pro=coalesce(excluded.years_pro,rec_players.years_pro),
+       contract_years_left=coalesce(excluded.contract_years_left,rec_players.contract_years_left),
+       attributes=case when excluded.attributes='{}'::jsonb then rec_players.attributes else excluded.attributes end,
+       raw_payload=excluded.raw_payload, roster_status='active', updated_at=now()`,
+    [leagueId, playerId, first, last, full, text(row, ["position", "positionName", "positionAbbr"]), resolvedTeamId,
+      integer(row, ["overallRating", "overall", "ovrRating", "ovr"]), text(row, ["devTrait", "developmentTrait", "dev_trait"]),
+      integer(row, ["jerseyNum", "jerseyNumber", "jersey_number"]), integer(row, ["yearsPro", "experience"]),
+      integer(row, ["contractYearsLeft", "contract_years_left"]), JSON.stringify(value(row, ["attributes", "ratings"]) ?? {}), JSON.stringify(row)],
+  );
+}
+
+async function applySchedule(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
+  const row = record.rawData;
+  const externalId = record.sourceGameId ?? record.recordKey;
+  const homeSource = text(row, ["homeTeamId", "home_team_id"]);
+  const awaySource = text(row, ["awayTeamId", "away_team_id"]);
+  const home = await teamId(client, leagueId, homeSource);
+  const away = await teamId(client, leagueId, awaySource);
+  const homeScore = integer(row, ["homeScore", "home_score"]);
+  const awayScore = integer(row, ["awayScore", "away_score"]);
+  const completed = homeScore !== null && awayScore !== null;
+  await client.query(
+    `insert into rec_games(league_id,week_number,phase,home_team_id,away_team_id,home_score,away_score,status,source,import_verified,manual_entered,result_payout_eligible,eos_payout_eligible,external_game_id,updated_at)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
+     on conflict (league_id,external_game_id) where external_game_id is not null do update set
+       week_number=excluded.week_number,home_team_id=coalesce(excluded.home_team_id,rec_games.home_team_id),
+       away_team_id=coalesce(excluded.away_team_id,rec_games.away_team_id),home_score=excluded.home_score,
+       away_score=excluded.away_score,status=excluded.status,source='madden_companion_export',import_verified=true,updated_at=now()`,
+    [leagueId, record.weekNumber, bool(row, ["isPlayoff", "is_playoff"]) ? "playoffs" : "regular_season", home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+  );
+}
+
+function statCategory(row: Json, record: NormalizedCompanionRecord) {
+  if (record.statCategory) return record.statCategory.toLowerCase();
+  const keys = Object.keys(row).join(" ").toLowerCase();
+  if (/pass/.test(keys)) return "passing";
+  if (/rush/.test(keys)) return "rushing";
+  if (/rec|catch/.test(keys)) return "receiving";
+  if (/tackle|sack|def|interception|forcedfumble/.test(keys)) return "defense";
+  if (/punt/.test(keys)) return "punting";
+  if (/kick|fieldgoal|extra/.test(keys)) return "kicking";
+  return "all";
+}
+
+async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalRecordId: string, seasonKey: string, record: NormalizedCompanionRecord) {
+  if (!record.sourcePlayerId) return;
+  let player = (await client.query<{ id: string; full_name: string; position: string | null }>(
+    "select id,full_name,position from rec_players where league_id=$1 and madden_player_id=$2 limit 1", [leagueId, record.sourcePlayerId],
+  )).rows[0];
+  if (!player) {
+    await applyRosterPlayer(client, leagueId, record);
+    player = (await client.query("select id,full_name,position from rec_players where league_id=$1 and madden_player_id=$2 limit 1", [leagueId, record.sourcePlayerId])).rows[0];
+  }
+  if (!player) return;
+  const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
+  const team = resolvedTeamId ? (await client.query<{ name: string }>("select name from rec_teams where id=$1", [resolvedTeamId])).rows[0] : null;
+  const season = /^\d+$/.test(seasonKey) ? Number(seasonKey) : (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
+  const category = statCategory(record.rawData, record);
+  await client.query(
+    `insert into rec_player_weekly_stats
+       (league_id,season_number,season_stage,week_number,player_id,team_id,madden_player_id,madden_team_id,
+        player_name,team_name,position,stat_category,stats,raw_payload,source_stat_id,source_schedule_id,
+        source_week_index,source_team_id,source_roster_id,source_type,source_companion_record_id,updated_at)
+     values ($1,$2,'regular_season',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$3,$7,$6,'madden_companion',$16,now())
+     on conflict (source_companion_record_id) where source_companion_record_id is not null do update set
+       season_number=excluded.season_number,week_number=excluded.week_number,player_id=excluded.player_id,team_id=excluded.team_id,
+       player_name=excluded.player_name,team_name=excluded.team_name,position=excluded.position,stat_category=excluded.stat_category,
+       stats=excluded.stats,raw_payload=excluded.raw_payload,updated_at=now()`,
+    [leagueId, season, record.weekNumber ?? 0, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
+      player.full_name, team?.name ?? null, player.position, category, JSON.stringify(statPayload(record.rawData)), JSON.stringify(record.rawData),
+      record.recordKey, record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`, canonicalRecordId],
+  );
+}
+
+async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRecordId: string, seasonKey: string, record: NormalizedCompanionRecord) {
+  const row = record.rawData;
+  const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
+  if (!resolvedTeamId) return;
+  const game = record.sourceGameId
+    ? (await client.query<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null }>(
+        "select id,home_team_id,away_team_id,home_score,away_score,phase from rec_games where league_id=$1 and external_game_id=$2 limit 1",
+        [leagueId, record.sourceGameId],
+      )).rows[0]
+    : null;
+  const opponentTeamId = game ? (game.home_team_id === resolvedTeamId ? game.away_team_id : game.home_team_id) : null;
+  const isHome = game ? game.home_team_id === resolvedTeamId : bool(row, ["isHome", "is_home"]);
+  const pointsFor = integer(row, ["pointsFor", "points_for", "score", "teamScore", "team_score"])
+    ?? (game ? (isHome ? game.home_score : game.away_score) : null);
+  const pointsAgainst = integer(row, ["pointsAgainst", "points_against", "opponentScore", "opponent_score"])
+    ?? (game ? (isHome ? game.away_score : game.home_score) : null);
+  const season = /^\d+$/.test(seasonKey)
+    ? Number(seasonKey)
+    : (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0]?.season_number ?? 1;
+  const userId = (await client.query<{ user_id: string }>(
+    "select user_id from rec_team_assignments where league_id=$1 and team_id=$2 and assignment_status='active' and ended_at is null limit 1",
+    [leagueId, resolvedTeamId],
+  )).rows[0]?.user_id ?? null;
+  const opponentUserId = opponentTeamId ? (await client.query<{ user_id: string }>(
+    "select user_id from rec_team_assignments where league_id=$1 and team_id=$2 and assignment_status='active' and ended_at is null limit 1",
+    [leagueId, opponentTeamId],
+  )).rows[0]?.user_id ?? null : null;
+  const result = pointsFor === null || pointsAgainst === null ? null : pointsFor > pointsAgainst ? "win" : pointsFor < pointsAgainst ? "loss" : "tie";
+  const stats = statPayload(row);
+  await client.query(
+    `insert into rec_team_game_stats
+       (league_id,season_number,week_number,phase,game_id,submission_id,team_id,opponent_team_id,user_id,opponent_user_id,
+        is_home,result,points_for,points_against,off_yards_gained,off_rush_yards,off_pass_yards,off_first_down,
+        punt_return_yards,kick_return_yards,total_yards_gained,turnovers_committed,red_zone_off_percentage,time_of_possession,
+        generated_turnovers,yards_allowed,rush_yards_allowed,pass_yards_allowed,first_downs_allowed,red_zone_def_percentage,
+        offensive_stats,defensive_stats,source_type,source_external_id,source_companion_record_id,raw_payload)
+     values ($1,$2,$3,$4,$5,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$30::jsonb,'madden_companion',$31,$32,$33::jsonb)
+     on conflict (source_companion_record_id) where source_companion_record_id is not null do update set
+       season_number=excluded.season_number,week_number=excluded.week_number,phase=excluded.phase,game_id=excluded.game_id,
+       team_id=excluded.team_id,opponent_team_id=excluded.opponent_team_id,user_id=excluded.user_id,opponent_user_id=excluded.opponent_user_id,
+       is_home=excluded.is_home,result=excluded.result,points_for=excluded.points_for,points_against=excluded.points_against,
+       off_yards_gained=excluded.off_yards_gained,off_rush_yards=excluded.off_rush_yards,off_pass_yards=excluded.off_pass_yards,
+       off_first_down=excluded.off_first_down,punt_return_yards=excluded.punt_return_yards,kick_return_yards=excluded.kick_return_yards,
+       total_yards_gained=excluded.total_yards_gained,turnovers_committed=excluded.turnovers_committed,
+       red_zone_off_percentage=excluded.red_zone_off_percentage,time_of_possession=excluded.time_of_possession,
+       generated_turnovers=excluded.generated_turnovers,yards_allowed=excluded.yards_allowed,rush_yards_allowed=excluded.rush_yards_allowed,
+       pass_yards_allowed=excluded.pass_yards_allowed,first_downs_allowed=excluded.first_downs_allowed,
+       red_zone_def_percentage=excluded.red_zone_def_percentage,offensive_stats=excluded.offensive_stats,
+       defensive_stats=excluded.defensive_stats,raw_payload=excluded.raw_payload`,
+    [leagueId, season, record.weekNumber ?? 0, game?.phase ?? "regular_season", game?.id ?? null, resolvedTeamId, opponentTeamId,
+      userId, opponentUserId, isHome, result, pointsFor, pointsAgainst,
+      integer(row, ["offYds", "offensiveYards", "off_yards_gained", "totalOffense"]), integer(row, ["rushYds", "rushingYards", "off_rush_yards"]),
+      integer(row, ["passYds", "passingYards", "off_pass_yards"]), integer(row, ["firstDowns", "off_first_down"]),
+      integer(row, ["puntReturnYds", "punt_return_yards"]), integer(row, ["kickReturnYds", "kick_return_yards"]),
+      integer(row, ["totalYds", "totalYards", "total_yards_gained"]), integer(row, ["turnovers", "turnoversCommitted", "turnovers_committed"]),
+      integer(row, ["redZonePct", "redZoneOffPercentage", "red_zone_off_percentage"]), text(row, ["timeOfPossession", "time_of_possession"]),
+      integer(row, ["takeaways", "generatedTurnovers", "generated_turnovers"]), integer(row, ["yardsAllowed", "yards_allowed"]),
+      integer(row, ["rushYardsAllowed", "rush_yards_allowed"]), integer(row, ["passYardsAllowed", "pass_yards_allowed"]),
+      integer(row, ["firstDownsAllowed", "first_downs_allowed"]), integer(row, ["redZoneDefPct", "redZoneDefPercentage", "red_zone_def_percentage"]),
+      JSON.stringify(stats), record.recordKey, canonicalRecordId, JSON.stringify(row)],
+  );
+}
+
+export async function applyCompanionRecordToCanonical(input: { client: PoolClient; leagueId: string; endpointKey: MaddenEndpointKey; canonicalRecordId: string; seasonKey: string; record: NormalizedCompanionRecord }) {
+  if (input.endpointKey === "teams") return applyTeam(input.client, input.leagueId, input.record);
+  if (input.endpointKey === "rosters") return applyRosterPlayer(input.client, input.leagueId, input.record);
+  if (input.endpointKey === "schedule") return applySchedule(input.client, input.leagueId, input.record);
+  if (input.endpointKey === "player_stats") return applyPlayerStats(input.client, input.leagueId, input.canonicalRecordId, input.seasonKey, input.record);
+  if (input.endpointKey === "team_stats") return applyTeamStats(input.client, input.leagueId, input.canonicalRecordId, input.seasonKey, input.record);
+}

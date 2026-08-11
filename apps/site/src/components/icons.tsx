@@ -250,3 +250,13 @@ export function IconInbox(props: IconProps) {
     </>,
   );
 }
+
+export function IconStats(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7" />
+      <path d="M3 20h18" />
+    </>,
+  );
+}

@@ -829,6 +829,7 @@ function ImpersonatePanel() {
   const [messageBody, setMessageBody] = useState("");
   const [messageBusy, setMessageBusy] = useState(false);
   const [messageNotice, setMessageNotice] = useState<string | null>(null);
+  const [accountTab, setAccountTab] = useState<"registered" | "discord">("registered");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -884,8 +885,14 @@ function ImpersonatePanel() {
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Username" />
       </label>
       {error && <p className="site-auth-error">{error}</p>}
-      <ul className="site-account-notif-list">
-        {users.map((user) => (
+      <div className="site-account-tabs" role="tablist" aria-label="Account type">
+        <div className="site-account-tab-track">
+          <button type="button" className={accountTab === "registered" ? "is-active" : ""} onClick={() => setAccountTab("registered")}>Registered users</button>
+          <button type="button" className={accountTab === "discord" ? "is-active" : ""} onClick={() => setAccountTab("discord")}>Discord only</button>
+        </div>
+      </div>
+      <ul className="site-account-notif-list admin-user-card-grid">
+        {users.filter((user) => accountTab === "registered" ? user.hasSiteAccount : !user.hasSiteAccount).map((user) => (
           <li key={user.id}>
             <strong>@{user.username || user.displayName || "Unresolved account"}</strong>
             <span>
