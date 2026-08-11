@@ -4,6 +4,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listRoleMgmtMembers, setMemberRole, syncDiscordMemberRole, updateMemberRole } from "./roles.service.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { resyncTeamNicknamesForGuild } from "../team-ownership/team-ownership.service.js";
 
 const RoleKeySchema = z.enum(["member", "compCommittee", "commissioner"]);
 
@@ -42,6 +43,13 @@ export async function rolesRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+  app.post("/v1/roles/resync-nicknames", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      return reply.send(await resyncTeamNicknamesForGuild(guildId));
+    } catch (error) { return sendError(reply, error); }
   });
   app.post("/v1/roles/set", async (request, reply) => {
     try {

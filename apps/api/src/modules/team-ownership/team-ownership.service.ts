@@ -422,15 +422,17 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   await addMemberRole(input.guildId, input.discordId, memberRoleId, "REC team linked; default Member role")
     .catch((error) => console.error(`[WARN] Failed to add Member role for ${input.discordId} in guild ${input.guildId} (non-fatal):`, error));
 
-  // Best-effort: fails silently if the member hasn't actually joined this Discord server yet
-  // (e.g. they were just approved and haven't clicked their invite link) — bot/index-timeout.ts's
-  // guildMemberAdd handler catches that case up once they do join.
+  // Best-effort: legitimately no-ops if the member hasn't actually joined this Discord server
+  // yet (e.g. they were just approved and haven't clicked their invite link) —
+  // bot/index-timeout.ts's guildMemberAdd handler catches that case up once they do join. Any
+  // other failure (role hierarchy, missing MANAGE_NICKNAMES, etc.) is logged rather than
+  // silently eaten, since that used to leave "nicknames just don't work" undebuggable.
   await setGuildMemberNickname(
     input.guildId,
     input.discordId,
     shortTeamNickname(team.data, league.game === "cfb_27"),
     "REC team linked — nickname set to team",
-  ).catch(() => undefined);
+  ).catch((error) => console.error(`[WARN] Failed to set nickname for ${input.discordId} in guild ${input.guildId} (non-fatal):`, error));
 
   await writeAuditLog({
     action: "team.user_linked",
@@ -494,8 +496,60 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
   const memberRoleId = await ensureManagedRoleId(guildId, "member");
   await addMemberRole(guildId, discordId, memberRoleId, "REC team linked; default Member role (caught up on guild join)")
     .catch((error) => console.error(`[WARN] Failed to add Member role for ${discordId} in guild ${guildId} (non-fatal):`, error));
-  await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team, league.game === "cfb_27"), "REC team linked — nickname set to team (caught up on guild join)").catch(() => undefined);
+  await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team, league.game === "cfb_27"), "REC team linked — nickname set to team (caught up on guild join)")
+    .catch((error) => console.error(`[WARN] Failed to set nickname for ${discordId} in guild ${guildId} (non-fatal):`, error));
   return { synced: true };
+}
+
+/** Retroactive bulk fix — every currently-linked member's nickname gets force-set to their
+ * team name, regardless of whether the original linkUserToTeam/join-catch-up call silently
+ * failed. Unlike those best-effort call sites, failures here are reported per-user instead of
+ * swallowed, since "the bot isn't touching nicknames at all" needs a real reason (most likely:
+ * the bot's own role sits below the target member's highest role in the server's role list —
+ * Discord blocks nickname/role changes on anyone positioned at or above the acting bot
+ * regardless of the bot having Administrator, and never allows renaming the server owner at
+ * all — but a wrong/missing MANAGE_NICKNAMES grant or a stale/left member could also explain it). */
+export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
+  synced: Array<{ discordId: string; nickname: string }>;
+  failed: Array<{ discordId: string; nickname: string; reason: string }>;
+  skipped: Array<{ discordId: string; reason: string }>;
+}> {
+  const { league } = await getCurrentLeagueForGuild(guildId);
+  const isCfb = league.game === "cfb_27";
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team:rec_teams(name,display_nick,is_relocated)")
+    .eq("league_id", league.id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+
+  const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id).filter(Boolean))];
+  const accounts = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    : { data: [] as any[], error: null };
+  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  const discordIdByUser = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+
+  const synced: Array<{ discordId: string; nickname: string }> = [];
+  const failed: Array<{ discordId: string; nickname: string; reason: string }> = [];
+  const skipped: Array<{ discordId: string; reason: string }> = [];
+
+  for (const row of assignments.data ?? []) {
+    const discordId = discordIdByUser.get(row.user_id);
+    if (!discordId) { skipped.push({ discordId: String(row.user_id), reason: "No linked Discord account." }); continue; }
+    const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
+    if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); continue; }
+    const nickname = shortTeamNickname(team, isCfb);
+    try {
+      await setGuildMemberNickname(guildId, discordId, nickname, "REC nickname resync (retroactive)");
+      synced.push({ discordId, nickname });
+    } catch (error) {
+      failed.push({ discordId, nickname, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { synced, failed, skipped };
 }
 
 export async function listLinkedUsersTeams(guildId: string) {

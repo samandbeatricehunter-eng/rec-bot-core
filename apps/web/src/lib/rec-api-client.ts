@@ -626,6 +626,12 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/roles/update", { method: "POST", body: JSON.stringify(input) }),
   setMemberRole: (input: { guildId: string; discordId: string; roleKey: RoleMgmtRoleKey }) =>
     recApiFetch<{ ok: true; roleKey: RoleMgmtRoleKey }>("/v1/roles/set", { method: "POST", body: JSON.stringify(input) }),
+  resyncNicknames: (guildId: string) =>
+    recApiFetch<{
+      synced: Array<{ discordId: string; nickname: string }>;
+      failed: Array<{ discordId: string; nickname: string; reason: string }>;
+      skipped: Array<{ discordId: string; reason: string }>;
+    }>("/v1/roles/resync-nicknames", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Settings (Phase 2)
   getServerChannels: (guildId: string) => recApiFetch<{ channels: Array<{ id: string; name: string; type: "text" | "category" }>; routes: Record<string, string | null> }>("/v1/server-config/channels", { method: "POST", body: JSON.stringify({ guildId }) }),
