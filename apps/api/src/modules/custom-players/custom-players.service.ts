@@ -362,7 +362,7 @@ export async function submitCustomPlayer(input: {
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
     details: { packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
-  const refundCoins = Math.ceil(pointsRemainingAfterHeight * .10);
+  const unspentCpRewardCoins = pointsRemainingAfterHeight * 10 >= evaluation.creationPoints ? 500 : 0;
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
     replacement_player_snapshot: replacement.data ?? {},
@@ -371,7 +371,7 @@ export async function submitCustomPlayer(input: {
     identity: input.identity, body_type: game === "CFB" ? input.identity.bodyType : null, height_overage_cost: heightSurcharge,
     attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
     attribute_points_spent: evaluation.attributeCost, development_points_spent: evaluation.netDevelopmentCost, creation_points_spent: evaluation.totalCost + heightSurcharge,
-    creation_points_remaining: pointsRemainingAfterHeight, unused_cp_refund_coins: refundCoins, estimated_ovr_raw: evaluation.rawOverall,
+    creation_points_remaining: pointsRemainingAfterHeight, unused_cp_refund_coins: unspentCpRewardCoins, estimated_ovr_raw: evaluation.rawOverall,
     estimated_ovr: evaluation.displayOverall, linear_score: evaluation.linearScore, model_confidence: evaluation.confidence,
     raw_ovr_cap: evaluation.rawOverallCap, support_indexes: {}, package_configuration_version: REC_CUSTOM_PLAYER_PACKAGE_VERSION,
     cost_configuration_version: REC_CUSTOM_PLAYER_COST_VERSION, archetype_configuration_version: REC_ARCHETYPE_CONFIG_VERSION,
@@ -516,7 +516,9 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     p_estimated_ovr_raw: reevaluated.rawOverall, p_estimated_ovr: reevaluated.displayOverall, p_linear_score: reevaluated.linearScore,
     p_attribute_points_spent: reevaluated.attributeCost, p_development_points_spent: reevaluated.netDevelopmentCost,
     p_creation_points_spent: reevaluated.totalCost, p_creation_points_remaining: reevaluated.pointsRemaining,
-    p_unused_cp_refund_coins: Math.ceil(reevaluated.pointsRemaining * .10), p_changes: changes,
+    // Reward eligibility is locked when the user finishes creation. Commissioner edits must
+    // not grant or remove it later.
+    p_unused_cp_refund_coins: Number(build.unused_cp_refund_coins) === 500 ? 500 : 0, p_changes: changes,
   });
   if (applied.error) throw new ApiError(500, "Failed to apply the custom player atomically.", applied.error);
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })

@@ -50,7 +50,7 @@ function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteCha
   return <div className="settings-review-row">
     <div>
       <strong>{identity.firstName} {identity.lastName}</strong> · {build.position} · {build.estimated_ovr} OVR
-      <p className="form-hint">{String(build.package_key).replaceAll("_", " ")} · {build.coin_price} coins · {build.creation_points_spent}/{build.creation_point_budget} CP · {build.unused_cp_refund_coins} coin refund</p>
+      <p className="form-hint">{String(build.package_key).replaceAll("_", " ")} · {build.coin_price} coins · {build.creation_points_spent}/{build.creation_point_budget} CP · {build.unused_cp_refund_coins > 0 ? "500-coin unspent CP reward" : "no unspent CP reward"}</p>
       <p className="form-hint">Replacing: {build.replacement_player_snapshot?.full_name ?? "Unknown player"} · {build.replacement_player_snapshot?.position ?? "—"} · {build.replacement_player_snapshot?.overall_rating ?? "—"} OVR</p>
     </div>
     <p className="form-hint"><strong>88 OVR ceiling:</strong> if the created player exceeds 88 OVR, ratings must be reduced before approval. All commissioner edits are logged and sent to the purchaser.</p>
@@ -94,7 +94,7 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
     setBusy(buildId); setMessage(null);
     try {
       await recApi.reviewCustomPlayer({ guildId, buildId, action, note: notes[buildId]?.trim() || undefined, adjustments: action === "approve" ? edits[buildId] : undefined });
-      setMessage(action === "approve" ? "Custom player approved, applied, and refunded for unused creation points." : "Custom player rejected and the package price refunded.");
+      setMessage(action === "approve" ? "Custom player approved and applied. Any earned unspent CP reward was credited." : "Custom player rejected and the package price refunded.");
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(null); }
