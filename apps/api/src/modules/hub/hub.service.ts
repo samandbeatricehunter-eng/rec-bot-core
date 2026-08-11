@@ -254,10 +254,14 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  // Every season restarts at week 1, so without a season_id filter this would also match last
+  // season's week_number=1 slate once a league is on its second (or later) season.
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
   const games = await supabase
     .from("rec_games")
     .select("id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated)")
     .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
     .eq("week_number", weekNumber);
   if (games.error) throw new ApiError(500, "Failed to load this week's opponent.", games.error);
   const game = (games.data ?? []).find((row: any) => row.home_user_id === userId || row.away_user_id === userId);

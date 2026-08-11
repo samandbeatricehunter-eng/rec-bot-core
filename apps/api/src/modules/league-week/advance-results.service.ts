@@ -122,16 +122,24 @@ async function publishLeagueAdvanceAnnouncement(input: {
   // happen to share this week_number from the last real gameplay week.
   const hasScheduledGames = stageHasScheduledGames(input.seasonStage, input.game);
   const games = hasScheduledGames
-    ? await supabase
-        .from("rec_games")
-        .select(
-          "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
-        )
-        .eq("league_id", input.leagueId)
-        .eq("week_number", input.weekNumber)
-        .not("home_user_id", "is", null)
-        .not("away_user_id", "is", null)
-        .order("created_at", { ascending: true })
+    ? await (async () => {
+        // Every season restarts at week 1, so rec_games legitimately has a week_number=1 row
+        // for each past season too — without a season_id filter this pulls every season's
+        // slate for that week number, not just the current one (the exact bug that put last
+        // year's Week 1 games in this year's advance announcement).
+        const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
+        return supabase
+          .from("rec_games")
+          .select(
+            "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+          )
+          .eq("league_id", input.leagueId)
+          .eq("season_id", seasonId)
+          .eq("week_number", input.weekNumber)
+          .not("home_user_id", "is", null)
+          .not("away_user_id", "is", null)
+          .order("created_at", { ascending: true });
+      })()
     : { data: [] as any[] };
 
   const lines = (games.data ?? []).map((game: any) => {
