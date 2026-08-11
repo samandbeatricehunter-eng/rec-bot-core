@@ -55,6 +55,66 @@ function discordIdentityFromAuthUser(user: {
   return { discordId, username: String(username), globalName };
 }
 
+/** Repairs team requests created before Discord was linked. Older site sessions were passed
+ * through the Discord-shaped API as `site:<recUserId>`; the team-request service mistakenly
+ * created a second REC user for that synthetic id. Move the league-facing records back onto
+ * the authenticated profile and replace the synthetic id with the real Discord snowflake. */
+async function reconcilePreDiscordTeamRecords(input: {
+  canonicalUserId: string;
+  discordId: string;
+}) {
+  const client = await getPgPool().connect();
+  try {
+    await client.query("begin");
+    const synthetic = await client.query(
+      `select user_id from rec_discord_accounts where discord_id = $1 for update`,
+      [`site:${input.canonicalUserId}`],
+    );
+    const duplicateUserId = (synthetic.rows[0] as { user_id?: string } | undefined)?.user_id;
+    if (!duplicateUserId || duplicateUserId === input.canonicalUserId) {
+      await client.query("commit");
+      return;
+    }
+
+    await client.query(
+      `update rec_team_link_requests
+       set requester_user_id = $1, requester_discord_id = $2, updated_at = now()
+       where requester_user_id = $3`,
+      [input.canonicalUserId, input.discordId, duplicateUserId],
+    );
+    await client.query(
+      `update rec_commissioners_inbox
+       set requester_user_id = $1, requester_discord_id = $2, updated_at = now()
+       where requester_user_id = $3`,
+      [input.canonicalUserId, input.discordId, duplicateUserId],
+    );
+    await client.query(
+      `update rec_team_assignments set user_id = $1 where user_id = $2`,
+      [input.canonicalUserId, duplicateUserId],
+    );
+    await client.query(
+      `insert into rec_league_memberships (league_id, user_id, status, role, created_at, updated_at)
+       select league_id, $1, status, role, created_at, now()
+       from rec_league_memberships where user_id = $2
+       on conflict (league_id, user_id) do update
+         set status = excluded.status, role = excluded.role, updated_at = now()`,
+      [input.canonicalUserId, duplicateUserId],
+    );
+    await client.query(`delete from rec_league_memberships where user_id = $1`, [duplicateUserId]);
+    await client.query(
+      `update rec_team_invite_requests set user_id = $1, discord_id = $2 where user_id = $3`,
+      [input.canonicalUserId, input.discordId, duplicateUserId],
+    );
+    await client.query(`delete from rec_discord_accounts where discord_id = $1`, [`site:${input.canonicalUserId}`]);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * After Discord OAuth (or when a Discord identity is already on the Supabase user),
  * link the snowflake to rec_discord_accounts / rec_users and sync REC OG lifetime Platinum.
@@ -153,6 +213,7 @@ export async function linkDiscordFromOAuth(input: {
     );
   }
 
+  await reconcilePreDiscordTeamRecords({ canonicalUserId: recUserId, discordId: discord.discordId });
   const lifetimePlatinum = await syncLifetimePlatinumForUser(recUserId);
   // This user just went from Discord-only to site-linked — release anything that was queued
   // for them specifically because they couldn't receive payouts yet (Heisman awards, etc.).

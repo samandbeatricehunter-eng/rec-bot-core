@@ -25,7 +25,7 @@ export const REC_PURCHASE_TYPE_LABELS: Record<RecPurchaseType, string> = {
 // ─── Fixed prices ───────────────────────────────────────────────────────────────
 export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
-export const REC_LEGEND_PRICE = 2000;
+export const REC_LEGEND_PRICE = 3000;
 
 // Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
 // CFB's stored dev_trait values order normal < impact < star < elite (matches

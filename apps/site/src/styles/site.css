@@ -3546,3 +3546,28 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-secondary);
 }
 .site-ios-install-steps li { padding-left: var(--space-1); }
+
+.site-update-notice {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 500;
+  display: grid;
+  gap: 7px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .46);
+  color: var(--text-primary);
+}
+.site-update-notice > span { color: var(--text-secondary); }
+.site-update-notice > div { display: flex; gap: 8px; margin-top: 3px; }
+@media (max-width: 720px) {
+  .site-update-notice {
+    right: 12px;
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    width: calc(100vw - 24px);
+  }
+}

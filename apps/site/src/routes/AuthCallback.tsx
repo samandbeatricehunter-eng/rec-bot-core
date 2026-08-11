@@ -36,11 +36,9 @@ export function AuthCallback() {
         if (cancelled) return;
 
         setMessage("Linking your Discord account…");
-        try {
-          await siteApi.linkDiscordOAuth();
-        } catch {
-          // Email/password users without Discord identity are fine — Account handles subscribe.
-        }
+        // The API safely no-ops when no Discord identity exists; real reconciliation errors
+        // must remain visible instead of silently stranding league and team records.
+        await siteApi.linkDiscordOAuth();
         if (cancelled) return;
 
         const pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");

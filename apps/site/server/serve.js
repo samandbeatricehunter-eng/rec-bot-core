@@ -10,6 +10,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "..", "dist");
 const indexPath = join(dist, "index.html");
 const port = Number(process.env.PORT ?? 4001);
+const buildId =
+  process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.GITHUB_SHA
+  || process.env.VITE_BUILD_ID
+  || `local-${Date.now()}`;
 
 const runtimeConfig = {
   VITE_SUPABASE_URL:
@@ -20,6 +25,7 @@ const runtimeConfig = {
   VITE_REC_CORE_API_URL:
     process.env.VITE_REC_CORE_API_URL || "https://recapi-production.up.railway.app",
   VITE_SITE_URL: process.env.VITE_SITE_URL || "https://rec-leagues.com",
+  VITE_BUILD_ID: buildId,
 };
 
 const serializedConfig = JSON.stringify(runtimeConfig).replaceAll("<", "\\u003c");
@@ -54,6 +60,13 @@ const assets = sirv(dist, { single: false, etag: true });
 createServer((req, res) => {
   setSecurityHeaders(res);
   const url = req.url?.split("?")[0] ?? "/";
+  if (url === "/version.json") {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+    res.end(JSON.stringify({ buildId }));
+    return;
+  }
   if (url === "/" || url === "/index.html" || !url.includes(".")) {
     sendIndex(res);
     return;

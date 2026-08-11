@@ -9,6 +9,7 @@ const PROD_DEFAULTS = {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5b294cGpzeHZzYXRyYXJpYWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTkyMjksImV4cCI6MjA5NDg3NTIyOX0.AruGcjXxJlaRyPynMtzeCgsKkqfDJwQ2Ili-cZiSkuI",
   VITE_REC_CORE_API_URL: "https://recapi-production.up.railway.app",
   VITE_SITE_URL: "https://rec-leagues.com",
+  VITE_BUILD_ID: "",
 } as const;
 
 type RuntimeConfig = {
@@ -16,6 +17,7 @@ type RuntimeConfig = {
   VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   VITE_REC_CORE_API_URL?: string;
   VITE_SITE_URL?: string;
+  VITE_BUILD_ID?: string;
 };
 
 declare global {

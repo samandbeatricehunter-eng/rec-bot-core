@@ -33,6 +33,7 @@ import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 import { AdminPage } from "./routes/Admin.js";
 import { PublicLeague } from "./routes/PublicLeague.js";
+import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
   const parts: string[] = [];
@@ -264,6 +265,7 @@ export default function App() {
           <SiteThemeProvider>
             <AccentTier />
             <Routed />
+            <SiteUpdateNotice />
           </SiteThemeProvider>
         </AuthProvider>
       </RootErrorBoundary>

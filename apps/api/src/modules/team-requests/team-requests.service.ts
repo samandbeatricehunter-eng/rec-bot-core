@@ -9,6 +9,7 @@ import { createDiscordChannelInvite } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
+import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -22,6 +23,13 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
   if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
 
   let userId = account.data?.user_id;
+  if (!userId && isSiteOnlyDiscordId(input.discordId)) {
+    const siteUserId = recUserIdFromSiteOnlyDiscordId(input.discordId);
+    const siteUser = await supabase.from("rec_users").select("id").eq("id", siteUserId).maybeSingle();
+    if (siteUser.error) throw new ApiError(500, "Failed to load your REC account.", siteUser.error);
+    if (!siteUser.data) throw new ApiError(403, "Your REC account could not be resolved.");
+    userId = siteUser.data.id;
+  }
   if (!userId) {
     // Look up the real Discord nickname/username instead of stashing the raw snowflake as
     // a placeholder — that placeholder was never getting corrected later, so it just showed

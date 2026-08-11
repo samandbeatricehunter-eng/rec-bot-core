@@ -41,7 +41,7 @@ function PreviewMock({ kind }: { kind: "matchups" | "store" | "badges" }) {
       <div className="site-preview-card" aria-hidden="true">
         <div className="site-preview-card-title">League Store</div>
         <div className="site-preview-store-row"><span>Dev Trait Upgrade</span><span className="site-preview-price">1,200</span></div>
-        <div className="site-preview-store-row"><span>Campus Legend</span><span className="site-preview-price">3,500</span></div>
+        <div className="site-preview-store-row"><span>Campus Legend</span><span className="site-preview-price">3,000</span></div>
         <div className="site-preview-store-row"><span>Attribute Points ×3</span><span className="site-preview-price">900</span></div>
       </div>
     );

@@ -366,13 +366,23 @@ export async function adminImpersonateUser(input: { targetUserId: string; adminA
     throw new ApiError(500, "Failed to generate impersonation session.", link.error);
   }
 
-  const verified = await supabaseAuthAdmin.auth.verifyOtp({
+  // Keep impersonation session minting isolated from the shared admin client. Supabase may
+  // rotate a just-issued magic-link session immediately; explicitly refresh it before handing
+  // it to the browser so View As never loads with an already-expired access token.
+  const impersonationAuth = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const verified = await impersonationAuth.auth.verifyOtp({
     type: "magiclink",
     token_hash: link.data.properties.hashed_token,
     email: authUser.user.email,
   });
   if (verified.error || !verified.data.session) {
     throw new ApiError(500, "Failed to mint impersonation session.", verified.error);
+  }
+  const refreshed = await impersonationAuth.auth.refreshSession(verified.data.session);
+  if (refreshed.error || !refreshed.data.session) {
+    throw new ApiError(500, "Failed to refresh impersonation session.", refreshed.error);
   }
 
   await writeAuditLog({
@@ -384,8 +394,8 @@ export async function adminImpersonateUser(input: { targetUserId: string; adminA
   }).catch(() => undefined);
 
   return {
-    accessToken: verified.data.session.access_token,
-    refreshToken: verified.data.session.refresh_token,
+    accessToken: refreshed.data.session.access_token,
+    refreshToken: refreshed.data.session.refresh_token,
     targetUsername: row.username ?? row.display_name,
   };
 }
