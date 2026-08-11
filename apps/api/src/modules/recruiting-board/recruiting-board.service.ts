@@ -34,21 +34,46 @@ async function removeAd(leagueId: string) {
 
 function buildAdPayload(league: { id: string; name: string; game: string }, allTeams: any[], openTeamIds: Set<string>) {
   const openCount = allTeams.filter((team) => openTeamIds.has(team.id)).length;
-  const lines = allTeams
-    .map((team) => formatTeamDisplayName(team) ?? team.name)
-    .map((name, index) => (openTeamIds.has(allTeams[index]!.id) ? `${name}` : `~~${name}~~`));
+
+  // Every team is already listed directly in the embed (struck through once taken), so the
+  // separate "Open Teams" button was a redundant extra click — removed. Grouped into one
+  // field per conference (with bold division sub-headers inside, blank-line separated) so a
+  // 32-team league reads as a structured standings sheet instead of one long flat list.
+  const byConference = new Map<string, any[]>();
+  for (const team of allTeams) {
+    const key = team.conference || "Teams";
+    const list = byConference.get(key) ?? [];
+    list.push(team);
+    byConference.set(key, list);
+  }
+  const fields = [...byConference.entries()].slice(0, 25).map(([conference, teams]) => {
+    const byDivision = new Map<string, any[]>();
+    for (const team of teams) {
+      const key = team.division || "";
+      const list = byDivision.get(key) ?? [];
+      list.push(team);
+      byDivision.set(key, list);
+    }
+    const lines: string[] = [];
+    for (const [division, divisionTeams] of byDivision) {
+      if (division) lines.push(`**${division}**`);
+      for (const team of divisionTeams) {
+        const name = formatTeamDisplayName(team) ?? team.name;
+        lines.push(openTeamIds.has(team.id) ? name : `~~${name}~~`);
+      }
+      lines.push("");
+    }
+    return { name: `**${conference}**`, value: lines.join("\n").trim().slice(0, 1024) || "—", inline: true };
+  });
+
   const embed = {
     title: league.name,
-    description: `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.\n\n${lines.join("\n") || "No teams configured yet."}`,
+    description: `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
     color: 0x2ecc71,
-    footer: { text: "Click Open Teams to see availability, or Request Team to claim one." },
+    fields,
+    footer: { text: "Use the Request Team dropdown below to claim an open team." },
   };
-  const components = [
-    {
-      type: 1,
-      components: [{ type: 2, style: 2, label: "Open Teams", custom_id: `rec:board:open:${league.id}` }],
-    },
-  ];
+  const components: any[] = [];
   if (openCount > 0) {
     const options = allTeams
       .filter((team) => openTeamIds.has(team.id))

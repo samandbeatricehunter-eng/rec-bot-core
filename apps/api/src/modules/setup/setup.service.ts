@@ -944,16 +944,24 @@ export async function updateSiteLeagueConfig(input: { requestedByUserId: string;
 export async function checkLeagueLinked(leagueId: string) {
   const link = await supabase
     .from("rec_server_league_links")
-    .select("id, server_id, is_primary, rec_discord_servers:server_id(guild_id, name)")
+    .select("id, server_id, is_primary")
     .eq("league_id", leagueId)
     .eq("is_primary", true)
     .maybeSingle();
   if (link.error) throw new ApiError(500, "Failed to check league link status.", link.error);
-  const server = link.data?.rec_discord_servers as { guild_id: string; name: string } | null;
+  if (!link.data?.server_id) return { linked: false, guildId: null, serverName: null };
+
+  // Was a single embedded-relation select (`rec_discord_servers:server_id(guild_id, name)`)
+  // — apps/api/src/lib/supabase.ts's minimal Postgres shim only resolves that shorthand when
+  // the FK column name literally matches `${alias}_id`; `server_id` doesn't match
+  // `rec_discord_servers_id`, so it always generated invalid SQL and threw here (every call,
+  // not data-dependent — this is what "Request Team" on the recruiting board was hitting).
+  const server = await supabase.from("rec_discord_servers").select("guild_id, name").eq("id", link.data.server_id).maybeSingle();
+  if (server.error) throw new ApiError(500, "Failed to check league link status.", server.error);
   return {
-    linked: Boolean(link.data && server),
-    guildId: server?.guild_id ?? null,
-    serverName: server?.name ?? null,
+    linked: Boolean(server.data),
+    guildId: server.data?.guild_id ?? null,
+    serverName: server.data?.name ?? null,
   };
 }
 
