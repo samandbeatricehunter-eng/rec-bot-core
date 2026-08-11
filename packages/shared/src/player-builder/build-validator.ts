@@ -32,7 +32,10 @@ import {
 // OVR SS with low attributes across the board, meaning the mandatory 35-point floor across
 // all 53 attributes was eating nearly the entire budget before a build could specialize at
 // all. Dialed the same three levers back roughly halfway between v1.4 and v1.5.0.
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.5.1" as const;
+// v1.6.0: package CP allowances increased 15% after position-spanning allocator calibration
+// showed the top tier still plateauing around 84-85 OVR for QB/WR builds. OVR and attribute
+// caps remain unchanged, adding flexibility without permitting a stronger final player.
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.6.0" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -43,21 +46,17 @@ export interface RecPackageRules {
 }
 
 /**
- * creationPoints includes the empirical p90 archetype-premium adjustment. The previous
- * 4,600/5,100/5,800/6,700/7,700 values remain recorded as baseCalibrationCp for
- * auditability. The original 30% cut (2026-08) made even a deliberately concentrated,
- * gate-respecting build (primaries maxed, floor-relation attributes held above their
- * thresholds, everything else dumped low) fall well short of a tier's rawOverallCap after
- * the OVR model's real-EA-data recalibration — a Tier 5 build topped out in the low-80s
- * against an 88 cap. Settled on a 15% cut: still real scarcity (hitting the cap takes a
- * genuinely min-maxed build, not a flat spread), but leaves that a reachable target.
+ * baseCalibrationCp preserves the original empirical calibration. creationPoints now gives
+ * each tier 15% more than its prior allowance after position-spanning checks showed that the
+ * most expensive QB and WR builds still stopped several OVR below their advertised ceiling.
+ * The independent OVR and high-impact attribute caps continue to enforce package strength.
  */
 export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>> = {
-  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 3910, rawOverallCap: 65, highImpactAttributeCap: 88 },
-  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4335, rawOverallCap: 71, highImpactAttributeCap: 91 },
-  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 4930, rawOverallCap: 78, highImpactAttributeCap: 94 },
-  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 5695, rawOverallCap: 84, highImpactAttributeCap: 97 },
-  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 6545, rawOverallCap: 88, highImpactAttributeCap: 99 },
+  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 4495, rawOverallCap: 65, highImpactAttributeCap: 88 },
+  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4985, rawOverallCap: 71, highImpactAttributeCap: 91 },
+  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 5670, rawOverallCap: 78, highImpactAttributeCap: 94 },
+  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 6550, rawOverallCap: 84, highImpactAttributeCap: 97 },
+  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 7525, rawOverallCap: 88, highImpactAttributeCap: 99 },
 } as const;
 
 // No more archetype picker — every editable attribute on every build, regardless of tier,

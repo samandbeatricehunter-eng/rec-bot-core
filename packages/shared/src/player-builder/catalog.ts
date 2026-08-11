@@ -2,7 +2,7 @@ import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
 import type { RecGameFamily, RecPackageTier } from "./archetypes.js";
 import { REC_PACKAGE_RULES } from "./build-validator.js";
 
-export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.3.0" as const;
+export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.4.0" as const;
 export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.3.0" as const;
 
 export const REC_CUSTOM_PLAYER_POSITIONS = [

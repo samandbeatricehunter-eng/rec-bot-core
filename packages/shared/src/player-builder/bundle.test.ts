@@ -23,7 +23,11 @@ for (const game of ["CFB", "MADDEN"] as const) {
   }
 }
 assert(REC_PACKAGE_RULES[1].highImpactAttributeCap === 88, "Tier 1 cap drift");
-assert(REC_PACKAGE_RULES[5].creationPoints === 6545, "Tier 5 CP drift");
+assert(REC_PACKAGE_RULES[1].creationPoints === 4495, "Tier 1 CP drift");
+assert(REC_PACKAGE_RULES[2].creationPoints === 4985, "Tier 2 CP drift");
+assert(REC_PACKAGE_RULES[3].creationPoints === 5670, "Tier 3 CP drift");
+assert(REC_PACKAGE_RULES[4].creationPoints === 6550, "Tier 4 CP drift");
+assert(REC_PACKAGE_RULES[5].creationPoints === 7525, "Tier 5 CP drift");
 const wrEditable = getRecEditableAttributes("CFB", "WR", "speedster");
 assert(wrEditable.includes("spc") && wrEditable.includes("jmp"), "WR fields must remain position-wide across archetypes");
 const preview = evaluateRecProposedAttributeChange({
@@ -77,4 +81,4 @@ const teSpeedGap = evaluateRecCustomPlayerBuild({
   attributes: { spd: 89, agi: 70, acc: 89, cod: 70 },
 });
 assert(!teSpeedGap.violations.some((v) => v.code === "QUICK_CLUSTER_GAP"), "TE with a wider speed/quick spread is fine");
-console.log("REC custom-player v1.5 fixtures passed");
+console.log("REC custom-player v1.6 fixtures passed");
