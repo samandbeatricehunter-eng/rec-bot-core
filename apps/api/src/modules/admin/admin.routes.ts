@@ -7,6 +7,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   adminDeleteLeague,
   adminImpersonateUser,
+  sendAdminUserMessage,
   adminRemoveUserFromLeague,
   createAdminAnnouncement,
   deleteAdminAnnouncement,
@@ -176,6 +177,18 @@ export async function adminRoutes(app: FastifyInstance) {
         .object({ query: z.string().trim().max(80).optional(), limit: z.number().int().optional() })
         .parse(request.body ?? {});
       return reply.send(await searchAdminUsers(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/users/message", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z
+        .object({ userId: z.string().uuid(), title: z.string().trim().min(1).max(200), body: z.string().trim().min(1).max(2000) })
+        .parse(request.body ?? {});
+      return reply.send(await sendAdminUserMessage({ targetUserId: body.userId, title: body.title, body: body.body }));
     } catch (error) {
       return sendError(reply, error);
     }

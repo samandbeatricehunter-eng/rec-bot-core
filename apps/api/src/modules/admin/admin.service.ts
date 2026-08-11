@@ -334,6 +334,21 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
   };
 }
 
+/** Support/admin one-off outreach — DMs the user's linked Discord account if one exists,
+ * otherwise falls back to a site notification so it's still waiting for them next login. */
+export async function sendAdminUserMessage(input: { targetUserId: string; title: string; body: string }): Promise<{ channel: "discord" | "site" }> {
+  const discordAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.targetUserId).maybeSingle();
+  if (discordAccount.error) throw new ApiError(500, "Failed to look up Discord account.", discordAccount.error);
+  if (discordAccount.data?.discord_id) {
+    const { sendDiscordDirectMessage } = await import("../../lib/discord-guild.js");
+    await sendDiscordDirectMessage(discordAccount.data.discord_id, input.body);
+    return { channel: "discord" };
+  }
+  const { createSiteNotification } = await import("../site-notifications/site-notifications.service.js");
+  await createSiteNotification({ userId: input.targetUserId, leagueId: null, kind: "admin_message", title: input.title, body: input.body, href: "/account" });
+  return { channel: "site" };
+}
+
 export async function adminImpersonateUser(input: { targetUserId: string; adminAuthUserId: string }): Promise<{
   accessToken: string;
   refreshToken: string;

@@ -750,6 +750,11 @@ function ImpersonatePanel() {
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageBusy, setMessageBusy] = useState(false);
+  const [messageNotice, setMessageNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -771,6 +776,26 @@ function ImpersonatePanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start impersonation.");
       setBusyId(null);
+    }
+  }
+
+  function openMessage(userId: string) {
+    setMessagingId(userId);
+    setMessageTitle("");
+    setMessageBody("");
+    setMessageNotice(null);
+  }
+
+  async function sendMessage(userId: string) {
+    setMessageBusy(true);
+    setMessageNotice(null);
+    try {
+      const result = await siteApi.sendAdminUserMessage({ userId, title: messageTitle.trim() || "Message from REC Leagues", body: messageBody.trim() });
+      setMessageNotice(result.channel === "discord" ? "Sent via Discord DM." : "No Discord link — delivered as a site notification instead.");
+    } catch (err) {
+      setMessageNotice(err instanceof Error ? err.message : "Could not send message.");
+    } finally {
+      setMessageBusy(false);
     }
   }
 
@@ -801,7 +826,23 @@ function ImpersonatePanel() {
               >
                 {busyId === user.id ? "Loading…" : "View as"}
               </button>
+              <button className="site-btn site-btn-ghost" type="button" onClick={() => openMessage(user.id)}>
+                Message
+              </button>
             </div>
+            {messagingId === user.id && (
+              <div className="site-field" style={{ marginTop: 8 }}>
+                <input placeholder="Title" value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} />
+                <textarea rows={4} placeholder="Message body" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
+                {messageNotice && <p className="site-muted">{messageNotice}</p>}
+                <div className="site-profile-actions">
+                  <button className="site-btn site-btn-primary" type="button" disabled={messageBusy || !messageBody.trim()} onClick={() => void sendMessage(user.id)}>
+                    {messageBusy ? "Sending…" : "Send"}
+                  </button>
+                  <button className="site-btn site-btn-ghost" type="button" onClick={() => setMessagingId(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
           </li>
         ))}
       </ul>

@@ -784,6 +784,9 @@ export const siteApi = {
   syncAdminDiscordRecruitingAds() {
     return request<{ synced: string[] }>("/v1/admin/discord-config/sync-ads", {});
   },
+  sendAdminUserMessage(input: { userId: string; title: string; body: string }) {
+    return request<{ channel: "discord" | "site" }>("/v1/admin/users/message", input);
+  },
   getLeagueCreatorStatus() {
     return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
   },
