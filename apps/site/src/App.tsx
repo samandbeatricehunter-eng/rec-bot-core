@@ -33,6 +33,7 @@ import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 import { AdminPage } from "./routes/Admin.js";
 import { PublicLeague } from "./routes/PublicLeague.js";
+import { Demo } from "./routes/Demo.js";
 import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
@@ -226,6 +227,7 @@ function Routed() {
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/league/:slug" element={<PublicLeague />} />
+      <Route path="/demo" element={<Demo />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

@@ -989,6 +989,41 @@ export const siteApi = {
     if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Upload failed.");
     return payload as { url: string };
   },
+  listDemoLeagues() {
+    return publicRequest<{ leagues: Array<{ id: string; name: string; game: string; seasonNumber: number; phases: Array<{ value: DemoPhase; label: string }> }> }>("/v1/demo-league/leagues", { method: "POST" });
+  },
+  listDemoTeams(leagueId: string) {
+    return publicRequest<{ league: { id: string; name: string; game: string }; teams: Array<{ id: string; name: string; abbr: string | null; conference: string | null; coachName: string }> }>(
+      "/v1/demo-league/teams", { method: "POST", body: JSON.stringify({ leagueId }) },
+    );
+  },
+  getDemoNewsFeed(leagueId: string, phase: DemoPhase = "live") {
+    return publicRequest<{ posts: Array<{ id: string; title: string; body: string; createdAt: string }>; demo: boolean; phaseLabel?: string }>(
+      "/v1/demo-league/news", { method: "POST", body: JSON.stringify({ leagueId, phase }) },
+    );
+  },
+  getDemoTeamMatchup(leagueId: string, teamId: string, phase: DemoPhase = "live") {
+    return publicRequest<{
+      weekNumber: number | null;
+      matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null;
+      draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>;
+      demo: boolean;
+      phaseLabel?: string;
+    }>("/v1/demo-league/matchup", { method: "POST", body: JSON.stringify({ leagueId, teamId, phase }) });
+  },
+  getDemoTeamRoster(leagueId: string, teamId: string) {
+    return publicRequest<{ players: Array<{ id: string; name: string; position: string; overallRating: number | null; devTrait: string | null }> }>(
+      "/v1/demo-league/roster", { method: "POST", body: JSON.stringify({ leagueId, teamId }) },
+    );
+  },
+  getDemoStandings(leagueId: string, phase: DemoPhase = "live") {
+    return publicRequest<(PublicLeagueSnapshot & { demo: false }) | { demo: true; phaseLabel: string; standings: Array<{ team: string; wins: number; losses: number; ties: number }> }>(
+      "/v1/demo-league/standings", { method: "POST", body: JSON.stringify({ leagueId, phase }) },
+    );
+  },
+  getDemoLeagueHistory(leagueId: string) {
+    return publicRequest<PublicLeagueHistory>("/v1/demo-league/history", { method: "POST", body: JSON.stringify({ leagueId }) });
+  },
   getPublicLeagueSnapshot(guildId: string) {
     return publicRequest<PublicLeagueSnapshot>("/v1/public-league/snapshot", {
       method: "POST",
@@ -1014,6 +1049,8 @@ export const siteApi = {
     });
   },
 };
+
+export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft";
 
 export type PublicLeagueSnapshot = {
   league: {

@@ -122,6 +122,7 @@ export function Landing() {
             <div className="site-profile-actions">
               <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
               <a className="site-btn site-btn-ghost site-btn-lg" href="#plans">View plans</a>
+              <Link className="site-btn site-btn-ghost site-btn-lg" to="/demo">Try a demo league</Link>
             </div>
           </>
         )}
