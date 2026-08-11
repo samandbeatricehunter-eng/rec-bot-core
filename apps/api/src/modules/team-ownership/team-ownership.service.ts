@@ -5,7 +5,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
-import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
@@ -632,6 +632,34 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
   }
 
   return { corrected, alreadyCorrect, failed };
+}
+
+/** Strips every REC managed role (Commissioner/Co-Commish/Member/Discord Only) from every
+ * member of a guild — used when a league is deleted so the next league to use this Discord
+ * server (or the current one, if it's ever recreated) doesn't inherit a member's leftover
+ * role from a league that no longer exists. Best-effort: a role grant/removal failing for one
+ * member should never block the rest of the cleanup or the league deletion itself. */
+export async function stripAllManagedRolesForGuild(guildId: string): Promise<{ clearedMembers: number; failed: Array<{ discordId: string; reason: string }> }> {
+  const [members, roleEntries] = await Promise.all([
+    listGuildMembers(guildId).catch(() => [] as DiscordGuildMemberSummary[]),
+    Promise.all((["member", "compCommittee", "commissioner", "discordOnly"] as const).map(async (key) => [key, await ensureManagedRoleId(guildId, key).catch(() => null)] as const)),
+  ]);
+  const failed: Array<{ discordId: string; reason: string }> = [];
+  let clearedMembers = 0;
+
+  for (const member of members) {
+    if (member.isBot || !member.managedRole) continue;
+    try {
+      for (const [key, id] of roleEntries) {
+        if (!id) continue;
+        if (member.managedRole === key) await removeMemberRole(guildId, member.discordId, id, "REC league deleted — clearing managed roles");
+      }
+      clearedMembers += 1;
+    } catch (error) {
+      failed.push({ discordId: member.discordId, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { clearedMembers, failed };
 }
 
 export async function listLinkedUsersTeams(guildId: string) {

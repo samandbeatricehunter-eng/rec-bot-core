@@ -48,6 +48,14 @@ function toCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T) {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
+// HTTP headers are Latin1/ByteString only — any reason string containing a non-ASCII
+// character (em dash, curly quotes, etc., all common in our own hand-written audit reasons)
+// throws when the runtime tries to set it as a raw header value. Discord's API expects this
+// header URL-encoded anyway, so encoding here is both the fix and the documented-correct form.
+function auditReason(reason: string): string {
+  return encodeURIComponent(reason.slice(0, 480));
+}
+
 async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
   if (!env.DISCORD_TOKEN) throw new ApiError(500, "DISCORD_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
@@ -236,7 +244,14 @@ export async function postDiscordChannelMessage(channelId: string, payload: Reco
   const path = `/channels/${channelId}/messages`;
   const init: RequestInit = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
   const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
-  if (!sent.ok) return null;
+  if (!sent.ok) {
+    // A silent null return here used to leave callers with no way to tell "Discord rejected
+    // this payload" (e.g. an embed over the 6000-char total limit) from "nothing needed to
+    // change" — log the real reason so a stuck/stale message is diagnosable.
+    const body = await sent.clone().json().catch(() => null) as { code?: number; message?: string } | null;
+    console.error(`[WARN] Discord rejected postDiscordChannelMessage to channel ${channelId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
+    return null;
+  }
   return (await sent.json()) as { id: string } & Record<string, any>;
 }
 
@@ -252,6 +267,10 @@ export async function editDiscordMessage(channelId: string, messageId: string, p
   const path = `/channels/${channelId}/messages/${messageId}`;
   const init: RequestInit = { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
   const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  if (!sent.ok) {
+    const body = await sent.clone().json().catch(() => null) as { code?: number; message?: string } | null;
+    console.error(`[WARN] Discord rejected editDiscordMessage on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
+  }
   return sent.ok;
 }
 
@@ -376,7 +395,7 @@ export async function purgeDiscordChannelMessages(channelId: string): Promise<{ 
 }
 
 export async function deleteGuildChannel(channelId: string, reason: string): Promise<boolean> {
-  const res = await discordBotFetch(`/channels/${channelId}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": reason } });
+  const res = await discordBotFetch(`/channels/${channelId}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": auditReason(reason) } });
   return res.ok;
 }
 
@@ -669,7 +688,7 @@ export async function ensureManagedRolesPositioned(guildId: string): Promise<voi
   if (!updates.length) return;
   await discordBotFetch(`/guilds/${guildId}/roles`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": "REC managed role hierarchy sync" },
+    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": auditReason("REC managed role hierarchy sync") },
     body: JSON.stringify(updates),
   }).catch(() => undefined);
   roleListCache.delete(guildId);
@@ -678,19 +697,25 @@ export async function ensureManagedRolesPositioned(guildId: string): Promise<voi
 export async function addMemberRole(guildId: string, discordId: string, roleId: string, reason: string): Promise<void> {
   const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, {
     method: "PUT",
-    headers: { "X-Audit-Log-Reason": reason },
+    headers: { "X-Audit-Log-Reason": auditReason(reason) },
   });
   memberRoleIdsCache.delete(`${guildId}:${discordId}`);
-  if (!res.ok && res.status !== 204) throw new Error(`Failed to add role (${res.status})`);
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    throw new Error(`Failed to add role: ${body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`}`);
+  }
 }
 
 export async function removeMemberRole(guildId: string, discordId: string, roleId: string, reason: string): Promise<void> {
   const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, {
     method: "DELETE",
-    headers: { "X-Audit-Log-Reason": reason },
+    headers: { "X-Audit-Log-Reason": auditReason(reason) },
   });
   memberRoleIdsCache.delete(`${guildId}:${discordId}`);
-  if (!res.ok && res.status !== 204) throw new Error(`Failed to remove role (${res.status})`);
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    throw new Error(`Failed to remove role: ${body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`}`);
+  }
 }
 
 /** Create a short-lived, single-use server invite for an approved league member. */
@@ -711,7 +736,7 @@ export async function createDiscordChannelInvite(channelId: string): Promise<str
 export async function setGuildMemberNickname(guildId: string, discordId: string, nickname: string, reason: string): Promise<void> {
   const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": reason },
+    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": auditReason(reason) },
     body: JSON.stringify({ nick: nickname.slice(0, 32) }),
   });
   guildMemberListCache.delete(guildId);

@@ -66,11 +66,21 @@ function buildAdPayload(league: { id: string; name: string; game: string }, allT
     return { name: `**${conference}**`, value: lines.join("\n").trim().slice(0, 1024) || "—", inline: true };
   });
 
+  const baseDescription = `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`;
+  // Discord rejects an embed outright once title+description+all field name/value text
+  // combined exceeds 6000 characters — a large-conference-count league (CFB, easily 10+
+  // conferences vs Madden's 8 divisions) can cross that with per-conference team lists. A
+  // rejected post/edit used to fail completely silently, leaving the ad frozen on whatever it
+  // last showed; degrading to a compact summary here means the ad always at least updates.
+  const totalFieldLength = fields.reduce((sum, f) => sum + f.name.length + f.value.length, 0);
+  const fitsEmbedLimit = league.name.length + baseDescription.length + totalFieldLength < 5500;
   const embed = {
     title: league.name,
-    description: `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
+    description: fitsEmbedLimit
+      ? baseDescription
+      : `${baseDescription}\n\nThis league has too many teams to list here — tap **Request Team** for the full conference/division breakdown.`,
     color: 0x2ecc71,
-    fields,
+    fields: fitsEmbedLimit ? fields : [],
     footer: { text: "League Settings for a full rundown · Request Team to claim an open team." },
   };
   // Both League Settings and Request Team open a paginated ephemeral browser (Discord modals
@@ -179,14 +189,21 @@ export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<
   };
 }
 
-const LEAGUE_SETTINGS_SECTIONS: Array<{ title: string; fields: Array<[label: string, key: string]> }> = [
+// `game` filters entries to CFB-only ("cfb"), Madden-only ("madden"), or unset for always-shown.
+// `condition` additionally hides a field based on the loaded config row (e.g. Required Console
+// only matters once cross-play is off) — evaluated after the game filter.
+const LEAGUE_SETTINGS_SECTIONS: Array<{
+  title: string;
+  fields: Array<[label: string, key: string, game?: "cfb" | "madden", condition?: (row: Record<string, unknown>) => boolean]>;
+}> = [
   {
     title: "General & Format",
     fields: [
-      ["Roster type", "roster_type"], ["Season experience", "season_experience"],
+      ["Roster type", "roster_type"],
       ["Quarter length", "quarter_length_minutes"], ["Accelerated clock", "accelerated_clock_enabled"],
-      ["Difficulty", "difficulty"], ["CFB difficulty", "cfb_difficulty"],
-      ["Cross-play", "cross_play_enabled"], ["Required console", "required_console"],
+      ["Difficulty", "difficulty", "madden"], ["CFB difficulty", "cfb_difficulty", "cfb"],
+      ["Cross-play", "cross_play_enabled"],
+      ["Required console", "required_console", undefined, (row) => row.cross_play_enabled === false],
       ["Advance timing", "advance_timing"],
     ],
   },
@@ -196,7 +213,7 @@ const LEAGUE_SETTINGS_SECTIONS: Array<{ title: string; fields: Array<[label: str
       ["Coin economy", "coin_economy_enabled"], ["Custom players", "custom_players_enabled"],
       ["Legends", "legends_enabled"], ["Dev upgrades", "dev_upgrades_enabled"],
       ["Age resets", "age_resets_enabled"], ["Attribute purchases", "attribute_purchases_enabled"],
-      ["Player trait purchases", "player_trait_purchases_enabled"], ["Contract adjustments", "contract_adjustment_purchases_enabled"],
+      ["Contract adjustments", "contract_adjustment_purchases_enabled"],
     ],
   },
   {
@@ -234,9 +251,17 @@ export async function getRecruitingBoardLeagueSettings(leagueId: string): Promis
   const config = await supabase.from("rec_league_configuration").select("*").eq("league_id", leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "Failed to load league settings.", config.error);
   const row: Record<string, unknown> = config.data ?? {};
+  const isCfb = league.game === "cfb_27";
   const pages = LEAGUE_SETTINGS_SECTIONS.map((section) => ({
     title: section.title,
-    lines: section.fields.map(([label, key]) => `**${label}:** ${formatSettingValue(row[key])}`),
+    lines: section.fields
+      .filter(([, , game, condition]) => {
+        if (game === "cfb" && !isCfb) return false;
+        if (game === "madden" && isCfb) return false;
+        if (condition && !condition(row)) return false;
+        return true;
+      })
+      .map(([label, key]) => `**${label}:** ${formatSettingValue(row[key])}`),
   }));
   return { leagueName: league.name, pages };
 }

@@ -1543,6 +1543,14 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
     console.error("[ERROR] Failed to delete league Stream highlights before league wipe:", error);
   });
 
+  // Strip every REC managed role from this guild before the league data is gone — otherwise
+  // members keep whatever Commissioner/Co-Commish/Member role they held here, and a future
+  // league reusing this same Discord server inherits stale, meaningless role assignments.
+  const { stripAllManagedRolesForGuild } = await import("../team-ownership/team-ownership.service.js");
+  await stripAllManagedRolesForGuild(input.guildId).catch((error) => {
+    console.error("[ERROR] Failed to clear managed Discord roles before league deletion:", error);
+  });
+
   // Freeze this league's contribution to each member's global record and archive any awards
   // they won here — rec_delete_league hard-deletes the source rows, so a user's history in
   // this league must travel with them before it's gone, not disappear with the league.
