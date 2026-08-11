@@ -644,16 +644,14 @@ function PromoCodesPanel() {
 }
 
 const ECONOMY_LABELS: Record<string, string> = {
-  ageReset: "Age reset", playerTrait: "Player trait (legacy)", legend: "Legend", devUpgradeStep: "Development upgrade step",
+  ageReset: "Age reset", legend: "Legend", devUpgradeStep: "Development upgrade step",
   devUpgradeTopStep: "Top development-tier step", contractReduction: "Contract reduction", contractExtension: "Contract extension",
-  coreAttributePoint: "Core attribute point", nonCoreAttributePoint: "Non-core attribute point", customPlayerBronze: "Custom player — Bronze (legacy)",
-  customPlayerSilver: "Custom player — Silver (legacy)", customPlayerGold: "Custom player — Gold (legacy)", boxScoreWin: "Box score — win",
+  coreAttributePoint: "Core attribute point", nonCoreAttributePoint: "Non-core attribute point", boxScoreWin: "Box score — win",
   customPlayerTier1: "Custom player — Tier 1", customPlayerTier2: "Custom player — Tier 2", customPlayerTier3: "Custom player — Tier 3", customPlayerTier4: "Custom player — Tier 4", customPlayerTier5: "Custom player — Tier 5",
   boxScoreLoss: "Box score — loss", badgeBonus: "Badge bonus", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
   highlightSeasonAward: "Season highlight award", gameOfYear: "Game of the Year",
   highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article", interview: "Interview",
-  gotwCorrectVote: "Correct GOTW vote", potw: "Player of the Week", weeklyChallengeS: "Weekly challenge — S",
-  weeklyChallengeA: "Weekly challenge — A", weeklyChallengeB: "Weekly challenge — B", houseWeeklyMaximum: "House wager weekly maximum",
+  gotwCorrectVote: "Correct GOTW vote", potw: "Player of the Week", houseWeeklyMaximum: "House wager weekly maximum",
   peerWeeklyMaximum: "User wager weekly maximum", bestPassing: "Best Passing Game", bestRushing: "Best Rushing Game",
   bestDefense: "Best Defense", mvp: "MVP / Heisman", mostSkilled: "Best User Skills", mostHeart: "Most Heart",
 };

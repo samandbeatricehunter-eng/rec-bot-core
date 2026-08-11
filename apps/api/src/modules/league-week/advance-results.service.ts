@@ -297,7 +297,8 @@ const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 // Sources that already settle a game so the advance wizard doesn't re-ask for it.
 // schedule_screenshot = scores pre-logged from a League Schedule screenshot upload.
 // manual = scores/outcomes entered via the Manual Scores tool.
-const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual"];
+// madden_companion_import = scores pre-logged from a Madden Companion App schedule export.
+const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual", "madden_companion_import"];
 const BADGE_LABELS = new Map(
   [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label]),
 );

@@ -134,6 +134,8 @@ function AdvanceReadinessSection() {
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [notifyBusyGameId, setNotifyBusyGameId] = useState<string | null>(null);
   const [notifyPrompt, setNotifyPrompt] = useState<{ gameId: string; target: "home" | "away" | "both" } | null>(null);
+  const [companionStatus, setCompanionStatus] = useState<{ connected: boolean; gamesTotal: number; gamesImported: number; ready: boolean } | null>(null);
+  const isMadden = Boolean(game?.startsWith("madden_"));
 
   function load() {
     recApi
@@ -145,6 +147,13 @@ function AdvanceReadinessSection() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load this week's games."));
   }
   useEffect(load, [guildId]);
+
+  useEffect(() => {
+    if (!isMadden || !data?.league.id || !data.currentWeek) { setCompanionStatus(null); return; }
+    recApi.getMaddenCompanionWeekStatus({ guildId, leagueId: data.league.id, weekNumber: data.currentWeek })
+      .then(setCompanionStatus)
+      .catch(() => setCompanionStatus(null));
+  }, [guildId, isMadden, data?.league.id, data?.currentWeek]);
 
   const emptyEntry: GameEntry = { awayScore: "", homeScore: "" };
   function setEntry(gameId: string, patch: Partial<GameEntry>) {
@@ -262,6 +271,24 @@ function AdvanceReadinessSection() {
       </div>
       {notice && <p className="advance-notice">{notice}</p>}
       {error && <ErrorState message={error} />}
+
+      {isMadden && (
+        <div className={`advance-companion-status${companionStatus?.ready ? " is-ready" : ""}`}>
+          <div>
+            <strong>
+              {!companionStatus?.connected
+                ? "Madden Companion not connected"
+                : companionStatus.ready
+                  ? "DATA IMPORTED, ADVANCE READY"
+                  : companionStatus.gamesTotal > 0
+                    ? `DATA NOT IMPORTED, LOG SCORES OR IMPORT TO ADVANCE (${companionStatus.gamesImported}/${companionStatus.gamesTotal} imported)`
+                    : "No games scheduled this week yet"}
+            </strong>
+            {!companionStatus?.connected && <span className="form-hint">Generate this league's import URL to have scores populate here automatically as you sim games.</span>}
+          </div>
+          <Link className="btn btn-secondary" to="../settings?category=integrations">{companionStatus?.connected ? "Manage Import" : "Set Up Companion Import"}</Link>
+        </div>
+      )}
 
       <div className="advance-game-list">
         {data.games.map((g) => {

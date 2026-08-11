@@ -853,13 +853,16 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   const selected = templateId === template.id;
                   return (
                     <div key={template.id}
-                      className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}>
-                      <button type="button" className="wizard-template-card-select" onClick={() => handleTemplateSelect(template.id)}>
+                      role="button" tabIndex={0}
+                      className={`wizard-template-card ${templateId === template.id ? "wizard-template-card-active" : ""}`}
+                      onClick={() => handleTemplateSelect(template.id)}
+                      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleTemplateSelect(template.id); } }}>
+                      <div className="wizard-template-card-select">
                         <strong>{template.name}</strong>
                         {selected && <><span className="site-muted wizard-template-tagline">{template.tagline}</span>
                         <span className="site-muted wizard-template-desc">{template.description}</span></>}
-                      </button>
-                      {selected && <details className="wizard-template-settings" open>
+                      </div>
+                      {selected && <details className="wizard-template-settings" open onClick={(event) => event.stopPropagation()}>
                         <summary>View settings</summary>
                         <div className="wizard-template-settings-groups">
                           {settingsGroups.map((group) => (

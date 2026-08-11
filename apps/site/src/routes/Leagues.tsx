@@ -13,7 +13,13 @@ import {
   type SiteOpenTeam,
 } from "../lib/site-api.js";
 import { CreateLeagueWizard } from "../components/CreateLeagueWizard.js";
-import { LEAGUE_TEMPLATES } from "../lib/league-templates.js";
+import { LEAGUE_TEMPLATES, MADDEN_LEAGUE_TEMPLATES, CFB_LEAGUE_TEMPLATES } from "../lib/league-templates.js";
+
+const ROSTER_TYPE_OPTIONS = [
+  { value: "", label: "Any roster type" },
+  { value: "fantasy_draft", label: "Fantasy Draft" },
+  { value: "regular_rosters", label: "Regs" },
+];
 
 type Tab = "search" | "mine";
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
@@ -649,6 +655,8 @@ export function LeaguesPage() {
   const [defPlayCall, setDefPlayCall] = useState<"" | "true" | "false">(
     (params.get("defLimits") as "" | "true" | "false") || "",
   );
+  const [rosterType, setRosterType] = useState(params.get("roster") ?? "");
+  const [templateId, setTemplateId] = useState(params.get("template") ?? "");
   const [sort, setSort] = useState(params.get("sort") ?? "name_asc");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -689,6 +697,8 @@ export function LeaguesPage() {
       acceleratedClockEnabled: boolTri(acceleratedClock),
       offensivePlayCallLimitsEnabled: boolTri(offPlayCall),
       defensivePlayCallLimitsEnabled: boolTri(defPlayCall),
+      rosterType: isCfb ? undefined : rosterType || undefined,
+      templateId: templateId || undefined,
       sort: (SORT_OPTIONS.some((o) => o.value === sort)
         ? sort
         : "name_asc") as SiteLeagueSearchFilters["sort"],
@@ -705,6 +715,8 @@ export function LeaguesPage() {
     acceleratedClock,
     offPlayCall,
     defPlayCall,
+    rosterType,
+    templateId,
     sort,
     isCfb,
   ]);
@@ -809,6 +821,7 @@ export function LeaguesPage() {
     setOpenTeamAbbr("");
     setTradeApprovalPolicy("");
     setDifficulty("");
+    setRosterType("");
   }
 
   function openLeague(leagueId: string) {
@@ -1057,6 +1070,37 @@ export function LeaguesPage() {
                       {STREAM_OPTIONS.map((opt) => (
                         <option key={opt.value || "any-stream"} value={opt.value}>
                           {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {!isCfb ? (
+                    <label className="site-field">
+                      <span>Roster type</span>
+                      <select
+                        className="site-select"
+                        value={rosterType}
+                        onChange={(e) => setRosterType(e.target.value)}
+                      >
+                        {ROSTER_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value || "any-roster"} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="site-field">
+                    <span>Template</span>
+                    <select
+                      className="site-select"
+                      value={templateId}
+                      onChange={(e) => setTemplateId(e.target.value)}
+                    >
+                      <option value="">Any template</option>
+                      {(isCfb ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES).map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name}
                         </option>
                       ))}
                     </select>

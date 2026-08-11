@@ -5,9 +5,13 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
   getCompanionConnectionStatus,
+  getCompanionWeekStatus,
   ingestCompanionBundle,
+  listCompanionImportJobs,
   MADDEN_ENDPOINT_KEYS,
+  recUserIdFromDiscordId,
   registerCompanionConnection,
+  rollbackCompanionImportJob,
   rotateCompanionToken,
   validateCompanionConnection,
   type MaddenEndpointKey,
@@ -73,6 +77,39 @@ export async function maddenCompanionRoutes(app: FastifyInstance) {
       const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       return reply.send({ connections: await getCompanionConnectionStatus(body.league_id) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Powers the Advance Readiness status card — one URL, one status line, current week's
+  // imported scores for pre-filling the score-entry form.
+  app.post("/v1/import/madden/companion/week-status", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid(), week_number: z.number().int().positive() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send(await getCompanionWeekStatus(body.league_id, body.week_number));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/import/madden/companion/jobs", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send({ jobs: await listCompanionImportJobs(body.league_id) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/import/madden/companion/rollback", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid(), job_id: z.string().uuid() }).parse(request.body);
+      const auth = await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      const userId = await recUserIdFromDiscordId(auth.discordId);
+      return reply.send(await rollbackCompanionImportJob(body.job_id, body.league_id, userId));
     } catch (error) {
       return sendError(reply, error);
     }

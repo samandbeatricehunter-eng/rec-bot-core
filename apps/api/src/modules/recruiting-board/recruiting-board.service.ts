@@ -10,6 +10,7 @@ import { listOpenTeamsForLeagueId } from "../team-ownership/team-ownership.servi
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { CFB_LEAGUE_TEMPLATES, MADDEN_LEAGUE_TEMPLATES } from "@rec/shared";
 
 const GAME_LABELS: Record<string, string> = { madden_26: "Madden NFL 26", madden_27: "Madden NFL 27", cfb_27: "College Football 27" };
 
@@ -21,9 +22,15 @@ function channelForGame(config: Awaited<ReturnType<typeof getSiteDiscordConfig>>
 }
 
 async function loadLeagueForAd(leagueId: string) {
-  const { data, error } = await supabase.from("rec_leagues").select("id,name,game,max_members").eq("id", leagueId).maybeSingle();
+  const { data, error } = await supabase.from("rec_leagues").select("id,name,game,max_members,template_id").eq("id", leagueId).maybeSingle();
   if (error) throw new ApiError(500, "Failed to load league.", error);
-  return data as { id: string; name: string; game: string; max_members: number | null } | null;
+  return data as { id: string; name: string; game: string; max_members: number | null; template_id: string | null } | null;
+}
+
+function templateDisplayName(game: string, templateId: string | null): string | null {
+  if (!templateId) return null;
+  const catalog = game === "cfb_27" ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES;
+  return catalog.find((t) => t.id === templateId)?.name ?? null;
 }
 
 async function removeAd(leagueId: string) {
@@ -32,7 +39,12 @@ async function removeAd(leagueId: string) {
   if (existing.data) await supabase.from("rec_league_recruiting_ads").delete().eq("league_id", leagueId);
 }
 
-function buildAdPayload(league: { id: string; name: string; game: string }, allTeams: any[], openTeamIds: Set<string>) {
+function buildAdPayload(
+  league: { id: string; name: string; game: string; template_id: string | null },
+  allTeams: any[],
+  openTeamIds: Set<string>,
+  rosterInfo: { rosterType: string | null; draftScheduledAt: string | null },
+) {
   const openCount = allTeams.filter((team) => openTeamIds.has(team.id)).length;
 
   // Every team is already listed directly in the embed (struck through once taken), so the
@@ -66,7 +78,22 @@ function buildAdPayload(league: { id: string; name: string; game: string }, allT
     return { name: `**${conference}**`, value: lines.join("\n").trim().slice(0, 1024) || "—", inline: true };
   });
 
-  const baseDescription = `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`;
+  // "Regs" (roster carries over / default catalog teams) vs "Fantasy Draft" (roster built via
+  // a scheduled draft night) — the single biggest thing a recruit wants to know up front.
+  const rosterTypeLabel = rosterInfo.rosterType === "fantasy_draft" ? "Fantasy Draft" : "Regs";
+  const templateName = templateDisplayName(league.game, league.template_id);
+  const descriptionLines = [
+    `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
+    `**${rosterTypeLabel}**${templateName ? ` · Template: ${templateName}` : ""}`,
+  ];
+  // Discord's <t:UNIX:R> timestamp renders as a live, self-updating "in X hours" countdown on
+  // every client with zero further edits from us — far more reliable than trying to keep an
+  // embed synced with a setInterval-style re-post loop.
+  if (rosterInfo.rosterType === "fantasy_draft" && rosterInfo.draftScheduledAt) {
+    const unix = Math.floor(new Date(rosterInfo.draftScheduledAt).getTime() / 1000);
+    descriptionLines.push(`🗓️ Fantasy Draft: <t:${unix}:F> (<t:${unix}:R>)`);
+  }
+  const baseDescription = descriptionLines.join("\n");
   // Discord rejects an embed outright once title+description+all field name/value text
   // combined exceeds 6000 characters — a large-conference-count league (CFB, easily 10+
   // conferences vs Madden's 8 divisions) can cross that with per-conference team lists. A
@@ -115,7 +142,17 @@ export async function syncLeagueRecruitingAd(leagueId: string): Promise<void> {
     if (!openTeams.length) return void (await removeAd(leagueId));
 
     const openTeamIds = new Set<string>(openTeams.map((team: any) => String(team.id)));
-    const payload = buildAdPayload(league, allTeams, openTeamIds);
+
+    const [configResult, draftResult] = await Promise.all([
+      supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle(),
+      supabase.from("rec_fantasy_draft_sessions").select("scheduled_at,status").eq("league_id", leagueId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const rosterInfo = {
+      rosterType: configResult.data?.roster_type ?? null,
+      draftScheduledAt: draftResult.data?.status === "scheduled" ? draftResult.data.scheduled_at : null,
+    };
+
+    const payload = buildAdPayload(league, allTeams, openTeamIds, rosterInfo);
 
     const existing = await supabase.from("rec_league_recruiting_ads").select("*").eq("league_id", leagueId).maybeSingle();
     if (existing.data?.message_id && existing.data.channel_id === channelId) {

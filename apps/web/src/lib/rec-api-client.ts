@@ -163,6 +163,17 @@ export const recApi = {
     recApiFetch<{ connection_token: string; import_path: string; connection: { id: string } }>("/v1/import/madden/companion/register", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   rotateMaddenCompanionConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
     recApiFetch<{ connection_token: string; import_path: string }>("/v1/import/madden/companion/rotate", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
+  getMaddenCompanionWeekStatus: (input: { guildId: string; leagueId: string; weekNumber: number }) =>
+    recApiFetch<{
+      connected: boolean; connectionId: string | null; gamesTotal: number; gamesImported: number; ready: boolean;
+      scores: Array<{ gameId: string; homeTeamId: string; awayTeamId: string; homeScore: number; awayScore: number }>;
+    }>("/v1/import/madden/companion/week-status", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, week_number: input.weekNumber }) }),
+  listMaddenCompanionImportJobs: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>(
+      "/v1/import/madden/companion/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },
+    ),
+  rollbackMaddenCompanionImportJob: (input: { guildId: string; leagueId: string; jobId: string }) =>
+    recApiFetch<{ reverted: number; cleared: number }>("/v1/import/madden/companion/rollback", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, job_id: input.jobId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   uploadLeagueLogo: (guildId: string, file: File) => {
     const formData = new FormData();

@@ -201,9 +201,17 @@ async function applyPromoEffect(userId: string, promo: { id: string; effect_type
     return;
   }
 
-  // lifetime_platinum / lifetime_gold — leave any active Stripe relationship (paid or
-  // trialing) alone; unlike a free-trial code, a lifetime grant isn't meant to preempt it.
-  if (user.data?.billing_status === "active") return;
+  // lifetime_platinum / lifetime_gold — only skip for a member who is ACTUALLY currently
+  // paying (isPaidActive); they already have equal-or-better access, so there's nothing to
+  // grant. Skipping on billing_status === "active" alone used to also catch someone still
+  // inside Stripe's own 7-day checkout trial (onStripeTrial) — if that trial was later
+  // abandoned/canceled without ever converting to a real payment, the redemption row was
+  // already recorded as used, but the grant itself was silently dropped forever, with no
+  // retry path (confirmed: a real user redeemed a valid lifetime_platinum code while mid-trial,
+  // the trial lapsed, and they were left on subscription_tier "none" with no way to redeem the
+  // same code again). A lifetime grant should always land unless it would actively downgrade
+  // someone who is genuinely paying right now.
+  if (isPaidActive) return;
   const tier = promo.effect_type === "lifetime_platinum" ? "platinum" : "gold";
   const updated = await supabase
     .from("rec_users")

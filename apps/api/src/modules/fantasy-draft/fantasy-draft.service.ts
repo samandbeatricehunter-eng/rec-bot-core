@@ -11,6 +11,7 @@ import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { broadcastChatEvent } from "../chat/chat-realtime.js";
 import { editDiscordMessage, postDiscordChannelMessage, syncGuildCommands } from "../../lib/discord-guild.js";
+import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import {
   findServerRoutesForLeague,
@@ -807,6 +808,7 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
 
   await setLeagueFantasyDraftStatus(leagueId, "scheduled");
   scheduleDraftCommandVisibility(guildId, scheduledAt);
+  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft scheduling:", error));
 
   const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
   if (announcementsChannelId) {
@@ -883,6 +885,7 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
   await setLeagueFantasyDraftStatus(leagueId, "live");
   cancelDraftCommandVisibilityTimer(guildId);
   syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (commence):", error));
+  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft commence:", error));
 
   // Fire-and-forget side effects — never block the response on Discord/push failures.
   const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
@@ -1726,6 +1729,7 @@ export async function concludeFantasyDraft(guildId: string) {
   await setLeagueFantasyDraftStatus(leagueId, "concluded");
   cancelDraftCommandVisibilityTimer(guildId);
   syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (conclude):", error));
+  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft conclude:", error));
 
   // Roster-size report for the "your team might not be fully assigned" modal — informational,
   // never a hard block (position minimums are out of scope, see plan §7).

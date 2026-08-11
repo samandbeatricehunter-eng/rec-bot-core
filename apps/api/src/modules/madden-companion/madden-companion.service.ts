@@ -200,6 +200,10 @@ export async function ingestCompanionBundle(connection: CompanionConnection, pay
     const result = await ingestCompanionPayload(connection, dataset.endpointKey, dataset.payload, requestHeaders);
     imports.push({ endpoint_key: dataset.endpointKey, ...result });
   }
+  if (imports.some((item) => item.endpoint_key === "schedule")) {
+    await syncCompanionScheduleResultsIntoGameResults(connection.league_id).catch((error) =>
+      console.error("[WARN] Failed to sync Companion schedule results into rec_game_results (non-fatal):", error));
+  }
   return {
     accepted: true as const,
     imports,
@@ -208,7 +212,7 @@ export async function ingestCompanionBundle(connection: CompanionConnection, pay
   };
 }
 
-async function recUserIdFromDiscordId(discordId: string): Promise<string> {
+export async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   if (isSiteOnlyDiscordId(discordId)) return recUserIdFromSiteOnlyDiscordId(discordId);
   const result = await getPgPool().query<{ user_id: string }>("select user_id from rec_discord_accounts where discord_id=$1 limit 1", [discordId]);
   if (!result.rows[0]) throw new ApiError(403, "A linked REC account is required.");
@@ -269,4 +273,192 @@ export async function getCompanionConnectionStatus(leagueId: string) {
     [leagueId],
   );
   return result.rows;
+}
+
+// Companion's schedule import writes home_score/away_score straight onto rec_games, but
+// Advance Readiness gates on rec_game_results (see RESOLVED_RESULT_SOURCES in
+// advance-results.service.ts) — without this, an imported game would sit there fully scored
+// yet still show up as "needs input" forever. Best-effort, idempotent (upserts on the same
+// records_apply_key the manual/screenshot prelog paths use), called after any schedule import.
+async function syncCompanionScheduleResultsIntoGameResults(leagueId: string): Promise<void> {
+  const pool = getPgPool();
+  const games = await pool.query<{
+    id: string; week_number: number; phase: string; home_team_id: string; away_team_id: string;
+    home_score: number; away_score: number; external_game_id: string | null;
+  }>(
+    `select id, week_number, phase, home_team_id, away_team_id, home_score, away_score, external_game_id
+       from rec_games
+      where league_id=$1 and source='madden_companion_export' and status='completed'
+        and home_score is not null and away_score is not null and home_team_id is not null and away_team_id is not null`,
+    [leagueId],
+  );
+  if (!games.rows.length) return;
+
+  const league = await pool.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId]);
+  const seasonNumber = league.rows[0]?.season_number ?? 1;
+
+  const teamIds = [...new Set(games.rows.flatMap((g) => [g.home_team_id, g.away_team_id]))];
+  const assignments = await pool.query<{ team_id: string; user_id: string }>(
+    `select team_id, user_id from rec_team_assignments
+      where league_id=$1 and assignment_status='active' and ended_at is null and team_id = any($2::uuid[])`,
+    [leagueId, teamIds],
+  );
+  const userByTeam = new Map(assignments.rows.map((r) => [r.team_id, r.user_id]));
+
+  for (const g of games.rows) {
+    const homeUserId = userByTeam.get(g.home_team_id) ?? null;
+    const awayUserId = userByTeam.get(g.away_team_id) ?? null;
+    const isTie = g.home_score === g.away_score;
+    const homeWon = g.home_score > g.away_score;
+    const applyKey = `${leagueId}:${g.id}:${g.home_team_id}:${g.away_team_id}`;
+    await pool.query(
+      `insert into rec_game_results
+         (league_id, game_id, season_number, week_number, game_type, external_game_id, home_team_id, away_team_id,
+          home_user_id, away_user_id, home_score, away_score, winning_user_id, losing_user_id, winning_team_id,
+          losing_team_id, is_user_h2h, is_cpu_game, is_tie, is_playoff, source, records_apply_key, created_at, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'madden_companion_import',$21,now(),now())
+       on conflict (records_apply_key) do update set
+         home_score=excluded.home_score, away_score=excluded.away_score, winning_user_id=excluded.winning_user_id,
+         losing_user_id=excluded.losing_user_id, winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
+         is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()
+       where rec_game_results.source = 'madden_companion_import'`,
+      [
+        leagueId, g.id, seasonNumber, g.week_number, g.phase === "playoffs" ? "postseason" : "regular_season",
+        g.external_game_id, g.home_team_id, g.away_team_id, homeUserId, awayUserId, g.home_score, g.away_score,
+        isTie ? null : homeWon ? homeUserId : awayUserId, isTie ? null : homeWon ? awayUserId : homeUserId,
+        isTie ? null : homeWon ? g.home_team_id : g.away_team_id, isTie ? null : homeWon ? g.away_team_id : g.home_team_id,
+        Boolean(homeUserId && awayUserId), !(homeUserId && awayUserId), isTie, g.phase === "playoffs", applyKey,
+      ],
+    ).catch((error) => console.error(`[WARN] Failed to sync companion schedule result for game ${g.id} (non-fatal):`, error));
+  }
+}
+
+export async function listCompanionImportJobs(leagueId: string) {
+  const result = await getPgPool().query<{
+    id: string; task_key: string; status: string; completed_at: string | null; record_count: number;
+    rolled_back_at: string | null; duplicate_of_job_id: string | null;
+  }>(
+    `select id, task_key, status, completed_at, record_count, rolled_back_at, duplicate_of_job_id
+       from rec_import_jobs
+      where league_id=$1 and source_type='madden_companion' and status='completed'
+      order by completed_at desc limit 25`,
+    [leagueId],
+  );
+  return result.rows;
+}
+
+/** Advance Readiness's Madden Companion status card — one URL, one status line, plus the
+ * current week's per-game imported scores so the score-entry form can pre-fill from them. */
+export async function getCompanionWeekStatus(leagueId: string, weekNumber: number) {
+  const pool = getPgPool();
+  // The connection's actual import URL is a one-time secret shown only at generation/rotation
+  // (see registerCompanionConnection) — it's never stored in retrievable plaintext, so this can
+  // only report whether a connection exists, not the URL itself. The UI links to League Mgmt >
+  // Settings > Madden Companion for generating/copying it.
+  const connection = await pool.query<{ id: string; last_health_status: string | null }>(
+    `select id, last_health_status from rec_import_connections
+      where league_id=$1 and connection_type='madden_companion' and status='active' order by created_at desc limit 1`,
+    [leagueId],
+  );
+  const conn = connection.rows[0] ?? null;
+
+  const games = await pool.query<{
+    id: string; home_team_id: string; away_team_id: string; home_score: number | null; away_score: number | null; status: string;
+  }>(
+    `select id, home_team_id, away_team_id, home_score, away_score, status from rec_games
+      where league_id=$1 and week_number=$2`,
+    [leagueId, weekNumber],
+  );
+  const total = games.rows.length;
+  const imported = games.rows.filter((g) => g.home_score != null && g.away_score != null && g.status === "completed");
+
+  return {
+    connected: Boolean(conn),
+    connectionId: conn?.id ?? null,
+    gamesTotal: total,
+    gamesImported: imported.length,
+    ready: total > 0 && imported.length === total,
+    scores: imported.map((g) => ({ gameId: g.id, homeTeamId: g.home_team_id, awayTeamId: g.away_team_id, homeScore: g.home_score, awayScore: g.away_score })),
+  };
+}
+
+/** Reverts the most recent applied state of every canonical record a completed Companion
+ * import job touched, using the version history captured at import time. A record that had no
+ * prior version (this was its first-ever import) has nothing to revert to — for schedule
+ * records that means clearing the score/status this job set rather than leaving stale data;
+ * for every other record type (teams/rosters/standings/stats) the canonical row is left as-is
+ * rather than risk deleting data other systems (custom players, team assignments) depend on. */
+export async function rollbackCompanionImportJob(jobId: string, leagueId: string, requestedByUserId: string) {
+  const pool = getPgPool();
+  const job = await pool.query<{ id: string; league_id: string; task_key: MaddenEndpointKey; status: string; rolled_back_at: string | null }>(
+    "select id, league_id, task_key, status, rolled_back_at from rec_import_jobs where id=$1", [jobId],
+  );
+  const row = job.rows[0];
+  if (!row || row.league_id !== leagueId) throw new ApiError(404, "Import job not found.");
+  if (row.status !== "completed") throw new ApiError(409, "Only a completed import can be rolled back.");
+  if (row.rolled_back_at) throw new ApiError(409, "This import was already rolled back.");
+
+  const records = await pool.query<{
+    id: string; record_key: string; source_game_id: string | null; week_number: number | null;
+  }>(
+    `select id, record_key, source_game_id, week_number from rec_madden_companion_records where last_import_job_id=$1`,
+    [jobId],
+  );
+
+  let reverted = 0;
+  let cleared = 0;
+  for (const record of records.rows) {
+    const priorVersion = await pool.query<{ import_job_id: string; normalized_data: unknown; raw_data: unknown }>(
+      `select import_job_id, normalized_data, raw_data from rec_madden_companion_record_versions
+        where record_id=$1 order by created_at desc offset 1 limit 1`,
+      [record.id],
+    );
+    const prior = priorVersion.rows[0];
+    if (prior) {
+      await pool.query(
+        `update rec_madden_companion_records
+            set normalized_data=$2::jsonb, raw_data=$3::jsonb, last_import_job_id=$4, updated_at=now()
+          where id=$1`,
+        [record.id, JSON.stringify(prior.normalized_data), JSON.stringify(prior.raw_data), prior.import_job_id],
+      );
+      // Re-derive the canonical row (rec_games score, rec_players attributes, etc.) from the
+      // restored data the same way a fresh import would — reusing applySchedule's upsert path
+      // directly for the one case Advance Readiness depends on; other endpoint types keep
+      // their now-reverted rec_madden_companion_records row but the canonical row itself is
+      // only re-derived for schedule (see class comment).
+      if (row.task_key === "schedule") {
+        const raw = prior.raw_data as Record<string, unknown>;
+        const homeScore = typeof raw.homeScore === "number" ? raw.homeScore : typeof raw.home_score === "number" ? raw.home_score : null;
+        const awayScore = typeof raw.awayScore === "number" ? raw.awayScore : typeof raw.away_score === "number" ? raw.away_score : null;
+        if (record.source_game_id) {
+          await pool.query(
+            `update rec_games set home_score=$2, away_score=$3, status=$4, updated_at=now()
+              where league_id=$1 and external_game_id=$5 and source='madden_companion_export'`,
+            [leagueId, homeScore, awayScore, homeScore != null && awayScore != null ? "completed" : "scheduled", record.source_game_id],
+          );
+        }
+      }
+      reverted += 1;
+    } else {
+      // Nothing existed before this job — clear what it created rather than leave it dangling.
+      if (row.task_key === "schedule" && record.source_game_id) {
+        await pool.query(
+          `update rec_games set home_score=null, away_score=null, status='scheduled', import_verified=false, updated_at=now()
+            where league_id=$1 and external_game_id=$2 and source='madden_companion_export'`,
+          [leagueId, record.source_game_id],
+        );
+      }
+      await pool.query("delete from rec_madden_companion_records where id=$1", [record.id]);
+      cleared += 1;
+    }
+  }
+
+  if (row.task_key === "schedule") {
+    await pool.query("delete from rec_game_results where league_id=$1 and source='madden_companion_import' and week_number = any($2::int[])",
+      [leagueId, [...new Set(records.rows.map((r) => r.week_number).filter((w): w is number => w != null))]]);
+    await syncCompanionScheduleResultsIntoGameResults(leagueId);
+  }
+
+  await pool.query("update rec_import_jobs set rolled_back_at=now(), rolled_back_by_user_id=$2 where id=$1", [jobId, requestedByUserId]);
+  return { reverted, cleared };
 }

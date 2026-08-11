@@ -345,6 +345,29 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
+.advance-companion-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+.advance-companion-status strong {
+  display: block;
+  letter-spacing: 0.02em;
+}
+.advance-companion-status.is-ready {
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.advance-companion-status.is-ready strong {
+  color: var(--success);
+}
 .advance-card-heading h2 {
   margin: 2px 0 0;
 }

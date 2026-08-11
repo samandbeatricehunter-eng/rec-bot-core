@@ -562,6 +562,8 @@ export type SiteLeagueSearchFilters = {
   tradeApprovalPolicy?: string;
   offensivePlayCallLimitsEnabled?: boolean;
   defensivePlayCallLimitsEnabled?: boolean;
+  rosterType?: string;
+  templateId?: string;
   sort?: "name_asc" | "name_desc" | "open_teams" | "newest";
   limit?: number;
 };
@@ -768,6 +770,14 @@ export async function searchSiteLeagues(input: {
   if (typeof input.filters.defensivePlayCallLimitsEnabled === "boolean") {
     params.push(input.filters.defensivePlayCallLimitsEnabled);
     where.push(`c.defensive_play_call_limits_enabled = $${params.length}`);
+  }
+  if (input.filters.rosterType) {
+    params.push(input.filters.rosterType);
+    where.push(`c.roster_type = $${params.length}`);
+  }
+  if (input.filters.templateId) {
+    params.push(input.filters.templateId);
+    where.push(`l.template_id = $${params.length}`);
   }
 
   const sort = input.filters.sort ?? "name_asc";

@@ -322,6 +322,8 @@ export type SiteLeagueSearchFilters = {
   tradeApprovalPolicy?: string;
   offensivePlayCallLimitsEnabled?: boolean;
   defensivePlayCallLimitsEnabled?: boolean;
+  rosterType?: string;
+  templateId?: string;
   sort?: "name_asc" | "name_desc" | "open_teams" | "newest";
   limit?: number;
 };

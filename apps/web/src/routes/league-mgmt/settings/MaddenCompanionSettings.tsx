@@ -16,20 +16,52 @@ type Connection = {
   import_count: number;
 };
 
+type ImportJob = { id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null };
+
+function formatJobLabel(job: ImportJob): string {
+  const when = job.completed_at ? new Date(job.completed_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "unknown time";
+  return `${job.task_key} — ${when} (${job.record_count} record${job.record_count === 1 ? "" : "s"})`;
+}
+
 export function MaddenCompanionSettings({ leagueId, game }: { leagueId: string; game: string }) {
   const { guildId } = useReadyAuth();
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [importPath, setImportPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<ImportJob[] | null>(null);
+  const [rollbackJobId, setRollbackJobId] = useState("");
+  const [rollbackBusy, setRollbackBusy] = useState(false);
+  const [rollbackNotice, setRollbackNotice] = useState<string | null>(null);
 
   async function load() {
     if (!leagueId || !game.startsWith("madden_")) return;
     try {
-      const result = await recApi.getMaddenCompanionConnections({ guildId, leagueId });
+      const [result, jobsResult] = await Promise.all([
+        recApi.getMaddenCompanionConnections({ guildId, leagueId }),
+        recApi.listMaddenCompanionImportJobs({ guildId, leagueId }),
+      ]);
       setConnections(result.connections);
+      setJobs(jobsResult.jobs);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to load Companion connection.");
+    }
+  }
+
+  async function rollback() {
+    if (!rollbackJobId) return;
+    if (!window.confirm("Roll back this import? Any scores/data it changed will revert to what they were before it ran. This cannot be undone.")) return;
+    setRollbackBusy(true);
+    setRollbackNotice(null);
+    try {
+      const result = await recApi.rollbackMaddenCompanionImportJob({ guildId, leagueId, jobId: rollbackJobId });
+      setRollbackNotice(`Reverted ${result.reverted} record${result.reverted === 1 ? "" : "s"}, cleared ${result.cleared}.`);
+      setRollbackJobId("");
+      await load();
+    } catch (cause) {
+      setRollbackNotice(cause instanceof Error ? cause.message : "Failed to roll back this import.");
+    } finally {
+      setRollbackBusy(false);
     }
   }
 
@@ -75,5 +107,24 @@ export function MaddenCompanionSettings({ leagueId, game }: { leagueId: string; 
         </div>
       </div>
     </>}
+    {jobs && jobs.some((job) => !job.rolled_back_at && !job.duplicate_of_job_id) && (
+      <div style={{ marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)" }}>
+        <h3 style={{ marginTop: 0 }}>Rollback</h3>
+        <p className="form-hint">Undo a faulty import — reverts every record it changed back to what it was immediately before that import ran.</p>
+        <div className="form-field">
+          <label className="form-label" htmlFor="companion-rollback-job">Import to roll back</label>
+          <select id="companion-rollback-job" className="form-input" value={rollbackJobId} onChange={(e) => setRollbackJobId(e.target.value)}>
+            <option value="">Select an import…</option>
+            {jobs.filter((job) => !job.rolled_back_at && !job.duplicate_of_job_id).map((job) => (
+              <option key={job.id} value={job.id}>{formatJobLabel(job)}</option>
+            ))}
+          </select>
+        </div>
+        <Button variant="danger" disabled={!rollbackJobId || rollbackBusy} onClick={() => void rollback()}>
+          {rollbackBusy ? "Rolling back…" : "Roll Back This Import"}
+        </Button>
+        {rollbackNotice && <p className="form-hint" style={{ marginTop: "var(--space-2)" }}>{rollbackNotice}</p>}
+      </div>
+    )}
   </Card>;
 }

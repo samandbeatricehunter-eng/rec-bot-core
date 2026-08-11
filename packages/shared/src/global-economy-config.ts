@@ -4,7 +4,6 @@ export type RecGlobalEconomyConfig = {
   version: number;
   store: {
     ageReset: number;
-    playerTrait: number;
     legend: number;
     devUpgradeStep: number;
     devUpgradeTopStep: number;
@@ -12,9 +11,6 @@ export type RecGlobalEconomyConfig = {
     contractExtension: number;
     coreAttributePoint: number;
     nonCoreAttributePoint: number;
-    customPlayerBronze: number;
-    customPlayerSilver: number;
-    customPlayerGold: number;
     customPlayerTier1: number;
     customPlayerTier2: number;
     customPlayerTier3: number;
@@ -35,9 +31,6 @@ export type RecGlobalEconomyConfig = {
     interview: number;
     gotwCorrectVote: number;
     potw: number;
-    weeklyChallengeS: number;
-    weeklyChallengeA: number;
-    weeklyChallengeB: number;
   };
   wagers: { houseWeeklyMaximum: number; peerWeeklyMaximum: number };
   awards: {
@@ -55,7 +48,6 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
   version: 1,
   store: {
     ageReset: 1000,
-    playerTrait: 500,
     legend: 5000,
     devUpgradeStep: 500,
     devUpgradeTopStep: 1500,
@@ -63,9 +55,6 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     contractExtension: 500,
     coreAttributePoint: 200,
     nonCoreAttributePoint: 100,
-    customPlayerBronze: 250,
-    customPlayerSilver: 750,
-    customPlayerGold: 1000,
     customPlayerTier1: 500,
     customPlayerTier2: 750,
     customPlayerTier3: 1000,
@@ -86,25 +75,34 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     interview: 50,
     gotwCorrectVote: 25,
     potw: 10,
-    weeklyChallengeS: 50,
-    weeklyChallengeA: 25,
-    weeklyChallengeB: 10,
   },
   wagers: { houseWeeklyMaximum: 1000, peerWeeklyMaximum: 5000 },
   awards: { bestPassing: 200, bestRushing: 200, bestDefense: 200, mvp: 1000, mostSkilled: 350, mostHeart: 500 },
   eos: REC_END_SEASON_PAYOUTS,
 };
 
+// Only known fields survive a merge — a stored config from before a field was retired (e.g.
+// the legacy custom-player bronze/silver/gold prices, weekly challenges) must not resurrect it
+// in the admin UI just because the old JSON blob still has the key.
+function mergeSection<T extends Record<string, number>>(defaults: T, patch: unknown): T {
+  if (!patch || typeof patch !== "object") return { ...defaults };
+  const result = { ...defaults };
+  for (const key of Object.keys(defaults) as Array<keyof T>) {
+    const value = (patch as Record<string, unknown>)[key as string];
+    if (typeof value === "number") result[key] = value as T[keyof T];
+  }
+  return result;
+}
+
 export function mergeGlobalEconomyConfig(value: unknown): RecGlobalEconomyConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) return structuredClone(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG);
   const patch = value as Partial<RecGlobalEconomyConfig>;
   return {
-    ...DEFAULT_REC_GLOBAL_ECONOMY_CONFIG,
-    ...patch,
-    store: { ...DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.store, ...(patch.store ?? {}) },
-    submissions: { ...DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.submissions, ...(patch.submissions ?? {}) },
-    wagers: { ...DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.wagers, ...(patch.wagers ?? {}) },
-    awards: { ...DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.awards, ...(patch.awards ?? {}) },
+    version: patch.version ?? DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.version,
+    store: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.store, patch.store),
+    submissions: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.submissions, patch.submissions),
+    wagers: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.wagers, patch.wagers),
+    awards: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.awards, patch.awards),
     eos: Array.isArray(patch.eos) && patch.eos.length ? patch.eos : DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.eos,
   };
 }

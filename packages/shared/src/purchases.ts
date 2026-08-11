@@ -159,23 +159,25 @@ export function priceForPurchase(
 }
 
 export type RecPurchasePriceConfig = {
-  ageReset: number; playerTrait: number; legend: number; devUpgradeStep: number; devUpgradeTopStep: number;
+  ageReset: number; legend: number; devUpgradeStep: number; devUpgradeTopStep: number;
   contractReduction: number; contractExtension: number; coreAttributePoint: number; nonCoreAttributePoint: number;
-  customPlayerBronze: number; customPlayerSilver: number; customPlayerGold: number;
   customPlayerTier1: number; customPlayerTier2: number; customPlayerTier3: number; customPlayerTier4: number; customPlayerTier5: number;
 };
 
 /** Authoritative configurable variant used by the API. */
 export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, details: Record<string, unknown>, game: string, prices: RecPurchasePriceConfig): number {
   if (purchaseType === "age_reset") return prices.ageReset;
-  if (purchaseType === "player_trait") return prices.playerTrait;
+  // player_trait purchases were retired — the toggle that would enable them is hardcoded off
+  // at every league-creation path, so this type can never actually reach a live purchase.
+  if (purchaseType === "player_trait") return 0;
   if (purchaseType === "legend") return prices.legend;
   if (purchaseType === "contract") return details.variant === "extension" ? prices.contractExtension : prices.contractReduction;
   if (purchaseType === "attribute") return ((details.allocations as RecAttributeAllocation[] | undefined) ?? []).reduce(
     (sum, allocation) => sum + (allocation.core ? prices.coreAttributePoint : prices.nonCoreAttributePoint) * Math.max(0, Number(allocation.points) || 0), 0);
   if (purchaseType === "custom_player") {
     const key = String(details.package ?? "");
-    return key === "bronze" ? prices.customPlayerBronze : key === "silver" ? prices.customPlayerSilver : key === "gold" ? prices.customPlayerGold : 0;
+    const tierMap: Record<string, number> = { tier1: prices.customPlayerTier1, tier2: prices.customPlayerTier2, tier3: prices.customPlayerTier3, tier4: prices.customPlayerTier4, tier5: prices.customPlayerTier5 };
+    return tierMap[key] ?? 0;
   }
   if (purchaseType === "dev_upgrade") {
     const order = devTierOrderForGame(game);
