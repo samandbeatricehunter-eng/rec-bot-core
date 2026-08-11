@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { ApiError, sendError } from "../../lib/errors.js";
 import { cancelMyLegendPurchase, createLegendPurchaseRequest, listLeagueLegendAvailability, listLegendCatalog } from "./legends.service.js";
 
 export async function legendRoutes(app: FastifyInstance) {
@@ -32,14 +32,10 @@ export async function legendRoutes(app: FastifyInstance) {
         discordId: z.string().min(1),
         legendId: z.string().uuid(),
         replacementPlayerId: z.string().uuid().optional().nullable(),
-        // Free-text replacement request from the bot's legend-purchase modal — the buyer
-        // isn't picking a real roster row (that's replacementPlayerId, used by the web flow),
-        // just naming who they'd like replaced for the commissioner to read. Was silently
-        // stripped by this schema before (unknown key), so the request was never recorded.
-        replacePlayerRequest: z.string().trim().max(200).optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (auth.mode !== "user") throw new ApiError(400, "Legend purchases are website-only.");
+      body.discordId = auth.discordId;
       return reply.send(await createLegendPurchaseRequest(body));
     } catch (error) {
       return sendError(reply, error);
@@ -54,7 +50,8 @@ export async function legendRoutes(app: FastifyInstance) {
         legendId: z.string().uuid(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (auth.mode !== "user") throw new ApiError(400, "Legend purchases are website-only.");
+      body.discordId = auth.discordId;
       return reply.send(await cancelMyLegendPurchase(body));
     } catch (error) {
       return sendError(reply, error);

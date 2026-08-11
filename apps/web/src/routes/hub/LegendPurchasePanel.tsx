@@ -19,6 +19,7 @@ function legendAttributeCategory(key: string): string {
 }
 import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
+import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LegendAvailabilityEntry, LegendCatalogEntry } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -33,6 +34,8 @@ import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 // 88 OVR normalization disclaimer, and the purchase/cancel action.
 export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }) {
   const { guildId, discordId } = useReadyAuth();
+  const { game } = useLeagueTheme();
+  const isCfb = game === "cfb_27";
   const [legends, setLegends] = useState<LegendCatalogEntry[] | null>(null);
   const [sold, setSold] = useState<LegendAvailabilityEntry[] | null>(null);
   const [group, setGroup] = useState<RecLegendPositionGroup | "">("");
@@ -167,6 +170,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           soldEntry={soldByLegendId.get(activeLegend.id) ?? null}
           isMine={soldByLegendId.get(activeLegend.id)?.purchaserDiscordId === discordId}
           busy={busy}
+          isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
           onClose={() => setActiveLegend(null)}
@@ -189,6 +193,7 @@ function LegendDetailModal({
   soldEntry,
   isMine,
   busy,
+  isCfb,
   replacementPlayers,
   blockedNoEligibleReplacement,
   onClose,
@@ -199,17 +204,21 @@ function LegendDetailModal({
   soldEntry: LegendAvailabilityEntry | null;
   isMine: boolean;
   busy: boolean;
+  isCfb: boolean;
   replacementPlayers: any[];
   blockedNoEligibleReplacement: boolean;
   onClose: () => void;
   onPurchase: (replacementPlayerId: string | null) => void;
   onCancel: () => void;
 }) {
-  const [designateReplacement, setDesignateReplacement] = useState(false);
+  // CFB inherits the legend's identity onto the replaced player's roster slot, so which
+  // player gets replaced isn't optional there — Madden keeps it a free choice for the
+  // commissioner (designateReplacement toggle) since nothing is position-locked.
+  const [designateReplacement, setDesignateReplacement] = useState(isCfb);
   const [replacementPlayerId, setReplacementPlayerId] = useState("");
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
-  const canSubmitReplacement = !designateReplacement || Boolean(replacementPlayerId);
+  const canSubmitReplacement = isCfb ? Boolean(replacementPlayerId) : !designateReplacement || Boolean(replacementPlayerId);
 
   return (
     <Modal title={legend.name} onClose={onClose}>
@@ -255,6 +264,28 @@ function LegendDetailModal({
         <>
           {(() => {
             const samePositionPlayers = replacementPlayers.filter((player: any) => isCompatibleReplacementPosition(legend.position, player.position));
+            if (isCfb) {
+              // CFB inherits the legend's position onto whichever roster slot it replaces —
+              // there's no "commissioner's choice" here, same rule as the custom-player
+              // wizard: a real added/recruited player at this position must be picked before
+              // purchasing.
+              if (samePositionPlayers.length === 0) {
+                return <p className="form-hint">You have no added/recruited {legend.position} on your roster to replace — add one via the Recruiting Board or "Edit Roster" before buying this legend.</p>;
+              }
+              return (
+                <label className="form-field">
+                  <span className="form-label">Replace ({legend.position})</span>
+                  <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
+                    <option value="">Select player to replace</option>
+                    {samePositionPlayers.map((player: any) => (
+                      <option key={player.id} value={player.id}>
+                        {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              );
+            }
             return samePositionPlayers.length > 0 && (
             <>
               <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
@@ -284,7 +315,7 @@ function LegendDetailModal({
             <Button
               variant="primary"
               disabled={busy || !canSubmitReplacement}
-              onClick={() => onPurchase(designateReplacement ? replacementPlayerId : null)}
+              onClick={() => onPurchase(isCfb || designateReplacement ? replacementPlayerId || null : null)}
             >
               {busy ? "Submitting…" : "Purchase"}
             </Button>

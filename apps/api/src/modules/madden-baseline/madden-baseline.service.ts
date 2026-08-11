@@ -25,6 +25,10 @@ export type MaddenBaselinePlayer = {
   college: string | null;
   years_pro: number | null;
   photo_url: string | null;
+  height_inches: number | null;
+  weight_lbs: number | null;
+  handedness: string | null;
+  dev_trait: string | null;
   abilities_raw: string | null;
   data_quality: "rated" | "backfilled_prior_year" | "placeholder";
   [attributeColumn: string]: unknown;
@@ -146,6 +150,10 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       overall_rating: p.overall_rating,
       jersey_number: p.jersey_number,
       archetype: p.archetype,
+      height_inches: p.height_inches,
+      weight_lbs: p.weight_lbs,
+      handedness: p.handedness,
+      dev_trait: p.dev_trait,
       attributes,
       abilities,
       ability_count: abilities ? abilities.length : null,

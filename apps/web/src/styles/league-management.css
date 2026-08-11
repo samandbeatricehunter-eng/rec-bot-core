@@ -598,6 +598,21 @@
 .pending-items-category:hover { color: var(--accent-bright, var(--gold)); }
 .pending-items-category.is-active { color: var(--gold); font-weight: 800; }
 .pending-items-scroll-list { max-height: 420px; overflow-y: auto; }
+.pending-item-card { cursor: pointer; }
+.pending-item-card-layout { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+.pending-item-card-copy { flex: 1 1 240px; min-width: 0; }
+.pending-item-card-heading { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); flex-wrap: wrap; }
+.pending-item-card-title { min-width: 0; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.pending-item-card-amount { flex-shrink: 0; font-size: var(--text-lg); font-weight: 700; }
+@media (max-width: 560px) {
+  .pending-items-scroll-list { max-height: min(62vh, 560px); gap: var(--space-4) !important; }
+  .pending-item-card { min-height: 118px; padding: var(--space-4) !important; overflow: visible; }
+  .pending-item-card-layout { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-2) var(--space-3); }
+  .pending-item-card-copy { min-width: 0; }
+  .pending-item-card-heading { align-items: flex-start; row-gap: var(--space-2); }
+  .pending-item-card-title { flex-basis: 100%; width: 100%; font-size: var(--text-sm); line-height: 1.45; }
+  .pending-item-card-amount { grid-column: 2; grid-row: 1; font-size: var(--text-base); }
+}
 .completed-transaction-list { display: grid; gap: var(--space-3); }
 .completed-transaction-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
 .completed-transaction-title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }

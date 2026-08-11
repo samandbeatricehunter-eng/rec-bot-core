@@ -71,7 +71,9 @@ function sortByPosition(a: FantasyDraftPoolPlayer, b: FantasyDraftPoolPlayer): n
 }
 
 function positionTabs(players: FantasyDraftPoolPlayer[]): string[] {
-  return [...new Set(players.map((p) => p.position))].sort((a, b) => {
+  // A handful of seeded players carry a blank position (data-quality gap upstream) — without
+  // this filter that surfaces as a genuinely empty, unlabeled option in the dropdown.
+  return [...new Set(players.map((p) => p.position).filter((position): position is string => Boolean(position?.trim())))].sort((a, b) => {
     const ka = POSITION_GROUP_ORDER.indexOf(a);
     const kb = POSITION_GROUP_ORDER.indexOf(b);
     return (ka === -1 ? 99 : ka) - (kb === -1 ? 99 : kb);

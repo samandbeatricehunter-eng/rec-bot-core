@@ -29,6 +29,7 @@ const DATA_DIR = join(__dirname, "data", "madden27");
 const EA_CSV = join(DATA_DIR, "madden27_ea_players.csv");
 const UNMATCHED_CSV = join(DATA_DIR, "madden27_ea_unmatched.csv");
 const GAME_TITLE = "madden_27";
+const SKIP_PHOTOS = process.argv.includes("--skip-photos");
 
 const REST_URL = `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1`;
 function restHeaders(extra: Record<string, string> = {}) {
@@ -238,7 +239,7 @@ async function main() {
     patch.data_quality = "rated";
 
     // Official EA portrait for rows that never had a photo.
-    if (!row.photo_url && ea.avatar_url) {
+    if (!SKIP_PHOTOS && !row.photo_url && ea.avatar_url) {
       const hosted = await rehostPhoto(ea.avatar_url, String(row.source_slug));
       if (hosted) { patch.photo_url = hosted; photoBackfilled++; }
     }

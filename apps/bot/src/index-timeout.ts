@@ -188,16 +188,6 @@ import {
   handleWagerAccept,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
-import {
-  LEGENDS_CUSTOM_IDS,
-  handleLegendAvailableSelect,
-  handleLegendBackToBrowse,
-  handleLegendConfirmPurchase,
-  handleLegendDetailNav,
-  handleLegendGroupSelect,
-  handleLegendPageButton,
-  handleLegendReplaceModalSubmit,
-} from "./flows/legends.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleGameChannelChatMessage } from "./handlers/game-chat-bridge.js";
 import { handleLeagueChatMessage } from "./handlers/league-chat-bridge.js";
@@ -789,8 +779,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`)) return handleLeagueSetupSelect(interaction);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.groupSelect) return handleLegendGroupSelect(interaction);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.availableSelect) return handleLegendAvailableSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -923,10 +911,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewNext) return handleScheduleViewPage(interaction, 1);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly) return handleScheduleViewPostPublicly(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
-      if (interaction.customId.startsWith(LEGENDS_CUSTOM_IDS.pagePrefix)) return handleLegendPageButton(interaction);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.detailPrev || interaction.customId === LEGENDS_CUSTOM_IDS.detailNext) return handleLegendDetailNav(interaction);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.backToBrowse) return handleLegendBackToBrowse(interaction);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.confirmPurchase) return handleLegendConfirmPurchase(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
@@ -1018,7 +1002,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId === LEGENDS_CUSTOM_IDS.replaceModal) return handleLegendReplaceModalSubmit(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);

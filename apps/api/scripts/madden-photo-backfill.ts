@@ -14,6 +14,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "data", "madden27");
 const GAME_TITLE = "madden_27";
 const CF_IMAGES_API = "https://api.cloudflare.com/client/v4";
+const SYNC_ONLY = process.argv.includes("--sync-only");
+const IMAGE_DOWNLOAD_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  Referer: "https://www.maddenratings.com/",
+};
 
 const REST_URL = `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1`;
 function restHeaders(extra: Record<string, string> = {}) {
@@ -53,7 +59,7 @@ async function uploadPhoto(sourceUrl: string, slug: string): Promise<string> {
 
   async function attempt(): Promise<string> {
     try {
-      const dl = await fetch(sourceUrl, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
+      const dl = await fetch(sourceUrl, { headers: IMAGE_DOWNLOAD_HEADERS, redirect: "follow", signal: AbortSignal.timeout(30_000) });
       if (!dl.ok) return "";
       const buf = await dl.arrayBuffer();
       const form = new FormData();
@@ -116,12 +122,12 @@ async function main() {
   if (!dataset.length) throw new Error("No active madden_27 dataset found.");
   const datasetId = dataset[0].id;
 
-  const all: Array<{ id: string; source_slug: string; photo_url: string }> = [];
+  const all: Array<{ id: string; source_slug: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }> = [];
   for (let offset = 0; offset < 5000; offset += 1000) {
     const rows = await fetch(
-      `${REST_URL}/rec_madden_baseline_players?select=id,source_slug,photo_url&dataset_id=eq.${datasetId}&offset=${offset}&limit=1000`,
+      `${REST_URL}/rec_madden_baseline_players?select=id,source_slug,photo_url,height_inches,weight_lbs&dataset_id=eq.${datasetId}&offset=${offset}&limit=1000`,
       { headers: restHeaders() },
-    ).then((r) => r.json()) as Array<{ id: string; source_slug: string; photo_url: string }>;
+    ).then((r) => r.json()) as Array<{ id: string; source_slug: string; photo_url: string; height_inches: number | null; weight_lbs: number | null }>;
     if (!rows.length) break;
     all.push(...rows);
   }
@@ -129,10 +135,10 @@ async function main() {
   const noSource = targets.filter((r) => !photoMap.has(r.source_slug));
   console.log(`Dataset ${datasetId}: ${all.length} players, ${targets.length} missing photo_url, ${noSource.length} of those have no known source URL.`);
 
-  const queue = targets.filter((r) => photoMap.has(r.source_slug));
+  const queue = SYNC_ONLY ? [] : targets.filter((r) => photoMap.has(r.source_slug));
   let done = 0, ok = 0, fail = 0, consecutiveFails = 0;
   let next = 0;
-  const CONCURRENCY = 4;
+  const CONCURRENCY = 12;
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
       while (next < queue.length) {
@@ -144,6 +150,7 @@ async function main() {
             headers: restHeaders({ Prefer: "return=minimal" }),
             body: JSON.stringify({ photo_url: hosted }),
           }).catch(() => {});
+          row.photo_url = hosted;
           ok++;
           consecutiveFails = 0;
         } else {
@@ -160,6 +167,33 @@ async function main() {
     }),
   );
   console.log(`Done. backfilled ${ok}/${queue.length}, ${fail} still missing.`);
+
+  // Existing M27 leagues were materialized before photo/physical metadata was complete.
+  // Keep every imported rec_players copy aligned with its stable baseline source row so the
+  // website draft cards show the newly hosted photo plus height and weight immediately.
+  let synced = 0;
+  const syncable = all.filter((row) => row.photo_url || row.height_inches != null || row.weight_lbs != null);
+  next = 0;
+  await Promise.all(Array.from({ length: 8 }, async () => {
+    while (next < syncable.length) {
+      const row = syncable[next++];
+      const response = await fetch(
+        `${REST_URL}/rec_players?madden_player_id=eq.${encodeURIComponent(`madden27:${row.source_slug}`)}`,
+        {
+          method: "PATCH",
+          headers: restHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({
+            photo_url: row.photo_url || null,
+            height_inches: row.height_inches,
+            weight_lbs: row.weight_lbs,
+          }),
+        },
+      );
+      if (!response.ok) console.warn(`  player sync failed ${row.source_slug}: ${response.status}`);
+      synced++;
+      if (synced % 500 === 0 || synced === syncable.length) console.log(`  synced ${synced}/${syncable.length} baseline players into M27 league rosters`);
+    }
+  }));
 }
 
 main().catch((err) => {
