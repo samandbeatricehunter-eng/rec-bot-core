@@ -6,16 +6,20 @@ import {
   addFantasyDraftCustomPlayer,
   commenceFantasyDraft,
   concludeFantasyDraft,
+  deleteSavedFantasyDraftBoard,
   getFantasyDraftCheckins,
   getFantasyDraftSelfCheckinStatus,
   getFantasyDraftState,
   fillSkippedFantasyDraftPick,
+  listSavedFantasyDraftBoards,
   listSkippedFantasyDraftPicks,
+  loadNamedFantasyDraftBoard,
   logFantasyDraftPick,
   logFantasyDraftWrapupPick,
   pingFantasyDraftOnTheClock,
   pingFantasyDraftUsers,
   removeFantasyDraftPoolPlayer,
+  saveNamedFantasyDraftBoard,
   skipFantasyDraftPick,
   requestFantasyDraftPick,
   resolveFantasyDraftPickRequest,
@@ -51,6 +55,42 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new Error("Saving a draft board requires a website session.");
       return reply.send(await saveFantasyDraftBoard(body.guildId, auth.discordId, body.playerIds));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/board/saved/list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Listing saved draft boards requires a website session.");
+      return reply.send(await listSavedFantasyDraftBoards(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/board/saved/save", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), name: z.string().min(1).max(60), playerIds: z.array(z.string().uuid()).max(500) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Saving a named draft board requires a website session.");
+      return reply.send(await saveNamedFantasyDraftBoard(body.guildId, auth.discordId, body.name, body.playerIds));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/board/saved/load", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), boardId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Loading a saved draft board requires a website session.");
+      return reply.send(await loadNamedFantasyDraftBoard(body.guildId, auth.discordId, body.boardId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/board/saved/delete", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), boardId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("Deleting a saved draft board requires a website session.");
+      return reply.send(await deleteSavedFantasyDraftBoard(body.guildId, auth.discordId, body.boardId));
     } catch (error) { return sendError(reply, error); }
   });
 

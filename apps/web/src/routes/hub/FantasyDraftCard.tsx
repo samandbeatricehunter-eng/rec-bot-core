@@ -127,6 +127,8 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
 
   const [boardOrder, setBoardOrder] = useState<string[]>([]);
   const boardSaveTimerRef = useRef<number | null>(null);
+  const [saveBoardOpen, setSaveBoardOpen] = useState(false);
+  const [loadBoardOpen, setLoadBoardOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -445,6 +447,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
 
           <div className="fantasy-draft-split">
             <div className="fantasy-draft-panel">
+              <div className="fantasy-draft-board-actions">
+                <Button variant="secondary" size="compact" disabled={busy || boardOrder.length === 0} onClick={() => setSaveBoardOpen(true)}>Save Draft Board</Button>
+                <Button variant="secondary" size="compact" disabled={busy} onClick={() => setLoadBoardOpen(true)}>Load Draft Board</Button>
+              </div>
               <BoardRosterSplit
                 boardPlayers={boardPlayers}
                 myRoster={myRoster}
@@ -509,6 +515,26 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         />
       )}
       {customPlayerOpen && <AddCustomPlayerModal guildId={guildId} onClose={() => setCustomPlayerOpen(false)} onAdded={() => void load()} />}
+      {saveBoardOpen && (
+        <SaveDraftBoardModal
+          guildId={guildId}
+          playerIds={boardOrder}
+          onClose={() => setSaveBoardOpen(false)}
+          onSaved={(name) => { setSaveBoardOpen(false); setNotice(`Draft board "${name}" saved.`); }}
+        />
+      )}
+      {loadBoardOpen && (
+        <LoadDraftBoardModal
+          guildId={guildId}
+          onClose={() => setLoadBoardOpen(false)}
+          onLoaded={(result) => {
+            setLoadBoardOpen(false);
+            void runAction(() => Promise.resolve(), result.resolvedCount != null && result.requestedCount != null
+              ? `Board loaded — ${result.resolvedCount}/${result.requestedCount} players are available in this league.`
+              : "Board loaded.");
+          }}
+        />
+      )}
       {wrapupTarget && (
         <WrapupTeamModal
           player={wrapupTarget}
@@ -1356,6 +1382,108 @@ function FillSkippedPickModal({ teamName, pool, busy, onClose, onConfirm }: {
       <div className="fantasy-draft-form-actions">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
       </div>
+    </Modal>
+  );
+}
+
+function SaveDraftBoardModal({ guildId, playerIds, onClose, onSaved }: { guildId: string; playerIds: string[]; onClose: () => void; onSaved: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed) { setError("Give this board a name."); return; }
+    setBusy(true); setError(null);
+    try {
+      await recApi.saveNamedFantasyDraftBoard({ guildId, name: trimmed, playerIds });
+      onSaved(trimmed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Save Draft Board" onClose={onClose}>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Saves your current board ({playerIds.length} player{playerIds.length === 1 ? "" : "s"}) under a name you can
+        reload for a future fantasy draft of this game. Saving under an existing name overwrites it.
+      </p>
+      {error && <ErrorState message={error} />}
+      <label className="form-field">
+        <span className="form-label">Board name</span>
+        <input className="form-input" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Speed WRs" autoFocus />
+      </label>
+      <Button variant="primary" disabled={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</Button>
+    </Modal>
+  );
+}
+
+function LoadDraftBoardModal({ guildId, onClose, onLoaded }: { guildId: string; onClose: () => void; onLoaded: (result: { requestedCount?: number; resolvedCount?: number }) => void }) {
+  const [boards, setBoards] = useState<Array<{ id: string; name: string; updatedAt: string; playerCount: number }> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function load() {
+    recApi.listSavedFantasyDraftBoards(guildId).then((res) => setBoards(res.boards)).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }
+  useEffect(load, [guildId]);
+
+  async function loadBoard(boardId: string) {
+    setBusyId(boardId); setError(null);
+    try {
+      const result = await recApi.loadNamedFantasyDraftBoard({ guildId, boardId });
+      onLoaded(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusyId(null);
+    }
+  }
+
+  async function removeBoard(boardId: string) {
+    if (!window.confirm("Delete this saved draft board? This can't be undone.")) return;
+    setBusyId(boardId); setError(null);
+    try {
+      await recApi.deleteSavedFantasyDraftBoard({ guildId, boardId });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <Modal title="Load Draft Board" onClose={onClose}>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Loading a board replaces your current one. Any players not available in this league (already drafted, or not
+        found) are dropped automatically and the rest re-rank to fill the gaps.
+      </p>
+      {error && <ErrorState message={error} />}
+      {!boards && !error && <LoadingState />}
+      {boards && boards.length === 0 && <p className="hub-empty">No saved draft boards yet for this game.</p>}
+      {boards && boards.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          {boards.map((board) => (
+            <div key={board.id} className="fantasy-draft-saved-board-row">
+              <span>
+                <strong>{board.name}</strong>
+                <small> · {board.playerCount} player{board.playerCount === 1 ? "" : "s"} · saved {new Date(board.updatedAt).toLocaleDateString()}</small>
+              </span>
+              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                <Button variant="primary" size="compact" disabled={busyId === board.id} onClick={() => void loadBoard(board.id)}>
+                  {busyId === board.id ? "Loading…" : "Load"}
+                </Button>
+                <Button variant="ghost" size="compact" disabled={busyId === board.id} onClick={() => void removeBoard(board.id)}>
+                  <Trash2 size={15} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

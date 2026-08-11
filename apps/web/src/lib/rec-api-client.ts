@@ -817,6 +817,16 @@ export const recApi = {
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveFantasyDraftBoard: (input: { guildId: string; playerIds: string[] }) =>
     recApiFetch<{ ok: true; board: string[] }>("/v1/fantasy-draft/board/save", { method: "POST", body: JSON.stringify(input) }),
+  // Named, reusable draft boards — separate from the live working board above, these persist
+  // across leagues/drafts of the same game.
+  listSavedFantasyDraftBoards: (guildId: string) =>
+    recApiFetch<{ boards: Array<{ id: string; name: string; updatedAt: string; playerCount: number }> }>("/v1/fantasy-draft/board/saved/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveNamedFantasyDraftBoard: (input: { guildId: string; name: string; playerIds: string[] }) =>
+    recApiFetch<{ ok: true; boardId: string; name: string; playerCount: number }>("/v1/fantasy-draft/board/saved/save", { method: "POST", body: JSON.stringify(input) }),
+  loadNamedFantasyDraftBoard: (input: { guildId: string; boardId: string }) =>
+    recApiFetch<{ ok: true; board: string[]; requestedCount?: number; resolvedCount?: number }>("/v1/fantasy-draft/board/saved/load", { method: "POST", body: JSON.stringify(input) }),
+  deleteSavedFantasyDraftBoard: (input: { guildId: string; boardId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/board/saved/delete", { method: "POST", body: JSON.stringify(input) }),
   scheduleFantasyDraft: (input: { guildId: string; scheduledAt?: string | null }) =>
     recApiFetch<FantasyDraftSession>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
   commenceFantasyDraft: (guildId: string) =>

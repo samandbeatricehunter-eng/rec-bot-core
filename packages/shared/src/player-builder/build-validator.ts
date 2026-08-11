@@ -28,7 +28,11 @@ import {
 // end wasn't steep enough, and the position-weight ceiling (1.50x) and high-impact multipliers
 // undersold how expensive a truly elite attribute should be. Both raised so 90+ costs real CP
 // and 95+ costs a lot more, especially for the attributes that actually matter at a position.
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.5.0" as const;
+// v1.5.1: v1.5.0 overshot — a Tier 5 purchase (the most expensive package) came out to a 54
+// OVR SS with low attributes across the board, meaning the mandatory 35-point floor across
+// all 53 attributes was eating nearly the entire budget before a build could specialize at
+// all. Dialed the same three levers back roughly halfway between v1.4 and v1.5.0.
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.5.1" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -63,15 +67,15 @@ export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>
 export const REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR = 35;
 
 export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, number>> = {
-  spd: 2.60,
-  thp: 2.50,
-  acc: 2.30,
-  cod: 2.20,
-  agi: 2.05,
-  str: 2.00,
-  kpw: 1.90,
-  pow: 1.75,
-  jmp: 1.65,
+  spd: 2.30,
+  thp: 2.20,
+  acc: 2.05,
+  cod: 1.95,
+  agi: 1.85,
+  str: 1.80,
+  kpw: 1.70,
+  pow: 1.60,
+  jmp: 1.50,
 } as const;
 
 // A gated attribute's ceiling rises in tiers — to push past `minimumRequestedRating - 1`,
@@ -240,11 +244,11 @@ export function recBaseMarginalCost(destinationRating: number): number {
   if (rating <= 59) return 2;
   if (rating <= 69) return 3;
   if (rating <= 79) return 5;
-  if (rating <= 84) return 14;
-  if (rating <= 89) return 22;
-  if (rating <= 94) return 42;
-  if (rating <= 97) return 110;
-  return 260;
+  if (rating <= 84) return 11;
+  if (rating <= 89) return 17;
+  if (rating <= 94) return 30;
+  if (rating <= 97) return 75;
+  return 160;
 }
 
 export function getRecPositionAttributeWeight(
@@ -262,11 +266,11 @@ export function getRecPositionAttributeWeight(
   // being nearly free to max since it moves OVR/the raw-overall cap so little. That gap is
   // exactly what let leftover CP get dumped into unrelated attributes at 99 with no real
   // cost, producing OVR-capped players with several unrelated maxed-out ratings.
-  // Ceiling raised 1.50->1.85 (v1.5.0) — the attributes the OVR model actually weights
-  // heavily for a position are exactly the ones a build wants at elite ratings; undercharging
-  // them relative to the average let a build reach the high 90s in several of them at once
-  // while staying under the tier's CP budget.
-  return clamp(coefficient / mean, 0.90, 1.85);
+  // Ceiling raised 1.50->1.65 (v1.5.1, dialed back from v1.5.0's 1.85) — the attributes the
+  // OVR model actually weights heavily for a position are exactly the ones a build wants at
+  // elite ratings; undercharging them relative to the average let a build reach the high 90s
+  // in several of them at once while staying under the tier's CP budget.
+  return clamp(coefficient / mean, 0.90, 1.65);
 }
 
 export function getRecEffectiveAttributeMultiplier(

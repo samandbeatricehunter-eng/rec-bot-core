@@ -602,6 +602,176 @@ export async function saveFantasyDraftBoard(guildId: string, discordId: string, 
   return { ok: true as const, board };
 }
 
+/** Lists the caller's named, reusable draft boards for the current league's game — distinct
+ * from the single live working board above, these persist across leagues/drafts so a user
+ * can build a board once and reuse it for a future fantasy draft of the same game. */
+export async function listSavedFantasyDraftBoards(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const game = context.rec_leagues.game;
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to view saved draft boards.");
+
+  const boards = await supabase
+    .from("rec_fantasy_draft_saved_boards")
+    .select("id,name,updated_at,entries:rec_fantasy_draft_saved_board_entries(count)")
+    .eq("user_id", userId)
+    .eq("game", game)
+    .order("updated_at", { ascending: false });
+  if (boards.error) throw new ApiError(500, "Failed to load saved draft boards.", boards.error);
+
+  return {
+    boards: (boards.data ?? []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      updatedAt: row.updated_at,
+      playerCount: row.entries?.[0]?.count ?? 0,
+    })),
+  };
+}
+
+/** Snapshots the caller's current live board (by rec_players id, this league's rows) into a
+ * named saved board keyed by madden_player_id, so it can be resolved against a different
+ * league later. Saving again under the same name overwrites it. */
+export async function saveNamedFantasyDraftBoard(guildId: string, discordId: string, name: string, playerIds: string[]) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const game = context.rec_leagues.game;
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to save a draft board.");
+
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new ApiError(400, "Give this draft board a name.");
+  if (trimmedName.length > 60) throw new ApiError(400, "Board names must be 60 characters or fewer.");
+
+  const unique = [...new Set(playerIds)];
+  if (!unique.length) throw new ApiError(400, "Your current board is empty — nothing to save.");
+  if (unique.length > 500) throw new ApiError(400, "A draft board can hold up to 500 players.");
+
+  const players = await supabase
+    .from("rec_players")
+    .select("id,madden_player_id,full_name,position")
+    .eq("league_id", leagueId)
+    .in("id", unique);
+  if (players.error) throw new ApiError(500, "Failed to load board players.", players.error);
+  type BoardPlayerRow = { id: string; madden_player_id: string | null; full_name: string; position: string };
+  const byId = new Map((players.data ?? []).map((p: BoardPlayerRow): [string, BoardPlayerRow] => [p.id, p]));
+  const ordered = unique.map((id) => byId.get(id)).filter((p): p is BoardPlayerRow => Boolean(p));
+  if (!ordered.length) throw new ApiError(400, "None of the players on your board could be found.");
+
+  const existing = await supabase
+    .from("rec_fantasy_draft_saved_boards")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("game", game)
+    .eq("name", trimmedName)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to check for an existing saved board.", existing.error);
+
+  const now = new Date().toISOString();
+  let boardId: string;
+  if (existing.data?.id) {
+    boardId = existing.data.id;
+    const updated = await supabase.from("rec_fantasy_draft_saved_boards").update({ updated_at: now }).eq("id", boardId);
+    if (updated.error) throw new ApiError(500, "Failed to update the saved board.", updated.error);
+    const cleared = await supabase.from("rec_fantasy_draft_saved_board_entries").delete().eq("board_id", boardId);
+    if (cleared.error) throw new ApiError(500, "Failed to update the saved board.", cleared.error);
+  } else {
+    const created = await supabase
+      .from("rec_fantasy_draft_saved_boards")
+      .insert({ user_id: userId, game, name: trimmedName })
+      .select("id")
+      .single();
+    if (created.error) throw new ApiError(500, "Failed to create the saved board.", created.error);
+    boardId = created.data.id;
+  }
+
+  const inserted = await supabase.from("rec_fantasy_draft_saved_board_entries").insert(
+    ordered.map((player, index) => ({
+      board_id: boardId,
+      rank: index + 1,
+      madden_player_id: player.madden_player_id ?? null,
+      full_name: player.full_name,
+      position: player.position,
+    })),
+  );
+  if (inserted.error) throw new ApiError(500, "Failed to save board players.", inserted.error);
+
+  return { ok: true as const, boardId, name: trimmedName, playerCount: ordered.length };
+}
+
+export async function deleteSavedFantasyDraftBoard(guildId: string, discordId: string, boardId: string) {
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required.");
+  const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id").eq("id", boardId).eq("user_id", userId).maybeSingle();
+  if (board.error) throw new ApiError(500, "Failed to load the saved board.", board.error);
+  if (!board.data) throw new ApiError(404, "Saved draft board not found.");
+  const deleted = await supabase.from("rec_fantasy_draft_saved_boards").delete().eq("id", boardId);
+  if (deleted.error) throw new ApiError(500, "Failed to delete the saved board.", deleted.error);
+  return { ok: true as const };
+}
+
+/** Resolves a saved board against the CURRENT league's pool (by madden_player_id, falling
+ * back to an exact full_name+position match for entries with none) and immediately replaces
+ * the caller's live working board with the result — same drop-unavailable-players and
+ * reflow-ranks behavior as any other board edit. Players not found in this league or already
+ * drafted here are silently dropped, same as saveFantasyDraftBoard already does. */
+export async function loadNamedFantasyDraftBoard(guildId: string, discordId: string, boardId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const game = context.rec_leagues.game;
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to load a draft board.");
+
+  const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id,game").eq("id", boardId).eq("user_id", userId).maybeSingle();
+  if (board.error) throw new ApiError(500, "Failed to load the saved board.", board.error);
+  if (!board.data) throw new ApiError(404, "Saved draft board not found.");
+  if (board.data.game !== game) throw new ApiError(400, "That saved board is for a different game and can't be loaded here.");
+
+  const entries = await supabase
+    .from("rec_fantasy_draft_saved_board_entries")
+    .select("rank,madden_player_id,full_name,position")
+    .eq("board_id", boardId)
+    .order("rank", { ascending: true });
+  if (entries.error) throw new ApiError(500, "Failed to load the saved board's players.", entries.error);
+  if (!entries.data?.length) return saveFantasyDraftBoard(guildId, discordId, []);
+
+  const maddenIdSet = new Set<string>();
+  for (const entry of entries.data as any[]) if (entry.madden_player_id) maddenIdSet.add(String(entry.madden_player_id));
+  const maddenIds: string[] = [...maddenIdSet];
+  const poolRows: Array<{ id: string; madden_player_id: string | null; full_name: string; position: string }> = [];
+  if (maddenIds.length) {
+    const byMadden = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("madden_player_id", maddenIds);
+    if (byMadden.error) throw new ApiError(500, "Failed to match the saved board against this league's players.", byMadden.error);
+    poolRows.push(...(byMadden.data ?? []));
+  }
+  // Entries with no madden_player_id (custom players saved from a previous draft) can only
+  // match by exact name+position — pull those separately rather than scanning the whole pool.
+  const namePositionEntries = (entries.data as any[]).filter((e) => !e.madden_player_id);
+  if (namePositionEntries.length) {
+    const names = [...new Set(namePositionEntries.map((e) => e.full_name))];
+    const byName = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("full_name", names);
+    if (byName.error) throw new ApiError(500, "Failed to match the saved board against this league's players.", byName.error);
+    poolRows.push(...(byName.data ?? []));
+  }
+
+  const byMaddenId = new Map<string, string>();
+  const byNamePosition = new Map<string, string>();
+  for (const p of poolRows) {
+    if (p.madden_player_id) byMaddenId.set(p.madden_player_id, p.id);
+    byNamePosition.set(`${p.full_name}::${p.position}`, p.id);
+  }
+
+  const resolvedIds: string[] = [];
+  for (const entry of entries.data as any[]) {
+    const matchId = (entry.madden_player_id && byMaddenId.get(entry.madden_player_id))
+      ?? byNamePosition.get(`${entry.full_name}::${entry.position}`);
+    if (matchId) resolvedIds.push(matchId);
+  }
+
+  const result = await saveFantasyDraftBoard(guildId, discordId, resolvedIds);
+  return { ...result, requestedCount: entries.data.length, resolvedCount: resolvedIds.length };
+}
+
 export async function scheduleFantasyDraft(guildId: string, discordId: string, scheduledAt: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { leagueId } = context;
