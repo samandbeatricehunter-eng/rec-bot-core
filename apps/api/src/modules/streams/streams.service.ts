@@ -8,8 +8,7 @@ import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
-
-const STREAM_PAYOUT_AMOUNT = 50;
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 // Site<->Discord stream mirroring — used by both the Discord stream command
 // (recordStreamPost) and the site's share-stream flow (shareHubMatchupStream in
@@ -191,7 +190,7 @@ export async function createStreamPayoutReview(input: CreateStreamPayoutReviewIn
       season_number: input.seasonNumber,
       week_number: input.weekNumber,
       status: "pending",
-      amount: STREAM_PAYOUT_AMOUNT,
+      amount: (await getGlobalEconomyConfig()).submissions.stream,
       discord_channel_id: input.discordChannelId ?? null,
       discord_message_id: input.discordMessageId ?? null,
     })
@@ -216,7 +215,7 @@ export async function createStreamPayoutReview(input: CreateStreamPayoutReviewIn
     summary: `Stream submitted by <@${input.discordId}>.`,
     requester_discord_id: input.discordId,
     requester_user_id: input.userId,
-    amount: STREAM_PAYOUT_AMOUNT,
+    amount: (await getGlobalEconomyConfig()).submissions.stream,
     source_table: "rec_stream_payout_reviews",
     source_id: review.data.id,
     payload: { reviewId: review.data.id, streamLogId: input.streamLogId },
@@ -375,7 +374,7 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
     return { updated: true, review: denied.data, streamLog: denied.data.stream_log };
   }
 
-  const amount = Number(existing.data.amount ?? STREAM_PAYOUT_AMOUNT);
+  const amount = Number(existing.data.amount ?? (await getGlobalEconomyConfig()).submissions.stream);
   const credit = await creditOrBacklog({
     leagueId: existing.data.league_id,
     seasonNumber: existing.data.season_number,

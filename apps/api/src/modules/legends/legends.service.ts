@@ -218,7 +218,7 @@ export async function createLegendPurchaseRequest(input: {
       : "Buyer left the replaced player up to you.",
     ...(!isCfb ? [`Dev trait: ${details.devTrait}`] : []),
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
-    "Final in-league OVR is normalized to 88 — nudge attributes as needed.",
+    "Apply the catalog ratings shown and record any necessary in-game edits.",
     "",
     "Attributes:",
     attrLines,

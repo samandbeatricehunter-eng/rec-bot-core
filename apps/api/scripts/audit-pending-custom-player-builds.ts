@@ -31,7 +31,7 @@ async function main() {
         continue;
       }
       reason = evaluation.rawOverall > 88
-        ? `The build evaluates to ${evaluation.displayOverall} OVR and exceeds the 88 OVR ceiling.`
+        ? `The build evaluates to ${evaluation.displayOverall} OVR and violates its selected package constraints.`
         : evaluation.violations?.[0]?.message || reason;
     } catch (error) {
       reason = error instanceof Error ? error.message : reason;

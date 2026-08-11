@@ -1,4 +1,5 @@
 import type { SiteBadge } from "./badge-display.js";
+import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
 const apiBaseUrl = () => siteApiBaseUrl() || (import.meta.env.VITE_REC_CORE_API_URL as string | undefined);
@@ -1022,6 +1023,12 @@ export const siteApi = {
     return publicRequest<{ players: Array<{ id: string; name: string; position: string; overallRating: number | null; devTrait: string | null }> }>(
       "/v1/demo-league/roster", { method: "POST", body: JSON.stringify({ leagueId, teamId }) },
     );
+  },
+  getAdminEconomyConfig() {
+    return request<RecGlobalEconomyConfig>("/v1/admin/economy-config/get", {});
+  },
+  updateAdminEconomyConfig(config: RecGlobalEconomyConfig) {
+    return request<RecGlobalEconomyConfig>("/v1/admin/economy-config/set", config);
   },
   getDemoFantasyDraftPool(leagueId: string) {
     return publicRequest<{ players: Array<{ id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> }> }>(

@@ -7,6 +7,7 @@ import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { qualifyDefenseNickname, getMyDefenseNicknameStatus } from "./defense-nicknames.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 type EosPayoutItem = {
   league_id: string;
@@ -224,7 +225,8 @@ async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber
 }
 
 async function buildPowerRankItems(leagueId: string, seasonNumber: number): Promise<EosPayoutItem[]> {
-  if (!RANK_DEFINITION) return [];
+  const rankDefinition = (await getGlobalEconomyConfig()).eos.find((definition) => definition.key === "power_ranking_position");
+  if (!rankDefinition) return [];
   const rankRows = await supabase.rpc("rec_eos_rank_payouts", { p_league_id: leagueId, p_season_number: seasonNumber });
   if (rankRows.error) throw new ApiError(500, "Failed to calculate power-ranking EOS payouts.", rankRows.error);
   const assignments = await supabase
@@ -245,15 +247,16 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
       season_number: seasonNumber,
       payout_category: "ranking",
       payout_key: `eos:${seasonNumber}:power_rank:${row.user_id}`,
-      payout_label: row.rank_label ?? RANK_DEFINITION.label,
-      qualified_tier: evaluatePayoutTier(Number(row.rank), RANK_DEFINITION.tiers)?.tier ?? null,
+      payout_label: row.rank_label ?? rankDefinition.label,
+      qualified_tier: evaluatePayoutTier(Number(row.rank), rankDefinition.tiers)?.tier ?? null,
       qualified_value: Number(row.rank),
-      amount: Number(row.rank_amount),
+      amount: evaluatePayoutTier(Number(row.rank), rankDefinition.tiers)?.amount ?? 0,
       metadata: { rank: Number(row.rank), source: "power_rankings" },
     }));
 }
 
 async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: LeagueGame): Promise<EosPayoutItem[]> {
+  const teamDefinitions = (await getGlobalEconomyConfig()).eos.filter((definition) => definition.scope === "team");
   const stats = await supabase
     .from("rec_team_game_stats")
     .select("*")
@@ -273,7 +276,7 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
   const items: EosPayoutItem[] = [];
   for (const [userId, rows] of byUser.entries()) {
     const teamId = rows.find((row) => row.team_id)?.team_id ?? null;
-    for (const definition of TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game))) {
+    for (const definition of teamDefinitions.filter((d) => isPayoutEligibleForGame(d, game))) {
       const value = evalTeamStat(definition.statKey, rows, game);
       const tier = evaluatePayoutTier(value, definition.tiers);
       if (!tier) continue;
@@ -421,6 +424,9 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const game = context.rec_leagues.game;
+  const payoutDefinitions = (await getGlobalEconomyConfig()).eos;
+  const teamDefinitions = payoutDefinitions.filter((definition) => definition.scope === "team");
+  const rankDefinition = payoutDefinitions.find((definition) => definition.key === "power_ranking_position");
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
@@ -446,7 +452,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   // progress on. Show a real zero instead of a computed-from-nothing one.
   const hasSubmittedStats = rows.length > 0;
 
-  const teamStats: EosPayoutProgressCard[] = TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
+  const teamStats: EosPayoutProgressCard[] = teamDefinitions.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
     const value = evalTeamStat(definition.statKey, rows, game);
     return {
       key: definition.key,
@@ -463,19 +469,19 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   });
 
   let ranking: (EosPayoutProgressCard & { rank: number | null }) | null = null;
-  if (RANK_DEFINITION) {
+  if (rankDefinition) {
     const rankRows = await supabase.rpc("rec_eos_rank_payouts", { p_league_id: context.leagueId, p_season_number: seasonNumber });
     if (rankRows.error) throw new ApiError(500, "Failed to calculate your power-ranking progress.", rankRows.error);
     const mine = (rankRows.data ?? []).find((row: any) => row.user_id === userId);
     if (mine) {
       const rank = Number(mine.rank);
       ranking = {
-        key: RANK_DEFINITION.key,
-        label: RANK_DEFINITION.label,
+        key: rankDefinition.key,
+        label: rankDefinition.label,
         currentValue: rank,
-        progress: computeTierProgress(rank, RANK_DEFINITION.tiers, RANK_DEFINITION.direction),
-        tiers: RANK_DEFINITION.tiers,
-        direction: RANK_DEFINITION.direction,
+        progress: computeTierProgress(rank, rankDefinition.tiers, rankDefinition.direction),
+        tiers: rankDefinition.tiers,
+        direction: rankDefinition.direction,
         rank,
       };
     }
@@ -670,10 +676,11 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
   return { ...refreshed, issuedCount: issued.length, issuedItems, failed };
 }
 
-function definitionForItem(item: { payout_category: string; payout_key: string }) {
-  if (item.payout_category === "ranking") return RANK_DEFINITION ?? null;
+async function definitionForItem(item: { payout_category: string; payout_key: string }) {
+  const definitions = (await getGlobalEconomyConfig()).eos;
+  if (item.payout_category === "ranking") return definitions.find((definition) => definition.key === "power_ranking_position") ?? null;
   const key = String(item.payout_key ?? "").split(":")[2];
-  return TEAM_DEFINITIONS.find((d) => d.key === key) ?? null;
+  return definitions.find((definition) => definition.scope === "team" && definition.key === key) ?? null;
 }
 
 // Lets a commissioner bump a single line item to a different tier (or clear its payout
@@ -686,7 +693,7 @@ export async function adjustEosPayoutItem(input: { itemId: string; tier: RecPayo
   if (!existing.data) throw new ApiError(404, "EOS payout item was not found.");
   if (existing.data.status !== "pending") throw new ApiError(400, "Only pending items can be adjusted.");
 
-  const definition = definitionForItem(existing.data);
+  const definition = await definitionForItem(existing.data);
   if (!definition) throw new ApiError(400, "Could not resolve the payout tier table for this item.");
 
   let amount = 0;
@@ -767,6 +774,7 @@ export async function listPendingEosLedgers(guildId: string): Promise<{ batch: a
 
   const byUser = new Map<string, EosLedgerLineItem[]>();
   for (const item of items.data ?? []) {
+    const payoutDefinition = await definitionForItem(item);
     const rows = byUser.get(item.user_id) ?? [];
     rows.push({
       id: item.id,
@@ -775,7 +783,7 @@ export async function listPendingEosLedgers(guildId: string): Promise<{ batch: a
       qualifiedTier: item.qualified_tier,
       qualifiedValue: Number(item.qualified_value ?? 0),
       amount: Number(item.amount ?? 0),
-      availableTiers: (definitionForItem(item)?.tiers ?? []).map((t) => ({ tier: t.tier, amount: t.amount, threshold: t.threshold, operator: t.operator })),
+      availableTiers: (payoutDefinition?.tiers ?? []).map((t) => ({ tier: t.tier, amount: t.amount, threshold: t.threshold, operator: t.operator })),
     });
     byUser.set(item.user_id, rows);
   }

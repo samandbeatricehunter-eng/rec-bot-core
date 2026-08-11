@@ -43,6 +43,9 @@ export type EntitlementUser = {
  * Gold/Platinum both get a tighter per-game league cap (see TRIAL_JOIN_LIMIT/TRIAL_OWN_LIMIT)
  * so the free trial can't be used to stand up a full multi-league footprint before paying. */
 export function isCurrentlyTrialing(user: EntitlementUser, now = new Date()): boolean {
+  // Promotional free periods receive the normal tier limits. Only the automatic Stripe
+  // new-account trial is intentionally capped at one league per game.
+  if (user.billing_status === "promo_trial") return false;
   if (!user.trial_ends_at) return false;
   const endsAt = new Date(user.trial_ends_at);
   return !Number.isNaN(endsAt.getTime()) && endsAt.getTime() > now.getTime();

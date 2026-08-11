@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_TIER_LABELS, REC_LEGEND_PRICE, coinsNumber, devTierOrderForGame, priceForDevUpgradeSteps, type RecDevTier, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, priceForDevUpgradeSteps, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
@@ -55,14 +55,6 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
   attribute: SlidersHorizontal,
   legend: Star,
   custom_player: UserPlus,
-};
-const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
-  age_reset: coinsNumber(REC_AGE_RESET_PRICE),
-  dev_upgrade: `${coinsNumber(500)}-${coinsNumber(1500)}`,
-  contract: coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction),
-  attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
-  legend: coinsNumber(REC_LEGEND_PRICE),
-  custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
 };
 type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules" | "trades";
@@ -463,6 +455,15 @@ export function HubHome() {
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const [hub, setHub] = useState<HubResponse | null>(null);
+  const [economyValues, setEconomyValues] = useState<RecGlobalEconomyConfig>(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG);
+  const storeProductPriceLabels = useMemo<Partial<Record<RecPurchaseType, string>>>(() => ({
+    age_reset: coinsNumber(economyValues.store.ageReset),
+    dev_upgrade: `${coinsNumber(economyValues.store.devUpgradeStep)}-${coinsNumber(economyValues.store.devUpgradeTopStep)}`,
+    contract: coinsNumber(economyValues.store.contractReduction),
+    attribute: `${coinsNumber(economyValues.store.nonCoreAttributePoint)}-${coinsNumber(economyValues.store.coreAttributePoint)}/pt`,
+    legend: coinsNumber(economyValues.store.legend),
+    custom_player: `${coinsNumber(economyValues.store.customPlayerTier1)}-${coinsNumber(economyValues.store.customPlayerTier5)}`,
+  }), [economyValues]);
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
@@ -743,6 +744,7 @@ export function HubHome() {
     }
   }
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
+  useEffect(() => { if (auth.status === "ready") recApi.getGlobalEconomyValues().then(setEconomyValues).catch(() => undefined); }, [auth.status]);
 
   useEffect(() => {
     if (auth.status !== "ready" || (section !== "league" && section !== "wagers")) return;
@@ -1315,7 +1317,7 @@ export function HubHome() {
           return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setDevUpgradePlayer(null); setDevUpgradeTargetTier(""); setAgeResetPlayer(null); setContractPlayer(null); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
-            <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
+            <span className="hub-store-card-price">{storeProductPriceLabels[product.type as RecPurchaseType] ?? ""}</span>
             <span className="hub-store-card-status">{product.locked ? "Available Season 2" : used ? `${used} this season${cap ? ` / ${cap} cap` : ""}` : "Open purchase flow"}</span>
           </button>;
         })}</div>
@@ -1324,7 +1326,7 @@ export function HubHome() {
 
           {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} onSubmit={(allocations, playerName, playerId) => void submitPurchase({ playerId, playerName, allocations })} />}
 
-          {purchaseType === "legend" && <LegendPurchasePanel onPurchased={() => { setStoreContext(null); void load(); }} />}
+          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} onPurchased={() => { setStoreContext(null); void load(); }} />}
 
           {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); }} />}
 

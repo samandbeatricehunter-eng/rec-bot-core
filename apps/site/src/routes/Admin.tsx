@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { Navigate } from "react-router-dom";
 import { startImpersonation } from "../lib/impersonation.js";
 import {
@@ -13,7 +14,7 @@ import {
   type PromoCodeEffectType,
 } from "../lib/site-api.js";
 
-type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "discord";
+type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "economy" | "discord";
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "stats", label: "Stats" },
@@ -21,6 +22,7 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "leagues", label: "Leagues" },
   { id: "impersonate", label: "View As" },
   { id: "promo-codes", label: "Promo Codes" },
+  { id: "economy", label: "Economy Values" },
   { id: "discord", label: "Discord" },
 ];
 
@@ -641,6 +643,78 @@ function PromoCodesPanel() {
   );
 }
 
+const ECONOMY_LABELS: Record<string, string> = {
+  ageReset: "Age reset", playerTrait: "Player trait (legacy)", legend: "Legend", devUpgradeStep: "Development upgrade step",
+  devUpgradeTopStep: "Top development-tier step", contractReduction: "Contract reduction", contractExtension: "Contract extension",
+  coreAttributePoint: "Core attribute point", nonCoreAttributePoint: "Non-core attribute point", customPlayerBronze: "Custom player — Bronze (legacy)",
+  customPlayerSilver: "Custom player — Silver (legacy)", customPlayerGold: "Custom player — Gold (legacy)", boxScoreWin: "Box score — win",
+  customPlayerTier1: "Custom player — Tier 1", customPlayerTier2: "Custom player — Tier 2", customPlayerTier3: "Custom player — Tier 3", customPlayerTier4: "Custom player — Tier 4", customPlayerTier5: "Custom player — Tier 5",
+  boxScoreLoss: "Box score — loss", badgeBonus: "Badge bonus", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
+  highlightSeasonAward: "Season highlight award", gameOfYear: "Game of the Year",
+  highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article", interview: "Interview",
+  gotwCorrectVote: "Correct GOTW vote", potw: "Player of the Week", weeklyChallengeS: "Weekly challenge — S",
+  weeklyChallengeA: "Weekly challenge — A", weeklyChallengeB: "Weekly challenge — B", houseWeeklyMaximum: "House wager weekly maximum",
+  peerWeeklyMaximum: "User wager weekly maximum", bestPassing: "Best Passing Game", bestRushing: "Best Rushing Game",
+  bestDefense: "Best Defense", mvp: "MVP / Heisman", mostSkilled: "Best User Skills", mostHeart: "Most Heart",
+};
+
+function EconomyValuesPanel() {
+  const [config, setConfig] = useState<RecGlobalEconomyConfig | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { siteApi.getAdminEconomyConfig().then(setConfig).catch((err) => setError(err instanceof Error ? err.message : "Could not load economy values.")); }, []);
+
+  function setSectionValue(section: "store" | "submissions" | "wagers" | "awards", key: string, value: number) {
+    setConfig((current) => current ? ({ ...current, [section]: { ...current[section], [key]: value } }) : current);
+  }
+
+  function section(title: string, key: "store" | "submissions" | "wagers" | "awards") {
+    if (!config) return null;
+    return <section className="site-billing-panel"><h2>{title}</h2><div className="site-account-stat-grid">
+      {Object.entries(config[key]).map(([field, value]) => <label className="site-field" key={field}><span>{ECONOMY_LABELS[field] ?? field}</span>
+        <input type="number" min={0} step={1} value={value} onChange={(event) => setSectionValue(key, field, Number(event.target.value))} />
+      </label>)}
+    </div></section>;
+  }
+
+  function setTier(definitionIndex: number, tierIndex: number, field: "threshold" | "amount", value: number) {
+    setConfig((current) => {
+      if (!current) return current;
+      const eos = current.eos.map((definition, di) => di !== definitionIndex ? definition : {
+        ...definition, tiers: definition.tiers.map((tier, ti) => ti === tierIndex ? { ...tier, [field]: value } : tier),
+      });
+      return { ...current, eos };
+    });
+  }
+
+  async function save() {
+    if (!config) return;
+    setBusy(true); setError(null); setMessage(null);
+    try { const next = await siteApi.updateAdminEconomyConfig(config); setConfig(next); setMessage(`Saved as configuration version ${next.version}. New transactions use these values immediately.`); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not save economy values."); }
+    finally { setBusy(false); }
+  }
+
+  if (!config) return <p className="site-muted">{error ?? "Loading…"}</p>;
+  return <div>
+    <div className="site-billing-panel"><p className="site-muted">Global, server-authoritative values. Changes affect new purchases, payouts, limits, and EOS calculations; completed ledger entries are never rewritten.</p>
+      {error && <p className="site-auth-error">{error}</p>}{message && <p className="site-muted">{message}</p>}
+      <button className="site-btn site-btn-primary" type="button" disabled={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save all economy values"}</button>
+    </div>
+    {section("Store prices", "store")}{section("Submission and activity payouts", "submissions")}{section("Wager limits", "wagers")}{section("End-of-season awards", "awards")}
+    <section className="site-billing-panel"><h2>EOS tier thresholds and payouts</h2>
+      {config.eos.map((definition, definitionIndex) => <details key={definition.key} className="site-settings-section"><summary><strong>{definition.label}</strong> <span className="site-muted">({definition.statKey})</span></summary>
+        <div className="site-account-stat-grid">{definition.tiers.map((tier, tierIndex) => <div key={tier.tier} className="site-billing-panel"><strong>Tier {tier.tier}</strong>
+          <label className="site-field"><span>Threshold ({tier.operator.replaceAll("_", " ")})</span><input type="number" step="any" min={0} value={tier.threshold} onChange={(e) => setTier(definitionIndex, tierIndex, "threshold", Number(e.target.value))} /></label>
+          <label className="site-field"><span>Payout</span><input type="number" step={1} min={0} value={tier.amount} onChange={(e) => setTier(definitionIndex, tierIndex, "amount", Number(e.target.value))} /></label>
+        </div>)}</div>
+      </details>)}
+    </section>
+  </div>;
+}
+
 function DiscordConfigPanel() {
   const [config, setConfig] = useState<AdminDiscordConfig | null>(null);
   const [managementGuildId, setManagementGuildId] = useState("");
@@ -901,6 +975,7 @@ export function AdminPage() {
       {tab === "leagues" ? <LeaguesPanel /> : null}
       {tab === "impersonate" ? <ImpersonatePanel /> : null}
       {tab === "promo-codes" ? <PromoCodesPanel /> : null}
+      {tab === "economy" ? <EconomyValuesPanel /> : null}
       {tab === "discord" ? <DiscordConfigPanel /> : null}
     </div>
   );

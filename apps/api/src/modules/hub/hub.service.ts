@@ -22,6 +22,7 @@ import { stageHasScheduledGames, stageLabel } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import {
   buildInterviewHeadline,
   formatInterviewBody,
@@ -48,8 +49,6 @@ const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY",
 const HIGHLIGHT_SIDELINE_REACTION_KEYS: HubReactionKey[] = ["MOSSED", "STEAMROLLER", "FAWKKKK", "SNATCHED", "RIP"];
 const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const USER_ARTICLE_PAYOUT = 100;
-const INTERVIEW_PAYOUT = 50;
 export const STREAM_VIEWER_COOKIE = "rec_stream_viewer";
 
 // Previously a Context x Category x Template cross-product (300 questions) behind two
@@ -1182,7 +1181,7 @@ export async function submitUserMediaArticle(input: { guildId: string; discordId
     season_number: seasonNumber, week_number: weekNumber, submission_type: "user_article", status: "pending",
     title: input.title.trim(), body: input.body.trim(), image_url: sanitizeImageUrl(input.imageUrl),
     submitter_user_id: userId, submitter_discord_id: input.discordId, team_id: assignment?.team_id ?? null,
-    amount: USER_ARTICLE_PAYOUT, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    amount: (await getGlobalEconomyConfig()).submissions.article, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("*").single();
   if (row.error) {
     if (row.error.code === "23505") throw new ApiError(400, "You already submitted an article for this week.");
@@ -1193,7 +1192,7 @@ export async function submitUserMediaArticle(input: { guildId: string; discordId
     queue_type: "media", status: "pending", priority: 1, header: `Article Review: ${input.title.trim()}`,
     summary: `Custom article submitted by <@${input.discordId}> for commissioner review.`,
     requester_user_id: userId, requester_discord_id: input.discordId, team_id: assignment?.team_id ?? null,
-    amount: USER_ARTICLE_PAYOUT, source_table: "rec_media_submissions", source_id: row.data.id,
+    amount: (await getGlobalEconomyConfig()).submissions.article, source_table: "rec_media_submissions", source_id: row.data.id,
     payload: { submissionType: "user_article", title: input.title.trim(), body: input.body.trim(), imageUrl: sanitizeImageUrl(input.imageUrl) },
   });
   if (inbox.error) throw new ApiError(500, "Failed to create article review notification.", inbox.error);
@@ -1252,7 +1251,7 @@ export async function submitInterview(input: {
     title, body, interview_answers: input.answers, submitter_user_id: userId, submitter_discord_id: input.discordId,
     team_id: assignment?.team_id ?? null, tag_opponent: Boolean(input.tagOpponent), opponent_user_id: opponent?.userId ?? null,
     opponent_discord_id: opponent?.discordId ?? null, opponent_team_id: opponent?.teamId ?? null, game_id: opponent?.gameId ?? null,
-    amount: INTERVIEW_PAYOUT, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    amount: (await getGlobalEconomyConfig()).submissions.interview, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("*").single();
   if (row.error) {
     if (row.error.code === "23505") throw new ApiError(400, "You already submitted an interview for this week.");
@@ -1263,7 +1262,7 @@ export async function submitInterview(input: {
     queue_type: "media", status: "pending", priority: 2, header: "Interview Review",
     summary: `Interview submitted by <@${input.discordId}>${opponent?.discordId ? ` with an opponent callout for <@${opponent.discordId}>` : ""}.`,
     requester_user_id: userId, requester_discord_id: input.discordId, target_user_id: opponent?.userId ?? null, target_discord_id: opponent?.discordId ?? null,
-    team_id: assignment?.team_id ?? null, amount: INTERVIEW_PAYOUT, source_table: "rec_media_submissions", source_id: row.data.id,
+    team_id: assignment?.team_id ?? null, amount: (await getGlobalEconomyConfig()).submissions.interview, source_table: "rec_media_submissions", source_id: row.data.id,
     payload: { submissionType: "interview", title, answers: input.answers, tagOpponent: Boolean(input.tagOpponent), opponentDiscordId: opponent?.discordId ?? null },
   });
   if (inbox.error) throw new ApiError(500, "Failed to create interview review notification.", inbox.error);

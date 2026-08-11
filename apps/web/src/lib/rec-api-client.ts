@@ -1,5 +1,5 @@
 import { REC_API_ROUTES } from "@rec/shared";
-import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary } from "@rec/shared";
+import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary, RecGlobalEconomyConfig } from "@rec/shared";
 import type { TradeEvaluatorReport } from "../types/api.js";
 import type {
   ActiveCheckReview,
@@ -157,6 +157,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const recApi = {
+  getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   uploadLeagueLogo: (guildId: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);

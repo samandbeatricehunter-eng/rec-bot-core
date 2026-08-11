@@ -53,7 +53,7 @@ function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteCha
       <p className="form-hint">{String(build.package_key).replaceAll("_", " ")} · {build.coin_price} coins · {build.creation_points_spent}/{build.creation_point_budget} CP · {build.unused_cp_refund_coins > 0 ? "500-coin unspent CP reward" : "no unspent CP reward"}</p>
       <p className="form-hint">Replacing: {build.replacement_player_snapshot?.full_name ?? "Unknown player"} · {build.replacement_player_snapshot?.position ?? "—"} · {build.replacement_player_snapshot?.overall_rating ?? "—"} OVR</p>
     </div>
-    <p className="form-hint"><strong>88 OVR ceiling:</strong> if the created player exceeds 88 OVR, ratings must be reduced before approval. All commissioner edits are logged and sent to the purchaser.</p>
+    <p className="form-hint">All commissioner edits are logged and sent to the purchaser. Position, archetype, and development trait remain locked to the submitted purchase.</p>
     <div className="custom-player-fields">
       <label>First name<input className="form-input" value={identity.firstName ?? ""} onChange={(event) => setIdentity("firstName", event.target.value)} /></label>
       <label>Last name<input className="form-input" value={identity.lastName ?? ""} onChange={(event) => setIdentity("lastName", event.target.value)} /></label>

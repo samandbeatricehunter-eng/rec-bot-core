@@ -11,12 +11,8 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { fetchTrustedRemoteMedia } from "../../lib/remote-media.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
-const HIGHLIGHT_PAYOUT_AMOUNT = 25;
-const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
-const HIGHLIGHT_WEEKLY_UPLOAD_LIMIT = 2;
-const HIGHLIGHT_AWARD_AMOUNT = 500;
-const GAME_OF_THE_YEAR_AMOUNT = 250;
 const HIGHLIGHT_BUCKET = "rec-highlights";
 
 function mediaExtension(url: string, contentType: string) {
@@ -97,6 +93,7 @@ async function getActiveAssignment(leagueId: string, userId: string) {
 }
 
 export async function recordHighlightPost(input: RecordHighlightInput) {
+  const highlightConfig = (await getGlobalEconomyConfig()).submissions;
   const context = await getCurrentLeagueContext(input.guildId);
   const account = await getDiscordAccount(input.discordId);
   const assignment = await getActiveAssignment(context.leagueId, account.user_id);
@@ -111,7 +108,7 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   const weeklyCount = await supabase.from("rec_highlight_posts").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("user_id", account.user_id).eq("season_number", seasonNumber).eq("week_number", weekNumber);
   if (weeklyCount.error) throw new ApiError(500, "Failed to check the weekly highlight limit.", weeklyCount.error);
-  if ((weeklyCount.count ?? 0) >= HIGHLIGHT_WEEKLY_UPLOAD_LIMIT) return { recorded: false, reason: "weekly_limit", storedInCloudflare: false };
+  if ((weeklyCount.count ?? 0) >= highlightConfig.highlightWeeklyUploadLimit) return { recorded: false, reason: "weekly_limit", storedInCloudflare: false };
   const highlightId = crypto.randomUUID();
   const now = new Date().toISOString();
   const inserted = await supabase.from("rec_highlight_posts").insert({
@@ -218,7 +215,7 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     return { updated: true, action: "denied" as const, deleted: true, highlight: highlightPost };
   }
 
-  const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
+  const amount = Number(existing.data.amount ?? (await getGlobalEconomyConfig()).submissions.highlight);
   let ledgerId: string | null = null;
   if (amount > 0) {
     const credit = await creditOrBacklog({
@@ -441,7 +438,7 @@ export async function settleSeasonHighlightAwards(guildId: string): Promise<{ wi
 
   let winners = 0;
   for (const [category, { count, highlights: tied }] of leaders) {
-    const splitAmount = Math.floor(HIGHLIGHT_AWARD_AMOUNT / tied.length);
+    const splitAmount = Math.floor((await getGlobalEconomyConfig()).submissions.highlightSeasonAward / tied.length);
     for (const winner of tied) {
       await createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
       winners += 1;
@@ -509,7 +506,7 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
       award_category: input.category,
       vote_count: input.voteCount,
       status: "pending",
-      amount: Math.max(0, Math.round(input.amount ?? HIGHLIGHT_AWARD_AMOUNT)),
+      amount: Math.max(0, Math.round(input.amount ?? (await getGlobalEconomyConfig()).submissions.highlightSeasonAward)),
       discord_channel_id: highlight.data.discord_channel_id,
       discord_message_id: highlight.data.discord_message_id,
       updated_at: new Date().toISOString(),
@@ -612,7 +609,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       away_user_id: game.away_user_id,
       away_team_id: awayTeam?.id ?? null,
       away_team_label: awayTeam?.name ?? awayTeam?.abbreviation ?? "Away",
-      amount: Math.floor(GAME_OF_THE_YEAR_AMOUNT / topGames.length),
+      amount: Math.floor((await getGlobalEconomyConfig()).submissions.gameOfYear / topGames.length),
       status: "pending",
     }, { onConflict: "league_id,season_number,game_id" }).select("id").single();
     if (inserted.error) throw new ApiError(500, "Failed to create Game of the Year review.", inserted.error);
@@ -632,7 +629,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
         : `Leads the season with ${maxLikes} like${maxLikes === 1 ? "" : "s"}.`,
       requester_discord_id: null,
       requester_user_id: null,
-      amount: Math.floor(GAME_OF_THE_YEAR_AMOUNT / topGames.length),
+      amount: Math.floor((await getGlobalEconomyConfig()).submissions.gameOfYear / topGames.length),
       source_table: "rec_game_of_year_reviews",
       source_id: inserted.data.id,
       payload: { reviewId: inserted.data.id, gameId: game.id, likeCount: maxLikes, tied: topGames.length > 1 },
@@ -701,7 +698,7 @@ export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
 
   // Approving a winner denies every other tied candidate from the same season —
   // the whole point of a manual commissioner tie-break.
-  const amount = Number(existing.data.amount ?? GAME_OF_THE_YEAR_AMOUNT);
+  const amount = Number(existing.data.amount ?? (await getGlobalEconomyConfig()).submissions.gameOfYear);
   for (const [userId, label] of [[existing.data.home_user_id, existing.data.home_team_label], [existing.data.away_user_id, existing.data.away_team_label]] as const) {
     if (!userId) continue;
     // Note: "gotw" is the closest valid rec_source_type enum member — there is no dedicated

@@ -7,6 +7,7 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 
@@ -25,6 +26,12 @@ export const EOS_POLL_AWARD_DEFINITIONS = [
 ] as const;
 
 export const EOS_AWARD_DEFINITIONS = [...EOS_AUTO_AWARD_DEFINITIONS, ...EOS_POLL_AWARD_DEFINITIONS];
+
+async function configuredAwardAmount(key: string, fallback: number) {
+  const awards = (await getGlobalEconomyConfig()).awards;
+  const map: Record<string, number> = { best_passing_game: awards.bestPassing, best_rushing_game: awards.bestRushing, best_defense: awards.bestDefense, mvp: awards.mvp, best_user_skills: awards.mostSkilled, most_heart: awards.mostHeart };
+  return map[key] ?? fallback;
+}
 
 type AwardKey = (typeof EOS_AWARD_DEFINITIONS)[number]["key"];
 
@@ -250,6 +257,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
 
   let issued = 0;
   for (const definition of EOS_AUTO_AWARD_DEFINITIONS) {
+    const awardAmount = await configuredAwardAmount(definition.key, definition.amount);
     const existing = await supabase.from("rec_eos_award_polls").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("category_key", definition.key).maybeSingle();
     if (existing.error) throw new ApiError(500, "Failed to check existing auto-issued award.", existing.error);
     if (existing.data) continue; // already issued this season — never re-run
@@ -266,7 +274,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
       leagueId: context.leagueId,
       seasonNumber,
       userId: best.userId,
-      amount: definition.amount,
+      amount: awardAmount,
       description: `EOS Award - ${label}`,
       transactionType: "eos_award_payout",
       source: "eos",
@@ -275,7 +283,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
 
     const inserted = await supabase.from("rec_eos_award_polls").insert({
       league_id: context.leagueId, season_number: seasonNumber, category_key: definition.key, category_label: label,
-      category_description: label, award_amount: definition.amount, nominee_user_ids: [best.userId], nominee_payloads: [],
+      category_description: label, award_amount: awardAmount, nominee_user_ids: [best.userId], nominee_payloads: [],
       status: "settled", winner_user_id: best.userId, opened_at: new Date().toISOString(), settled_at: new Date().toISOString(),
       paid_ledger_id: credit.ledgerId, vote_counts: {}, updated_at: new Date().toISOString(),
     }).select("id").single();
@@ -306,6 +314,7 @@ export async function recordEosAwardPoll(input: {
   const definition = EOS_AWARD_DEFINITIONS.find((award) => award.key === input.categoryKey);
   if (!definition) throw new ApiError(400, "Unknown EOS award category.");
   const label = awardLabel(definition.key, context.rec_leagues.game);
+  const awardAmount = await configuredAwardAmount(definition.key, definition.amount);
   const row = await supabase
     .from("rec_eos_award_polls")
     .upsert({
@@ -314,7 +323,7 @@ export async function recordEosAwardPoll(input: {
       category_key: definition.key,
       category_label: label,
       category_description: label,
-      award_amount: definition.amount,
+      award_amount: awardAmount,
       nominee_user_ids: input.nominees.map((nominee) => nominee.userId),
       nominee_payloads: input.nominees,
       status: "open",

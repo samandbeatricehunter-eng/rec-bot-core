@@ -22,10 +22,7 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { sendPushToUser } from "../push/push.service.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
-
-const BOX_SCORE_WIN_PAYOUT = 100;
-const BOX_SCORE_LOSS_PAYOUT = 50;
-const BADGE_BONUS_PAYOUT = 10;
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 const BADGE_LABELS = new Map(
   [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label] as const),
@@ -1266,11 +1263,12 @@ async function issueBadgeBonusesForSubmission(sub: {
   if (error) throw new ApiError(500, "Failed to load earned badge bonuses.", error);
 
   const paid: BadgeBonusPaid[] = [];
+  const badgeBonus = (await getGlobalEconomyConfig()).submissions.badgeBonus;
   for (const event of data ?? []) {
     if (!event.user_id) continue;
     const badgeLabel = BADGE_LABELS.get(event.badge_key) ?? event.badge_key;
     const isNegative = BADGE_POLARITY.get(event.badge_key) === "negative";
-    const amount = isNegative ? -BADGE_BONUS_PAYOUT : BADGE_BONUS_PAYOUT;
+    const amount = isNegative ? -badgeBonus : badgeBonus;
     await creditOrBacklog({
       leagueId: sub.league_id,
       seasonNumber: sub.season_number,
@@ -1527,10 +1525,11 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // CPU-vs-CPU game — no linked user on either team — is still recorded but pays
   // no one (the commissioner who uploaded it is never paid).
   const payouts: { userId: string; amount: number }[] = [];
+  const payoutConfig = (await getGlobalEconomyConfig()).submissions;
   if (sub.home_team_id && sub.away_team_id) {
     for (const uid of [sub.home_user_id, sub.away_user_id] as (string | null)[]) {
       if (!uid) continue;
-      const amount = winningUserId == null ? BOX_SCORE_LOSS_PAYOUT : (uid === winningUserId ? BOX_SCORE_WIN_PAYOUT : BOX_SCORE_LOSS_PAYOUT);
+      const amount = winningUserId == null ? payoutConfig.boxScoreLoss : (uid === winningUserId ? payoutConfig.boxScoreWin : payoutConfig.boxScoreLoss);
       payouts.push({ userId: uid, amount });
     }
   }

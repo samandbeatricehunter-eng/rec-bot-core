@@ -17,7 +17,7 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
+import { REC_LEGEND_POSITION_GROUPS, isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -31,8 +31,8 @@ import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 // Replaces the old plain <select> legend picker with the position-grouped browsing
 // experience: a group dropdown, a grid of small cards (name/height/weight + top 3
 // position-relevant attributes), and a detail modal with the full attribute list, the
-// 88 OVR normalization disclaimer, and the purchase/cancel action.
-export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }) {
+// purchase details and the purchase/cancel action.
+export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased: () => void; legendPrice: number }) {
   const { guildId, discordId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const isCfb = game === "cfb_27";
@@ -173,6 +173,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
+          legendPrice={legendPrice}
           onClose={() => setActiveLegend(null)}
           onPurchase={(replacementPlayerId) => void purchase(activeLegend, replacementPlayerId)}
           onCancel={() => void cancel(activeLegend)}
@@ -196,6 +197,7 @@ function LegendDetailModal({
   isCfb,
   replacementPlayers,
   blockedNoEligibleReplacement,
+  legendPrice,
   onClose,
   onPurchase,
   onCancel,
@@ -207,6 +209,7 @@ function LegendDetailModal({
   isCfb: boolean;
   replacementPlayers: any[];
   blockedNoEligibleReplacement: boolean;
+  legendPrice: number;
   onClose: () => void;
   onPurchase: (replacementPlayerId: string | null) => void;
   onCancel: () => void;
@@ -254,7 +257,7 @@ function LegendDetailModal({
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
         Purchasing this legend is applied to your roster immediately once a commissioner approves it, and will
         replace an active player on your roster — this is a one-time, permanent addition for this league. The
-        final in-league OVR will be normalized to exactly 88 — some attributes above may be nudged up or down
+        the commissioner will apply the catalog ratings shown here and record any necessary in-game edits
         by the commissioner to hit that number.
       </p>
 
@@ -312,7 +315,7 @@ function LegendDetailModal({
             );
           })()}
           <div className="hub-store-total">
-            <span>Total: <strong><CoinAmount amount={REC_LEGEND_PRICE} /></strong></span>
+            <span>Total: <strong><CoinAmount amount={legendPrice} /></strong></span>
             <Button
               variant="primary"
               disabled={busy || !canSubmitReplacement}

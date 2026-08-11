@@ -7,8 +7,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
-
-const GOTW_CORRECT_GUESS_PAYOUT = 25;
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 function gotwStreamingAnnouncement(draft: any, awayMention: string, homeMention: string) {
   const requirement = draft?.gotwStreamingRequirement ?? "recommended";
@@ -236,11 +235,12 @@ export async function settleGotwPoll(input: {
   let payouts = 0;
   let losses = 0;
   const voteRows: any[] = [];
+  const correctVotePayout = (await getGlobalEconomyConfig()).submissions.gotwCorrectVote;
 
   for (const voter of voters) {
     const userId = voter.userId ?? resolvedUsers.get(voter.discordId) ?? null;
     const isCorrect = input.winningTeamId != null ? voter.selectedTeamId === input.winningTeamId : null;
-    const payout = isCorrect && userId ? GOTW_CORRECT_GUESS_PAYOUT : 0;
+    const payout = isCorrect && userId ? correctVotePayout : 0;
     const voteRow = {
       poll_id: input.pollId,
       league_id: context.leagueId,

@@ -1,4 +1,4 @@
-import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
+import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -8,6 +8,7 @@ import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { assertPurchaseDeadlineOpen } from "./purchase-deadlines.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 // purchase_type → the rec_league_configuration columns that gate it. seasonCap null means the
 // type uses a more specific cap model handled elsewhere (attributes use per-attribute caps).
@@ -373,7 +374,8 @@ export async function createPurchaseRequest(input: {
     details = { ...details, playerId: target.id, playerName: target.fullName };
   }
 
-  const price = priceForPurchase(input.purchaseType, details, String(context.rec_leagues?.game ?? ""));
+  const economy = await getGlobalEconomyConfig();
+  const price = priceForPurchaseWithConfig(input.purchaseType, details, game, economy.store);
   if (!Number.isFinite(price) || price <= 0) {
     throw new ApiError(400, "Could not determine a price for this purchase.");
   }

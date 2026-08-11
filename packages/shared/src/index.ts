@@ -84,6 +84,7 @@ export type RecGlobalRecord = {
   point_differential: number;
 };
 export * from "./economy.js";
+export * from "./global-economy-config.js";
 export * from "./purchases.js";
 export * from "./legends.js";
 export * from "./wagers.js";

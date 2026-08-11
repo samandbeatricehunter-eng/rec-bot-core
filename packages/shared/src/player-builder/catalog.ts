@@ -50,7 +50,7 @@ export function listRecCustomPlayerPackages(game: RecGameFamily, gameYear = 27):
     const name = PACKAGE_NAMES[game][tier - 1]!;
     return {
       game, gameYear, key: `tier_${tier}`, tier, displayName: name,
-      description: `${name} build with a ${TARGETS[tier - 1]![0]}-${TARGETS[tier - 1]![1]} target OVR and a ${rules.rawOverallCap} raw OVR ceiling.`,
+      description: `${name} custom-player build with ${rules.creationPoints.toLocaleString()} creation points.`,
       coinPrice: COIN_PRICES[tier - 1]!, creationPoints: rules.creationPoints,
       targetOvrMin: TARGETS[tier - 1]![0], targetOvrMax: TARGETS[tier - 1]![1],
       rawOvrCap: rules.rawOverallCap, includedDevCredit: tier >= 3 ? 400 : 0,

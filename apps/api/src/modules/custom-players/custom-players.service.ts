@@ -34,6 +34,13 @@ import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { assertPurchaseDeadlineOpen } from "../purchases/purchase-deadlines.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+
+async function configuredPackages(game: RecGameFamily, year: number) {
+  const prices = (await getGlobalEconomyConfig()).store;
+  const byTier = [prices.customPlayerTier1, prices.customPlayerTier2, prices.customPlayerTier3, prices.customPlayerTier4, prices.customPlayerTier5];
+  return listRecCustomPlayerPackages(game, year).map((pkg) => ({ ...pkg, coinPrice: byTier[pkg.tier - 1] ?? pkg.coinPrice }));
+}
 
 type Identity = {
   firstName: string; lastName: string; jerseyNumber: number; handedness: string;
@@ -159,7 +166,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     enabled: Boolean(config.data?.coin_economy_enabled && config.data?.custom_players_enabled),
     seasonCap: Number(config.data?.custom_players_season_cap ?? 0), seasonUsed: builds.count ?? 0,
     purchaseDeadlines: config.data?.purchase_deadlines ?? {},
-    packages: listRecCustomPlayerPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
+    packages: await configuredPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
     devTraits: REC_DEV_TRAITS[game],
     // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
     // trait the replaced player already has (or "normal" with no replacement).
@@ -335,7 +342,7 @@ export async function submitCustomPlayer(input: {
     throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
   }
   const pointsRemainingAfterHeight = evaluation.pointsRemaining - heightSurcharge;
-  const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);
+  const pkg = (await configuredPackages(game, year))[input.packageTier - 1] ?? getRecCustomPlayerPackage(game, input.packageTier, year);
   if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
@@ -505,7 +512,6 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     const reason = reevaluated.violations?.[0]?.message;
     throw new ApiError(409, reason || "The adjusted build does not pass authoritative validation.");
   }
-  if (reevaluated.rawOverall > 88) throw new ApiError(409, "Custom-player OVR cannot exceed the league-wide 88 OVR ceiling. Reduce ratings before applying.");
   const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
   const track = (field: string, from: unknown, to: unknown) => { if (JSON.stringify(from ?? null) !== JSON.stringify(to ?? null)) changes.push({ field, from: from ?? null, to: to ?? null }); };
   for (const key of ["firstName", "lastName", "jerseyNumber", "handedness", "heightInches", "weightLbs", "hometownCity", "hometownState", "college"] as const) track(`identity.${key}`, build.identity?.[key], adjusted.identity[key]);

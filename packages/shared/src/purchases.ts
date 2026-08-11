@@ -25,7 +25,7 @@ export const REC_PURCHASE_TYPE_LABELS: Record<RecPurchaseType, string> = {
 // ─── Fixed prices ───────────────────────────────────────────────────────────────
 export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
-export const REC_LEGEND_PRICE = 3000;
+export const REC_LEGEND_PRICE = 5000;
 
 // Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
 // CFB's stored dev_trait values order normal < impact < star < elite (matches
@@ -156,4 +156,35 @@ export function priceForPurchase(
     default:
       return 0;
   }
+}
+
+export type RecPurchasePriceConfig = {
+  ageReset: number; playerTrait: number; legend: number; devUpgradeStep: number; devUpgradeTopStep: number;
+  contractReduction: number; contractExtension: number; coreAttributePoint: number; nonCoreAttributePoint: number;
+  customPlayerBronze: number; customPlayerSilver: number; customPlayerGold: number;
+  customPlayerTier1: number; customPlayerTier2: number; customPlayerTier3: number; customPlayerTier4: number; customPlayerTier5: number;
+};
+
+/** Authoritative configurable variant used by the API. */
+export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, details: Record<string, unknown>, game: string, prices: RecPurchasePriceConfig): number {
+  if (purchaseType === "age_reset") return prices.ageReset;
+  if (purchaseType === "player_trait") return prices.playerTrait;
+  if (purchaseType === "legend") return prices.legend;
+  if (purchaseType === "contract") return details.variant === "extension" ? prices.contractExtension : prices.contractReduction;
+  if (purchaseType === "attribute") return ((details.allocations as RecAttributeAllocation[] | undefined) ?? []).reduce(
+    (sum, allocation) => sum + (allocation.core ? prices.coreAttributePoint : prices.nonCoreAttributePoint) * Math.max(0, Number(allocation.points) || 0), 0);
+  if (purchaseType === "custom_player") {
+    const key = String(details.package ?? "");
+    return key === "bronze" ? prices.customPlayerBronze : key === "silver" ? prices.customPlayerSilver : key === "gold" ? prices.customPlayerGold : 0;
+  }
+  if (purchaseType === "dev_upgrade") {
+    const order = devTierOrderForGame(game);
+    const from = order.indexOf(details.fromTier as RecDevTier);
+    const to = order.indexOf(details.toTier as RecDevTier);
+    if (from < 0 || to <= from) return 0;
+    let total = 0;
+    for (let index = from + 1; index <= to; index++) total += index === order.length - 1 ? prices.devUpgradeTopStep : prices.devUpgradeStep;
+    return total;
+  }
+  return 0;
 }

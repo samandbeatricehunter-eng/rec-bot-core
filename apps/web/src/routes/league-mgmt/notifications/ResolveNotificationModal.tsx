@@ -94,7 +94,7 @@ function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> })
   return (
     <div className="legend-purchase-detail">
       <p className="form-hint" style={{ marginTop: 0 }}>
-        <strong>Do not approve until this player has actually been created in-game.</strong> Final in-league OVR is normalized to 88 — nudge attributes as needed.
+        <strong>Do not approve until this player has actually been created in-game.</strong> Record any commissioner edits so the purchaser receives an accurate final build summary.
       </p>
       <dl className="legend-purchase-facts">
         {facts.map(([label, value]) => (

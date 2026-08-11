@@ -19,6 +19,7 @@ import {
   updateAdminAnnouncement,
 } from "./admin.service.js";
 import { getDiscordGovernanceSnapshot, getSiteDiscordConfig, syncAllRecruitingAds, updateSiteDiscordConfig } from "./site-discord-config.service.js";
+import { getGlobalEconomyConfig, updateGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 const optionalDiscordSnowflake = z.preprocess(
   (value) => {
@@ -48,6 +49,33 @@ export async function adminRoutes(app: FastifyInstance) {
     try {
       await requireSiteAdmin(request);
       return reply.send(await getAdminStats());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/economy-config/get", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      return reply.send(await getGlobalEconomyConfig({ fresh: true }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/economy/global-values", async (request, reply) => {
+    try {
+      await requireSiteUserSession(request);
+      return reply.send(await getGlobalEconomyConfig());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/economy-config/set", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      return reply.send(await updateGlobalEconomyConfig(request.body ?? {}, session.authUserId));
     } catch (error) {
       return sendError(reply, error);
     }

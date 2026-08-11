@@ -16,6 +16,7 @@ import { sendPushToUsers } from "../push/push.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { assertNotLeagueRestricted } from "../moderation/moderation.service.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
   if (!team) return "TBD";
@@ -24,8 +25,6 @@ function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string |
 
 const CUSTOM_SPREAD_MIN = -10;
 const CUSTOM_SPREAD_MAX = 10;
-const HOUSE_WAGER_MAX = 1000;
-const PEER_WAGER_MAX = 5000;
 
 // A custom spread applies directly to the bettor's chosen side (no sign flip — the
 // number they enter is their line), clamped to the house's allowed range. Odds stay
@@ -68,6 +67,7 @@ async function walletBalance(userId: string): Promise<number> {
 }
 
 async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, weekNumber: number, userId: string, stake: number) {
+  const { houseWeeklyMaximum: maximum } = (await getGlobalEconomyConfig()).wagers;
   const { data, error } = await supabase
     .from("rec_wagers")
     .select("stake")
@@ -79,20 +79,21 @@ async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, week
     .in("status", ["pending", "confirmed"]);
   if (error) throw new ApiError(500, "Failed to check weekly house wager cap.", error);
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
-  if (activeTotal + stake > HOUSE_WAGER_MAX) {
-    throw new ApiError(400, `House wagers are capped at ${formatCoins(HOUSE_WAGER_MAX)} total per week. You already have ${formatCoins(activeTotal)} active.`);
+  if (activeTotal + stake > maximum) {
+    throw new ApiError(400, `House wagers are capped at ${formatCoins(maximum)} total per week. You already have ${formatCoins(activeTotal)} active.`);
   }
 }
 
 async function assertPeerWeeklyCap(leagueId: string, seasonNumber: number, weekNumber: number, userId: string, stake: number) {
+  const { peerWeeklyMaximum: maximum } = (await getGlobalEconomyConfig()).wagers;
   const { data, error } = await supabase.from("rec_wagers").select("stake,placed_by_user_id,accepted_by_user_id,status")
     .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber)
     .eq("wager_kind", "peer").in("status", ["awaiting_accept", "pending", "confirmed"])
     .or(`placed_by_user_id.eq.${userId},accepted_by_user_id.eq.${userId}`);
   if (error) throw new ApiError(500, "Failed to check weekly peer wager cap.", error);
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
-  if (activeTotal + stake > PEER_WAGER_MAX) {
-    throw new ApiError(400, `User-to-user wagers are capped at ${formatCoins(PEER_WAGER_MAX)} total per week. You already have ${formatCoins(activeTotal)} active.`);
+  if (activeTotal + stake > maximum) {
+    throw new ApiError(400, `User-to-user wagers are capped at ${formatCoins(maximum)} total per week. You already have ${formatCoins(activeTotal)} active.`);
   }
 }
 

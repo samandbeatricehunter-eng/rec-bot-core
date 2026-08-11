@@ -13,10 +13,8 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
-const HIGHLIGHT_PAYOUT_AMOUNT = 25;
-const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
-const HIGHLIGHT_WEEKLY_UPLOAD_LIMIT = 2;
 
 async function getDiscordAccount(discordId: string) {
   const account = await supabase
@@ -57,6 +55,7 @@ export async function maybeCreateWeeklyPayoutReview(input: {
   serverId?: string | null;
   requesterDiscordId?: string | null;
 }) {
+  const highlightConfig = (await getGlobalEconomyConfig()).submissions;
   const leagueGame = (input.game ?? "madden_26") as LeagueGame;
   const isRegularSeason =
     input.seasonStage === "regular_season" &&
@@ -73,10 +72,10 @@ export async function maybeCreateWeeklyPayoutReview(input: {
     .eq("season_number", input.seasonNumber)
     .eq("week_number", input.weekNumber)
     .in("status", ["pending", "approved", "issued"])
-    .limit(HIGHLIGHT_WEEKLY_PAID_LIMIT);
+    .limit(highlightConfig.highlightWeeklyPaidLimit);
   if (existingPaid.error) throw new ApiError(500, "Failed to check highlight payout status.", existingPaid.error);
   const paidCount = (existingPaid.data ?? []).length;
-  const amount = paidCount >= HIGHLIGHT_WEEKLY_PAID_LIMIT ? 0 : HIGHLIGHT_PAYOUT_AMOUNT;
+  const amount = paidCount >= highlightConfig.highlightWeeklyPaidLimit ? 0 : highlightConfig.highlight;
 
   const review = await supabase
     .from("rec_highlight_payout_reviews")
@@ -143,6 +142,7 @@ async function assertWeeklyHighlightUploadAllowed(input: {
   weekNumber: number;
   seasonStage: string;
 }) {
+  const highlightLimit = (await getGlobalEconomyConfig()).submissions.highlightWeeklyUploadLimit;
   const isRegularSeason = input.seasonStage === "regular_season";
   const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"].includes(input.seasonStage);
   if (!isRegularSeason && !isPostseason) return;
@@ -156,8 +156,8 @@ async function assertWeeklyHighlightUploadAllowed(input: {
     .eq("week_number", input.weekNumber);
   if (existing.error) throw new ApiError(500, "Failed to check weekly highlight upload limit.", existing.error);
   const count = (existing.data ?? []).filter((row) => row.media_status !== "failed" && row.media_status !== "deleted").length;
-  if (count >= HIGHLIGHT_WEEKLY_UPLOAD_LIMIT) {
-    throw new ApiError(400, `You can upload at most ${HIGHLIGHT_WEEKLY_UPLOAD_LIMIT} highlights per week during the regular season and postseason.`);
+  if (count >= highlightLimit) {
+    throw new ApiError(400, `You can upload at most ${highlightLimit} highlights per week during the regular season and postseason.`);
   }
 }
 
