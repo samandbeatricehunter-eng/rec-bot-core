@@ -352,6 +352,50 @@ export function statKeysForCategories(categories: StatCategory[]): string[] {
   return STAT_DEFINITIONS.filter((def) => def.scope === "player" && set.has(def.category as StatCategory) && !def.derived).map((def) => def.canonicalKey);
 }
 
+// ── Stats page groupings ───────────────────────────────────────────────────────
+// The six top-level buckets shown on the League Stats page. "blocking" has no
+// individually-tracked stat category in Madden's export (offensive line), so it
+// carries no canonical keys — the page falls back to whatever raw keys the import
+// actually stored for OL players. "special_teams" merges kicking/punting/returns
+// into one bucket to match how the page presents them.
+export const STAT_PAGE_CATEGORIES = [
+  { key: "passing", label: "Passing", categories: ["passing"] },
+  { key: "rushing", label: "Rushing", categories: ["rushing"] },
+  { key: "receiving", label: "Receiving", categories: ["receiving"] },
+  { key: "blocking", label: "Blocking", categories: [] },
+  { key: "defense", label: "Defensive", categories: ["defense"] },
+  { key: "special_teams", label: "Special Teams", categories: ["kicking", "punting", "returns"] },
+] as const satisfies ReadonlyArray<{ key: string; label: string; categories: StatCategory[] }>;
+
+export type StatPageCategoryKey = (typeof STAT_PAGE_CATEGORIES)[number]["key"];
+
+const OL_POSITIONS = ["LT", "LG", "C", "RG", "RT"];
+
+/** Which roster positions belong on a stats-page category (drives which players show up). */
+export function positionsForStatPageCategory(key: StatPageCategoryKey): string[] {
+  if (key === "blocking") return OL_POSITIONS;
+  const entry = STAT_PAGE_CATEGORIES.find((c) => c.key === key);
+  if (!entry || !entry.categories.length) return [];
+  const set = new Set<StatCategory>(entry.categories);
+  return Object.entries(POSITION_STAT_CATEGORIES)
+    .filter(([, cats]) => cats.some((c) => set.has(c)))
+    .map(([position]) => position);
+}
+
+export function statKeysForPageCategory(key: StatPageCategoryKey): string[] {
+  const entry = STAT_PAGE_CATEGORIES.find((c) => c.key === key);
+  if (!entry || !entry.categories.length) return [];
+  return statKeysForCategories(entry.categories as StatCategory[]);
+}
+
+/** Best single stat to rank/sort a page category by — prefers the canonical "headline" stat. */
+export function primaryStatKeyForPageCategory(key: StatPageCategoryKey): string | null {
+  const keys = statKeysForPageCategory(key);
+  if (!keys.length) return null;
+  const withDefault = keys.find((k) => STAT_DEFINITIONS.find((def) => def.canonicalKey === k)?.defaultDisplay);
+  return withDefault ?? keys[0];
+}
+
 // ── Identity field maps (not stats — used for labeling) ───────────────────────
 export const PLAYER_IDENTITY_ALIASES: Record<string, string> = {
   rosterId: "madden_player_id",
