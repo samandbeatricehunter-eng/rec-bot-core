@@ -119,7 +119,7 @@ export function Pricing() {
               <p className="site-trial-badge">New subscribers get a 7-day free trial — no charge until it ends.</p>
               <p className="site-muted site-trial-note">
                 During the trial: Gold can join 1 league per game; Platinum can join 1 and create
-                1 league per game. Full limits unlock once the trial ends or converts.
+                1 league per game. Full limits unlock once the trial ends and you subscribe.
               </p>
             </>
           )}

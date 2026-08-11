@@ -117,7 +117,7 @@ export function Landing() {
             <p className="site-muted site-trial-note">
               During the trial: Gold can join 1 league per game; Platinum can join 1 and create 1
               league per game. Full limits (join up to 5/20, create up to 5) unlock once the
-              trial ends or you subscribe.
+              trial ends and you subscribe.
             </p>
             <div className="site-profile-actions">
               <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
