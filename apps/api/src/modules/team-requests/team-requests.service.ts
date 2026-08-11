@@ -376,11 +376,21 @@ export async function completeTeamLinkRequest(input: {
     .single();
   if (updated.error) throw new ApiError(500, "Failed to complete team request.", updated.error);
 
-  const leagueDetails = await supabase
-    .from("rec_leagues")
-    .select("name,league_password,discord_bot_enabled")
-    .eq("id", request.league_id)
-    .maybeSingle();
+  const [leagueDetails, leagueConfiguration] = await Promise.all([
+    supabase
+      .from("rec_leagues")
+      .select("name,discord_bot_enabled")
+      .eq("id", request.league_id)
+      .maybeSingle(),
+    supabase
+      .from("rec_league_configuration")
+      .select("league_password")
+      .eq("league_id", request.league_id)
+      .maybeSingle(),
+  ]);
+  if (leagueDetails.error) throw new ApiError(500, "Failed to load league invite settings.", leagueDetails.error);
+  if (leagueConfiguration.error) throw new ApiError(500, "Failed to load league password settings.", leagueConfiguration.error);
+  const leaguePassword = leagueConfiguration.data?.league_password ?? null;
   let serverInviteUrl: string | null = null;
   if (leagueDetails.data?.discord_bot_enabled) {
     const link = await supabase
@@ -419,8 +429,8 @@ export async function completeTeamLinkRequest(input: {
     title: `Welcome to ${leagueDetails.data?.name ?? "your new league"}`,
     body: [
       `Your request for ${request.team?.name ?? "the team"} was approved.`,
-      leagueDetails.data?.league_password
-        ? `League password: ${leagueDetails.data.league_password}.`
+      leaguePassword
+        ? `League password: ${leaguePassword}.`
         : "This league does not require a password.",
       leagueDetails.data?.discord_bot_enabled
         ? serverInviteUrl
@@ -440,7 +450,7 @@ export async function completeTeamLinkRequest(input: {
     const { sendDiscordDirectMessage } = await import("../../lib/discord-guild.js");
     await sendDiscordDirectMessage(
       request.requester_discord_id,
-      `Your request for ${request.team?.name ?? "a team"} in ${leagueDetails.data?.name ?? "REC Leagues"} was approved! Join the server: ${serverInviteUrl}${leagueDetails.data?.league_password ? `\nLeague password: ${leagueDetails.data.league_password}` : ""}`,
+      `Your request for ${request.team?.name ?? "a team"} in ${leagueDetails.data?.name ?? "REC Leagues"} was approved! Join the server: ${serverInviteUrl}${leaguePassword ? `\nLeague password: ${leaguePassword}` : ""}`,
     ).catch((error) => console.error("[WARN] Failed to DM approved team requester their server invite:", error));
   }
 
