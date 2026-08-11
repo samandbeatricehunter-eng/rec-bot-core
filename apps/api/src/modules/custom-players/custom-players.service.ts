@@ -2,6 +2,7 @@ import {
   REC_ARCHETYPE_CONFIG_VERSION,
   REC_BUILD_RULES_VERSION,
   REC_CUSTOM_PLAYER_COST_VERSION,
+  REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR,
   REC_CUSTOM_PLAYER_PACKAGE_VERSION,
   REC_CUSTOM_PLAYER_POSITIONS,
   REC_DEV_TRAITS,
@@ -488,7 +489,17 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
       .catch((error) => console.error("[WARN] Failed to notify custom-player purchaser of denial:", error));
     return rejected.data;
   }
-  const adjusted = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
+  const requested = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
+  // Legacy pending builds can be sparse. Every omitted rating represents the universal
+  // attribute floor; normalize server-side as well so non-UI callers cannot accidentally
+  // turn those omissions into invalid zero ratings during commissioner approval.
+  const adjusted = {
+    identity: requested.identity,
+    attributes: Object.fromEntries(
+      getRecEditableAttributes(build.game_family, build.position, build.selected_archetype_key)
+        .map((code) => [code, Number(requested.attributes?.[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)]),
+    ),
+  };
   validateIdentity(build.game_family, adjusted.identity, build.position);
   const reevaluated = evaluateCustomPlayer({ game: build.game_family, packageTier: build.package_tier, position: build.position, archetypeKey: build.selected_archetype_key, developmentTrait: build.development_trait, attributes: adjusted.attributes, mode: "submit" });
   if (!reevaluated.valid) throw new ApiError(409, "The saved build no longer passes authoritative validation.");

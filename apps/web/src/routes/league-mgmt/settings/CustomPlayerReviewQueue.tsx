@@ -3,11 +3,14 @@ import { recApi } from "../../../lib/rec-api-client.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Modal } from "../../../components/ui/Modal.js";
-import { getRecAttributeDisplayName, getRecEditableAttributes, sortRecAttributeCodes, type RecGameFamily } from "@rec/shared";
+import { REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, getRecAttributeDisplayName, getRecEditableAttributes, sortRecAttributeCodes, type RecGameFamily } from "@rec/shared";
 
 function completeRatings(build: any) {
   const codes = getRecEditableAttributes(build.game_family as RecGameFamily, build.position, build.selected_archetype_key);
-  return Object.fromEntries(codes.map((code) => [code, Number(build.attributes?.[code] ?? 0)]));
+  // Older valid builds stored only explicitly edited ratings. Missing values mean the
+  // universal floor, not zero; sending zero during review makes authoritative validation
+  // reject the approval before the apply transaction can run.
+  return Object.fromEntries(codes.map((code) => [code, Number(build.attributes?.[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)]));
 }
 
 // Single-build review UI — the identity/attribute-edit form a generic approve/deny modal
