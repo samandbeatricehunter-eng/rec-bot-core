@@ -394,6 +394,101 @@ h1, h2, h3, .site-wordmark {
 .site-public-league-season-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .site-public-league-season-tabs button { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-weight: 700; font-size: 13px; }
 .site-public-league-season-tabs button.active { border-color: var(--accent-bright); color: var(--accent-bright); }
+
+/* Full-fidelity public league preview. This intentionally mirrors the signed-in shell while
+   keeping every mutation behind an explicit read-only boundary. */
+.demo-shell { min-height: 100vh; background: var(--page-bg); color: var(--text); }
+.demo-topbar { position: fixed; inset: 0 0 auto 0; z-index: 80; height: 88px; display: grid; grid-template-columns: 248px 1fr auto; align-items: center; border-bottom: 1px solid var(--border); background: #08090b; }
+.demo-brand { height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 14px; color: var(--text); text-decoration: none; font-size: 15px; }
+.demo-brand img { width: 24px; height: 24px; border-radius: 5px; }
+.demo-league-title { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; }
+.demo-league-title strong { font-family: var(--font-display); text-transform: uppercase; font-size: 14px; }
+.demo-league-title span, .demo-account small { display: block; color: var(--text-muted); font-size: 10px; }
+.demo-account { display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+.demo-account svg { width: 19px; height: 19px; }
+.demo-account > span:last-child { font-size: 12px; }
+.demo-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 999px; background: #e8edf3; color: #111; font-weight: 900; }
+.demo-sidebar { position: fixed; z-index: 70; top: 88px; bottom: 0; left: 0; width: 248px; padding: 20px 12px; border-right: 1px solid var(--border); background: var(--nav-bg); overflow-y: auto; }
+.demo-sidebar-wordmark { padding: 0 10px 14px; font: 900 30px/0.8 var(--font-display); letter-spacing: .03em; }
+.demo-sidebar-wordmark small { display: block; margin-top: 7px; font: 800 10px/1 var(--font); letter-spacing: .22em; }
+.demo-sidebar nav { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.demo-sidebar nav span { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 0 10px; font-weight: 800; font-size: 13px; }
+.demo-sidebar nav svg { width: 20px; }
+.demo-sidebar-leagues { margin-top: 18px; display: grid; gap: 7px; }
+.demo-sidebar-leagues > small { padding: 0 10px; color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.demo-sidebar-leagues button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px; border: 1px solid transparent; border-radius: 10px; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.demo-sidebar-leagues button.active { border-color: var(--border-strong); background: var(--surface-raised); }
+.demo-sidebar-leagues button > b { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 5px; background: #dfe5eb; color: #111; }
+.demo-sidebar-leagues button span { min-width: 0; display: grid; }
+.demo-sidebar-leagues button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.demo-sidebar-leagues button small { color: var(--text-muted); font-size: 9px; }
+.demo-signup { display: block; margin-top: 14px; padding: 10px; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent-bright); text-align: center; text-decoration: none; font-weight: 900; font-size: 12px; }
+.demo-main { min-height: 100vh; margin-left: 248px; padding-top: 88px; }
+.demo-league-nav { position: sticky; top: 0; z-index: 60; display: grid; grid-template-columns: repeat(7, minmax(92px, 1fr)); height: 54px; border-bottom: 1px solid var(--border); background: rgba(8,9,11,.97); }
+.demo-league-nav button { display: grid; place-items: center; align-content: center; gap: 3px; border: 0; border-radius: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 9px; font-weight: 800; }
+.demo-league-nav button.active { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 -2px var(--accent); }
+.demo-league-nav svg { width: 15px; height: 15px; }
+.demo-controlbar { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.2fr) 2fr; gap: 12px; padding: 14px clamp(16px, 3vw, 42px); border-bottom: 1px solid var(--border); background: rgba(10,13,17,.92); }
+.demo-controlbar > div { display: grid; gap: 5px; }
+.demo-controlbar span { color: var(--text-muted); font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.demo-controlbar select { min-width: 0; height: 34px; padding: 0 9px; border: 1px solid var(--border-strong); border-radius: 4px; background: #090b0d; color: var(--text); }
+.demo-controlbar p { grid-column: 1/-1; margin: 0; color: var(--text-muted); font-size: 11px; }
+.demo-controlbar p strong { color: var(--accent-bright); margin-right: 8px; }
+.demo-phase-tabs > div { display: flex; gap: 5px; overflow-x: auto; }
+.demo-phase-tabs button { white-space: nowrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 11px; }
+.demo-phase-tabs button.active { border-color: var(--accent); color: var(--accent-bright); }
+.demo-content { width: min(1120px, calc(100% - 32px)); min-height: 620px; margin: 0 auto; padding: 36px 0 80px; }
+.demo-content > header { padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.demo-content > header span, .demo-news-grid article small, .demo-matchup-card > small { color: var(--accent-bright); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.demo-content > header h1 { margin: 5px 0; font-family: var(--font-display); text-transform: uppercase; font-size: clamp(28px, 4vw, 46px); }
+.demo-content > header p { margin: 0; color: var(--text-muted); }
+.demo-news-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.demo-news-grid article, .demo-matchup-card, .demo-stat-grid article, .demo-empty { padding: 22px; border: 1px solid var(--border-strong); background: var(--card-bg); }
+.demo-news-grid article.featured { grid-column: 1/-1; min-height: 210px; background: linear-gradient(105deg, rgba(8,10,13,.96), rgba(21,26,34,.72)); }
+.demo-news-grid h2 { margin: 8px 0; font-family: var(--font-display); text-transform: uppercase; }
+.demo-news-grid p, .demo-empty p { color: var(--text-muted); line-height: 1.55; }
+.demo-news-grid button, .demo-empty a { display: inline-block; margin-top: 10px; border: 0; border-bottom: 1px solid var(--accent); background: none; color: var(--text); text-decoration: none; font-weight: 900; cursor: pointer; }
+.demo-matchup-card { margin-top: 18px; }
+.demo-matchup-card > div { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; gap: 18px; margin: 26px 0; text-align: center; font-size: 18px; }
+.demo-matchup-card b { font: 900 40px var(--font-display); }
+.demo-matchup-card span, .demo-matchup-card p { color: var(--text-muted); text-align: center; }
+.demo-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+.demo-stat-grid article { display: grid; gap: 10px; }
+.demo-stat-grid small { color: var(--text-muted); font-weight: 800; }
+.demo-stat-grid strong { font: 900 24px var(--font-display); }
+.demo-roster-toolbar { display: grid; grid-template-columns: 190px 1fr; gap: 12px; margin: 18px 0 10px; }
+.demo-roster-toolbar select, .demo-roster-toolbar label { height: 38px; border: 1px solid var(--border-strong); background: #080a0c; color: var(--text); }
+.demo-roster-toolbar select { padding: 0 10px; }
+.demo-roster-toolbar label { display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.demo-roster-toolbar label svg { width: 16px; color: var(--text-muted); }
+.demo-roster-toolbar input { flex: 1; border: 0; outline: 0; background: none; color: var(--text); }
+.demo-table-card { margin-top: 18px; max-height: 520px; overflow: auto; border: 1px solid var(--border-strong); background: var(--card-bg); }
+.demo-table-card table { width: 100%; border-collapse: collapse; }
+.demo-table-card th, .demo-table-card td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+.demo-table-card th { position: sticky; top: 0; background: #11161d; color: var(--text-muted); font-size: 10px; letter-spacing: .08em; }
+.demo-empty { display: grid; place-items: center; margin-top: 18px; min-height: 280px; text-align: center; }
+.demo-empty svg { width: 38px; height: 38px; color: var(--accent-bright); }
+
+@media (max-width: 959px) {
+  .demo-topbar { height: 62px; grid-template-columns: 1fr auto; }
+  .demo-brand span, .demo-league-title, .demo-account > span:last-child, .demo-account > svg:first-child { display: none; }
+  .demo-sidebar { display: none; }
+  .demo-main { margin-left: 0; padding-top: 62px; }
+  .demo-league-nav { top: 0; grid-template-columns: repeat(7, minmax(70px, 1fr)); overflow-x: auto; }
+  .demo-controlbar { grid-template-columns: 1fr 1fr; }
+  .demo-phase-tabs { grid-column: 1/-1; }
+}
+@media (max-width: 620px) {
+  .demo-account { padding-right: 10px; }
+  .demo-league-nav { grid-template-columns: repeat(7, 76px); justify-content: start; }
+  .demo-controlbar { grid-template-columns: 1fr; padding: 12px; }
+  .demo-phase-tabs { grid-column: auto; }
+  .demo-content { width: calc(100% - 24px); padding-top: 24px; }
+  .demo-news-grid, .demo-stat-grid, .demo-roster-toolbar { grid-template-columns: 1fr; }
+  .demo-news-grid article.featured { grid-column: auto; }
+  .demo-matchup-card > div { grid-template-columns: 1fr auto; gap: 10px; }
+  .demo-matchup-card > div span { display: none; }
+}
 .site-public-league-rankings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .site-public-league-rankings-grid h4 { margin: 0 0 var(--space-2); font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 @media (max-width: 700px) {

@@ -1,26 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Bell, CalendarDays, Globe2, Home, Menu, MessageSquare, Search, Shield, Trophy, UserRound, Users } from "lucide-react";
 import { siteApi, type DemoPhase } from "../lib/site-api.js";
-import { SiteFooter } from "../components/SiteFooter.js";
 
 type DemoLeague = { id: string; name: string; game: string; seasonNumber: number; phases: Array<{ value: DemoPhase; label: string }> };
 type DemoTeam = { id: string; name: string; abbr: string | null; conference: string | null; coachName: string };
-
+type DemoTab = "buzz" | "matchup" | "team" | "trades" | "wagers" | "roster" | "standings";
 type NewsState = { posts: Array<{ id: string; title: string; body: string; createdAt: string }>; demo: boolean; phaseLabel?: string } | null;
-type MatchupState = {
-  weekNumber: number | null;
-  matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null;
-  draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>;
-  demo: boolean;
-  phaseLabel?: string;
-} | null;
-type StandingsState =
-  | { demo: false; standings: Array<{ teamId: string; teamName: string; wins: number; losses: number; ties: number }> }
-  | { demo: true; phaseLabel: string; standings: Array<{ team: string; wins: number; losses: number; ties: number }> }
-  | null;
+type MatchupState = { weekNumber: number | null; matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null; draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>; demo: boolean; phaseLabel?: string } | null;
+type StandingsState = { demo: boolean; phaseLabel?: string; standings: Array<{ teamId?: string; teamName?: string; team?: string; wins: number; losses: number; ties: number }> } | null;
 
-// Unauthenticated "try before you sign up" preview. Curated pages only (Campus Buzz, Matchup,
-// Roster, Standings) and a user-team-only perspective picker — deliberately not the full hub.
+const mainLinks = [
+  [Home, "Home"], [Globe2, "Leagues"], [Trophy, "Comp (BETA)"], [MessageSquare, "Messages"], [UserRound, "My Account"],
+] as const;
+
 export function Demo() {
   const [leagues, setLeagues] = useState<DemoLeague[]>([]);
   const [leagueId, setLeagueId] = useState<string | null>(null);
@@ -31,207 +24,76 @@ export function Demo() {
   const [matchup, setMatchup] = useState<MatchupState>(null);
   const [standings, setStandings] = useState<StandingsState>(null);
   const [roster, setRoster] = useState<Array<{ id: string; name: string; position: string; overallRating: number | null; devTrait: string | null }>>([]);
-  const [tab, setTab] = useState<"buzz" | "matchup" | "roster" | "standings">("buzz");
+  const [tab, setTab] = useState<DemoTab>("buzz");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    siteApi.listDemoLeagues()
-      .then((res) => { setLeagues(res.leagues); setLeagueId(res.leagues[0]?.id ?? null); })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load demo leagues."));
-  }, []);
-
-  const league = useMemo(() => leagues.find((l) => l.id === leagueId) ?? null, [leagues, leagueId]);
+  useEffect(() => { void siteApi.listDemoLeagues().then((r) => { setLeagues(r.leagues); setLeagueId(r.leagues[0]?.id ?? null); }).catch((e) => setError(e instanceof Error ? e.message : "Failed to load demo leagues.")); }, []);
+  const league = useMemo(() => leagues.find((item) => item.id === leagueId) ?? null, [leagues, leagueId]);
 
   useEffect(() => {
     if (!leagueId) return;
     setPhase("live");
-    siteApi.listDemoTeams(leagueId)
-      .then((res) => { setTeams(res.teams); setTeamId(res.teams[0]?.id ?? null); })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load teams."));
+    void siteApi.listDemoTeams(leagueId).then((r) => { setTeams(r.teams); setTeamId(r.teams[0]?.id ?? null); }).catch((e) => setError(e instanceof Error ? e.message : "Failed to load teams."));
   }, [leagueId]);
-
-  // Draft phase has no team-scoped matchup/roster — fall back to the buzz tab so the picker
-  // doesn't sit on a blank pane.
-  useEffect(() => {
-    if (phase === "draft" && (tab === "matchup" || tab === "roster")) setTab("buzz");
-  }, [phase, tab]);
-
   useEffect(() => {
     if (!leagueId) return;
-    siteApi.getDemoNewsFeed(leagueId, phase).then(setNews).catch(() => setNews(null));
-    siteApi.getDemoStandings(leagueId, phase).then(setStandings).catch(() => setStandings(null));
+    void Promise.all([siteApi.getDemoNewsFeed(leagueId, phase), siteApi.getDemoStandings(leagueId, phase)])
+      .then(([nextNews, nextStandings]) => { setNews(nextNews); setStandings(nextStandings as StandingsState); })
+      .catch(() => { setNews(null); setStandings(null); });
   }, [leagueId, phase]);
-
   useEffect(() => {
     if (!leagueId || !teamId) return;
-    siteApi.getDemoTeamMatchup(leagueId, teamId, phase).then(setMatchup).catch(() => setMatchup(null));
-    siteApi.getDemoTeamRoster(leagueId, teamId).then((res) => setRoster(res.players)).catch(() => setRoster([]));
+    void Promise.all([siteApi.getDemoTeamMatchup(leagueId, teamId, phase), siteApi.getDemoTeamRoster(leagueId, teamId)])
+      .then(([nextMatchup, nextRoster]) => { setMatchup(nextMatchup); setRoster(nextRoster.players); })
+      .catch(() => { setMatchup(null); setRoster([]); });
   }, [leagueId, teamId, phase]);
 
-  const activeTeam = teams.find((t) => t.id === teamId) ?? null;
-  const phaseTabs = league?.phases ?? [];
+  const activeTeam = teams.find((item) => item.id === teamId) ?? null;
+  const isMadden = league?.game.startsWith("madden") ?? false;
+  const nav = [
+    ["buzz", isMadden ? "League News" : "Campus Buzz", Globe2], ["matchup", phase === "draft" ? "Draft Board" : "Matchups", CalendarDays],
+    ["team", "My team", Users], ["trades", isMadden ? "Trade Center" : "Store", Shield], ["wagers", "Wagers", Trophy], ["roster", "Roster", Users], ["standings", "League", Menu],
+  ] as const;
 
   return (
-    <div className="site-page site-landing">
-      <header className="site-nav site-landing-nav">
-        <Link to="/" className="site-landing-brand">
-          <img src="/icons/icon-192.png" alt="" width={36} height={36} className="site-landing-logo" />
-          <span className="site-wordmark">REC Leagues eSports</span>
-        </Link>
-        <nav>
-          <Link className="site-btn site-btn-ghost" to="/login">Log In</Link>
-          <Link className="site-btn site-btn-primary" to="/signup">Sign Up</Link>
-        </nav>
+    <div className="demo-shell">
+      <header className="demo-topbar">
+        <Link to="/" className="demo-brand"><img src="/icons/icon-192.png" alt="REC" /> <span>REC League</span></Link>
+        <div className="demo-league-title"><strong>{league?.name ?? "REC League Preview"}</strong><span>{league?.game?.replace("madden", "Madden ").replace("cfb", "CFB ").toUpperCase() ?? "Loading"}</span></div>
+        <div className="demo-account"><Search /><Bell /><span className="demo-avatar">D</span><span><strong>Demo Coach</strong><small>Read-only preview</small></span></div>
       </header>
 
-      <main className="site-legal-page site-public-league">
-        <h1>Try REC Leagues</h1>
-        <p className="site-muted">
-          Browse two real, live leagues in a read-only preview — nothing here is saved or triggers any action. Pick a
-          league, a team's seat, and a point in the season to look around.
-        </p>
-        {error && <p className="site-muted">{error}</p>}
+      <aside className="demo-sidebar">
+        <div className="demo-sidebar-wordmark">REC<small>LEAGUES</small></div>
+        <nav>{mainLinks.map(([Icon, label]) => <span key={label}><Icon />{label}</span>)}</nav>
+        <div className="demo-sidebar-leagues"><small>MY LEAGUES</small>{leagues.map((item) => <button type="button" key={item.id} className={item.id === leagueId ? "active" : ""} onClick={() => setLeagueId(item.id)}><b>{item.name.slice(0, 1)}</b><span><strong>{item.name}</strong><small>{item.game.toUpperCase()} · Demo</small></span></button>)}</div>
+        <Link className="demo-signup" to="/signup">Create free account</Link>
+      </aside>
 
-        {leagues.length > 0 && (
-          <div className="site-public-league-season-tabs" role="tablist" aria-label="Demo league">
-            {leagues.map((l) => (
-              <button key={l.id} type="button" className={l.id === leagueId ? "active" : ""} onClick={() => setLeagueId(l.id)}>
-                {l.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {phaseTabs.length > 0 && (
-          <div className="site-public-league-season-tabs" role="tablist" aria-label="Season point">
-            {phaseTabs.map((p) => (
-              <button key={p.value} type="button" className={p.value === phase ? "active" : ""} onClick={() => setPhase(p.value)}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {teams.length > 0 && (
-          <section className="site-public-league-section">
-            <h2>View As</h2>
-            <select
-              className="site-input"
-              value={teamId ?? ""}
-              onChange={(event) => setTeamId(event.target.value)}
-              aria-label="Team perspective"
-            >
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}{t.coachName ? ` — ${t.coachName}` : ""}</option>
-              ))}
-            </select>
-          </section>
-        )}
-
-        <div className="site-public-league-season-tabs" role="tablist" aria-label="Demo sections">
-          {([
-            { id: "buzz", label: "Campus Buzz" },
-            { id: "matchup", label: phase === "draft" ? "Draft Board" : "Matchup", hide: phase === "draft" && !activeTeam },
-            { id: "roster", label: "Roster", hide: phase === "draft" },
-            { id: "standings", label: "Standings" },
-          ] as const).filter((t) => !("hide" in t && t.hide)).map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "buzz" && (
-          <section className="site-public-league-section">
-            <h2>Campus Buzz{news?.phaseLabel ? ` — ${news.phaseLabel}` : ""}</h2>
-            {!news || news.posts.length === 0 ? (
-              <p className="site-muted">No posts yet.</p>
-            ) : (
-              <ul className="site-public-league-list" style={{ flexDirection: "column", alignItems: "stretch", gap: "1rem" }}>
-                {news.posts.map((post) => (
-                  <li key={post.id} style={{ flexDirection: "column", alignItems: "flex-start" }}>
-                    <strong>{post.title}</strong>
-                    <span className="site-muted">{post.body}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-
-        {tab === "matchup" && (
-          <section className="site-public-league-section">
-            <h2>{phase === "draft" ? "Draft Board" : "This Team's Matchup"}{matchup?.phaseLabel ? ` — ${matchup.phaseLabel}` : ""}</h2>
-            {phase === "draft" ? (
-              matchup?.draftBoard && matchup.draftBoard.length > 0 ? (
-                <ul className="site-public-league-list">
-                  {matchup.draftBoard.map((pick, i) => (
-                    <li key={i}><span>Round {pick.round}, Pick {pick.pick} — {pick.team}</span><strong>{pick.note}</strong></li>
-                  ))}
-                </ul>
-              ) : <p className="site-muted">Draft board not available.</p>
-            ) : matchup?.matchup ? (
-              <ul className="site-public-league-list">
-                <li>
-                  <span>{matchup.matchup.awayTeam} @ {matchup.matchup.homeTeam}{matchup.matchup.note ? ` · ${matchup.matchup.note}` : ""}</span>
-                  <strong>
-                    {matchup.matchup.homeScore != null && matchup.matchup.awayScore != null
-                      ? `${matchup.matchup.awayScore} - ${matchup.matchup.homeScore}`
-                      : matchup.matchup.status}
-                  </strong>
-                </li>
-              </ul>
-            ) : <p className="site-muted">No matchup scheduled for this view.</p>}
-          </section>
-        )}
-
-        {tab === "roster" && (
-          <section className="site-public-league-section">
-            <h2>{activeTeam?.name ?? "Roster"}</h2>
-            {roster.length === 0 ? (
-              <p className="site-muted">No roster data.</p>
-            ) : (
-              <table className="site-public-league-table">
-                <thead><tr><th>Player</th><th>Pos</th><th>OVR</th><th>Dev</th></tr></thead>
-                <tbody>
-                  {roster.map((p) => (
-                    <tr key={p.id}><td>{p.name}</td><td>{p.position}</td><td>{p.overallRating ?? "—"}</td><td>{p.devTrait ?? "—"}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        )}
-
-        {tab === "standings" && (
-          <section className="site-public-league-section">
-            <h2>Standings{standings?.demo ? ` — ${standings.phaseLabel}` : ""}</h2>
-            {!standings || standings.standings.length === 0 ? (
-              <p className="site-muted">No standings yet.</p>
-            ) : (
-              <table className="site-public-league-table">
-                <thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead>
-                <tbody>
-                  {standings.demo
-                    ? standings.standings.map((s, i) => (
-                        <tr key={i}><td>{s.team}</td><td>{s.wins}</td><td>{s.losses}</td><td>{s.ties}</td></tr>
-                      ))
-                    : standings.standings.map((s) => (
-                        <tr key={s.teamId}><td>{s.teamName}</td><td>{s.wins}</td><td>{s.losses}</td><td>{s.ties}</td></tr>
-                      ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        )}
-
-        <section className="site-public-league-section">
-          <p className="site-muted">Like what you see? Create a free account to join a real league.</p>
-          <Link className="site-btn site-btn-primary" to="/signup">Sign Up</Link>
+      <main className="demo-main">
+        <nav className="demo-league-nav">{nav.map(([id, label, Icon]) => <button type="button" key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}><Icon /><span>{label}</span></button>)}</nav>
+        <section className="demo-controlbar">
+          <div><span>League</span><select value={leagueId ?? ""} onChange={(e) => setLeagueId(e.target.value)}>{leagues.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+          <div><span>View as</span><select value={teamId ?? ""} onChange={(e) => setTeamId(e.target.value)}>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}{item.coachName ? ` — ${item.coachName}` : ""}</option>)}</select></div>
+          <div className="demo-phase-tabs"><span>Season point</span><div>{league?.phases.map((item) => <button type="button" key={item.value} className={phase === item.value ? "active" : ""} onClick={() => setPhase(item.value)}>{item.label}</button>)}</div></div>
+          <p><strong>LIVE READ-ONLY PREVIEW</strong> Explore the same layout members use. No action here is saved.</p>
         </section>
-      </main>
+        {error ? <p className="site-auth-error">{error}</p> : null}
 
-      <SiteFooter />
+        <div className="demo-content">
+          {tab === "buzz" ? <><header><span>AROUND THE LEAGUE</span><h1>{isMadden ? "League News" : "Campus Buzz"}</h1><p>{news?.phaseLabel ?? "Current season"} · news, media, and weekly league activity</p></header><div className="demo-news-grid">{news?.posts.length ? news.posts.map((post, index) => <article key={post.id} className={index === 0 ? "featured" : ""}><small>{index === 0 ? "FEATURED STORY" : "LEAGUE HEADLINE"}</small><h2>{post.title}</h2><p>{post.body}</p><button type="button">Read article</button></article>) : <article><h2>No posts yet</h2><p>This live league has no posts for the selected point.</p></article>}</div></> : null}
+
+          {tab === "matchup" ? <><header><span>{phase === "draft" ? "DRAFT NIGHT" : "THIS WEEK"}</span><h1>{phase === "draft" ? "Draft Board" : "Matchups"}</h1></header>{phase === "draft" ? <div className="demo-table-card"><table><thead><tr><th>Pick</th><th>Team</th><th>Status</th></tr></thead><tbody>{matchup?.draftBoard?.map((pick) => <tr key={`${pick.round}-${pick.pick}`}><td>R{pick.round} · #{pick.pick}</td><td>{pick.team}</td><td>{pick.note}</td></tr>)}</tbody></table></div> : <article className="demo-matchup-card"><small>WEEK {matchup?.weekNumber ?? "—"}</small><div><strong>{matchup?.matchup?.awayTeam ?? "Away team"}</strong><b>{matchup?.matchup?.awayScore ?? "—"}</b><span>AT</span><b>{matchup?.matchup?.homeScore ?? "—"}</b><strong>{matchup?.matchup?.homeTeam ?? "Home team"}</strong></div><p>{matchup?.matchup?.note ?? matchup?.matchup?.status ?? "No matchup scheduled for this view."}</p></article>}</> : null}
+
+          {tab === "team" ? <><header><span>FULL COACH PROFILE</span><h1>{activeTeam?.name ?? "My Team"}</h1><p>{activeTeam?.coachName || "Demo coach"}</p></header><div className="demo-stat-grid"><article><small>SEASON RECORD</small><strong>{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.wins ?? 0}-{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.losses ?? 0}</strong></article><article><small>ROSTER SIZE</small><strong>{roster.length}</strong></article><article><small>CURRENT MATCHUP</small><strong>{matchup?.matchup ? `${matchup.matchup.awayTeam} @ ${matchup.matchup.homeTeam}` : "BYE WEEK"}</strong></article></div></> : null}
+
+          {tab === "roster" ? <><header><span>TEAM MANAGEMENT</span><h1>{activeTeam?.name ?? "Team"} Roster</h1><p>Search, filter, compare, and manage the full roster in the member experience.</p></header><div className="demo-roster-toolbar"><select><option>All positions</option></select><label><Search /><input placeholder="Search players…" /></label></div><div className="demo-table-card"><table><thead><tr><th>Player</th><th>Position</th><th>OVR</th><th>Development</th></tr></thead><tbody>{roster.map((player) => <tr key={player.id}><td><strong>{player.name}</strong></td><td>{player.position}</td><td>{player.overallRating ?? "—"}</td><td>{player.devTrait ?? "—"}</td></tr>)}</tbody></table></div></> : null}
+
+          {tab === "standings" ? <><header><span>LEAGUE</span><h1>Standings</h1></header><div className="demo-table-card"><table><thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead><tbody>{standings?.standings.map((item, i) => <tr key={item.teamId ?? i}><td><strong>{item.teamName ?? item.team}</strong></td><td>{item.wins}</td><td>{item.losses}</td><td>{item.ties}</td></tr>)}</tbody></table></div></> : null}
+
+          {(tab === "trades" || tab === "wagers") ? <><header><span>{tab === "trades" ? "TRANSACTIONS" : "SPORTSBOOK"}</span><h1>{tab === "trades" ? (isMadden ? "Trade Center" : "Store") : "Wagers"}</h1></header><div className="demo-empty"><Shield /><h2>Explore safely</h2><p>This is the real league-page layout. Purchases, trades, wagers, messages, and commissioner actions stay disabled in the public preview.</p><Link to="/signup">Create an account</Link></div></> : null}
+        </div>
+      </main>
     </div>
   );
 }

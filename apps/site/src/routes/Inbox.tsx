@@ -60,13 +60,16 @@ export function Inbox() {
 
   useEffect(() => {
     if (!activeId) return;
-    const timer = window.setInterval(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
       void siteApi
         .listMessages({ conversationId: activeId, limit: 80 })
         .then((response) => setMessages(response.messages))
         .catch(() => undefined);
-    }, 8000);
-    return () => window.clearInterval(timer);
+    };
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [activeId]);
 
   useEffect(() => {

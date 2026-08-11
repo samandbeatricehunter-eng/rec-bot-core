@@ -1,39 +1,39 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, Suspense, lazy, type ErrorInfo, type ReactNode } from "react";
 import { AccentTier } from "./components/AccentTier.js";
 import { SiteShell } from "./components/SiteShell.js";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { HubProvider, useHub } from "./lib/hub-context.js";
 import { SiteActivityProvider } from "./lib/site-activity-context.js";
 import { SiteThemeProvider } from "./lib/site-theme-context.js";
-import { Account } from "./routes/Account.js";
-import { Friends } from "./routes/Friends.js";
-import { Inbox } from "./routes/Inbox.js";
-import { Landing } from "./routes/Landing.js";
-import { LogIn } from "./routes/LogIn.js";
-import { CompPage } from "./routes/Comp.js";
-import { BadgesPage } from "./routes/Badges.js";
-import { HomePage } from "./routes/Home.js";
-import { LeaguesPage } from "./routes/Leagues.js";
-import { LeagueHubPage } from "./routes/LeagueHub.js";
-import { Pricing } from "./routes/Pricing.js";
-import { SignUp } from "./routes/SignUp.js";
-import { SignUpComplete } from "./routes/SignUpComplete.js";
-import { Help } from "./routes/Help.js";
-import { Privacy } from "./routes/Privacy.js";
-import { Terms } from "./routes/Terms.js";
-import { DevBypass } from "./routes/DevBypass.js";
-import { DiscordGuildPicker } from "./routes/DiscordGuildPicker.js";
-import { DiscordGuildTokenPopup } from "./routes/DiscordGuildTokenPopup.js";
+const Account = lazy(() => import("./routes/Account.js").then((m) => ({ default: m.Account })));
+const Friends = lazy(() => import("./routes/Friends.js").then((m) => ({ default: m.Friends })));
+const Inbox = lazy(() => import("./routes/Inbox.js").then((m) => ({ default: m.Inbox })));
+const Landing = lazy(() => import("./routes/Landing.js").then((m) => ({ default: m.Landing })));
+const LogIn = lazy(() => import("./routes/LogIn.js").then((m) => ({ default: m.LogIn })));
+const CompPage = lazy(() => import("./routes/Comp.js").then((m) => ({ default: m.CompPage })));
+const BadgesPage = lazy(() => import("./routes/Badges.js").then((m) => ({ default: m.BadgesPage })));
+const HomePage = lazy(() => import("./routes/Home.js").then((m) => ({ default: m.HomePage })));
+const LeaguesPage = lazy(() => import("./routes/Leagues.js").then((m) => ({ default: m.LeaguesPage })));
+const LeagueHubPage = lazy(() => import("./routes/LeagueHub.js").then((m) => ({ default: m.LeagueHubPage })));
+const Pricing = lazy(() => import("./routes/Pricing.js").then((m) => ({ default: m.Pricing })));
+const SignUp = lazy(() => import("./routes/SignUp.js").then((m) => ({ default: m.SignUp })));
+const SignUpComplete = lazy(() => import("./routes/SignUpComplete.js").then((m) => ({ default: m.SignUpComplete })));
+const Help = lazy(() => import("./routes/Help.js").then((m) => ({ default: m.Help })));
+const Privacy = lazy(() => import("./routes/Privacy.js").then((m) => ({ default: m.Privacy })));
+const Terms = lazy(() => import("./routes/Terms.js").then((m) => ({ default: m.Terms })));
+const DevBypass = lazy(() => import("./routes/DevBypass.js").then((m) => ({ default: m.DevBypass })));
+const DiscordGuildPicker = lazy(() => import("./routes/DiscordGuildPicker.js").then((m) => ({ default: m.DiscordGuildPicker })));
+const DiscordGuildTokenPopup = lazy(() => import("./routes/DiscordGuildTokenPopup.js").then((m) => ({ default: m.DiscordGuildTokenPopup })));
 function LegacyCommissionerInboxRedirect() {
   const { leagueId = "" } = useParams();
   return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
 }
-import { AuthCallback } from "./routes/AuthCallback.js";
-import { OpenApp } from "./routes/OpenApp.js";
-import { AdminPage } from "./routes/Admin.js";
-import { PublicLeague } from "./routes/PublicLeague.js";
-import { Demo } from "./routes/Demo.js";
+const AuthCallback = lazy(() => import("./routes/AuthCallback.js").then((m) => ({ default: m.AuthCallback })));
+const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default: m.OpenApp })));
+const AdminPage = lazy(() => import("./routes/Admin.js").then((m) => ({ default: m.AdminPage })));
+const PublicLeague = lazy(() => import("./routes/PublicLeague.js").then((m) => ({ default: m.PublicLeague })));
+const Demo = lazy(() => import("./routes/Demo.js").then((m) => ({ default: m.Demo })));
 import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
@@ -210,6 +210,7 @@ function Routed() {
     return <div className="site-page site-loading">Loading…</div>;
   }
   return (
+    <Suspense fallback={<div className="site-page site-loading">Loading…</div>}>
     <Routes>
       <Route path="/" element={<RootEntry />} />
       <Route path="/signup" element={<SignUp />} />
@@ -256,6 +257,7 @@ function Routed() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

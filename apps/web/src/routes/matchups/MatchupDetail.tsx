@@ -253,7 +253,7 @@ export function MatchupDetailPage() {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 5000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

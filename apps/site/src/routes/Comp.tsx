@@ -195,8 +195,10 @@ function MatchupQueueTab() {
   }
   useEffect(() => {
     void reload();
-    const timer = window.setInterval(() => void reload(), 15_000);
-    return () => window.clearInterval(timer);
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void reload(); };
+    const timer = window.setInterval(refreshWhenVisible, 30_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshWhenVisible); };
   }, [game]);
 
   async function act(run: () => Promise<unknown>) {

@@ -3,8 +3,8 @@ import { americanFromDecimal } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../lib/site-api.js";
 
-const LEAGUE_POLL_MS = 20_000;
-const ANNOUNCEMENT_POLL_MS = 60_000;
+const LEAGUE_POLL_MS = 60_000;
+const ANNOUNCEMENT_POLL_MS = 5 * 60_000;
 
 function matchupSegment(item: SiteLeagueTickerItem): string {
   const line = `${item.awayTeamName} at ${item.homeTeamName}`;
@@ -38,10 +38,13 @@ function useLeagueTickerSegments(leagueId: string): string[] {
         .catch(() => { if (!cancelled) setItems([]); });
     }
     load();
-    const interval = window.setInterval(load, LEAGUE_POLL_MS);
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") load(); };
+    const interval = window.setInterval(refreshWhenVisible, LEAGUE_POLL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
     };
   }, [leagueId]);
 
@@ -61,10 +64,13 @@ function useAnnouncementSegments(): string[] {
         .catch(() => { if (!cancelled) setAnnouncements([]); });
     }
     load();
-    const interval = window.setInterval(load, ANNOUNCEMENT_POLL_MS);
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") load(); };
+    const interval = window.setInterval(refreshWhenVisible, ANNOUNCEMENT_POLL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
     };
   }, []);
 
