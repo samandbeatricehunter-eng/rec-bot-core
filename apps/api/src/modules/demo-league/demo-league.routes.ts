@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
 import {
   getDemoLeagueHistory,
+  getDemoFantasyDraftPool,
   getDemoNewsFeed,
   getDemoStandings,
   getDemoTeamMatchup,
@@ -46,6 +47,13 @@ export async function demoLeagueRoutes(app: FastifyInstance) {
     try {
       const { leagueId, teamId } = z.object({ leagueId: z.string().uuid(), teamId: z.string().uuid() }).parse(request.body);
       return reply.send(await getDemoTeamRoster(leagueId, teamId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/demo-league/fantasy-draft-pool", async (request, reply) => {
+    try {
+      const { leagueId } = z.object({ leagueId: z.string().uuid() }).parse(request.body);
+      return reply.send(await getDemoFantasyDraftPool(leagueId));
     } catch (error) { return sendError(reply, error); }
   });
 

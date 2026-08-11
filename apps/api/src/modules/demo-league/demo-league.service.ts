@@ -146,3 +146,54 @@ export async function getDemoTeamRoster(leagueId: string, teamId: string) {
   if (error) throw new ApiError(500, "Failed to load roster.", error);
   return { players: (data ?? []).map((row: any) => ({ id: row.id, name: row.full_name, position: row.position, overallRating: row.overall_rating, devTrait: row.dev_trait })) };
 }
+
+/** A bounded slice of the approved Madden baseline used by the real fantasy-draft room.
+ * Public only through the hardcoded showcase leagues and intentionally excludes private data. */
+export async function getDemoFantasyDraftPool(leagueId: string) {
+  const league = await requireDemoLeague(leagueId);
+  if (league.game !== "madden_27" && league.game !== "madden_26") {
+    throw new ApiError(400, "Fantasy draft is only available for Madden leagues.");
+  }
+  const dataset = await supabase
+    .from("rec_madden_roster_datasets")
+    .select("id")
+    .eq("game_title", league.game)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (dataset.error) throw new ApiError(500, "Failed to load the Madden roster dataset.", dataset.error);
+  if (!dataset.data) return { players: [] };
+
+  const columns = [
+    "id", "name", "position", "jersey_number", "overall_rating", "photo_url", "dev_trait",
+    "speed", "acceleration", "strength", "agility", "awareness", "jumping", "injury", "stamina", "toughness",
+    "throw_power", "throw_under_pressure", "throw_accuracy_short", "throw_accuracy_mid", "throw_accuracy_deep",
+    "catching", "catch_in_traffic", "spectacular_catch", "carrying", "break_tackle", "change_of_direction",
+    "tackle", "hit_power", "block_shedding", "man_coverage", "zone_coverage", "pass_block", "run_block",
+  ].join(",");
+  const pool = await supabase
+    .from("rec_madden_baseline_players")
+    .select(columns)
+    .eq("dataset_id", dataset.data.id)
+    .not("overall_rating", "is", null)
+    .order("overall_rating", { ascending: false })
+    .order("name")
+    .limit(180);
+  if (pool.error) throw new ApiError(500, "Failed to load the fantasy-draft player pool.", pool.error);
+  return {
+    players: (pool.data ?? []).map((row: any) => ({
+      id: row.id, name: row.name, position: row.position, jerseyNumber: row.jersey_number,
+      overallRating: row.overall_rating, photoUrl: row.photo_url, devTrait: row.dev_trait,
+      attributes: {
+        SPD: row.speed, ACC: row.acceleration, STR: row.strength, AGI: row.agility, AWR: row.awareness,
+        JMP: row.jumping, INJ: row.injury, STA: row.stamina, TOU: row.toughness, THP: row.throw_power,
+        TUP: row.throw_under_pressure, SAC: row.throw_accuracy_short, MAC: row.throw_accuracy_mid,
+        DAC: row.throw_accuracy_deep, CAT: row.catching, CIT: row.catch_in_traffic, SPC: row.spectacular_catch,
+        CAR: row.carrying, BTK: row.break_tackle, COD: row.change_of_direction, TKL: row.tackle,
+        POW: row.hit_power, BSH: row.block_shedding, MCV: row.man_coverage, ZCV: row.zone_coverage,
+        PBK: row.pass_block, RBK: row.run_block,
+      },
+    })),
+  };
+}

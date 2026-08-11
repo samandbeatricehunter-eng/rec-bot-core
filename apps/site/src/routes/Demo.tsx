@@ -9,10 +9,47 @@ type DemoTab = "buzz" | "matchup" | "team" | "trades" | "wagers" | "roster" | "s
 type NewsState = { posts: Array<{ id: string; title: string; body: string; createdAt: string }>; demo: boolean; phaseLabel?: string } | null;
 type MatchupState = { weekNumber: number | null; matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null; draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>; demo: boolean; phaseLabel?: string } | null;
 type StandingsState = { demo: boolean; phaseLabel?: string; standings: Array<{ teamId?: string; teamName?: string; team?: string; wins: number; losses: number; ties: number }> } | null;
+type DraftPlayer = { id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> };
 
 const mainLinks = [
   [Home, "Home"], [Globe2, "Leagues"], [Trophy, "Comp (BETA)"], [MessageSquare, "Messages"], [UserRound, "My Account"],
 ] as const;
+
+const draftColumns = ["SPD", "ACC", "STR", "AGI", "AWR", "JMP", "INJ", "STA", "TOU", "THP", "TUP", "SAC", "MAC", "DAC", "CAT", "CIT", "SPC", "CAR", "BTK", "COD", "TKL", "POW", "BSH", "MCV", "ZCV", "PBK", "RBK"];
+
+function DemoFantasyDraftBoard({ players }: { players: DraftPlayer[] }) {
+  const [position, setPosition] = useState("All");
+  const [query, setQuery] = useState("");
+  const [boardIds, setBoardIds] = useState<string[]>([]);
+  const [draftedIds, setDraftedIds] = useState<string[]>([]);
+  const draftTeams = ["Cleveland Browns", "Atlanta Falcons", "New Orleans Saints", "Los Angeles Rams", "New York Giants", "Tennessee Titans"];
+  const positions = [...new Set(players.map((player) => player.position))].sort();
+  const filtered = players.filter((player) => !draftedIds.includes(player.id) && (position === "All" || player.position === position) && player.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const board = boardIds.map((id) => players.find((player) => player.id === id)).filter((player): player is DraftPlayer => Boolean(player) && !draftedIds.includes(player!.id));
+  const pickNumber = draftedIds.length + 1;
+  const onTheClock = draftTeams[(pickNumber - 1) % draftTeams.length];
+  function toggleBoard(id: string) { setBoardIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); }
+  function moveBoard(id: string, direction: -1 | 1) {
+    setBoardIds((current) => { const from = current.indexOf(id); const to = from + direction; if (from < 0 || to < 0 || to >= current.length) return current; const next = [...current]; [next[from], next[to]] = [next[to], next[from]]; return next; });
+  }
+  function makePick(player: DraftPlayer) { setDraftedIds((current) => [...current, player.id]); setBoardIds((current) => current.filter((id) => id !== player.id)); }
+  return (
+    <section className="demo-draft-room">
+      <div className="demo-draft-heading"><div><small>FANTASY DRAFT</small><h1>Draft Tracker</h1><p>Build your personal board from the complete pre-seeded Madden roster.</p></div><span>READ-ONLY DEMO</span></div>
+      <div className="demo-draft-status"><strong>Draft is live</strong><span>Round 1 · Pick {pickNumber} · {onTheClock} on the clock</span></div>
+      <div className="demo-draft-toolbar">
+        <label><span>POSITION</span><select value={position} onChange={(event) => setPosition(event.target.value)}><option value="All">All positions</option>{positions.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="demo-draft-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search players…" /></label>
+        <button type="button">Attribute filters</button>
+      </div>
+      <div className="demo-draft-table-wrap">
+        <table className="demo-draft-table"><thead><tr><th>PLAYER</th><th>OVR ▼</th>{draftColumns.map((key) => <th key={key}>{key}</th>)}<th>ACTIONS</th></tr></thead><tbody>{filtered.map((player) => <tr key={player.id}><td><div className="demo-draft-player">{player.photoUrl ? <img src={player.photoUrl} alt="" loading="lazy" /> : <span>{player.position}</span>}<div><strong>{player.name}</strong><small>{player.position}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</small></div></div></td><td><b>{player.overallRating}</b></td>{draftColumns.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}<td className="demo-draft-row-actions"><button type="button" onClick={() => toggleBoard(player.id)}>{boardIds.includes(player.id) ? "Remove" : "+ Board"}</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></td></tr>)}</tbody></table>
+      </div>
+      <div className="demo-personal-board"><header><div><small>PERSONAL DRAFT BOARD</small><h2>Your Rankings</h2></div><span>Demo changes reset when you leave</span></header>{board.length === 0 ? <p>Add players from the pool above to build and adjust your board.</p> : <ol>{board.map((player, index) => <li key={player.id}><b>{index + 1}</b>{player.photoUrl ? <img src={player.photoUrl} alt="" /> : <span className="demo-board-pos">{player.position}</span>}<div><strong>{player.name}</strong><small>{player.position} · {player.overallRating} OVR</small></div><button type="button" disabled={index === 0} onClick={() => moveBoard(player.id, -1)}>↑</button><button type="button" disabled={index === board.length - 1} onClick={() => moveBoard(player.id, 1)}>↓</button><button type="button" onClick={() => toggleBoard(player.id)}>Remove</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></li>)}</ol>}</div>
+      <div className="demo-draft-footer"><button type="button" disabled title="Saving is disabled in the public demo">Save Draft Board</button><button type="button" disabled title="Loading saved boards is disabled in the public demo">Load Draft Board</button><label><span>SORT BY</span><select><option>My custom rank</option><option>OVR</option></select></label><strong>{draftedIds.length ? `${draftedIds.length} demo pick${draftedIds.length === 1 ? "" : "s"} logged` : "No picks logged yet."}</strong></div>
+    </section>
+  );
+}
 
 export function Demo() {
   const [leagues, setLeagues] = useState<DemoLeague[]>([]);
@@ -24,6 +61,7 @@ export function Demo() {
   const [matchup, setMatchup] = useState<MatchupState>(null);
   const [standings, setStandings] = useState<StandingsState>(null);
   const [roster, setRoster] = useState<Array<{ id: string; name: string; position: string; overallRating: number | null; devTrait: string | null }>>([]);
+  const [draftPlayers, setDraftPlayers] = useState<DraftPlayer[]>([]);
   const [tab, setTab] = useState<DemoTab>("buzz");
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +85,10 @@ export function Demo() {
       .then(([nextMatchup, nextRoster]) => { setMatchup(nextMatchup); setRoster(nextRoster.players); })
       .catch(() => { setMatchup(null); setRoster([]); });
   }, [leagueId, teamId, phase]);
+  useEffect(() => {
+    if (!leagueId || phase !== "draft") return;
+    void siteApi.getDemoFantasyDraftPool(leagueId).then((result) => setDraftPlayers(result.players)).catch(() => setDraftPlayers([]));
+  }, [leagueId, phase]);
 
   const activeTeam = teams.find((item) => item.id === teamId) ?? null;
   const isMadden = league?.game.startsWith("madden") ?? false;
@@ -75,7 +117,7 @@ export function Demo() {
         <section className="demo-controlbar">
           <div><span>League</span><select value={leagueId ?? ""} onChange={(e) => setLeagueId(e.target.value)}>{leagues.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
           <div><span>View as</span><select value={teamId ?? ""} onChange={(e) => setTeamId(e.target.value)}>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}{item.coachName ? ` — ${item.coachName}` : ""}</option>)}</select></div>
-          <div className="demo-phase-tabs"><span>Season point</span><div>{league?.phases.map((item) => <button type="button" key={item.value} className={phase === item.value ? "active" : ""} onClick={() => setPhase(item.value)}>{item.label}</button>)}</div></div>
+          <div className="demo-phase-tabs"><span>Season point</span><div>{league?.phases.map((item) => <button type="button" key={item.value} className={phase === item.value ? "active" : ""} onClick={() => { setPhase(item.value); if (item.value === "draft") setTab("matchup"); }}>{item.label}</button>)}</div></div>
           <p><strong>LIVE READ-ONLY PREVIEW</strong> Explore the same layout members use. No action here is saved.</p>
         </section>
         {error ? <p className="site-auth-error">{error}</p> : null}
@@ -83,7 +125,7 @@ export function Demo() {
         <div className="demo-content">
           {tab === "buzz" ? <><header><span>AROUND THE LEAGUE</span><h1>{isMadden ? "League News" : "Campus Buzz"}</h1><p>{news?.phaseLabel ?? "Current season"} · news, media, and weekly league activity</p></header><div className="demo-news-grid">{news?.posts.length ? news.posts.map((post, index) => <article key={post.id} className={index === 0 ? "featured" : ""}><small>{index === 0 ? "FEATURED STORY" : "LEAGUE HEADLINE"}</small><h2>{post.title}</h2><p>{post.body}</p><button type="button">Read article</button></article>) : <article><h2>No posts yet</h2><p>This live league has no posts for the selected point.</p></article>}</div></> : null}
 
-          {tab === "matchup" ? <><header><span>{phase === "draft" ? "DRAFT NIGHT" : "THIS WEEK"}</span><h1>{phase === "draft" ? "Draft Board" : "Matchups"}</h1></header>{phase === "draft" ? <div className="demo-table-card"><table><thead><tr><th>Pick</th><th>Team</th><th>Status</th></tr></thead><tbody>{matchup?.draftBoard?.map((pick) => <tr key={`${pick.round}-${pick.pick}`}><td>R{pick.round} · #{pick.pick}</td><td>{pick.team}</td><td>{pick.note}</td></tr>)}</tbody></table></div> : <article className="demo-matchup-card"><small>WEEK {matchup?.weekNumber ?? "—"}</small><div><strong>{matchup?.matchup?.awayTeam ?? "Away team"}</strong><b>{matchup?.matchup?.awayScore ?? "—"}</b><span>AT</span><b>{matchup?.matchup?.homeScore ?? "—"}</b><strong>{matchup?.matchup?.homeTeam ?? "Home team"}</strong></div><p>{matchup?.matchup?.note ?? matchup?.matchup?.status ?? "No matchup scheduled for this view."}</p></article>}</> : null}
+          {tab === "matchup" ? phase === "draft" ? <DemoFantasyDraftBoard players={draftPlayers} /> : <><header><span>THIS WEEK</span><h1>Matchups</h1></header><article className="demo-matchup-card"><small>WEEK {matchup?.weekNumber ?? "—"}</small><div><strong>{matchup?.matchup?.awayTeam ?? "Away team"}</strong><b>{matchup?.matchup?.awayScore ?? "—"}</b><span>AT</span><b>{matchup?.matchup?.homeScore ?? "—"}</b><strong>{matchup?.matchup?.homeTeam ?? "Home team"}</strong></div><p>{matchup?.matchup?.note ?? matchup?.matchup?.status ?? "No matchup scheduled for this view."}</p></article></> : null}
 
           {tab === "team" ? <><header><span>FULL COACH PROFILE</span><h1>{activeTeam?.name ?? "My Team"}</h1><p>{activeTeam?.coachName || "Demo coach"}</p></header><div className="demo-stat-grid"><article><small>SEASON RECORD</small><strong>{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.wins ?? 0}-{standings?.standings.find((s) => (s.teamId ?? "") === teamId)?.losses ?? 0}</strong></article><article><small>ROSTER SIZE</small><strong>{roster.length}</strong></article><article><small>CURRENT MATCHUP</small><strong>{matchup?.matchup ? `${matchup.matchup.awayTeam} @ ${matchup.matchup.homeTeam}` : "BYE WEEK"}</strong></article></div></> : null}
 

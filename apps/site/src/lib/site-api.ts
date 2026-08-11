@@ -1023,6 +1023,11 @@ export const siteApi = {
       "/v1/demo-league/roster", { method: "POST", body: JSON.stringify({ leagueId, teamId }) },
     );
   },
+  getDemoFantasyDraftPool(leagueId: string) {
+    return publicRequest<{ players: Array<{ id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> }> }>(
+      "/v1/demo-league/fantasy-draft-pool", { method: "POST", body: JSON.stringify({ leagueId }) },
+    );
+  },
   getDemoStandings(leagueId: string, phase: DemoPhase = "live") {
     return publicRequest<(PublicLeagueSnapshot & { demo: false }) | { demo: true; phaseLabel: string; standings: Array<{ team: string; wins: number; losses: number; ties: number }> }>(
       "/v1/demo-league/standings", { method: "POST", body: JSON.stringify({ leagueId, phase }) },
