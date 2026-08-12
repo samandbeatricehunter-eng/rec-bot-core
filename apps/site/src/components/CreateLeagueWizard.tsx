@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   AFC_TEAMS, CFB_27_TEAMS, CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS, NFC_TEAMS,
   LEAGUE_SLIDER_CATALOG_VERSION, defaultLeagueSliderValues,
@@ -195,6 +196,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
 
   useEffect(() => {
     if (step !== 9 || !leagueId) return;
@@ -792,13 +799,22 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     "conference_championship", "super_bowl", "offseason", "draft",
   ];
 
-  return (
-    <div className="site-modal" role="presentation" onMouseDown={dismiss}>
-      <section className="site-modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-league-title" onMouseDown={(e) => e.stopPropagation()}>
+  return createPortal(
+    <div className="site-modal site-modal-wizard" role="presentation" onMouseDown={dismiss}>
+      <section
+        className="site-modal-wide site-modal-wizard-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-league-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <button type="button" className="site-modal-close" onClick={dismiss} aria-label="Close">&times;</button>
-        <h2 id="create-league-title">Create League</h2>
-        {step > 0 && step < 8 && <p className="site-muted">Step {step} of 7</p>}
-        {error && <p className="site-auth-error">{error}</p>}
+        <header className="site-modal-wizard-header">
+          <h2 id="create-league-title">Create League</h2>
+          {step > 0 && step < 8 && <p className="site-muted">Step {step} of 7</p>}
+          {error && <p className="site-auth-error">{error}</p>}
+        </header>
+        <div className="site-modal-wizard-body">
 
         {step === 0 && (
           <div className="wizard-warning">
@@ -1673,7 +1689,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </div>
           </>
         )}
+        </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
