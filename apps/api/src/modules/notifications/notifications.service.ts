@@ -3,6 +3,7 @@
 // table) and the other 9 sources' service files for the insert/update side that populates
 // it. This module only reads; the writes live next to each source's own business logic.
 import { formatCoins, deriveCaseDisplayStatus, type CaseDisplayStatus } from "@rec/shared";
+import { bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import {
@@ -310,8 +311,8 @@ export async function markCommissionerInboxItemHandled(input: { guildId: string;
     const href = gameId ? `/matchups/${gameId}` : "/";
     const { createSiteNotification } = await import("../site-notifications/site-notifications.service.js");
     const { sendPushToUsers } = await import("../push/push.service.js");
-    void createSiteNotification({ userId: data.requester_user_id, leagueId: data.league_id, kind: "matchup_help_resolved", title, body, href }).catch(() => undefined);
-    void sendPushToUsers([data.requester_user_id], { title, body, url: href }).catch(() => undefined);
+    bestEffortVoid("notification.matchup_help_resolved", createSiteNotification({ userId: data.requester_user_id, leagueId: data.league_id, kind: "matchup_help_resolved", title, body, href }), { leagueId: data.league_id, userId: data.requester_user_id });
+    bestEffortVoid("push.matchup_help_resolved", sendPushToUsers([data.requester_user_id], { title, body, url: href }), { leagueId: data.league_id, userId: data.requester_user_id });
   }
 
   return { ok: true as const };

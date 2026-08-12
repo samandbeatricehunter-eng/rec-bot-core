@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { bestEffort } from "../../lib/best-effort.js";
 import { sendError } from "../../lib/errors.js";
 import { getServerConfig, setServerConfig, isGuildLinkedToLeague } from "./server-config.service.js";
 import { createGuildChannel, listGuildChannels } from "../../lib/discord-guild.js";
@@ -79,7 +80,7 @@ export async function serverConfigRoutes(app: FastifyInstance) {
     try {
       const body = SetConfigSchema.parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      const before = await getServerConfig(body.guildId).catch(() => null);
+      const before = await bestEffort("server_config.get_before_set", () => getServerConfig(body.guildId), { guildId: body.guildId }) ?? null;
       const previousGuideChannelId = (before?.routes as Record<string, unknown> | null)?.rec_guide_channel_id ?? null;
       const config = await setServerConfig(body);
       // Only republish the guide when its channel actually changed — the settings form

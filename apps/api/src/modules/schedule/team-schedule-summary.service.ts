@@ -1,4 +1,5 @@
 import { canonicalConferenceName, isRegularSeasonWeek, regularSeasonGamesPerTeam, stageHasScheduledGames } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -200,7 +201,7 @@ export type LinkedRosterEntry = {
 export async function getLinkedRoster(guildId: string): Promise<{ entries: LinkedRosterEntry[] }> {
   const [summary, rankings] = await Promise.all([
     getTeamManagementSummary(guildId),
-    computePowerRankings(guildId).catch(() => null),
+    bestEffort("schedule.power_rankings", () => computePowerRankings(guildId), { guildId }).then((v) => v ?? null),
   ]);
   const rankByTeam = new Map((rankings?.teams ?? []).map((t: any) => [t.teamId, { rank: t.rank, change: t.change }]));
 

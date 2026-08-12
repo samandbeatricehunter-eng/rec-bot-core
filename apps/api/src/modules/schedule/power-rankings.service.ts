@@ -1,4 +1,5 @@
 import { isCfb, type LeagueGame } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
@@ -108,8 +109,8 @@ async function rankTeams(guildId: string, leagueId: string, seasonNumber: number
   const [teamsRes, aggs, sos, userRatings] = await Promise.all([
     supabase.from("rec_teams").select("id").eq("league_id", leagueId),
     aggregateTeams(leagueId, seasonNumber),
-    computeLeagueSos(guildId).catch(() => null),
-    computeUserRatings(guildId).catch(() => null),
+    bestEffort("power_rankings.league_sos", () => computeLeagueSos(guildId), { guildId }).then((v) => v ?? null),
+    bestEffort("power_rankings.user_ratings", () => computeUserRatings(guildId), { guildId }).then((v) => v ?? null),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
 

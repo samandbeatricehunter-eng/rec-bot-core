@@ -9,6 +9,7 @@
 // carry forward over season turnover instead of resetting to baseline, so a coach's
 // body of work in Season 1 still shows up when Season 2 starts.
 import { isCfb } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
@@ -111,7 +112,7 @@ async function computeCoachRatingsBase(guildId: string) {
 
   const [aggs, sos, teamsRes, assignmentsRes] = await Promise.all([
     aggregateTeamResults(leagueId),
-    computeLeagueSos(guildId).catch(() => null),
+    bestEffort("ratings.league_sos", () => computeLeagueSos(guildId), { guildId }).then((v) => v ?? null),
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
   ]);

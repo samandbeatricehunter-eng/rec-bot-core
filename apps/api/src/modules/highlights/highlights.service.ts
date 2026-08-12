@@ -1,4 +1,5 @@
 import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
@@ -338,7 +339,7 @@ export async function cleanupSeasonHighlights(guildId: string, leagueId: string,
 
   await Promise.all(toDelete.map(async (post: any) => {
     if (post.discord_channel_id && post.discord_message_id) {
-      await deleteDiscordMessage(post.discord_channel_id, post.discord_message_id).catch(() => undefined);
+      await bestEffort("discord.delete_highlight_message", () => deleteDiscordMessage(post.discord_channel_id, post.discord_message_id), { entityId: post.id });
     }
   }));
   if (toDelete.length) {

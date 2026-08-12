@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, type LeagueTemplateId } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -859,13 +860,13 @@ export async function createUnclaimedLeague(input: {
             });
           } catch (retryErr) {
             console.error("[ERROR] Failed to apply Madden baseline roster again after retry:", retryErr);
-            await writeAuditLog({
+            await bestEffort("audit.madden_baseline_seed_failed", () => writeAuditLog({
               action: "league.madden_baseline_seed_failed",
               entityType: "rec_leagues",
               entityId: league.data.id,
               reason: retryErr instanceof Error ? retryErr.message : String(retryErr),
               newValue: { game: input.game, leagueType: input.leagueType },
-            }).catch(() => undefined);
+            }), { leagueId: league.data.id });
           }
         });
       }
@@ -1041,14 +1042,16 @@ export async function completeWizard(input: {
     if (input.guildId && input.discordId) {
       const teamName = team.data.name ?? team.data.abbreviation ?? "";
       const nickname = `${teamName} (Commish)`;
+      const guildId = input.guildId;
+      const discordId = input.discordId;
       const { setGuildMemberNickname } = await import("../../lib/discord-guild.js");
-      await setGuildMemberNickname(input.guildId, input.discordId, nickname, "REC league wizard — head commissioner assignment").catch(() => undefined);
+      await bestEffort("discord.set_commissioner_nickname", () => setGuildMemberNickname(guildId, discordId, nickname, "REC league wizard — head commissioner assignment"), { guildId, userId: discordId });
 
       // Also ensure commissioner role is granted
       const { ensureManagedRoleId, addMemberRole } = await import("../../lib/discord-guild.js");
       try {
-        const roleId = await ensureManagedRoleId(input.guildId, "commissioner");
-        await addMemberRole(input.guildId, input.discordId, roleId, "REC league wizard — head commissioner assignment");
+        const roleId = await ensureManagedRoleId(guildId, "commissioner");
+        await addMemberRole(guildId, discordId, roleId, "REC league wizard — head commissioner assignment");
       } catch { /* role hierarchy may block — non-fatal */ }
     }
 
@@ -1558,13 +1561,13 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });
   if (error) throw new ApiError(500, "We couldn't delete that league data. Please try again.", error);
 
-  await writeAuditLog({
+  await bestEffort("audit.league_data_deleted", () => writeAuditLog({
     action: "league.data.deleted",
     entityType: "rec_leagues",
     entityId: context.leagueId,
     reason: input.requestedByDiscordId ? `Deleted by discord:${input.requestedByDiscordId}` : null,
     newValue: { leagueName, result: data }
-  }).catch(() => undefined);
+  }), { leagueId: context.leagueId, guildId: input.guildId });
 
   return { ok: true, leagueName, result: data };
 }

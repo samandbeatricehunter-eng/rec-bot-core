@@ -3,6 +3,7 @@ import {
   mergeGlobalEconomyConfig,
   type RecGlobalEconomyConfig,
 } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -55,7 +56,7 @@ export async function updateGlobalEconomyConfig(input: unknown, actorAuthUserId:
   }, { onConflict: "config_key" }).select("config, version").single();
   if (updated.error) throw new ApiError(500, "Failed to save global economy values.", updated.error);
   cached = null;
-  await writeAuditLog({
+  await bestEffort("audit.global_economy_update", () => writeAuditLog({
     action: "global_economy.updated",
     entityType: "rec_global_economy_config",
     entityId: "global",
@@ -63,6 +64,6 @@ export async function updateGlobalEconomyConfig(input: unknown, actorAuthUserId:
     newValue: config,
     reason: `Updated by auth user ${actorAuthUserId}`,
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { entityId: "global" });
   return config;
 }

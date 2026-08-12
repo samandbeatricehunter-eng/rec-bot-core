@@ -1,6 +1,7 @@
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { inspectStreamVideo, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
@@ -158,8 +159,8 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
   }
 
   const [dynastyPowerRank, compPowerRank] = await Promise.all([
-    getUserPowerRank({ game: currentGame, scope: "dynasty", userId: user.recUserId }).catch(() => null),
-    getUserPowerRank({ game: currentGame, scope: "comp", userId: user.recUserId }).catch(() => null),
+    bestEffort("site_home.dynasty_power_rank", () => getUserPowerRank({ game: currentGame, scope: "dynasty", userId: user.recUserId }), { userId: user.recUserId }).then((v) => v ?? null),
+    bestEffort("site_home.comp_power_rank", () => getUserPowerRank({ game: currentGame, scope: "comp", userId: user.recUserId }), { userId: user.recUserId }).then((v) => v ?? null),
   ]);
 
   if (!userRating) {

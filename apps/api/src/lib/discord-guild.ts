@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { REC_MANAGED_ROLES, classifyGuildRoleNames, type RecManagedRoleKey } from "@rec/shared";
+import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
 import { supabase } from "./supabase.js";
 
@@ -263,7 +264,7 @@ export async function postDiscordChannelMessage(channelId: string, payload: Reco
     // A silent null return here used to leave callers with no way to tell "Discord rejected
     // this payload" (e.g. an embed over the 6000-char total limit) from "nothing needed to
     // change" — log the real reason so a stuck/stale message is diagnosable.
-    const body = await sent.clone().json().catch(() => null) as { code?: number; message?: string } | null;
+    const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected postDiscordChannelMessage to channel ${channelId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
     return null;
   }
@@ -271,7 +272,7 @@ export async function postDiscordChannelMessage(channelId: string, payload: Reco
 }
 
 export async function deleteDiscordMessage(channelId: string, messageId: string): Promise<void> {
-  await discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }).catch(() => undefined);
+  await bestEffort("discord.delete_message", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }), { entityId: messageId });
 }
 
 /** Edit a previously posted bot message (embeds/components/content) via REST. Used to keep
@@ -283,7 +284,7 @@ export async function editDiscordMessage(channelId: string, messageId: string, p
   const init: RequestInit = { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
   const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
   if (!sent.ok) {
-    const body = await sent.clone().json().catch(() => null) as { code?: number; message?: string } | null;
+    const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected editDiscordMessage on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
   }
   return sent.ok;
@@ -322,7 +323,7 @@ export async function kickDiscordGuildMember(guildId: string, discordId: string,
  * way the old client-cache-based tally did.
  */
 export async function getDiscordMessage(channelId: string, messageId: string): Promise<{ reactions?: Array<{ emoji: { id: string | null; name: string | null }; count: number; me: boolean }>; author?: { id: string } } | null> {
-  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}`).catch(() => null);
+  const res = await bestEffort("discord.get_message", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`), { entityId: messageId }) ?? null;
   if (!res || !res.ok) return null;
   return res.json() as any;
 }
@@ -335,7 +336,7 @@ export type DiscordPollResult = { question: string; answers: Array<{ id: number;
 // needed — commissioner polls only need counts, unlike EOS award polls' DM-the-winner flow
 // which needs actual voter ids).
 export async function getDiscordPollResults(channelId: string, messageId: string): Promise<DiscordPollResult> {
-  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}`).catch(() => null);
+  const res = await bestEffort("discord.get_poll_results", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`), { entityId: messageId }) ?? null;
   if (!res || !res.ok) return null;
   const message = (await res.json()) as any;
   const poll = message?.poll;
@@ -675,7 +676,7 @@ export async function ensureManagedRoleId(guildId: string, roleKey: RecManagedRo
   if (!res.ok) throw new Error(`Failed to create role "${definition.name}" (${res.status})`);
   const created = (await res.json()) as { id: string };
   roleListCache.delete(guildId);
-  await ensureManagedRolesPositioned(guildId).catch(() => undefined);
+  await bestEffort("discord.ensure_managed_roles_positioned", () => ensureManagedRolesPositioned(guildId), { guildId });
   return created.id;
 }
 
@@ -707,11 +708,11 @@ export async function ensureManagedRolesPositioned(guildId: string): Promise<voi
     nextPosition -= 1;
   }
   if (!updates.length) return;
-  await discordBotFetch(`/guilds/${guildId}/roles`, {
+  await bestEffort("discord.patch_managed_role_positions", () => discordBotFetch(`/guilds/${guildId}/roles`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": auditReason("REC managed role hierarchy sync") },
     body: JSON.stringify(updates),
-  }).catch(() => undefined);
+  }), { guildId });
   roleListCache.delete(guildId);
 }
 
@@ -722,7 +723,7 @@ export async function addMemberRole(guildId: string, discordId: string, roleId: 
   });
   memberRoleIdsCache.delete(`${guildId}:${discordId}`);
   if (!res.ok && res.status !== 204) {
-    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    const body = await bestEffort("discord.parse_error_body", () => res.json(), { guildId, userId: discordId }) as { code?: number; message?: string } | null | undefined;
     throw new Error(`Failed to add role: ${body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`}`);
   }
 }
@@ -734,21 +735,21 @@ export async function removeMemberRole(guildId: string, discordId: string, roleI
   });
   memberRoleIdsCache.delete(`${guildId}:${discordId}`);
   if (!res.ok && res.status !== 204) {
-    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    const body = await bestEffort("discord.parse_error_body", () => res.json(), { guildId, userId: discordId }) as { code?: number; message?: string } | null | undefined;
     throw new Error(`Failed to remove role: ${body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`}`);
   }
 }
 
 /** Create a short-lived, single-use server invite for an approved league member. */
 export async function createDiscordChannelInvite(channelId: string): Promise<string | null> {
-  const response = await discordBotFetch(`/channels/${channelId}/invites`, {
+  const response = await bestEffort("discord.create_channel_invite", () => discordBotFetch(`/channels/${channelId}/invites`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-audit-log-reason": "REC approved league team request",
     },
     body: JSON.stringify({ max_age: 7 * 24 * 60 * 60, max_uses: 1, unique: true }),
-  }).catch(() => null);
+  }), { entityId: channelId }) ?? null;
   if (!response?.ok) return null;
   const invite = await response.json() as { code?: string };
   return invite.code ? `https://discord.gg/${invite.code}` : null;
@@ -766,7 +767,7 @@ export async function setGuildMemberNickname(guildId: string, discordId: string,
     // "target is the guild owner" (code 50013, Discord blocks this for any bot unconditionally)
     // and "bot's role sits below the target's" (also 50013, but fixable by reordering roles)
     // into the same unreadable message. Distinguishing them requires the real payload.
-    const body = await res.json().catch(() => null) as { code?: number; message?: string } | null;
+    const body = await bestEffort("discord.parse_error_body", () => res.json(), { guildId, userId: discordId }) as { code?: number; message?: string } | null | undefined;
     const detail = body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`;
     throw new Error(`Failed to update nickname: ${detail}`);
   }

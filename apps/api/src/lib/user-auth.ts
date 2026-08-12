@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { jwtVerify } from "jose";
 import { classifyGuildRoleNames } from "@rec/shared";
 import { env } from "../config/env.js";
+import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
 import { hasValidInternalApiKey, requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
@@ -199,7 +200,7 @@ export async function assertGuildPermission(guildId: string, discordId: string, 
     // the DB-backed fallback below rather than silently denying a legitimate commissioner.
   }
 
-  const context = await getCurrentLeagueContext(guildId).catch(() => null);
+  const context = await bestEffort("auth.league_context", () => getCurrentLeagueContext(guildId), { guildId }) ?? null;
   if (!context) throw new ApiError(403, "Not a member of this guild");
   return assertSiteNativePermission(context.leagueId, discordId, required);
 }

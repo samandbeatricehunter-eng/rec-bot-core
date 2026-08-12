@@ -1,4 +1,5 @@
 import { AFC_TEAMS, CFB_27_TEAMS, CFB_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -113,7 +114,7 @@ export async function clearDiscordTeamIdentityForUsers(input: { leagueId: string
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", targets);
   if (accounts.error) throw new ApiError(500, "We couldn't load Discord accounts for team cleanup. Please try again.", accounts.error);
   const roles = await Promise.all((['member', 'compCommittee', 'commissioner'] as const)
-    .map(async (key) => await ensureManagedRoleId(guildId!, key).catch(() => null)));
+    .map(async (key) => await bestEffort("discord.ensure_managed_role", () => ensureManagedRoleId(guildId!, key), { guildId }) ?? null));
   const cleared: string[] = [];
   const failed: Array<{ userId: string; reason: string }> = [];
   for (const account of accounts.data ?? []) {
@@ -211,10 +212,10 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     source: "manual_admin_entry"
   });
 
-  const seedResult = await trySeedDefaultScheduleAfterTeamsReady({
+  const seedResult = await bestEffort("schedule.seed_after_teams_ready", () => trySeedDefaultScheduleAfterTeamsReady({
     guildId: input.guildId,
     requestedByDiscordId: input.requestedByDiscordId ?? null,
-  }).catch(() => null);
+  }), { guildId: input.guildId, leagueId: league.id }) ?? null;
 
   return { league, teams, defaultScheduleSeed: seedResult };
 }
@@ -406,7 +407,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     // up permanently as a number in every team/roster/chat display. Leave the name columns
     // null on a failed/missed lookup rather than falling back to the raw ID; a later login
     // or hub read can still resolve a real name, but a written snowflake never self-heals.
-    const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
+    const liveName = await bestEffort("discord.member_display_name", () => getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null), { guildId: input.guildId }) ?? null;
 
     // display_name is NOT NULL — "" (its own column default) stands in for a failed/missed
     // lookup rather than null, which would fail the insert outright.
@@ -649,7 +650,7 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
   failed: Array<{ discordId: string; reason: string }>;
 }> {
   const { league } = await getCurrentLeagueForGuild(guildId);
-  await ensureManagedRolesPositioned(guildId).catch(() => undefined);
+  await bestEffort("discord.ensure_managed_roles_positioned", () => ensureManagedRolesPositioned(guildId), { guildId });
 
   const assignments = await supabase
     .from("rec_team_assignments")
@@ -721,7 +722,7 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
 export async function stripAllManagedRolesForGuild(guildId: string): Promise<{ clearedMembers: number; failed: Array<{ discordId: string; reason: string }> }> {
   const [members, roleEntries] = await Promise.all([
     listGuildMembers(guildId).catch(() => [] as DiscordGuildMemberSummary[]),
-    Promise.all((["member", "compCommittee", "commissioner", "discordOnly"] as const).map(async (key) => [key, await ensureManagedRoleId(guildId, key).catch(() => null)] as const)),
+    Promise.all((["member", "compCommittee", "commissioner", "discordOnly"] as const).map(async (key) => [key, await bestEffort("discord.ensure_managed_role", () => ensureManagedRoleId(guildId, key), { guildId }) ?? null] as const)),
   ]);
   const failed: Array<{ discordId: string; reason: string }> = [];
   let clearedMembers = 0;

@@ -10,6 +10,7 @@ import {
   spreadOrTotalOdds,
   type WagerMarket,
 } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -191,7 +192,7 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   const humanInvolved = Boolean(game.home_user_id) || Boolean(game.away_user_id);
 
   // Power-ranking scores → moneyline probabilities + spread.
-  const rankings = await computePowerRankings(guildId).catch(() => null);
+  const rankings = await bestEffort("odds.power_rankings", () => computePowerRankings(guildId), { guildId }) ?? null;
   const scoreByTeam = new Map<string, number>();
   for (const t of (rankings?.teams ?? []) as any[]) scoreByTeam.set(t.teamId, Number(t.score ?? 0));
   const homeScore = scoreByTeam.get(game.home_team_id ?? "") ?? 0.5;
@@ -209,7 +210,7 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   // other's points-allowed rate (with a season-neutral fallback, never 0) — reuse it here so
   // the points-based wager lines agree with that projection instead of being computed
   // independently and, in the no-history case, defaulting to a nonsensical 0.
-  const preview = await getMatchupPreview({ guildId, discordId: "", gameId }).catch(() => null);
+  const preview = await bestEffort("odds.matchup_preview", () => getMatchupPreview({ guildId, discordId: "", gameId }), { guildId, entityId: gameId }) ?? null;
   const projectedHomeScore = preview?.prediction.predictedHomeScore ?? null;
   const projectedAwayScore = preview?.prediction.predictedAwayScore ?? null;
 
@@ -296,7 +297,7 @@ export async function listWeekWagerLines(guildId: string, weekNumber: number): P
   const h2hGames = (games ?? []).filter((g) => g.home_user_id && g.away_user_id);
   if (!h2hGames.length) return [];
 
-  const rankings = await computePowerRankings(guildId).catch(() => null);
+  const rankings = await bestEffort("odds.power_rankings", () => computePowerRankings(guildId), { guildId }) ?? null;
   const scoreByTeam = new Map<string, number>();
   for (const t of (rankings?.teams ?? []) as any[]) scoreByTeam.set(t.teamId, Number(t.score ?? 0));
 

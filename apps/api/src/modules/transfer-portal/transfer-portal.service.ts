@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -42,12 +43,12 @@ export async function createTransferEntry(input: { guildId: string; discordId: s
   if (result.error) throw new ApiError(500, "Failed to add the transfer portal entry.", result.error);
 
   const origin = await supabase.from("rec_teams").select("name").eq("id", input.originTeamId).maybeSingle();
-  await publishTransitionStory({
+  await bestEffort("story.transfer_portal_entry", () => publishTransitionStory({
     guildId: input.guildId,
     headline: `${input.playerName.trim()} Enters the Transfer Portal`,
     body: `${input.playerName.trim()} (${input.position.trim()}) has entered the transfer portal after departing ${origin.data?.name ?? "their program"}.`,
     primaryAngle: "transfer_portal_entry",
-  }).catch(() => {});
+  }), { guildId: input.guildId, entityId: result.data?.id });
 
   return { entry: mapRow(result.data) };
 }

@@ -1,4 +1,5 @@
 import { isRegularSeasonWeek } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
@@ -43,7 +44,7 @@ async function loadLeagueMatchupContext(guildId: string): Promise<LeagueMatchupC
   const [identitiesResult, powerResult, draftResult] = await Promise.all([
     getLeagueUserIdentities(guildId).catch(() => ({ identities: [] as any[] })),
     computePowerRankings(guildId).catch(() => ({ teams: [] as any[] })),
-    getLeagueConfigAsDraft(guildId).catch(() => null),
+    bestEffort("game_channel_matchup.league_config_draft", () => getLeagueConfigAsDraft(guildId), { guildId }).then((v) => v ?? null),
   ]);
 
   const identityByUser = new Map<string, any>(

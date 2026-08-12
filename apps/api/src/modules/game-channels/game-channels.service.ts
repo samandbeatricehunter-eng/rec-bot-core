@@ -1,3 +1,4 @@
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -220,7 +221,7 @@ type AdvanceWeek = Awaited<ReturnType<typeof getAdvanceWeekGames>>;
 // seed the game chat system card.
 async function createChannelsForGames(context: GameChannelContext, guildId: string, categoryId: string, week: AdvanceWeek, games: any[]) {
   const [draft, powerRankings, discordByUser] = await Promise.all([
-    getLeagueConfigAsDraft(guildId).then((r) => (r as any)?.draft ?? null).catch(() => null),
+    bestEffort("game_channels.league_config_draft", () => getLeagueConfigAsDraft(guildId).then((r) => (r as any)?.draft ?? null), { guildId }).then((v) => v ?? null),
     computePowerRankings(guildId).catch(() => ({ teams: [] })),
     discordIdsByUserId([...new Set(games.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
   ]);

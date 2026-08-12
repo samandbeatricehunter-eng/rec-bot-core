@@ -2,6 +2,7 @@
 // "Sold" is derived from rec_purchases (purchase_type='legend', details.legendId) rather
 // than a column on the catalog row, since the same catalog is shared across every league.
 
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -249,7 +250,7 @@ export async function createLegendPurchaseRequest(input: {
     .eq("source_table", "rec_purchases")
     .eq("source_id", result.purchase.id);
 
-  const linked = await findServerRoutesForLeague(context.leagueId).catch(() => null);
+  const linked = await bestEffort("legends.find_server_routes", () => findServerRoutesForLeague(context.leagueId), { leagueId: context.leagueId }) ?? null;
   const announcementsChannelId = (linked?.routes as any)?.announcements_channel_id as string | null | undefined;
   if (announcementsChannelId) {
     await postDiscordChannelMessage(announcementsChannelId, {

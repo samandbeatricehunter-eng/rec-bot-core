@@ -1,6 +1,7 @@
 // Request Help: Force Win / AutoPilot / Report Matchup Issue. Notification-only — this creates
 // a commissioners_inbox case and notifies commissioners; it does not touch standings, payouts,
 // or game state. A commissioner resolves the actual outcome manually through existing tools.
+import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
@@ -78,7 +79,7 @@ export async function submitMatchupHelpRequest(input: {
 
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);
 
-  const gameChannel = await getGameChannelByGameId(input.gameId).catch(() => null);
+  const gameChannel = await bestEffort("matchup_help.load_game_channel", () => getGameChannelByGameId(input.gameId), { leagueId: context.leagueId, entityId: input.gameId }) ?? null;
   if (gameChannel) {
     await postGameChatSystemMessage({
       gameChannelId: gameChannel.id,
@@ -96,8 +97,8 @@ export async function submitMatchupHelpRequest(input: {
     const title = `${HEADER_BY_KIND[input.kind]} — request received`;
     const body = `Your request for ${awayTeamName} @ ${homeTeamName} was sent to the commissioner team. You'll be notified when it's resolved.`;
     const href = `/matchups/${input.gameId}`;
-    void createSiteNotification({ userId: author.userId, leagueId: context.leagueId, kind: "matchup_help_submitted", title, body, href }).catch(() => undefined);
-    void sendPushToUsers([author.userId], { title, body, url: href }).catch(() => undefined);
+    bestEffortVoid("notification.matchup_help_submitted", createSiteNotification({ userId: author.userId, leagueId: context.leagueId, kind: "matchup_help_submitted", title, body, href }), { leagueId: context.leagueId, userId: author.userId, entityId: input.gameId });
+    bestEffortVoid("push.matchup_help_submitted", sendPushToUsers([author.userId], { title, body, url: href }), { leagueId: context.leagueId, userId: author.userId, entityId: input.gameId });
   }
 
   return { ok: true as const };

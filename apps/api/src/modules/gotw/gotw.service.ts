@@ -1,3 +1,4 @@
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -52,7 +53,7 @@ async function announceGotwInExistingGameChannel(input: {
   const homeId = input.homeUserId ? ids.get(input.homeUserId) : null;
   const awayMention = awayId ? `<@${awayId}>` : "the away coach";
   const homeMention = homeId ? `<@${homeId}>` : "the home coach";
-  const draft = await getLeagueConfigAsDraft(input.guildId).then((result) => (result as any)?.draft ?? null).catch(() => null);
+  const draft = await bestEffort("gotw.league_config_draft", () => getLeagueConfigAsDraft(input.guildId).then((result) => (result as any)?.draft ?? null), { guildId: input.guildId }) ?? null;
   const rule = gotwStreamingAnnouncement(draft, awayMention, homeMention);
   const allowedIds = rule.mentionIds.map((mention) => mention.match(/^<@(\d+)>$/)?.[1]).filter(Boolean) as string[];
   await postDiscordChannelMessage(channelId, {

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
+import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
 
 const STREAM_API = "https://api.cloudflare.com/client/v4";
@@ -81,11 +82,11 @@ export async function createStreamDirectUpload(input: {
     }),
     signal: AbortSignal.timeout(20_000),
   });
-  const payload = await response.json().catch(() => null) as {
+  const payload = await bestEffort("cloudflare.stream.parse_direct_upload", () => response.json(), {}) as {
     success?: boolean;
     result?: { uid?: string; uploadURL?: string };
     errors?: Array<{ message?: string }>;
-  } | null;
+  } | null | undefined;
   if (!response.ok || !payload?.success || !payload.result?.uid || !payload.result?.uploadURL) {
     const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
     throw new ApiError(502, `Failed to create Stream upload URL (${detail}).`);
@@ -110,12 +111,12 @@ export async function copyStreamFromUrl(input: {
     }),
     signal: AbortSignal.timeout(60_000),
   });
-  const payload = await response.json().catch(() => null) as {
+  const payload = await bestEffort("cloudflare.stream.parse_copy", () => response.json(), {}) as {
     success?: boolean;
     result?: { uid?: string };
     errors?: Array<{ message?: string }>;
     messages?: Array<{ message?: string }>;
-  } | null;
+  } | null | undefined;
   if (!response.ok || !payload?.success || !payload.result?.uid) {
     const detail =
       payload?.errors?.[0]?.message
@@ -141,7 +142,7 @@ export async function deleteStreamVideo(uid: string): Promise<void> {
   });
   // 404 = already gone — treat as success for cleanup idempotency.
   if (response.ok || response.status === 404) return;
-  const payload = await response.json().catch(() => null) as { errors?: Array<{ message?: string }> } | null;
+  const payload = await bestEffort("cloudflare.stream.parse_delete_error", () => response.json(), { entityId: uid }) as { errors?: Array<{ message?: string }> } | null | undefined;
   const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
   throw new Error(`Stream delete failed for ${uid}: ${detail}`);
 }
@@ -158,14 +159,14 @@ export async function inspectStreamVideo(uid: string): Promise<{
     { headers: streamHeaders(apiToken), signal: AbortSignal.timeout(20_000) },
   );
   if (response.status === 404) return { exists: false, ready: false, height: null };
-  const payload = await response.json().catch(() => null) as {
+  const payload = await bestEffort("cloudflare.stream.parse_inspect", () => response.json(), { entityId: uid }) as {
     success?: boolean;
     result?: {
       readyToStream?: boolean;
       status?: { state?: string };
       input?: { height?: number };
     };
-  } | null;
+  } | null | undefined;
   if (!response.ok || !payload?.success || !payload.result) {
     throw new Error(`Stream inspect failed for ${uid} (HTTP ${response.status}).`);
   }

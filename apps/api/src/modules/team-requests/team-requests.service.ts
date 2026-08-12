@@ -1,3 +1,4 @@
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
@@ -36,7 +37,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     // up permanently as a number in every team/roster/chat display. Leave it null on a
     // failed/missed lookup rather than falling back to the raw ID; a later login or hub read
     // can still resolve a real name, but a written snowflake never self-heals.
-    const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
+    const liveName = await bestEffort("discord.member_display_name", () => getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null), { guildId: input.guildId }) ?? null;
     // display_name is NOT NULL — "" (its own column default) stands in for a failed/missed
     // lookup rather than null, which would fail the insert outright.
     const createdUser = await supabase.from("rec_users").insert({ display_name: liveName ?? "", status: "active" }).select("id").single();

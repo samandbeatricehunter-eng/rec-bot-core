@@ -1,4 +1,5 @@
 import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress, type RecPayoutTierRule } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
@@ -443,7 +444,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   if (statsRows.error) throw new ApiError(500, "We couldn't load your season stats right now. Please try again.", statsRows.error);
   const rows = statsRows.data ?? [];
 
-  const defenseNickname = await getMyDefenseNicknameStatus(input.guildId, input.discordId).catch(() => null);
+  const defenseNickname = await bestEffort("eos.defense_nickname_status", () => getMyDefenseNicknameStatus(input.guildId, input.discordId), { guildId: input.guildId }) ?? null;
 
   // No box score submitted (or Madden stat import run) for this user yet this season — every
   // evalTeamStat branch defaults to 0 when games=0, and 0 can fall inside a tier's synthetic

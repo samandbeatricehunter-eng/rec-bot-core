@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -50,13 +51,13 @@ export async function createAdminAnnouncement(input: {
     .select("*")
     .single();
   if (inserted.error) throw new ApiError(500, "Failed to create announcement.", inserted.error);
-  await writeAuditLog({
+  await bestEffort("audit.site_announcement_created", () => writeAuditLog({
     action: "site_announcement.created",
     entityType: "rec_site_announcements",
     entityId: (inserted.data as { id: string }).id,
     newValue: input,
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { entityId: (inserted.data as { id: string }).id });
   return { announcement: inserted.data };
 }
 
@@ -87,13 +88,13 @@ export async function updateAdminAnnouncement(input: {
     .maybeSingle();
   if (updated.error) throw new ApiError(500, "Failed to update announcement.", updated.error);
   if (!updated.data) throw new ApiError(404, "Announcement not found.");
-  await writeAuditLog({
+  await bestEffort("audit.site_announcement_updated", () => writeAuditLog({
     action: "site_announcement.updated",
     entityType: "rec_site_announcements",
     entityId: input.id,
     newValue: patch,
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { entityId: input.id });
   return { announcement: updated.data };
 }
 
@@ -101,12 +102,12 @@ export async function deleteAdminAnnouncement(id: string) {
   const deleted = await supabase.from("rec_site_announcements").delete().eq("id", id).select("id").maybeSingle();
   if (deleted.error) throw new ApiError(500, "Failed to delete announcement.", deleted.error);
   if (!deleted.data) throw new ApiError(404, "Announcement not found.");
-  await writeAuditLog({
+  await bestEffort("audit.site_announcement_deleted", () => writeAuditLog({
     action: "site_announcement.deleted",
     entityType: "rec_site_announcements",
     entityId: id,
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { entityId: id });
   return { ok: true as const };
 }
 
@@ -259,13 +260,13 @@ export async function adminRemoveUserFromLeague(input: { leagueId: string; userI
   if (!ended.rows.length && !removedMembership.rows.length) {
     throw new ApiError(404, "This user has no active team assignment or membership in this league.");
   }
-  await writeAuditLog({
+  await bestEffort("audit.league_member_removed", () => writeAuditLog({
     action: "league.member.removed_by_admin",
     entityType: "rec_leagues",
     entityId: input.leagueId,
     newValue: { userId: input.userId, endedAssignments: ended.rows.length, removedMemberships: removedMembership.rows.length },
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { leagueId: input.leagueId, userId: input.userId });
   return { ok: true as const };
 }
 
@@ -293,13 +294,13 @@ export async function adminDeleteLeague(input: { leagueId: string; confirmationT
   const deleted = await supabase.rpc("rec_delete_league", { p_league_id: input.leagueId });
   if (deleted.error) throw new ApiError(500, "Failed to delete league.", deleted.error);
 
-  await writeAuditLog({
+  await bestEffort("audit.league_deleted_by_admin", () => writeAuditLog({
     action: "league.deleted_by_admin",
     entityType: "rec_leagues",
     entityId: input.leagueId,
     newValue: { leagueName, result: deleted.data },
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { leagueId: input.leagueId });
 
   return { ok: true as const, leagueName };
 }
@@ -402,7 +403,7 @@ export async function grantAdminUserTier(input: {
       .select("id,subscription_tier,billing_status")
       .single();
     if (cleared.error) throw new ApiError(500, "Failed to revoke tier.", cleared.error);
-    await writeAuditLog({
+    await bestEffort("audit.admin_tier_revoked", () => writeAuditLog({
       action: "admin.tier_revoked",
       entityType: "rec_users",
       entityId: input.targetUserId,
@@ -410,7 +411,7 @@ export async function grantAdminUserTier(input: {
       newValue: { tier: "none", billingStatus: "none" },
       reason: `Revoked by admin ${input.adminAuthUserId}`,
       source: "admin_correction",
-    }).catch(() => undefined);
+    }), { userId: input.targetUserId });
     return { userId: input.targetUserId, subscriptionTier: "none", billingStatus: "none" };
   }
 
@@ -421,7 +422,7 @@ export async function grantAdminUserTier(input: {
     .select("id,subscription_tier,billing_status")
     .single();
   if (granted.error) throw new ApiError(500, "Failed to grant tier.", granted.error);
-  await writeAuditLog({
+  await bestEffort("audit.admin_tier_granted", () => writeAuditLog({
     action: "admin.tier_granted",
     entityType: "rec_users",
     entityId: input.targetUserId,
@@ -429,7 +430,7 @@ export async function grantAdminUserTier(input: {
     newValue: { tier: input.tier, billingStatus: "lifetime_comp" },
     reason: `Granted by admin ${input.adminAuthUserId}`,
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { userId: input.targetUserId });
   return { userId: input.targetUserId, subscriptionTier: input.tier, billingStatus: "lifetime_comp" };
 }
 
@@ -499,13 +500,13 @@ export async function adminImpersonateUser(input: { targetUserId: string; adminA
     throw new ApiError(500, "Failed to refresh impersonation session.", refreshed.error);
   }
 
-  await writeAuditLog({
+  await bestEffort("audit.admin_impersonate", () => writeAuditLog({
     action: "admin.impersonate",
     entityType: "rec_users",
     entityId: row.id,
     newValue: { adminAuthUserId: input.adminAuthUserId, targetUsername: row.username },
     source: "admin_correction",
-  }).catch(() => undefined);
+  }), { userId: row.id });
 
   return {
     accessToken: refreshed.data.session.access_token,

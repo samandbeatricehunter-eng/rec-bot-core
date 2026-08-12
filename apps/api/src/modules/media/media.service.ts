@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { isRegularSeasonWeek, type LeagueGame } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import {
   copyStreamFromUrl,
@@ -260,7 +261,7 @@ export async function createHighlightDirectUpload(input: {
     .select("id,cloudflare_stream_uid,media_status")
     .single();
   if (inserted.error) {
-    await deleteStreamVideo(stream.uid).catch(() => undefined);
+    await bestEffort("stream.delete_orphan_on_insert_failure", () => deleteStreamVideo(stream.uid), { entityId: stream.uid });
     throw new ApiError(500, "We couldn't create that highlight draft. Please try again.", inserted.error);
   }
 

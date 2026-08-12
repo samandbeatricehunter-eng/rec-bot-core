@@ -10,6 +10,7 @@
 // The projected score blends each offense's scoring rate against the other defense's
 // concession rate, then tilts toward the favored side so the line agrees with the odds.
 import { isCfb } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -257,7 +258,7 @@ export async function getMatchupPreview(input: {
 
   const [aggs, coach] = await Promise.all([
     aggregateForTeams(leagueId, seasonNumber, [homeTeam.id, awayTeam.id]),
-    computeCoachRatings(input.guildId).catch(() => null),
+    bestEffort("matchup_preview.coach_ratings", () => computeCoachRatings(input.guildId), { guildId: input.guildId }).then((v) => v ?? null),
   ]);
   const coachByTeam = new Map((coach?.teams ?? []).map((t: any) => [t.teamId, t]));
   const homeAgg = aggs.get(homeTeam.id) ?? emptyAgg();

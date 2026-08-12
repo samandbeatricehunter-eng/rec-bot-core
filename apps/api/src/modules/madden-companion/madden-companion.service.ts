@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getPgPool } from "../../db/client.js";
+import { bestEffort } from "../../lib/best-effort.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
@@ -494,7 +495,7 @@ export async function rollbackCompanionImportJob(jobId: string, leagueId: string
 
     return { reverted, cleared };
   } catch (error) {
-    await client.query("rollback").catch(() => undefined);
+    await bestEffort("pg.rollback", () => client.query("rollback"));
     throw error;
   } finally {
     client.release();

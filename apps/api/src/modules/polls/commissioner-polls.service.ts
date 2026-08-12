@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -161,7 +162,7 @@ export async function cancelCommissionerPoll(input: { guildId: string; pollId: s
   if (poll.status === "cancelled") return poll;
 
   if (poll.discord_channel_id && poll.discord_message_id) {
-    await deleteDiscordMessage(poll.discord_channel_id, poll.discord_message_id).catch(() => undefined);
+    await bestEffort("discord.delete_poll_message", () => deleteDiscordMessage(poll.discord_channel_id, poll.discord_message_id), { leagueId: context.leagueId, guildId: input.guildId, entityId: input.pollId });
   }
   const now = new Date().toISOString();
   const updated = await supabase

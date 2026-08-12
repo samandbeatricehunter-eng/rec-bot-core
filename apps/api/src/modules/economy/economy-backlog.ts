@@ -6,6 +6,7 @@
 // crosses the floor (called right after a new team assignment goes active); wipeBacklogForSeason
 // clears whatever's left on season rollover (called from setLeagueWeek) rather than carrying
 // it into the new season.
+import { bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEconomyActivation } from "./economy-gate.js";
@@ -142,8 +143,8 @@ export async function releaseBacklogForLeague(leagueId: string, seasonNumber: nu
     const body = entry.items.length > 10
       ? `${entry.items.slice(0, 10).join("; ")}; and ${entry.items.length - 10} more`
       : entry.items.join("; ");
-    void createSiteNotification({ userId, leagueId, kind: "economy_backlog_released", title, body, href }).catch(() => undefined);
-    void sendPushToUser(userId, { title, body, url: href }).catch(() => undefined);
+    bestEffortVoid("notification.economy_backlog_released", createSiteNotification({ userId, leagueId, kind: "economy_backlog_released", title, body, href }), { leagueId, userId });
+    bestEffortVoid("push.economy_backlog_released", sendPushToUser(userId, { title, body, url: href }), { leagueId, userId });
   }
 
   return {
@@ -192,8 +193,8 @@ export async function releaseBacklogForUser(userId: string): Promise<{ released:
   if (totalAmount > 0) {
     const title = `Coins released: +${totalAmount}`;
     const body = items.length > 10 ? `${items.slice(0, 10).join("; ")}; and ${items.length - 10} more` : items.join("; ");
-    void createSiteNotification({ userId, kind: "economy_backlog_released", title, body, href: "/account" }).catch(() => undefined);
-    void sendPushToUser(userId, { title, body, url: "/account" }).catch(() => undefined);
+    bestEffortVoid("notification.economy_backlog_released", createSiteNotification({ userId, kind: "economy_backlog_released", title, body, href: "/account" }), { userId });
+    bestEffortVoid("push.economy_backlog_released", sendPushToUser(userId, { title, body, url: "/account" }), { userId });
   }
 
   return { released: true, totalAmount };

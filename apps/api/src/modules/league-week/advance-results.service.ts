@@ -1,4 +1,5 @@
 import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -789,13 +790,13 @@ export async function completeAdvanceWeek(input: {
         // notices — write it to the audit log so it's discoverable instead of only ever
         // existing as a line in Railway logs nobody is watching.
         console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed again after retry:", retryErr);
-        await writeAuditLog({
+        await bestEffort("audit.badge_baselines_recompute_failed", () => writeAuditLog({
           action: "badge_baselines.recompute_failed",
           entityType: "rec_leagues",
           entityId: context.leagueId,
           reason: retryErr instanceof Error ? retryErr.message : String(retryErr),
           newValue: { seasonNumber },
-        }).catch(() => undefined);
+        }), { leagueId: context.leagueId });
       }
     }),
     // Snapshot power rankings for the week that just completed, so next week can show movement.

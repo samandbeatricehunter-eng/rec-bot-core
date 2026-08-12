@@ -1,6 +1,7 @@
 // Cross-league Discord "recruiting board": one live-edited embed per league (with open teams)
 // in the management guild's per-game-type league-post channel, plus the request flow for
 // users who aren't in that league's own Discord server (or whose league has none) yet.
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage, editDiscordMessage, deleteDiscordMessage, getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
@@ -330,7 +331,7 @@ export async function createRecruitingBoardTeamRequest(input: { leagueId: string
     // placeholder — that placeholder was never getting corrected later. "" (the column's own
     // default) stands in for a failed/missed lookup; a later login or hub read can still
     // resolve a real name, but a written snowflake never self-heals.
-    const liveName = await getGuildMemberDisplayNameMap(link.guildId!).then((names) => names.get(input.discordId) ?? null).catch(() => null);
+    const liveName = await bestEffort("discord.member_display_name", () => getGuildMemberDisplayNameMap(link.guildId!).then((names) => names.get(input.discordId) ?? null), { guildId: link.guildId }) ?? null;
     const createdUser = await supabase.from("rec_users").insert({ display_name: liveName ?? "", status: "active" }).select("id").single();
     if (createdUser.error) throw new ApiError(500, "Failed to create REC user.", createdUser.error);
     userId = createdUser.data.id;

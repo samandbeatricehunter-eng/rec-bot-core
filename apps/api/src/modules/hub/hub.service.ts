@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { env } from "../../config/env.js";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
@@ -507,10 +508,10 @@ export async function getHub(guildId: string, discordId: string) {
     supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
-    computePowerRankings(guildId, discordId).catch(() => null),
-    computeLeagueSos(guildId, discordId).catch(() => null),
-    computeCoachRatings(guildId, discordId).catch(() => null),
-    computeUserRatings(guildId, discordId).catch(() => null),
+    bestEffort("hub.power_rankings", () => computePowerRankings(guildId, discordId), { guildId }).then((v) => v ?? null),
+    bestEffort("hub.league_sos", () => computeLeagueSos(guildId, discordId), { guildId }).then((v) => v ?? null),
+    bestEffort("hub.coach_ratings", () => computeCoachRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
+    bestEffort("hub.user_ratings", () => computeUserRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
     // Independent of every other item in this batch — used only after everything below, but
     // has zero dependency on any of it, so it belongs here instead of a separate round trip.
     supabase.from("rec_league_configuration").select("coin_economy_enabled,age_resets_enabled,dev_upgrades_enabled,contract_adjustment_purchases_enabled,attribute_purchases_enabled,legends_enabled,custom_players_enabled").eq("league_id", context.leagueId).maybeSingle(),
@@ -1557,9 +1558,8 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
   const schedule = await getHubMatchupSchedule({ guildId: input.guildId, discordId: input.discordId, weekNumber: Number(game.data.week_number) });
   const matchup = schedule.games.find((item: any) => item.gameId === input.gameId);
   if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");
-  const draft = await getLeagueConfigAsDraft(input.guildId)
-    .then((result) => (result as any)?.draft ?? null)
-    .catch(() => null);
+  const draft = await bestEffort("hub.league_config_draft", () => getLeagueConfigAsDraft(input.guildId)
+    .then((result) => (result as any)?.draft ?? null), { guildId: input.guildId }) ?? null;
   const postseason = isPostseasonStage(context.rec_leagues.season_stage);
   const streamingSide = postseason
     ? String(draft?.postseasonStreamingSide ?? "either")

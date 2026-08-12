@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { isCfb, isChampionshipWeek, isRegularSeasonWeek, formatCoins } from "@rec/shared";
+import { bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1392,11 +1393,11 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         body: reason,
         href: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
       }).catch((error) => console.error("[WARN] Failed to create denial site notification:", error));
-      void sendPushToUser(sub.submitted_by_user_id, {
+      bestEffortVoid("push.box_score_denied", sendPushToUser(sub.submitted_by_user_id, {
         title,
         body: reason,
         url: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
-      }).catch(() => {});
+      }), { leagueId: sub.league_id, userId: sub.submitted_by_user_id });
     }
 
     return { ok: true, action: "denied" as const };
@@ -1593,7 +1594,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       body,
       href: `/l/${sub.league_id}/matchups`,
     }).catch((error) => console.error("[WARN] Failed to create approval site notification:", error));
-    void sendPushToUser(p.userId, { title, body, url: `/l/${sub.league_id}/matchups` }).catch(() => {});
+    bestEffortVoid("push.box_score_approved", sendPushToUser(p.userId, { title, body, url: `/l/${sub.league_id}/matchups` }), { leagueId: sub.league_id, userId: p.userId });
   }
 
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.

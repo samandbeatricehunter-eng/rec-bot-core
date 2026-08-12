@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { bestEffort } from "../../lib/best-effort.js";
 import { resolveUserSessionFromToken, assertGuildPermission } from "../../lib/user-auth.js";
 import { subscribeSocket, unsubscribeSocket, dropSocket } from "./chat-realtime.js";
 import { supabase } from "../../lib/supabase.js";
@@ -66,7 +67,7 @@ async function canSubscribeToChannel(
 export async function chatRealtimeRoutes(app: FastifyInstance) {
   app.get("/v1/chat/socket", { websocket: true }, async (socket, request) => {
     const query = request.query as { token?: string; guildId?: string };
-    const session = query.token ? await resolveUserSessionFromToken(query.token, query.guildId ?? null).catch(() => null) : null;
+    const session = query.token ? await bestEffort("chat.resolve_session", () => resolveUserSessionFromToken(query.token!, query.guildId ?? null), { guildId: query.guildId }) ?? null : null;
     if (!session) {
       socket.close(4401, "Unauthorized");
       return;

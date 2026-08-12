@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
 
 const IMAGES_API = "https://api.cloudflare.com/client/v4";
@@ -65,7 +66,7 @@ export async function uploadImageToCloudflare(input: {
       body: buildForm(),
       signal: AbortSignal.timeout(60_000),
     });
-    const payload = await response.json().catch(() => null) as UploadPayload;
+    const payload = await bestEffort("cloudflare.images.parse_upload", () => response.json(), {}) as UploadPayload;
     return { ok: response.ok, status: response.status, payload };
   };
 

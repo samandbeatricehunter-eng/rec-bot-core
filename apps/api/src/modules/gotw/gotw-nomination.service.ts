@@ -4,6 +4,7 @@
 //   Rivalry(0-25) + Competitive Parity(0-35) + Matchup Quality(0-20) + Recent Form(0-20)
 //   - Repeat GOTW Penalty(0-5).
 // Parity is intentionally the largest factor; rivalry is a flat boost.
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -165,8 +166,8 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   if (!eligible.length) return [];
 
   const [coach, users, recentForm, recentTeams] = await Promise.all([
-    computeCoachRatings(guildId).catch(() => null),
-    computeUserRatings(guildId).catch(() => null),
+    bestEffort("gotw.coach_ratings", () => computeCoachRatings(guildId), { guildId }).then((v) => v ?? null),
+    bestEffort("gotw.user_ratings", () => computeUserRatings(guildId), { guildId }).then((v) => v ?? null),
     computeRecentForm(leagueId, seasonNumber, weekNumber),
     recentGotwTeamIds(leagueId, seasonNumber, weekNumber),
   ]);

@@ -4,6 +4,7 @@
 // wager whose payout the commissioner approves once the result is confirmed.
 
 import { canonicalConferenceName, WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout, formatCoins } from "@rec/shared";
+import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -416,8 +417,8 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
     const href = `/l/${leagueId}/matchups`;
     const title = "You've been challenged to a wager";
     const body = `${gameLabel} — ${marketLabel}: they took ${proposerPickLabel}. ${formatCoins(stake)} stake, winner takes ${formatCoins(payout)}.`;
-    void createSiteNotification({ userId: input.targetUserId, leagueId, kind: "wager_challenge", title, body, href }).catch(() => undefined);
-    void sendPushToUsers([input.targetUserId], { title, body, url: href }).catch(() => undefined);
+    bestEffortVoid("notification.wager_challenge", createSiteNotification({ userId: input.targetUserId, leagueId, kind: "wager_challenge", title, body, href }), { leagueId, userId: input.targetUserId });
+    bestEffortVoid("push.wager_challenge", sendPushToUsers([input.targetUserId], { title, body, url: href }), { leagueId, userId: input.targetUserId });
     if (targetDiscordId) {
       void sendDiscordDirectMessage(targetDiscordId, `**${title}**\n${body}\nAccept it from the wagers board on the site or in Discord.`).catch((error) => {
         console.error("[ERROR] Failed to DM direct wager challenge (non-fatal):", error);
@@ -541,8 +542,8 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
     const href = `/l/${leagueId}/matchups`;
     const title = "Your wager was accepted";
     const body = `${wager.market ? `${wager.market} — ` : ""}${formatCoins(stake)} is on the line. View it on the wagers board.`;
-    void createSiteNotification({ userId: wager.placed_by_user_id, leagueId, kind: "wager_accepted", title, body, href }).catch(() => undefined);
-    void sendPushToUsers([wager.placed_by_user_id], { title, body, url: href }).catch(() => undefined);
+    bestEffortVoid("notification.wager_accepted", createSiteNotification({ userId: wager.placed_by_user_id, leagueId, kind: "wager_accepted", title, body, href }), { leagueId, userId: wager.placed_by_user_id });
+    bestEffortVoid("push.wager_accepted", sendPushToUsers([wager.placed_by_user_id], { title, body, url: href }), { leagueId, userId: wager.placed_by_user_id });
   }
 
   return {
@@ -562,7 +563,7 @@ export async function declinePeerWager(input: { wagerId: string }) {
 export async function listChallengeableCoaches(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
-  const me = await userIdFromDiscord(discordId).catch(() => null);
+  const me = await bestEffort("wagers.resolve_challenger_user", () => userIdFromDiscord(discordId), { guildId }) ?? null;
   const { data } = await supabase
     .from("rec_team_assignments")
     .select("user_id,team_id,team:rec_teams(name,abbreviation,display_abbr,conference,division)")
@@ -1282,9 +1283,9 @@ async function notifyCommissionersOfStaleWagers(input: {
     const title = `${count} wager${count === 1 ? "" : "s"} waiting on a box score in ${leagueName}`;
     const body = `Submit the missing box score${count === 1 ? "" : "s"} before advancing to week ${deadlineWeek}, or the stake will be refunded with no conclusion.`;
     for (const userId of userIds) {
-      void createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_grace_reminder", title, body, href }).catch(() => undefined);
+      bestEffortVoid("notification.wager_grace_reminder", createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_grace_reminder", title, body, href }), { leagueId: input.leagueId, userId });
     }
-    await sendPushToUsers(userIds, { title, body, url: href }).catch(() => undefined);
+    await bestEffort("push.wager_grace_reminder", () => sendPushToUsers(userIds, { title, body, url: href }), { leagueId: input.leagueId });
   }
 
   if (input.expired.length) {
@@ -1293,9 +1294,9 @@ async function notifyCommissionersOfStaleWagers(input: {
     const title = `${count} wager${count === 1 ? "" : "s"} refunded in ${leagueName}`;
     const body = `No box score was submitted in time — ${formatCoins(total)} was returned to the players involved with no wager conclusion.`;
     for (const userId of userIds) {
-      void createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_expired", title, body, href }).catch(() => undefined);
+      bestEffortVoid("notification.wager_expired", createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_expired", title, body, href }), { leagueId: input.leagueId, userId });
     }
-    await sendPushToUsers(userIds, { title, body, url: href }).catch(() => undefined);
+    await bestEffort("push.wager_expired", () => sendPushToUsers(userIds, { title, body, url: href }), { leagueId: input.leagueId });
   }
 }
 

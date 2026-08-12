@@ -1,4 +1,5 @@
 import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { supabase } from "../../lib/supabase.js";
@@ -552,7 +553,7 @@ export async function getLeagueUserIdentities(guildId: string) {
   const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
     const discordAcc = discordByUser.get(assignment.user_id) ?? null;
     const seasonStats = assignment.user_id
-      ? await loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber).catch(() => null)
+      ? await bestEffort("users.season_box_score_stats", () => loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber), { leagueId, userId: assignment.user_id }) ?? null
       : null;
     const userBadges = badgesByUser.get(assignment.user_id) ?? [];
     const identity = buildIdentityFromSignals(userBadges, seasonStats, league?.game);
@@ -791,8 +792,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const gotwTotal = gotwCorrect + gotwWrong;
   const [rankingResult, sosResult] = leagueId && teamId
     ? await Promise.all([
-        computePowerRankings(guildId, targetDiscordId).catch(() => null),
-        computeLeagueSos(guildId, targetDiscordId).catch(() => null),
+        bestEffort("users.power_rankings", () => computePowerRankings(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
+        bestEffort("users.league_sos", () => computeLeagueSos(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
       ])
     : [null, null];
   const rankRow = rankingResult?.teams?.find((team: any) => String(team.teamId) === String(teamId)) ?? null;

@@ -205,8 +205,8 @@ export function buildLeagueMenuEmbed(input: {
     "**Schedule** - View your logged league schedule.",
     "**Help/Rules** - Read current league rules and FAQ sections.",
     "**My Wallet** - Review balances, transfer to/from savings, and view transactions.",
-    "**Purchase** - Purchase tools will unlock after league purchase settings are built.",
-    "**Wager** - Wager tools will be built last.",
+    "**Purchase** - Use /app to open the REC Store and purchase league-enabled upgrades.",
+    "**Wager** - View and place available league wagers.",
     "**Profiles** - View linked users and team snapshots.",
     ...(input.canManageLeague ? ["**League Mgmt** - Commissioner-only league operations."] : [])
   ].join("\n");

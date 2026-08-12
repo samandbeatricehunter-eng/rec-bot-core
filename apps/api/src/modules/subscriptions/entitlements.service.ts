@@ -1,3 +1,4 @@
+import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
@@ -602,7 +603,7 @@ export async function claimFrozenLeagueOwnership(input: {
       ownerUserId: String(updated.rows[0].owner_user_id),
     };
   } catch (error) {
-    await client.query("rollback").catch(() => undefined);
+    await bestEffort("pg.rollback", () => client.query("rollback"));
     throw error;
   } finally {
     client.release();
