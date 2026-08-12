@@ -122,7 +122,7 @@ async function reconcilePreDiscordTeamRecords(input: {
 export async function linkDiscordFromOAuth(input: {
   authUserId: string;
   email: string | null;
-}): Promise<SiteLinkProfile & { lifetimePlatinum: boolean; discordLinked: boolean }> {
+}): Promise<SiteLinkProfile & { lifetimePlatinum: boolean; discordLinked: boolean; isNewDiscordLink: boolean }> {
   const { data, error } = await supabaseAuthAdmin.auth.admin.getUserById(input.authUserId);
   if (error || !data.user) {
     throw new ApiError(401, "Could not load auth user for Discord linking.");
@@ -131,7 +131,7 @@ export async function linkDiscordFromOAuth(input: {
   const discord = discordIdentityFromAuthUser(data.user);
   if (!discord) {
     const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
-    return { ...profile, lifetimePlatinum: false, discordLinked: false };
+    return { ...profile, lifetimePlatinum: false, discordLinked: false, isNewDiscordLink: false };
   }
 
   const existingDiscord = await getPgPool().query(
@@ -147,6 +147,10 @@ export async function linkDiscordFromOAuth(input: {
   const existing = existingDiscord.rows[0] as
     | { user_id: string; supabase_auth_user_id: string | null }
     | undefined;
+  // This exact Discord snowflake has never appeared in rec_discord_accounts before — the
+  // signal AuthCallback uses to decide whether to prompt for a promo code. A returning Discord
+  // user (existing truthy) should never see that prompt again.
+  const isNewDiscordLink = !existing;
 
   let recUserId: string;
   if (existing) {
@@ -220,7 +224,7 @@ export async function linkDiscordFromOAuth(input: {
   const { releaseBacklogForUser } = await import("../economy/economy-backlog.js");
   void releaseBacklogForUser(recUserId).catch((error) => console.error("[ERROR] Failed to release user's payout backlog after linking (non-fatal):", error));
   const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
-  return { ...profile, lifetimePlatinum, discordLinked: true };
+  return { ...profile, lifetimePlatinum, discordLinked: true, isNewDiscordLink };
 }
 
 export type SiteLinkProfile = {

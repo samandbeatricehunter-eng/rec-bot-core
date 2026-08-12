@@ -878,6 +878,8 @@ function ImpersonatePanel() {
   const [messageBusy, setMessageBusy] = useState(false);
   const [messageNotice, setMessageNotice] = useState<string | null>(null);
   const [accountTab, setAccountTab] = useState<"registered" | "discord">("registered");
+  const [grantBusyId, setGrantBusyId] = useState<string | null>(null);
+  const [grantNoticeId, setGrantNoticeId] = useState<{ id: string; message: string } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -922,6 +924,20 @@ function ImpersonatePanel() {
     }
   }
 
+  async function grantTier(user: AdminUserSummary, tier: "gold" | "platinum" | "none") {
+    setGrantBusyId(user.id);
+    setGrantNoticeId(null);
+    try {
+      const result = await siteApi.grantUserTier({ userId: user.id, tier });
+      setUsers((current) => current.map((item) => item.id === user.id ? { ...item, subscriptionTier: result.subscriptionTier, billingStatus: result.billingStatus } : item));
+      setGrantNoticeId({ id: user.id, message: tier === "none" ? "Access revoked." : `Granted ${tier === "platinum" ? "Platinum" : "Gold"} — no subscription required.` });
+    } catch (err) {
+      setGrantNoticeId({ id: user.id, message: err instanceof Error ? err.message : "Could not update tier." });
+    } finally {
+      setGrantBusyId(null);
+    }
+  }
+
   return (
     <div className="site-billing-panel">
       <p className="site-muted">
@@ -944,7 +960,7 @@ function ImpersonatePanel() {
           <li key={user.id}>
             <strong>@{user.username || user.displayName || "Unresolved account"}</strong>
             <span>
-              {user.subscriptionTier} {user.hasSiteAccount ? "" : "· no site account"}
+              {user.subscriptionTier}{user.billingStatus === "lifetime_comp" ? " · comp" : ""} {user.hasSiteAccount ? "" : "· no site account"}
             </span>
             <div className="site-profile-actions">
               <button
@@ -958,7 +974,19 @@ function ImpersonatePanel() {
               <button className="site-btn site-btn-ghost" type="button" onClick={() => openMessage(user.id)}>
                 Message
               </button>
+              <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "gold")}>
+                {grantBusyId === user.id ? "…" : "Grant Gold"}
+              </button>
+              <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "platinum")}>
+                {grantBusyId === user.id ? "…" : "Grant Platinum"}
+              </button>
+              {user.billingStatus === "lifetime_comp" && (
+                <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "none")}>
+                  Revoke comp
+                </button>
+              )}
             </div>
+            {grantNoticeId?.id === user.id && <p className="site-muted" style={{ marginTop: 4 }}>{grantNoticeId.message}</p>}
             {messagingId === user.id && (
               <div className="site-field" style={{ marginTop: 8 }}>
                 <input placeholder="Title" value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} />

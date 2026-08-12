@@ -352,7 +352,7 @@ export const siteApi = {
   },
   linkDiscordOAuth() {
     return request<
-      LinkProfileResponse & { lifetimePlatinum: boolean; discordLinked: boolean }
+      LinkProfileResponse & { lifetimePlatinum: boolean; discordLinked: boolean; isNewDiscordLink: boolean }
     >("/v1/site-auth/link/discord-oauth", {});
   },
   listLinkCandidates(input: { query?: string; limit?: number; offset?: number }) {
@@ -881,6 +881,9 @@ export const siteApi = {
   listRecentAdminUsers() {
     return request<{ users: AdminUserSummary[] }>("/v1/admin/users/recent", {});
   },
+  grantUserTier(input: { userId: string; tier: "gold" | "platinum" | "none" }) {
+    return request<{ userId: string; subscriptionTier: string; billingStatus: string }>("/v1/admin/users/grant-tier", input);
+  },
   impersonateUser(userId: string) {
     return request<{ accessToken: string; refreshToken: string; targetUsername: string | null }>(
       "/v1/admin/impersonate",
@@ -1237,6 +1240,7 @@ export type AdminUserSummary = {
   username: string | null;
   displayName: string;
   subscriptionTier: string;
+  billingStatus: string | null;
   hasSiteAccount: boolean;
 };
 

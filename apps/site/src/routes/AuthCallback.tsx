@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { safeInternalNext } from "../lib/safe-next.js";
@@ -15,6 +15,34 @@ export function AuthCallback() {
   const auth = useAuth();
   const [message, setMessage] = useState("Confirming your session…");
   const [failed, setFailed] = useState(false);
+
+  // A brand-new "Continue with Discord" account (first time this Discord identity has ever
+  // linked to REC — see isNewDiscordLink from the API) is the one case where the /login and
+  // /signup pages' own promo-code fields are easy to miss entirely: /login has no obvious
+  // "you're signing up" framing, and any signed-out visit to a gated route lands there by
+  // default. So a returning-Discord-user's session skips this outright, but a first-time link
+  // with no code already stashed blocks here and asks once, directly.
+  const [promoPrompt, setPromoPrompt] = useState(false);
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const resumeRef = useRef<((code: string | null) => void) | null>(null);
+
+  function waitForPromoDecision(): Promise<string | null> {
+    setPromoPrompt(true);
+    return new Promise((resolve) => {
+      resumeRef.current = resolve;
+    });
+  }
+
+  function submitPromoPrompt(event: FormEvent) {
+    event.preventDefault();
+    setPromoPrompt(false);
+    resumeRef.current?.(promoCodeInput.trim() || null);
+  }
+
+  function skipPromoPrompt() {
+    setPromoPrompt(false);
+    resumeRef.current?.(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -38,13 +66,29 @@ export function AuthCallback() {
         setMessage("Linking your Discord account…");
         // The API safely no-ops when no Discord identity exists; real reconciliation errors
         // must remain visible instead of silently stranding league and team records.
-        await siteApi.linkDiscordOAuth();
+        const linkResult = await siteApi.linkDiscordOAuth();
         if (cancelled) return;
 
-        const pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");
+        let pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");
+        sessionStorage.removeItem("rec_pending_promo_code");
+
+        // No code was pre-entered on /login or /signup, and this Discord identity has never
+        // linked to REC before — ask once, right here, instead of letting them fall through
+        // silently with no promo ever applied.
+        if (!pendingPromoCode && linkResult.isNewDiscordLink) {
+          setMessage("You're in.");
+          pendingPromoCode = await waitForPromoDecision();
+          if (cancelled) return;
+          if (!pendingPromoCode) {
+            // No code offered — they still need a Gold/Platinum tier since REC has no free
+            // tier, so send them into the plan-selection step rather than the app.
+            navigate("/pricing", { replace: true });
+            return;
+          }
+        }
+
         let redeemedTrialEffect = false;
         if (pendingPromoCode) {
-          sessionStorage.removeItem("rec_pending_promo_code");
           setMessage("Applying your promo code…");
           try {
             const result = await siteApi.redeemPromoCode(pendingPromoCode);
@@ -102,6 +146,30 @@ export function AuthCallback() {
   useEffect(() => {
     if (auth.status !== "signed-in") return;
   }, [auth.status]);
+
+  if (promoPrompt) {
+    return (
+      <div className="site-page site-auth-page">
+        <form className="site-auth-card" onSubmit={submitPromoPrompt}>
+          <h1>Have a promo code?</h1>
+          <p className="site-muted">First time signing in with Discord — enter a code now if you have one.</p>
+          <label className="site-field">
+            <span>Promo code</span>
+            <input
+              autoFocus
+              value={promoCodeInput}
+              onChange={(e) => setPromoCodeInput(e.target.value)}
+              placeholder="Enter your code"
+            />
+          </label>
+          <button className="site-btn site-btn-primary site-btn-lg" type="submit">Apply code</button>
+          <button className="site-btn site-btn-ghost site-btn-lg" type="button" onClick={skipPromoPrompt}>
+            I don't have a code
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="site-page site-auth-callback">

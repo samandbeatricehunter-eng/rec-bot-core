@@ -313,6 +313,7 @@ export type AdminUserSummary = {
   username: string | null;
   displayName: string;
   subscriptionTier: string;
+  billingStatus: string | null;
   hasSiteAccount: boolean;
 };
 
@@ -320,7 +321,7 @@ export type AdminUserSummary = {
  * getAdminStats counts, listed out by name instead of just the number. */
 export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[] }> {
   const result = await getPgPool().query(`
-    select id, username, display_name, subscription_tier, supabase_auth_user_id
+    select id, username, display_name, subscription_tier, billing_status, supabase_auth_user_id
     from rec_users
     where created_at >= now() - interval '7 days'
     order by created_at desc
@@ -332,6 +333,7 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
       username: row.username,
       displayName: row.username ?? row.display_name ?? "REC Member",
       subscriptionTier: row.subscription_tier,
+      billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
     })),
   };
@@ -344,7 +346,7 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
   const query = input.query?.trim();
   const result = await getPgPool().query(
     `
-      select id, username, display_name, subscription_tier, supabase_auth_user_id
+      select id, username, display_name, subscription_tier, billing_status, supabase_auth_user_id
       from rec_users
       where $1::text is null or username ilike $1 or display_name ilike $1
       order by username nulls last, display_name
@@ -358,9 +360,77 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
       username: row.username,
       displayName: row.username ?? row.display_name ?? "REC Member",
       subscriptionTier: row.subscription_tier,
+      billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
     })),
   };
+}
+
+/** Manual comp grant/revoke — lets an admin hand a user Gold/Platinum access with no Stripe
+ * subscription behind it (billing_status='lifetime_comp', the same status REC OG lifetime
+ * Platinum and lifetime_platinum/lifetime_gold promo codes already use, so every existing
+ * entitlement check already honors it for free). Revoke only clears a comp/promo grant this
+ * tool (or a promo code) created — a real Stripe subscription must still be managed through
+ * Stripe/billing, never silently wiped by an admin click here. */
+export async function grantAdminUserTier(input: {
+  targetUserId: string;
+  tier: "gold" | "platinum" | "none";
+  adminAuthUserId: string;
+}): Promise<{ userId: string; subscriptionTier: string; billingStatus: string }> {
+  const user = await supabase
+    .from("rec_users")
+    .select("id,subscription_tier,billing_status")
+    .eq("id", input.targetUserId)
+    .maybeSingle();
+  if (user.error) throw new ApiError(500, "Failed to load user.", user.error);
+  if (!user.data) throw new ApiError(404, "User not found.");
+
+  const previousTier = user.data.subscription_tier as string | null;
+  const previousStatus = user.data.billing_status as string | null;
+
+  if (input.tier === "none") {
+    if (previousStatus !== "lifetime_comp" && previousStatus !== "promo_trial") {
+      throw new ApiError(
+        409,
+        "This user's access isn't an admin/promo grant (it's a real subscription or already has no access) — manage it through Stripe billing instead.",
+      );
+    }
+    const cleared = await supabase
+      .from("rec_users")
+      .update({ subscription_tier: "none", billing_status: "none", promo_trial_ends_at: null, updated_at: new Date().toISOString() })
+      .eq("id", input.targetUserId)
+      .select("id,subscription_tier,billing_status")
+      .single();
+    if (cleared.error) throw new ApiError(500, "Failed to revoke tier.", cleared.error);
+    await writeAuditLog({
+      action: "admin.tier_revoked",
+      entityType: "rec_users",
+      entityId: input.targetUserId,
+      previousValue: { tier: previousTier, billingStatus: previousStatus },
+      newValue: { tier: "none", billingStatus: "none" },
+      reason: `Revoked by admin ${input.adminAuthUserId}`,
+      source: "admin_correction",
+    }).catch(() => undefined);
+    return { userId: input.targetUserId, subscriptionTier: "none", billingStatus: "none" };
+  }
+
+  const granted = await supabase
+    .from("rec_users")
+    .update({ subscription_tier: input.tier, billing_status: "lifetime_comp", updated_at: new Date().toISOString() })
+    .eq("id", input.targetUserId)
+    .select("id,subscription_tier,billing_status")
+    .single();
+  if (granted.error) throw new ApiError(500, "Failed to grant tier.", granted.error);
+  await writeAuditLog({
+    action: "admin.tier_granted",
+    entityType: "rec_users",
+    entityId: input.targetUserId,
+    previousValue: { tier: previousTier, billingStatus: previousStatus },
+    newValue: { tier: input.tier, billingStatus: "lifetime_comp" },
+    reason: `Granted by admin ${input.adminAuthUserId}`,
+    source: "admin_correction",
+  }).catch(() => undefined);
+  return { userId: input.targetUserId, subscriptionTier: input.tier, billingStatus: "lifetime_comp" };
 }
 
 /** Support/admin one-off outreach — DMs the user's linked Discord account if one exists,
