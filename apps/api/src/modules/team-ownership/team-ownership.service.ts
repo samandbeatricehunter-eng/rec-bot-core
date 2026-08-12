@@ -10,7 +10,6 @@ import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
-import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
 import { resolveTeamSchool } from "../users/user-profile-stats.service.js";
 
@@ -441,9 +440,6 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .eq("id", userId)
     .maybeSingle();
   if (linkedUser.error) throw new ApiError(500, "We couldn't load that linked user. Please try again.", linkedUser.error);
-  if (linkedUser.data?.supabase_auth_user_id) {
-    await assertCanJoinLeague(userId, league.game);
-  }
 
   const team = await supabase
     .from("rec_teams")

@@ -874,15 +874,8 @@ function ImpersonatePanel() {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [messagingId, setMessagingId] = useState<string | null>(null);
-  const [messageTitle, setMessageTitle] = useState("");
-  const [messageBody, setMessageBody] = useState("");
-  const [messageBusy, setMessageBusy] = useState(false);
-  const [messageNotice, setMessageNotice] = useState<string | null>(null);
   const [accountTab, setAccountTab] = useState<"registered" | "discord">("registered");
-  const [grantBusyId, setGrantBusyId] = useState<string | null>(null);
-  const [grantNoticeId, setGrantNoticeId] = useState<{ id: string; message: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUserSummary | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -893,53 +886,6 @@ function ImpersonatePanel() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query]);
-
-  async function viewAs(user: AdminUserSummary) {
-    setBusyId(user.id);
-    setError(null);
-    try {
-      const result = await siteApi.impersonateUser(user.id);
-      await startImpersonation(result);
-      window.location.assign("/home");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start impersonation.");
-      setBusyId(null);
-    }
-  }
-
-  function openMessage(userId: string) {
-    setMessagingId(userId);
-    setMessageTitle("");
-    setMessageBody("");
-    setMessageNotice(null);
-  }
-
-  async function sendMessage(userId: string) {
-    setMessageBusy(true);
-    setMessageNotice(null);
-    try {
-      const result = await siteApi.sendAdminUserMessage({ userId, title: messageTitle.trim() || "Message from REC Leagues", body: messageBody.trim() });
-      setMessageNotice(result.channel === "discord" ? "Sent via Discord DM." : "No Discord link — delivered as a site notification instead.");
-    } catch (err) {
-      setMessageNotice(err instanceof Error ? err.message : "Could not send message.");
-    } finally {
-      setMessageBusy(false);
-    }
-  }
-
-  async function grantTier(user: AdminUserSummary, tier: "gold" | "platinum" | "none") {
-    setGrantBusyId(user.id);
-    setGrantNoticeId(null);
-    try {
-      const result = await siteApi.grantUserTier({ userId: user.id, tier });
-      setUsers((current) => current.map((item) => item.id === user.id ? { ...item, subscriptionTier: result.subscriptionTier, billingStatus: result.billingStatus } : item));
-      setGrantNoticeId({ id: user.id, message: tier === "none" ? "Access revoked." : `Granted ${tier === "platinum" ? "Platinum" : "Gold"} — no subscription required.` });
-    } catch (err) {
-      setGrantNoticeId({ id: user.id, message: err instanceof Error ? err.message : "Could not update tier." });
-    } finally {
-      setGrantBusyId(null);
-    }
-  }
 
   return (
     <div className="site-billing-panel">
@@ -960,52 +906,177 @@ function ImpersonatePanel() {
       </div>
       <ul className="site-account-notif-list admin-user-card-grid">
         {users.filter((user) => accountTab === "registered" ? user.hasSiteAccount : !user.hasSiteAccount).map((user) => (
-          <li key={user.id}>
+          <li key={user.id} className="admin-user-card-clickable" role="button" tabIndex={0} onClick={() => setSelectedUser(user)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedUser(user); } }}>
             <strong>@{user.username || user.displayName || "Unresolved account"}</strong>
             <span>
               {user.subscriptionTier}{user.billingStatus === "lifetime_comp" ? " · comp" : ""} {user.hasSiteAccount ? "" : "· no site account"}
             </span>
-            <div className="site-profile-actions">
-              <button
-                className="site-btn site-btn-ghost"
-                type="button"
-                disabled={!user.hasSiteAccount || busyId === user.id}
-                onClick={() => void viewAs(user)}
-              >
-                {busyId === user.id ? "Loading…" : "View as"}
-              </button>
-              <button className="site-btn site-btn-ghost" type="button" onClick={() => openMessage(user.id)}>
-                Message
-              </button>
-              <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "gold")}>
-                {grantBusyId === user.id ? "…" : "Grant Gold"}
-              </button>
-              <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "platinum")}>
-                {grantBusyId === user.id ? "…" : "Grant Platinum"}
-              </button>
-              {user.billingStatus === "lifetime_comp" && (
-                <button className="site-btn site-btn-ghost" type="button" disabled={grantBusyId === user.id} onClick={() => void grantTier(user, "none")}>
-                  Revoke comp
-                </button>
-              )}
-            </div>
-            {grantNoticeId?.id === user.id && <p className="site-muted" style={{ marginTop: 4 }}>{grantNoticeId.message}</p>}
-            {messagingId === user.id && (
-              <div className="site-field" style={{ marginTop: 8 }}>
-                <input placeholder="Title" value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} />
-                <textarea rows={4} placeholder="Message body" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
-                {messageNotice && <p className="site-muted">{messageNotice}</p>}
-                <div className="site-profile-actions">
-                  <button className="site-btn site-btn-primary" type="button" disabled={messageBusy || !messageBody.trim()} onClick={() => void sendMessage(user.id)}>
-                    {messageBusy ? "Sending…" : "Send"}
-                  </button>
-                  <button className="site-btn site-btn-ghost" type="button" onClick={() => setMessagingId(null)}>Cancel</button>
-                </div>
-              </div>
-            )}
+            <span className="site-muted">Click to manage →</span>
           </li>
         ))}
       </ul>
+      {selectedUser && (
+        <AdminPlayerCard
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          onUserChanged={(replacement) => {
+            setUsers((current) => current.map((item) => item.id === replacement.id ? { ...item, ...replacement } : item));
+            setSelectedUser((current) => (current ? { ...current, ...replacement } : current));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AdminPlayerCard({ user, onClose, onUserChanged }: {
+  user: AdminUserSummary;
+  onClose: () => void;
+  onUserChanged: (user: AdminUserSummary) => void;
+}) {
+  const [busy, setBusy] = useState<"view" | "message" | "tier" | "coins" | null>(null);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
+  const [messaging, setMessaging] = useState(false);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [coinAmount, setCoinAmount] = useState("");
+
+  async function viewAs() {
+    setBusy("view");
+    setNotice(null);
+    try {
+      const result = await siteApi.impersonateUser(user.id);
+      await startImpersonation(result);
+      window.location.assign("/home");
+    } catch (err) {
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not start impersonation." });
+      setBusy(null);
+    }
+  }
+
+  async function sendMessage() {
+    setBusy("message");
+    setNotice(null);
+    try {
+      const result = await siteApi.sendAdminUserMessage({ userId: user.id, title: messageTitle.trim() || "Message from REC Leagues", body: messageBody.trim() });
+      setNotice({ kind: "ok", message: result.channel === "discord" ? "Sent via Discord DM." : "No Discord link — delivered as a site notification instead." });
+      setMessaging(false);
+      setMessageTitle("");
+      setMessageBody("");
+    } catch (err) {
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not send message." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function grantTier(tier: "gold" | "platinum" | "none") {
+    setBusy("tier");
+    setNotice(null);
+    try {
+      const result = await siteApi.grantUserTier({ userId: user.id, tier });
+      onUserChanged({ ...user, subscriptionTier: result.subscriptionTier, billingStatus: result.billingStatus });
+      setNotice({ kind: "ok", message: tier === "none" ? "Access revoked." : `Granted ${tier === "platinum" ? "Platinum" : "Gold"} — no subscription required.` });
+    } catch (err) {
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not update tier." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function grantCoins() {
+    const amount = Number(coinAmount.trim());
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setNotice({ kind: "error", message: "Enter a positive whole number of coins." });
+      return;
+    }
+    setBusy("coins");
+    setNotice(null);
+    try {
+      const result = await siteApi.grantUserCoins({ userId: user.id, amount });
+      setCoinAmount("");
+      setNotice({ kind: "ok", message: `Granted ${result.amount.toLocaleString()} coins${result.walletBalance != null ? ` — new balance ${result.walletBalance.toLocaleString()}` : ""}.` });
+    } catch (err) {
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not grant coins." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="site-modal" role="dialog" aria-modal="true" aria-labelledby="admin-player-card-title">
+      <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={onClose} />
+      <div className="site-modal-panel site-admin-player-card-modal">
+        <button type="button" className="site-modal-close" aria-label="Close" onClick={onClose}>×</button>
+        <h2 id="admin-player-card-title">@{(user.username || user.displayName || "Unresolved account")}</h2>
+        <p className="site-muted">
+          {user.subscriptionTier}{user.billingStatus === "lifetime_comp" ? " · comp" : ""}
+          {!user.hasSiteAccount ? " · no site account" : " · site account linked"}
+        </p>
+
+        {notice && <p className={notice.kind === "error" ? "site-auth-error" : "site-muted"} style={{ marginTop: 8 }}>{notice.message}</p>}
+
+        <div className="site-profile-actions admin-player-card-actions">
+          <button
+            className="site-btn site-btn-primary"
+            type="button"
+            disabled={!user.hasSiteAccount || busy === "view"}
+            onClick={() => void viewAs()}
+          >
+            {busy === "view" ? "Loading…" : "View as"}
+          </button>
+          <button className="site-btn site-btn-ghost" type="button" onClick={() => { setMessaging((m) => !m); setNotice(null); }}>
+            Message
+          </button>
+          <button className="site-btn site-btn-ghost" type="button" disabled={busy === "tier"} onClick={() => void grantTier("gold")}>
+            {busy === "tier" ? "…" : "Grant Gold"}
+          </button>
+          <button className="site-btn site-btn-ghost" type="button" disabled={busy === "tier"} onClick={() => void grantTier("platinum")}>
+            {busy === "tier" ? "…" : "Grant Platinum"}
+          </button>
+          {user.billingStatus === "lifetime_comp" && (
+            <button className="site-btn site-btn-ghost" type="button" disabled={busy === "tier"} onClick={() => void grantTier("none")}>
+              Revoke comp
+            </button>
+          )}
+        </div>
+
+        {messaging && (
+          <div className="site-field" style={{ marginTop: 12 }}>
+            <span>Direct message</span>
+            <input placeholder="Title" value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} />
+            <textarea rows={4} placeholder="Message body" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
+            <div className="site-profile-actions">
+              <button className="site-btn site-btn-primary" type="button" disabled={busy === "message" || !messageBody.trim()} onClick={() => void sendMessage()}>
+                {busy === "message" ? "Sending…" : "Send"}
+              </button>
+              <button className="site-btn site-btn-ghost" type="button" onClick={() => { setMessaging(false); setNotice(null); }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        <div className="site-field" style={{ marginTop: 12 }}>
+          <span>Grant coins</span>
+          <div className="site-profile-actions site-admin-coin-grant-row">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              placeholder="Amount"
+              value={coinAmount}
+              onChange={(e) => setCoinAmount(e.target.value)}
+              style={{ width: 140 }}
+            />
+            <button className="site-btn site-btn-primary" type="button" disabled={busy === "coins"} onClick={() => void grantCoins()}>
+              {busy === "coins" ? "Granting…" : "Grant coins"}
+            </button>
+          </div>
+        </div>
+
+        <div className="site-modal-actions" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+          <button type="button" className="site-btn site-btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }

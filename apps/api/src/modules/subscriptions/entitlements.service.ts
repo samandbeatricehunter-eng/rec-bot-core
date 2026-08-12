@@ -38,6 +38,10 @@ export type EntitlementUser = {
   /** Set by a redeemed trial_gold/trial_platinum promo code — distinct from trial_ends_at
    * (Stripe's own 7-day checkout trial) so the two mechanisms can't clobber each other. */
   promo_trial_ends_at?: string | null;
+  /** Where a lifetime_comp grant came from — "rec_og" (free REC OG Lifetime Platinum, the
+   * only source automatic bookkeeping may clear), "admin_grant" (admin console), "promo_code"
+   * (lifetime promo). Null statuses/tiers have no source. */
+  subscription_source?: string | null;
 };
 
 /** True while the user is inside their current 7-day Stripe trial window — during which
@@ -176,7 +180,7 @@ async function loadUser(userId: string): Promise<EntitlementUser> {
   const result = await supabase
     .from("rec_users")
     .select(
-      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id,trial_ends_at,promo_trial_ends_at",
+      "id,subscription_tier,billing_status,subscription_grace_until,subscription_current_period_end,stripe_customer_id,stripe_subscription_id,supabase_auth_user_id,trial_ends_at,promo_trial_ends_at,subscription_source",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -725,6 +729,7 @@ export async function syncLifetimePlatinumForUser(userId: string): Promise<boole
       .update({
         subscription_tier: "platinum",
         billing_status: "lifetime_comp",
+        subscription_source: "rec_og",
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -732,12 +737,17 @@ export async function syncLifetimePlatinumForUser(userId: string): Promise<boole
     return true;
   }
 
-  if (status === "lifetime_comp") {
+  // Never clear a comp a human deliberately gave: admin-console grants (admin_grant) and
+  // lifetime_platinum/lifetime_gold promo-code grants (promo_code) stay until revoked. Only
+  // the automatic REC OG free grant (subscription_source "rec_og") is managed here — an OG
+  // member who lost eligibility at these deadlines loses the free tier, not a paid grant.
+  if (status === "lifetime_comp" && (user.subscription_source === "rec_og" || user.subscription_source === null)) {
     const updated = await supabase
       .from("rec_users")
       .update({
         subscription_tier: "none",
         billing_status: "none",
+        subscription_source: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -749,6 +759,8 @@ export async function syncLifetimePlatinumForUser(userId: string): Promise<boole
 /**
  * After the free-claim deadline, strip lifetime_comp from users who never registered
  * a site account (supabase_auth_user_id is null). Registered holders keep their grant.
+ * Only REC-OG-sourced comps are eligible for this sweep — admin and promo-code grants are
+ * skipped so a deadline can't silently revoke a grant a human actually issued.
  */
 export async function expireUnclaimedFreeLifetimePlatinum(now = new Date()): Promise<{ cleared: number }> {
   if (isFreeLifetimeClaimOpen(now)) return { cleared: 0 };
@@ -757,10 +769,12 @@ export async function expireUnclaimedFreeLifetimePlatinum(now = new Date()): Pro
     .update({
       subscription_tier: "none",
       billing_status: "none",
+      subscription_source: null,
       updated_at: new Date().toISOString(),
     })
     .eq("billing_status", "lifetime_comp")
     .is("supabase_auth_user_id", null)
+    .in("subscription_source", ["rec_og"])
     .select("id");
   if (updated.error) throw new ApiError(500, "Failed to expire unclaimed free lifetime comps.", updated.error);
   return { cleared: updated.data?.length ?? 0 };

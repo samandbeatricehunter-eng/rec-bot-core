@@ -914,6 +914,12 @@ export const siteApi = {
   grantUserTier(input: { userId: string; tier: "gold" | "platinum" | "none" }) {
     return request<{ userId: string; subscriptionTier: string; billingStatus: string }>("/v1/admin/users/grant-tier", input);
   },
+  grantUserCoins(input: { userId: string; amount: number }) {
+    return request<{ userId: string; amount: number; ledgerId: string; walletBalance: number | null }>(
+      "/v1/admin/users/grant-coins",
+      input,
+    );
+  },
   impersonateUser(userId: string) {
     return request<{ accessToken: string; refreshToken: string; targetUsername: string | null }>(
       "/v1/admin/impersonate",

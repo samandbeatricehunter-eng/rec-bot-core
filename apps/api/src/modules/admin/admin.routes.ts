@@ -12,6 +12,7 @@ import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
   getAdminStats,
+  grantAdminUserCoins,
   grantAdminUserTier,
   listAdminLeagueMembers,
   listAdminLeagues,
@@ -249,6 +250,20 @@ export async function adminRoutes(app: FastifyInstance) {
         .parse(request.body ?? {});
       return reply.send(
         await grantAdminUserTier({ targetUserId: body.userId, tier: body.tier, adminAuthUserId: session.authUserId }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/users/grant-coins", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z
+        .object({ userId: z.string().uuid(), amount: z.number().int().nonnegative("Coin grants use a non-negative amount — use a negative value via the correction input if needed.") })
+        .parse(request.body ?? {});
+      return reply.send(
+        await grantAdminUserCoins({ targetUserId: body.userId, amount: body.amount, adminAuthUserId: session.authUserId }),
       );
     } catch (error) {
       return sendError(reply, error);

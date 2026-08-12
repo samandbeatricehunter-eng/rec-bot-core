@@ -3626,6 +3626,34 @@ h1, h2, h3, .site-wordmark {
 .admin-user-card-grid > li {
   min-width: 0;
 }
+.admin-user-card-clickable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.admin-user-card-clickable:hover,
+.admin-user-card-clickable:focus-visible {
+  border-color: rgba(255,255,255,.3);
+  background: rgba(255,255,255,.07);
+  outline: none;
+}
+.site-admin-player-card-modal {
+  max-width: 480px;
+}
+.admin-player-card-actions {
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.site-admin-coin-grant-row {
+  margin-top: 0;
+  justify-content: flex-start;
+}
 .site-account-friend-search input {
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,.14);

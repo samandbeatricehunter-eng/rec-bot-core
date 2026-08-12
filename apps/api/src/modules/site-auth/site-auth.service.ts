@@ -13,6 +13,7 @@ import {
   ensureRecUserForAuthUser,
   getEntitlementSummary,
   isIdentityClaimDropdownOpen,
+  resolveRecUserIdByAuthUserId,
   syncLifetimePlatinumForUser,
 } from "../subscriptions/entitlements.service.js";
 
@@ -154,31 +155,60 @@ export async function linkDiscordFromOAuth(input: {
 
   let recUserId: string;
   if (existing) {
+    // The snowflake is already in rec_discord_accounts. A user signing in via Discord OAuth has
+    // just proven control of that exact Discord account, so that snowflake's REC profile is THE
+    // profile they should land on — adopt it for the current auth user instead of creating a fresh
+    // empty one (which historically looked like "signing in took my membership away") and instead
+    // of 403ing when the profile happens to be bound to a different site auth user (which blocked
+    // re-linking forever: "won't let me link my discord even though I signed in through discord").
+    //
+    // Only genuine conflicts — where BOTH the current auth user and the snowflake's owner already
+    // have distinct, active profiles — stay blocked so we never flatten a separate real account.
+    const ownerAuthUserId = existing.supabase_auth_user_id;
+    const currentProfile = await resolveRecUserIdByAuthUserId(input.authUserId);
     if (
-      existing.supabase_auth_user_id &&
-      existing.supabase_auth_user_id !== input.authUserId
+      ownerAuthUserId &&
+      ownerAuthUserId !== input.authUserId &&
+      currentProfile &&
+      currentProfile !== existing.user_id
     ) {
       throw new ApiError(
-        403,
-        "That Discord account is already linked to a different REC Leagues account.",
+        409,
+        "That Discord account is already linked to a different REC Leagues account with its own profile. Contact support to merge them.",
       );
     }
     recUserId = existing.user_id;
-    if (!existing.supabase_auth_user_id) {
-      await getPgPool().query(
-        `
-          update rec_users
-          set supabase_auth_user_id = $1, updated_at = now()
-          where id = $2 and supabase_auth_user_id is null
-        `,
-        [input.authUserId, recUserId],
-      );
+
+    if (ownerAuthUserId !== input.authUserId) {
+      // Adopt: rebind the snowflake's profile to the currently signed-in auth user. If the
+      // current auth user already owned some profile row, clear that orphan binding first so
+      // this auth user resolves to the membership-bearing Discord profile (the partial unique
+      // index on supabase_auth_user_id admits only one row, so the old binding must be freed
+      // before the new one lands). Any pending identity claim for this auth user or this
+      // profile is replaced so both uniqueness keys stay satisfied.
+      if (currentProfile && currentProfile !== existing.user_id) {
+        await getPgPool().query(
+          `
+            update rec_users
+            set supabase_auth_user_id = null, updated_at = now()
+            where id = $1 and supabase_auth_user_id = $2
+          `,
+          [currentProfile, input.authUserId],
+        );
+      }
+      await getPgPool().query(`update rec_users set supabase_auth_user_id = $1, updated_at = now() where id = $2`, [
+        input.authUserId,
+        recUserId,
+      ]);
+      await getPgPool().query(`delete from rec_site_identity_claims where auth_user_id = $1 or rec_user_id = $2`, [
+        input.authUserId,
+        recUserId,
+      ]);
       await getPgPool().query(
         `
           insert into rec_site_identity_claims (auth_user_id, rec_user_id)
-        values ($1, $2)
-        on conflict (auth_user_id) do nothing
-      `,
+          values ($1, $2)
+        `,
         [input.authUserId, recUserId],
       );
     }
@@ -205,16 +235,40 @@ export async function linkDiscordFromOAuth(input: {
     );
     const linkedUserId = (insert.rows[0] as { user_id: string } | undefined)?.user_id;
     if (linkedUserId && linkedUserId !== recUserId) {
-      throw new ApiError(409, "That Discord account was linked to another profile during signup.");
+      // A concurrent sign-in claimed this snowflake between our lookup and this insert. The
+      // person controlling the Discord is the legitimate owner; adopt that profile too.
+      // recUserId was just ensured for this auth user; it's an empty orphan now that the
+      // snowflake's owner profile took over — unbind it FIRST (the partial unique index on
+      // supabase_auth_user_id admits only one row) so the adopted profile can be bound next.
+      await getPgPool().query(`update rec_users set supabase_auth_user_id = null, updated_at = now() where id = $1`, [
+        recUserId,
+      ]);
+      await getPgPool().query(`update rec_users set supabase_auth_user_id = $1, updated_at = now() where id = $2`, [
+        input.authUserId,
+        linkedUserId,
+      ]);
+      await getPgPool().query(`delete from rec_site_identity_claims where auth_user_id = $1 or rec_user_id = $2`, [
+        input.authUserId,
+        linkedUserId,
+      ]);
+      await getPgPool().query(
+        `
+          insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+          values ($1, $2)
+        `,
+        [input.authUserId, linkedUserId],
+      );
+      recUserId = linkedUserId;
+    } else {
+      await getPgPool().query(
+        `
+          insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+          values ($1, $2)
+          on conflict (auth_user_id) do nothing
+        `,
+        [input.authUserId, recUserId],
+      );
     }
-    await getPgPool().query(
-      `
-        insert into rec_site_identity_claims (auth_user_id, rec_user_id)
-        values ($1, $2)
-        on conflict (auth_user_id) do nothing
-      `,
-      [input.authUserId, recUserId],
-    );
   }
 
   await reconcilePreDiscordTeamRecords({ canonicalUserId: recUserId, discordId: discord.discordId });

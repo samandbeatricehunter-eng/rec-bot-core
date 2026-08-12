@@ -398,7 +398,7 @@ export async function grantAdminUserTier(input: {
     }
     const cleared = await supabase
       .from("rec_users")
-      .update({ subscription_tier: "none", billing_status: "none", promo_trial_ends_at: null, updated_at: new Date().toISOString() })
+      .update({ subscription_tier: "none", billing_status: "none", subscription_source: null, promo_trial_ends_at: null, updated_at: new Date().toISOString() })
       .eq("id", input.targetUserId)
       .select("id,subscription_tier,billing_status")
       .single();
@@ -417,7 +417,7 @@ export async function grantAdminUserTier(input: {
 
   const granted = await supabase
     .from("rec_users")
-    .update({ subscription_tier: input.tier, billing_status: "lifetime_comp", updated_at: new Date().toISOString() })
+    .update({ subscription_tier: input.tier, billing_status: "lifetime_comp", subscription_source: "admin_grant", updated_at: new Date().toISOString() })
     .eq("id", input.targetUserId)
     .select("id,subscription_tier,billing_status")
     .single();
@@ -432,6 +432,76 @@ export async function grantAdminUserTier(input: {
     source: "admin_correction",
   }), { userId: input.targetUserId });
   return { userId: input.targetUserId, subscriptionTier: input.tier, billingStatus: "lifetime_comp" };
+}
+
+/** Manual coin grant/revoke from the admin console — credits (or debits, negative amount) the
+ * user's global wallet via add_to_wallet with source manual_admin_entry. A timestamped
+ * source_reference keeps every grant distinct so add_to_wallet's dedupe (same user/type/source/
+ * reference) never collapses two separate grants into one. Negative amounts require explicit
+ * allow, otherwise add_to_wallet rejects them as insufficient funds. */
+export async function grantAdminUserCoins(input: {
+  targetUserId: string;
+  amount: number;
+  adminAuthUserId: string;
+}) {
+  const amount = Math.trunc(input.amount);
+  if (!Number.isFinite(amount) || amount === 0) {
+    throw new ApiError(400, "Amount must be a non-zero whole number.");
+  }
+  if (amount < -250_000) {
+    throw new ApiError(400, "Negative grants are capped at -250,000 coins.");
+  }
+  if (amount > 1_000_000_000) {
+    throw new ApiError(400, "Grant capped at 1,000,000,000 coins.");
+  }
+
+  const user = await supabase
+    .from("rec_users")
+    .select("id,username,display_name")
+    .eq("id", input.targetUserId)
+    .maybeSingle();
+  if (user.error) throw new ApiError(500, "Failed to load user.", user.error);
+  if (!user.data) throw new ApiError(404, "User not found.");
+
+  const sourceReference = {
+    adminAuthUserId: input.adminAuthUserId,
+    grantedAt: new Date().toISOString(),
+    manualAdminEntry: true,
+  };
+  const ledger = await supabase.rpc("add_to_wallet", {
+    p_user_id: input.targetUserId,
+    p_amount: amount,
+    p_league_id: null,
+    p_description: amount > 0 ? `Admin coin grant of ${amount}` : `Admin coin correction of ${Math.abs(amount)}`,
+    p_transaction_type: "admin_coin_grant",
+    p_source: "manual_admin_entry",
+    p_source_reference: sourceReference,
+    p_allow_negative: amount < 0,
+  });
+  if (ledger.error) throw new ApiError(500, "Failed to adjust wallet balance.", ledger.error);
+
+  await bestEffort("audit.admin_coins_granted", () => writeAuditLog({
+    action: "admin.coins_granted",
+    entityType: "rec_users",
+    entityId: input.targetUserId,
+    newValue: { amount, ledgerId: ledger.data, sourceReference },
+    reason: `Granted by admin ${input.adminAuthUserId}`,
+    source: "admin_correction",
+  }), { userId: input.targetUserId });
+
+  const balance = await supabase
+    .from("rec_wallets")
+    .select("wallet_balance")
+    .eq("user_id", input.targetUserId)
+    .maybeSingle();
+  if (balance.error) console.error("[ERROR] Failed to read wallet balance after coin grant:", balance.error);
+
+  return {
+    userId: input.targetUserId,
+    amount,
+    ledgerId: ledger.data,
+    walletBalance: balance.data?.wallet_balance ?? null,
+  };
 }
 
 /** Support/admin one-off outreach — DMs the user's linked Discord account if one exists,

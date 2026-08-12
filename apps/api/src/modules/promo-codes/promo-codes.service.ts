@@ -215,7 +215,7 @@ async function applyPromoEffect(userId: string, promo: { id: string; effect_type
   const tier = promo.effect_type === "lifetime_platinum" ? "platinum" : "gold";
   const updated = await supabase
     .from("rec_users")
-    .update({ subscription_tier: tier, billing_status: "lifetime_comp", updated_at: new Date().toISOString() })
+    .update({ subscription_tier: tier, billing_status: "lifetime_comp", subscription_source: "promo_code", updated_at: new Date().toISOString() })
     .eq("id", userId);
   if (updated.error) throw new ApiError(500, "Failed to apply promo code.", updated.error);
 }
