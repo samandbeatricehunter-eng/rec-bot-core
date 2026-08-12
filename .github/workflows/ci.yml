@@ -49,6 +49,12 @@ jobs:
         run: pnpm typecheck
 
       - name: Test
+        # The API's env.ts validates SUPABASE_URL/SERVICE_ROLE_KEY at import, and the test
+        # files transitively import it. The suites are pure logic and never execute a real
+        # query, so schema-satisfying placeholders are enough to let the modules load.
+        env:
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
         run: pnpm test
 
       - name: Build all packages
