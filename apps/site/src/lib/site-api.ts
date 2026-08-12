@@ -80,7 +80,13 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
     | { error?: string; message?: string }
     | null;
   if (!response.ok) {
-    throw new Error(payload?.error ?? payload?.message ?? "Request failed.");
+    // The API's sendError returns {error: "..."} with a plain-language message for 5xx,
+    // or {error, details} for 4xx. Prefer .error (always user-friendly), then .message.
+    // For 5xx with no parseable body, use a generic fallback instead of "Request failed."
+    if (response.status >= 500) {
+      throw new Error(payload?.error ?? "Something went wrong on our end. Please try again.");
+    }
+    throw new Error(payload?.error ?? payload?.message ?? "That request couldn't be completed.");
   }
   return payload as T;
 }
@@ -104,7 +110,13 @@ async function request<T>(path: string, body: unknown = {}): Promise<T> {
     | { error?: string; message?: string }
     | null;
   if (!response.ok) {
-    throw new Error(payload?.error ?? payload?.message ?? "Request failed.");
+    // The API's sendError returns {error: "..."} with a plain-language message for 5xx,
+    // or {error, details} for 4xx. Prefer .error (always user-friendly), then .message.
+    // For 5xx with no parseable body, use a generic fallback instead of "Request failed."
+    if (response.status >= 500) {
+      throw new Error(payload?.error ?? "Something went wrong on our end. Please try again.");
+    }
+    throw new Error(payload?.error ?? payload?.message ?? "That request couldn't be completed.");
   }
   return payload as T;
 }
@@ -834,6 +846,24 @@ export const siteApi = {
   getAdminStats() {
     return request<AdminStats>("/v1/admin/stats", {});
   },
+  listAdminIncidents(input: { status?: string; severity?: string; leagueId?: string; process?: string; limit?: number } = {}) {
+    return request<{ incidents: AdminIncident[] }>("/v1/admin/incidents/list", input);
+  },
+  getAdminIncidentPatterns() {
+    return request<IncidentPatternSummary>("/v1/admin/incidents/patterns", {});
+  },
+  resolveAdminIncident(incidentId: string) {
+    return request<{ id: string; status: string }>("/v1/admin/incidents/resolve", { incidentId });
+  },
+  ignoreAdminIncident(incidentId: string) {
+    return request<{ id: string; status: string }>("/v1/admin/incidents/ignore", { incidentId });
+  },
+  startAdminIncidentWorkorder(input: { incidentId: string; conversationId: string; note?: string | null }) {
+    return request<{ id: string; workorder_status: string; workorder_conversation_id: string }>("/v1/admin/incidents/start-workorder", input);
+  },
+  closeAdminIncidentWorkorder(incidentId: string) {
+    return request<{ id: string; workorder_status: string; status: string }>("/v1/admin/incidents/close-workorder", { incidentId });
+  },
   listAdminAnnouncements() {
     return request<{ announcements: AdminAnnouncement[] }>("/v1/admin/announcements/list", {});
   },
@@ -1274,6 +1304,55 @@ export type AdminStats = {
     context: Record<string, unknown>;
     occurredAt: string;
   }>;
+};
+
+export type AdminIncident = {
+  id: string;
+  league_id: string | null;
+  guild_id: string | null;
+  process: string;
+  severity: string;
+  status: string;
+  title: string;
+  detail: string | null;
+  error_name: string | null;
+  error_message: string | null;
+  error_stack: string | null;
+  context: Record<string, unknown>;
+  occurred_at: string;
+  resolved_at: string | null;
+  resolved_by_user_id: string | null;
+  fingerprint: string;
+  occurrence_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  workorder_status: string;
+  workorder_conversation_id: string | null;
+  workorder_started_at: string | null;
+  workorder_note: string | null;
+};
+
+export type IncidentPatternSummary = {
+  total: number;
+  open: number;
+  resolved: number;
+  ignored: number;
+  last24h: number;
+  last7d: number;
+  byProcess: Array<{ process: string; count: number; openCount: number }>;
+  bySeverity: Array<{ severity: string; count: number }>;
+  topPatterns: Array<{
+    fingerprint: string;
+    process: string;
+    title: string;
+    errorMessage: string | null;
+    occurrenceCount: number;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    status: string;
+    leagueId: string | null;
+  }>;
+  dailyVolume: Array<{ date: string; count: number }>;
 };
 
 export type SiteHomeCard = {

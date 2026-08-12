@@ -16,7 +16,21 @@ async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`REC API request failed: ${response.status} ${await response.text()}`);
+    // Try to surface the API's own friendly .error string. If the body is JSON with an
+    // .error field, use that (it's already plain language from sendError). Otherwise fall
+    // back to a generic message instead of leaking raw HTTP status + response text.
+    const body = await response.text();
+    try {
+      const parsed = JSON.parse(body) as { error?: string; message?: string };
+      const friendly = parsed.error ?? parsed.message;
+      if (friendly) throw new Error(friendly);
+    } catch {
+      // Not JSON or no .error field — use a generic message.
+    }
+    if (response.status >= 500) {
+      throw new Error("The REC service is having trouble right now. Please try again in a moment.");
+    }
+    throw new Error("That request couldn't be completed. Please check the details and try again.");
   }
 
   return response.json() as Promise<T>;

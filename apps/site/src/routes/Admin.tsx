@@ -6,15 +6,17 @@ import {
   siteApi,
   type AdminAnnouncement,
   type AdminDiscordConfig,
+  type AdminIncident,
   type AdminLeagueMember,
   type AdminLeagueSummary,
   type AdminStats,
   type AdminUserSummary,
+  type IncidentPatternSummary,
   type PromoCode,
   type PromoCodeEffectType,
 } from "../lib/site-api.js";
 
-type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "economy" | "discord";
+type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "economy" | "discord" | "errors";
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "stats", label: "Stats" },
@@ -24,6 +26,7 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "promo-codes", label: "Promo Codes" },
   { id: "economy", label: "Economy Values" },
   { id: "discord", label: "Discord" },
+  { id: "errors", label: "Error Log" },
 ];
 
 const EMPTY_DRAFT = {
@@ -1007,6 +1010,216 @@ function ImpersonatePanel() {
   );
 }
 
+// ── Error Log / Incidents Panel ──
+
+function severityColor(severity: string): string {
+  if (severity === "critical") return "#dc2626";
+  if (severity === "high") return "#ea580c";
+  if (severity === "medium") return "#ca8a04";
+  return "#65a30d";
+}
+
+function statusBadge(status: string): string {
+  if (status === "open") return "🔴 Open";
+  if (status === "resolved") return "✅ Resolved";
+  if (status === "ignored") return "⚪ Ignored";
+  return status;
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+function IncidentsPanel() {
+  const [incidents, setIncidents] = useState<AdminIncident[] | null>(null);
+  const [patterns, setPatterns] = useState<IncidentPatternSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("open");
+  const [filterProcess, setFilterProcess] = useState<string>("");
+
+  function reload() {
+    setError(null);
+    Promise.all([
+      siteApi.listAdminIncidents({ status: filterStatus || undefined, process: filterProcess || undefined, limit: 100 }),
+      siteApi.getAdminIncidentPatterns(),
+    ]).then(([inc, pat]) => {
+      setIncidents(inc.incidents);
+      setPatterns(pat);
+    }).catch((err) => setError(err instanceof Error ? err.message : "Could not load error log."));
+  }
+
+  useEffect(() => { reload(); }, [filterStatus, filterProcess]);
+
+  async function action(incidentId: string, fn: () => Promise<unknown>) {
+    setBusy(incidentId);
+    try {
+      await fn();
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function messageCommish(incident: AdminIncident) {
+    if (!incident.league_id) { setError("This incident isn't tied to a league."); return; }
+    setBusy(incident.id);
+    try {
+      const { conversationId } = await siteApi.openCommissioner(incident.league_id);
+      const note = `Regarding error: "${incident.title}" (occurred ${relativeTime(incident.occurred_at)}${incident.occurrence_count > 1 ? `, seen ${incident.occurrence_count}×` : ""}). An admin is looking into this issue.`;
+      await siteApi.startAdminIncidentWorkorder({ incidentId: incident.id, conversationId, note });
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start workorder.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (error) return (
+    <div>
+      <p className="site-auth-error">{error}</p>
+      <button type="button" onClick={() => { setError(null); reload(); }} className="site-account-button">Retry</button>
+    </div>
+  );
+  if (!incidents || !patterns) return <p className="site-muted">Loading error log…</p>;
+
+  const maxDaily = Math.max(1, ...patterns.dailyVolume.map((d) => d.count));
+
+  return (
+    <div>
+      {/* Volume summary */}
+      <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", marginBottom: 16 }}>
+        <article><span>Open</span><strong style={{ color: "#dc2626" }}>{patterns.open}</strong></article>
+        <article><span>Resolved</span><strong style={{ color: "#16a34a" }}>{patterns.resolved}</strong></article>
+        <article><span>Ignored</span><strong>{patterns.ignored}</strong></article>
+        <article><span>Last 24h</span><strong>{patterns.last24h}</strong></article>
+        <article><span>Last 7d</span><strong>{patterns.last7d}</strong></article>
+        <article><span>Total</span><strong>{patterns.total}</strong></article>
+      </div>
+
+      {/* Sparkline */}
+      {patterns.dailyVolume.some((d) => d.count > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <strong style={{ fontSize: "0.85rem", color: "var(--site-muted, #888)" }}>Error volume (last 14 days)</strong>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 48, marginTop: 4 }}>
+            {patterns.dailyVolume.map((d) => (
+              <div key={d.date} title={`${d.date}: ${d.count}`} style={{
+                flex: 1, height: `${(d.count / maxDaily) * 100}%`, minHeight: 2,
+                background: d.count > 0 ? "#dc2626" : "#e5e7eb", borderRadius: 2,
+                opacity: d.count > 0 ? 1 : 0.4,
+              }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top patterns */}
+      {patterns.topPatterns.length > 0 && (
+        <details style={{ marginBottom: 16 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Top recurring patterns ({patterns.topPatterns.length})</summary>
+          <ul className="site-account-notif-list" style={{ marginTop: 8 }}>
+            {patterns.topPatterns.map((p) => (
+              <li key={p.fingerprint}>
+                <strong>{p.title}</strong>
+                <span>{p.process} · {p.occurrenceCount}× since {relativeTime(p.firstSeenAt)} · {statusBadge(p.status)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <label style={{ fontSize: "0.85rem" }}>
+          Status:{" "}
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+            <option value="ignored">Ignored</option>
+            <option value="">All</option>
+          </select>
+        </label>
+        <label style={{ fontSize: "0.85rem" }}>
+          Process:{" "}
+          <input type="text" placeholder="filter…" value={filterProcess} onChange={(e) => setFilterProcess(e.target.value)} style={{ width: 180 }} />
+        </label>
+      </div>
+
+      {/* Incident list */}
+      {incidents.length === 0 ? (
+        <p className="site-muted">No incidents match this filter.</p>
+      ) : incidents.map((incident) => (
+        <article key={incident.id} className="site-card" style={{ marginBottom: 12, borderLeft: `4px solid ${severityColor(incident.severity)}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <strong>[{incident.severity.toUpperCase()}] {incident.title}</strong>
+              {incident.occurrence_count > 1 && (
+                <span style={{ marginLeft: 8, padding: "2px 6px", background: "#fef3c7", borderRadius: 4, fontSize: "0.75rem", fontWeight: 600 }}>
+                  {incident.occurrence_count}× repeats
+                </span>
+              )}
+              <p className="site-muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                {incident.process} · {relativeTime(incident.last_seen_at)}
+                {incident.occurrence_count > 1 && ` · first seen ${relativeTime(incident.first_seen_at)}`}
+                {incident.league_id && ` · League `}
+                {incident.league_id && <a href={`/league/${incident.league_id}`} style={{ color: "var(--site-link, #2563eb)" }}>{incident.league_id.slice(0, 8)}…</a>}
+              </p>
+              {incident.error_message && <p style={{ fontSize: "0.85rem", marginTop: 4 }}><strong>Cause:</strong> {incident.error_name ?? "Error"}: {incident.error_message}</p>}
+              {incident.workorder_status === "contacted" && incident.workorder_started_at && (
+                <p style={{ fontSize: "0.85rem", marginTop: 4, color: "#2563eb" }}>
+                  📬 Workorder started {relativeTime(incident.workorder_started_at)}
+                  {incident.workorder_note && ` — "${incident.workorder_note.slice(0, 100)}${incident.workorder_note.length > 100 ? "…" : ""}"`}
+                </p>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+              {incident.status === "open" && (
+                <>
+                  {incident.league_id && incident.workorder_status === "none" && (
+                    <button type="button" disabled={busy === incident.id} onClick={() => messageCommish(incident)}
+                      className="site-account-button" style={{ fontSize: "0.8rem", padding: "4px 10px" }}>
+                      {busy === incident.id ? "…" : "Message Commish"}
+                    </button>
+                  )}
+                  <button type="button" disabled={busy === incident.id} onClick={() => action(incident.id, () => siteApi.resolveAdminIncident(incident.id))}
+                    className="site-account-button" style={{ fontSize: "0.8rem", padding: "4px 10px", background: "#16a34a" }}>
+                    {busy === incident.id ? "…" : "Resolve"}
+                  </button>
+                  <button type="button" disabled={busy === incident.id} onClick={() => action(incident.id, () => siteApi.ignoreAdminIncident(incident.id))}
+                    className="site-account-button" style={{ fontSize: "0.8rem", padding: "4px 10px", background: "#6b7280" }}>
+                    {busy === incident.id ? "…" : "Ignore"}
+                  </button>
+                </>
+              )}
+              {incident.workorder_status === "contacted" && (
+                <button type="button" disabled={busy === incident.id} onClick={() => action(incident.id, () => siteApi.closeAdminIncidentWorkorder(incident.id))}
+                  className="site-account-button" style={{ fontSize: "0.8rem", padding: "4px 10px", background: "#16a34a" }}>
+                  {busy === incident.id ? "…" : "Close Workorder"}
+                </button>
+              )}
+            </div>
+          </div>
+          {(incident.error_stack || incident.detail) && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: "0.85rem" }}>Debug details</summary>
+              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "0.75rem", marginTop: 4, maxHeight: 200, overflow: "auto" }}>
+                {incident.error_stack ?? incident.detail}
+              </pre>
+            </details>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function AdminPage() {
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
   const [tab, setTab] = useState<AdminTab>("stats");
@@ -1060,6 +1273,7 @@ export function AdminPage() {
       {tab === "promo-codes" ? <PromoCodesPanel /> : null}
       {tab === "economy" ? <EconomyValuesPanel /> : null}
       {tab === "discord" ? <DiscordConfigPanel /> : null}
+      {tab === "errors" ? <IncidentsPanel /> : null}
     </div>
   );
 }

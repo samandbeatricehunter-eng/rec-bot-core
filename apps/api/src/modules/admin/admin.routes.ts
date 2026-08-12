@@ -20,6 +20,14 @@ import {
   searchAdminUsers,
   updateAdminAnnouncement,
 } from "./admin.service.js";
+import {
+  resolveIncident,
+  ignoreIncident,
+  startWorkorder,
+  closeWorkorder,
+  listIncidents,
+  getIncidentPatternSummary,
+} from "./incident.service.js";
 import { getDiscordGovernanceSnapshot, getSiteDiscordConfig, syncAllRecruitingAds, updateSiteDiscordConfig } from "./site-discord-config.service.js";
 import { getGlobalEconomyConfig, updateGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
@@ -305,6 +313,88 @@ export async function adminRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await getDiscordGovernanceSnapshot());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // ── Incident management (error log) ──
+
+  app.post("/v1/admin/incidents/list", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z
+        .object({
+          status: z.string().optional(),
+          severity: z.string().optional(),
+          leagueId: z.string().uuid().optional(),
+          process: z.string().optional(),
+          limit: z.number().int().optional(),
+        })
+        .parse(request.body ?? {});
+      return reply.send({ incidents: await listIncidents(body) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/patterns", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      return reply.send(await getIncidentPatternSummary());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/resolve", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z.object({ incidentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await resolveIncident({ incidentId: body.incidentId, resolvedByUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/ignore", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z.object({ incidentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await ignoreIncident({ incidentId: body.incidentId, resolvedByUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/start-workorder", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z
+        .object({
+          incidentId: z.string().uuid(),
+          conversationId: z.string().uuid(),
+          note: z.string().trim().max(2000).nullable().optional(),
+        })
+        .parse(request.body ?? {});
+      return reply.send(
+        await startWorkorder({
+          incidentId: body.incidentId,
+          startedByUserId: session.authUserId,
+          conversationId: body.conversationId,
+          note: body.note ?? null,
+        }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/close-workorder", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z.object({ incidentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await closeWorkorder({ incidentId: body.incidentId, resolvedByUserId: session.authUserId }));
     } catch (error) {
       return sendError(reply, error);
     }
