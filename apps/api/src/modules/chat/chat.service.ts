@@ -121,6 +121,13 @@ async function requireLinkedUserId(discordId: string): Promise<string> {
 }
 
 async function loadLeagueAggregate(userId: string, leagueId: string): Promise<ChannelAggregate> {
+  // leagueId is bound twice below with two different placeholders ($2 uuid, $3 text) rather
+  // than reusing $2 in both spots — Postgres unifies a single parameter to one type across the
+  // whole statement, and the explicit ::text cast on the read-state join was winning that
+  // unification, so `m.league_id = $2` (a uuid column) was failing with "operator does not
+  // exist: uuid = text" on every single call (silently swallowed by the .catch() in
+  // listChatChannels, so it never surfaced as a user-facing error — just always-zero unread
+  // counts/previews for the League chat channel).
   const { rows } = await getPgPool().query(
     `
       select
@@ -129,10 +136,10 @@ async function loadLeagueAggregate(userId: string, leagueId: string): Promise<Ch
         (array_agg(m.body order by m.created_at desc))[1] as last_body
       from rec_league_chat_messages m
       left join rec_chat_read_state r
-        on r.user_id = $1 and r.channel_type = 'league' and r.channel_id = $2::text
+        on r.user_id = $1 and r.channel_type = 'league' and r.channel_id = $3
       where m.league_id = $2
     `,
-    [userId, leagueId],
+    [userId, leagueId, leagueId],
   );
   const row = rows[0] as { unread_count: number; last_message_at: string | Date | null; last_body: string | null } | undefined;
   return {

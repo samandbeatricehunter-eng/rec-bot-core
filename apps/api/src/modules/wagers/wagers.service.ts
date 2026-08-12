@@ -7,7 +7,7 @@ import { canonicalConferenceName, WAGER_MARKET_BY_KEY, parlayOdds, potentialPayo
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getGameWagerOptions } from "./odds.service.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { listLeagueCommissionerUserIds, notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -105,11 +105,16 @@ export async function listWagerableGames(guildId: string, discordId: string) {
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(discordId);
   const myTeamId = await activeTeamId(leagueId, userId);
+  // Every season restarts at week 1 — without a season_id filter this can also surface a prior
+  // season's game at the same week number as wagerable (same bug class as the hub hero card and
+  // the GOTW dropdown/auto-assign).
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   const { data: games, error } = await supabase
     .from("rec_games")
     .select("id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
     .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
     .eq("week_number", weekNumber)
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load games for wagering.", error);

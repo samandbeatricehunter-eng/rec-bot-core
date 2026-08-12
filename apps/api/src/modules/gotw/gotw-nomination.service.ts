@@ -7,7 +7,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
 
@@ -144,6 +144,12 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context);
+  // Every season restarts at week 1, so without a season_id filter this also pulls last
+  // season's (or any prior season's) games at the same week number once a league is on its
+  // second season or later — the exact bug behind the Advance wizard's GOTW dropdown showing
+  // matchups that don't belong to the current week (the same class of bug already fixed for
+  // the hub hero card in user.service.ts).
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   const gamesRes = await supabase
     .from("rec_games")
@@ -152,6 +158,7 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
       "away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)," +
       "rivalry:rec_league_rivalries(rivalry_name,is_active)")
     .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
     .eq("week_number", weekNumber);
   if (gamesRes.error) throw new ApiError(500, "Failed to load games for GOTW nomination.", gamesRes.error);
 

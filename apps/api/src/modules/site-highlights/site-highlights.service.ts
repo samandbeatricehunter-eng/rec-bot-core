@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 import { reviewHighlightPayout } from "../highlights/highlights.service.js";
 import {
   createHighlightDirectUpload,
@@ -107,10 +108,15 @@ export async function listSiteUploadableGames(input: {
   if (!league.data) throw new ApiError(404, "League not found.");
 
   const week = Number(league.data.current_week ?? 1);
+  // Every season restarts at week 1 — without a season_id filter this can also match a prior
+  // season's game at the same week number (same bug class as the hub hero card, GOTW
+  // dropdown/auto-assign, and wagerable-games list).
+  const seasonId = await resolveSeasonId(input.leagueId, Number(league.data.season_number ?? 1));
   const games = await supabase
     .from("rec_games")
     .select("id,week_number,home_user_id,away_user_id,home_team_id,away_team_id")
     .eq("league_id", input.leagueId)
+    .eq("season_id", seasonId)
     .eq("week_number", week)
     .or(`home_user_id.eq.${linked.recUserId},away_user_id.eq.${linked.recUserId}`);
   if (games.error) throw new ApiError(500, "Failed to load matchups.", games.error);

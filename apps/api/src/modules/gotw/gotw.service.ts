@@ -1,7 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -357,11 +357,16 @@ export async function getGotwGameResult(input: {
 export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber: number; allH2h?: boolean }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
+  // Every season restarts at week 1 — without a season_id filter this also matches a prior
+  // season's game at the same week number (same bug class already fixed for the hub hero card
+  // and the GOTW nomination dropdown).
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
   const games = await supabase
     .from("rec_games")
     .select("id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId)
+    .eq("season_id", seasonId)
     .eq("week_number", input.weekNumber);
   if (games.error) throw new ApiError(500, "Failed to load flagged postseason games.", games.error);
   const flagged = (games.data ?? []).filter((g: any) =>
