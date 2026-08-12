@@ -168,6 +168,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  releaseTeamLinksOnMemberLeft: (input: { guildId: string; discordId: string }) =>
+    recFetch<{ releasedAssignments: number; rejectedRequests: number; userId: string | null; teamIds: string[] }>(
+      "/v1/team-ownership/member-left",
+      { method: "POST", body: JSON.stringify(input) }
+    ),
+
   createCustomTeamReplacement: (input: {
     guildId: string;
     replacementTeamAbbreviation: string;

@@ -4,7 +4,7 @@ import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
@@ -877,4 +877,90 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
   syncRecruitingAd(league.id);
 
   return { league, unlinkedCount: result.data?.length ?? 0, discordCleanup: cleanup };
+}
+
+/** Releases every team link a member holds in the league(s) linked to a guild when they leave
+ * the Discord server (guildMemberRemove). Without this, their active rec_team_assignments row
+ * lingers with ended_at null forever, so rec_roster_league_conferences keeps striking the team
+ * through in /openteams even though the member is gone. Also rejects the member's not-yet-
+ * completed pending/approved team-link requests so those teams free up too. */
+export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; discordId: string }) {
+  const { league } = await getCurrentLeagueForGuild(input.guildId);
+
+  const account = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id")
+    .eq("discord_id", input.discordId)
+    .maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to look up the leaving member's account.", account.error);
+
+  let userId = account.data?.user_id ?? null;
+  if (!userId && isSiteOnlyDiscordId(input.discordId)) {
+    const siteUserId = recUserIdFromSiteOnlyDiscordId(input.discordId);
+    const siteUser = await supabase.from("rec_users").select("id").eq("id", siteUserId).maybeSingle();
+    if (siteUser.data?.id) userId = siteUser.data.id;
+  }
+  if (!userId) return { releasedAssignments: 0, rejectedRequests: 0, userId: null };
+
+  const nowIso = new Date().toISOString();
+  const ended = await supabase
+    .from("rec_team_assignments")
+    .update({ assignment_status: "unlinked", ended_at: nowIso, updated_at: nowIso })
+    .eq("league_id", league.id)
+    .eq("user_id", userId)
+    .is("ended_at", null)
+    .select("team_id");
+  if (ended.error) throw new ApiError(500, "Failed to release the leaving member's team assignments.", ended.error);
+
+  // Reject any pending/approved requests this member still has — same team-freeing effect, and
+  // prevents an orphaned "approved" request from forever hiding the team (the state that caused
+  // the original Commanders incident).
+  const rejected = await supabase
+    .from("rec_team_link_requests")
+    .update({
+      status: "rejected",
+      resolved_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq("league_id", league.id)
+    .eq("requester_user_id", userId)
+    .in("status", ["pending", "approved"])
+    .select("id");
+  if (rejected.error) throw new ApiError(500, "Failed to close the leaving member's pending team requests.", rejected.error);
+
+  if (ended.data?.length || rejected.data?.length) {
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "denied", reviewed_at: nowIso })
+      .eq("league_id", league.id)
+      .eq("requester_user_id", userId)
+      .eq("status", "pending")
+      .in("source_table", ["rec_team_link_requests"]);
+  }
+
+  if (ended.data?.length) syncRecruitingAd(league.id);
+
+  if (ended.data?.length || rejected.data?.length) {
+    await writeAuditLog({
+      action: "team_links.released_on_member_leave",
+      entityType: "rec_league_memberships",
+      entityId: league.id,
+      newValue: {
+        guildId: input.guildId,
+        leagueId: league.id,
+        discordId: input.discordId,
+        releasedAssignments: ended.data?.length ?? 0,
+        rejectedRequests: rejected.data?.length ?? 0,
+      },
+      reason: `Member left Discord server ${input.guildId}`,
+      source: "manual_admin_entry",
+    });
+  }
+
+  return {
+    releasedAssignments: ended.data?.length ?? 0,
+    rejectedRequests: rejected.data?.length ?? 0,
+    userId,
+    teamIds: (ended.data ?? []).map((row) => row.team_id),
+  };
 }

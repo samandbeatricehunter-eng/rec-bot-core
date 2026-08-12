@@ -548,6 +548,21 @@ client.on("guildMemberAdd", async (member) => {
   });
 });
 
+// Frees a departing member's team assignments + pending/approved team-link requests so /openteams
+// (rec_roster_league_conferences) stops striking their teams through after they leave. Before
+// this handler existed, an active rec_team_assignments row stayed ended_at null forever and each
+// departed member permanently hid a team from the open list.
+client.on("guildMemberRemove", async (member) => {
+  if (member.user.bot) return;
+  const result = await recApi.releaseTeamLinksOnMemberLeft({ guildId: member.guild.id, discordId: member.id }).catch((error) => {
+    console.error(`Failed to release team links for ${member.id} leaving guild ${member.guild.id} (non-fatal)`, error);
+    return null;
+  });
+  if (result && result.releasedAssignments) {
+    console.log(`Released ${result.releasedAssignments} team assignment(s) for member ${member.id} leaving guild ${member.guild.id}`);
+  }
+});
+
 async function registerCommandsForVisibleGuilds() {
   const guildIds = [...client.guilds.cache.keys()];
   if (!guildIds.length) {
