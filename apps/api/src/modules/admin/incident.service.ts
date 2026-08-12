@@ -254,6 +254,20 @@ export type IncidentPatternSummary = {
   dailyVolume: Array<{ date: string; count: number }>;
 };
 
+/** node-pg returns timestamptz as Date; PostgREST-shaped callers may pass ISO strings. */
+function asIsoTimestamp(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? value.toISOString() : null;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : value;
+  }
+  return null;
+}
+
 export async function getIncidentPatternSummary(): Promise<IncidentPatternSummary> {
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
@@ -294,8 +308,11 @@ export async function getIncidentPatternSummary(): Promise<IncidentPatternSummar
     else if (inc.status === "resolved") resolved++;
     else if (inc.status === "ignored") ignored++;
 
-    if (inc.last_seen_at && inc.last_seen_at >= since24h) last24h++;
-    if (inc.last_seen_at && inc.last_seen_at >= since7d) last7d++;
+    const lastSeenAt = asIsoTimestamp(inc.last_seen_at);
+    const firstSeenAt = asIsoTimestamp(inc.first_seen_at);
+
+    if (lastSeenAt && lastSeenAt >= since24h) last24h++;
+    if (lastSeenAt && lastSeenAt >= since7d) last7d++;
 
     // By process.
     const proc = byProcessMap.get(inc.process) ?? { count: 0, openCount: 0 };
@@ -307,8 +324,8 @@ export async function getIncidentPatternSummary(): Promise<IncidentPatternSummar
     bySeverityMap.set(inc.severity, (bySeverityMap.get(inc.severity) ?? 0) + 1);
 
     // Daily volume (by first_seen_at date).
-    if (inc.first_seen_at) {
-      const dateKey = inc.first_seen_at.slice(0, 10);
+    if (firstSeenAt) {
+      const dateKey = firstSeenAt.slice(0, 10);
       const bucket = dailyBuckets.find((b) => b.date === dateKey);
       if (bucket) bucket.count++;
     }
@@ -322,8 +339,8 @@ export async function getIncidentPatternSummary(): Promise<IncidentPatternSummar
         title: inc.title,
         errorMessage: inc.error_message,
         occurrenceCount: inc.occurrence_count,
-        firstSeenAt: inc.first_seen_at,
-        lastSeenAt: inc.last_seen_at,
+        firstSeenAt: firstSeenAt ?? "",
+        lastSeenAt: lastSeenAt ?? "",
         status: inc.status,
         leagueId: inc.league_id,
       });
