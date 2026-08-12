@@ -50,6 +50,47 @@ function syncRecruitingAd(leagueId: string) {
     .catch((error) => console.error("[WARN] Failed to sync recruiting-board ad after team-ownership change:", error));
 }
 
+type DefaultTeamInsertRow = {
+  league_id: string;
+  name: string;
+  abbreviation: string;
+  conference: string | null;
+  division: string | null;
+  display_city: string | null;
+  display_nick: string | null;
+  display_abbr?: string | null;
+  is_relocated?: boolean;
+  original_abbreviation?: string | null;
+  source: string;
+  primary_color: string;
+};
+
+async function replaceLeagueDefaultTeamsAtomic(input: {
+  leagueId: string;
+  teams: DefaultTeamInsertRow[];
+  blockIfRelocated: boolean;
+}) {
+  const result = await supabase.rpc("rec_replace_league_default_teams", {
+    p_league_id: input.leagueId,
+    // node-pg serializes JS arrays as Postgres arrays; stringify so the jsonb param receives JSON.
+    p_teams: JSON.stringify(input.teams),
+    p_block_if_relocated: input.blockIfRelocated,
+  });
+  if (result.error) {
+    const message = String((result.error as { message?: string })?.message ?? result.error);
+    if (message.includes("DEFAULT_TEAMS_BLOCKED_BY_RELOCATED")) {
+      throw new ApiError(409, "Default teams cannot be reset after a custom replacement has been created in this league.");
+    }
+    throw new ApiError(500, "We couldn't replace the default league teams. Please try again.", result.error);
+  }
+  const payload = (result.data ?? null) as { teams?: unknown[]; teamCount?: number } | null;
+  const teams = Array.isArray(payload?.teams) ? payload!.teams : [];
+  if (!teams.length) {
+    throw new ApiError(500, "We couldn't replace the default league teams. Please try again.", result.data);
+  }
+  return teams;
+}
+
 /** Clears roles/nickname managed by an ended team assignment, regardless of which surface
  * initiated the unlink. */
 export async function clearDiscordTeamIdentityForUsers(input: { leagueId: string; guildId?: string | null; userIds: string[] }) {
@@ -154,14 +195,11 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     primary_color: isCfb ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF"
   }));
 
-  const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
-  if (clearedAssignments.error) throw new ApiError(500, "We couldn't clear existing team links. Please try again.", clearedAssignments.error);
-
-  const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
-  if (clearedTeams.error) throw new ApiError(500, "We couldn't clear existing league teams. Please try again.", clearedTeams.error);
-
-  const result = await supabase.from("rec_teams").insert(rows).select("*");
-  if (result.error) throw new ApiError(500, "We couldn't create the default league teams. Please try again.", result.error);
+  const teams = await replaceLeagueDefaultTeamsAtomic({
+    leagueId: league.id,
+    teams: rows,
+    blockIfRelocated: false,
+  });
   await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
@@ -178,14 +216,11 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     requestedByDiscordId: input.requestedByDiscordId ?? null,
   }).catch(() => null);
 
-  return { league, teams: result.data, defaultScheduleSeed: seedResult };
+  return { league, teams, defaultScheduleSeed: seedResult };
 }
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const customTeams = await supabase.from("rec_teams").select("id").eq("league_id", league.id).eq("is_relocated", true).limit(1);
-  if (customTeams.error) throw new ApiError(500, "We couldn't validate permanent custom teams. Please try again.", customTeams.error);
-  if (customTeams.data?.length) throw new ApiError(409, "Default teams cannot be reset after a custom replacement has been created in this league.");
   const isCfb = league.game === "cfb_27";
   const catalog = getDefaultTeamCatalog(league.game);
   const rows = catalog.map((team) => ({
@@ -203,26 +238,23 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     primary_color: isCfb ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF",
   }));
 
-  const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
-  if (clearedAssignments.error) throw new ApiError(500, "We couldn't clear existing team links. Please try again.", clearedAssignments.error);
-
-  const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
-  if (clearedTeams.error) throw new ApiError(500, "We couldn't clear existing league teams. Please try again.", clearedTeams.error);
-
-  const result = await supabase.from("rec_teams").insert(rows).select("*");
-  if (result.error) throw new ApiError(500, "We couldn't reset the default league teams. Please try again.", result.error);
+  const teams = await replaceLeagueDefaultTeamsAtomic({
+    leagueId: league.id,
+    teams: rows,
+    blockIfRelocated: true,
+  });
   await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
   await writeAuditLog({
     action: league.game === "cfb_27" ? "teams.default_cfb.reset" : "teams.default_nfl.reset",
     entityType: "rec_teams",
-    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: result.data?.length ?? 0 },
+    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: teams.length },
     reason: `${defaultTeamResetDescription(league.game)} reset through Team Management.`,
     source: "manual_admin_entry"
   });
 
-  return { league, teams: result.data ?? [] };
+  return { league, teams };
 }
 
 export async function createCustomTeamReplacement(input: CustomTeamReplacementInput) {
