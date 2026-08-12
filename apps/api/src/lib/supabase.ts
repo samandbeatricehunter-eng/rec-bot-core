@@ -561,3 +561,9 @@ export const supabase = {
   rpc,
   storage: storageClient.storage
 };
+
+// Structural types so query helpers (and their tests) can accept the client without
+// re-importing the concrete class. `import type` of these is erased at runtime, so a
+// helper module that only needs the shapes never pulls the live client into a test.
+export type SupabaseClient = typeof supabase;
+export type SupabaseQueryBuilder = ReturnType<SupabaseClient["from"]>;

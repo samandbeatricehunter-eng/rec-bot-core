@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
@@ -128,14 +129,9 @@ async function publishLeagueAdvanceAnnouncement(input: {
         // slate for that week number, not just the current one (the exact bug that put last
         // year's Week 1 games in this year's advance announcement).
         const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
-        return supabase
-          .from("rec_games")
-          .select(
-            "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
-          )
-          .eq("league_id", input.leagueId)
-          .eq("season_id", seasonId)
-          .eq("week_number", input.weekNumber)
+        return leagueWeekGamesQuery(supabase, { leagueId: input.leagueId, seasonId, weekNumber: input.weekNumber },
+          "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+        )
           .not("home_user_id", "is", null)
           .not("away_user_id", "is", null)
           .order("created_at", { ascending: true });
@@ -202,9 +198,11 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
   const context = await getCurrentLeagueContext(input.guildId);
-  const games = await supabase.from("rec_games")
-    .select("id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
-    .eq("league_id", context.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber);
+  // rec_games is scoped by season_id, not season_number (the column doesn't exist on rec_games) —
+  // filtering by season_number errored on every call, so this panel load always threw.
+  const seasonId = await resolveSeasonId(context.leagueId, input.seasonNumber);
+  const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
+    "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)");
   if (games.error) throw new ApiError(500, "Failed to load box-score channel matchups.", games.error);
   const fields = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).slice(0, 25).map((game: any) => {
     const home = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
@@ -311,12 +309,8 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
 
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
-  const { data: games, error } = await supabase
-    .from("rec_games")
-    .select("id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
-    .eq("league_id", context.leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber);
+  const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
+    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
   if (error) throw new ApiError(500, "Failed to load week schedule.", error);
 
   const [results, boxScores] = await Promise.all([
@@ -545,12 +539,8 @@ export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: s
   }
 
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
-  const { data: games, error } = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
-    .eq("league_id", context.leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", currentWeek);
+  const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: currentWeek },
+    "id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
   if (error) throw new ApiError(500, "Failed to load week schedule.", error);
 
   const h2hGames = (games ?? []).filter((g: any) => g.home_user_id && g.away_user_id);

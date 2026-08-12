@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { ANALYST_META, type AnalystVoice } from "./roundtable-take-bank.js";
 import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
@@ -35,13 +36,9 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
   const seasonNumber = resolveSeasonNumber(context);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  const gamesRes = await supabase
-    .from("rec_games")
-    .select(
-      "id,week_number,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_abbr,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_abbr,abbreviation)",
-    )
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
+  const gamesRes = await leagueSeasonGamesQuery(supabase, { leagueId, seasonId },
+    "id,week_number,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_abbr,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_abbr,abbreviation)",
+  )
     .gte("week_number", input.weekFrom)
     .lte("week_number", input.weekTo)
     .order("week_number", { ascending: true });

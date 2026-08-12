@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getPgPool } from "../../db/client.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
 // URL-safe, human-readable identifier for the public league page — derived from the league
@@ -45,10 +46,9 @@ export async function getPublicLeagueSnapshot(guildId: string) {
   const [teamsResult, assignmentsResult, weekGamesResult, seasonGamesResult] = await Promise.all([
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_nick,display_city,is_relocated,conference").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
-    supabase.from("rec_games").select("id,home_team_id,away_team_id,home_score,away_score,status")
-      .eq("league_id", leagueId).eq("season_id", seasonId).eq("week_number", currentWeek),
-    supabase.from("rec_games").select("home_team_id,away_team_id,home_score,away_score")
-      .eq("league_id", leagueId).eq("season_id", seasonId).eq("status", "completed"),
+    leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: currentWeek }, "id,home_team_id,away_team_id,home_score,away_score,status"),
+    leagueSeasonGamesQuery(supabase, { leagueId, seasonId }, "home_team_id,away_team_id,home_score,away_score")
+      .eq("status", "completed"),
   ]);
   if (teamsResult.error) throw new ApiError(500, "Failed to load teams.", teamsResult.error);
   if (assignmentsResult.error) throw new ApiError(500, "Failed to load team assignments.", assignmentsResult.error);

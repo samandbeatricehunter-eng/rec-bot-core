@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { reviewHighlightPayout } from "../highlights/highlights.service.js";
 import {
   createHighlightDirectUpload,
@@ -112,12 +113,8 @@ export async function listSiteUploadableGames(input: {
   // season's game at the same week number (same bug class as the hub hero card, GOTW
   // dropdown/auto-assign, and wagerable-games list).
   const seasonId = await resolveSeasonId(input.leagueId, Number(league.data.season_number ?? 1));
-  const games = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id,home_team_id,away_team_id")
-    .eq("league_id", input.leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", week)
+  const games = await leagueWeekGamesQuery(supabase, { leagueId: input.leagueId, seasonId, weekNumber: week },
+    "id,week_number,home_user_id,away_user_id,home_team_id,away_team_id")
     .or(`home_user_id.eq.${linked.recUserId},away_user_id.eq.${linked.recUserId}`);
   if (games.error) throw new ApiError(500, "Failed to load matchups.", games.error);
 

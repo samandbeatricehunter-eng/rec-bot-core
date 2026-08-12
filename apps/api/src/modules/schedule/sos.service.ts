@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 
 const SOS_CACHE_TTL_MS = 60_000;
@@ -189,11 +190,8 @@ async function computeLeagueSosBase(guildId: string) {
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
-    supabase
-      .from("rec_games")
-      .select("week_number,home_team_id,away_team_id")
-      .eq("league_id", leagueId)
-      .eq("season_id", seasonId)
+    leagueSeasonGamesQuery(supabase, { leagueId, seasonId },
+      "week_number,home_team_id,away_team_id")
       .lte("week_number", regularSeasonWeeks(context.rec_leagues.game)),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for SOS.", teamsRes.error);

@@ -8,6 +8,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getGameWagerOptions } from "./odds.service.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { listLeagueCommissionerUserIds, notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -110,12 +111,8 @@ export async function listWagerableGames(guildId: string, discordId: string) {
   // the GOTW dropdown/auto-assign).
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  const { data: games, error } = await supabase
-    .from("rec_games")
-    .select("id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load games for wagering.", error);
 

@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
@@ -58,12 +59,8 @@ export async function listManualScoreGames(input: {
 }): Promise<{ seasonNumber: number; weekNumber: number; games: ManualScoreGame[]; lockedCount: number }> {
   const { leagueId, seasonNumber, seasonId, weekNumber } = await loadWeekContext(input.guildId, input.weekNumber);
 
-  const { data: games, error } = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load the week's scheduled games.", error);
   if (!games?.length) throw new ApiError(400, `No games are scheduled for Week ${weekNumber}. Import the schedule first, then try again.`);

@@ -4,6 +4,7 @@ import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -115,8 +116,7 @@ async function getActiveAssignment(leagueId: string, userId: string) {
 async function closeGameMarketsAfterStream(input: { guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; teamId: string | null }) {
   if (!input.teamId) return null;
   const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
-  const game = await supabase.from("rec_games").select("id")
-    .eq("league_id", input.leagueId).eq("season_id", seasonId).eq("week_number", input.weekNumber)
+  const game = await leagueWeekGamesQuery(supabase, { leagueId: input.leagueId, seasonId, weekNumber: input.weekNumber }, "id")
     .or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to locate streamed matchup.", game.error);
   if (!game.data?.id) return null;

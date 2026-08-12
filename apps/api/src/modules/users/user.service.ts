@@ -4,6 +4,7 @@ import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.servi
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
@@ -932,11 +933,8 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const seasonId = await resolveSeasonId(league.id, seasonNumber);
   const [{ data: scheduledGames, error: gamesError }, { data: gameResults, error: resultsError }] = await Promise.all([
-    supabase
-      .from("rec_games")
-      .select("id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
-      .eq("league_id", league.id)
-      .eq("season_id", seasonId)
+    leagueSeasonGamesQuery(supabase, { leagueId: league.id, seasonId },
+      "id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
       .lte("week_number", 22),
     supabase
@@ -1317,12 +1315,8 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         // is on its second (or later) season — the exact bug behind the hero card showing a
         // stale opponent from a prior season.
         const seasonId = await resolveSeasonId(league.id, seasonNumber);
-        const games = await supabase
-          .from("rec_games")
-          .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
-          .eq("league_id", league.id)
-          .eq("season_id", seasonId)
-          .eq("week_number", currentWeek)
+        const games = await leagueWeekGamesQuery(supabase, { leagueId: league.id, seasonId, weekNumber: currentWeek },
+          "*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
           .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
           .limit(1)
           .maybeSingle();

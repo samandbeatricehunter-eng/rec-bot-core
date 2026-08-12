@@ -14,6 +14,7 @@ import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getMatchupPreview } from "../hub/matchup-preview.service.js";
 
@@ -288,12 +289,8 @@ export async function listWeekWagerLines(guildId: string, weekNumber: number): P
   // dropdown/auto-assign, and the wagerable-games list).
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  const { data: games, error } = await supabase
-    .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .eq("status", "scheduled");
   if (error) throw new ApiError(500, "Failed to load games for wager lines.", error);
   const h2hGames = (games ?? []).filter((g) => g.home_user_id && g.away_user_id);

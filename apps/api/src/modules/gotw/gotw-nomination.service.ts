@@ -8,6 +8,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
 
@@ -151,15 +152,11 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   // the hub hero card in user.service.ts).
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
-  const gamesRes = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,rivalry_id,rivalry_opt_out,status,home_score,away_score," +
+  const gamesRes = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,rivalry_id,rivalry_opt_out,status,home_score,away_score," +
       "home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated)," +
       "away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)," +
-      "rivalry:rec_league_rivalries(rivalry_name,is_active)")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber);
+      "rivalry:rec_league_rivalries(rivalry_name,is_active)");
   if (gamesRes.error) throw new ApiError(500, "Failed to load games for GOTW nomination.", gamesRes.error);
 
   const eligible = ((gamesRes.data ?? []) as any[]).filter((g) =>

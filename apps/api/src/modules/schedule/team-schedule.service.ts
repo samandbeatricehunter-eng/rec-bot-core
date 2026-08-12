@@ -4,6 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_NAME_AUTO_MATCH_THRESHOLD as AUTO_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
@@ -386,12 +387,8 @@ export async function commitTeamScheduleDecisions(input: {
     }
     const protectedTeamIds = [awayTeamId, homeTeamId].filter((teamId) => !placeholderTeamIds.has(teamId));
     const existing = protectedTeamIds.length
-      ? await supabase
-          .from("rec_games")
-          .select("id,week_number,home_team_id,away_team_id")
-          .eq("league_id", leagueId)
-          .eq("season_id", seasonId)
-          .eq("week_number", decision.weekNumber)
+      ? await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: decision.weekNumber },
+          "id,week_number,home_team_id,away_team_id")
           .or(`home_team_id.in.(${protectedTeamIds.join(",")}),away_team_id.in.(${protectedTeamIds.join(",")})`)
       : { data: [], error: null };
     if (existing.error) throw new ApiError(500, "Failed to check existing schedule matchups.", existing.error);
@@ -432,12 +429,7 @@ export async function commitTeamScheduleDecisions(input: {
     }
 
     try {
-      const weekGames = await supabase
-        .from("rec_games")
-        .select("id")
-        .eq("league_id", leagueId)
-        .eq("season_id", seasonId)
-        .eq("week_number", decision.weekNumber);
+      const weekGames = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: decision.weekNumber }, "id");
       if (weekGames.error) throw new ApiError(500, "Failed to load week slot count.", weekGames.error);
 
       const savedGame = await saveManualScheduleGame({

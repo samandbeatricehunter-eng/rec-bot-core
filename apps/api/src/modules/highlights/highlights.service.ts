@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 import { deleteStreamVideosForHighlights, maybeCreateWeeklyPayoutReview, migrateMirroredHighlightsToStream } from "../media/media.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
@@ -102,7 +103,10 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = String(context.rec_leagues.season_stage ?? "regular_season");
-  const game = await supabase.from("rec_games").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).or(`home_user_id.eq.${account.user_id},away_user_id.eq.${account.user_id}`).limit(1).maybeSingle();
+  // rec_games is scoped by season_id, not season_number (the column doesn't exist on rec_games) —
+  // filtering by season_number errored on every call, so this match always failed.
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  const game = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber }, "id").or(`home_user_id.eq.${account.user_id},away_user_id.eq.${account.user_id}`).limit(1).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to match the highlight to this week's game.", game.error);
   if (!game.data) throw new ApiError(403, "You do not have a matchup this week.");
   const weeklyCount = await supabase.from("rec_highlight_posts").select("id", { count: "exact", head: true })

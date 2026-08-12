@@ -13,6 +13,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseScheduleImages } from "./schedule.parser.js";
@@ -163,12 +164,8 @@ export async function listScheduleWeek(guildId: string, weekNumber: number, seas
   assertWeekSlot({ weekNumber }, context.rec_leagues.game);
   const selectedSeason = resolveSeasonNumber(context, seasonNumber);
   const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
-  const { data, error } = await supabase
-    .from("rec_games")
-    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
-    .eq("league_id", context.leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
+    "id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load schedule week.", error);
   return { seasonNumber: selectedSeason, weekNumber, games: data ?? [] };
@@ -178,11 +175,8 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
   const context = await getCurrentLeagueContext(guildId);
   const selectedSeason = resolveSeasonNumber(context, seasonNumber);
   const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
-  const { data, error } = await supabase
-    .from("rec_games")
-    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
-    .eq("league_id", context.leagueId)
-    .eq("season_id", seasonId)
+  const { data, error } = await leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId },
+    "id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
     .order("week_number", { ascending: true })
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load season schedule.", error);
@@ -266,12 +260,8 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
 
   const protectedTeamIds = [input.awayTeamId, input.homeTeamId].filter((teamId) => !placeholderTeamIds.has(teamId));
   const duplicates = protectedTeamIds.length
-    ? await supabase
-        .from("rec_games")
-        .select("id,external_game_id,home_team_id,away_team_id")
-        .eq("league_id", leagueId)
-        .eq("season_id", seasonId)
-        .eq("week_number", input.weekNumber)
+    ? await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: input.weekNumber },
+        "id,external_game_id,home_team_id,away_team_id")
         .or(`home_team_id.in.(${protectedTeamIds.join(",")}),away_team_id.in.(${protectedTeamIds.join(",")})`)
     : { data: [], error: null };
   if (duplicates.error) throw new ApiError(500, "Failed to check existing schedule matchups.", duplicates.error);
@@ -508,11 +498,7 @@ export async function seedDefaultScheduleForLeague(input: {
     );
   }
 
-  const existing = await supabase
-    .from("rec_games")
-    .select("id", { count: "exact", head: true })
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
+  const existing = await leagueSeasonGamesQuery(supabase, { leagueId, seasonId }, "id", { count: "exact", head: true })
     .lte("week_number", 18);
   if (existing.error) throw new ApiError(500, "Failed to check existing schedule.", existing.error);
   if ((existing.count ?? 0) > 0 && !input.force) {

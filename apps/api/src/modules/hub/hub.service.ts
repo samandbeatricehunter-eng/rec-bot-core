@@ -6,6 +6,7 @@ import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
@@ -261,12 +262,8 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
   // Every season restarts at week 1, so without a season_id filter this would also match last
   // season's week_number=1 slate once a league is on its second (or later) season.
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
-  const games = await supabase
-    .from("rec_games")
-    .select("id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated)")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber);
+  const games = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated)");
   if (games.error) throw new ApiError(500, "Failed to load this week's opponent.", games.error);
   const game = (games.data ?? []).find((row: any) => row.home_user_id === userId || row.away_user_id === userId);
   if (!game) return null;

@@ -5,6 +5,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { getPublicLeagueSnapshot } from "../public-league/public-league.service.js";
 import { getLeagueHistory } from "../league-history/league-history.service.js";
@@ -96,10 +97,8 @@ export async function getDemoTeamMatchup(leagueId: string, teamId: string, phase
   const seasonNumber = Number(league.season_number ?? 1);
   const weekNumber = Number(league.current_week ?? 1);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
-  const games = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,display_nick,display_city,display_abbr,abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,display_nick,display_city,display_abbr,abbreviation,is_relocated)")
-    .eq("league_id", leagueId).eq("season_id", seasonId).eq("week_number", weekNumber)
+  const games = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,week_number,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,display_nick,display_city,display_abbr,abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,display_nick,display_city,display_abbr,abbreviation,is_relocated)")
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .limit(1).maybeSingle();
   if (games.error) throw new ApiError(500, "Failed to load matchup.", games.error);

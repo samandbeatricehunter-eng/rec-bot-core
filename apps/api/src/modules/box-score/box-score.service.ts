@@ -4,6 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { fetchImageBuffer, parseBoxScoreImages, type ParsedBoxScore, type ParsedScore } from "./box-score.parser.js";
 import { parseCfbBoxScoreImages } from "./box-score-cfb.parser.js";
 import { buildTeamNameCandidates, matchTeamNameInBlob, TEAM_NAME_BLOB_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
@@ -236,12 +237,8 @@ async function resolveCfbTeams(leagueId: string, name1Raw: string, name2Raw: str
 }
 
 async function resolveGame(leagueId: string, team1Id: string, team2Id: string, seasonId: string, weekNumber: number) {
-  const { data, error } = await supabase
-    .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_user_id,away_user_id")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,home_team_id,away_team_id,home_user_id,away_user_id")
     .or(
       `and(home_team_id.eq.${team1Id},away_team_id.eq.${team2Id}),` +
       `and(home_team_id.eq.${team2Id},away_team_id.eq.${team1Id})`
@@ -308,12 +305,8 @@ async function getUserScheduledGameForWeek(
   weekNumber: number,
 ) {
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
-  const { data, error } = await supabase
-    .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_user_id,away_user_id")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", weekNumber)
+  const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
+    "id,home_team_id,away_team_id,home_user_id,away_user_id")
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load scheduled game.", error);
@@ -2056,12 +2049,8 @@ export async function getBoxScoreSubmission(submissionId: string) {
 export async function listScheduledGamesForWeek(guildId: string, weekNumber: number, seasonNumber?: number | null) {
   const { context, selectedSeason, seasonId } = await resolveSeasonContext(guildId, seasonNumber);
   const selected = selectedSeasonWeek(context, { seasonNumber: selectedSeason, weekNumber });
-  const { data, error } = await supabase
-    .from("rec_games")
-    .select("id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
-    .eq("league_id", context.leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", selected.weekNumber)
+  const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: selected.weekNumber },
+    "id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
     .order("created_at", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load scheduled games.", error);
   return {
