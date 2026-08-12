@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Application/library dependencies across the pnpm workspace. Dependabot reads
+  # the root manifest and lockfile and covers nested workspace package.json files.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      # Batch low-risk minor/patch bumps into a single PR to reduce noise;
+      # majors still open individually so breaking changes get their own review.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Keep the GitHub Actions used in CI up to date.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - github-actions
