@@ -203,7 +203,7 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   const seasonId = await resolveSeasonId(context.leagueId, input.seasonNumber);
   const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
     "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)");
-  if (games.error) throw new ApiError(500, "Failed to load box-score channel matchups.", games.error);
+  if (games.error) throw new ApiError(500, "We couldn't load box-score channel matchups. Please try again.", games.error);
   const fields = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).slice(0, 25).map((game: any) => {
     const home = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
     const away = Array.isArray(game.away_team) ? game.away_team[0] : game.away_team;
@@ -311,7 +311,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
 
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
     "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
-  if (error) throw new ApiError(500, "Failed to load week schedule.", error);
+  if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
   const [results, boxScores] = await Promise.all([
     supabase
@@ -329,8 +329,8 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       .in("status", ["pending", "approved"]),
   ]);
 
-  if (results.error) throw new ApiError(500, "Failed to load existing game results.", results.error);
-  if (boxScores.error) throw new ApiError(500, "Failed to load box score submissions.", boxScores.error);
+  if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
+  if (boxScores.error) throw new ApiError(500, "We couldn't load box score submissions right now. Please try again.", boxScores.error);
 
   const boxScoreGameIds = new Set((boxScores.data ?? []).map((row) => String(row.game_id)).filter(Boolean));
   const resultByMatchup = new Map(
@@ -400,7 +400,7 @@ async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string;
   if (!channel) return;
 
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", input.userIds);
-  if (accounts.error) throw new ApiError(500, "Failed to load Discord mentions for schedule notice.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load Discord mentions for the schedule notice. Please try again.", accounts.error);
   const discordIds = (accounts.data ?? []).map((row: any) => String(row.discord_id)).filter(Boolean);
   const headline = input.headline ?? "**SCHEDULE YOUR GAME ASAP**";
 
@@ -493,7 +493,7 @@ export async function setGamePostseasonFlags(input: { guildId: string; gameId: s
     .eq("id", input.gameId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Game was not found in this league.");
 
   const updated = await supabase
@@ -502,7 +502,7 @@ export async function setGamePostseasonFlags(input: { guildId: string; gameId: s
     .eq("id", input.gameId)
     .select("*")
     .single();
-  if (updated.error) throw new ApiError(500, "Failed to save postseason flags.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't save postseason flags. Please try again.", updated.error);
 
   if ((input.isBowlGame || input.isNationalChampionship) && game.data.home_user_id && game.data.away_user_id) {
     await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: game.data.week_number }).catch((err) => {
@@ -541,7 +541,7 @@ export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: s
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: currentWeek },
     "id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
-  if (error) throw new ApiError(500, "Failed to load week schedule.", error);
+  if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
   const h2hGames = (games ?? []).filter((g: any) => g.home_user_id && g.away_user_id);
   const resultsAndSubmissions = await loadResultsAndPendingSubmissions(
@@ -602,7 +602,7 @@ export async function completeAdvanceWeek(input: {
       .eq("id", result.gameId)
       .eq("league_id", context.leagueId)
       .maybeSingle();
-    if (game.error) throw new ApiError(500, "Failed to load game for advance result.", game.error);
+    if (game.error) throw new ApiError(500, "We couldn't load that game for the week advance. Please try again.", game.error);
     if (!game.data) throw new ApiError(404, "Scheduled game not found.");
 
     // Prefer real final scores when the commissioner supplied them; otherwise fall
@@ -974,7 +974,7 @@ export async function getDivisionWinnerOptions(guildId: string) {
     .order("conference", { ascending: true })
     .order("division", { ascending: true })
     .order("name", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load teams for division winner selection.", error);
+  if (error) throw new ApiError(500, "We couldn't load teams for division winner selection. Please try again.", error);
 
   const divisions = new Map<string, any>();
   for (const team of teams ?? []) {
@@ -1016,7 +1016,7 @@ export async function saveDivisionWinners(input: {
     .select("id,name,abbreviation,conference,division")
     .eq("league_id", context.leagueId)
     .in("id", teamIds);
-  if (teamsError) throw new ApiError(500, "Failed to validate division winners.", teamsError);
+  if (teamsError) throw new ApiError(500, "We couldn't validate division winners. Please try again.", teamsError);
 
   const teamsById = new Map<string, any>((teams ?? []).map((team: any) => [team.id, team]));
   const seedRows: Array<Record<string, unknown>> = [];
@@ -1045,14 +1045,14 @@ export async function saveDivisionWinners(input: {
     .eq("league_id", context.leagueId)
     .eq("season_number", input.seasonNumber)
     .then(({ error }) => {
-      if (error) throw new ApiError(500, "Failed to clear previous division winners.", error);
+      if (error) throw new ApiError(500, "We couldn't clear previous division winners. Please try again.", error);
     });
 
   const upsert = await supabase
     .from("rec_season_team_seeds")
     .upsert(seedRows, { onConflict: "league_id,season_number,team_id" })
     .select("team_id,conference,division_name,division_winner");
-  if (upsert.error) throw new ApiError(500, "Failed to save division winners.", upsert.error);
+  if (upsert.error) throw new ApiError(500, "We couldn't save division winners. Please try again.", upsert.error);
 
   // Division standings/seeding is still real structure for Madden's playoff bracket
   // (rec_season_team_seeds.division_winner/made_playoffs above) — only the badge that
@@ -1083,7 +1083,7 @@ export async function listAdvanceGameStories(input: {
     .order("created_at", { ascending: true });
   if (!input.includePosted) query = query.is("posted_message_id", null);
   const { data: stories, error } = await query;
-  if (error) throw new ApiError(500, "Failed to load game stories for advance publishing.", error);
+  if (error) throw new ApiError(500, "We couldn't load game stories for publishing. Please try again.", error);
 
   const gameIds = [...new Set((stories ?? []).map((story) => story.game_id).filter(Boolean))];
   const teamIds = [...new Set((stories ?? []).flatMap((story) => [story.winner_team_id, story.loser_team_id]).filter(Boolean))];
@@ -1105,8 +1105,8 @@ export async function listAdvanceGameStories(input: {
           .in("id", teamIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (eventsResult.error) throw new ApiError(500, "Failed to load badge events for advance publishing.", eventsResult.error);
-  if (teamsResult.error) throw new ApiError(500, "Failed to load story teams for advance publishing.", teamsResult.error);
+  if (eventsResult.error) throw new ApiError(500, "We couldn't load badge events for publishing. Please try again.", eventsResult.error);
+  if (teamsResult.error) throw new ApiError(500, "We couldn't load story teams for publishing. Please try again.", teamsResult.error);
 
   const teamById = new Map((teamsResult.data ?? []).map((team: any) => [team.id, formatTeamDisplayName(team) ?? team.name ?? team.abbreviation ?? "Team"]));
   const badgesByGame = new Map<string, any[]>();
@@ -1164,7 +1164,7 @@ export async function markAdvanceGameStoryPosted(input: {
     .eq("id", input.storyId)
     .select("id,posted_channel_id,posted_message_id")
     .single();
-  if (error) throw new ApiError(500, "Failed to mark game story as posted.", error);
+  if (error) throw new ApiError(500, "We couldn't mark that game story as posted. Please try again.", error);
   return { story: data };
 }
 
@@ -1192,7 +1192,7 @@ export async function setNextAdvanceTime(input: {
     .eq("id", context.leagueId)
     .select("id")
     .single();
-  if (result.error) throw new ApiError(500, "Failed to save next advance time.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't save the next advance time. Please try again.", result.error);
 
   return {
     nextAdvanceAt,

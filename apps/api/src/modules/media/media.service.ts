@@ -22,7 +22,7 @@ async function getDiscordAccount(discordId: string) {
     .select("user_id,discord_id")
     .eq("discord_id", discordId)
     .maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", account.error);
   if (!account.data?.user_id) throw new ApiError(404, "Discord account is not linked to a REC user.");
   return account.data;
 }
@@ -36,7 +36,7 @@ async function getActiveAssignment(leagueId: string, userId: string) {
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load active team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your active team assignment. Please try again.", assignment.error);
   return assignment.data;
 }
 
@@ -73,7 +73,7 @@ export async function maybeCreateWeeklyPayoutReview(input: {
     .eq("week_number", input.weekNumber)
     .in("status", ["pending", "approved", "issued"])
     .limit(highlightConfig.highlightWeeklyPaidLimit);
-  if (existingPaid.error) throw new ApiError(500, "Failed to check highlight payout status.", existingPaid.error);
+  if (existingPaid.error) throw new ApiError(500, "We couldn't check highlight payout status. Please try again.", existingPaid.error);
   const paidCount = (existingPaid.data ?? []).length;
   const amount = paidCount >= highlightConfig.highlightWeeklyPaidLimit ? 0 : highlightConfig.highlight;
 
@@ -95,7 +95,7 @@ export async function maybeCreateWeeklyPayoutReview(input: {
     })
     .select("id")
     .single();
-  if (review.error) throw new ApiError(500, "Failed to create highlight payout review.", review.error);
+  if (review.error) throw new ApiError(500, "We couldn't create the highlight payout review. Please try again.", review.error);
 
   await supabase
     .from("rec_highlight_posts")
@@ -154,7 +154,7 @@ async function assertWeeklyHighlightUploadAllowed(input: {
     .eq("user_id", input.userId)
     .eq("season_number", input.seasonNumber)
     .eq("week_number", input.weekNumber);
-  if (existing.error) throw new ApiError(500, "Failed to check weekly highlight upload limit.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check the weekly highlight upload limit. Please try again.", existing.error);
   const count = (existing.data ?? []).filter((row) => row.media_status !== "failed" && row.media_status !== "deleted").length;
   if (count >= highlightLimit) {
     throw new ApiError(400, `You can upload at most ${highlightLimit} highlights per week during the regular season and postseason.`);
@@ -179,7 +179,7 @@ export async function getMyHighlightWeekCounts(input: {
     .eq("league_id", context.leagueId)
     .eq("user_id", account.user_id)
     .eq("season_number", seasonNumber);
-  if (rows.error) throw new ApiError(500, "Failed to load your highlight upload history.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load your highlight upload history. Please try again.", rows.error);
 
   const counts: Record<number, number> = {};
   for (const row of rows.data ?? []) {
@@ -206,7 +206,7 @@ export async function createHighlightDirectUpload(input: {
     .eq("id", input.gameId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load matchup.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that matchup. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Matchup not found.");
   if (game.data.home_user_id !== account.user_id && game.data.away_user_id !== account.user_id) {
     throw new ApiError(403, "Only matchup participants can upload highlights.");
@@ -261,7 +261,7 @@ export async function createHighlightDirectUpload(input: {
     .single();
   if (inserted.error) {
     await deleteStreamVideo(stream.uid).catch(() => undefined);
-    throw new ApiError(500, "Failed to create highlight draft.", inserted.error);
+    throw new ApiError(500, "We couldn't create that highlight draft. Please try again.", inserted.error);
   }
 
   return {
@@ -289,7 +289,7 @@ export async function getHighlightUploadStatus(input: {
     .eq("id", input.highlightId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (highlight.error) throw new ApiError(500, "Failed to load highlight status.", highlight.error);
+  if (highlight.error) throw new ApiError(500, "We couldn't load highlight status. Please try again.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
   const streamUid = highlight.data.cloudflare_stream_uid;
   return {
@@ -323,7 +323,7 @@ export async function markHighlightUploadReceived(input: {
     .in("media_status", ["uploading", "processing"])
     .select("id,media_status")
     .maybeSingle();
-  if (updated.error) throw new ApiError(500, "Failed to update highlight upload status.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't update highlight upload status. Please try again.", updated.error);
   if (!updated.data) throw new ApiError(404, "Highlight draft not found.");
   return { highlightId: updated.data.id, mediaStatus: updated.data.media_status };
 }
@@ -365,7 +365,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
     .select("id,league_id,user_id,team_id,season_number,week_number,season_stage,discord_channel_id,discord_message_id,payout_review_id")
     .eq("cloudflare_stream_uid", uid)
     .maybeSingle();
-  if (row.error) throw new ApiError(500, "Failed to load highlight for Stream webhook.", row.error);
+  if (row.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", row.error);
   if (!row.data) return { ok: true, matched: false };
 
   const state = String(body.status?.state ?? "").toLowerCase();
@@ -406,7 +406,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
       .eq("id", row.data.id)
       .select("id,payout_review_id")
       .single();
-    if (updated.error) throw new ApiError(500, "Failed to mark highlight ready.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't mark that highlight as ready. Please try again.", updated.error);
 
     if (!updated.data.payout_review_id) {
       const league = await supabase.from("rec_leagues").select("game").eq("id", row.data.league_id).maybeSingle();
@@ -475,7 +475,7 @@ export async function deleteAllLeagueStreamHighlights(leagueId: string): Promise
     .select("id,cloudflare_stream_uid")
     .eq("league_id", leagueId)
     .not("cloudflare_stream_uid", "is", null);
-  if (posts.error) throw new ApiError(500, "Failed to list league Stream highlights.", posts.error);
+  if (posts.error) throw new ApiError(500, "We couldn't load league highlights. Please try again.", posts.error);
   await deleteStreamVideosForHighlights(posts.data ?? []);
   if (posts.data?.length) {
     await supabase
@@ -503,7 +503,7 @@ export async function migrateMirroredHighlightsToStream(input: {
   if (input.leagueId) query = query.eq("league_id", input.leagueId);
 
   const rows = await query;
-  if (rows.error) throw new ApiError(500, "Failed to list mirrored highlights.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load mirrored highlights. Please try again.", rows.error);
 
   const results: Array<{ highlightId: string; ok: boolean; error?: string; streamUid?: string }> = [];
   for (const row of rows.data ?? []) {

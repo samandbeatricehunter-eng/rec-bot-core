@@ -71,7 +71,7 @@ export async function registerServer(input: RegisterServerInput) {
     .maybeSingle();
 
   if (existing.error) {
-    throw new ApiError(500, "Failed to check server registration", existing.error);
+    throw new ApiError(500, "We couldn't check server registration. Please try again.", existing.error);
   }
 
   if (existing.data) {
@@ -87,7 +87,7 @@ export async function registerServer(input: RegisterServerInput) {
       .single();
 
     if (updated.error) {
-      throw new ApiError(500, "Failed to update server registration", updated.error);
+      throw new ApiError(500, "We couldn't update server registration. Please try again.", updated.error);
     }
 
     await writeAuditLog({
@@ -115,7 +115,7 @@ export async function registerServer(input: RegisterServerInput) {
     .single();
 
   if (created.error) {
-    throw new ApiError(500, "Failed to register server", created.error);
+    throw new ApiError(500, "We couldn't register that server. Please try again.", created.error);
   }
 
   await writeAuditLog({
@@ -159,13 +159,13 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     .maybeSingle();
 
   if (existingPrimaryLink.error) {
-    throw new ApiError(500, "Failed to look up existing primary league", existingPrimaryLink.error);
+    throw new ApiError(500, "We couldn't look up the existing primary league. Please try again.", existingPrimaryLink.error);
   }
 
   if (existingPrimaryLink.data?.league_id) {
     const deleted = await supabase.rpc("rec_delete_league", { p_league_id: existingPrimaryLink.data.league_id });
     if (deleted.error) {
-      throw new ApiError(500, "Failed to clear existing league data before setup", deleted.error);
+      throw new ApiError(500, "We couldn't clear existing league data before setup. Please try again.", deleted.error);
     }
   }
 
@@ -189,7 +189,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
 
   if (league.error) {
-    throw new ApiError(500, "Failed to save REC league", league.error);
+    throw new ApiError(500, "We couldn't save that league. Please try again.", league.error);
   }
 
   const configurationPayload = {
@@ -336,7 +336,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     .single();
 
   if (configuration.error) {
-    throw new ApiError(500, "Failed to save REC league configuration", configuration.error);
+    throw new ApiError(500, "We couldn't save the league configuration. Please try again.", configuration.error);
   }
 
   const link = await supabase
@@ -350,7 +350,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     .single();
 
   if (link.error) {
-    throw new ApiError(500, "Failed to link league to server", link.error);
+    throw new ApiError(500, "We couldn't link that league to the server. Please try again.", link.error);
   }
 
   await writeAuditLog({
@@ -396,7 +396,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
       .limit(1)
       .maybeSingle();
     if (activeDataset.error) {
-      throw new ApiError(500, "Failed to resolve the active CFB baseline dataset", activeDataset.error);
+      throw new ApiError(500, "We couldn't load the active CFB baseline. Please try again.", activeDataset.error);
     }
     if (activeDataset.data) {
       baselineSeed = await applyCfbBaselineToLeague({
@@ -625,7 +625,7 @@ async function upsertConferenceRules(leagueId: string, rules: Record<string, unk
   }
   await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
   const { error } = await supabase.from("rec_conference_rules").insert(rows);
-  if (error) throw new ApiError(500, "Failed to save conference rules.", error);
+  if (error) throw new ApiError(500, "We couldn't save conference rules. Please try again.", error);
 }
 
 export async function createUnclaimedLeague(input: {
@@ -793,7 +793,7 @@ export async function createUnclaimedLeague(input: {
   };
 
   const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
-  if (league.error) throw new ApiError(500, "Failed to create league.", league.error);
+  if (league.error) throw new ApiError(500, "We couldn't create that league. Please try again.", league.error);
 
   // Everything below writes rows keyed to this league. The Supabase JS client can't wrap
   // these in one DB transaction, so on any failure in the required (non-fatal-catch) steps we
@@ -803,7 +803,7 @@ export async function createUnclaimedLeague(input: {
   try {
     const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
     const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
-    if (configuration.error) throw new ApiError(500, "Failed to save league configuration.", configuration.error);
+    if (configuration.error) throw new ApiError(500, "We couldn't save league configuration. Please try again.", configuration.error);
 
     await upsertConferenceRules(league.data.id, input.conferenceRules);
 
@@ -821,7 +821,7 @@ export async function createUnclaimedLeague(input: {
       { league_id: league.data.id, user_id: input.requestedByUserId, status: "active", role: "commissioner" },
       { onConflict: "league_id,user_id" },
     );
-    if (membership.error) throw new ApiError(500, "Failed to create commissioner membership.", membership.error);
+    if (membership.error) throw new ApiError(500, "We couldn't create the commissioner membership. Please try again.", membership.error);
 
     const assignment = await supabase.from("rec_team_assignments").insert({
       league_id: league.data.id,
@@ -831,7 +831,7 @@ export async function createUnclaimedLeague(input: {
       source: "manual_admin_entry",
       notes: "Authority: commissioner; assigned atomically during league creation",
     }).select("*").single();
-    if (assignment.error) throw new ApiError(500, "Failed to assign the commissioner's team.", assignment.error);
+    if (assignment.error) throw new ApiError(500, "We couldn't assign the commissioner's team. Please try again.", assignment.error);
 
     // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
     // that function's comment above its own applyMaddenBaselineToLeague call for the full
@@ -913,7 +913,7 @@ export async function createUnclaimedLeague(input: {
 
 export async function updateSiteLeagueConfig(input: { requestedByUserId: string; leagueId: string; [key: string]: unknown }) {
   const league = await supabase.from("rec_leagues").select("*").eq("id", input.leagueId).maybeSingle();
-  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   if (!league.data) throw new ApiError(404, "League not found.");
   if (league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league creator can update settings.");
 
@@ -924,7 +924,7 @@ export async function updateSiteLeagueConfig(input: { requestedByUserId: string;
   const previous = await supabase.from("rec_league_configuration").select("*").eq("league_id", input.leagueId).maybeSingle();
 
   const { data, error } = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
-  if (error) throw new ApiError(500, "Failed to update league configuration.", error);
+  if (error) throw new ApiError(500, "We couldn't update the league configuration. Please try again.", error);
 
   await upsertConferenceRules(input.leagueId, input.conferenceRules as Record<string, unknown>[] | undefined);
 
@@ -948,7 +948,7 @@ export async function checkLeagueLinked(leagueId: string) {
     .eq("league_id", leagueId)
     .eq("is_primary", true)
     .maybeSingle();
-  if (link.error) throw new ApiError(500, "Failed to check league link status.", link.error);
+  if (link.error) throw new ApiError(500, "We couldn't check the league link status. Please try again.", link.error);
   if (!link.data?.server_id) return { linked: false, guildId: null, serverName: null };
 
   // Was a single embedded-relation select (`rec_discord_servers:server_id(guild_id, name)`)
@@ -957,7 +957,7 @@ export async function checkLeagueLinked(leagueId: string) {
   // `rec_discord_servers_id`, so it always generated invalid SQL and threw here (every call,
   // not data-dependent — this is what "Request Team" on the recruiting board was hitting).
   const server = await supabase.from("rec_discord_servers").select("guild_id, name").eq("id", link.data.server_id).maybeSingle();
-  if (server.error) throw new ApiError(500, "Failed to check league link status.", server.error);
+  if (server.error) throw new ApiError(500, "We couldn't check the league link status. Please try again.", server.error);
   return {
     linked: Boolean(server.data),
     guildId: server.data?.guild_id ?? null,
@@ -971,19 +971,19 @@ async function storeLeagueLogo(input: { leagueId: string; buffer: Buffer; conten
   const extension = input.contentType === "image/jpeg" ? "jpg" : input.contentType.split("/")[1];
   const path = `${input.leagueId}/league-logo-${randomUUID()}.${extension}`;
   const stored = await supabase.storage.from("rec-media").upload(path, input.buffer, { contentType: input.contentType, cacheControl: "31536000", upsert: false });
-  if (stored.error) throw new ApiError(500, "Failed to upload league logo.", stored.error);
+  if (stored.error) throw new ApiError(500, "We couldn't upload the league logo. Please try again.", stored.error);
   const logoUrl = supabase.storage.from("rec-media").getPublicUrl(path).data.publicUrl;
   const updated = await supabase.from("rec_leagues").update({ logo_url: logoUrl }).eq("id", input.leagueId).select("id,logo_url").single();
   if (updated.error) {
     await supabase.storage.from("rec-media").remove([path]);
-    throw new ApiError(500, "Failed to save league logo.", updated.error);
+    throw new ApiError(500, "We couldn't save the league logo. Please try again.", updated.error);
   }
   return { logoUrl: updated.data.logo_url };
 }
 
 export async function uploadLeagueLogo(input: { leagueId: string; requestedByUserId: string; buffer: Buffer; contentType: string }) {
   const league = await supabase.from("rec_leagues").select("id,owner_user_id").eq("id", input.leagueId).maybeSingle();
-  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   if (!league.data || league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league owner can change its logo.");
   return storeLeagueLogo(input);
 }
@@ -1004,7 +1004,7 @@ export async function completeWizard(input: {
   discordId?: string;
 }) {
   const league = await supabase.from("rec_leagues").select("*").eq("id", input.leagueId).maybeSingle();
-  if (league.error) throw new ApiError(500, "Failed to load league.", league.error);
+  if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   if (!league.data) throw new ApiError(404, "League not found.");
 
   // Assign team if provided
@@ -1035,7 +1035,7 @@ export async function completeWizard(input: {
       notes: "Authority: commissioner",
       discord_joined_at: new Date().toISOString(),
     }).select("*").single();
-    if (assignment.error) throw new ApiError(500, "Failed to assign team.", assignment.error);
+    if (assignment.error) throw new ApiError(500, "We couldn't assign that team. Please try again.", assignment.error);
 
     // Update Discord nickname if guild + discord ID provided
     if (input.guildId && input.discordId) {
@@ -1079,7 +1079,7 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     .maybeSingle();
 
   if (existingRoutes.error) {
-    throw new ApiError(500, "Failed to load existing server routes", existingRoutes.error);
+    throw new ApiError(500, "We couldn't load existing server routes. Please try again.", existingRoutes.error);
   }
 
   const existing = existingRoutes.data ?? {};
@@ -1106,7 +1106,7 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
         .single();
 
   if (routes.error) {
-    throw new ApiError(500, "Failed to update server routes", routes.error);
+    throw new ApiError(500, "We couldn't update server routes. Please try again.", routes.error);
   }
 
   await writeAuditLog({
@@ -1262,7 +1262,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     .upsert(configurationPayload, { onConflict: "league_id" })
     .select("*")
     .single();
-  if (error) throw new ApiError(500, "Failed to update league configuration", error);
+  if (error) throw new ApiError(500, "We couldn't update the league configuration. Please try again.", error);
 
   await upsertConferenceRules(context.leagueId, input.conferenceRules);
 
@@ -1288,7 +1288,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle(),
     supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId)
   ]);
-  if (league.error) throw new ApiError(500, "Failed to load league", league.error);
+  if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   const c = config.data ?? {};
   const r = context.routes ?? {};
   const conferenceRules = (conferenceRulesResult.data ?? []).map((row) => ({
@@ -1455,7 +1455,7 @@ export async function getLeagueTeamConferences(guildId: string) {
     .from("rec_teams")
     .select("abbreviation,name,conference")
     .eq("league_id", context.leagueId);
-  if (error) throw new ApiError(500, "Failed to load team conferences", error);
+  if (error) throw new ApiError(500, "We couldn't load team conferences. Please try again.", error);
   return { teams: data ?? [] };
 }
 
@@ -1478,7 +1478,7 @@ export async function updateTeamConference(input: { guildId: string; abbreviatio
     .update({ conference: input.conference })
     .eq("league_id", context.leagueId)
     .eq("abbreviation", input.abbreviation);
-  if (error) throw new ApiError(500, "Failed to update team conference", error);
+  if (error) throw new ApiError(500, "We couldn't update that team conference. Please try again.", error);
 
   await writeAuditLog({
     action: "team.conference.updated",
@@ -1556,7 +1556,7 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   // they won here — rec_delete_league hard-deletes the source rows, so a user's history in
   // this league must travel with them before it's gone, not disappear with the league.
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });
-  if (error) throw new ApiError(500, "Failed to delete league data.", error);
+  if (error) throw new ApiError(500, "We couldn't delete that league data. Please try again.", error);
 
   await writeAuditLog({
     action: "league.data.deleted",

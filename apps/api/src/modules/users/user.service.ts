@@ -209,7 +209,7 @@ export async function getUserBaselineByDiscordId(discordId: string) {
     .eq("discord_id", discordId)
     .maybeSingle();
 
-  if (account.error) throw new ApiError(500, "Failed to load Discord account", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", account.error);
   if (!account.data) throw new ApiError(404, "Discord account not found in REC Core");
 
   const [user, globalRecord, wallet, legacyBaseline] = await Promise.all([
@@ -219,10 +219,10 @@ export async function getUserBaselineByDiscordId(discordId: string) {
     supabase.from("rec_legacy_user_baselines").select("*").eq("user_id", account.data.user_id).maybeSingle()
   ]);
 
-  if (user.error) throw new ApiError(500, "Failed to load REC user", user.error);
-  if (globalRecord.error) throw new ApiError(500, "Failed to load global record", globalRecord.error);
-  if (wallet.error) throw new ApiError(500, "Failed to load wallet", wallet.error);
-  if (legacyBaseline.error) throw new ApiError(500, "Failed to load legacy baseline", legacyBaseline.error);
+  if (user.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", user.error);
+  if (globalRecord.error) throw new ApiError(500, "We couldn't load your global record. Please try again.", globalRecord.error);
+  if (wallet.error) throw new ApiError(500, "We couldn't load your wallet. Please try again.", wallet.error);
+  if (legacyBaseline.error) throw new ApiError(500, "We couldn't load your legacy baseline. Please try again.", legacyBaseline.error);
 
   return {
     user: user.data,
@@ -276,7 +276,7 @@ export async function transferSavings(discordId: string, amount: number, directi
       const label = direction === "to_savings" ? "wallet" : "savings";
       throw new ApiError(400, `Insufficient ${label} balance.`);
     }
-    throw new ApiError(500, "Transfer failed", error);
+    throw new ApiError(500, "We couldn't complete that transfer. Please try again.", error);
   }
 
   const updated = await supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", baseline.user.id).single();
@@ -300,7 +300,7 @@ export async function getRecentTransactionsByUserId(userId: string, limit = 25, 
 
   const ledger = await query;
   if (ledger.error) {
-    throw new ApiError(500, "Failed to load wallet transactions", ledger.error);
+    throw new ApiError(500, "We couldn't load wallet transactions. Please try again.", ledger.error);
   }
 
   return ledger.data ?? [];
@@ -531,14 +531,14 @@ export async function getLeagueUserIdentities(guildId: string) {
       .eq("league_id", leagueId)
       .or(`season.eq.${seasonNumber},season.is.null`),
   ]);
-  if (assignmentError) throw new ApiError(500, "Failed to load active users for identities.", assignmentError);
-  if (badgeError) throw new ApiError(500, "Failed to load badge identities.", badgeError);
+  if (assignmentError) throw new ApiError(500, "We couldn't load active users. Please try again.", assignmentError);
+  if (badgeError) throw new ApiError(500, "We couldn't load badge identities. Please try again.", badgeError);
 
   const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
   const discordResult = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
-  if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
+  if (discordResult.error) throw new ApiError(500, "We couldn't load Discord identities. Please try again.", discordResult.error);
   const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
 
   const badgesByUser = new Map<string, any[]>();
@@ -598,7 +598,7 @@ export async function refreshActiveLeagueBadgeBaselines(guildId: string) {
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (error) throw new ApiError(500, "Failed to load active users for badge refresh.", error);
+  if (error) throw new ApiError(500, "We couldn't load active users for badge refresh. Please try again.", error);
 
   const userIds = [...new Set<string>((assignments ?? []).map((row: any) => String(row.user_id)).filter(Boolean))];
   if (userIds.length) await rebuildOfficialGlobalRecords(userIds);
@@ -634,13 +634,13 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
       .eq("assignment_status", "active")
       .is("ended_at", null),
   ]);
-  if (error) throw new ApiError(500, "Failed to load XF season badges.", error);
+  if (error) throw new ApiError(500, "We couldn't load season badges. Please try again.", error);
 
   const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
   const discordResult = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
-  if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
+  if (discordResult.error) throw new ApiError(500, "We couldn't load Discord identities. Please try again.", discordResult.error);
   const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
 
   const activeByUser = new Map<string, any>((assignments ?? []).map((assignment: any) => [assignment.user_id, assignment]));
@@ -911,7 +911,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     .select("user_id,discord_id,username,global_name")
     .eq("discord_id", discordId)
     .maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load Discord account", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", account.error);
   if (!account.data?.user_id) {
     return { isLinked: false, hasLoggedSchedule: false, league, team: null, games: [] };
   }
@@ -924,7 +924,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load linked team", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your linked team. Please try again.", assignment.error);
   const teamId = (assignment.data as any)?.team_id;
   if (!teamId) {
     return { isLinked: false, hasLoggedSchedule: false, league, team: null, games: [] };
@@ -945,9 +945,9 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
       .lte("week_number", regularSeasonWeeks(league.game))
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
   ]);
-  if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
+  if (gamesError) throw new ApiError(500, "We couldn't load the schedule. Please try again.", gamesError);
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
-  if (resultsError) throw new ApiError(500, "Failed to load schedule results", resultsError);
+  if (resultsError) throw new ApiError(500, "We couldn't load schedule results. Please try again.", resultsError);
   const resultsByMatchup = new Map<string, any>(
     (gameResults ?? []).map((result: any) => [
       matchupKey({
@@ -970,7 +970,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
         .is("ended_at", null)
         .in("team_id", scheduledTeamIds)
     : { data: [], error: null };
-  if (teamAssignments.error) throw new ApiError(500, "Failed to load team assignments for schedule", teamAssignments.error);
+  if (teamAssignments.error) throw new ApiError(500, "We couldn't load team assignments for the schedule. Please try again.", teamAssignments.error);
   const userByTeamId = new Map<string, string>((teamAssignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
 
   const opponentUserIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => {
@@ -987,7 +987,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const opponentAccounts = uniqueUserIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", uniqueUserIds)
     : { data: [], error: null };
-  if (opponentAccounts.error) throw new ApiError(500, "Failed to load opponent Discord accounts", opponentAccounts.error);
+  if (opponentAccounts.error) throw new ApiError(500, "We couldn't load opponent Discord accounts. Please try again.", opponentAccounts.error);
   const discordByUserId = new Map<string, string>((opponentAccounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
 
   const gamesByWeek = new Map<number, any>();
@@ -1288,9 +1288,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .maybeSingle()
     ]);
 
-    if (assignmentResult.error) throw new ApiError(500, "Failed to load linked team", assignmentResult.error);
-    if (membershipResult.error) throw new ApiError(500, "Failed to load league role", membershipResult.error);
-    if (seasonRecordResult.error) throw new ApiError(500, "Failed to load season record", seasonRecordResult.error);
+    if (assignmentResult.error) throw new ApiError(500, "We couldn't load your linked team. Please try again.", assignmentResult.error);
+    if (membershipResult.error) throw new ApiError(500, "We couldn't load your league role. Please try again.", membershipResult.error);
+    if (seasonRecordResult.error) throw new ApiError(500, "We couldn't load the season record. Please try again.", seasonRecordResult.error);
 
     assignment = assignmentResult.data;
     membership = membershipResult.data;
@@ -1371,7 +1371,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .eq("team_id", assignment.team_id)
             .eq("week_number", currentWeek)
             .maybeSingle();
-          if (byeCheck.error) throw new ApiError(500, "Failed to check bye week status", byeCheck.error);
+          if (byeCheck.error) throw new ApiError(500, "We couldn't check bye week status. Please try again.", byeCheck.error);
           currentMatchup = "BYE WEEK";
         } else if (isPostseason) {
           currentMatchup = "Season Concluded";

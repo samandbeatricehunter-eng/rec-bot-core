@@ -55,7 +55,7 @@ export async function publishTransitionStory(input: {
     notes: [], story_type: storyType, roundtable,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("id").single();
-  if (result.error) throw new ApiError(500, "Failed to publish the story.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't publish that story. Please try again.", result.error);
   await postGeneratedHeadlineToDiscord({ leagueId: context.leagueId, storyId: result.data.id, headline: input.headline, body: input.body });
   return { storyId: result.data.id };
 }
@@ -98,19 +98,19 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).select("id").single();
-  if (result.error) throw new ApiError(500, "Failed to publish scheduled media story.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't publish that scheduled media story. Please try again.", result.error);
   return result.data.id as string;
 }
 
 export async function publishScheduledMediaForAdvance(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const rows = await supabase.from("rec_media_submissions").select("*").eq("league_id", context.leagueId).eq("submission_type", "commissioner_article").eq("status", "scheduled");
-  if (rows.error) throw new ApiError(500, "Failed to load scheduled media.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load scheduled media right now. Please try again.", rows.error);
   const storyIds: string[] = [];
   for (const row of rows.data ?? []) {
     const storyId = await publishMediaSubmissionStory(row, row.submitter_discord_id ?? null);
     const updated = await supabase.from("rec_media_submissions").update({ status: "published", approved_story_id: storyId, published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", row.id);
-    if (updated.error) throw new ApiError(500, "Failed to mark scheduled media published.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't mark that scheduled media as published. Please try again.", updated.error);
     storyIds.push(storyId);
   }
   return { publishedCount: storyIds.length, storyIds };

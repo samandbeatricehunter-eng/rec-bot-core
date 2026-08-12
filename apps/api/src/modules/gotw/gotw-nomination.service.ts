@@ -90,7 +90,7 @@ async function computeRecentForm(leagueId: string, seasonNumber: number, beforeW
     .eq("season_number", seasonNumber)
     .lt("week_number", beforeWeek)
     .order("week_number", { ascending: false });
-  if (error) throw new ApiError(500, "Failed to load results for GOTW recent form.", error);
+  if (error) throw new ApiError(500, "We couldn't load recent form for GOTW. Please try again.", error);
 
   const byTeam = new Map<string, { win: number; margin: number }[]>();
   for (const g of (data ?? []) as any[]) {
@@ -127,7 +127,7 @@ async function recentGotwTeamIds(leagueId: string, seasonNumber: number, weekNum
     .eq("season_number", seasonNumber)
     .gte("week_number", weekNumber - 3)
     .lt("week_number", weekNumber);
-  if (error) throw new ApiError(500, "Failed to load recent GOTW history.", error);
+  if (error) throw new ApiError(500, "We couldn't load recent GOTW history right now. Please try again.", error);
   const ids = new Set<string>();
   for (const p of (data ?? []) as any[]) {
     if (p.away_team_id) ids.add(p.away_team_id);
@@ -157,7 +157,7 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
       "home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated)," +
       "away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)," +
       "rivalry:rec_league_rivalries(rivalry_name,is_active)");
-  if (gamesRes.error) throw new ApiError(500, "Failed to load games for GOTW nomination.", gamesRes.error);
+  if (gamesRes.error) throw new ApiError(500, "We couldn't load games for GOTW nomination. Please try again.", gamesRes.error);
 
   const eligible = ((gamesRes.data ?? []) as any[]).filter((g) =>
     g.home_team_id && g.away_team_id && g.home_user_id && g.away_user_id &&

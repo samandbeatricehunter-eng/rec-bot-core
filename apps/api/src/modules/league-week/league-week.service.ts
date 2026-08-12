@@ -53,7 +53,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     .select("*")
     .single();
 
-  if (result.error) throw new ApiError(500, "Failed to update league week.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't update the league week. Please try again.", result.error);
 
   if (effectiveSeasonNumber && effectiveSeasonNumber !== previousSeasonNumber) {
     if (context.rec_leagues.game === "madden_26" || context.rec_leagues.game === "madden_27") {

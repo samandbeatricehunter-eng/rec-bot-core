@@ -184,7 +184,7 @@ async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load EOS payout batch.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load the end-of-season payout batch. Please try again.", existing.error);
   if (existing.data) return existing.data;
 
   const creator = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", requestedByDiscordId).maybeSingle();
@@ -199,7 +199,7 @@ async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber
     })
     .select("*")
     .single();
-  if (created.error) throw new ApiError(500, "Failed to create EOS payout batch.", created.error);
+  if (created.error) throw new ApiError(500, "We couldn't create the end-of-season payout batch. Please try again.", created.error);
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: guildId,
@@ -228,14 +228,14 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
   const rankDefinition = (await getGlobalEconomyConfig()).eos.find((definition) => definition.key === "power_ranking_position");
   if (!rankDefinition) return [];
   const rankRows = await supabase.rpc("rec_eos_rank_payouts", { p_league_id: leagueId, p_season_number: seasonNumber });
-  if (rankRows.error) throw new ApiError(500, "Failed to calculate power-ranking EOS payouts.", rankRows.error);
+  if (rankRows.error) throw new ApiError(500, "We couldn't calculate power-ranking end-of-season payouts. Please try again.", rankRows.error);
   const assignments = await supabase
     .from("rec_team_assignments")
     .select("user_id,team_id")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load EOS team assignments.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load end-of-season team assignments. Please try again.", assignments.error);
   const teamByUser = new Map((assignments.data ?? []).map((row) => [row.user_id, row.team_id]));
 
   return (rankRows.data ?? [])
@@ -264,7 +264,7 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
     .eq("season_number", seasonNumber)
     .lte("week_number", regularSeasonWeeks(game))
     .not("user_id", "is", null);
-  if (stats.error) throw new ApiError(500, "Failed to load EOS team stats.", stats.error);
+  if (stats.error) throw new ApiError(500, "We couldn't load end-of-season team stats. Please try again.", stats.error);
 
   const byUser = new Map<string, any[]>();
   for (const row of stats.data ?? []) {
@@ -311,7 +311,7 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
     .eq("batch_id", batch.id)
     .in("status", ["approved", "issued"])
     .limit(1);
-  if (existingIssued.error) throw new ApiError(500, "Failed to check existing EOS payout items.", existingIssued.error);
+  if (existingIssued.error) throw new ApiError(500, "We couldn't check existing end-of-season payout items. Please try again.", existingIssued.error);
 
   const items = [...await buildPowerRankItems(leagueId, seasonNumber), ...await buildTeamStatItems(leagueId, seasonNumber, game)];
   if (!(existingIssued.data ?? []).length) {
@@ -321,7 +321,7 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
         items.map((item) => ({ ...item, batch_id: batch.id, status: "pending" })),
         { onConflict: "batch_id,payout_key" },
       );
-      if (insert.error) throw new ApiError(500, "Failed to save EOS payout items.", insert.error);
+      if (insert.error) throw new ApiError(500, "We couldn't save end-of-season payout items. Please try again.", insert.error);
     }
   }
 
@@ -362,7 +362,7 @@ export async function wipeAndRerunEosLedger(input: { guildId: string; requestedB
     .eq("season_number", seasonNumber)
     .eq("batch_type", "eos_regular_season")
     .neq("status", "cleared");
-  if (existing.error) throw new ApiError(500, "Failed to load EOS payout batches to clear.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load end-of-season payout batches. Please try again.", existing.error);
   const batchIds = (existing.data ?? []).map((row) => row.id);
 
   if (batchIds.length) {
@@ -371,10 +371,10 @@ export async function wipeAndRerunEosLedger(input: { guildId: string; requestedB
       .from("rec_eos_payout_batches")
       .update({ status: "cleared", cleared_by_user_id: reviewer.data?.user_id ?? null, clear_reason: input.reason, cleared_at: now, updated_at: now })
       .in("id", batchIds);
-    if (cleared.error) throw new ApiError(500, "Failed to clear EOS payout batches.", cleared.error);
+    if (cleared.error) throw new ApiError(500, "We couldn't clear end-of-season payout batches. Please try again.", cleared.error);
 
     const removedItems = await supabase.from("rec_eos_payout_items").delete().in("batch_id", batchIds).in("status", ["pending", "denied"]);
-    if (removedItems.error) throw new ApiError(500, "Failed to wipe pending EOS payout items.", removedItems.error);
+    if (removedItems.error) throw new ApiError(500, "We couldn't clear pending end-of-season payout items. Please try again.", removedItems.error);
 
     const inboxCleared = await supabase
       .from("rec_commissioners_inbox")
@@ -382,7 +382,7 @@ export async function wipeAndRerunEosLedger(input: { guildId: string; requestedB
       .eq("source_table", "rec_eos_payout_batches")
       .in("source_id", batchIds)
       .eq("status", "pending");
-    if (inboxCleared.error) throw new ApiError(500, "Failed to clear the EOS payout inbox entry.", inboxCleared.error);
+    if (inboxCleared.error) throw new ApiError(500, "We couldn't clear the end-of-season payout inbox entry. Please try again.", inboxCleared.error);
   }
 
   return prepareEosPayoutsForLeague(input.guildId, context.leagueId, context.rec_leagues.game, seasonNumber, input.requestedByDiscordId);
@@ -429,7 +429,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   const rankDefinition = payoutDefinitions.find((definition) => definition.key === "power_ranking_position");
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   if (!account.data?.user_id) return { seasonNumber, teamStats: [], ranking: null };
   const userId = account.data.user_id;
 
@@ -440,7 +440,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
     .eq("season_number", seasonNumber)
     .eq("user_id", userId)
     .lte("week_number", regularSeasonWeeks(game));
-  if (statsRows.error) throw new ApiError(500, "Failed to load your season stats.", statsRows.error);
+  if (statsRows.error) throw new ApiError(500, "We couldn't load your season stats right now. Please try again.", statsRows.error);
   const rows = statsRows.data ?? [];
 
   const defenseNickname = await getMyDefenseNicknameStatus(input.guildId, input.discordId).catch(() => null);
@@ -471,7 +471,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   let ranking: (EosPayoutProgressCard & { rank: number | null }) | null = null;
   if (rankDefinition) {
     const rankRows = await supabase.rpc("rec_eos_rank_payouts", { p_league_id: context.leagueId, p_season_number: seasonNumber });
-    if (rankRows.error) throw new ApiError(500, "Failed to calculate your power-ranking progress.", rankRows.error);
+    if (rankRows.error) throw new ApiError(500, "We couldn't calculate your power-ranking progress. Please try again.", rankRows.error);
     const mine = (rankRows.data ?? []).find((row: any) => row.user_id === userId);
     if (mine) {
       const rank = Number(mine.rank);
@@ -500,7 +500,7 @@ async function attachPayeeDiscordIds(items: any[]): Promise<any[]> {
 
 export async function listEosPayoutBatch(batchId: string) {
   const batch = await supabase.from("rec_eos_payout_batches").select("*").eq("id", batchId).maybeSingle();
-  if (batch.error) throw new ApiError(500, "Failed to load EOS payout batch.", batch.error);
+  if (batch.error) throw new ApiError(500, "We couldn't load the end-of-season payout batch. Please try again.", batch.error);
   if (!batch.data) throw new ApiError(404, "EOS payout batch was not found.");
   const items = await supabase
     .from("rec_eos_payout_items")
@@ -508,7 +508,7 @@ export async function listEosPayoutBatch(batchId: string) {
     .eq("batch_id", batchId)
     .order("payout_category", { ascending: true })
     .order("amount", { ascending: false });
-  if (items.error) throw new ApiError(500, "Failed to load EOS payout items.", items.error);
+  if (items.error) throw new ApiError(500, "We couldn't load end-of-season payout items. Please try again.", items.error);
   const withDiscord = await attachPayeeDiscordIds(items.data ?? []);
   const totalAmount = withDiscord.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   return { batch: batch.data, items: withDiscord, totalAmount };
@@ -530,7 +530,7 @@ export async function reviewEosPayoutsForUser(input: {
     .eq("batch_id", input.batchId)
     .eq("user_id", input.userId)
     .eq("status", "pending");
-  if (pending.error) throw new ApiError(500, "Failed to load EOS payout items for coach.", pending.error);
+  if (pending.error) throw new ApiError(500, "We couldn't load end-of-season payout items. Please try again.", pending.error);
 
   // Each item touches a distinct row and a distinct wallet-ledger idempotency key
   // (itemId-scoped), so reviewing a coach's items is safe to run in parallel.
@@ -580,7 +580,7 @@ export async function reviewEosPayoutsForUser(input: {
 
 export async function reviewEosPayoutItem(input: { itemId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
   const existing = await supabase.from("rec_eos_payout_items").select("*").eq("id", input.itemId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load EOS payout item.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that end-of-season payout item. Please try again.", existing.error);
   if (!existing.data) throw new ApiError(404, "EOS payout item was not found.");
   if (existing.data.status !== "pending") return { updated: false, reason: `Item is already ${existing.data.status}.`, item: existing.data };
 
@@ -598,7 +598,7 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
       .eq("id", input.itemId)
       .select("*")
       .single();
-    if (denied.error) throw new ApiError(500, "Failed to deny EOS payout item.", denied.error);
+    if (denied.error) throw new ApiError(500, "We couldn't deny that end-of-season payout. Please try again.", denied.error);
     return { updated: true, item: denied.data };
   }
 
@@ -626,7 +626,7 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
     .eq("id", input.itemId)
     .select("*")
     .single();
-  if (issued.error) throw new ApiError(500, "Failed to mark EOS payout issued.", issued.error);
+  if (issued.error) throw new ApiError(500, "We couldn't mark that end-of-season payout as issued. Please try again.", issued.error);
 
   if (issued.data.payout_key === "defense_needs_a_name" && issued.data.team_id) {
     await qualifyDefenseNickname({
@@ -689,7 +689,7 @@ async function definitionForItem(item: { payout_category: string; payout_key: st
 // never entered freehand, so it can't drift from the published payout table.
 export async function adjustEosPayoutItem(input: { itemId: string; tier: RecPayoutTier | null; actorDiscordId: string }) {
   const existing = await supabase.from("rec_eos_payout_items").select("*").eq("id", input.itemId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load EOS payout item.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that end-of-season payout item. Please try again.", existing.error);
   if (!existing.data) throw new ApiError(404, "EOS payout item was not found.");
   if (existing.data.status !== "pending") throw new ApiError(400, "Only pending items can be adjusted.");
 
@@ -709,7 +709,7 @@ export async function adjustEosPayoutItem(input: { itemId: string; tier: RecPayo
     .eq("id", input.itemId)
     .select("*")
     .single();
-  if (updated.error) throw new ApiError(500, "Failed to adjust EOS payout item.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't adjust that end-of-season payout. Please try again.", updated.error);
   return { item: updated.data };
 }
 
@@ -748,7 +748,7 @@ export async function listPendingEosLedgers(guildId: string): Promise<{ batch: a
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (batch.error) throw new ApiError(500, "Failed to load the EOS payout batch.", batch.error);
+  if (batch.error) throw new ApiError(500, "We couldn't load the end-of-season payout batch. Please try again.", batch.error);
   if (!batch.data) return { batch: null, ledgers: [] };
 
   const items = await supabase
@@ -758,7 +758,7 @@ export async function listPendingEosLedgers(guildId: string): Promise<{ batch: a
     .eq("status", "pending")
     .order("payout_category", { ascending: true })
     .order("amount", { ascending: false });
-  if (items.error) throw new ApiError(500, "Failed to load EOS payout items.", items.error);
+  if (items.error) throw new ApiError(500, "We couldn't load end-of-season payout items. Please try again.", items.error);
 
   const userIds = [...new Set((items.data ?? []).map((item) => item.user_id))];
   const [accounts, users, assignments] = await Promise.all([

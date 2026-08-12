@@ -42,7 +42,7 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
     .gte("week_number", input.weekFrom)
     .lte("week_number", input.weekTo)
     .order("week_number", { ascending: true });
-  if (gamesRes.error) throw new ApiError(500, "Failed to load results for the selected weeks.", gamesRes.error);
+  if (gamesRes.error) throw new ApiError(500, "We couldn't load results for the selected weeks. Please try again.", gamesRes.error);
   const scheduledGames = gamesRes.data ?? [];
 
   // Confirmed results live in rec_game_results, not rec_games.home_score/away_score (that
@@ -52,7 +52,7 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
   const resultsRes = scheduledGames.length
     ? await supabase.from("rec_game_results").select("game_id,home_score,away_score,is_tie").eq("league_id", leagueId).in("game_id", scheduledGames.map((g) => g.id))
     : { data: [] as any[], error: null };
-  if (resultsRes.error) throw new ApiError(500, "Failed to load results for the selected weeks.", resultsRes.error);
+  if (resultsRes.error) throw new ApiError(500, "We couldn't load results for the selected weeks. Please try again.", resultsRes.error);
   const resultByGameId = new Map((resultsRes.data ?? []).map((r: any) => [r.game_id, r]));
 
   const games = scheduledGames
@@ -65,7 +65,7 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
     ? await supabase.from("rec_team_game_stats").select("game_id,team_id,is_home,total_yards_gained,off_yards_gained,turnovers_committed")
         .eq("league_id", leagueId).in("game_id", games.map((g: any) => g.id))
     : { data: [] as any[], error: null };
-  if (statsRes.error) throw new ApiError(500, "Failed to load box-score stats for the selected weeks.", statsRes.error);
+  if (statsRes.error) throw new ApiError(500, "We couldn't load box-score stats for the selected weeks. Please try again.", statsRes.error);
   const statsByGameId = new Map<string, any[]>();
   for (const row of statsRes.data ?? []) {
     const rows = statsByGameId.get(row.game_id) ?? [];

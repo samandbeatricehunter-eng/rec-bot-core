@@ -112,7 +112,7 @@ async function aggregateForTeams(
     .eq("season_number", seasonNumber)
     .order("week_number", { ascending: true });
   if (error)
-    throw new ApiError(500, "Failed to load results for matchup preview.", error);
+    throw new ApiError(500, "We couldn't load results for the matchup preview. Please try again.", error);
 
   // Dedupe duplicate rec_game_results rows by matchup-week.
   const uniqueResults = new Map<string, any>();
@@ -238,7 +238,7 @@ export async function getMatchupPreview(input: {
     .eq("league_id", leagueId)
     .maybeSingle();
   if (gameRes.error)
-    throw new ApiError(500, "Failed to load matchup preview.", gameRes.error);
+    throw new ApiError(500, "We couldn't load the matchup preview. Please try again.", gameRes.error);
   if (!gameRes.data) throw new ApiError(404, "Matchup not found.");
   const game = gameRes.data as any;
   const homeTeam = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;

@@ -65,7 +65,7 @@ async function loadScheduledGamesWithTeams(leagueId: string, seasonId: string, w
   const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
     "id,external_game_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated)")
     .order("external_game_id", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load the week's scheduled games.", error);
+  if (error) throw new ApiError(500, "We couldn't load this week's scheduled games. Please try again.", error);
   return data ?? [];
 }
 
@@ -80,7 +80,7 @@ async function boxScoreGameIds(leagueId: string, seasonNumber: number, weekNumbe
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
     .in("status", ["pending", "approved"]);
-  if (error) throw new ApiError(500, "Failed to load box scores for the week.", error);
+  if (error) throw new ApiError(500, "We couldn't load box scores for the week right now. Please try again.", error);
   return new Set((data ?? []).map((r) => String(r.game_id)).filter(Boolean));
 }
 
@@ -194,7 +194,7 @@ export async function createWeeklyScoreReview(input: {
     })
     .select("*")
     .single();
-  if (error || !data) throw new ApiError(500, "Failed to save the weekly score review.", error);
+  if (error || !data) throw new ApiError(500, "We couldn't save the weekly score review. Please try again.", error);
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
@@ -221,7 +221,7 @@ export async function createWeeklyScoreReview(input: {
 
 async function loadPendingReview(reviewId: string) {
   const { data, error } = await supabase.from(REVIEW_TABLE).select("*").eq("id", reviewId).maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load the weekly score review.", error);
+  if (error) throw new ApiError(500, "We couldn't load the weekly score review. Please try again.", error);
   if (!data) throw new ApiError(404, "This weekly score review no longer exists (it may have been superseded or the week advanced).");
   if (data.status !== "pending") throw new ApiError(409, "This weekly score review has already been logged or cancelled.");
   return data;
@@ -229,7 +229,7 @@ async function loadPendingReview(reviewId: string) {
 
 export async function getWeeklyScoreReview(reviewId: string): Promise<WeeklyScoreReview> {
   const { data, error } = await supabase.from(REVIEW_TABLE).select("*").eq("id", reviewId).maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load the weekly score review.", error);
+  if (error) throw new ApiError(500, "We couldn't load the weekly score review. Please try again.", error);
   if (!data) throw new ApiError(404, "This weekly score review no longer exists.");
   return shapeReview(data);
 }
@@ -254,7 +254,7 @@ export async function correctWeeklyScoreReview(input: {
     .eq("status", "pending")
     .select("*")
     .single();
-  if (error || !data) throw new ApiError(500, "Failed to apply the correction.", error);
+  if (error || !data) throw new ApiError(500, "We couldn't apply that correction. Please try again.", error);
   return shapeReview(data);
 }
 
@@ -334,7 +334,7 @@ async function writePrelogResults(
         .is("ended_at", null)
         .in("team_id", teamIds)
     : { data: [], error: null };
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments for score logging.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for score logging. Please try again.", assignments.error);
   const userByTeam = new Map((assignments.data ?? []).map((r: any) => [r.team_id, r.user_id]));
 
   let logged = 0;
@@ -388,7 +388,7 @@ async function writePrelogResults(
 
   if (rows.length) {
     const result = await supabase.from("rec_game_results").upsert(rows, { onConflict: "records_apply_key", ignoreDuplicates: false });
-    if (result.error) throw new ApiError(500, "Failed to log weekly scores.", result.error);
+    if (result.error) throw new ApiError(500, "We couldn't log weekly scores. Please try again.", result.error);
 
     await rebuildSeasonDisplayRecords(leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] rebuildSeasonDisplayRecords failed after weekly score prelog (non-fatal):", err);

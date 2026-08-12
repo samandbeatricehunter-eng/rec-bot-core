@@ -65,12 +65,12 @@ export async function clearDiscordTeamIdentityForUsers(input: { leagueId: string
   if (!guildId) return { cleared: [], failed: [] };
   const active = await supabase.from("rec_team_assignments").select("user_id").eq("league_id", input.leagueId)
     .eq("assignment_status", "active").is("ended_at", null).in("user_id", userIds);
-  if (active.error) throw new ApiError(500, "Failed to verify unlinked team assignments.", active.error);
+  if (active.error) throw new ApiError(500, "We couldn't verify unlinked team assignments. Please try again.", active.error);
   const activeIds = new Set((active.data ?? []).map((row) => row.user_id));
   const targets = userIds.filter((userId) => !activeIds.has(userId));
   if (!targets.length) return { cleared: [], failed: [] };
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", targets);
-  if (accounts.error) throw new ApiError(500, "Failed to load Discord accounts for team cleanup.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load Discord accounts for team cleanup. Please try again.", accounts.error);
   const roles = await Promise.all((['member', 'compCommittee', 'commissioner'] as const)
     .map(async (key) => await ensureManagedRoleId(guildId!, key).catch(() => null)));
   const cleared: string[] = [];
@@ -130,7 +130,7 @@ export async function createDefaultTeamsForLeague(leagueId: string, game: string
     primary_color: isCfbGame ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF",
   }));
   const result = await supabase.from("rec_teams").insert(rows).select("*");
-  if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't create the default league teams. Please try again.", result.error);
   await ensureLeagueRivalries(leagueId, game ?? null);
   syncRecruitingAd(leagueId);
   return { teams: result.data };
@@ -155,13 +155,13 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
   }));
 
   const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
-  if (clearedAssignments.error) throw new ApiError(500, "Failed to clear existing team links.", clearedAssignments.error);
+  if (clearedAssignments.error) throw new ApiError(500, "We couldn't clear existing team links. Please try again.", clearedAssignments.error);
 
   const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
-  if (clearedTeams.error) throw new ApiError(500, "Failed to clear existing league teams.", clearedTeams.error);
+  if (clearedTeams.error) throw new ApiError(500, "We couldn't clear existing league teams. Please try again.", clearedTeams.error);
 
   const result = await supabase.from("rec_teams").insert(rows).select("*");
-  if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't create the default league teams. Please try again.", result.error);
   await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
@@ -184,7 +184,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
   const customTeams = await supabase.from("rec_teams").select("id").eq("league_id", league.id).eq("is_relocated", true).limit(1);
-  if (customTeams.error) throw new ApiError(500, "Failed to validate permanent custom teams.", customTeams.error);
+  if (customTeams.error) throw new ApiError(500, "We couldn't validate permanent custom teams. Please try again.", customTeams.error);
   if (customTeams.data?.length) throw new ApiError(409, "Default teams cannot be reset after a custom replacement has been created in this league.");
   const isCfb = league.game === "cfb_27";
   const catalog = getDefaultTeamCatalog(league.game);
@@ -204,13 +204,13 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   }));
 
   const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
-  if (clearedAssignments.error) throw new ApiError(500, "Failed to clear existing team links.", clearedAssignments.error);
+  if (clearedAssignments.error) throw new ApiError(500, "We couldn't clear existing team links. Please try again.", clearedAssignments.error);
 
   const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
-  if (clearedTeams.error) throw new ApiError(500, "Failed to clear existing league teams.", clearedTeams.error);
+  if (clearedTeams.error) throw new ApiError(500, "We couldn't clear existing league teams. Please try again.", clearedTeams.error);
 
   const result = await supabase.from("rec_teams").insert(rows).select("*");
-  if (result.error) throw new ApiError(500, "Failed to reset default league teams.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't reset the default league teams. Please try again.", result.error);
   await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
@@ -237,13 +237,13 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     .limit(1)
     .maybeSingle();
 
-  if (existing.error) throw new ApiError(500, "Failed to look up existing team slot.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't look up that team slot. Please try again.", existing.error);
 
   const liveTeams = existing.data ? { data: [], error: null } : await supabase
     .from("rec_teams")
     .select("*")
     .eq("league_id", league.id);
-  if (liveTeams.error) throw new ApiError(500, "Failed to load live league teams.", liveTeams.error);
+  if (liveTeams.error) throw new ApiError(500, "We couldn't load live league teams. Please try again.", liveTeams.error);
 
   const normalizedLookup = normalizeTeamText(input.replacementTeamAbbreviation);
   const liveMatch = (liveTeams.data ?? []).find((team: any) =>
@@ -305,7 +305,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
       .single();
   }
 
-  if (result.error) throw new ApiError(500, "Failed to register custom team.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't register that custom team. Please try again.", result.error);
   await clearRivalriesForCustomTeam(league.id, result.data.id);
 
   await writeAuditLog({
@@ -325,14 +325,14 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     .eq("assignment_status", "active")
     .is("ended_at", null);
 
-  if (linkedResult.error) throw new ApiError(500, "Failed to load linked users for custom team.", linkedResult.error);
+  if (linkedResult.error) throw new ApiError(500, "We couldn't load linked users for that custom team. Please try again.", linkedResult.error);
 
   const linkedUserIds = [...new Set((linkedResult.data ?? []).map((row) => row.user_id).filter(Boolean))];
   const accounts = linkedUserIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", linkedUserIds)
     : { data: [], error: null };
 
-  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts for custom team.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load linked Discord accounts for that custom team. Please try again.", accounts.error);
 
   const discordByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account.discord_id]));
   const linkedUsers = (linkedResult.data ?? []).map((row: any) => {
@@ -364,7 +364,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .eq("discord_id", input.discordId)
     .maybeSingle();
 
-  if (account.error) throw new ApiError(500, "Failed to check Discord account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't check that Discord account. Please try again.", account.error);
 
   let userId = account.data?.user_id;
 
@@ -384,7 +384,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
       .select("id")
       .single();
 
-    if (user.error) throw new ApiError(500, "Failed to create REC user for Discord account.", user.error);
+    if (user.error) throw new ApiError(500, "We couldn't create a REC user for that Discord account. Please try again.", user.error);
 
     const created = await supabase
       .from("rec_discord_accounts")
@@ -397,7 +397,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
       // rec_discord_accounts row it can never self-heal its blank display_name later, and it
       // has no team/league attachment either, so it just sits as a permanent nameless ghost.
       await supabase.from("rec_users").delete().eq("id", user.data.id);
-      throw new ApiError(500, "Failed to create Discord account link.", created.error);
+      throw new ApiError(500, "We couldn't link that Discord account. Please try again.", created.error);
     }
     userId = created.data.user_id;
   }
@@ -407,7 +407,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .select("id,supabase_auth_user_id")
     .eq("id", userId)
     .maybeSingle();
-  if (linkedUser.error) throw new ApiError(500, "Failed to load linked user.", linkedUser.error);
+  if (linkedUser.error) throw new ApiError(500, "We couldn't load that linked user. Please try again.", linkedUser.error);
   if (linkedUser.data?.supabase_auth_user_id) {
     await assertCanJoinLeague(userId, league.game);
   }
@@ -448,7 +448,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .select("*")
     .single();
 
-  if (assignment.error) throw new ApiError(500, "Failed to create team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't create that team assignment. Please try again.", assignment.error);
 
   // Team linking intentionally starts everyone at Member. Commissioners can elevate the
   // user independently from the Roles screen after the link is established.
@@ -517,7 +517,7 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
   }
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", account.error);
   if (!account.data?.user_id) return { synced: false };
 
   const assignment = await supabase
@@ -528,7 +528,7 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignment.error);
   const team = assignment.data?.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
   if (!team) return { synced: false };
 
@@ -561,13 +561,13 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
     .eq("league_id", league.id)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments right now. Please try again.", assignments.error);
 
   const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id).filter(Boolean))];
   const accounts = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
     : { data: [] as any[], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load linked Discord accounts right now. Please try again.", accounts.error);
   const discordIdByUser = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
 
   const synced: Array<{ discordId: string; nickname: string }> = [];
@@ -625,13 +625,13 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
     .eq("league_id", league.id)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments right now. Please try again.", assignments.error);
 
   const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id).filter(Boolean))];
   const accounts = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
     : { data: [] as any[], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load linked Discord accounts right now. Please try again.", accounts.error);
   const discordIdByUser = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
 
   const expectedRoleKeyByDiscordId = new Map<string, AssignableRoleKey>();
@@ -718,14 +718,14 @@ export async function listLinkedUsersTeams(guildId: string) {
     .is("ended_at", null)
     .order("created_at", { ascending: false });
 
-  if (result.error) throw new ApiError(500, "Failed to load linked users/teams.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't load linked users and teams. Please try again.", result.error);
 
   const userIds = [...new Set((result.data ?? []).map((row) => row.user_id).filter(Boolean))];
   const accounts = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
 
-  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load linked Discord accounts right now. Please try again.", accounts.error);
 
   const accountByUserId = new Map<string, any>((accounts.data ?? []).map((account: any) => [account.user_id, account]));
   const linked = (result.data ?? []).map((row) => {
@@ -750,10 +750,10 @@ export async function getTeamLinkMatrix(guildId: string) {
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", league.id).eq("assignment_status", "active").is("ended_at", null),
     listGuildMembers(guildId),
   ]);
-  if (teams.error || assignments.error) throw new ApiError(500, "Failed to load the team linking matrix.", teams.error ?? assignments.error);
+  if (teams.error || assignments.error) throw new ApiError(500, "We couldn't load the team linking overview. Please try again.", teams.error ?? assignments.error);
   const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id))];
   const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load linked Discord accounts right now. Please try again.", accounts.error);
   const discordByUser = new Map((accounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
   const assignmentByTeam = new Map((assignments.data ?? []).map((row) => [row.team_id, discordByUser.get(row.user_id) ?? null]));
   return {
@@ -767,7 +767,7 @@ export async function getTeamLinkMatrix(guildId: string) {
 // Discord server yet) can compute the same open-teams set without a guildId to resolve from.
 export async function listOpenTeamsForLeagueId(leagueId: string) {
   const teams = await supabase.from("rec_teams").select("*").eq("league_id", leagueId).order("conference").order("name");
-  if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
+  if (teams.error) throw new ApiError(500, "We couldn't load league teams right now. Please try again.", teams.error);
 
   const [assignments, pendingRequests] = await Promise.all([
     supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).is("ended_at", null),
@@ -777,8 +777,8 @@ export async function listOpenTeamsForLeagueId(leagueId: string) {
     // (completed teams are already caught by the assignment it created).
     supabase.from("rec_team_link_requests").select("team_id").eq("league_id", leagueId).in("status", ["pending", "approved"]),
   ]);
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
-  if (pendingRequests.error) throw new ApiError(500, "Failed to load pending team requests.", pendingRequests.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments right now. Please try again.", assignments.error);
+  if (pendingRequests.error) throw new ApiError(500, "We couldn't load pending team requests. Please try again.", pendingRequests.error);
 
   const assigned = new Set(assignments.data.map((row) => row.team_id));
   for (const row of pendingRequests.data) assigned.add(row.team_id);
@@ -806,7 +806,7 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
     .is("ended_at", null)
     .select("*");
 
-  if (result.error) throw new ApiError(500, "Failed to unlink team assignment.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't unlink that team assignment. Please try again.", result.error);
   const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({
@@ -831,7 +831,7 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
     .is("ended_at", null)
     .select("*");
 
-  if (result.error) throw new ApiError(500, "Failed to unlink team assignments.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't unlink those team assignments. Please try again.", result.error);
   const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({

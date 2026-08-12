@@ -119,10 +119,10 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     ),
   ]);
 
-  if (globalRecordRow.error) throw new ApiError(500, "Failed to load global record.", globalRecordRow.error);
-  if (discordRow.error) throw new ApiError(500, "Failed to load Discord link.", discordRow.error);
-  if (assignmentRow.error) throw new ApiError(500, "Failed to load team assignment.", assignmentRow.error);
-  if (recentBadgeRow.error) throw new ApiError(500, "Failed to load most recent badge.", recentBadgeRow.error);
+  if (globalRecordRow.error) throw new ApiError(500, "We couldn't load your global record. Please try again.", globalRecordRow.error);
+  if (discordRow.error) throw new ApiError(500, "We couldn't load your Discord link. Please try again.", discordRow.error);
+  if (assignmentRow.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignmentRow.error);
+  if (recentBadgeRow.error) throw new ApiError(500, "We couldn't load your most recent badge. Please try again.", recentBadgeRow.error);
 
   const globalRecord = globalRecordRow.data ?? {
     wins: 0, losses: 0, ties: 0, playoff_wins: 0, playoff_losses: 0,
@@ -240,7 +240,7 @@ export async function listSiteAnnouncements() {
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false })
     .limit(20);
-  if (rows.error) throw new ApiError(500, "Failed to load announcements.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load announcements right now. Please try again.", rows.error);
 
   const announcements = (rows.data ?? []).filter((row) => {
     if (row.starts_at && String(row.starts_at) > now) return false;
@@ -269,7 +269,7 @@ export async function refreshSpotlightReel() {
     .eq("assignment_status", "active")
     .is("ended_at", null);
   if (activeLeagueIdsResult.error) {
-    throw new ApiError(500, "Failed to load active leagues.", activeLeagueIdsResult.error);
+    throw new ApiError(500, "We couldn't load active leagues right now. Please try again.", activeLeagueIdsResult.error);
   }
   const activeLeagueIds = [
     ...new Set((activeLeagueIdsResult.data ?? []).map((row) => String(row.league_id)).filter(Boolean)),
@@ -285,7 +285,7 @@ export async function refreshSpotlightReel() {
     .in("league_id", activeLeagueIds)
     .eq("hub_visible", true)
     .eq("media_status", "ready");
-  if (highlights.error) throw new ApiError(500, "Failed to load highlight candidates.", highlights.error);
+  if (highlights.error) throw new ApiError(500, "We couldn't load highlight candidates. Please try again.", highlights.error);
   const ids = (highlights.data ?? []).map((row) => String(row.id));
   if (!ids.length) {
     await supabase.from("rec_spotlight_reel").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -297,7 +297,7 @@ export async function refreshSpotlightReel() {
     .select("highlight_post_id,reaction_key")
     .in("highlight_post_id", ids)
     .in("reaction_key", [...POSITIVE_REACTION_KEYS]);
-  if (reactions.error) throw new ApiError(500, "Failed to load highlight reactions.", reactions.error);
+  if (reactions.error) throw new ApiError(500, "We couldn't load highlight reactions right now. Please try again.", reactions.error);
 
   const score = new Map<string, number>();
   for (const id of ids) score.set(id, 0);
@@ -314,7 +314,7 @@ export async function refreshSpotlightReel() {
     .from("rec_spotlight_reel")
     .delete()
     .neq("id", "00000000-0000-0000-0000-000000000000");
-  if (cleared.error) throw new ApiError(500, "Failed to clear spotlight reel.", cleared.error);
+  if (cleared.error) throw new ApiError(500, "We couldn't clear the spotlight reel. Please try again.", cleared.error);
 
   if (top.length) {
     const inserted = await supabase.from("rec_spotlight_reel").insert(
@@ -326,7 +326,7 @@ export async function refreshSpotlightReel() {
         selected_at: new Date().toISOString(),
       })),
     );
-    if (inserted.error) throw new ApiError(500, "Failed to write spotlight reel.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't update the spotlight reel. Please try again.", inserted.error);
   }
 
   return {
@@ -367,7 +367,7 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
       .from("rec_highlight_posts")
       .select("id,cloudflare_stream_uid,storage_provider,playback_url,media_status,content,created_at")
       .eq("hub_visible", true);
-    if (rows.error) throw new ApiError(500, "Failed to load highlights for cleanup.", rows.error);
+    if (rows.error) throw new ApiError(500, "We couldn't load highlights for cleanup. Please try again.", rows.error);
 
     // Each row's liveness check is an independent network call (up to a 20s Cloudflare
     // timeout, or 12s for a playback HEAD request) — run them in parallel instead of one
@@ -418,7 +418,7 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
 
     if (deadIds.length) {
       const removed = await supabase.from("rec_highlight_posts").delete().in("id", deadIds);
-      if (removed.error) throw new ApiError(500, "Failed to prune dead highlights.", removed.error);
+      if (removed.error) throw new ApiError(500, "We couldn't remove unavailable highlights. Please try again.", removed.error);
     }
     lastHighlightPruneDay = day;
     return { removed: deadIds };
@@ -435,7 +435,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
     .from("rec_spotlight_reel")
     .select("id,highlight_post_id,rank,like_count,selected_at")
     .order("rank", { ascending: true });
-  if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
+  if (reel.error) throw new ApiError(500, "We couldn't load the spotlight reel. Please try again.", reel.error);
 
   /*const selectedAt = (reel.data ?? [])[0]?.selected_at
     ? new Date(String((reel.data ?? [])[0]?.selected_at))
@@ -453,7 +453,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
         .from("rec_spotlight_reel")
         .select("id,highlight_post_id,rank,like_count,selected_at")
         .order("rank", { ascending: true });
-      if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
+      if (reel.error) throw new ApiError(500, "We couldn't load the spotlight reel. Please try again.", reel.error);
     } catch (error) {
       console.error("[ERROR] refreshSpotlightReel failed, serving stale reel (non-fatal):", error);
     }
@@ -470,7 +470,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
       "id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,cloudflare_stream_uid,storage_provider,media_status,playback_url,created_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated),league:rec_leagues(name,game)",
     )
     .in("id", highlightIds);
-  if (posts.error) throw new ApiError(500, "Failed to load spotlight highlights.", posts.error);
+  if (posts.error) throw new ApiError(500, "We couldn't load spotlight highlights right now. Please try again.", posts.error);
 
   const [spotlightReactions, comments, games] = await Promise.all([
     supabase
@@ -491,10 +491,10 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
       .order("week_number", { ascending: false }),
   ]);
   if (spotlightReactions.error) {
-    throw new ApiError(500, "Failed to load spotlight reactions.", spotlightReactions.error);
+    throw new ApiError(500, "We couldn't load spotlight reactions right now. Please try again.", spotlightReactions.error);
   }
-  if (comments.error) throw new ApiError(500, "Failed to load highlight comments.", comments.error);
-  if (games.error) throw new ApiError(500, "Failed to load highlight matchups.", games.error);
+  if (comments.error) throw new ApiError(500, "We couldn't load highlight comments right now. Please try again.", comments.error);
+  if (games.error) throw new ApiError(500, "We couldn't load highlight matchups right now. Please try again.", games.error);
 
   let viewerUserId: string | null = null;
   if (input.authUserId) {
@@ -510,7 +510,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
   const spotlightGameUsers = spotlightGameUserIds.length
     ? await supabase.from("rec_users").select("id,username,display_name").in("id", spotlightGameUserIds)
     : { data: [], error: null };
-  if (spotlightGameUsers.error) throw new ApiError(500, "Failed to load spotlight matchup participants.", spotlightGameUsers.error);
+  if (spotlightGameUsers.error) throw new ApiError(500, "We couldn't load spotlight matchup participants. Please try again.", spotlightGameUsers.error);
   const spotlightGameUserNameById = new Map<string, string>((spotlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
 
   const postById = new Map<string, any>((posts.data ?? []).map((row: any) => [String(row.id), row]));
@@ -614,7 +614,7 @@ export async function toggleSpotlightReaction(input: {
     .select("id")
     .eq("highlight_post_id", input.highlightId)
     .maybeSingle();
-  if (onReel.error) throw new ApiError(500, "Failed to verify spotlight clip.", onReel.error);
+  if (onReel.error) throw new ApiError(500, "We couldn't verify that spotlight clip. Please try again.", onReel.error);
   if (!onReel.data) throw new ApiError(404, "This clip is not on the Spotlight Reel.");
 
   const highlight = await supabase
@@ -622,7 +622,7 @@ export async function toggleSpotlightReaction(input: {
     .select("id,user_id,league_id,season_number")
     .eq("id", input.highlightId)
     .maybeSingle();
-  if (highlight.error) throw new ApiError(500, "Failed to load highlight.", highlight.error);
+  if (highlight.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
 
   const existing = await supabase
@@ -632,7 +632,7 @@ export async function toggleSpotlightReaction(input: {
     .eq("user_id", user.recUserId)
     .in("reaction_key", ["like", "dislike"])
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to read spotlight reaction.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that spotlight reaction. Please try again.", existing.error);
 
   const posterId = String(highlight.data.user_id);
   const canPayPoster = posterId !== user.recUserId;
@@ -656,7 +656,7 @@ export async function toggleSpotlightReaction(input: {
 
   if (existing.data?.reaction_key === input.reactionKey) {
     const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
-    if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't remove that reaction. Please try again.", removed.error);
     if (input.reactionKey === "like") {
       await payPoster(-SPOTLIGHT_LIKE_COINS, "Spotlight Reel like removed", {
         highlightPostId: input.highlightId,
@@ -667,7 +667,7 @@ export async function toggleSpotlightReaction(input: {
   } else if (existing.data) {
     const wasLike = existing.data.reaction_key === "like";
     const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
-    if (removed.error) throw new ApiError(500, "Failed to update reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't update that reaction. Please try again.", removed.error);
     const inserted = await supabase.from("rec_highlight_reactions").insert({
       id: randomUUID(),
       highlight_post_id: input.highlightId,
@@ -675,7 +675,7 @@ export async function toggleSpotlightReaction(input: {
       reaction_key: input.reactionKey,
       created_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to update reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't update that reaction. Please try again.", inserted.error);
     if (wasLike && input.reactionKey === "dislike") {
       await payPoster(-SPOTLIGHT_LIKE_COINS, "Spotlight Reel like removed", {
         highlightPostId: input.highlightId,
@@ -697,7 +697,7 @@ export async function toggleSpotlightReaction(input: {
       reaction_key: input.reactionKey,
       created_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't save that reaction. Please try again.", inserted.error);
     if (input.reactionKey === "like") {
       await payPoster(SPOTLIGHT_LIKE_COINS, "Spotlight Reel like", {
         highlightPostId: input.highlightId,
@@ -726,7 +726,7 @@ export async function addHighlightComment(input: {
     .select("id")
     .eq("highlight_post_id", input.highlightId)
     .maybeSingle();
-  if (onReel.error) throw new ApiError(500, "Failed to verify spotlight clip.", onReel.error);
+  if (onReel.error) throw new ApiError(500, "We couldn't verify that spotlight clip. Please try again.", onReel.error);
   if (!onReel.data) throw new ApiError(404, "This clip is not on the Spotlight Reel.");
 
   const inserted = await supabase
@@ -740,7 +740,7 @@ export async function addHighlightComment(input: {
     })
     .select("id,highlight_post_id,user_id,body,created_at")
     .single();
-  if (inserted.error) throw new ApiError(500, "Failed to post comment.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't post that comment. Please try again.", inserted.error);
 
   return {
     comment: {
@@ -769,7 +769,7 @@ export async function badgesForUser(recUserId: string) {
     .eq("user_id", recUserId)
     .order("updated_at", { ascending: false })
     .limit(200);
-  if (rows.error) throw new ApiError(500, "Failed to load badges.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load badges right now. Please try again.", rows.error);
 
   const descByKey = new Map<string, string>();
   const labelByKey = new Map<string, string>();
@@ -835,14 +835,14 @@ export async function listUserCareerStatsByGame(input: { authUserId: string }) {
 
 export async function careerStatsByGameForUser(recUserId: string) {
   const statRows = await supabase.from("rec_team_game_stats").select("*").eq("user_id", recUserId);
-  if (statRows.error) throw new ApiError(500, "Failed to load career stats.", statRows.error);
+  if (statRows.error) throw new ApiError(500, "We couldn't load career stats right now. Please try again.", statRows.error);
   const rows = statRows.data ?? [];
 
   const leagueIds = [...new Set(rows.map((row: any) => row.league_id).filter(Boolean))];
   const leaguesResult = leagueIds.length
     ? await supabase.from("rec_leagues").select("id,game").in("id", leagueIds)
     : { data: [], error: null };
-  if (leaguesResult.error) throw new ApiError(500, "Failed to load leagues for career stats.", leaguesResult.error);
+  if (leaguesResult.error) throw new ApiError(500, "We couldn't load leagues for career stats. Please try again.", leaguesResult.error);
   const gameByLeagueId = new Map<string, string>((leaguesResult.data ?? []).map((row: any) => [row.id, String(row.game)]));
 
   const rowsByGame = new Map<string, any[]>();

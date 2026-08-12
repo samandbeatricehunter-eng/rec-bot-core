@@ -45,7 +45,7 @@ async function userIdFromDiscord(discordId: string): Promise<string> {
     .select("user_id")
     .eq("discord_id", discordId)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load Discord account.", error);
+  if (error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", error);
   if (!data?.user_id) throw new ApiError(404, "You aren't linked to a REC account yet.");
   return data.user_id;
 }
@@ -78,7 +78,7 @@ async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, week
     .eq("placed_by_user_id", userId)
     .eq("wager_kind", "house")
     .in("status", ["pending", "confirmed"]);
-  if (error) throw new ApiError(500, "Failed to check weekly house wager cap.", error);
+  if (error) throw new ApiError(500, "We couldn't check your weekly house wager limit. Please try again.", error);
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
   if (activeTotal + stake > maximum) {
     throw new ApiError(400, `House wagers are capped at ${formatCoins(maximum)} total per week. You already have ${formatCoins(activeTotal)} active.`);
@@ -91,7 +91,7 @@ async function assertPeerWeeklyCap(leagueId: string, seasonNumber: number, weekN
     .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber)
     .eq("wager_kind", "peer").in("status", ["awaiting_accept", "pending", "confirmed"])
     .or(`placed_by_user_id.eq.${userId},accepted_by_user_id.eq.${userId}`);
-  if (error) throw new ApiError(500, "Failed to check weekly peer wager cap.", error);
+  if (error) throw new ApiError(500, "We couldn't check your weekly peer wager limit. Please try again.", error);
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
   if (activeTotal + stake > maximum) {
     throw new ApiError(400, `User-to-user wagers are capped at ${formatCoins(maximum)} total per week. You already have ${formatCoins(activeTotal)} active.`);
@@ -114,7 +114,7 @@ export async function listWagerableGames(guildId: string, discordId: string) {
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
     "id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
     .order("external_game_id", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load games for wagering.", error);
+  if (error) throw new ApiError(500, "We couldn't load the wagerable games right now. Please try again.", error);
 
   // Only true head-to-head (both sides human-controlled) games are wagerable — human-vs-CPU
   // and CPU-vs-CPU games are excluded entirely.
@@ -169,7 +169,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
     .eq("league_id", leagueId)
     .eq("id", input.gameId)
     .maybeSingle();
-  if (gameErr) throw new ApiError(500, "Failed to load the game.", gameErr);
+  if (gameErr) throw new ApiError(500, "We couldn't load the game. Please try again.", gameErr);
   if (!game) throw new ApiError(404, "That game isn't on the schedule.");
   if (game.status !== "scheduled") throw new ApiError(409, "Wagering is closed for this game.");
   if (Number(game.week_number) !== weekNumber) throw new ApiError(400, "You can only wager on this week's games.");
@@ -246,7 +246,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
     .single();
   if (insert.error) {
     if (insert.error.code === "23505") throw new ApiError(409, "You already have this exact wager (same game and market) this week.");
-    throw new ApiError(500, "Failed to place wager.", insert.error);
+    throw new ApiError(500, "We couldn't place that wager. Please try again.", insert.error);
   }
 
   const hold = await supabase.rpc("add_to_wallet", {
@@ -260,7 +260,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   });
   if (hold.error) {
     await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
-    throw new ApiError(500, "Failed to hold wager funds.", hold.error);
+    throw new ApiError(500, "We couldn't hold funds for that wager. Please try again.", hold.error);
   }
   await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data, updated_at: new Date().toISOString() }).eq("id", insert.data.id);
 
@@ -288,7 +288,7 @@ async function prepareSingleWager(guildId: string, userId: string, leagueId: str
     .eq("league_id", leagueId)
     .eq("id", gameId)
     .maybeSingle();
-  if (gameErr) throw new ApiError(500, "Failed to load the game.", gameErr);
+  if (gameErr) throw new ApiError(500, "We couldn't load the game. Please try again.", gameErr);
   if (!game) throw new ApiError(404, "That game isn't on the schedule.");
   if (Number(game.week_number) !== weekNumber) throw new ApiError(400, "You can only wager on this week's games.");
 
@@ -384,7 +384,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
     .single();
   if (insert.error) {
     if (insert.error.code === "23505") throw new ApiError(409, "You already have this exact wager (same game and market) this week.");
-    throw new ApiError(500, "Failed to propose wager.", insert.error);
+    throw new ApiError(500, "We couldn't propose that wager. Please try again.", insert.error);
   }
 
   const hold = await supabase.rpc("add_to_wallet", {
@@ -398,7 +398,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   });
   if (hold.error) {
     await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
-    throw new ApiError(500, "Failed to hold wager funds.", hold.error);
+    throw new ApiError(500, "We couldn't hold funds for that wager. Please try again.", hold.error);
   }
   await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
 
@@ -492,7 +492,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   await assertNotLeagueRestricted(leagueId, accepterId, "wagers");
 
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", leagueId).maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager || wager.status !== "awaiting_accept") throw new ApiError(409, "This wager is no longer open to accept.");
   if (wager.placed_by_user_id === accepterId) throw new ApiError(400, "You can't take your own wager.");
   if (wager.challenge_type === "direct" && wager.counterparty_user_id && wager.counterparty_user_id !== accepterId) {
@@ -522,7 +522,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
     p_source: "wager",
     p_source_reference: { wagerId: wager.id, accepter: true },
   });
-  if (hold.error) throw new ApiError(500, "Failed to hold wager funds.", hold.error);
+  if (hold.error) throw new ApiError(500, "We couldn't hold funds for that wager. Please try again.", hold.error);
 
   const updated = await supabase
     .from("rec_wagers")
@@ -604,7 +604,7 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
     .eq("wager_kind", "peer")
     .in("status", ["awaiting_accept", "pending"])
     .order("created_at", { ascending: false });
-  if (error) throw new ApiError(500, "Failed to load wager board.", error);
+  if (error) throw new ApiError(500, "We couldn't load the wager board. Please try again.", error);
 
   const rows = (data ?? []).filter((w: any) => {
     if (w.status === "pending") return true; // active accepted wagers are public
@@ -690,7 +690,7 @@ export async function listMyWagers(guildId: string, discordId: string) {
     .or(`placed_by_user_id.eq.${viewerUserId},accepted_by_user_id.eq.${viewerUserId},counterparty_user_id.eq.${viewerUserId}`)
     .order("created_at", { ascending: false })
     .limit(200);
-  if (error) throw new ApiError(500, "Failed to load your wagers.", error);
+  if (error) throw new ApiError(500, "We couldn't load your wagers. Please try again.", error);
   const rows = data ?? [];
 
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
@@ -770,7 +770,7 @@ export async function attachWagerAnnouncementMessage(input: { wagerId: string; c
     .from("rec_wagers")
     .update({ announcement_channel_id: input.channelId, announcement_message_id: input.messageId, updated_at: new Date().toISOString() })
     .eq("id", input.wagerId);
-  if (error) throw new ApiError(500, "Failed to store wager announcement message.", error);
+  if (error) throw new ApiError(500, "We couldn't save the wager announcement. Please try again.", error);
   return { ok: true };
 }
 
@@ -834,13 +834,13 @@ export async function placeParlay(input: PlaceParlayInput) {
     })
     .select("*")
     .single();
-  if (insert.error) throw new ApiError(500, "Failed to place parlay.", insert.error);
+  if (insert.error) throw new ApiError(500, "We couldn't place that parlay. Please try again.", insert.error);
 
   const legRows = prepared.map((l) => ({ wager_id: insert.data.id, game_id: l.gameId, market: l.market, pick: l.pick, line: l.line, odds: l.odds }));
   const legInsert = await supabase.from("rec_wager_legs").insert(legRows);
   if (legInsert.error) {
     await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
-    throw new ApiError(500, "Failed to save parlay legs.", legInsert.error);
+    throw new ApiError(500, "We couldn't save the parlay legs. Please try again.", legInsert.error);
   }
 
   const hold = await supabase.rpc("add_to_wallet", {
@@ -850,7 +850,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   });
   if (hold.error) {
     await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
-    throw new ApiError(500, "Failed to hold parlay funds.", hold.error);
+    throw new ApiError(500, "We couldn't hold funds for that parlay. Please try again.", hold.error);
   }
   await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
 
@@ -897,7 +897,7 @@ export async function attachWagerPendingMessage(input: { wagerId: string; channe
     .from("rec_wagers")
     .update({ pending_channel_id: input.channelId, pending_message_id: input.messageId, updated_at: new Date().toISOString() })
     .eq("id", input.wagerId);
-  if (error) throw new ApiError(500, "Failed to store wager pending message.", error);
+  if (error) throw new ApiError(500, "We couldn't save the pending wager message. Please try again.", error);
   return { ok: true };
 }
 
@@ -1086,7 +1086,7 @@ async function recordWagerInbox(wager: any): Promise<void> {
     payload: { wagerId: wager.id, market: wager.market, pick: wager.pick, wagerKind: wager.wager_kind, isParlay: Boolean(wager.is_parlay) },
   });
   // 23505 = unique violation — a row for this wager already exists, which is fine.
-  if (error && error.code !== "23505") throw new ApiError(500, "Failed to add wager to commissioner inbox.", error);
+  if (error && error.code !== "23505") throw new ApiError(500, "We couldn't add that wager to the commissioner inbox. Please try again.", error);
   if (!error) void notifyLeagueCommissionersOfPendingItem(wager.league_id);
 }
 
@@ -1095,7 +1095,7 @@ export async function settleWager(input: { wagerId: string; leagueId?: string | 
   let wagerQuery = supabase.from("rec_wagers").select("*").eq("id", input.wagerId);
   if (input.leagueId) wagerQuery = wagerQuery.eq("league_id", input.leagueId);
   const { data: wager, error } = await wagerQuery.maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager) throw new ApiError(404, "Wager not found.");
   if (!["pending", "confirmed"].includes(wager.status)) {
     return { ok: false, alreadyResolved: true, status: wager.status, wager };
@@ -1129,7 +1129,7 @@ export async function settleWager(input: { wagerId: string; leagueId?: string | 
           p_source: "wager",
           p_source_reference: { wagerId: wager.id, outcome: r.outcome, parlay: true },
         });
-        if (credit.error) throw new ApiError(500, "Failed to refund parlay push.", credit.error);
+        if (credit.error) throw new ApiError(500, "We couldn't refund that parlay push. Please try again.", credit.error);
       }
       credited = r.payout;
     }
@@ -1306,7 +1306,7 @@ export async function cancelWager(input: { wagerId: string; leagueId?: string })
   let query = supabase.from("rec_wagers").select("*").eq("id", input.wagerId);
   if (input.leagueId) query = query.eq("league_id", input.leagueId);
   const { data: wager, error } = await query.maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager) throw new ApiError(404, "Wager not found.");
   if (!["pending", "confirmed", "awaiting_accept"].includes(wager.status)) {
     return { ok: false, status: wager.status };
@@ -1320,14 +1320,14 @@ export async function cancelOwnWager(input: { guildId: string; discordId: string
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", context.leagueId).maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager || wager.placed_by_user_id !== userId) throw new ApiError(404, "Your open wager was not found.");
   if (!["awaiting_accept", "pending", "confirmed"].includes(wager.status)) {
     throw new ApiError(409, "This wager is no longer eligible for cancellation.");
   }
   if (wager.game_id) {
     const game = await supabase.from("rec_games").select("status").eq("id", wager.game_id).eq("league_id", context.leagueId).maybeSingle();
-    if (game.error) throw new ApiError(500, "Failed to verify the wager cancellation window.", game.error);
+    if (game.error) throw new ApiError(500, "We couldn't verify whether that wager can still be cancelled. Please try again.", game.error);
     if (!game.data || game.data.status !== "scheduled") {
       throw new ApiError(409, "The wager cancellation window closed when game activity was recorded.");
     }
@@ -1336,11 +1336,11 @@ export async function cancelOwnWager(input: { guildId: string; discordId: string
     // entirely, so a bettor could watch all three legs play out and cancel for a full refund
     // the moment any leg looked like a loser, with no downside if all three would have won.
     const legs = await supabase.from("rec_wager_legs").select("game_id").eq("wager_id", wager.id);
-    if (legs.error) throw new ApiError(500, "Failed to verify the parlay cancellation window.", legs.error);
+    if (legs.error) throw new ApiError(500, "We couldn't verify whether that parlay can still be cancelled. Please try again.", legs.error);
     const legGameIds = [...new Set((legs.data ?? []).map((leg) => leg.game_id).filter(Boolean))];
     if (legGameIds.length) {
       const games = await supabase.from("rec_games").select("id,status").eq("league_id", context.leagueId).in("id", legGameIds);
-      if (games.error) throw new ApiError(500, "Failed to verify the parlay cancellation window.", games.error);
+      if (games.error) throw new ApiError(500, "We couldn't verify whether that parlay can still be cancelled. Please try again.", games.error);
       const allStillScheduled = legGameIds.every((id) => (games.data ?? []).find((g) => g.id === id)?.status === "scheduled");
       if (!allStillScheduled) {
         throw new ApiError(409, "The wager cancellation window closed when game activity was recorded on one or more legs.");
@@ -1355,10 +1355,10 @@ export async function cancelOwnWager(input: { guildId: string; discordId: string
 export async function closeWageringForGame(input: { guildId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const game = await supabase.from("rec_games").select("id,status").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
   const offers = await supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).eq("game_id", input.gameId).eq("status", "awaiting_accept");
-  if (offers.error) throw new ApiError(500, "Failed to close open wagers.", offers.error);
+  if (offers.error) throw new ApiError(500, "We couldn't close the open wagers. Please try again.", offers.error);
   for (const wager of offers.data ?? []) await refundWagerStake(wager, "Wager refunded - game wagering closed");
   if (offers.data?.length) await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", offers.data.map((wager) => wager.id));
   // "in_progress" isn't a valid rec_game_status enum value (only scheduled/pending_schedule/
@@ -1373,14 +1373,14 @@ export async function closeWageringForGame(input: { guildId: string; gameId: str
 export async function reopenWageringForGame(input: { guildId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const game = await supabase.from("rec_games").select("id,status").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
   // "final" is not a real rec_game_status value (see closeWageringForGame above) — the enum only
   // has scheduled/pending_schedule/ready/completed/locked/cancelled, so that half of this check
   // could never match. "cancelled" should block reopening too, same as "completed".
   if (["completed", "cancelled"].includes(String(game.data.status))) throw new ApiError(409, "Completed or cancelled games cannot be reopened for wagering.");
   const updated = await supabase.from("rec_games").update({ status: "scheduled", updated_at: new Date().toISOString() }).eq("id", input.gameId);
-  if (updated.error) throw new ApiError(500, "Failed to reopen wagering.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't reopen wagering. Please try again.", updated.error);
   return { reopened: true };
 }
 
@@ -1391,10 +1391,10 @@ export async function reopenWageringForGame(input: { guildId: string; gameId: st
 export async function cancelAllWagersForGame(input: { guildId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
   const openWagers = await supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).eq("game_id", input.gameId).in("status", ["awaiting_accept", "pending", "confirmed"]);
-  if (openWagers.error) throw new ApiError(500, "Failed to load wagers to cancel.", openWagers.error);
+  if (openWagers.error) throw new ApiError(500, "We couldn't load the wagers to cancel. Please try again.", openWagers.error);
   for (const wager of openWagers.data ?? []) await refundWagerStake(wager, "Wager cancelled — game voided");
   if (openWagers.data?.length) {
     await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", openWagers.data.map((wager) => wager.id));
@@ -1417,7 +1417,7 @@ export async function listOpenWagersForCommissioner(guildId: string) {
     .eq("league_id", leagueId)
     .in("status", ["awaiting_accept", "pending", "confirmed"])
     .order("created_at", { ascending: false });
-  if (error) throw new ApiError(500, "Failed to load open wagers.", error);
+  if (error) throw new ApiError(500, "We couldn't load the open wagers. Please try again.", error);
   const rows = data ?? [];
 
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
@@ -1480,7 +1480,7 @@ export async function commissionerCancelWager(input: { guildId: string; wagerId:
     .eq("id", input.wagerId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager) throw new ApiError(404, "Wager not found.");
   if (!["pending", "confirmed", "awaiting_accept"].includes(wager.status)) {
     throw new ApiError(409, "This wager is no longer open — it has already been settled or cancelled.");
@@ -1503,7 +1503,7 @@ async function refundWagerStake(wager: any, description: string) {
     p_source: "wager",
     p_source_reference: { wagerId: wager.id, refund: true },
   });
-  if (refund.error) throw new ApiError(500, "Failed to refund wager stake.", refund.error);
+  if (refund.error) throw new ApiError(500, "We couldn't refund that wager stake. Please try again.", refund.error);
   // Refund any accepted peer counterparty's stake too.
   if (wager.accepted_by_user_id) {
     await supabase.rpc("add_to_wallet", {

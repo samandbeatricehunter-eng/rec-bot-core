@@ -37,7 +37,7 @@ async function announceGotwInExistingGameChannel(input: {
   if (!channelId) {
     const channel = await supabase.from("rec_game_channels").select("discord_channel_id")
       .eq("league_id", input.leagueId).eq("game_id", input.gameId).eq("status", "active").limit(1).maybeSingle();
-    if (channel.error) throw new ApiError(500, "Failed to find the GOTW game channel.", channel.error);
+    if (channel.error) throw new ApiError(500, "We couldn't find the GOTW game channel. Please try again.", channel.error);
     channelId = channel.data?.discord_channel_id ?? null;
   }
   if (!channelId) return;
@@ -46,7 +46,7 @@ async function announceGotwInExistingGameChannel(input: {
   const accounts = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
     : { data: [], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to resolve GOTW streamer mentions.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load GOTW streamer mentions. Please try again.", accounts.error);
   const ids = new Map((accounts.data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
   const awayId = input.awayUserId ? ids.get(input.awayUserId) : null;
   const homeId = input.homeUserId ? ids.get(input.homeUserId) : null;
@@ -85,7 +85,7 @@ export async function createGotwPoll(input: {
   const existing = await supabase.from("rec_game_of_week_polls").select("id")
     .eq("league_id", context.leagueId).eq("season_number", seasonNumber)
     .eq("week_number", input.weekNumber).eq("game_id", input.gameId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to check the existing GOTW poll.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check the existing GOTW poll. Please try again.", existing.error);
 
   const { data, error } = await supabase
     .from("rec_game_of_week_polls")
@@ -113,7 +113,7 @@ export async function createGotwPoll(input: {
     }, { onConflict: "league_id,season_number,week_number,game_id", ignoreDuplicates: false })
     .select("id")
     .single();
-  if (error) throw new ApiError(500, "Failed to create GOTW poll record.", error);
+  if (error) throw new ApiError(500, "We couldn't create that GOTW poll. Please try again.", error);
   if (!existing.data) {
     await announceGotwInExistingGameChannel({
       guildId: input.guildId,
@@ -143,7 +143,7 @@ export async function getActiveGotwPoll(guildId: string, weekNumber: number) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load active GOTW poll.", error);
+  if (error) throw new ApiError(500, "We couldn't load the active GOTW poll. Please try again.", error);
   return data;
 }
 
@@ -158,7 +158,7 @@ export async function getActiveGotwPolls(guildId: string, weekNumber: number) {
     .eq("week_number", weekNumber)
     .in("status", ["open", "closed"])
     .order("created_at", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load active GOTW polls.", error);
+  if (error) throw new ApiError(500, "We couldn't load active GOTW polls right now. Please try again.", error);
   return data ?? [];
 }
 
@@ -171,12 +171,12 @@ export async function clearGotwPollsForWeek(guildId: string, weekNumber: number)
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber);
-  if (error) throw new ApiError(500, "Failed to load GOTW polls for cleanup.", error);
+  if (error) throw new ApiError(500, "We couldn't load GOTW polls for cleanup. Please try again.", error);
 
   const ids = (data ?? []).map((poll) => poll.id).filter(Boolean);
   if (ids.length) {
     const deleted = await supabase.from("rec_game_of_week_polls").delete().in("id", ids);
-    if (deleted.error) throw new ApiError(500, "Failed to clear GOTW poll records.", deleted.error);
+    if (deleted.error) throw new ApiError(500, "We couldn't clear GOTW poll records. Please try again.", deleted.error);
   }
   return { cleared: ids.length, polls: data ?? [] };
 }
@@ -206,7 +206,7 @@ export async function settleGotwPoll(input: {
     .from("rec_game_of_week_votes")
     .select("discord_id,user_id,selected_team_id")
     .eq("poll_id", input.pollId);
-  if (votesErr) throw new ApiError(500, "Failed to load GOTW votes for settlement.", votesErr);
+  if (votesErr) throw new ApiError(500, "We couldn't load GOTW votes for settlement. Please try again.", votesErr);
 
   await supabase
     .from("rec_game_of_week_polls")
@@ -318,7 +318,7 @@ export async function settleGotwPollsForGame(input: { guildId: string; gameId: s
     .eq("league_id", context.leagueId)
     .eq("game_id", input.gameId)
     .in("status", ["open", "closed"]);
-  if (error) throw new ApiError(500, "Failed to load GOTW polls for settlement.", error);
+  if (error) throw new ApiError(500, "We couldn't load GOTW polls for settlement. Please try again.", error);
 
   const settled: Array<{ settled: boolean; payouts: number; losses: number }> = [];
   for (const poll of polls ?? []) {
@@ -365,7 +365,7 @@ export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber
 
   const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
     "id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)");
-  if (games.error) throw new ApiError(500, "Failed to load flagged postseason games.", games.error);
+  if (games.error) throw new ApiError(500, "We couldn't load flagged postseason games. Please try again.", games.error);
   const flagged = (games.data ?? []).filter((g: any) =>
     g.home_team_id && g.away_team_id && g.home_user_id && g.away_user_id
     && (input.allH2h || g.is_bowl_game || g.is_national_championship || Boolean(g.postseason_round)));
@@ -377,7 +377,7 @@ export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", input.weekNumber);
-  if (existing.error) throw new ApiError(500, "Failed to check existing GOTW polls.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check existing GOTW polls. Please try again.", existing.error);
   const existingGameIds = new Set((existing.data ?? []).map((row: any) => row.game_id));
 
   let created = 0;

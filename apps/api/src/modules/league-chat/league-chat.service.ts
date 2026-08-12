@@ -32,7 +32,7 @@ export async function listLeagueMembersForChat(guildId: string): Promise<{ membe
     .eq("league_id", context.leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load league members.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load league members. Please try again.", assignments.error);
 
   const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
   if (!userIds.length) return { members: [] };
@@ -42,9 +42,9 @@ export async function listLeagueMembersForChat(guildId: string): Promise<{ membe
     supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds),
     supabase.from("rec_hub_presence_heartbeats").select("user_id,last_seen_at").eq("league_id", context.leagueId).in("user_id", userIds),
   ]);
-  if (usersRes.error) throw new ApiError(500, "Failed to load user identities.", usersRes.error);
-  if (discordRes.error) throw new ApiError(500, "Failed to load Discord identities.", discordRes.error);
-  if (presenceRes.error) throw new ApiError(500, "Failed to load presence.", presenceRes.error);
+  if (usersRes.error) throw new ApiError(500, "We couldn't load user identities. Please try again.", usersRes.error);
+  if (discordRes.error) throw new ApiError(500, "We couldn't load Discord identities. Please try again.", discordRes.error);
+  if (presenceRes.error) throw new ApiError(500, "We couldn't load presence. Please try again.", presenceRes.error);
 
   const discordByUser = new Map<string, any>((discordRes.data ?? []).map((row: any) => [row.user_id, row]));
   const guildDisplayNames = await getGuildMemberDisplayNameMap(guildId).catch(
@@ -92,7 +92,7 @@ export async function heartbeat(input: { guildId: string; discordId: string }): 
       { league_id: context.leagueId, user_id: author.userId, discord_id: input.discordId, last_seen_at: new Date().toISOString() },
       { onConflict: "league_id,user_id" },
     );
-  if (error) throw new ApiError(500, "Failed to record presence.", error);
+  if (error) throw new ApiError(500, "We couldn't record presence. Please try again.", error);
   return { ok: true };
 }
 
@@ -107,7 +107,7 @@ export async function listLeagueChatMessages(guildId: string, sinceIso?: string 
     .limit(MESSAGE_PAGE_SIZE);
   if (sinceIso) query = query.gt("created_at", sinceIso);
   const { data, error } = await query;
-  if (error) throw new ApiError(500, "Failed to load league chat messages.", error);
+  if (error) throw new ApiError(500, "We couldn't load league chat messages. Please try again.", error);
   return { messages: (data ?? []).reverse() };
 }
 
@@ -123,7 +123,7 @@ export async function editLeagueChatMessage(input: { guildId: string; discordId:
     .is("deleted_at", null)
     .select("id,league_id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,edited_at")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to edit message.", error);
+  if (error) throw new ApiError(500, "We couldn't edit that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   broadcastChatEvent("league", data.league_id, { kind: "edit", row: data });
   return { message: data };
@@ -138,7 +138,7 @@ export async function deleteLeagueChatMessage(input: { guildId: string; discordI
     .is("deleted_at", null)
     .select("id,league_id")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to delete message.", error);
+  if (error) throw new ApiError(500, "We couldn't delete that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   broadcastChatEvent("league", data.league_id, { kind: "delete", messageId: data.id });
   return { ok: true as const };
@@ -166,7 +166,7 @@ export async function postLeagueChatMessage(input: { guildId: string; discordId:
     })
     .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,reply_to_message_id")
     .single();
-  if (error) throw new ApiError(500, "Failed to post message.", error);
+  if (error) throw new ApiError(500, "We couldn't post that message. Please try again.", error);
   const mainChatChannelId = (context.routes as any)?.main_chat_channel_id as string | null | undefined;
   if (mainChatChannelId) {
     const assignment = author.userId
@@ -213,7 +213,7 @@ export async function ingestDiscordLeagueChatMessage(input: {
     .select("server_id")
     .eq("main_chat_channel_id", input.discordChannelId)
     .maybeSingle();
-  if (route.error) throw new ApiError(500, "Failed to resolve main chat channel.", route.error);
+  if (route.error) throw new ApiError(500, "We couldn't find the main chat channel. Please try again.", route.error);
   if (!route.data?.server_id) return { ingested: false };
   const server = await supabase
     .from("rec_discord_servers")
@@ -228,7 +228,7 @@ export async function ingestDiscordLeagueChatMessage(input: {
     .select("id")
     .eq("discord_message_id", input.discordMessageId)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to check Discord league chat message.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check that Discord league chat message. Please try again.", existing.error);
   if (existing.data) return { ingested: true };
   const inserted = await supabase.from("rec_league_chat_messages").insert({
     league_id: context.leagueId,
@@ -243,7 +243,7 @@ export async function ingestDiscordLeagueChatMessage(input: {
     // to "", which would otherwise fail that constraint and 500 on every such message.
     body: (trimmed || "📎 Image").slice(0, 2000),
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
-  if (inserted.error) throw new ApiError(500, "Failed to ingest Discord league chat message.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't import that Discord league chat message. Please try again.", inserted.error);
   broadcastChatEvent("league", context.leagueId, { kind: "message", row: inserted.data });
   // See game-chat.service.ts's ingestDiscordGameChatMessage for why storage_key echoes the
   // source URL instead of pointing at our own storage.

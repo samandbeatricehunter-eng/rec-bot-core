@@ -21,7 +21,7 @@ export async function snapshotLeagueHistory(leagueId: string, archived = false) 
     supabase.from("rec_dollar_ledger").select("user_id,amount,transaction_type,created_at").eq("league_id", leagueId),
     supabase.from("rec_wagers").select("placed_by_user_id,accepted_by_user_id,wager_kind,stake,potential_payout,status,created_at").eq("league_id", leagueId),
   ]);
-  for (const result of [league, records, assignments, ledger, wagers]) if (result.error) throw new ApiError(500, "Failed to preserve league history.", result.error);
+  for (const result of [league, records, assignments, ledger, wagers]) if (result.error) throw new ApiError(500, "We couldn't preserve league history. Please try again.", result.error);
   const userIds = [...new Set([...(records.data ?? []).map((row: any) => row.user_id), ...(assignments.data ?? []).map((row: any) => row.user_id)].filter(Boolean))];
   const season = Number(league.data.season_number ?? league.data.display_season_number ?? 1);
   for (const userId of userIds) {
@@ -37,7 +37,7 @@ export async function snapshotLeagueHistory(leagueId: string, archived = false) 
       wager_house: wagerSummary(wagers.data ?? [], userId, "house"), wager_peer: wagerSummary(wagers.data ?? [], userId, "peer"),
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,league_id" }).select("id").single();
-    if (history.error) throw new ApiError(500, "Failed to save a league history snapshot.", history.error);
+    if (history.error) throw new ApiError(500, "We couldn't save a league history snapshot. Please try again.", history.error);
     for (const assignment of (assignments.data ?? []).filter((row: any) => row.user_id === userId)) {
       const team = Array.isArray(assignment.team) ? assignment.team[0] : assignment.team;
       const existing = await supabase.from("rec_user_league_team_tenures").select("id").eq("history_id", history.data.id).eq("team_id", assignment.team_id).eq("started_at", assignment.started_at).maybeSingle();
@@ -47,7 +47,7 @@ export async function snapshotLeagueHistory(leagueId: string, archived = false) 
         archived_at: archived ? new Date().toISOString() : null, is_active: !archived && !assignment.ended_at,
         first_season: 1, last_season: season, record: {}, statistics: {}, economy, updated_at: new Date().toISOString() };
       const saved = existing.data ? await supabase.from("rec_user_league_team_tenures").update(payload).eq("id", existing.data.id) : await supabase.from("rec_user_league_team_tenures").insert(payload);
-      if (saved.error) throw new ApiError(500, "Failed to save a team tenure snapshot.", saved.error);
+      if (saved.error) throw new ApiError(500, "We couldn't save a team tenure snapshot. Please try again.", saved.error);
     }
   }
   return { usersPreserved: userIds.length };
@@ -55,15 +55,15 @@ export async function snapshotLeagueHistory(leagueId: string, archived = false) 
 
 export async function getLeagueHistoryForDiscord(discordId: string) {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to resolve the REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   if (!account.data?.user_id) return { leagues: [] };
   const active = await supabase.from("rec_team_assignments").select("league_id").eq("user_id", account.data.user_id).is("ended_at", null);
-  if (active.error) throw new ApiError(500, "Failed to load active league memberships.", active.error);
+  if (active.error) throw new ApiError(500, "We couldn't load active league memberships. Please try again.", active.error);
   const activeLeagueIds: string[] = [...new Set<string>((active.data ?? []).map((row: any) => String(row.league_id)).filter(Boolean))];
   for (const leagueId of activeLeagueIds) {
     await snapshotLeagueHistory(leagueId, false);
   }
   const rows = await supabase.from("rec_user_league_history").select("*,teamTenures:rec_user_league_team_tenures(*)").eq("user_id", account.data.user_id).order("last_active_at", { ascending: false });
-  if (rows.error) throw new ApiError(500, "Failed to load league history.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load league history. Please try again.", rows.error);
   return { leagues: rows.data ?? [] };
 }

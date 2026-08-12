@@ -26,13 +26,13 @@ export async function listGameChatChannels(guildId: string): Promise<{ channels:
     .eq("week_number", weekNumber)
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load game chat channels.", error);
+  if (error) throw new ApiError(500, "We couldn't load game chat channels. Please try again.", error);
 
   const teamIds = [...new Set((data ?? []).flatMap((row: any) => [row.away_team_id, row.home_team_id]).filter(Boolean))];
   const teamsRes = teamIds.length
     ? await supabase.from("rec_teams").select("id,name").in("id", teamIds)
     : { data: [] as any[], error: null };
-  if (teamsRes.error) throw new ApiError(500, "Failed to load team names.", teamsRes.error);
+  if (teamsRes.error) throw new ApiError(500, "We couldn't load team names. Please try again.", teamsRes.error);
   const teamById = new Map<string, string>((teamsRes.data ?? []).map((team: any) => [team.id, team.name]));
 
   return {
@@ -51,7 +51,7 @@ async function requireGameChannelInLeague(guildId: string, gameChannelId: string
     .select("id,league_id,game_id,discord_channel_id,away_user_id,home_user_id")
     .eq("id", gameChannelId)
     .maybeSingle();
-  if (channel.error) throw new ApiError(500, "Failed to load game channel.", channel.error);
+  if (channel.error) throw new ApiError(500, "We couldn't load that game channel. Please try again.", channel.error);
   if (!channel.data || String(channel.data.league_id) !== context.leagueId) throw new ApiError(404, "Game channel not found.");
   return channel.data as { id: string; league_id: string; game_id: string | null; discord_channel_id: string | null; away_user_id: string | null; home_user_id: string | null };
 }
@@ -65,7 +65,7 @@ export async function getGameChatMessages(input: { guildId: string; gameChannelI
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
     .limit(MESSAGE_PAGE_SIZE);
-  if (error) throw new ApiError(500, "Failed to load game chat messages.", error);
+  if (error) throw new ApiError(500, "We couldn't load game chat messages. Please try again.", error);
   return { messages: data ?? [] };
 }
 
@@ -81,7 +81,7 @@ export async function editGameChatMessage(input: { guildId: string; discordId: s
     .is("deleted_at", null)
     .select("id,game_channel_id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,edited_at")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to edit message.", error);
+  if (error) throw new ApiError(500, "We couldn't edit that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   broadcastChatEvent("game", data.game_channel_id, { kind: "edit", row: data });
   return { message: data };
@@ -96,7 +96,7 @@ export async function deleteGameChatMessage(input: { guildId: string; discordId:
     .is("deleted_at", null)
     .select("id,game_channel_id")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to delete message.", error);
+  if (error) throw new ApiError(500, "We couldn't delete that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   broadcastChatEvent("game", data.game_channel_id, { kind: "delete", messageId: data.id });
   return { ok: true as const };
@@ -125,7 +125,7 @@ export async function sendGameChatMessage(input: { guildId: string; discordId: s
     })
     .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,reply_to_message_id")
     .single();
-  if (error) throw new ApiError(500, "Failed to send game chat message.", error);
+  if (error) throw new ApiError(500, "We couldn't send that game chat message. Please try again.", error);
   broadcastChatEvent("game", channel.id, { kind: "message", row: data });
 
   if (channel.discord_channel_id) {
@@ -184,12 +184,12 @@ export async function ingestDiscordGameChatMessage(input: {
   if (!channel || channel.status !== "active") return { ingested: false };
 
   const discordRes = await supabase.from("rec_discord_accounts").select("user_id,username,global_name").eq("discord_id", input.discordUserId).maybeSingle();
-  if (discordRes.error) throw new ApiError(500, "Failed to load Discord author.", discordRes.error);
+  if (discordRes.error) throw new ApiError(500, "We couldn't load that Discord author. Please try again.", discordRes.error);
   const userId: string | null = discordRes.data?.user_id ?? null;
   let userRow: any = null;
   if (userId) {
     const userRes = await supabase.from("rec_users").select("username,display_name,supabase_auth_user_id").eq("id", userId).maybeSingle();
-    if (userRes.error) throw new ApiError(500, "Failed to load user identity.", userRes.error);
+    if (userRes.error) throw new ApiError(500, "We couldn't load that user identity. Please try again.", userRes.error);
     userRow = userRes.data ?? null;
   }
   const { displayName, isRegistered } = resolveChatDisplay(userRow, discordRes.data ?? null);
@@ -210,7 +210,7 @@ export async function ingestDiscordGameChatMessage(input: {
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   // Unique partial index on discord_message_id — a retried ingest hits a conflict, which is
   // "already ingested", not a real failure.
-  if (inserted.error && (inserted.error as any).code !== "23505") throw new ApiError(500, "Failed to ingest Discord game chat message.", inserted.error);
+  if (inserted.error && (inserted.error as any).code !== "23505") throw new ApiError(500, "We couldn't import that Discord game chat message. Please try again.", inserted.error);
   if (!inserted.error) {
     broadcastChatEvent("game", channel.id, { kind: "message", row: inserted.data });
     // Discord CDN URLs are referenced directly (not re-uploaded to our own storage) — they're
@@ -244,6 +244,6 @@ export async function postGameChatSystemMessage(input: { gameChannelId: string; 
     source: "system",
     body: input.body.slice(0, 2000),
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at").single();
-  if (error) throw new ApiError(500, "Failed to post system message.", error);
+  if (error) throw new ApiError(500, "We couldn't post that system message. Please try again.", error);
   broadcastChatEvent("game", input.gameChannelId, { kind: "message", row: data });
 }

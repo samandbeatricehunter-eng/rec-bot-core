@@ -46,7 +46,7 @@ async function boxScoreGameIds(leagueId: string, seasonNumber: number, weekNumbe
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
     .in("status", ["pending", "approved"]);
-  if (error) throw new ApiError(500, "Failed to load box scores for the week.", error);
+  if (error) throw new ApiError(500, "We couldn't load box scores for the week right now. Please try again.", error);
   return new Set((data ?? []).map((r) => String(r.game_id)).filter(Boolean));
 }
 
@@ -62,7 +62,7 @@ export async function listManualScoreGames(input: {
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
     "id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .order("external_game_id", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load the week's scheduled games.", error);
+  if (error) throw new ApiError(500, "We couldn't load this week's scheduled games. Please try again.", error);
   if (!games?.length) throw new ApiError(400, `No games are scheduled for Week ${weekNumber}. Import the schedule first, then try again.`);
 
   const [results, boxScored] = await Promise.all([
@@ -74,7 +74,7 @@ export async function listManualScoreGames(input: {
       .eq("week_number", weekNumber),
     boxScoreGameIds(leagueId, seasonNumber, weekNumber),
   ]);
-  if (results.error) throw new ApiError(500, "Failed to load existing game results.", results.error);
+  if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
 
   const resultByMatchup = new Map<string, any>((results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, row]));
 
@@ -123,7 +123,7 @@ export async function recordManualGameResult(input: {
     .eq("id", input.gameId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load game for manual score entry.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that game for score entry. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
 
   const weekNumber = game.data.week_number;
@@ -133,7 +133,7 @@ export async function recordManualGameResult(input: {
     .eq("game_id", input.gameId)
     .in("status", ["pending", "approved"])
     .limit(1);
-  if (boxScored.error) throw new ApiError(500, "Failed to check for an existing box score.", boxScored.error);
+  if (boxScored.error) throw new ApiError(500, "We couldn't check for an existing box score. Please try again.", boxScored.error);
   if (boxScored.data?.length) throw new ApiError(409, "This game already has a box score submission — correct it through Box Scores instead.");
 
   // Prefer real final scores when the commissioner supplied them; otherwise fall back
@@ -193,7 +193,7 @@ export async function recordManualGameResult(input: {
   };
 
   const result = await supabase.from("rec_game_results").upsert(row, { onConflict: "records_apply_key", ignoreDuplicates: false });
-  if (result.error) throw new ApiError(500, "Failed to save the manual game result.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't save the manual game result. Please try again.", result.error);
   await closeWageringForGame({ guildId: input.guildId, gameId: input.gameId });
   await supabase.from("rec_games").update({ status: "final", home_score: homeScore, away_score: awayScore, updated_at: now }).eq("id", input.gameId);
   await settleGotwPollsForGame({ guildId: input.guildId, gameId: input.gameId, winningTeamId }).catch((err) => {
@@ -236,7 +236,7 @@ export async function recordManualGameResult(input: {
       team_stats: { home: homeStats, away: awayStats }, game_id: input.gameId, parse_warnings: [], status: "approved",
       reviewed_by_discord_id: input.submittedByDiscordId ?? null, reviewed_at: now, entry_method: "manual", created_at: now, updated_at: now,
     });
-    if (submission.error) throw new ApiError(500, "Failed to create the manual stat submission.", submission.error);
+    if (submission.error) throw new ApiError(500, "We couldn't create the manual stat submission. Please try again.", submission.error);
 
     const numberOrNull = (value: unknown) => value === "" || value == null ? null : Number(value);
     const statsRow = (stats: Record<string, any>, opponent: Record<string, any>, side: "home" | "away") => ({
@@ -259,7 +259,7 @@ export async function recordManualGameResult(input: {
       created_at: now,
     });
     const statsInsert = await supabase.from("rec_team_game_stats").insert([statsRow(homeStats, awayStats, "home"), statsRow(awayStats, homeStats, "away")]);
-    if (statsInsert.error) throw new ApiError(500, "Failed to save the manually entered team stats.", statsInsert.error);
+    if (statsInsert.error) throw new ApiError(500, "We couldn't save the manually entered team stats. Please try again.", statsInsert.error);
   }
 
   // Independent of team stats — a commissioner might tag players/units without filling any
@@ -281,7 +281,7 @@ export async function recordManualGameResult(input: {
       ...homeTags.map((tag) => tagRow(tag, homeTeamId)),
       ...awayTags.map((tag) => tagRow(tag, awayTeamId)),
     ]);
-    if (tagsInsert.error) throw new ApiError(500, "Failed to save the player/unit performance tags.", tagsInsert.error);
+    if (tagsInsert.error) throw new ApiError(500, "We couldn't save the performance tags. Please try again.", tagsInsert.error);
   }
 
   // processGameIntelligence builds its story from rec_team_game_stats rows — it can only

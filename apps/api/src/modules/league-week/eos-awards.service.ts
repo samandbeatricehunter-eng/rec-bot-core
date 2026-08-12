@@ -76,13 +76,13 @@ async function linkedTeams(leagueId: string) {
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load linked teams for EOS awards.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load linked teams for end-of-season awards. Please try again.", assignments.error);
 
   const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
   const accounts = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name,user:rec_users(username,display_name)").in("user_id", userIds)
     : { data: [], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to load Discord accounts for EOS awards.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load Discord accounts for end-of-season awards. Please try again.", accounts.error);
   const discordByUser = new Map((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
   const nameByUser = new Map<string, string>((accounts.data ?? []).map((row: any): [string, string] => {
     const user = Array.isArray(row.user) ? row.user[0] : row.user;
@@ -106,7 +106,7 @@ async function statsByUser(leagueId: string, seasonNumber: number, game: string 
     .eq("season_number", seasonNumber)
     .lte("week_number", regularSeasonWeeks(game))
     .not("user_id", "is", null);
-  if (stats.error) throw new ApiError(500, "Failed to load EOS award stats.", stats.error);
+  if (stats.error) throw new ApiError(500, "We couldn't load end-of-season award stats. Please try again.", stats.error);
   const byUser = new Map<string, any[]>();
   for (const row of stats.data ?? []) {
     const rows = byUser.get(row.user_id) ?? [];
@@ -126,7 +126,7 @@ async function resultAggByTeam(leagueId: string, seasonNumber: number, game: str
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .lte("week_number", regularSeasonWeeks(game));
-  if (results.error) throw new ApiError(500, "Failed to load EOS award results.", results.error);
+  if (results.error) throw new ApiError(500, "We couldn't load end-of-season award results. Please try again.", results.error);
   const map = new Map<string, TeamResultAgg>();
   const get = (teamId: string) => {
     let row = map.get(teamId);
@@ -259,7 +259,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
   for (const definition of EOS_AUTO_AWARD_DEFINITIONS) {
     const awardAmount = await configuredAwardAmount(definition.key, definition.amount);
     const existing = await supabase.from("rec_eos_award_polls").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("category_key", definition.key).maybeSingle();
-    if (existing.error) throw new ApiError(500, "Failed to check existing auto-issued award.", existing.error);
+    if (existing.error) throw new ApiError(500, "We couldn't check for an existing auto-issued award. Please try again.", existing.error);
     if (existing.data) continue; // already issued this season — never re-run
 
     let best: { userId: string; teamId: string; metric: number } | null = null;
@@ -287,7 +287,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
       status: "settled", winner_user_id: best.userId, opened_at: new Date().toISOString(), settled_at: new Date().toISOString(),
       paid_ledger_id: credit.ledgerId, vote_counts: {}, updated_at: new Date().toISOString(),
     }).select("id").single();
-    if (inserted.error) throw new ApiError(500, `Failed to record auto-issued ${label}.`, inserted.error);
+    if (inserted.error) throw new ApiError(500, `We couldn't record the auto-issued ${label}. Please try again.`, inserted.error);
 
     await publishTransitionStory({
       guildId,
@@ -334,7 +334,7 @@ export async function recordEosAwardPoll(input: {
     }, { onConflict: "league_id,season_number,category_key" })
     .select("*")
     .single();
-  if (row.error) throw new ApiError(500, "Failed to record EOS award poll.", row.error);
+  if (row.error) throw new ApiError(500, "We couldn't create that end-of-season award poll. Please try again.", row.error);
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
@@ -374,17 +374,17 @@ export async function autoPrepareEosAwards(guildId: string): Promise<{ autoIssue
 
 export async function listOpenEosAwardPolls() {
   const polls = await supabase.from("rec_eos_award_polls").select("*").eq("status", "open").order("closes_at", { ascending: true });
-  if (polls.error) throw new ApiError(500, "Failed to load open EOS award polls.", polls.error);
+  if (polls.error) throw new ApiError(500, "We couldn't load open end-of-season award polls. Please try again.", polls.error);
   const leagueIds = [...new Set((polls.data ?? []).map((poll: any) => poll.league_id).filter(Boolean))];
   const links = leagueIds.length
     ? await supabase.from("rec_server_league_links").select("league_id,server_id").in("league_id", leagueIds).eq("is_primary", true)
     : { data: [], error: null };
-  if (links.error) throw new ApiError(500, "Failed to load EOS award servers.", links.error);
+  if (links.error) throw new ApiError(500, "We couldn't load end-of-season award servers. Please try again.", links.error);
   const serverIds = [...new Set((links.data ?? []).map((row: any) => row.server_id).filter(Boolean))];
   const servers = serverIds.length
     ? await supabase.from("rec_discord_servers").select("id,guild_id").in("id", serverIds)
     : { data: [], error: null };
-  if (servers.error) throw new ApiError(500, "Failed to load EOS award Discord servers.", servers.error);
+  if (servers.error) throw new ApiError(500, "We couldn't load end-of-season award Discord servers. Please try again.", servers.error);
   const guildByServer = new Map((servers.data ?? []).map((row: any) => [row.id, row.guild_id]));
   const guildByLeague = new Map((links.data ?? []).map((row: any) => [row.league_id, guildByServer.get(row.server_id)]));
   return { polls: (polls.data ?? []).map((poll: any) => ({ ...poll, guildId: guildByLeague.get(poll.league_id) ?? null })) };
@@ -394,7 +394,7 @@ export async function listOpenEosAwardPolls() {
 // the bulk "all open polls" list above).
 export async function getEosAwardPoll(pollId: string) {
   const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", pollId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that end-of-season award poll. Please try again.", poll.error);
   if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
   return { poll: poll.data };
 }
@@ -408,14 +408,14 @@ export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("status", "open");
-  if (existing.error) throw new ApiError(500, "Failed to load open EOS award polls.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load open end-of-season award polls. Please try again.", existing.error);
   const ids = (existing.data ?? []).map((row: any) => row.id).filter(Boolean);
   if (ids.length) {
     const cancelled = await supabase
       .from("rec_eos_award_polls")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .in("id", ids);
-    if (cancelled.error) throw new ApiError(500, "Failed to cancel open EOS award polls.", cancelled.error);
+    if (cancelled.error) throw new ApiError(500, "We couldn't cancel open end-of-season award polls. Please try again.", cancelled.error);
     const now = new Date().toISOString();
     await supabase
       .from("rec_commissioners_inbox")
@@ -435,7 +435,7 @@ export async function castEosAwardVote(input: { guildId: string; discordId: stri
   if (!account.data?.user_id) throw new ApiError(404, "Discord account not linked.");
 
   const poll = await supabase.from("rec_eos_award_polls").select("id,league_id,status,nominee_user_ids").eq("id", input.pollId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load award poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that award poll. Please try again.", poll.error);
   if (!poll.data || poll.data.league_id !== context.leagueId) throw new ApiError(404, "Award poll not found.");
   if (poll.data.status !== "open") throw new ApiError(400, "Voting has closed for this award.");
   const nomineeIds = Array.isArray(poll.data.nominee_user_ids) ? poll.data.nominee_user_ids : [];
@@ -445,7 +445,7 @@ export async function castEosAwardVote(input: { guildId: string; discordId: stri
     { poll_id: input.pollId, voter_user_id: account.data.user_id, nominee_user_id: input.nomineeUserId, updated_at: new Date().toISOString() },
     { onConflict: "poll_id,voter_user_id" },
   );
-  if (upserted.error) throw new ApiError(500, "Failed to cast vote.", upserted.error);
+  if (upserted.error) throw new ApiError(500, "We couldn't cast your vote. Please try again.", upserted.error);
   return { ok: true };
 }
 
@@ -472,7 +472,7 @@ export async function getOrStartEosBallotSession(guildId: string, discordId: str
     .eq("season_number", seasonNumber)
     .eq("voter_user_id", userId)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load ballot session.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load the ballot session. Please try again.", existing.error);
   if (existing.data) return { status: existing.data.status, lastPollId: existing.data.last_poll_id, submittedAt: existing.data.submitted_at };
 
   const inserted = await supabase
@@ -480,7 +480,7 @@ export async function getOrStartEosBallotSession(guildId: string, discordId: str
     .insert({ league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId })
     .select("status,last_poll_id,submitted_at")
     .single();
-  if (inserted.error) throw new ApiError(500, "Failed to start ballot session.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't start the ballot session. Please try again.", inserted.error);
   return { status: inserted.data.status, lastPollId: inserted.data.last_poll_id, submittedAt: inserted.data.submitted_at };
 }
 
@@ -493,7 +493,7 @@ export async function advanceEosBallotSession(input: { guildId: string; discordI
     { league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId, last_poll_id: input.pollId, updated_at: new Date().toISOString() },
     { onConflict: "league_id,season_number,voter_user_id" },
   );
-  if (error) throw new ApiError(500, "Failed to update ballot progress.", error);
+  if (error) throw new ApiError(500, "We couldn't update ballot progress. Please try again.", error);
   return { ok: true };
 }
 
@@ -507,7 +507,7 @@ export async function submitEosBallot(guildId: string, discordId: string): Promi
     { league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId, status: "submitted", submitted_at: now, updated_at: now },
     { onConflict: "league_id,season_number,voter_user_id" },
   );
-  if (error) throw new ApiError(500, "Failed to submit ballot.", error);
+  if (error) throw new ApiError(500, "We couldn't submit your ballot. Please try again.", error);
   return { ok: true };
 }
 
@@ -523,13 +523,13 @@ export async function getEosAwardVotingBlock(guildId: string, discordId: string)
   const userId = account.data?.user_id ?? null;
 
   const polls = await supabase.from("rec_eos_award_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "open");
-  if (polls.error) throw new ApiError(500, "Failed to load open EOS award polls.", polls.error);
+  if (polls.error) throw new ApiError(500, "We couldn't load open end-of-season award polls. Please try again.", polls.error);
   const openPolls = polls.data ?? [];
   if (!openPolls.length) return { polls: [], hasVotedAll: true };
 
   const pollIds = openPolls.map((poll: any) => poll.id);
   const votes = await supabase.from("rec_eos_award_votes").select("poll_id,voter_user_id,nominee_user_id").in("poll_id", pollIds);
-  if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
+  if (votes.error) throw new ApiError(500, "We couldn't load end-of-season award votes. Please try again.", votes.error);
 
   const tallyByPoll = new Map<string, Map<string, number>>();
   const myVoteByPoll = new Map<string, string>();
@@ -564,7 +564,7 @@ export async function getEosAwardVotingBlock(guildId: string, discordId: string)
  */
 export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Record<string, number>; voterDiscordIds?: Record<string, string[]>; discordMessageId?: string | null }) {
   const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", input.pollId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that end-of-season award poll. Please try again.", poll.error);
   if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
   if (poll.data.status === "settled") return { poll: poll.data, alreadySettled: true };
   if (poll.data.status !== "open") return { poll: poll.data, skipped: true, reason: "not_open" };
@@ -625,7 +625,7 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
     .eq("id", poll.data.id)
     .select("*")
     .single();
-  if (updated.error) throw new ApiError(500, "Failed to settle EOS award poll.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't settle that end-of-season award poll. Please try again.", updated.error);
 
   // The inbox row's summary/payload are set once at poll-creation time ("Voting open for
   // X (5 nominees)") and were never touched again on settlement — so the Approved & Issued
@@ -650,7 +650,7 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
 // which surface a given vote came from.
 async function settlePollFromWebVotes(guildId: string, poll: any): Promise<boolean> {
   const votes = await supabase.from("rec_eos_award_votes").select("voter_user_id,nominee_user_id").eq("poll_id", poll.id);
-  if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
+  if (votes.error) throw new ApiError(500, "We couldn't load end-of-season award votes. Please try again.", votes.error);
   const nominees = Array.isArray(poll.nominee_payloads) ? poll.nominee_payloads : [];
   const voteCounts: Record<string, number> = {};
   const voterDiscordIds: Record<string, string[]> = {};
@@ -691,7 +691,7 @@ export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ s
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const openPolls = await supabase.from("rec_eos_award_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "open");
-  if (openPolls.error) throw new ApiError(500, "Failed to load open EOS award polls.", openPolls.error);
+  if (openPolls.error) throw new ApiError(500, "We couldn't load open end-of-season award polls. Please try again.", openPolls.error);
 
   let settled = 0;
   for (const poll of openPolls.data ?? []) {
@@ -707,7 +707,7 @@ export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ s
 export async function closeAndSettleEosAwardPollById(guildId: string, pollId: string): Promise<{ settled: boolean }> {
   const context = await getCurrentLeagueContext(guildId);
   const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", pollId).eq("league_id", context.leagueId).eq("status", "open").maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that end-of-season award poll. Please try again.", poll.error);
   if (!poll.data) return { settled: false };
   return { settled: await settlePollFromWebVotes(guildId, poll.data) };
 }
@@ -719,7 +719,7 @@ export async function closeAndSettleEosAwardPollById(guildId: string, pollId: st
 // on last wins if they voted twice, same as changing your pick on the site.
 export async function recordEosAwardPollVotesFromDiscord(input: { pollId: string; discordMessageId: string; votesByNomineeIndex: Record<string, string[]> }): Promise<{ recorded: number }> {
   const poll = await supabase.from("rec_eos_award_polls").select("id,status,discord_message_id,nominee_user_ids").eq("id", input.pollId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that end-of-season award poll. Please try again.", poll.error);
   if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
   if (poll.data.status !== "open") return { recorded: 0 };
   if (poll.data.discord_message_id !== input.discordMessageId) return { recorded: 0 };
@@ -728,7 +728,7 @@ export async function recordEosAwardPollVotesFromDiscord(input: { pollId: string
   const allDiscordIds = [...new Set(Object.values(input.votesByNomineeIndex).flat())];
   if (!allDiscordIds.length) return { recorded: 0 };
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("discord_id", allDiscordIds);
-  if (accounts.error) throw new ApiError(500, "Failed to resolve Discord voters.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load Discord voters. Please try again.", accounts.error);
   const userIdByDiscordId = new Map<string, string>((accounts.data ?? []).map((row: any) => [row.discord_id, row.user_id]));
 
   const now = new Date().toISOString();
@@ -744,7 +744,7 @@ export async function recordEosAwardPollVotesFromDiscord(input: { pollId: string
   }
   if (!rows.length) return { recorded: 0 };
   const upserted = await supabase.from("rec_eos_award_votes").upsert(rows, { onConflict: "poll_id,voter_user_id" });
-  if (upserted.error) throw new ApiError(500, "Failed to record EOS award votes.", upserted.error);
+  if (upserted.error) throw new ApiError(500, "We couldn't record end-of-season award votes. Please try again.", upserted.error);
   return { recorded: rows.length };
 }
 
@@ -758,6 +758,6 @@ export async function listSettledEosAwards(input: { guildId: string; seasonNumbe
     .eq("season_number", seasonNumber)
     .eq("status", "settled")
     .order("category_key", { ascending: true });
-  if (rows.error) throw new ApiError(500, "Failed to load settled EOS awards.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load settled end-of-season awards. Please try again.", rows.error);
   return { seasonNumber, awards: rows.data ?? [] };
 }

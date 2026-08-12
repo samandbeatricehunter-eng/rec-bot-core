@@ -142,7 +142,7 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     player_source: "legend",
     raw_payload: { legend: true, legendId: details.legendId, purchaseId: purchase.id },
   });
-  if (inserted.error) throw new ApiError(500, "Legend purchase was approved, but creating the roster player failed.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", inserted.error);
 
   if (replacementPlayerId) {
     await supabase.from("rec_players").delete().eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId);
@@ -185,7 +185,7 @@ async function enforceAttributeCaps(args: {
     .eq("purchase_type", "attribute")
     .eq("season_number", args.seasonNumber)
     .in("status", ACTIVE_STATUSES as unknown as string[]);
-  if (existing.error) throw new ApiError(500, "Failed to check attribute caps.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check attribute purchase limits. Please try again.", existing.error);
 
   const usedByCode: Record<string, number> = {};
   let usedCore = 0;
@@ -242,7 +242,7 @@ async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: s
     .eq("id", playerId)
     .eq("league_id", opts.leagueId)
     .maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", opts.leagueId).eq("user_id", opts.userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only make purchases for your own team's players.");
@@ -259,7 +259,7 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
   const playerId = String((details as any).playerId ?? "");
   if (!playerId) throw new ApiError(400, "Select a player to upgrade.");
   const player = await supabase.from("rec_players").select("id,team_id,full_name,dev_trait,roster_status,is_default_player,madden_player_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only upgrade your own team's players.");
@@ -286,7 +286,7 @@ async function enforceDevUpgradePlayerCap(args: { leagueId: string; userId: stri
   const existing = await supabase.from("rec_purchases").select("details")
     .eq("league_id", args.leagueId).eq("user_id", args.userId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
     .in("status", ACTIVE_STATUSES as unknown as string[]);
-  if (existing.error) throw new ApiError(500, "Failed to check dev upgrade player cap.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check the development upgrade limit. Please try again.", existing.error);
   const distinctPlayerIds = new Set((existing.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
   if (distinctPlayerIds.has(args.playerId)) return;
   if (distinctPlayerIds.size >= args.cap) {
@@ -319,7 +319,7 @@ export async function createPurchaseRequest(input: {
     .select(selectCols)
     .eq("league_id", leagueId)
     .maybeSingle();
-  if (config.error) throw new ApiError(500, "Failed to load league purchase configuration.", config.error);
+  if (config.error) throw new ApiError(500, "We couldn't load purchase settings. Please try again.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
   // CFB dev trait progression is earned in-game, not purchased — dev upgrades are a
@@ -352,7 +352,7 @@ export async function createPurchaseRequest(input: {
   if (input.idempotencyKey) {
     const existing = await supabase.from("rec_purchases").select("*")
       .eq("league_id", leagueId).eq("user_id", userId).eq("idempotency_key", input.idempotencyKey).maybeSingle();
-    if (existing.error) throw new ApiError(500, "Failed to check for a duplicate purchase.", existing.error);
+    if (existing.error) throw new ApiError(500, "We couldn't check for a duplicate purchase. Please try again.", existing.error);
     if (existing.data) return { purchase: existing.data, duplicate: true };
   }
 
@@ -423,7 +423,7 @@ export async function createPurchaseRequest(input: {
           .eq("purchase_type", input.purchaseType)
           .eq("season_number", seasonNumber)
           .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (used.error) throw new ApiError(500, "Failed to check season purchase cap.", used.error);
+        if (used.error) throw new ApiError(500, "We couldn't check the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) >= cap) {
           throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label}.`);
         }
@@ -464,7 +464,7 @@ export async function createPurchaseRequest(input: {
         if (existing.data) return { purchase: existing.data, duplicate: true };
       }
     }
-    throw new ApiError(500, "Failed to create purchase request.", inserted.error);
+    throw new ApiError(500, "We couldn't create that purchase request. Please try again.", inserted.error);
   }
 
   // Real guard against the TOCTOU race enforceCaps() above can't fully close on its own: recount
@@ -478,7 +478,7 @@ export async function createPurchaseRequest(input: {
         const rows = await supabase.from("rec_purchases").select("details")
           .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "dev_upgrade").eq("season_number", seasonNumber)
           .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (rows.error) throw new ApiError(500, "Failed to verify dev upgrade player cap.", rows.error);
+        if (rows.error) throw new ApiError(500, "We couldn't verify the development upgrade limit. Please try again.", rows.error);
         const distinctPlayerIds = new Set((rows.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
         if (distinctPlayerIds.size > cap) {
           throw new ApiError(409, `This league limits dev upgrades to ${cap} player(s) per team per season — someone else just claimed the last slot.`);
@@ -488,7 +488,7 @@ export async function createPurchaseRequest(input: {
       const rows = await supabase.from("rec_purchases").select("details")
         .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "attribute").eq("season_number", seasonNumber)
         .in("status", ACTIVE_STATUSES as unknown as string[]);
-      if (rows.error) throw new ApiError(500, "Failed to verify attribute caps.", rows.error);
+      if (rows.error) throw new ApiError(500, "We couldn't verify attribute purchase limits. Please try again.", rows.error);
       const usedByCode: Record<string, number> = {};
       let usedCore = 0, usedNonCore = 0;
       for (const row of rows.data ?? []) {
@@ -519,7 +519,7 @@ export async function createPurchaseRequest(input: {
           .select("id", { count: "exact", head: true })
           .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", input.purchaseType).eq("season_number", seasonNumber)
           .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (used.error) throw new ApiError(500, "Failed to verify season purchase cap.", used.error);
+        if (used.error) throw new ApiError(500, "We couldn't verify the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) > cap) {
           throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label} — someone else's request just filled it.`);
         }
@@ -543,7 +543,7 @@ export async function createPurchaseRequest(input: {
   });
   if (ledger.error) {
     await supabase.from("rec_purchases").delete().eq("id", inserted.data.id);
-    throw new ApiError(500, "Failed to debit wallet for purchase.", ledger.error);
+    throw new ApiError(500, "We couldn't charge your wallet for that purchase. Please try again.", ledger.error);
   }
 
   const finalized = await supabase
@@ -552,7 +552,7 @@ export async function createPurchaseRequest(input: {
     .eq("id", inserted.data.id)
     .select("*")
     .single();
-  if (finalized.error) throw new ApiError(500, "Failed to finalize purchase request.", finalized.error);
+  if (finalized.error) throw new ApiError(500, "We couldn't finalize that purchase request. Please try again.", finalized.error);
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
@@ -595,7 +595,7 @@ export async function reviewPurchase(input: {
   let purchaseQuery = supabase.from("rec_purchases").select("*").eq("id", input.purchaseId);
   if (input.leagueId) purchaseQuery = purchaseQuery.eq("league_id", input.leagueId);
   const existing = await purchaseQuery.maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load purchase.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that purchase. Please try again.", existing.error);
   if (!existing.data) throw new ApiError(404, "Purchase was not found.");
   if (existing.data.status !== "pending") {
     return { updated: false, reason: `Purchase is already ${existing.data.status}.`, purchase: existing.data };
@@ -617,7 +617,7 @@ export async function reviewPurchase(input: {
         p_source: "purchase",
         p_source_reference: { purchaseId: existing.data.id, refund: true },
       });
-      if (refund.error) throw new ApiError(500, "Failed to refund denied purchase.", refund.error);
+      if (refund.error) throw new ApiError(500, "We couldn't refund that denied purchase. Please try again.", refund.error);
       refundLedgerId = refund.data;
     }
     const denied = await supabase
@@ -633,7 +633,7 @@ export async function reviewPurchase(input: {
       .eq("id", input.purchaseId)
       .select("*")
       .single();
-    if (denied.error) throw new ApiError(500, "Failed to deny purchase.", denied.error);
+    if (denied.error) throw new ApiError(500, "We couldn't deny that purchase. Please try again.", denied.error);
     await supabase
       .from("rec_commissioners_inbox")
       .update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now, review_reason: input.deniedReason ?? null })
@@ -665,7 +665,7 @@ export async function reviewPurchase(input: {
     .eq("id", input.purchaseId)
     .select("*")
     .single();
-  if (approved.error) throw new ApiError(500, "Failed to approve purchase.", approved.error);
+  if (approved.error) throw new ApiError(500, "We couldn't approve that purchase. Please try again.", approved.error);
   await supabase
     .from("rec_commissioners_inbox")
     .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
@@ -719,7 +719,7 @@ export async function listPendingPurchases(guildId: string) {
     .eq("league_id", context.leagueId)
     .eq("status", "pending")
     .order("submitted_at", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load pending purchases.", error);
+  if (error) throw new ApiError(500, "We couldn't load pending purchases. Please try again.", error);
   return {
     purchases: data ?? [],
   };
@@ -737,7 +737,7 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
     .select("purchase_type,status,season_number")
     .eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id);
-  if (error) throw new ApiError(500, "Failed to load purchase counts.", error);
+  if (error) throw new ApiError(500, "We couldn't load purchase counts. Please try again.", error);
 
   const seasonActive: Record<string, number> = {};
   const allTimeSuccessful: Record<string, number> = {};
@@ -779,7 +779,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
     .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,legends_season_cap,custom_players_season_cap")
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (config.error) throw new ApiError(500, "Failed to load store configuration.", config.error);
+  if (config.error) throw new ApiError(500, "We couldn't load store settings. Please try again.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
 
   const [existingAttrs, counts] = await Promise.all([
@@ -793,7 +793,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
       .in("status", ACTIVE_STATUSES as unknown as string[]),
     getUserPurchaseCounts(discordId, guildId),
   ]);
-  if (existingAttrs.error) throw new ApiError(500, "Failed to load attribute purchase history.", existingAttrs.error);
+  if (existingAttrs.error) throw new ApiError(500, "We couldn't load attribute purchase history. Please try again.", existingAttrs.error);
 
   const usedCoreByCode: Record<string, number> = {};
   const usedNonCoreByCode: Record<string, number> = {};

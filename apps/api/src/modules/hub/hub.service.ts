@@ -155,7 +155,7 @@ export const INTERVIEW_QUESTIONS = INTERVIEW_TOPICS.flatMap((topic) =>
 
 async function userIdForDiscord(discordId: string) {
   const result = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (result.error) throw new ApiError(500, "Failed to load your REC account.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", result.error);
   if (!result.data?.user_id) throw new ApiError(404, "Discord account is not linked to a REC user.");
   return result.data.user_id as string;
 }
@@ -163,7 +163,7 @@ async function userIdForDiscord(discordId: string) {
 async function discordIdForUser(userId: string | null | undefined) {
   if (!userId) return null;
   const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", userId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to resolve Discord account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", account.error);
   return account.data?.discord_id ?? null;
 }
 
@@ -176,7 +176,7 @@ async function activeAssignment(leagueId: string, userId: string) {
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignment.error);
   return assignment.data ?? null;
 }
 
@@ -209,14 +209,14 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
     .is("ended_at", null)
     .select("id")
     .maybeSingle();
-  if (updated.error) throw new ApiError(500, "Failed to retire from this league.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't retire you from this league. Please try again.", updated.error);
   if (!updated.data) throw new ApiError(409, "Could not retire from this league. Try again.");
 
   const membership = await supabase.from("rec_league_memberships")
     .delete()
     .eq("league_id", context.leagueId)
     .eq("user_id", userId);
-  if (membership.error) throw new ApiError(500, "The team was opened, but league access could not be removed.", membership.error);
+  if (membership.error) throw new ApiError(500, "The team was opened, but we couldn't remove league access. Please try again.", membership.error);
 
   await clearDiscordTeamIdentityForUsers({ leagueId: context.leagueId, guildId, userIds: [userId] });
   await syncLeagueRecruitingAd(context.leagueId);
@@ -264,7 +264,7 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
   const games = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
     "id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated)");
-  if (games.error) throw new ApiError(500, "Failed to load this week's opponent.", games.error);
+  if (games.error) throw new ApiError(500, "We couldn't load this week's opponent. Please try again.", games.error);
   const game = (games.data ?? []).find((row: any) => row.home_user_id === userId || row.away_user_id === userId);
   if (!game) return null;
   const isHome = game.home_user_id === userId;
@@ -312,9 +312,9 @@ export async function persistMediaImageBuffer(leagueId: string, buffer: Buffer, 
   const ext = contentType === "image/jpeg" ? "jpeg" : contentType === "image/webp" ? "webp" : "png";
   const path = `${leagueId}/${randomUUID()}.${ext}`;
   const uploaded = await supabase.storage.from(MEDIA_BUCKET).upload(path, buffer, { contentType, cacheControl: "31536000", upsert: false });
-  if (uploaded.error) throw new ApiError(500, "Failed to upload media image.", uploaded.error);
+  if (uploaded.error) throw new ApiError(500, "We couldn't upload that media image. Please try again.", uploaded.error);
   const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
-  if (!data?.publicUrl) throw new ApiError(500, "Failed to resolve media image URL.");
+  if (!data?.publicUrl) throw new ApiError(500, "We couldn't finish uploading that media image. Please try again.");
   return data.publicUrl;
 }
 
@@ -378,7 +378,7 @@ async function publishMediaStory(submission: any, discordId: string | null) {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).select("id").single();
-  if (result.error) throw new ApiError(500, "Failed to publish media story.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't publish that media story. Please try again.", result.error);
   return result.data.id as string;
 }
 
@@ -515,10 +515,10 @@ export async function getHub(guildId: string, discordId: string) {
     // has zero dependency on any of it, so it belongs here instead of a separate round trip.
     supabase.from("rec_league_configuration").select("coin_economy_enabled,age_resets_enabled,dev_upgrades_enabled,contract_adjustment_purchases_enabled,attribute_purchases_enabled,legends_enabled,custom_players_enabled").eq("league_id", context.leagueId).maybeSingle(),
   ]);
-  if (announcements.error) throw new ApiError(500, "Failed to load hub announcements.", announcements.error);
-  if (headlines.error) throw new ApiError(500, "Failed to load hub headlines.", headlines.error);
-  if (highlights.error) throw new ApiError(500, "Failed to load highlights.", highlights.error);
-  if (storeConfig.error) throw new ApiError(500, "Failed to load Hub store configuration.", storeConfig.error);
+  if (announcements.error) throw new ApiError(500, "We couldn't load hub announcements right now. Please try again.", announcements.error);
+  if (headlines.error) throw new ApiError(500, "We couldn't load hub headlines right now. Please try again.", headlines.error);
+  if (highlights.error) throw new ApiError(500, "We couldn't load highlights right now. Please try again.", highlights.error);
+  if (storeConfig.error) throw new ApiError(500, "We couldn't load the Hub store settings. Please try again.", storeConfig.error);
   const cfg = storeConfig.data ?? {};
   const cfbSeasonOne = context.rec_leagues.game === "cfb_27" && seasonNumber < 2;
   const productConfig = [
@@ -538,9 +538,9 @@ export async function getHub(guildId: string, discordId: string) {
     storyIds.length ? supabase.from("rec_story_comments").select("story_id").in("story_id", storyIds) : Promise.resolve({ data: [], error: null }),
     gameIds.length ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key").in("game_id", gameIds) : Promise.resolve({ data: [], error: null }),
   ]);
-  if (reactions.error) throw new ApiError(500, "Failed to load highlight reactions.", reactions.error);
-  if (views.error) throw new ApiError(500, "Failed to load highlight views.", views.error);
-  if (storyReactions.error || storyComments.error || gameReactions.error) throw new ApiError(500, "Failed to load Hub discussion activity.", storyReactions.error ?? storyComments.error ?? gameReactions.error);
+  if (reactions.error) throw new ApiError(500, "We couldn't load highlight reactions right now. Please try again.", reactions.error);
+  if (views.error) throw new ApiError(500, "We couldn't load highlight views right now. Please try again.", views.error);
+  if (storyReactions.error || storyComments.error || gameReactions.error) throw new ApiError(500, "We couldn't load Hub discussion activity. Please try again.", storyReactions.error ?? storyComments.error ?? gameReactions.error);
 
   // Preserve the query's newest-first ordering so the reel opens on the latest
   // highlight and autoplay continues chronologically toward older clips.
@@ -572,13 +572,13 @@ export async function getHub(guildId: string, discordId: string) {
       .order("posted_at", { ascending: false })
       .limit(16),
   ]);
-  if (highlightGames.error) throw new ApiError(500, "Failed to load highlight matchups.", highlightGames.error);
-  if (currentStreamLogs.error) throw new ApiError(500, "Failed to load live streams.", currentStreamLogs.error);
+  if (highlightGames.error) throw new ApiError(500, "We couldn't load highlight matchups right now. Please try again.", highlightGames.error);
+  if (currentStreamLogs.error) throw new ApiError(500, "We couldn't load live streams right now. Please try again.", currentStreamLogs.error);
   const highlightGameUserIds = [...new Set((highlightGames.data ?? []).flatMap((game: any) => [game.home_user_id, game.away_user_id]).filter(Boolean))];
   const highlightGameUsers = highlightGameUserIds.length
     ? await supabase.from("rec_users").select("id,username,display_name").in("id", highlightGameUserIds)
     : { data: [], error: null };
-  if (highlightGameUsers.error) throw new ApiError(500, "Failed to load highlight matchup participants.", highlightGameUsers.error);
+  if (highlightGameUsers.error) throw new ApiError(500, "We couldn't load highlight matchup participants right now. Please try again.", highlightGameUsers.error);
   const highlightGameUserNameById = new Map<string, string>((highlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
   const highlightMatchupByTeamWeek = new Map<string, { label: string; participants: { away: string; home: string } | null }>();
   const hubTeamName = (team: any, fallback: string) =>
@@ -599,14 +599,14 @@ export async function getHub(guildId: string, discordId: string) {
   const liveGameTeamsRes = liveGameTeamIds.length
     ? await supabase.from("rec_teams").select("id,name,abbreviation,display_city,display_nick,is_relocated").in("id", liveGameTeamIds)
     : { data: [] as any[], error: null };
-  if (liveGameTeamsRes.error) throw new ApiError(500, "Failed to load live-stream team names.", liveGameTeamsRes.error);
+  if (liveGameTeamsRes.error) throw new ApiError(500, "We couldn't load live-stream team names. Please try again.", liveGameTeamsRes.error);
   const liveGameTeamNameById = new Map<string, string>((liveGameTeamsRes.data ?? []).map((team: any) => [team.id, hubTeamName(team, "Team")]));
   const [streamViews, streamReactions] = await Promise.all([
     streamLogIds.length ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
     streamLogIds.length ? supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
   ]);
-  if (streamViews.error && !missingRelation(streamViews.error, "rec_stream_views")) throw new ApiError(500, "Failed to load stream engagement.", streamViews.error);
-  if (streamReactions.error && !missingRelation(streamReactions.error, "rec_stream_reactions")) throw new ApiError(500, "Failed to load stream engagement.", streamReactions.error);
+  if (streamViews.error && !missingRelation(streamViews.error, "rec_stream_views")) throw new ApiError(500, "We couldn't load stream engagement. Please try again.", streamViews.error);
+  if (streamReactions.error && !missingRelation(streamReactions.error, "rec_stream_reactions")) throw new ApiError(500, "We couldn't load stream engagement. Please try again.", streamReactions.error);
 
   return {
     league: {
@@ -735,7 +735,7 @@ export async function recordHubHighlightView(input: { guildId: string; discordId
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const highlight = await supabase.from("rec_highlight_posts").select("id").eq("id", input.highlightId).eq("league_id", context.leagueId).maybeSingle();
-  if (highlight.error) throw new ApiError(500, "Failed to verify highlight.", highlight.error);
+  if (highlight.error) throw new ApiError(500, "We couldn't verify that highlight. Please try again.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
 
   const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
@@ -746,16 +746,16 @@ export async function recordHubHighlightView(input: { guildId: string; discordId
     .eq("user_id", userId)
     .gte("viewed_at", eightHoursAgo)
     .limit(1);
-  if (recent.error) throw new ApiError(500, "Failed to check highlight view cooldown.", recent.error);
+  if (recent.error) throw new ApiError(500, "We couldn't check the highlight view cooldown. Please try again.", recent.error);
   if (!recent.data?.length) {
     const inserted = await supabase.from("rec_highlight_views").insert({
       id: randomUUID(), highlight_post_id: input.highlightId, user_id: userId, viewed_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to record highlight view.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't record that highlight view. Please try again.", inserted.error);
   }
 
   const count = await supabase.from("rec_highlight_views").select("id", { count: "exact", head: true }).eq("highlight_post_id", input.highlightId);
-  if (count.error) throw new ApiError(500, "Failed to count highlight views.", count.error);
+  if (count.error) throw new ApiError(500, "We couldn't count highlight views. Please try again.", count.error);
   return { viewCount: count.count ?? 0 };
 }
 
@@ -763,7 +763,7 @@ export async function toggleHubHighlightReaction(input: { guildId: string; disco
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const highlight = await supabase.from("rec_highlight_posts").select("id,user_id").eq("id", input.highlightId).eq("league_id", context.leagueId).maybeSingle();
-  if (highlight.error) throw new ApiError(500, "Failed to verify highlight.", highlight.error);
+  if (highlight.error) throw new ApiError(500, "We couldn't verify that highlight. Please try again.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
 
   if (
@@ -774,10 +774,10 @@ export async function toggleHubHighlightReaction(input: { guildId: string; disco
   }
 
   const existing = await supabase.from("rec_highlight_reactions").select("id").eq("highlight_post_id", input.highlightId).eq("user_id", userId).eq("reaction_key", input.reactionKey).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that reaction. Please try again.", existing.error);
   if (existing.data) {
     const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
-    if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't remove that reaction. Please try again.", removed.error);
   } else {
     const mutuallyExclusive = ["love", "like", "dislike", "poop"].includes(input.reactionKey)
       ? ["love", "like", "dislike", "poop"]
@@ -785,25 +785,25 @@ export async function toggleHubHighlightReaction(input: { guildId: string; disco
         ? HIGHLIGHT_AWARD_REACTION_KEYS
         : HIGHLIGHT_SIDELINE_REACTION_KEYS;
     const cleared = await supabase.from("rec_highlight_reactions").delete().eq("highlight_post_id", input.highlightId).eq("user_id", userId).in("reaction_key", mutuallyExclusive);
-    if (cleared.error) throw new ApiError(500, "Failed to update reaction.", cleared.error);
+    if (cleared.error) throw new ApiError(500, "We couldn't update that reaction. Please try again.", cleared.error);
     const inserted = await supabase.from("rec_highlight_reactions").insert({ id: randomUUID(), highlight_post_id: input.highlightId, user_id: userId, reaction_key: input.reactionKey, created_at: new Date().toISOString() });
-    if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't save that reaction. Please try again.", inserted.error);
   }
   return { ok: true };
 }
 
 async function toggleBinaryReaction(input: { table: "rec_story_reactions" | "rec_game_reactions"; foreignKey: "story_id" | "game_id"; targetId: string; userId: string; seasonNumber: number; reactionKey: "like" | "dislike" }) {
   const existing = await supabase.from(input.table).select("id,reaction_key").eq(input.foreignKey, input.targetId).eq("user_id", input.userId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that reaction. Please try again.", existing.error);
   if (existing.data?.reaction_key === input.reactionKey) {
     const removed = await supabase.from(input.table).delete().eq("id", existing.data.id);
-    if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't remove that reaction. Please try again.", removed.error);
   } else if (existing.data) {
     const updated = await supabase.from(input.table).update({ reaction_key: input.reactionKey }).eq("id", existing.data.id);
-    if (updated.error) throw new ApiError(500, "Failed to update reaction.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't update that reaction. Please try again.", updated.error);
   } else {
     const inserted = await supabase.from(input.table).insert({ id: randomUUID(), [input.foreignKey]: input.targetId, user_id: input.userId, season_number: input.seasonNumber, reaction_key: input.reactionKey, created_at: new Date().toISOString() });
-    if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't save that reaction. Please try again.", inserted.error);
   }
   return { ok: true };
 }
@@ -812,7 +812,7 @@ export async function toggleHubStoryReaction(input: { guildId: string; discordId
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const story = await supabase.from("rec_game_stories").select("id,season").eq("id", input.storyId).eq("league_id", context.leagueId).maybeSingle();
-  if (story.error) throw new ApiError(500, "Failed to verify story.", story.error);
+  if (story.error) throw new ApiError(500, "We couldn't verify that story. Please try again.", story.error);
   if (!story.data) throw new ApiError(404, "Story not found.");
   return toggleBinaryReaction({ table: "rec_story_reactions", foreignKey: "story_id", targetId: input.storyId, userId, seasonNumber: Number(story.data.season), reactionKey: input.reactionKey });
 }
@@ -828,7 +828,7 @@ export async function toggleHubGameReaction(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to verify game.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't verify that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Game not found.");
 
   const mode = input.mode ?? "toggle";
@@ -841,7 +841,7 @@ export async function toggleHubGameReaction(input: {
     .eq("user_id", userId)
     .eq("reaction_key", input.reactionKey)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that reaction. Please try again.", existing.error);
 
   if (input.reactionKey === "goty" && mode === "set") {
     if (existing.data) {
@@ -849,7 +849,7 @@ export async function toggleHubGameReaction(input: {
         .from("rec_game_reactions")
         .update({ comment })
         .eq("id", existing.data.id);
-      if (updated.error) throw new ApiError(500, "Failed to update GOTY nomination.", updated.error);
+      if (updated.error) throw new ApiError(500, "We couldn't update that GOTY nomination. Please try again.", updated.error);
     } else {
       const inserted = await supabase.from("rec_game_reactions").insert({
         id: randomUUID(),
@@ -860,7 +860,7 @@ export async function toggleHubGameReaction(input: {
         comment,
         created_at: new Date().toISOString(),
       });
-      if (inserted.error) throw new ApiError(500, "Failed to save GOTY nomination.", inserted.error);
+      if (inserted.error) throw new ApiError(500, "We couldn't save that GOTY nomination. Please try again.", inserted.error);
     }
     return { ok: true as const, myReactions: ["goty"] as const, myGotyComment: comment };
   }
@@ -868,7 +868,7 @@ export async function toggleHubGameReaction(input: {
   if (input.reactionKey === "goty" && mode === "clear") {
     if (existing.data) {
       const removed = await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id);
-      if (removed.error) throw new ApiError(500, "Failed to remove GOTY nomination.", removed.error);
+      if (removed.error) throw new ApiError(500, "We couldn't remove that GOTY nomination. Please try again.", removed.error);
     }
     return { ok: true as const, myReactions: [] as const, myGotyComment: null };
   }
@@ -882,7 +882,7 @@ export async function toggleHubGameReaction(input: {
         .eq("game_id", input.gameId)
         .eq("user_id", userId)
         .in("reaction_key", ["love", "like", "dislike", "poop"]);
-    if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't remove that reaction. Please try again.", removed.error);
   } else {
     if (input.reactionKey !== "goty") {
       const cleared = await supabase
@@ -891,7 +891,7 @@ export async function toggleHubGameReaction(input: {
         .eq("game_id", input.gameId)
         .eq("user_id", userId)
         .in("reaction_key", ["love", "like", "dislike", "poop"]);
-      if (cleared.error) throw new ApiError(500, "Failed to update reaction.", cleared.error);
+      if (cleared.error) throw new ApiError(500, "We couldn't update that reaction. Please try again.", cleared.error);
     }
     const inserted = await supabase.from("rec_game_reactions").insert({
       id: randomUUID(),
@@ -902,7 +902,7 @@ export async function toggleHubGameReaction(input: {
       comment: input.reactionKey === "goty" ? comment : null,
       created_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't save that reaction. Please try again.", inserted.error);
   }
   return { ok: true as const };
 }
@@ -911,11 +911,11 @@ export async function recordHubStreamView(input: { guildId: string; discordId: s
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const stream = await supabase.from("rec_stream_compliance_logs").select("id,season_number,week_number").eq("id", input.streamLogId).eq("league_id", context.leagueId).maybeSingle();
-  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (stream.error) throw new ApiError(500, "We couldn't verify that stream. Please try again.", stream.error);
   if (!stream.data) throw new ApiError(404, "Stream not found.");
 
   const existing = await supabase.from("rec_stream_views").select("id").eq("stream_log_id", input.streamLogId).eq("user_id", userId).limit(1);
-  if (existing.error) throw new ApiError(500, "Failed to check stream view.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check that stream view. Please try again.", existing.error);
   if (!existing.data?.length) {
     const inserted = await supabase.from("rec_stream_views").insert({
       stream_log_id: input.streamLogId,
@@ -926,10 +926,10 @@ export async function recordHubStreamView(input: { guildId: string; discordId: s
       discord_id: input.discordId,
       viewed_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to record stream view.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't record that stream view. Please try again.", inserted.error);
   }
   const count = await supabase.from("rec_stream_views").select("id", { count: "exact", head: true }).eq("stream_log_id", input.streamLogId);
-  if (count.error) throw new ApiError(500, "Failed to count stream views.", count.error);
+  if (count.error) throw new ApiError(500, "We couldn't count stream views. Please try again.", count.error);
   return { viewCount: count.count ?? 0 };
 }
 
@@ -939,7 +939,7 @@ export async function recordAnonymousStreamView(input: { streamLogId: string; an
     .select("id,league_id,season_number,week_number,message_url")
     .eq("id", input.streamLogId)
     .maybeSingle();
-  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (stream.error) throw new ApiError(500, "We couldn't verify that stream. Please try again.", stream.error);
   if (!stream.data?.message_url) throw new ApiError(404, "Stream not found.");
 
   const existing = await supabase
@@ -948,7 +948,7 @@ export async function recordAnonymousStreamView(input: { streamLogId: string; an
     .eq("stream_log_id", input.streamLogId)
     .eq("anonymous_viewer_id", input.anonymousViewerId)
     .limit(1);
-  if (existing.error) throw new ApiError(500, "Failed to check stream view.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check that stream view. Please try again.", existing.error);
   if (!existing.data?.length) {
     const inserted = await supabase.from("rec_stream_views").insert({
       stream_log_id: input.streamLogId,
@@ -958,7 +958,7 @@ export async function recordAnonymousStreamView(input: { streamLogId: string; an
       anonymous_viewer_id: input.anonymousViewerId,
       viewed_at: new Date().toISOString(),
     });
-    if (inserted.error) throw new ApiError(500, "Failed to record stream view.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't record that stream view. Please try again.", inserted.error);
   }
   return { url: stream.data.message_url as string };
 }
@@ -967,17 +967,17 @@ export async function toggleHubStreamReaction(input: { guildId: string; discordI
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const stream = await supabase.from("rec_stream_compliance_logs").select("id,season_number,week_number").eq("id", input.streamLogId).eq("league_id", context.leagueId).maybeSingle();
-  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (stream.error) throw new ApiError(500, "We couldn't verify that stream. Please try again.", stream.error);
   if (!stream.data) throw new ApiError(404, "Stream not found.");
 
   const existing = await supabase.from("rec_stream_reactions").select("id,reaction_key").eq("stream_log_id", input.streamLogId).eq("user_id", userId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to read stream reaction.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't read stream reaction. Please try again.", existing.error);
   if (existing.data?.reaction_key === input.reactionKey) {
     const removed = await supabase.from("rec_stream_reactions").delete().eq("id", existing.data.id);
-    if (removed.error) throw new ApiError(500, "Failed to remove stream reaction.", removed.error);
+    if (removed.error) throw new ApiError(500, "We couldn't remove that stream reaction. Please try again.", removed.error);
   } else if (existing.data) {
     const updated = await supabase.from("rec_stream_reactions").update({ reaction_key: input.reactionKey, updated_at: new Date().toISOString() }).eq("id", existing.data.id);
-    if (updated.error) throw new ApiError(500, "Failed to update stream reaction.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't update that stream reaction. Please try again.", updated.error);
   } else {
     const inserted = await supabase.from("rec_stream_reactions").insert({
       stream_log_id: input.streamLogId,
@@ -988,7 +988,7 @@ export async function toggleHubStreamReaction(input: { guildId: string; discordI
       discord_id: input.discordId,
       reaction_key: input.reactionKey,
     });
-    if (inserted.error) throw new ApiError(500, "Failed to save stream reaction.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't save that stream reaction. Please try again.", inserted.error);
   }
   return { ok: true };
 }
@@ -998,7 +998,7 @@ export async function listHubStoryComments(input: { guildId: string; storyId: st
   const story = await supabase.from("rec_game_stories").select("id").eq("id", input.storyId).eq("league_id", context.leagueId).maybeSingle();
   if (!story.data) throw new ApiError(404, "Story not found.");
   const comments = await supabase.from("rec_story_comments").select("id,user_id,body,created_at").eq("story_id", input.storyId).order("created_at", { ascending: true }).limit(100);
-  if (comments.error) throw new ApiError(500, "Failed to load comments.", comments.error);
+  if (comments.error) throw new ApiError(500, "We couldn't load comments right now. Please try again.", comments.error);
   const userIds = [...new Set((comments.data ?? []).map((comment: any) => comment.user_id))];
   const users = userIds.length ? await supabase.from("rec_users").select("id,display_name").in("id", userIds) : { data: [], error: null };
   const names = new Map((users.data ?? []).map((user: any) => [user.id, user.display_name || "REC Member"]));
@@ -1011,7 +1011,7 @@ export async function addHubStoryComment(input: { guildId: string; discordId: st
   const story = await supabase.from("rec_game_stories").select("id").eq("id", input.storyId).eq("league_id", context.leagueId).maybeSingle();
   if (!story.data) throw new ApiError(404, "Story not found.");
   const inserted = await supabase.from("rec_story_comments").insert({ id: randomUUID(), story_id: input.storyId, user_id: userId, body: input.body.trim(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-  if (inserted.error) throw new ApiError(500, "Failed to post comment.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't post that comment. Please try again.", inserted.error);
   return listHubStoryComments({ guildId: input.guildId, storyId: input.storyId });
 }
 
@@ -1039,7 +1039,7 @@ export async function recordHubAnnouncement(input: { guildId: string; title: str
     discord_channel_id: channelId, discord_message_id: messageId,
     published_at: new Date().toISOString(), created_at: new Date().toISOString(),
   });
-  if (result.error) throw new ApiError(500, "Failed to record hub announcement.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't save that hub announcement. Please try again.", result.error);
   return { recorded: true };
 }
 
@@ -1056,7 +1056,7 @@ export async function publishHubStory(input: { guildId: string; discordId: strin
     notes: [], story_type: input.storyType, roundtable, published_by_discord_id: input.discordId,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("id").single();
-  if (result.error) throw new ApiError(500, "Failed to publish the league story.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't publish that league story. Please try again.", result.error);
   return { published: true, id: result.data.id };
 }
 
@@ -1091,11 +1091,11 @@ export async function createCommissionerMediaArticle(input: {
     created_at: now,
     updated_at: now,
   }).select("*").single();
-  if (inserted.error) throw new ApiError(500, "Failed to save commissioner article.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't save that commissioner article. Please try again.", inserted.error);
   if (!input.immediatePost) return { scheduled: true, id: inserted.data.id };
   const storyId = await publishMediaStory(inserted.data, input.discordId);
   const updated = await supabase.from("rec_media_submissions").update({ status: "published", approved_story_id: storyId, published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", inserted.data.id);
-  if (updated.error) throw new ApiError(500, "Failed to mark article published.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't mark that article as published. Please try again.", updated.error);
   return { published: true, id: inserted.data.id, storyId };
 }
 
@@ -1136,7 +1136,7 @@ export async function getMyRecentTransactions(guildId: string, discordId: string
     .eq("league_id", context.leagueId)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 50));
-  if (error) throw new ApiError(500, "Failed to load recent transactions.", error);
+  if (error) throw new ApiError(500, "We couldn't load recent transactions right now. Please try again.", error);
   return {
     transactions: (data ?? []).map((row: any) => ({
       id: row.id,
@@ -1158,7 +1158,7 @@ export async function getHubMediaPortal(guildId: string, discordId: string) {
     supabase.from("rec_media_submissions").select("id,status").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("submitter_user_id", userId).eq("submission_type", "interview").neq("status", "denied").maybeSingle(),
     currentH2hOpponent(guildId, context.leagueId, userId),
   ]);
-  if (article.error || interview.error) throw new ApiError(500, "Failed to load media submission status.", article.error ?? interview.error);
+  if (article.error || interview.error) throw new ApiError(500, "We couldn't load media submission status. Please try again.", article.error ?? interview.error);
   return {
     questions: INTERVIEW_QUESTIONS,
     limits: {
@@ -1186,7 +1186,7 @@ export async function submitUserMediaArticle(input: { guildId: string; discordId
   }).select("*").single();
   if (row.error) {
     if (row.error.code === "23505") throw new ApiError(400, "You already submitted an article for this week.");
-    throw new ApiError(500, "Failed to submit article.", row.error);
+    throw new ApiError(500, "We couldn't submit that article. Please try again.", row.error);
   }
   const inbox = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId, server_id: context.serverId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber,
@@ -1196,7 +1196,7 @@ export async function submitUserMediaArticle(input: { guildId: string; discordId
     amount: (await getGlobalEconomyConfig()).submissions.article, source_table: "rec_media_submissions", source_id: row.data.id,
     payload: { submissionType: "user_article", title: input.title.trim(), body: input.body.trim(), imageUrl: sanitizeImageUrl(input.imageUrl) },
   });
-  if (inbox.error) throw new ApiError(500, "Failed to create article review notification.", inbox.error);
+  if (inbox.error) throw new ApiError(500, "We couldn't create the article review notification. Please try again.", inbox.error);
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);
   return { submitted: true, id: row.data.id };
 }
@@ -1256,7 +1256,7 @@ export async function submitInterview(input: {
   }).select("*").single();
   if (row.error) {
     if (row.error.code === "23505") throw new ApiError(400, "You already submitted an interview for this week.");
-    throw new ApiError(500, "Failed to submit interview.", row.error);
+    throw new ApiError(500, "We couldn't submit that interview. Please try again.", row.error);
   }
   const inbox = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId, server_id: context.serverId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber,
@@ -1266,7 +1266,7 @@ export async function submitInterview(input: {
     team_id: assignment?.team_id ?? null, amount: (await getGlobalEconomyConfig()).submissions.interview, source_table: "rec_media_submissions", source_id: row.data.id,
     payload: { submissionType: "interview", title, answers: input.answers, tagOpponent: Boolean(input.tagOpponent), opponentDiscordId: opponent?.discordId ?? null },
   });
-  if (inbox.error) throw new ApiError(500, "Failed to create interview review notification.", inbox.error);
+  if (inbox.error) throw new ApiError(500, "We couldn't create the interview review notification. Please try again.", inbox.error);
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);
   if (opponent?.discordId) {
     sendDiscordDirectMessage(opponent.discordId, `<@${input.discordId}> called you out in a REC interview. Run /app to check the latest media.`)
@@ -1278,7 +1278,7 @@ export async function submitInterview(input: {
 export async function reviewMediaSubmission(input: { guildId: string; reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const existing = await supabase.from("rec_media_submissions").select("*").eq("id", input.reviewId).eq("league_id", context.leagueId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load media submission.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that media submission. Please try again.", existing.error);
   if (!existing.data) throw new ApiError(404, "Media submission not found.");
   if (existing.data.status !== "pending") return { updated: false, reason: `Submission is already ${existing.data.status}.` };
   if (input.action === "deny") {
@@ -1286,7 +1286,7 @@ export async function reviewMediaSubmission(input: { guildId: string; reviewId: 
       status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, denied_reason: input.deniedReason ?? "Denied by commissioner review.",
       reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq("id", input.reviewId);
-    if (denied.error) throw new ApiError(500, "Failed to deny media submission.", denied.error);
+    if (denied.error) throw new ApiError(500, "We couldn't deny that media submission. Please try again.", denied.error);
     await supabase.from("rec_commissioners_inbox").update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: new Date().toISOString(), review_reason: input.deniedReason ?? null, updated_at: new Date().toISOString() }).eq("source_table", "rec_media_submissions").eq("source_id", input.reviewId);
     return { updated: true };
   }
@@ -1296,7 +1296,7 @@ export async function reviewMediaSubmission(input: { guildId: string; reviewId: 
     status: "published", approved_story_id: storyId, issued_ledger_id: ledgerId, reviewed_by_discord_id: input.reviewedByDiscordId,
     reviewed_at: new Date().toISOString(), published_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).eq("id", input.reviewId);
-  if (approved.error) throw new ApiError(500, "Failed to approve media submission.", approved.error);
+  if (approved.error) throw new ApiError(500, "We couldn't approve that media submission. Please try again.", approved.error);
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("source_table", "rec_media_submissions").eq("source_id", input.reviewId);
   return { updated: true, storyId, amount: Number(existing.data.amount ?? 0) };
 }
@@ -1304,12 +1304,12 @@ export async function reviewMediaSubmission(input: { guildId: string; reviewId: 
 export async function publishScheduledMediaForAdvance(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const rows = await supabase.from("rec_media_submissions").select("*").eq("league_id", context.leagueId).eq("submission_type", "commissioner_article").eq("status", "scheduled");
-  if (rows.error) throw new ApiError(500, "Failed to load scheduled media.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load scheduled media right now. Please try again.", rows.error);
   const published: string[] = [];
   for (const row of rows.data ?? []) {
     const storyId = await publishMediaStory(row, row.submitter_discord_id ?? null);
     const updated = await supabase.from("rec_media_submissions").update({ status: "published", approved_story_id: storyId, published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", row.id);
-    if (updated.error) throw new ApiError(500, "Failed to mark scheduled media published.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't mark that scheduled media as published. Please try again.", updated.error);
     published.push(storyId);
   }
   return { publishedCount: published.length, storyIds: published };
@@ -1346,7 +1346,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   if (context.rec_leagues.game === "cfb_27") {
     const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
-    if (leagueTeams.error) throw new ApiError(500, "Failed to load matchup team colors.", leagueTeams.error);
+    if (leagueTeams.error) throw new ApiError(500, "We couldn't load matchup team colors. Please try again.", leagueTeams.error);
     await Promise.all((leagueTeams.data ?? []).map((team: any) => {
       // Preserve any existing team color (including commissioner-assigned relocated colors).
       // Only backfill when a team has no primary_color set.
@@ -1380,15 +1380,15 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     // the single most-recent poll.
     supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }),
   ]);
-  if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "Failed to load matchup schedule.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
-  if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "Failed to load stream views.", streamViewsForWeek.error);
-  if (streamReactionsForWeek.error && !missingRelation(streamReactionsForWeek.error, "rec_stream_reactions")) throw new ApiError(500, "Failed to load stream reactions.", streamReactionsForWeek.error);
+  if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "We couldn't load the matchup schedule. Please try again.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
+  if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "We couldn't load stream views right now. Please try again.", streamViewsForWeek.error);
+  if (streamReactionsForWeek.error && !missingRelation(streamReactionsForWeek.error, "rec_stream_reactions")) throw new ApiError(500, "We couldn't load stream reactions right now. Please try again.", streamReactionsForWeek.error);
   const polls = gotwPoll.data ?? [];
   const pollIds = polls.map((row: any) => row.id);
   const allVoteRows = pollIds.length
     ? await supabase.from("rec_game_of_week_votes").select("poll_id,selected_team_id,discord_id").in("poll_id", pollIds)
     : { data: [], error: null };
-  if (allVoteRows.error) throw new ApiError(500, "Failed to load GOTW votes.", allVoteRows.error);
+  if (allVoteRows.error) throw new ApiError(500, "We couldn't load GOTW votes right now. Please try again.", allVoteRows.error);
   const votesByPollId = new Map<string, any[]>();
   for (const vote of allVoteRows.data ?? []) {
     const list = votesByPollId.get(vote.poll_id) ?? [];
@@ -1401,7 +1401,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const accounts = assignmentUserIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", assignmentUserIds)
     : { data: [], error: null };
-  if (accounts.error) throw new ApiError(500, "Failed to load matchup user names.", accounts.error);
+  if (accounts.error) throw new ApiError(500, "We couldn't load matchup user names. Please try again.", accounts.error);
   const accountByUserId = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
   const isSnowflake = (value: unknown) => /^\d{15,}$/.test(String(value ?? ""));
   const displayNameForUser = (row: any) => {
@@ -1460,8 +1460,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (boxScores.error) throw new ApiError(500, "Failed to load matchup box-score status.", boxScores.error);
-  if (gameReactionsForWeek.error) throw new ApiError(500, "Failed to load matchup reactions.", gameReactionsForWeek.error);
+  if (boxScores.error) throw new ApiError(500, "We couldn't load matchup box-score status. Please try again.", boxScores.error);
+  if (gameReactionsForWeek.error) throw new ApiError(500, "We couldn't load matchup reactions. Please try again.", gameReactionsForWeek.error);
   const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
   const mappedGames = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
       const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
@@ -1548,7 +1548,7 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
   const context = await getCurrentLeagueContext(input.guildId);
   const viewerUserId = await userIdForDiscord(input.discordId);
   const game = await supabase.from("rec_games").select("id,week_number,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load matchup.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that matchup. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Matchup not found.");
   // Only a true CPU-vs-CPU game (neither side human) has no detail page worth loading —
   // human_cpu games have one human participant who still needs box score/highlight uploads,
@@ -1576,7 +1576,7 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     .is("ended_at", null)
     .in("user_id", [game.data.away_user_id, game.data.home_user_id])
     .order("posted_at", { ascending: true });
-  if (streamLogs.error) throw new ApiError(500, "Failed to load matchup streams.", streamLogs.error);
+  if (streamLogs.error) throw new ApiError(500, "We couldn't load matchup streams. Please try again.", streamLogs.error);
   const streamRows = (streamLogs.data ?? []).filter((row: any) => !row.game_id || row.game_id === input.gameId);
   const streamLogIds = streamRows.map((row: any) => row.id);
   const [streamViews, streamReactions] = await Promise.all([
@@ -1591,10 +1591,10 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (streamViews.error && !missingRelation(streamViews.error, "rec_stream_views")) {
-    throw new ApiError(500, "Failed to load stream views.", streamViews.error);
+    throw new ApiError(500, "We couldn't load stream views right now. Please try again.", streamViews.error);
   }
   if (streamReactions.error && !missingRelation(streamReactions.error, "rec_stream_reactions")) {
-    throw new ApiError(500, "Failed to load stream reactions.", streamReactions.error);
+    throw new ApiError(500, "We couldn't load stream reactions right now. Please try again.", streamReactions.error);
   }
   const streams = streamRows.map((row: any) => {
     const side =
@@ -1697,7 +1697,7 @@ export async function shareHubMatchupStream(input: {
     .eq("id", input.gameId)
     .eq("league_id", context.leagueId)
     .maybeSingle();
-  if (game.error) throw new ApiError(500, "Failed to load matchup stream context.", game.error);
+  if (game.error) throw new ApiError(500, "We couldn't load that matchup's stream details. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Matchup not found.");
 
   const isHome = game.data.home_user_id === userId;
@@ -1743,7 +1743,7 @@ export async function shareHubMatchupStream(input: {
     })
     .select("id")
     .single();
-  if (inserted.error) throw new ApiError(500, "Failed to save stream URL.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't save that stream URL. Please try again.", inserted.error);
 
   await Promise.all([
     closeWageringForGame({ guildId: input.guildId, gameId: input.gameId }),
@@ -1811,7 +1811,7 @@ export async function voteGameOfWeek(input: { guildId: string; discordId: string
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const poll = await supabase.from("rec_game_of_week_polls").select("*").eq("id", input.pollId).eq("league_id", context.leagueId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load GOTW poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that GOTW poll. Please try again.", poll.error);
   if (!poll.data) throw new ApiError(404, "GOTW poll not found.");
   if (poll.data.status !== "open") throw new ApiError(400, "GOTW voting is closed.");
   if (![poll.data.away_team_id, poll.data.home_team_id].includes(input.selectedTeamId)) throw new ApiError(400, "Pick one of the GOTW teams.");
@@ -1830,14 +1830,14 @@ export async function voteGameOfWeek(input: { guildId: string; discordId: string
     voted_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: "poll_id,discord_id" });
-  if (voted.error) throw new ApiError(500, "Failed to save GOTW vote.", voted.error);
+  if (voted.error) throw new ApiError(500, "We couldn't save your GOTW vote. Please try again.", voted.error);
   return { voted: true };
 }
 
 export async function closeGameOfWeekVoting(input: { guildId: string; pollId: string; closedByDiscordId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const closed = await supabase.from("rec_game_of_week_polls").update({ status: "closed", closed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", input.pollId).eq("league_id", context.leagueId).eq("status", "open").select("id").maybeSingle();
-  if (closed.error) throw new ApiError(500, "Failed to close GOTW voting.", closed.error);
+  if (closed.error) throw new ApiError(500, "We couldn't close GOTW voting. Please try again.", closed.error);
   if (!closed.data) throw new ApiError(400, "GOTW voting is already closed or unavailable.");
   return { closed: true };
 }
@@ -1848,7 +1848,7 @@ export async function closeGameOfWeekVoting(input: { guildId: string; pollId: st
 export async function reopenGameOfWeekVoting(input: { guildId: string; pollId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const reopened = await supabase.from("rec_game_of_week_polls").update({ status: "open", closed_at: null, updated_at: new Date().toISOString() }).eq("id", input.pollId).eq("league_id", context.leagueId).eq("status", "closed").select("id").maybeSingle();
-  if (reopened.error) throw new ApiError(500, "Failed to reopen GOTW voting.", reopened.error);
+  if (reopened.error) throw new ApiError(500, "We couldn't reopen GOTW voting. Please try again.", reopened.error);
   if (!reopened.data) throw new ApiError(400, "Only a closed GOTW poll can be reopened.");
   return { reopened: true };
 }
@@ -1860,13 +1860,13 @@ export async function reopenGameOfWeekVoting(input: { guildId: string; pollId: s
 export async function cancelGameOfWeekVoting(input: { guildId: string; pollId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const poll = await supabase.from("rec_game_of_week_polls").select("id,status").eq("id", input.pollId).eq("league_id", context.leagueId).maybeSingle();
-  if (poll.error) throw new ApiError(500, "Failed to load GOTW poll.", poll.error);
+  if (poll.error) throw new ApiError(500, "We couldn't load that GOTW poll. Please try again.", poll.error);
   if (!poll.data) throw new ApiError(404, "GOTW poll not found.");
   if (poll.data.status === "settled") throw new ApiError(400, "This GOTW poll has already been settled and can't be cancelled.");
   if (poll.data.status !== "cancelled") {
     const now = new Date().toISOString();
     const cancelled = await supabase.from("rec_game_of_week_polls").update({ status: "cancelled", closed_at: now, updated_at: now }).eq("id", input.pollId);
-    if (cancelled.error) throw new ApiError(500, "Failed to cancel GOTW poll.", cancelled.error);
+    if (cancelled.error) throw new ApiError(500, "We couldn't cancel that GOTW poll. Please try again.", cancelled.error);
   }
   return { cancelled: true };
 }

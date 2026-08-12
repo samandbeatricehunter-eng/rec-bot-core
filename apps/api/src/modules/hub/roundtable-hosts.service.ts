@@ -8,7 +8,7 @@ const VOICE_KEYS: AnalystVoice[] = ["caleb", "maya", "theo", "nina"];
 
 async function userIdFromDiscord(discordId: string) {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   return account.data?.user_id ?? null;
 }
 
@@ -29,7 +29,7 @@ export async function loadHostOverridesForLeague(leagueId: string): Promise<Anal
 export async function getRoundtableHostConfig(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const rows = await supabase.from("rec_roundtable_host_overrides").select("voice_key,display_name,personality_key").eq("league_id", context.leagueId);
-  if (rows.error) throw new ApiError(500, "Failed to load roundtable hosts.", rows.error);
+  if (rows.error) throw new ApiError(500, "We couldn't load roundtable hosts. Please try again.", rows.error);
   const byVoice = new Map<string, { display_name: string; personality_key: string }>(
     (rows.data ?? []).map((r: any) => [r.voice_key, r]),
   );
@@ -73,14 +73,14 @@ export async function updateRoundtableHost(input: {
     updated_by_user_id: userId,
     updated_at: new Date().toISOString(),
   }, { onConflict: "league_id,voice_key" });
-  if (error) throw new ApiError(500, "Failed to save roundtable host.", error);
+  if (error) throw new ApiError(500, "We couldn't save that roundtable host. Please try again.", error);
   return { ok: true as const };
 }
 
 export async function resetRoundtableHost(input: { guildId: string; voice: AnalystVoice }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const { error } = await supabase.from("rec_roundtable_host_overrides").delete().eq("league_id", context.leagueId).eq("voice_key", input.voice);
-  if (error) throw new ApiError(500, "Failed to reset roundtable host.", error);
+  if (error) throw new ApiError(500, "We couldn't reset that roundtable host. Please try again.", error);
   return { ok: true as const };
 }
 
@@ -91,5 +91,5 @@ export function generateRoundtableHostName(seed: string): { fullName: string } {
     const candidate = generateRecPlayerName(attempt === 0 ? seed : `${seed}:${attempt}`);
     if (!isRealSportsAnalystName(candidate.fullName)) return { fullName: candidate.fullName };
   }
-  throw new ApiError(500, "Failed to generate a usable name — try again.");
+  throw new ApiError(500, "We couldn't generate a usable name. Please try again.");
 }

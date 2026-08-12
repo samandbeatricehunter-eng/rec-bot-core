@@ -9,7 +9,7 @@ const MESSAGE_RETENTION_HOURS = 72;
 
 async function resolveUserId(discordId: string): Promise<string | null> {
   const { data, error } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load Discord account.", error);
+  if (error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", error);
   return data?.user_id ?? null;
 }
 
@@ -21,7 +21,7 @@ async function resolveUsernamesByDiscordId(discordIds: string[]): Promise<Map<st
     .from("rec_discord_accounts")
     .select("discord_id,user:rec_users(username)")
     .in("discord_id", ids);
-  if (error) throw new ApiError(500, "Failed to resolve chat author usernames.", error);
+  if (error) throw new ApiError(500, "We couldn't load chat author names. Please try again.", error);
   const map = new Map<string, string>();
   for (const row of (data ?? []) as any[]) {
     const user = Array.isArray(row.user) ? row.user[0] : row.user;
@@ -56,7 +56,7 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
     .limit(MESSAGE_PAGE_SIZE);
   if (sinceIso) query = query.gt("created_at", sinceIso);
   const { data, error } = await query;
-  if (error) throw new ApiError(500, "Failed to load commissioner chat messages.", error);
+  if (error) throw new ApiError(500, "We couldn't load commissioner chat messages. Please try again.", error);
 
   // A rec-leagues username wins when set; otherwise fall back to the live Discord
   // nickname/username — rec_users.display_name can't be relied on here (it's sometimes
@@ -86,7 +86,7 @@ export async function editChatMessage(input: { guildId: string; discordId: strin
     .is("deleted_at", null)
     .select("id,author_discord_id,body,created_at,edited_at")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to edit message.", error);
+  if (error) throw new ApiError(500, "We couldn't edit that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   const message = { ...data, author_display_name: null };
   broadcastChatEvent("commissioner", input.guildId, { kind: "edit", row: message });
@@ -103,7 +103,7 @@ export async function deleteChatMessage(input: { guildId: string; discordId: str
     .is("deleted_at", null)
     .select("id")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to delete message.", error);
+  if (error) throw new ApiError(500, "We couldn't delete that message. Please try again.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
   broadcastChatEvent("commissioner", input.guildId, { kind: "delete", messageId: data.id });
   return { ok: true as const };
@@ -127,7 +127,7 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     })
     .select("id,author_discord_id,body,created_at,reply_to_message_id")
     .single();
-  if (error) throw new ApiError(500, "Failed to post message.", error);
+  if (error) throw new ApiError(500, "We couldn't post that message. Please try again.", error);
   const [usernames, liveNames] = await Promise.all([
     resolveUsernamesByDiscordId([input.discordId]),
     getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>()),
@@ -176,14 +176,14 @@ export async function listChatTopics(guildId: string) {
     .eq("guild_id", guildId)
     .order("created_at", { ascending: false })
     .limit(50);
-  if (error) throw new ApiError(500, "Failed to load voting topics.", error);
+  if (error) throw new ApiError(500, "We couldn't load voting topics. Please try again.", error);
   closeAndAnnounceExpiredTopics(guildId, topics ?? []);
 
   const topicIds = (topics ?? []).map((t) => t.id);
   const votes = topicIds.length
     ? await supabase.from("rec_commissioner_chat_topic_votes").select("topic_id,voter_discord_id,option_index").in("topic_id", topicIds)
     : { data: [], error: null };
-  if (votes.error) throw new ApiError(500, "Failed to load votes.", votes.error);
+  if (votes.error) throw new ApiError(500, "We couldn't load votes. Please try again.", votes.error);
 
   const votesByTopic = new Map<string, { voterDiscordId: string; optionIndex: number }[]>();
   for (const row of votes.data ?? []) {
@@ -239,7 +239,7 @@ export async function createChatTopic(input: {
     })
     .select("*")
     .single();
-  if (error) throw new ApiError(500, "Failed to create voting topic.", error);
+  if (error) throw new ApiError(500, "We couldn't create that voting topic. Please try again.", error);
   // Commissioner-only polls need a push, unlike public polls (which surface passively on
   // Campus Buzz for anyone browsing) — a co-commissioner has no other reason to know a vote
   // is waiting on them.
@@ -295,14 +295,14 @@ export async function listPublicPolls(guildId: string, discordId: string) {
     .eq("audience", "league")
     .order("created_at", { ascending: false })
     .limit(50);
-  if (error) throw new ApiError(500, "Failed to load polls.", error);
+  if (error) throw new ApiError(500, "We couldn't load polls. Please try again.", error);
   closeAndAnnounceExpiredTopics(guildId, topics ?? []);
 
   const topicIds = (topics ?? []).map((t) => t.id);
   const votes = topicIds.length
     ? await supabase.from("rec_commissioner_chat_topic_votes").select("topic_id,voter_discord_id,option_index").in("topic_id", topicIds)
     : { data: [], error: null };
-  if (votes.error) throw new ApiError(500, "Failed to load votes.", votes.error);
+  if (votes.error) throw new ApiError(500, "We couldn't load votes. Please try again.", votes.error);
 
   const votesByTopic = new Map<string, { voterDiscordId: string; optionIndex: number }[]>();
   for (const row of votes.data ?? []) {
@@ -326,7 +326,7 @@ export async function listPublicPolls(guildId: string, discordId: string) {
 
 export async function voteOnPublicPoll(input: { guildId: string; discordId: string; topicId: string; optionIndex: number }) {
   const topic = await supabase.from("rec_commissioner_chat_topics").select("id,guild_id,audience,options,status,closes_at").eq("id", input.topicId).maybeSingle();
-  if (topic.error) throw new ApiError(500, "Failed to load poll.", topic.error);
+  if (topic.error) throw new ApiError(500, "We couldn't load that poll. Please try again.", topic.error);
   if (!topic.data || topic.data.guild_id !== input.guildId) throw new ApiError(404, "Poll not found.");
   if (topic.data.audience !== "league") throw new ApiError(403, "This poll isn't open to the whole league.");
   if (topic.data.status !== "open") throw new ApiError(400, "Voting is closed for this poll.");
@@ -341,13 +341,13 @@ export async function voteOnPublicPoll(input: { guildId: string; discordId: stri
       { topic_id: input.topicId, voter_user_id: userId, voter_discord_id: input.discordId, option_index: input.optionIndex, updated_at: new Date().toISOString() },
       { onConflict: "topic_id,voter_discord_id" },
     );
-  if (error) throw new ApiError(500, "Failed to record vote.", error);
+  if (error) throw new ApiError(500, "We couldn't record your vote. Please try again.", error);
   return { ok: true };
 }
 
 export async function voteOnChatTopic(input: { guildId: string; discordId: string; topicId: string; optionIndex: number }) {
   const topic = await supabase.from("rec_commissioner_chat_topics").select("id,options,status,closes_at").eq("id", input.topicId).maybeSingle();
-  if (topic.error) throw new ApiError(500, "Failed to load topic.", topic.error);
+  if (topic.error) throw new ApiError(500, "We couldn't load that topic. Please try again.", topic.error);
   if (!topic.data) throw new ApiError(404, "Topic not found.");
   if (topic.data.status !== "open") throw new ApiError(400, "Voting is closed for this topic.");
   // Nothing flips status to "closed" automatically when a time limit runs out (no cron job
@@ -365,7 +365,7 @@ export async function voteOnChatTopic(input: { guildId: string; discordId: strin
       { topic_id: input.topicId, voter_user_id: userId, voter_discord_id: input.discordId, option_index: input.optionIndex, updated_at: new Date().toISOString() },
       { onConflict: "topic_id,voter_discord_id" },
     );
-  if (error) throw new ApiError(500, "Failed to record vote.", error);
+  if (error) throw new ApiError(500, "We couldn't record your vote. Please try again.", error);
   return { ok: true };
 }
 
@@ -378,7 +378,7 @@ export async function closeChatTopic(input: { guildId: string; topicId: string }
     .eq("status", "open")
     .select("id,title,options")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to close topic.", error);
+  if (error) throw new ApiError(500, "We couldn't close that topic. Please try again.", error);
   if (!data) throw new ApiError(404, "Topic not found, or already closed.");
   await announceTopicResult({ id: data.id, guild_id: input.guildId, title: data.title, options: data.options });
   return { ok: true };

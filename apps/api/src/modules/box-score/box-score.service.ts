@@ -157,7 +157,7 @@ async function resolveTeams(leagueId: string, abbr1: string, abbr2: string) {
     .from("rec_teams")
     .select("id,name,abbreviation,display_abbr")
     .eq("league_id", leagueId);
-  if (error) throw new ApiError(500, "Failed to load league teams.", error);
+  if (error) throw new ApiError(500, "We couldn't load league teams right now. Please try again.", error);
 
   const levenshtein = (a: string, b: string): number => {
     const m = a.length;
@@ -224,7 +224,7 @@ async function resolveCfbTeams(leagueId: string, name1Raw: string, name2Raw: str
     .from("rec_teams")
     .select("id,name,abbreviation,display_abbr,display_city,display_nick")
     .eq("league_id", leagueId);
-  if (error) throw new ApiError(500, "Failed to load league teams.", error);
+  if (error) throw new ApiError(500, "We couldn't load league teams right now. Please try again.", error);
 
   const candidates = (teams ?? []).map((t) => buildTeamNameCandidates(t));
   const match = (raw: string) => {
@@ -244,7 +244,7 @@ async function resolveGame(leagueId: string, team1Id: string, team2Id: string, s
       `and(home_team_id.eq.${team2Id},away_team_id.eq.${team1Id})`
     )
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to match game record.", error);
+  if (error) throw new ApiError(500, "We couldn't match that game. Please try again.", error);
   return data ?? null;
 }
 
@@ -256,7 +256,7 @@ async function getDiscordAccount(discordId: string, required = true) {
     .select("user_id")
     .eq("discord_id", discordId)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load Discord account.", error);
+  if (error) throw new ApiError(500, "We couldn't load your Discord account. Please try again.", error);
   if (!data?.user_id) {
     if (!required) return null;
     throw new ApiError(404, "Discord account is not linked to a REC user.");
@@ -275,7 +275,7 @@ async function getActiveTeamId(leagueId: string, userId: string): Promise<string
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load team assignment.", error);
+  if (error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", error);
   return data?.team_id ?? null;
 }
 
@@ -294,7 +294,7 @@ async function userHasApprovedBoxScoreForWeek(
     .eq("submitted_by_user_id", userId)
     .eq("status", "approved")
     .limit(1);
-  if (error) throw new ApiError(500, "Failed to check box score payout status.", error);
+  if (error) throw new ApiError(500, "We couldn't check box score payout status. Please try again.", error);
   return (data ?? []).length > 0;
 }
 
@@ -309,7 +309,7 @@ async function getUserScheduledGameForWeek(
     "id,home_team_id,away_team_id,home_user_id,away_user_id")
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load scheduled game.", error);
+  if (error) throw new ApiError(500, "We couldn't load that scheduled game. Please try again.", error);
   return data ?? null;
 }
 
@@ -401,7 +401,7 @@ export async function getBoxScoreUploadEligibility(input: { guildId: string; dis
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (existing.error) throw new ApiError(500, "Failed to check existing box score submissions.", existing.error);
+    if (existing.error) throw new ApiError(500, "We couldn't check existing box score submissions. Please try again.", existing.error);
     existingSubmission = existing.data
       ? { id: existing.data.id, status: existing.data.status, submittedByUserId: existing.data.submitted_by_user_id, submittedByDiscordId: existing.data.submitted_by_discord_id }
       : null;
@@ -440,7 +440,7 @@ export async function appendBoxScoreImage(input: AppendImageInput): Promise<{ su
     const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
     if (!game) throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
     const existing = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", game.id).eq("status", "pending").maybeSingle();
-    if (existing.error) throw new ApiError(500, "Failed to load pending box score submission.", existing.error);
+    if (existing.error) throw new ApiError(500, "We couldn't load that pending box score submission. Please try again.", existing.error);
     if (!existing.data) throw new ApiError(404, "No pending box score submission found for this game.");
     submissionId = existing.data.id;
   } else {
@@ -448,7 +448,7 @@ export async function appendBoxScoreImage(input: AppendImageInput): Promise<{ su
   }
 
   const row = await supabase.from("rec_box_score_submissions").select("id,status,image_urls").eq("id", submissionId).maybeSingle();
-  if (row.error) throw new ApiError(500, "Failed to load box score submission.", row.error);
+  if (row.error) throw new ApiError(500, "We couldn't load that box score submission. Please try again.", row.error);
   if (!row.data) throw new ApiError(404, "Submission not found.");
   if (row.data.status !== "pending") throw new ApiError(409, "This submission is no longer pending.");
 
@@ -458,7 +458,7 @@ export async function appendBoxScoreImage(input: AppendImageInput): Promise<{ su
     .from("rec_box_score_submissions")
     .update({ image_urls: imageUrls, image_storage_url: imageStorageUrl, updated_at: new Date().toISOString() })
     .eq("id", submissionId);
-  if (update.error) throw new ApiError(500, "Failed to append image to submission.", update.error);
+  if (update.error) throw new ApiError(500, "We couldn't add that image to the submission. Please try again.", update.error);
 
   await supabase
     .from("rec_commissioners_inbox")
@@ -515,9 +515,9 @@ export async function persistUploadedImageBuffer(key: string, buffer: Buffer, co
   const ext = contentType === "image/jpeg" ? "jpeg" : contentType === "image/webp" ? "webp" : "png";
   const path = `${key}.${ext}`;
   const { error } = await supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).upload(path, buffer, { contentType, upsert: true });
-  if (error) throw new ApiError(500, "Failed to upload image.", error);
+  if (error) throw new ApiError(500, "We couldn't upload that image. Please try again.", error);
   const { data } = supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).getPublicUrl(path);
-  if (!data?.publicUrl) throw new ApiError(500, "Failed to resolve uploaded image URL.");
+  if (!data?.publicUrl) throw new ApiError(500, "We couldn't finish uploading that image. Please try again.");
   return data.publicUrl;
 }
 
@@ -753,7 +753,7 @@ async function activeUsersForTeams(leagueId: string, teamIds: (string | null | u
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .in("team_id", ids);
-  if (error) throw new ApiError(500, "Failed to load team assignments for payout routing.", error);
+  if (error) throw new ApiError(500, "We couldn't load team assignments for payouts. Please try again.", error);
   const map = new Map<string, string>();
   for (const r of data ?? []) if (r.team_id && r.user_id) map.set(r.team_id, r.user_id);
   return map;
@@ -782,7 +782,7 @@ async function resolveGameContext(
       .eq("league_id", leagueId)
       .eq("id", expectedGameId)
       .maybeSingle();
-    if (error) throw new ApiError(500, "Failed to load the selected scheduled game.", error);
+    if (error) throw new ApiError(500, "We couldn't load the selected scheduled game. Please try again.", error);
     if (game) {
       // Box score invariant: the top/left column is always the away team and the
       // bottom/right column is always the home team. The parser reads the top/left
@@ -1061,7 +1061,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     if (error?.code === "23505") {
       throw new ApiError(409, "A box score payout review is already pending or approved for this scheduled game.", error);
     }
-    throw new ApiError(500, "Failed to save box score submission.", error);
+    throw new ApiError(500, "We couldn't save that box score submission. Please try again.", error);
   }
 
   // Best-effort side effects of a box score landing for this game — a still-"live" stream for
@@ -1173,7 +1173,7 @@ export async function updateBoxScoreLedgerMessage(submissionId: string, ledgerDi
     .eq("id", submissionId)
     .select("id")
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to store box score ledger message id.", error);
+  if (error) throw new ApiError(500, "We couldn't save the box score message reference. Please try again.", error);
   if (!data) throw new ApiError(404, "Submission not found.");
   return { ok: true };
 }
@@ -1201,7 +1201,7 @@ export async function listBoxScoresPendingDiscordCleanup(guildId: string): Promi
     .not("discord_channel_id", "is", null)
     .not("discord_message_id", "is", null)
     .limit(50);
-  if (error) throw new ApiError(500, "Failed to list box scores pending Discord cleanup.", error);
+  if (error) throw new ApiError(500, "We couldn't load box scores pending cleanup. Please try again.", error);
   return (data ?? []).map((row: any) => ({
     submissionId: row.id,
     discordChannelId: row.discord_channel_id,
@@ -1216,7 +1216,7 @@ export async function markBoxScoreDiscordCleanupDone(submissionId: string) {
     .from("rec_box_score_submissions")
     .update({ discord_cleanup_done: true, updated_at: new Date().toISOString() })
     .eq("id", submissionId);
-  if (error) throw new ApiError(500, "Failed to mark box score Discord cleanup done.", error);
+  if (error) throw new ApiError(500, "We couldn't finish box score cleanup. Please try again.", error);
   return { ok: true };
 }
 
@@ -1253,7 +1253,7 @@ async function issueBadgeBonusesForSubmission(sub: {
   else query.is("game_id", null);
 
   const { data, error } = await query;
-  if (error) throw new ApiError(500, "Failed to load earned badge bonuses.", error);
+  if (error) throw new ApiError(500, "We couldn't load earned badge bonuses. Please try again.", error);
 
   const paid: BadgeBonusPaid[] = [];
   const badgeBonus = (await getGlobalEconomyConfig()).submissions.badgeBonus;
@@ -1350,7 +1350,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     .eq("status", "pending")
     .maybeSingle();
 
-  if (fetchErr) throw new ApiError(500, "Failed to load submission.", fetchErr);
+  if (fetchErr) throw new ApiError(500, "We couldn't load that submission. Please try again.", fetchErr);
   if (!sub) throw new ApiError(404, "Pending submission not found.");
 
   if (input.action === "deny") {
@@ -1466,7 +1466,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       },
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
-    if (resultError) throw new ApiError(500, "Failed to record box score game result.", resultError);
+    if (resultError) throw new ApiError(500, "We couldn't record the box score game result. Please try again.", resultError);
     if (sub.game_id) {
       await closeWageringForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id });
       await supabase.from("rec_games").update({ status: "final", home_score: sub.home_score, away_score: sub.away_score, updated_at: now }).eq("id", sub.game_id);
@@ -1578,8 +1578,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       .eq("source_table", "rec_box_score_submissions")
       .eq("source_id", input.submissionId),
   ]);
-  if (submissionUpdate.error) throw new ApiError(500, "Failed to mark box score submission approved.", submissionUpdate.error);
-  if (inboxUpdate.error) throw new ApiError(500, "Failed to update box score commissioner inbox item.", inboxUpdate.error);
+  if (submissionUpdate.error) throw new ApiError(500, "We couldn't approve that box score submission. Please try again.", submissionUpdate.error);
+  if (inboxUpdate.error) throw new ApiError(500, "We couldn't update the box score review item. Please try again.", inboxUpdate.error);
 
   for (const p of payouts) {
     const resultLabel = winningUserId == null ? "ended in a tie" : p.userId === winningUserId ? "was a win" : "was a loss";
@@ -1715,7 +1715,7 @@ async function syncApprovedBoxScoreCorrection(sub: any) {
       },
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
-    if (error) throw new ApiError(500, "Failed to refresh corrected box score result.", error);
+    if (error) throw new ApiError(500, "We couldn't refresh the corrected box score result. Please try again.", error);
   }
 
   await recordTeamGameStats(sub);
@@ -1738,7 +1738,7 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
     .eq("id", input.submissionId)
     .in("status", ["pending", "approved"])
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load submission for correction.", error);
+  if (error) throw new ApiError(500, "We couldn't load that submission for correction. Please try again.", error);
   if (!sub) throw new ApiError(404, "No editable box score submission was found.");
   if (sub.status === "approved" && input.field === "matchup") {
     throw new ApiError(400, "Approved box scores cannot be re-linked to a different scheduled game.");
@@ -1835,7 +1835,7 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
     if (updateError.code === "23505") {
       throw new ApiError(409, "Another box score payout is already pending or approved for that scheduled game.", updateError);
     }
-    throw new ApiError(500, "Failed to apply box score correction.", updateError);
+    throw new ApiError(500, "We couldn't apply that box score correction. Please try again.", updateError);
   }
 
   const corrected = { ...sub, ...update };
@@ -1885,7 +1885,7 @@ async function clearStalePendingForGame(gameId: string): Promise<string[]> {
     .select("id,status,payout_issued,ledger_discord_message_id")
     .eq("game_id", gameId)
     .in("status", ["pending", "approved"]);
-  if (error) throw new ApiError(500, "Failed to check existing box score payouts.", error);
+  if (error) throw new ApiError(500, "We couldn't check existing box score payouts. Please try again.", error);
   const rows = data ?? [];
   if (rows.some((r) => r.status === "approved" || r.payout_issued)) {
     throw new ApiError(409, "A payout has already been issued for this scheduled game.");
@@ -1922,7 +1922,7 @@ async function assertNoExistingBoxScorePayout(gameId: string, currentSubmissionI
   if (currentSubmissionId) query = query.neq("id", currentSubmissionId);
 
   const { data, error } = await query;
-  if (error) throw new ApiError(500, "Failed to check existing box score payouts.", error);
+  if (error) throw new ApiError(500, "We couldn't check existing box score payouts. Please try again.", error);
   const existing = (data ?? [])[0];
   if (!existing) return;
   if (existing.status === "approved" || existing.payout_issued) {
@@ -2017,7 +2017,7 @@ async function recordTeamGameStats(sub: any) {
     .filter((row): row is Record<string, any> => row !== null);
   if (!rows.length) return;
   const { error } = await supabase.from("rec_team_game_stats").upsert(rows, { onConflict: "submission_id,team_id" });
-  if (error) throw new ApiError(500, "Failed to record team game stats from box score.", error);
+  if (error) throw new ApiError(500, "We couldn't record team game stats from the box score. Please try again.", error);
 }
 
 // ─── List pending submissions ─────────────────────────────────────────────────
@@ -2031,7 +2031,7 @@ export async function listPendingBoxScores(guildId: string) {
     .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(10);
-  if (error) throw new ApiError(500, "Failed to load pending submissions.", error);
+  if (error) throw new ApiError(500, "We couldn't load pending submissions right now. Please try again.", error);
   return { submissions: data ?? [] };
 }
 
@@ -2041,7 +2041,7 @@ export async function getBoxScoreSubmission(submissionId: string) {
     .select("*")
     .eq("id", submissionId)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load submission.", error);
+  if (error) throw new ApiError(500, "We couldn't load that submission. Please try again.", error);
   if (!data) throw new ApiError(404, "Submission not found.");
   return data;
 }
@@ -2052,7 +2052,7 @@ export async function listScheduledGamesForWeek(guildId: string, weekNumber: num
   const { data, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: selected.weekNumber },
     "id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
     .order("created_at", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load scheduled games.", error);
+  if (error) throw new ApiError(500, "We couldn't load scheduled games right now. Please try again.", error);
   return {
     league: {
       id: context.leagueId,

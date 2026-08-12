@@ -92,7 +92,7 @@ async function assertNameNotLegend(game: RecGameFamily, identity: Identity) {
   const fullName = `${identity.firstName.trim()} ${identity.lastName.trim()}`.toLowerCase().replace(/\s+/g, " ");
   const gameScope = game === "CFB" ? "cfb_27" : "madden";
   const legends = await supabase.from("rec_legend_catalog").select("name").eq("game_scope", gameScope);
-  if (legends.error) throw new ApiError(500, "Failed to validate player name.", legends.error);
+  if (legends.error) throw new ApiError(500, "We couldn't validate that player name. Please try again.", legends.error);
   const collides = (legends.data ?? []).some((row: any) => String(row.name ?? "").trim().toLowerCase().replace(/\s+/g, " ") === fullName);
   if (collides) throw new ApiError(400, "That name matches a Legend in this game — pick a different name for your custom player.");
 }
@@ -136,7 +136,7 @@ async function contextFor(guildId: string, discordId: string) {
   await assertSiteAccountForEconomy(baseline.user.id);
   const assignment = await supabase.from("rec_team_assignments").select("team_id")
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("assignment_status", "active").is("ended_at", null).limit(1).maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load your team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignment.error);
   if (!assignment.data?.team_id) throw new ApiError(403, "A linked league team is required.");
   return { context, baseline, teamId: String(assignment.data.team_id), seasonNumber: resolveSeasonNumber(context) };
 }
@@ -148,7 +148,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   const config = await supabase.from("rec_league_configuration")
     .select("coin_economy_enabled,custom_players_enabled,custom_players_season_cap,purchase_deadlines")
     .eq("league_id", context.leagueId).maybeSingle();
-  if (config.error) throw new ApiError(500, "Failed to load custom-player settings.", config.error);
+  if (config.error) throw new ApiError(500, "We couldn't load custom-player settings. Please try again.", config.error);
   const builds = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .in("status", ["pending_review", "approved", "applied"]);
@@ -209,7 +209,7 @@ export async function getCustomPlayerDraft(guildId: string, discordId: string) {
   const { context, baseline } = await contextFor(guildId, discordId);
   const result = await supabase.from("rec_custom_player_wizard_sessions").select("*")
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft").maybeSingle();
-  if (result.error) throw new ApiError(500, "Failed to load the custom-player draft.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't load the custom-player draft. Please try again.", result.error);
   if (!result.data) return { draft: null };
   if (new Date(result.data.expires_at).getTime() <= Date.now()) {
     await supabase.from("rec_custom_player_wizard_sessions").update({ status: "expired", updated_at: new Date().toISOString() }).eq("id", result.data.id);
@@ -237,11 +237,11 @@ export async function saveCustomPlayerDraft(guildId: string, discordId: string, 
   };
   const existing = await supabase.from("rec_custom_player_wizard_sessions").select("id")
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft").maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to locate the custom-player draft.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't find the custom-player draft. Please try again.", existing.error);
   const saved = existing.data
     ? await supabase.from("rec_custom_player_wizard_sessions").update(payload).eq("id", existing.data.id).select("*").single()
     : await supabase.from("rec_custom_player_wizard_sessions").insert(payload).select("*").single();
-  if (saved.error) throw new ApiError(500, "Failed to save the custom-player draft.", saved.error);
+  if (saved.error) throw new ApiError(500, "We couldn't save the custom-player draft. Please try again.", saved.error);
   return { draft: saved.data };
 }
 
@@ -250,7 +250,7 @@ export async function cancelCustomPlayerDraft(guildId: string, discordId: string
   const result = await supabase.from("rec_custom_player_wizard_sessions")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft");
-  if (result.error) throw new ApiError(500, "Failed to cancel the custom-player draft.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't cancel the custom-player draft. Please try again.", result.error);
   return { cancelled: true };
 }
 
@@ -353,7 +353,7 @@ export async function submitCustomPlayer(input: {
   const recent = await supabase.from("rec_custom_player_builds").select("*")
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .eq("status", "pending_review").order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-  if (recent.error) throw new ApiError(500, "Failed to check for a duplicate custom-player submission.", recent.error);
+  if (recent.error) throw new ApiError(500, "We couldn't check for a duplicate custom-player submission. Please try again.", recent.error);
   if (recent.data && Date.now() - new Date(recent.data.submitted_at).getTime() < 5 * 60_000) {
     const samePayload = recent.data.package_tier === input.packageTier
       && recent.data.position === effectivePosition
@@ -368,7 +368,7 @@ export async function submitCustomPlayer(input: {
   const purchase = await supabase.from("rec_purchases").insert({ league_id: context.leagueId, season_id: seasonId, season_number: seasonNumber,
     user_id: baseline.user.id, team_id: teamId, discord_id: input.discordId, purchase_type: "custom_player", cost: pkg.coinPrice,
     details: { packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey }, status: "pending", already_deducted: false }).select("*").single();
-  if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
+  if (purchase.error) throw new ApiError(500, "We couldn't create that purchase. Please try again.", purchase.error);
   const unspentCpRewardCoins = pointsRemainingAfterHeight * 10 >= evaluation.creationPoints ? 500 : 0;
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
     season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
@@ -384,7 +384,7 @@ export async function submitCustomPlayer(input: {
     cost_configuration_version: REC_CUSTOM_PLAYER_COST_VERSION, archetype_configuration_version: REC_ARCHETYPE_CONFIG_VERSION,
     build_rules_version: REC_BUILD_RULES_VERSION, ovr_model_version: REC_OVR_MODEL_VERSION, name_corpus_version: REC_NAME_CORPUS_VERSION,
     idempotency_key: input.idempotencyKey }).select("*").single();
-  if (build.error) { await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to save the custom-player build.", build.error); }
+  if (build.error) { await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "We couldn't save that custom-player build. Please try again.", build.error); }
 
   // Real guard against the season-cap race the pre-check above (config.seasonUsed >=
   // config.seasonCap, evaluated against a snapshot fetched before this insert) can't fully
@@ -393,7 +393,7 @@ export async function submitCustomPlayer(input: {
     const recount = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
       .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
       .in("status", ["pending_review", "approved", "applied"]);
-    if (recount.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to verify the season cap.", recount.error); }
+    if (recount.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "We couldn't verify the season purchase cap. Please try again.", recount.error); }
     if ((recount.count ?? 0) > config.seasonCap) {
       await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id);
       await supabase.from("rec_purchases").delete().eq("id", purchase.data.id);
@@ -403,7 +403,7 @@ export async function submitCustomPlayer(input: {
 
   const ledger = await supabase.rpc("add_to_wallet", { p_user_id: baseline.user.id, p_amount: -pkg.coinPrice, p_league_id: context.leagueId,
     p_description: `${pkg.displayName} custom player`, p_transaction_type: "purchase_debit", p_source: "purchase", p_source_reference: { customPlayerBuildId: build.data.id } });
-  if (ledger.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "Failed to charge the wallet.", ledger.error); }
+  if (ledger.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "We couldn't charge your wallet. Please try again.", ledger.error); }
   await Promise.all([
     supabase.from("rec_custom_player_builds").update({ debit_ledger_id: ledger.data }).eq("id", build.data.id),
     supabase.from("rec_purchases").update({ debit_ledger_id: ledger.data, already_deducted: true }).eq("id", purchase.data.id),
@@ -474,7 +474,7 @@ export async function listCustomPlayerBuilds(guildId: string, discordId: string,
   const { context, baseline } = await contextFor(guildId, discordId);
   let query = supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId).order("submitted_at", { ascending: false });
   if (!manage) query = query.eq("user_id", baseline.user.id);
-  const result = await query; if (result.error) throw new ApiError(500, "Failed to load custom players.", result.error);
+  const result = await query; if (result.error) throw new ApiError(500, "We couldn't load custom players. Please try again.", result.error);
   return { builds: result.data ?? [] };
 }
 
@@ -488,7 +488,7 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     const rejected = await supabase.rpc("reject_custom_player_build", {
       p_build_id: build.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note.trim(),
     });
-    if (rejected.error) throw new ApiError(500, "Failed to reject and refund the custom player atomically.", rejected.error);
+    if (rejected.error) throw new ApiError(500, "We couldn't reject and refund that custom player. Please try again.", rejected.error);
     await supabase.from("rec_commissioners_inbox").update({ status: "denied", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(), review_reason: input.note.trim() })
       .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
     await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_denied", title: "Your custom player was denied", body: input.note.trim(), href: "/app" })
@@ -526,7 +526,7 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     // not grant or remove it later.
     p_unused_cp_refund_coins: Number(build.unused_cp_refund_coins) === 500 ? 500 : 0, p_changes: changes,
   });
-  if (applied.error) throw new ApiError(500, "Failed to apply the custom player atomically.", applied.error);
+  if (applied.error) throw new ApiError(500, "We couldn't apply that custom player. Please try again.", applied.error);
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
     .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
   if (changes.length) {

@@ -15,7 +15,7 @@ export async function qualifyDefenseNickname(input: { leagueId: string; teamId: 
     .eq("league_id", input.leagueId)
     .eq("team_id", input.teamId)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to load defense nickname record.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't load that defense nickname. Please try again.", existing.error);
 
   const now = new Date().toISOString();
   const wasInactiveOrNew = !existing.data || !existing.data.is_active;
@@ -26,7 +26,7 @@ export async function qualifyDefenseNickname(input: { leagueId: string; teamId: 
       first_earned_season: input.seasonNumber, last_qualified_season: input.seasonNumber,
       is_active: true, updated_at: now,
     });
-    if (inserted.error) throw new ApiError(500, "Failed to create defense nickname record.", inserted.error);
+    if (inserted.error) throw new ApiError(500, "We couldn't create that defense nickname. Please try again.", inserted.error);
   } else {
     const updated = await supabase.from("rec_team_defense_nicknames").update({
       last_qualified_season: input.seasonNumber,
@@ -35,7 +35,7 @@ export async function qualifyDefenseNickname(input: { leagueId: string; teamId: 
       nickname: wasInactiveOrNew && !existing.data.is_active ? null : existing.data.nickname,
       updated_at: now,
     }).eq("id", existing.data.id);
-    if (updated.error) throw new ApiError(500, "Failed to update defense nickname record.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't update that defense nickname. Please try again.", updated.error);
   }
 
   // Only DM when a fresh name is actually needed (brand new, or reactivated after retirement).
@@ -59,7 +59,7 @@ export async function retireStaleDefenseNicknames(leagueId: string, seasonNumber
     .eq("league_id", leagueId)
     .eq("is_active", true)
     .lt("last_qualified_season", seasonNumber);
-  if (error) throw new ApiError(500, "Failed to retire stale defense nicknames.", error);
+  if (error) throw new ApiError(500, "We couldn't retire stale defense nicknames. Please try again.", error);
 }
 
 export async function setDefenseNickname(input: { guildId: string; discordId: string; teamId: string; nickname: string }): Promise<{ nickname: string }> {
@@ -84,11 +84,11 @@ export async function setDefenseNickname(input: { guildId: string; discordId: st
     .eq("team_id", input.teamId)
     .eq("is_active", true)
     .maybeSingle();
-  if (record.error) throw new ApiError(500, "Failed to load defense nickname record.", record.error);
+  if (record.error) throw new ApiError(500, "We couldn't load that defense nickname. Please try again.", record.error);
   if (!record.data) throw new ApiError(404, "This team doesn't currently qualify for a defense nickname.");
 
   const updated = await supabase.from("rec_team_defense_nicknames").update({ nickname: trimmed, updated_at: new Date().toISOString() }).eq("id", record.data.id);
-  if (updated.error) throw new ApiError(500, "Failed to save defense nickname.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't save that defense nickname. Please try again.", updated.error);
   return { nickname: trimmed };
 }
 

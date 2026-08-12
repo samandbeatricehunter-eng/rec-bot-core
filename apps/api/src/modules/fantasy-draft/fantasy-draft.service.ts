@@ -69,7 +69,7 @@ const MIN_DRAFTED_ROSTER_SIZE = 22;
 async function resolveRecUserId(discordId: string): Promise<string | null> {
   if (isSiteOnlyDiscordId(discordId)) return recUserIdFromSiteOnlyDiscordId(discordId);
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to resolve your REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   return account.data?.user_id ?? null;
 }
 
@@ -81,7 +81,7 @@ async function getActiveSession(leagueId: string): Promise<SessionRow | null> {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load the fantasy draft session.", error);
+  if (error) throw new ApiError(500, "We couldn't load the fantasy draft session right now. Please try again.", error);
   return (data as SessionRow | null) ?? null;
 }
 
@@ -128,7 +128,7 @@ function cancelDraftCommandVisibilityTimer(guildId: string) {
 
 async function setLeagueFantasyDraftStatus(leagueId: string, status: string) {
   const { error } = await supabase.from("rec_leagues").update({ fantasy_draft_status: status }).eq("id", leagueId);
-  if (error) throw new ApiError(500, "Failed to update the league fantasy-draft status.", error);
+  if (error) throw new ApiError(500, "We couldn't update the fantasy draft status. Please try again.", error);
 }
 
 function serializeSession(row: SessionRow) {
@@ -154,7 +154,7 @@ async function listTeams(leagueId: string) {
     .select("id,name,display_nick,display_abbr,abbreviation")
     .eq("league_id", leagueId)
     .order("name", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load league teams.", error);
+  if (error) throw new ApiError(500, "We couldn't load league teams right now. Please try again.", error);
   return (data ?? []).map((t: any) => ({
     id: t.id,
     name: t.name,
@@ -169,7 +169,7 @@ async function listPickOrder(sessionId: string) {
     .select("*")
     .eq("session_id", sessionId)
     .order("pick_in_round", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load the pick order.", error);
+  if (error) throw new ApiError(500, "We couldn't load the pick order right now. Please try again.", error);
   return (data ?? []).map((row: any) => ({ pickInRound: row.pick_in_round, teamId: row.team_id }));
 }
 
@@ -179,7 +179,7 @@ async function listPicks(sessionId: string) {
     .select("*")
     .eq("session_id", sessionId)
     .order("overall_pick_number", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load the pick history.", error);
+  if (error) throw new ApiError(500, "We couldn't load the pick history right now. Please try again.", error);
   return (data ?? []) as PickRow[];
 }
 
@@ -210,7 +210,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       .order("overall_rating", { ascending: false }),
     session ? listPendingPickRequests(session.id) : Promise.resolve<PickRequestRow[]>([]),
   ]);
-  if (pool.error) throw new ApiError(500, "Failed to load the draft pool.", pool.error);
+  if (pool.error) throw new ApiError(500, "We couldn't load the draft pool right now. Please try again.", pool.error);
 
   const draftedTeamByPlayer = new Map<string, string>();
   for (const pick of picks) draftedTeamByPlayer.set(pick.player_id, pick.team_id);
@@ -226,7 +226,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       .eq("assignment_status", "active")
       .is("ended_at", null)
       .maybeSingle();
-    if (assignment.error) throw new ApiError(500, "Failed to resolve your team.", assignment.error);
+    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
     myTeamId = assignment.data?.team_id ?? null;
   }
 
@@ -240,7 +240,7 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
       .eq("league_id", leagueId)
       .eq("user_id", userId)
       .order("rank", { ascending: true });
-    if (board.error) throw new ApiError(500, "Failed to load your draft board.", board.error);
+    if (board.error) throw new ApiError(500, "We couldn't load your draft board right now. Please try again.", board.error);
     myBoard = (board.data ?? [])
       .map((entry: any) => entry.player_id as string)
       .filter((playerId) => !draftedIds.has(playerId));
@@ -348,8 +348,8 @@ async function buildCheckinList(
     supabase.from("rec_fantasy_draft_checkins").select("*").eq("session_id", sessionId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
   ]);
-  if (rowsResult.error) throw new ApiError(500, "Failed to load draft check-ins.", rowsResult.error);
-  if (assignmentsResult.error) throw new ApiError(500, "Failed to load team owners.", assignmentsResult.error);
+  if (rowsResult.error) throw new ApiError(500, "We couldn't load draft check-ins right now. Please try again.", rowsResult.error);
+  if (assignmentsResult.error) throw new ApiError(500, "We couldn't load team owners right now. Please try again.", assignmentsResult.error);
 
   const byTeam = new Map<string, CheckinRow>((rowsResult.data ?? []).map((r) => [r.team_id, r as CheckinRow]));
   const ownerByTeam = new Map<string, string>((assignmentsResult.data ?? []).map((a: any) => [a.team_id, a.user_id]));
@@ -359,7 +359,7 @@ async function buildCheckinList(
     const userIds = [...new Set([...ownerByTeam.values(), ...(rowsResult.data ?? []).map((r) => r.user_id).filter(Boolean)])];
     if (userIds.length) {
       const accounts = await supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", userIds);
-      if (accounts.error) throw new ApiError(500, "Failed to load check-in identities.", accounts.error);
+      if (accounts.error) throw new ApiError(500, "We couldn't load check-in identities right now. Please try again.", accounts.error);
       identityByUser = new Map((accounts.data ?? []).map((a: any) => [a.user_id, { username: a.username ?? null, global_name: a.global_name ?? null }]));
     }
   }
@@ -392,7 +392,7 @@ async function resolveTeamOwnerUserId(leagueId: string, teamId: string): Promise
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to resolve the team owner.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load the team owner. Please try again.", assignment.error);
   return assignment.data?.user_id ?? null;
 }
 
@@ -405,7 +405,7 @@ async function resolveTeamForUser(leagueId: string, userId: string): Promise<str
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to resolve your team.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
   if (!assignment.data?.team_id) throw new ApiError(400, "You aren't assigned to a team in this league yet.");
   return assignment.data.team_id;
 }
@@ -429,7 +429,7 @@ async function persistCheckin(input: {
     updated_by_user_id: input.updatedByUserId,
     updated_at: new Date().toISOString(),
   }, { onConflict: "session_id,team_id" });
-  if (error) throw new ApiError(500, "Failed to update the draft check-in.", error);
+  if (error) throw new ApiError(500, "We couldn't update that draft check-in. Please try again.", error);
 }
 
 async function buildCheckinEmbedData(leagueId: string, session: SessionRow) {
@@ -532,14 +532,14 @@ export async function setFantasyDraftTeamCheckin(guildId: string, actorDiscordId
   requireSessionStatus(session, ["not_scheduled", "scheduled", "live"]);
 
   const team = await supabase.from("rec_teams").select("id").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
-  if (team.error) throw new ApiError(500, "Failed to validate the team.", team.error);
+  if (team.error) throw new ApiError(500, "We couldn't validate that team. Please try again.", team.error);
   if (!team.data) throw new ApiError(400, "The target team does not belong to this league.");
 
   const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
   let ownerDiscordId: string | null = null;
   if (ownerUserId) {
     const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", ownerUserId).maybeSingle();
-    if (account.error) throw new ApiError(500, "Failed to resolve the team owner.", account.error);
+    if (account.error) throw new ApiError(500, "We couldn't load the team owner. Please try again.", account.error);
     ownerDiscordId = account.data?.discord_id ?? null;
   }
   const actorUserId = await resolveRecUserId(actorDiscordId);
@@ -572,7 +572,7 @@ export async function saveFantasyDraftBoard(guildId: string, discordId: string, 
       .select("id")
       .eq("league_id", leagueId)
       .in("id", unique);
-    if (players.error) throw new ApiError(500, "Failed to validate board players.", players.error);
+    if (players.error) throw new ApiError(500, "We couldn't validate those board players. Please try again.", players.error);
     const validIds = new Set((players.data ?? []).map((p: any) => p.id));
     validated = unique.filter((id) => validIds.has(id));
   }
@@ -586,7 +586,7 @@ export async function saveFantasyDraftBoard(guildId: string, discordId: string, 
     .delete()
     .eq("league_id", leagueId)
     .eq("user_id", userId);
-  if (deleteError) throw new ApiError(500, "Failed to replace your draft board.", deleteError);
+  if (deleteError) throw new ApiError(500, "We couldn't replace your draft board. Please try again.", deleteError);
 
   if (board.length) {
     const { error } = await supabase.from("rec_fantasy_draft_board_entries").insert(
@@ -597,7 +597,7 @@ export async function saveFantasyDraftBoard(guildId: string, discordId: string, 
         rank: index + 1,
       })),
     );
-    if (error) throw new ApiError(500, "Failed to save your draft board.", error);
+    if (error) throw new ApiError(500, "We couldn't save your draft board. Please try again.", error);
   }
 
   return { ok: true as const, board };
@@ -618,7 +618,7 @@ export async function listSavedFantasyDraftBoards(guildId: string, discordId: st
     .eq("user_id", userId)
     .eq("game", game)
     .order("updated_at", { ascending: false });
-  if (boards.error) throw new ApiError(500, "Failed to load saved draft boards.", boards.error);
+  if (boards.error) throw new ApiError(500, "We couldn't load saved draft boards right now. Please try again.", boards.error);
 
   return {
     boards: (boards.data ?? []).map((row: any) => ({
@@ -653,7 +653,7 @@ export async function saveNamedFantasyDraftBoard(guildId: string, discordId: str
     .select("id,madden_player_id,full_name,position")
     .eq("league_id", leagueId)
     .in("id", unique);
-  if (players.error) throw new ApiError(500, "Failed to load board players.", players.error);
+  if (players.error) throw new ApiError(500, "We couldn't load board players right now. Please try again.", players.error);
   type BoardPlayerRow = { id: string; madden_player_id: string | null; full_name: string; position: string };
   const byId = new Map((players.data ?? []).map((p: BoardPlayerRow): [string, BoardPlayerRow] => [p.id, p]));
   const ordered = unique.map((id) => byId.get(id)).filter((p): p is BoardPlayerRow => Boolean(p));
@@ -666,23 +666,23 @@ export async function saveNamedFantasyDraftBoard(guildId: string, discordId: str
     .eq("game", game)
     .eq("name", trimmedName)
     .maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to check for an existing saved board.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check for an existing saved board. Please try again.", existing.error);
 
   const now = new Date().toISOString();
   let boardId: string;
   if (existing.data?.id) {
     boardId = existing.data.id;
     const updated = await supabase.from("rec_fantasy_draft_saved_boards").update({ updated_at: now }).eq("id", boardId);
-    if (updated.error) throw new ApiError(500, "Failed to update the saved board.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't update that saved board. Please try again.", updated.error);
     const cleared = await supabase.from("rec_fantasy_draft_saved_board_entries").delete().eq("board_id", boardId);
-    if (cleared.error) throw new ApiError(500, "Failed to update the saved board.", cleared.error);
+    if (cleared.error) throw new ApiError(500, "We couldn't update that saved board. Please try again.", cleared.error);
   } else {
     const created = await supabase
       .from("rec_fantasy_draft_saved_boards")
       .insert({ user_id: userId, game, name: trimmedName })
       .select("id")
       .single();
-    if (created.error) throw new ApiError(500, "Failed to create the saved board.", created.error);
+    if (created.error) throw new ApiError(500, "We couldn't create that saved board. Please try again.", created.error);
     boardId = created.data.id;
   }
 
@@ -695,7 +695,7 @@ export async function saveNamedFantasyDraftBoard(guildId: string, discordId: str
       position: player.position,
     })),
   );
-  if (inserted.error) throw new ApiError(500, "Failed to save board players.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't save those board players. Please try again.", inserted.error);
 
   return { ok: true as const, boardId, name: trimmedName, playerCount: ordered.length };
 }
@@ -704,10 +704,10 @@ export async function deleteSavedFantasyDraftBoard(guildId: string, discordId: s
   const userId = await resolveRecUserId(discordId);
   if (!userId) throw new ApiError(400, "A linked REC account is required.");
   const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id").eq("id", boardId).eq("user_id", userId).maybeSingle();
-  if (board.error) throw new ApiError(500, "Failed to load the saved board.", board.error);
+  if (board.error) throw new ApiError(500, "We couldn't load that saved board. Please try again.", board.error);
   if (!board.data) throw new ApiError(404, "Saved draft board not found.");
   const deleted = await supabase.from("rec_fantasy_draft_saved_boards").delete().eq("id", boardId);
-  if (deleted.error) throw new ApiError(500, "Failed to delete the saved board.", deleted.error);
+  if (deleted.error) throw new ApiError(500, "We couldn't delete that saved board. Please try again.", deleted.error);
   return { ok: true as const };
 }
 
@@ -724,7 +724,7 @@ export async function loadNamedFantasyDraftBoard(guildId: string, discordId: str
   if (!userId) throw new ApiError(400, "A linked REC account is required to load a draft board.");
 
   const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id,game").eq("id", boardId).eq("user_id", userId).maybeSingle();
-  if (board.error) throw new ApiError(500, "Failed to load the saved board.", board.error);
+  if (board.error) throw new ApiError(500, "We couldn't load that saved board. Please try again.", board.error);
   if (!board.data) throw new ApiError(404, "Saved draft board not found.");
   if (board.data.game !== game) throw new ApiError(400, "That saved board is for a different game and can't be loaded here.");
 
@@ -733,7 +733,7 @@ export async function loadNamedFantasyDraftBoard(guildId: string, discordId: str
     .select("rank,madden_player_id,full_name,position")
     .eq("board_id", boardId)
     .order("rank", { ascending: true });
-  if (entries.error) throw new ApiError(500, "Failed to load the saved board's players.", entries.error);
+  if (entries.error) throw new ApiError(500, "We couldn't load that saved board's players. Please try again.", entries.error);
   if (!entries.data?.length) return saveFantasyDraftBoard(guildId, discordId, []);
 
   const maddenIdSet = new Set<string>();
@@ -742,7 +742,7 @@ export async function loadNamedFantasyDraftBoard(guildId: string, discordId: str
   const poolRows: Array<{ id: string; madden_player_id: string | null; full_name: string; position: string }> = [];
   if (maddenIds.length) {
     const byMadden = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("madden_player_id", maddenIds);
-    if (byMadden.error) throw new ApiError(500, "Failed to match the saved board against this league's players.", byMadden.error);
+    if (byMadden.error) throw new ApiError(500, "We couldn't match the saved board to this league's players. Please try again.", byMadden.error);
     poolRows.push(...(byMadden.data ?? []));
   }
   // Entries with no madden_player_id (custom players saved from a previous draft) can only
@@ -751,7 +751,7 @@ export async function loadNamedFantasyDraftBoard(guildId: string, discordId: str
   if (namePositionEntries.length) {
     const names = [...new Set(namePositionEntries.map((e) => e.full_name))];
     const byName = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("full_name", names);
-    if (byName.error) throw new ApiError(500, "Failed to match the saved board against this league's players.", byName.error);
+    if (byName.error) throw new ApiError(500, "We couldn't match the saved board to this league's players. Please try again.", byName.error);
     poolRows.push(...(byName.data ?? []));
   }
 
@@ -790,7 +790,7 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
       notified_30min_at: null,
       notified_10min_at: null,
     }).select("*").single();
-    if (error) throw new ApiError(500, "Failed to create the fantasy draft session.", error);
+    if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
     session = data as SessionRow;
   } else {
     requireSessionStatus(session, ["not_scheduled", "scheduled"]);
@@ -802,7 +802,7 @@ export async function scheduleFantasyDraft(guildId: string, discordId: string, s
       notified_10min_at: null,
       updated_at: new Date().toISOString(),
     }).eq("id", session.id).select("*").single();
-    if (error) throw new ApiError(500, "Failed to schedule the fantasy draft.", error);
+    if (error) throw new ApiError(500, "We couldn't schedule the fantasy draft. Please try again.", error);
     session = data as SessionRow;
   }
 
@@ -867,7 +867,7 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
       commenced_by_user_id: userId,
       commenced_at: new Date().toISOString(),
     }).select("*").single();
-    if (error) throw new ApiError(500, "Failed to create the fantasy draft session.", error);
+    if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
     session = data as SessionRow;
   } else {
     // Commencing without a scheduled time is allowed but discouraged (open question 2) —
@@ -879,7 +879,7 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
       commenced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", session.id);
-    if (error) throw new ApiError(500, "Failed to commence the fantasy draft.", error);
+    if (error) throw new ApiError(500, "We couldn't start the fantasy draft. Please try again.", error);
   }
 
   await setLeagueFantasyDraftStatus(leagueId, "live");
@@ -1082,22 +1082,22 @@ export async function setFantasyDraftPickOrder(guildId: string, discordId: strin
   if (new Set(teamIds).size !== 32) throw new ApiError(400, "Each team can occupy only one pick slot.");
 
   const teams = await supabase.from("rec_teams").select("id").eq("league_id", leagueId).in("id", teamIds);
-  if (teams.error) throw new ApiError(500, "Failed to validate pick-order teams.", teams.error);
+  if (teams.error) throw new ApiError(500, "We couldn't validate those pick-order teams. Please try again.", teams.error);
   if ((teams.data ?? []).length !== 32) throw new ApiError(400, "Every pick-order team must belong to this league.");
 
   const { error: deleteError } = await supabase.from("rec_fantasy_draft_pick_order").delete().eq("session_id", session.id);
-  if (deleteError) throw new ApiError(500, "Failed to replace the pick order.", deleteError);
+  if (deleteError) throw new ApiError(500, "We couldn't replace the pick order. Please try again.", deleteError);
 
   const { error } = await supabase.from("rec_fantasy_draft_pick_order").insert(
     picks.map((p) => ({ session_id: session.id, pick_in_round: p.pickInRound, team_id: p.teamId })),
   );
-  if (error) throw new ApiError(500, "Failed to save the pick order.", error);
+  if (error) throw new ApiError(500, "We couldn't save the pick order. Please try again.", error);
 
   const { error: updateError } = await supabase.from("rec_fantasy_draft_sessions").update({
     order_mode: orderMode,
     updated_at: new Date().toISOString(),
   }).eq("id", session.id);
-  if (updateError) throw new ApiError(500, "Failed to save the pick-order mode.", updateError);
+  if (updateError) throw new ApiError(500, "We couldn't save the pick-order mode. Please try again.", updateError);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const, orderMode, count: 32 };
@@ -1154,7 +1154,7 @@ export async function addFantasyDraftCustomPlayer(guildId: string, discordId: st
     roster_status: "active",
     raw_payload: { fantasyDraft: true },
   }).select("*").single();
-  if (error) throw new ApiError(500, "Failed to add the custom player to the draft pool.", error);
+  if (error) throw new ApiError(500, "We couldn't add that custom player to the draft pool. Please try again.", error);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return {
@@ -1172,16 +1172,16 @@ export async function removeFantasyDraftPoolPlayer(guildId: string, playerId: st
   requireSessionStatus(session, ["scheduled", "live", "wrap_up"]);
 
   const player = await supabase.from("rec_players").select("id,team_id,is_free_agent").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load the pool player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that pool player. Please try again.", player.error);
   if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
 
   const pick = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", playerId).maybeSingle();
-  if (pick.error) throw new ApiError(500, "Failed to check whether the player is drafted.", pick.error);
+  if (pick.error) throw new ApiError(500, "We couldn't check whether that player is drafted. Please try again.", pick.error);
   if (pick.data) throw new ApiError(409, "That player has already been drafted.");
   if (player.data.team_id != null) throw new ApiError(409, "That player is already assigned to a team.");
 
   const deleted = await supabase.from("rec_players").delete().eq("id", playerId).eq("league_id", leagueId).select("id").maybeSingle();
-  if (deleted.error) throw new ApiError(500, "Failed to remove the player from the pool.", deleted.error);
+  if (deleted.error) throw new ApiError(500, "We couldn't remove that player from the pool. Please try again.", deleted.error);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { removed: true as const };
@@ -1200,12 +1200,12 @@ async function recordPick(input: {
 }) {
   const { session, leagueId } = input;
   const player = await supabase.from("rec_players").select("id,team_id,is_free_agent").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load the draft player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that draft player. Please try again.", player.error);
   if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
   if (player.data.team_id != null) throw new ApiError(409, "That player is already on a team.");
 
   const existing = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", input.playerId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to check whether the player is drafted.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check whether that player is drafted. Please try again.", existing.error);
   if (existing.data) throw new ApiError(409, "That player has already been drafted.");
 
   const { error } = await supabase.from("rec_fantasy_draft_picks").insert({
@@ -1218,10 +1218,10 @@ async function recordPick(input: {
     is_wrapup_pick: input.isWrapupPick,
     logged_by_user_id: input.loggedByUserId,
   });
-  if (error) throw new ApiError(500, "Failed to log the draft pick.", error);
+  if (error) throw new ApiError(500, "We couldn't log that draft pick. Please try again.", error);
 
   const update = await supabase.from("rec_players").update({ team_id: input.teamId, is_free_agent: false }).eq("id", input.playerId).select("id").maybeSingle();
-  if (update.error) throw new ApiError(500, "Failed to assign the drafted player.", update.error);
+  if (update.error) throw new ApiError(500, "We couldn't assign that drafted player. Please try again.", update.error);
 }
 
 // ---------------------------------------------------------------------------
@@ -1427,7 +1427,7 @@ export async function skipFantasyDraftPick(guildId: string, discordId: string) {
     session_id: session.id, team_id: teamId, round, pick_in_round: pickInRound,
     overall_pick_number: overallPickNumber, skipped_by_user_id: userId,
   }).select("id").single();
-  if (inserted.error) throw new ApiError(500, "Failed to record the skipped pick.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't record that skipped pick. Please try again.", inserted.error);
 
   let nextRound = round;
   let nextPick = pickInRound + 1;
@@ -1436,7 +1436,7 @@ export async function skipFantasyDraftPick(guildId: string, discordId: string) {
   const { error: advanceError } = await supabase.from("rec_fantasy_draft_sessions").update({
     current_round: nextRound, current_pick_in_round: nextPick, updated_at: new Date().toISOString(),
   }).eq("id", session.id);
-  if (advanceError) throw new ApiError(500, "Failed to advance the draft clock.", advanceError);
+  if (advanceError) throw new ApiError(500, "We couldn't advance the draft clock. Please try again.", advanceError);
 
   const teams = await listTeams(leagueId);
   const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
@@ -1461,7 +1461,7 @@ export async function listSkippedFantasyDraftPicks(guildId: string) {
     listTeams(leagueId),
     supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("session_id", session.id).is("resolved_at", null).order("overall_pick_number", { ascending: true }),
   ]);
-  if (error) throw new ApiError(500, "Failed to load skipped picks.", error);
+  if (error) throw new ApiError(500, "We couldn't load skipped picks right now. Please try again.", error);
   const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
   return {
     skipped: (data ?? []).map((row: any) => ({
@@ -1483,7 +1483,7 @@ export async function fillSkippedFantasyDraftPick(guildId: string, discordId: st
   if (!userId) throw new ApiError(400, "A linked REC account is required to fill a skipped pick.");
 
   const slot = await supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("id", skippedSlotId).eq("session_id", session.id).maybeSingle();
-  if (slot.error) throw new ApiError(500, "Failed to load the skipped pick.", slot.error);
+  if (slot.error) throw new ApiError(500, "We couldn't load that skipped pick. Please try again.", slot.error);
   if (!slot.data) throw new ApiError(404, "Skipped pick not found.");
   if (slot.data.resolved_at) throw new ApiError(409, "This skipped pick has already been filled.");
 
@@ -1529,7 +1529,7 @@ async function listPendingPickRequests(sessionId: string): Promise<PickRequestRo
     .eq("session_id", sessionId)
     .eq("status", "pending")
     .order("created_at", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load pending pick requests.", error);
+  if (error) throw new ApiError(500, "We couldn't load pending pick requests right now. Please try again.", error);
   return (data ?? []) as PickRequestRow[];
 }
 
@@ -1551,7 +1551,7 @@ export async function requestFantasyDraftPick(guildId: string, discordId: string
   }
 
   const player = await supabase.from("rec_players").select("id,team_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load the player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
   if (player.data.team_id != null) throw new ApiError(409, "That player has already been drafted.");
 
@@ -1565,7 +1565,7 @@ export async function requestFantasyDraftPick(guildId: string, discordId: string
     player_id: playerId,
     requested_by_user_id: userId,
   }).select("id").single();
-  if (inserted.error) throw new ApiError(500, "Failed to submit the pick request.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't submit that pick request. Please try again.", inserted.error);
 
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const, requestId: inserted.data.id, pending: true as const };
@@ -1580,7 +1580,7 @@ export async function resolveFantasyDraftPickRequest(guildId: string, discordId:
   if (!userId) throw new ApiError(400, "A linked REC account is required to resolve pick requests.");
 
   const request = await supabase.from("rec_fantasy_draft_pick_requests").select("*").eq("id", requestId).eq("session_id", session.id).maybeSingle();
-  if (request.error) throw new ApiError(500, "Failed to load the pick request.", request.error);
+  if (request.error) throw new ApiError(500, "We couldn't load that pick request. Please try again.", request.error);
   if (!request.data) throw new ApiError(404, "Pick request not found.");
   if (request.data.status !== "pending") throw new ApiError(409, "This pick request has already been resolved.");
   const row = request.data as PickRequestRow;
@@ -1589,7 +1589,7 @@ export async function resolveFantasyDraftPickRequest(guildId: string, discordId:
     const { error } = await supabase.from("rec_fantasy_draft_pick_requests")
       .update({ status: "denied", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
       .eq("id", row.id);
-    if (error) throw new ApiError(500, "Failed to deny the pick request.", error);
+    if (error) throw new ApiError(500, "We couldn't deny that pick request. Please try again.", error);
     broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
     return { ok: true as const, approved: false as const };
   }
@@ -1643,11 +1643,11 @@ export async function logFantasyDraftWrapupPick(guildId: string, discordId: stri
   if (isCommissioner) {
     if (!teamId) throw new ApiError(400, "Choose the team to receive this wrap-up pick.");
     const team = await supabase.from("rec_teams").select("id").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
-    if (team.error) throw new ApiError(500, "Failed to validate the target team.", team.error);
+    if (team.error) throw new ApiError(500, "We couldn't validate that target team. Please try again.", team.error);
     if (!team.data) throw new ApiError(400, "The target team does not belong to this league.");
   } else {
     const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
-    if (assignment.error) throw new ApiError(500, "Failed to resolve your team.", assignment.error);
+    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
     teamId = assignment.data?.team_id ?? null;
     if (!teamId) throw new ApiError(400, "You aren't assigned to a team in this league yet.");
   }
@@ -1685,10 +1685,10 @@ export async function undoFantasyDraftPick(guildId: string) {
   if (!latest) throw new ApiError(400, "Nothing to undo — no picks have been logged yet.");
 
   const deleted = await supabase.from("rec_fantasy_draft_picks").delete().eq("id", latest.id).eq("session_id", session.id).select("id").maybeSingle();
-  if (deleted.error) throw new ApiError(500, "Failed to undo the pick.", deleted.error);
+  if (deleted.error) throw new ApiError(500, "We couldn't undo that pick. Please try again.", deleted.error);
 
   const player = await supabase.from("rec_players").update({ team_id: null, is_free_agent: true }).eq("id", latest.player_id).select("id").maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to un-assign the drafted player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't unassign the drafted player. Please try again.", player.error);
 
   if (!latest.is_wrapup_pick) {
     await supabase.from("rec_fantasy_draft_sessions").update({
@@ -1755,11 +1755,11 @@ export async function concludeFantasyDraft(guildId: string) {
  * pool is applied. Idempotent — safe to call again if the league somehow has one already. */
 export async function ensureFantasyDraftSession(leagueId: string): Promise<void> {
   const existing = await supabase.from("rec_fantasy_draft_sessions").select("id").eq("league_id", leagueId).limit(1).maybeSingle();
-  if (existing.error) throw new ApiError(500, "Failed to check for an existing draft session.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't check for an existing draft session. Please try again.", existing.error);
   if (existing.data) return;
   const { error } = await supabase.from("rec_fantasy_draft_sessions").insert({
     league_id: leagueId,
     status: "not_scheduled",
   });
-  if (error) throw new ApiError(500, "Failed to create the fantasy draft session.", error);
+  if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
 }

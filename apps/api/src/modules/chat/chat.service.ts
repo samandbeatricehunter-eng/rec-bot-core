@@ -22,9 +22,9 @@ export async function uploadChatAttachmentImage(buffer: Buffer, contentType: str
   const ext = contentType === "image/jpeg" ? "jpeg" : contentType === "image/webp" ? "webp" : contentType === "image/gif" ? "gif" : "png";
   const storageKey = `uploads/${randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from(CHAT_ATTACHMENT_BUCKET).upload(storageKey, buffer, { contentType, upsert: true });
-  if (error) throw new ApiError(500, "Failed to upload image.", error);
+  if (error) throw new ApiError(500, "We couldn't upload that image. Please try again.", error);
   const { data } = supabase.storage.from(CHAT_ATTACHMENT_BUCKET).getPublicUrl(storageKey);
-  if (!data?.publicUrl) throw new ApiError(500, "Failed to resolve uploaded image URL.");
+  if (!data?.publicUrl) throw new ApiError(500, "We couldn't finish uploading that image. Please try again.");
   return { storageKey, url: data.publicUrl };
 }
 
@@ -77,7 +77,7 @@ export async function attachToMessage(input: {
     })
     .select("id,message_id,original_url,mime_type,filename,size_bytes")
     .single();
-  if (error) throw new ApiError(500, "Failed to attach file to message.", error);
+  if (error) throw new ApiError(500, "We couldn't attach that file to the message. Please try again.", error);
   const channelId = await resolveChannelIdForMessage(input.channelType, input.messageId);
   if (channelId) broadcastChatEvent(input.channelType, channelId, { kind: "attachment", messageId: input.messageId });
   return {
@@ -99,7 +99,7 @@ export async function listChatAttachments(channelType: ChatChannelType, messageI
     .select("id,message_id,original_url,mime_type,filename,size_bytes")
     .eq("channel_type", channelType)
     .in("message_id", messageIds);
-  if (error) throw new ApiError(500, "Failed to load attachments.", error);
+  if (error) throw new ApiError(500, "We couldn't load attachments. Please try again.", error);
   return {
     attachments: (data ?? []).map((row) => ({
       id: row.id,

@@ -85,14 +85,14 @@ async function loadSubmissionForSide(guildId: string, submissionId: string) {
     .select("id,league_id,game_id,season_number,week_number,team1_id,team2_id,home_team_id,away_team_id,team_stats")
     .eq("id", submissionId)
     .maybeSingle();
-  if (submission.error) throw new ApiError(500, "Failed to load the box score submission.", submission.error);
+  if (submission.error) throw new ApiError(500, "We couldn't load that box score submission. Please try again.", submission.error);
   if (!submission.data || submission.data.league_id !== context.leagueId) throw new ApiError(404, "Box score submission not found.");
   return submission.data;
 }
 
 async function resolveActiveTeamId(leagueId: string, discordId: string): Promise<string> {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   if (!account.data?.user_id) throw new ApiError(400, "Link a REC team before assigning stats.");
   const assignment = await supabase
     .from("rec_team_assignments")
@@ -102,7 +102,7 @@ async function resolveActiveTeamId(leagueId: string, discordId: string): Promise
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load your team assignment.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignment.error);
   if (!assignment.data?.team_id) throw new ApiError(400, "You aren't linked to a team in this league.");
   return assignment.data.team_id as string;
 }
@@ -150,7 +150,7 @@ async function assignStatLinesToPlayer(input: {
   statLines: StatLine[];
 }): Promise<{ tagId: string }> {
   const player = await supabase.from("rec_players").select("id,team_id").eq("id", input.rosterPlayerId).eq("league_id", input.context.leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load the player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data || player.data.team_id !== input.teamId) throw new ApiError(404, "Player not found on your roster.");
 
   const tagId = randomUUID();
@@ -170,7 +170,7 @@ async function assignStatLinesToPlayer(input: {
     created_at: now,
     updated_at: now,
   });
-  if (inserted.error) throw new ApiError(500, "Failed to assign stats to the player.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't assign stats to that player. Please try again.", inserted.error);
   return { tagId };
 }
 
@@ -226,7 +226,7 @@ export async function assignBoxScoreStatAllocations(input: {
 
   const playerIds = input.allocations.map((row) => row.rosterPlayerId);
   const players = await supabase.from("rec_players").select("id,team_id").eq("league_id", context.leagueId).in("id", playerIds);
-  if (players.error) throw new ApiError(500, "Failed to validate roster players.", players.error);
+  if (players.error) throw new ApiError(500, "We couldn't validate roster players. Please try again.", players.error);
   const validIds = new Set((players.data ?? []).filter((row) => row.team_id === teamId).map((row) => row.id));
   if (playerIds.some((id) => !validIds.has(id))) throw new ApiError(404, "One or more players are not on your roster.");
 
@@ -244,7 +244,7 @@ export async function assignBoxScoreStatAllocations(input: {
     .eq("team_id", teamId)
     .eq("subject_type", "player")
     .not("roster_player_id", "is", null);
-  if (existingForGame.error) throw new ApiError(500, "Failed to validate existing stat allocations.", existingForGame.error);
+  if (existingForGame.error) throw new ApiError(500, "We couldn't validate existing stat allocations. Please try again.", existingForGame.error);
   const alreadyAssigned = (existingForGame.data ?? []).some((row) =>
     ((row.stat_lines ?? []) as StatLine[]).some((line) => categoryLabels.has(line.label)),
   );
@@ -262,7 +262,7 @@ export async function assignBoxScoreStatAllocations(input: {
     performance_grade: "solid", created_at: now, updated_at: now,
   }));
   const inserted = await supabase.from("rec_game_performance_tags").insert(rows);
-  if (inserted.error) throw new ApiError(500, "Failed to save player stat allocations.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't save player stat allocations. Please try again.", inserted.error);
   return { tagIds: rows.map((row) => row.id) };
 }
 
@@ -294,7 +294,7 @@ export async function assignTurnoverToPlayer(input: {
     .eq("game_id", submission.game_id)
     .eq("team_id", teamId)
     .not("roster_player_id", "is", null);
-  if (existing.error) throw new ApiError(500, "Failed to validate existing turnover assignments.", existing.error);
+  if (existing.error) throw new ApiError(500, "We couldn't validate existing turnover assignments. Please try again.", existing.error);
   const alreadyAssigned = (existing.data ?? []).reduce((total, row) => {
     const lines = Array.isArray(row.stat_lines) ? row.stat_lines as Array<{ statKey?: string; value?: number }> : [];
     return total + lines.filter((line) => line.statKey === input.kind).reduce((sum, line) => sum + (Number(line.value) || 0), 0);

@@ -57,7 +57,7 @@ async function updateAdvanceRateLimit(leagueId: string, leagueRow: LeagueAdvance
     payload.interest_disabled_until = new Date(now.getTime() + INTEREST_DISABLE_MS).toISOString();
   }
   const result = await supabase.from("rec_leagues").update(payload).eq("id", leagueId);
-  if (result.error) throw new ApiError(500, "Failed to update advance rate limit.", result.error);
+  if (result.error) throw new ApiError(500, "We couldn't update the advance rate limit. Please try again.", result.error);
   return payload;
 }
 
@@ -80,7 +80,7 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
     .eq("league_id", input.leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load league users for savings interest.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load league users for savings interest. Please try again.", assignments.error);
 
   const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id).filter(Boolean))];
   if (!userIds.length) {
@@ -92,7 +92,7 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
     .select("user_id,savings_balance")
     .in("user_id", userIds)
     .gt("savings_balance", 0);
-  if (wallets.error) throw new ApiError(500, "Failed to load wallets for savings interest.", wallets.error);
+  if (wallets.error) throw new ApiError(500, "We couldn't load wallets for savings interest. Please try again.", wallets.error);
 
   let usersCredited = 0;
   let totalInterest = 0;
@@ -112,14 +112,14 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
       .eq("transaction_type", "savings_interest")
       .contains("source_reference", { idempotencyKey })
       .limit(1);
-    if (existing.error) throw new ApiError(500, "Failed to check savings interest idempotency.", existing.error);
+    if (existing.error) throw new ApiError(500, "We couldn't verify savings interest. Please try again.", existing.error);
     if ((existing.data ?? []).length) continue;
 
     // Atomic delta via RPC, not a read-then-absolute-write of `savings + interest` — a
     // withdrawal landing on this row between the SELECT above and this write would otherwise
     // get silently erased by the stale absolute value.
     const updated = await supabase.rpc("add_to_savings", { p_user_id: wallet.user_id, p_amount: interest });
-    if (updated.error) throw new ApiError(500, "Failed to credit savings interest.", updated.error);
+    if (updated.error) throw new ApiError(500, "We couldn't credit savings interest. Please try again.", updated.error);
 
     const ledger = await supabase.from("rec_dollar_ledger").insert({
       user_id: wallet.user_id,
@@ -138,7 +138,7 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
         rate: SAVINGS_INTEREST_RATE,
       },
     });
-    if (ledger.error) throw new ApiError(500, "Failed to write savings interest ledger entry.", ledger.error);
+    if (ledger.error) throw new ApiError(500, "We couldn't record savings interest. Please try again.", ledger.error);
 
     usersCredited += 1;
     totalInterest += interest;

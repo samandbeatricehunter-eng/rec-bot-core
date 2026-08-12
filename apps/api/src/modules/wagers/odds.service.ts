@@ -179,7 +179,7 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
     .eq("league_id", leagueId)
     .eq("id", gameId)
     .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to load game for wager options.", error);
+  if (error) throw new ApiError(500, "We couldn't load wager options for that game. Please try again.", error);
   if (!game) throw new ApiError(404, "Scheduled game not found.");
   if (game.status !== "scheduled") throw new ApiError(409, "Wagering is closed for this game.");
   if (!(game.home_user_id && game.away_user_id)) throw new ApiError(409, "Wagering is only available for head-to-head (human vs. human) games.");
@@ -292,7 +292,7 @@ export async function listWeekWagerLines(guildId: string, weekNumber: number): P
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber },
     "id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .eq("status", "scheduled");
-  if (error) throw new ApiError(500, "Failed to load games for wager lines.", error);
+  if (error) throw new ApiError(500, "We couldn't load wager lines right now. Please try again.", error);
   const h2hGames = (games ?? []).filter((g) => g.home_user_id && g.away_user_id);
   if (!h2hGames.length) return [];
 

@@ -20,14 +20,14 @@ type LegInput = { type: "player"; playerId: string } | { type: "pick"; draftPick
 
 async function userIdFromDiscord(discordId: string) {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   return account.data?.user_id ?? null;
 }
 
 async function teamForUser(leagueId: string, userId: string) {
   const assignment = await supabase.from("rec_team_assignments").select("team_id")
     .eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).limit(1).maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load your team.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
   if (!assignment.data?.team_id) throw new ApiError(403, "A linked league team is required to trade.");
   return String(assignment.data.team_id);
 }
@@ -35,13 +35,13 @@ async function teamForUser(leagueId: string, userId: string) {
 async function userForTeam(leagueId: string, teamId: string) {
   const assignment = await supabase.from("rec_team_assignments").select("user_id")
     .eq("league_id", leagueId).eq("team_id", teamId).eq("assignment_status", "active").is("ended_at", null).limit(1).maybeSingle();
-  if (assignment.error) throw new ApiError(500, "Failed to load that team's coach.", assignment.error);
+  if (assignment.error) throw new ApiError(500, "We couldn't load that team's coach. Please try again.", assignment.error);
   return assignment.data?.user_id ? String(assignment.data.user_id) : null;
 }
 
 async function hasSiteAccount(userId: string) {
   const user = await supabase.from("rec_users").select("supabase_auth_user_id").eq("id", userId).maybeSingle();
-  if (user.error) throw new ApiError(500, "Failed to check that coach's site account.", user.error);
+  if (user.error) throw new ApiError(500, "We couldn't check that coach's site account. Please try again.", user.error);
   return Boolean(user.data?.supabase_auth_user_id);
 }
 
@@ -74,7 +74,7 @@ async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) 
   const pickIds = legs.filter((l) => l.type === "pick").map((l: any) => l.draftPickId);
   if (playerIds.length) {
     const players = await supabase.from("rec_players").select("id,team_id,roster_status").eq("league_id", leagueId).in("id", playerIds);
-    if (players.error) throw new ApiError(500, "Failed to validate players.", players.error);
+    if (players.error) throw new ApiError(500, "We couldn't validate those players. Please try again.", players.error);
     for (const id of playerIds) {
       const row = (players.data ?? []).find((p: any) => p.id === id);
       if (!row || row.team_id !== teamId || row.roster_status !== "active") throw new ApiError(400, "One of the offered players is no longer on that active roster.");
@@ -82,7 +82,7 @@ async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) 
   }
   if (pickIds.length) {
     const picks = await supabase.from("rec_draft_picks").select("id,current_team_id").eq("league_id", leagueId).in("id", pickIds);
-    if (picks.error) throw new ApiError(500, "Failed to validate draft picks.", picks.error);
+    if (picks.error) throw new ApiError(500, "We couldn't validate those draft picks. Please try again.", picks.error);
     for (const id of pickIds) {
       const row = (picks.data ?? []).find((p: any) => p.id === id);
       if (!row || row.current_team_id !== teamId) throw new ApiError(400, "One of the offered draft picks is no longer owned by that team.");
@@ -97,7 +97,7 @@ async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) 
 
 async function teamPositionNeeds(leagueId: string, teamId: string): Promise<RecTeamPositionNeeds> {
   const roster = await supabase.from("rec_players").select("position,overall_rating").eq("league_id", leagueId).eq("team_id", teamId).eq("roster_status", "active");
-  if (roster.error) throw new ApiError(500, "Failed to load roster for trade-need evaluation.", roster.error);
+  if (roster.error) throw new ApiError(500, "We couldn't load the roster for trade evaluation. Please try again.", roster.error);
   return computeRecTeamPositionNeeds((roster.data ?? []).map((row: any) => ({ position: row.position, overallRating: row.overall_rating })));
 }
 
@@ -124,8 +124,8 @@ async function resolveLegAssets(leagueId: string, legs: LegInput[]): Promise<{ p
       : Promise.resolve({ data: [] as any[], error: null }),
     supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
   ]);
-  if (players.error) throw new ApiError(500, "Failed to load players for trade valuation.", players.error);
-  if (picks.error) throw new ApiError(500, "Failed to load draft picks for trade valuation.", picks.error);
+  if (players.error) throw new ApiError(500, "We couldn't load players for trade valuation. Please try again.", players.error);
+  if (picks.error) throw new ApiError(500, "We couldn't load draft picks for trade valuation. Please try again.", picks.error);
   const teamsInLeague = teamsCount.count ?? 32;
   const displays: TradeAssetDisplay[] = [
     ...(players.data ?? []).map((row: any) => ({
@@ -193,7 +193,7 @@ export async function proposeTrade(input: {
   if (input.offeredCoins < 0 || input.requestedCoins < 0) throw new ApiError(400, "Coin amounts can't be negative.");
 
   const config = await supabase.from("rec_league_configuration").select("trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
-  if (config.error) throw new ApiError(500, "Failed to load league trade settings.", config.error);
+  if (config.error) throw new ApiError(500, "We couldn't load trade settings. Please try again.", config.error);
   const approvalPolicy = config.data?.trade_approval_policy ?? "competition_committee_review";
   const cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
 
@@ -212,7 +212,7 @@ export async function proposeTrade(input: {
         .eq("proposing_team_id", proposingTeamId)
         .eq("involves_cpu", true)
         .eq("status", "applied");
-      if (used.error) throw new ApiError(500, "Failed to check the CPU trade season cap.", used.error);
+      if (used.error) throw new ApiError(500, "We couldn't check the CPU trade season limit. Please try again.", used.error);
       if ((used.count ?? 0) >= cpuTradeCap) throw new ApiError(409, `Your team has reached its limit of ${cpuTradeCap} CPU trade${cpuTradeCap === 1 ? "" : "s"} this season.`);
     }
   }
@@ -254,7 +254,7 @@ export async function proposeTrade(input: {
     involves_cpu: !receivingUserId,
     value_snapshot: valueSnapshot,
   }).select("*").single();
-  if (trade.error) throw new ApiError(500, "Failed to propose trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't propose that trade. Please try again.", trade.error);
 
   if (!receivingUserId && input.requestedCoins > 0) {
     await supabase.from("rec_trades").delete().eq("id", trade.data.id);
@@ -267,7 +267,7 @@ export async function proposeTrade(input: {
   ];
   if (legRows.length) {
     const legs = await supabase.from("rec_trade_legs").insert(legRows);
-    if (legs.error) { await supabase.from("rec_trades").delete().eq("id", trade.data.id); throw new ApiError(500, "Failed to save trade details.", legs.error); }
+    if (legs.error) { await supabase.from("rec_trades").delete().eq("id", trade.data.id); throw new ApiError(500, "We couldn't save the trade details. Please try again.", legs.error); }
   }
 
   await supabase.from("rec_trade_audit_log").insert({ trade_id: trade.data.id, action: "proposed", actor_user_id: userId, actor_discord_id: input.discordId, next_status: "pending_response" });
@@ -300,7 +300,7 @@ export async function respondToTrade(input: { guildId: string; discordId: string
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.receiving_user_id !== userId) throw new ApiError(403, "Only the receiving team's coach can respond to this trade.");
   if (trade.data.status !== "pending_response") throw new ApiError(409, `This trade is no longer pending (status: ${trade.data.status}).`);
@@ -347,7 +347,7 @@ async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, gu
   if (approvalPolicy === "no_approval_required") {
     await supabase.from("rec_trades").update({ status: "accepted", accepted_at: now, updated_at: now }).eq("id", tradeId);
     const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: "Auto-applied — no approval required" });
-    if (applied.error) throw new ApiError(500, "Trade was accepted but could not be applied.", applied.error);
+    if (applied.error) throw new ApiError(500, "The trade was accepted, but we couldn't apply it. Please try again.", applied.error);
     void announceAppliedTrade(guildId, leagueId, tradeId);
     return { status: "applied" };
   }
@@ -374,7 +374,7 @@ export async function withdrawTrade(input: { guildId: string; discordId: string;
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.proposing_user_id !== userId) throw new ApiError(403, "Only the proposing coach can withdraw this trade.");
   if (!["pending_response", "accepted"].includes(trade.data.status)) throw new ApiError(409, "This trade can no longer be withdrawn.");
@@ -387,7 +387,7 @@ export async function withdrawTrade(input: { guildId: string; discordId: string;
 export async function reviewTrade(input: { guildId: string; reviewerDiscordId: string; tradeId: string; action: "approve" | "reject"; note?: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
   if (trade.data.approval_policy_snapshot === "competition_committee_review") {
@@ -401,7 +401,7 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
     return { status: "rejected" };
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: trade.data.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note ?? null });
-  if (applied.error) throw new ApiError(500, "Failed to apply trade.", applied.error);
+  if (applied.error) throw new ApiError(500, "We couldn't apply that trade. Please try again.", applied.error);
   void announceAppliedTrade(input.guildId, context.leagueId, trade.data.id);
   return { status: "applied" };
 }
@@ -415,7 +415,7 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
 
 async function tradeCommitteeElectors(leagueId: string): Promise<Set<string>> {
   const memberships = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId).eq("status", "active").in("role", ["commissioner", "co_commissioner"]);
-  if (memberships.error) throw new ApiError(500, "Failed to load league commissioners.", memberships.error);
+  if (memberships.error) throw new ApiError(500, "We couldn't load league commissioners right now. Please try again.", memberships.error);
   return new Set((memberships.data ?? []).map((row: any) => String(row.user_id)));
 }
 
@@ -424,7 +424,7 @@ async function tradeVoteTally(tradeId: string, leagueId: string) {
     tradeCommitteeElectors(leagueId),
     supabase.from("rec_trade_votes").select("voter_user_id,vote").eq("trade_id", tradeId),
   ]);
-  if (votes.error) throw new ApiError(500, "Failed to load trade votes.", votes.error);
+  if (votes.error) throw new ApiError(500, "We couldn't load trade votes right now. Please try again.", votes.error);
   const approve = (votes.data ?? []).filter((v: any) => v.vote === "approve").length;
   const reject = (votes.data ?? []).filter((v: any) => v.vote === "reject").length;
   const voted = new Set((votes.data ?? []).map((v: any) => String(v.voter_user_id)));
@@ -434,7 +434,7 @@ async function tradeVoteTally(tradeId: string, leagueId: string) {
 export async function getTradeVoteStatus(guildId: string, tradeId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const trade = await supabase.from("rec_trades").select("id,status,approval_policy_snapshot,league_id").eq("id", tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   const tally = await tradeVoteTally(tradeId, context.leagueId);
   return { status: trade.data.status, ...tally };
@@ -444,7 +444,7 @@ async function resolveTradeVoteOutcome(tradeId: string, leagueId: string, guildI
   const tally = await tradeVoteTally(tradeId, leagueId);
   if (tally.approve > tally.reject) {
     const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: `Committee vote: ${tally.approve}-${tally.reject}` });
-    if (applied.error) throw new ApiError(500, "Trade passed committee vote but could not be applied.", applied.error);
+    if (applied.error) throw new ApiError(500, "The trade passed the committee vote, but we couldn't apply it. Please try again.", applied.error);
     void announceAppliedTrade(guildId, leagueId, tradeId);
     return { status: "applied", tally };
   }
@@ -459,7 +459,7 @@ export async function castTradeVote(input: { guildId: string; reviewerDiscordId:
   const userId = await userIdFromDiscord(input.reviewerDiscordId);
   if (!userId) throw new ApiError(404, "REC account not found.");
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
   if (trade.data.approval_policy_snapshot !== "competition_committee_review") throw new ApiError(400, "This trade doesn't use committee voting.");
@@ -470,7 +470,7 @@ export async function castTradeVote(input: { guildId: string; reviewerDiscordId:
     { trade_id: input.tradeId, voter_user_id: userId, voter_discord_id: input.reviewerDiscordId, vote: input.vote, voted_at: new Date().toISOString() },
     { onConflict: "trade_id,voter_user_id" },
   );
-  if (upserted.error) throw new ApiError(500, "Failed to record your vote.", upserted.error);
+  if (upserted.error) throw new ApiError(500, "We couldn't record your vote. Please try again.", upserted.error);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: input.tradeId, action: "vote_cast", actor_user_id: userId, actor_discord_id: input.reviewerDiscordId, details: { vote: input.vote } });
 
   const tally = await tradeVoteTally(input.tradeId, context.leagueId);
@@ -487,7 +487,7 @@ export async function forceCloseTradeVote(input: { guildId: string; reviewerDisc
   const userId = await userIdFromDiscord(input.reviewerDiscordId);
   if (!userId || String(context.league.ownerUserId ?? "") !== userId) throw new ApiError(403, "Only the head commissioner can force-close a committee vote.");
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
   if (trade.data.approval_policy_snapshot !== "competition_committee_review") throw new ApiError(400, "This trade doesn't use committee voting.");
@@ -500,7 +500,7 @@ export async function forceCloseTradeVote(input: { guildId: string; reviewerDisc
     return { status: "rejected", tally };
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: input.tradeId, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): approve` });
-  if (applied.error) throw new ApiError(500, "Failed to apply trade.", applied.error);
+  if (applied.error) throw new ApiError(500, "We couldn't apply that trade. Please try again.", applied.error);
   void announceAppliedTrade(input.guildId, context.leagueId, input.tradeId);
   return { status: "applied", tally };
 }
@@ -509,7 +509,7 @@ export async function listTradeBlockPlayers(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const players = await supabase.from("rec_players").select("id,full_name,position,overall_rating,team_id,trade_block_note,trade_block_listed_at")
     .eq("league_id", context.leagueId).eq("on_trade_block", true).order("trade_block_listed_at", { ascending: false });
-  if (players.error) throw new ApiError(500, "Failed to load the trade block.", players.error);
+  if (players.error) throw new ApiError(500, "We couldn't load the trade block right now. Please try again.", players.error);
   const teamIds = [...new Set((players.data ?? []).map((p: any) => p.team_id).filter(Boolean))] as string[];
   const names = teamIds.length ? await teamNames(context.leagueId, teamIds) : new Map<string, string>();
   return (players.data ?? []).map((p: any) => ({
@@ -528,7 +528,7 @@ export async function setPlayerTradeBlock(input: { guildId: string; discordId: s
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
   const player = await supabase.from("rec_players").select("id,team_id,full_name,roster_status").eq("id", input.playerId).eq("league_id", context.leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "Failed to load player.", player.error);
+  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   if (!player.data.team_id) throw new ApiError(409, "Player has no team.");
   const myTeamId = await teamForUser(context.leagueId, userId ?? "");
@@ -540,7 +540,7 @@ export async function setPlayerTradeBlock(input: { guildId: string; discordId: s
     trade_block_note: input.listed ? (input.note?.trim() || null) : null,
     trade_block_listed_at: input.listed ? now : null,
   }).eq("id", input.playerId).select("id,full_name").single();
-  if (updated.error) throw new ApiError(500, "Failed to update trade-block listing.", updated.error);
+  if (updated.error) throw new ApiError(500, "We couldn't update that trade-block listing. Please try again.", updated.error);
 
   if (input.listed) {
     const label = await teamLabel(context.leagueId, player.data.team_id);
@@ -561,14 +561,14 @@ export async function listMyTrades(guildId: string, discordId: string) {
   if (!userId) return { trades: [] };
   const trades = await supabase.from("rec_trades").select("*").eq("league_id", context.leagueId)
     .or(`proposing_user_id.eq.${userId},receiving_user_id.eq.${userId}`).order("created_at", { ascending: false }).limit(100);
-  if (trades.error) throw new ApiError(500, "Failed to load trades.", trades.error);
+  if (trades.error) throw new ApiError(500, "We couldn't load trades right now. Please try again.", trades.error);
   return { trades: trades.data ?? [] };
 }
 
 export async function listPendingReviewTrades(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const trades = await supabase.from("rec_trades").select("*").eq("league_id", context.leagueId).eq("status", "pending_review").order("accepted_at", { ascending: true });
-  if (trades.error) throw new ApiError(500, "Failed to load trades pending review.", trades.error);
+  if (trades.error) throw new ApiError(500, "We couldn't load trades pending review right now. Please try again.", trades.error);
   return { trades: trades.data ?? [] };
 }
 
@@ -602,7 +602,7 @@ export async function logCommissionerTrade(input: {
     approval_policy_snapshot: "commissioner_published_only", status: "applied", accepted_at: now, applied_at: now, involves_cpu: !proposingUserId || !receivingUserId,
     review_note: input.note?.trim() || null, reviewed_by_discord_id: input.reviewerDiscordId,
   }).select("id").single();
-  if (created.error) throw new ApiError(500, "Failed to create the trade record.", created.error);
+  if (created.error) throw new ApiError(500, "We couldn't create that trade. Please try again.", created.error);
   const tradeId = String(created.data.id);
   const rows = [
     ...input.offeredLegs.map((leg) => legRow(tradeId, leg, input.proposingTeamId, input.receivingTeamId)),
@@ -610,7 +610,7 @@ export async function logCommissionerTrade(input: {
   ];
   if (rows.length) {
     const inserted = await supabase.from("rec_trade_legs").insert(rows);
-    if (inserted.error) { await supabase.from("rec_trades").delete().eq("id", tradeId); throw new ApiError(500, "Failed to save the trade assets.", inserted.error); }
+    if (inserted.error) { await supabase.from("rec_trades").delete().eq("id", tradeId); throw new ApiError(500, "We couldn't save the trade assets. Please try again.", inserted.error); }
   }
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "commissioner_published", actor_user_id: reviewerUserId, actor_discord_id: input.reviewerDiscordId, next_status: "applied", details: { classification: input.classification, note: input.note ?? null, transactional: false } });
 
@@ -641,10 +641,10 @@ export async function listSeasonTradeCounts(guildId: string) {
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
     supabase.from("rec_trades").select("proposing_team_id,receiving_team_id,involves_cpu,status").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "applied"),
   ]);
-  if (teams.error || assignments.error || trades.error) throw new ApiError(500, "Failed to load season trade counts.", teams.error ?? assignments.error ?? trades.error);
+  if (teams.error || assignments.error || trades.error) throw new ApiError(500, "We couldn't load season trade counts right now. Please try again.", teams.error ?? assignments.error ?? trades.error);
   const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
   const users = userIds.length ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds) : { data: [] as any[], error: null };
-  if (users.error) throw new ApiError(500, "Failed to load trade-count coaches.", users.error);
+  if (users.error) throw new ApiError(500, "We couldn't load coaches for trade counts. Please try again.", users.error);
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
   const userName = new Map((users.data ?? []).map((row: any) => [row.id, row.username ?? row.display_name ?? "REC user"]));
   return {
@@ -667,15 +667,15 @@ export async function listSeasonTradeCounts(guildId: string) {
 export async function listTradeableTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const teams = await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").eq("league_id", context.leagueId).order("name");
-  if (teams.error) throw new ApiError(500, "Failed to load teams.", teams.error);
+  if (teams.error) throw new ApiError(500, "We couldn't load teams right now. Please try again.", teams.error);
   const assignments = await supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null);
-  if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments right now. Please try again.", assignments.error);
   const userByTeam = new Map((assignments.data ?? []).map((a: any) => [a.team_id, a.user_id]));
   const assignedUserIds = [...new Set([...userByTeam.values()].filter(Boolean))];
   const users = assignedUserIds.length
     ? await supabase.from("rec_users").select("id,supabase_auth_user_id").in("id", assignedUserIds)
     : { data: [], error: null };
-  if (users.error) throw new ApiError(500, "Failed to load coach site-account status.", users.error);
+  if (users.error) throw new ApiError(500, "We couldn't load coach account status. Please try again.", users.error);
   const siteUsers = new Set((users.data ?? []).filter((user: any) => user.supabase_auth_user_id).map((user: any) => user.id));
   return (teams.data ?? []).map((t: any) => ({
     id: t.id,
@@ -689,10 +689,10 @@ export async function listTradeableTeams(guildId: string) {
 export async function getTradeDetail(guildId: string, tradeId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const trade = await supabase.from("rec_trades").select("*").eq("id", tradeId).eq("league_id", context.leagueId).maybeSingle();
-  if (trade.error) throw new ApiError(500, "Failed to load trade.", trade.error);
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
   const legs = await supabase.from("rec_trade_legs").select("*").eq("trade_id", tradeId);
-  if (legs.error) throw new ApiError(500, "Failed to load trade legs.", legs.error);
+  if (legs.error) throw new ApiError(500, "We couldn't load that trade's details. Please try again.", legs.error);
   return { trade: trade.data, legs: legs.data ?? [] };
 }
 
@@ -743,7 +743,7 @@ export async function createTradeBlockListing(input: {
     league_id: context.leagueId, team_id: teamId, user_id: userId, discord_id: input.discordId,
     offered_legs: input.legs, offered_coins: input.coins, looking_for: lookingFor, status: "open",
   }).select("*").single();
-  if (inserted.error) throw new ApiError(500, "Failed to post to the trade block.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't post to the trade block. Please try again.", inserted.error);
 
   const [teamName, offerDescription] = await Promise.all([
     teamLabel(context.leagueId, teamId),
@@ -780,7 +780,7 @@ export async function listTradeBlockListings(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const listings = await supabase.from("rec_trade_block_listings").select("*")
     .eq("league_id", context.leagueId).eq("status", "open").order("created_at", { ascending: false });
-  if (listings.error) throw new ApiError(500, "Failed to load the trade block.", listings.error);
+  if (listings.error) throw new ApiError(500, "We couldn't load the trade block right now. Please try again.", listings.error);
   const teamIds = Array.from(new Set<string>((listings.data ?? []).map((l: any) => l.team_id as string)));
   const names = await teamNames(context.leagueId, teamIds);
   return {
@@ -800,10 +800,10 @@ export async function withdrawTradeBlockListing(input: { guildId: string; discor
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
   const listing = await supabase.from("rec_trade_block_listings").select("*").eq("id", input.listingId).eq("league_id", context.leagueId).maybeSingle();
-  if (listing.error) throw new ApiError(500, "Failed to load the listing.", listing.error);
+  if (listing.error) throw new ApiError(500, "We couldn't load that listing. Please try again.", listing.error);
   if (!listing.data) throw new ApiError(404, "Listing not found.");
   if (listing.data.user_id !== userId) throw new ApiError(403, "You can only withdraw your own trade block listing.");
   const { error } = await supabase.from("rec_trade_block_listings").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", input.listingId);
-  if (error) throw new ApiError(500, "Failed to withdraw the listing.", error);
+  if (error) throw new ApiError(500, "We couldn't withdraw that listing. Please try again.", error);
   return { withdrawn: true as const };
 }

@@ -61,7 +61,7 @@ async function aggregateTeamResults(leagueId: string): Promise<Map<string, TeamA
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,is_playoff,is_super_bowl")
     .eq("league_id", leagueId);
-  if (error) throw new ApiError(500, "Failed to load results for Coach Rating.", error);
+  if (error) throw new ApiError(500, "We couldn't load results for coach rating. Please try again.", error);
 
   const map = new Map<string, TeamAgg>();
   const get = (id: string) => { let a = map.get(id); if (!a) { a = emptyAgg(); map.set(id, a); } return a; };
@@ -115,8 +115,8 @@ async function computeCoachRatingsBase(guildId: string) {
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
   ]);
-  if (teamsRes.error) throw new ApiError(500, "Failed to load teams for Coach Rating.", teamsRes.error);
-  if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for Coach Rating.", assignmentsRes.error);
+  if (teamsRes.error) throw new ApiError(500, "We couldn't load teams for coach rating. Please try again.", teamsRes.error);
+  if (assignmentsRes.error) throw new ApiError(500, "We couldn't load assignments for coach rating. Please try again.", assignmentsRes.error);
 
   const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r: any) => r.team_id).filter(Boolean));
   const userIdByTeam = new Map<string, string>((assignmentsRes.data ?? []).map((r: any): [string, string] => [r.team_id, r.user_id]));
@@ -210,7 +210,7 @@ async function computeUserRatingsBase(guildId: string) {
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for User Rating.", assignmentsRes.error);
+  if (assignmentsRes.error) throw new ApiError(500, "We couldn't load assignments for user rating. Please try again.", assignmentsRes.error);
 
   const userIds = [...new Set((assignmentsRes.data ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[];
   if (!userIds.length) return { displayAsGrade: isCfb(game), users: [] };
@@ -234,8 +234,8 @@ async function computeUserRatingsBase(guildId: string) {
     // the current season. Averaged per season below so a long career doesn't saturate it.
     supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count,season").eq("league_id", leagueId).in("badge_scope", ["game", "season"]).in("user_id", userIds),
   ]);
-  if (statTotalsRes.error) throw new ApiError(500, "Failed to load stats for User Rating.", statTotalsRes.error);
-  if (badgesRes.error) throw new ApiError(500, "Failed to load badges for User Rating.", badgesRes.error);
+  if (statTotalsRes.error) throw new ApiError(500, "We couldn't load stats for user rating. Please try again.", statTotalsRes.error);
+  if (badgesRes.error) throw new ApiError(500, "We couldn't load badges for user rating. Please try again.", badgesRes.error);
 
   type StatTotalsRow = {
     user_id: string;
