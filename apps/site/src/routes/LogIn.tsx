@@ -10,6 +10,7 @@ export function LogIn() {
   const signupHref = next === "/account" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [keepLoggedIn, setKeepLoggedInChecked] = useState(() => getKeepLoggedIn());
   const [busy, setBusy] = useState(false);
   const [discordBusy, setDiscordBusy] = useState(false);
@@ -26,9 +27,20 @@ export function LogIn() {
     if (result.error) setError(result.error);
   }
 
+  // "Continue with Discord" here doubles as sign-up for anyone new — a signed-out visit to any
+  // gated route lands on /login (see App.tsx's RequireAuth), not /signup, so a first-time Discord
+  // user very often never sees /signup's promo field at all. Mirrors SignUp.tsx's stash-then-
+  // redeem-in-AuthCallback flow so a code works from either entry point.
+  function stashPromoCode() {
+    const trimmed = promoCode.trim();
+    if (trimmed) sessionStorage.setItem("rec_pending_promo_code", trimmed);
+    else sessionStorage.removeItem("rec_pending_promo_code");
+  }
+
   async function handleDiscord() {
     setError(null);
     setDiscordBusy(true);
+    stashPromoCode();
     const result = await auth.signInWithDiscord(next);
     setDiscordBusy(false);
     if (result.error) setError(result.error);
@@ -39,6 +51,10 @@ export function LogIn() {
       <form className="site-auth-card" onSubmit={handleSubmit}>
         <h1>Log in</h1>
         {error && <p className="site-auth-error">{error}</p>}
+        <label className="site-field">
+          <span>Promo code (optional)</span>
+          <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Have a code? Enter it here" />
+        </label>
         <button
           className="site-btn site-btn-primary site-btn-lg"
           type="button"
