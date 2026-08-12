@@ -48,6 +48,21 @@ function toCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T) {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
+// Entries only ever get overwritten on next access to the same key, never proactively removed —
+// every distinct guildId / guildId:discordId this process has ever seen otherwise stays resident
+// for the life of the process. Sweep all the module-level caches on an interval so a long-running
+// process doesn't grow unbounded with usage; registered once, unref'd so it never keeps the
+// process alive on its own.
+const SWEEP_INTERVAL_MS = 5 * 60_000;
+function sweepExpiredEntries(...caches: Array<Map<string, CacheEntry<any>>>) {
+  const now = Date.now();
+  for (const cache of caches) {
+    for (const [key, entry] of cache) {
+      if (entry.expiresAt < now) cache.delete(key);
+    }
+  }
+}
+
 // HTTP headers are Latin1/ByteString only — any reason string containing a non-ASCII
 // character (em dash, curly quotes, etc., all common in our own hand-written audit reasons)
 // throws when the runtime tries to set it as a raw header value. Discord's API expects this
@@ -623,6 +638,12 @@ export async function getMentionableCommissioners(guildId: string): Promise<Ment
 }
 
 const guildMemberListCache = new Map<string, CacheEntry<DiscordGuildMemberSummary[]>>();
+
+const sweepInterval = setInterval(
+  () => sweepExpiredEntries(roleListCache, guildOwnerCache, memberRoleIdsCache, mentionableCache, guildMemberListCache),
+  SWEEP_INTERVAL_MS,
+);
+sweepInterval.unref();
 
 // Cached wrapper around listGuildMembers for callers that just need a discordId -> live
 // Discord display name (nickname, or username as fallback) lookup and can tolerate a ~60s

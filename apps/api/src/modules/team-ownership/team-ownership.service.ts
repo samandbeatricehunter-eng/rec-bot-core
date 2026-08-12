@@ -1,4 +1,5 @@
 import { AFC_TEAMS, CFB_27_TEAMS, CFB_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
+import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -573,11 +574,15 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   const failed: Array<{ discordId: string; nickname: string; reason: string }> = [];
   const skipped: Array<{ discordId: string; reason: string }> = [];
 
-  for (const row of assignments.data ?? []) {
+  // Ran fully serial before — one Discord API round trip at a time, so a league with 100+
+  // members could take minutes for what's a single synchronous HTTP request. Each member is
+  // independent, so a small bounded batch runs concurrently instead; setGuildMemberNickname's
+  // own rate-limit retry handles any 429s a burst provokes.
+  await mapWithConcurrency(assignments.data ?? [], 5, async (row: any) => {
     const discordId = discordIdByUser.get(row.user_id);
-    if (!discordId) { skipped.push({ discordId: String(row.user_id), reason: "No linked Discord account." }); continue; }
+    if (!discordId) { skipped.push({ discordId: String(row.user_id), reason: "No linked Discord account." }); return; }
     const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
-    if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); continue; }
+    if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); return; }
     const nickname = shortTeamNickname(team, isCfb);
     try {
       await setGuildMemberNickname(guildId, discordId, nickname, "REC nickname resync (retroactive)");
@@ -585,7 +590,7 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
     } catch (error) {
       failed.push({ discordId, nickname, reason: error instanceof Error ? error.message : String(error) });
     }
-  }
+  });
 
   return { synced, failed, skipped };
 }
@@ -647,11 +652,13 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
   const failed: Array<{ discordId: string; reason: string }> = [];
   let alreadyCorrect = 0;
 
-  for (const member of members) {
-    if (member.isBot) continue;
+  // Same fully-serial-loop issue as resyncTeamNicknamesForGuild above: bound the concurrency
+  // instead of doing every member's Discord role calls one at a time.
+  await mapWithConcurrency(members, 5, async (member) => {
+    if (member.isBot) return;
     const expectedKey = expectedRoleKeyByDiscordId.get(member.discordId) ?? null;
     const heldKey = member.managedRole === "discordOnly" ? null : member.managedRole;
-    if (heldKey === expectedKey) { if (heldKey) alreadyCorrect += 1; continue; }
+    if (heldKey === expectedKey) { if (heldKey) alreadyCorrect += 1; return; }
     try {
       const rolesToStrip = (["member", "compCommittee", "commissioner"] as const).filter((key) => key !== expectedKey && key === heldKey);
       for (const key of rolesToStrip) {
@@ -669,7 +676,7 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
     } catch (error) {
       failed.push({ discordId: member.discordId, reason: error instanceof Error ? error.message : String(error) });
     }
-  }
+  });
 
   return { corrected, alreadyCorrect, failed };
 }
