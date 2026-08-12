@@ -1312,10 +1312,16 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         // live-looking opponent.
         currentMatchup = stageDisplay(stage);
       } else {
+        // Every season restarts at week_number=1, so without a season_id filter this can match
+        // last season's game at the same week number instead of the current one once a league
+        // is on its second (or later) season — the exact bug behind the hero card showing a
+        // stale opponent from a prior season.
+        const seasonId = await resolveSeasonId(league.id, seasonNumber);
         const games = await supabase
           .from("rec_games")
           .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
           .eq("league_id", league.id)
+          .eq("season_id", seasonId)
           .eq("week_number", currentWeek)
           .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
           .limit(1)
