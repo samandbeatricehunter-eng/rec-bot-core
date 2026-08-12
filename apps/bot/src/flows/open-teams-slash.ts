@@ -12,8 +12,8 @@ import {
 } from "discord.js";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
-import { isCfbLeague } from "../lib/league-game.js";
-import { recApi } from "../lib/rec-api.js";
+import { isCfbGame } from "../lib/league-game.js";
+import { isMissingDiscordAccountError, recApi } from "../lib/rec-api.js";
 import { isTeamOpenToRequest, normalizeRosterConferences, type RosterConference } from "../ui/menu.js";
 
 export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
@@ -98,9 +98,12 @@ function cfbRows(conferences: RosterConference[], pageIndex: number) {
   ];
 }
 
-async function loadConferences(guildId: string): Promise<RosterConference[]> {
+async function loadConferences(guildId: string): Promise<{ conferences: RosterConference[]; game: string | null }> {
   const confData = await recApi.getLeagueConferences(guildId);
-  return normalizeRosterConferences(confData?.conferences ?? []);
+  return {
+    conferences: normalizeRosterConferences(confData?.conferences ?? []),
+    game: typeof confData?.league?.game === "string" ? confData.league.game : null,
+  };
 }
 
 function findConference(conferences: RosterConference[], name: string) {
@@ -134,36 +137,41 @@ export async function handleOpenTeamsSlash(interaction: ChatInputCommandInteract
   }
 
   try {
-    const [conferences, isCfb] = await Promise.all([
-      loadConferences(interaction.guildId),
-      isCfbLeague(interaction.guildId),
-    ]);
+    // Acknowledge immediately — conference RPC + embed build can exceed Discord's 3s window.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const { conferences, game } = await loadConferences(interaction.guildId);
+    const isCfb = isCfbGame(game) || conferences.some((conference) => {
+      const name = conference.conference.toUpperCase();
+      return name !== "AFC" && name !== "NFC" && name !== "OTHER";
+    });
 
     if (!conferences.length) {
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("Open Teams").setColor(COLORS.gold).setDescription("No conferences/teams are loaded for this league yet.")],
-        flags: MessageFlags.Ephemeral,
       });
     }
 
     if (isCfb) {
       const page = 0;
       const conference = conferences[page]!;
-      return interaction.reply({
+      return interaction.editReply({
         embeds: [buildConferenceEmbed(conference, { footer: `Conference ${page + 1} of ${conferences.length}` })],
         components: cfbRows(conferences, page),
-        flags: MessageFlags.Ephemeral,
       });
     }
 
     const afc = findConference(conferences, "AFC") ?? conferences[0]!;
-    return interaction.reply({
+    return interaction.editReply({
       embeds: [buildConferenceEmbed(afc)],
       components: maddenRows("AFC"),
-      flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    return interaction.reply({ content: userFacingError(error), flags: MessageFlags.Ephemeral });
+    const content = userFacingError(error);
+    if (interaction.deferred || interaction.replied) {
+      return interaction.editReply({ content }).catch(() => undefined);
+    }
+    return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
 }
 
@@ -172,7 +180,7 @@ export async function handleOpenTeamsConfToggle(interaction: ButtonInteraction) 
   const confName = interaction.customId.slice(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.confPrefix}:`.length) as "AFC" | "NFC";
   try {
     await interaction.deferUpdate();
-    const conferences = await loadConferences(interaction.guildId);
+    const { conferences } = await loadConferences(interaction.guildId);
     const conference = findConference(conferences, confName) ?? conferences[0];
     if (!conference) {
       return interaction.editReply({
@@ -195,7 +203,7 @@ export async function handleOpenTeamsCfbPage(interaction: ButtonInteraction) {
   const raw = Number(interaction.customId.slice(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:`.length));
   try {
     await interaction.deferUpdate();
-    const conferences = await loadConferences(interaction.guildId);
+    const { conferences } = await loadConferences(interaction.guildId);
     if (!conferences.length) {
       return interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("Open Teams").setDescription("No conferences found.")],
@@ -217,7 +225,7 @@ export async function handleOpenTeamsCfbConference(interaction: StringSelectMenu
   if (!interaction.inCachedGuild()) return;
   try {
     await interaction.deferUpdate();
-    const conferences = await loadConferences(interaction.guildId);
+    const { conferences } = await loadConferences(interaction.guildId);
     const page = Math.max(0, Math.min(conferences.length - 1, Number(interaction.values[0] ?? 0)));
     const conference = conferences[page];
     if (!conference) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Open Teams").setDescription("No conferences found.")], components: [] });
@@ -234,14 +242,14 @@ export async function handleOpenTeamsRequestTeam(interaction: ButtonInteraction)
   if (!interaction.inCachedGuild()) return;
   try {
     await interaction.deferUpdate();
-    const [profile, conferences] = await Promise.all([
+    const [profile, loaded] = await Promise.all([
       recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        if (message.includes("404") || /Discord account not found/i.test(message)) return null;
+        if (isMissingDiscordAccountError(error)) return null;
         throw error;
       }),
       loadConferences(interaction.guildId),
     ]);
+    const conferences = loaded.conferences;
 
     if (profile?.team) {
       return interaction.editReply({
@@ -298,7 +306,7 @@ export async function handleOpenTeamsRequestConference(interaction: StringSelect
   try {
     await interaction.deferUpdate();
     const conference = interaction.values[0] ?? "";
-    const conferences = await loadConferences(interaction.guildId);
+    const { conferences } = await loadConferences(interaction.guildId);
     const teams = openTeamsList(conferences).filter((team) => team.conference === conference);
 
     if (!teams.length) {

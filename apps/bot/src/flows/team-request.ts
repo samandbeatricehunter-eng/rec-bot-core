@@ -12,7 +12,7 @@ import type { RecTeamAuthority } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { isCfbLeague } from "../lib/league-game.js";
-import { recApi } from "../lib/rec-api.js";
+import { isMissingDiscordAccountError, recApi } from "../lib/rec-api.js";
 import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildTeamsMenuRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type TeamsMenuPage, type RosterConference } from "../ui/menu.js";
 
@@ -73,8 +73,7 @@ function buildTeamRequestConferenceRows(openTeamsList: Array<{ conference: strin
 async function loadTeamRequestEligibility(guildId: string, discordId: string) {
   const [profileResult, confData] = await Promise.all([
     recApi.getMenuProfile(discordId, guildId).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("404") || /Discord account not found/i.test(message)) return null;
+      if (isMissingDiscordAccountError(error)) return null;
       throw error;
     }),
     recApi.getLeagueConferences(guildId),

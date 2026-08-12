@@ -4,7 +4,7 @@ import { registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, listGuildAdminDiscordIds, replyFullAdminOnly } from "./lib/admin.js";
 import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
-import { recApi } from "./lib/rec-api.js";
+import { isMissingDiscordAccountError, recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
 import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
 import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionButton, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
@@ -1073,8 +1073,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
     }
   } catch (error) {
     console.warn("Failed to load REC menu profile", { userId, guildId, error });
-    const message = error instanceof Error ? error.message : String(error);
-    const isMissingRecUser = message.includes("404") || /Discord account not found/i.test(message);
+    const isMissingRecUser = isMissingDiscordAccountError(error);
     menuEmbed = buildLeagueMenuEmbed({
       discordUsername: isMissingRecUser ? `<@${userId}>` : "REC profile failed to load",
       wallet: isMissingRecUser ? "No Balance" : 0,
@@ -1110,8 +1109,7 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
 
   try {
     const profile = await recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("404") || /Discord account not found/i.test(message)) return null;
+      if (isMissingDiscordAccountError(error)) return null;
       throw error;
     });
 

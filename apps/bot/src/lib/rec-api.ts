@@ -16,24 +16,41 @@ async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    // Try to surface the API's own friendly .error string. If the body is JSON with an
-    // .error field, use that (it's already plain language from sendError). Otherwise fall
-    // back to a generic message instead of leaking raw HTTP status + response text.
+    // Surface the API's own friendly .error string when present. Do NOT `throw` inside the
+    // JSON-parse try/catch — that previously swallowed the friendly message and always fell
+    // through to the generic copy (breaking Discord-only flows that detect 404/"not found").
     const body = await response.text();
+    let friendly: string | undefined;
     try {
       const parsed = JSON.parse(body) as { error?: string; message?: string };
-      const friendly = parsed.error ?? parsed.message;
-      if (friendly) throw new Error(friendly);
+      friendly = parsed.error ?? parsed.message;
     } catch {
-      // Not JSON or no .error field — use a generic message.
+      // Not JSON — fall through to status-based generics.
+    }
+    if (friendly?.trim()) {
+      const error = new Error(friendly.trim()) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
     if (response.status >= 500) {
       throw new Error("The REC service is having trouble right now. Please try again in a moment.");
+    }
+    if (response.status === 404) {
+      throw new Error("Discord account not found in REC Core");
     }
     throw new Error("That request couldn't be completed. Please check the details and try again.");
   }
 
   return response.json() as Promise<T>;
+}
+
+/** True when a failed API call means "no REC user/Discord link yet" (Discord-only members). */
+export function isMissingDiscordAccountError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : NaN;
+  return status === 404
+    || /Discord account not found/i.test(message)
+    || /\b404\b/.test(message);
 }
 
 export const recApi = {

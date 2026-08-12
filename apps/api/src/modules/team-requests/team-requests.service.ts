@@ -21,13 +21,13 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .select("user_id")
     .eq("discord_id", input.discordId)
     .maybeSingle();
-  if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
+  if (account.error) throw new ApiError(500, "We couldn't look up your Discord account. Please try again.", account.error);
 
   let userId = account.data?.user_id;
   if (!userId && isSiteOnlyDiscordId(input.discordId)) {
     const siteUserId = recUserIdFromSiteOnlyDiscordId(input.discordId);
     const siteUser = await supabase.from("rec_users").select("id").eq("id", siteUserId).maybeSingle();
-    if (siteUser.error) throw new ApiError(500, "Failed to load your REC account.", siteUser.error);
+    if (siteUser.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", siteUser.error);
     if (!siteUser.data) throw new ApiError(403, "Your REC account could not be resolved.");
     userId = siteUser.data.id;
   }
@@ -41,7 +41,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     // display_name is NOT NULL — "" (its own column default) stands in for a failed/missed
     // lookup rather than null, which would fail the insert outright.
     const createdUser = await supabase.from("rec_users").insert({ display_name: liveName ?? "", status: "active" }).select("id").single();
-    if (createdUser.error) throw new ApiError(500, "Failed to create REC user.", createdUser.error);
+    if (createdUser.error) throw new ApiError(500, "We couldn't create your REC account. Please try again.", createdUser.error);
     userId = createdUser.data.id;
     void grantWelcomeBonus(String(userId));
     const createdAccount = await supabase
@@ -58,7 +58,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     if (createdAccount.error) {
       // Roll back the just-created rec_users row rather than leaving it orphaned with no linked account.
       await supabase.from("rec_users").delete().eq("id", userId);
-      throw new ApiError(500, "Failed to link Discord account.", createdAccount.error);
+      throw new ApiError(500, "We couldn't link your Discord account. Please try again.", createdAccount.error);
     }
   }
 
@@ -70,7 +70,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (existingAssignment.error) throw new ApiError(500, "Failed to check existing assignment.", existingAssignment.error);
+  if (existingAssignment.error) throw new ApiError(500, "We couldn't check your current team link. Please try again.", existingAssignment.error);
   if (existingAssignment.data) throw new ApiError(409, "You are already linked to a team in this league.");
 
   const team = await supabase
@@ -79,7 +79,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .eq("id", input.teamId)
     .eq("league_id", leagueId)
     .maybeSingle();
-  if (team.error) throw new ApiError(500, "Failed to load team.", team.error);
+  if (team.error) throw new ApiError(500, "We couldn't load that team. Please try again.", team.error);
   if (!team.data) throw new ApiError(404, "Team not found in this league.");
 
   const teamTaken = await supabase
@@ -90,7 +90,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
-  if (teamTaken.error) throw new ApiError(500, "Failed to check team availability.", teamTaken.error);
+  if (teamTaken.error) throw new ApiError(500, "We couldn't check whether that team is available. Please try again.", teamTaken.error);
   if (teamTaken.data) throw new ApiError(409, "That team is no longer available.");
 
   // Someone else's pending/approved request on this same team also takes it off the market —
@@ -103,7 +103,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .eq("team_id", input.teamId)
     .in("status", ["pending", "approved"])
     .maybeSingle();
-  if (teamRequested.error) throw new ApiError(500, "Failed to check team availability.", teamRequested.error);
+  if (teamRequested.error) throw new ApiError(500, "We couldn't check whether that team is available. Please try again.", teamRequested.error);
   if (teamRequested.data) throw new ApiError(409, "That team already has a pending request from another member.");
 
   const pending = await supabase
@@ -113,7 +113,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .eq("requester_user_id", userId)
     .in("status", ["pending", "approved"])
     .maybeSingle();
-  if (pending.error) throw new ApiError(500, "Failed to check pending requests.", pending.error);
+  if (pending.error) throw new ApiError(500, "We couldn't check your pending team requests. Please try again.", pending.error);
   if (pending.data) throw new ApiError(409, "You already have a pending team request.");
 
   const inserted = await supabase
@@ -128,7 +128,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     })
     .select("*")
     .single();
-  if (inserted.error) throw new ApiError(500, "Failed to create team request.", inserted.error);
+  if (inserted.error) throw new ApiError(500, "We couldn't submit that team request. Please try again.", inserted.error);
 
   const teamName = formatTeamDisplayName(team.data) ?? team.data.name;
   await supabase.from("rec_commissioners_inbox").insert({

@@ -15,7 +15,20 @@ export async function teamOwnershipRoutes(app: FastifyInstance) {
  app.post("/v1/team-ownership/team-conflicts", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await getTeamDataConflicts((request.body as { guildId: string }).guildId)); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/link-user-team", async (request, reply) => { try { const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" }); const input = LinkUserToTeamSchema.parse(request.body); if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId; return reply.send(await linkUserToTeam(input)); } catch (error) { return sendError(reply, error); } });
  app.get("/v1/team-ownership/:guildId/linked", async (request, reply) => { try { await requireBotOrUserSession(request, { resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId, permission: "member" }); const { guildId } = request.params as { guildId: string }; return reply.send(await listLinkedUsersTeams(guildId)); } catch (error) { return sendError(reply, error); } });
- app.get("/v1/team-ownership/:guildId/open-teams", async (request, reply) => { try { await requireBotOrUserSession(request, { resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId, permission: "member" }); const { guildId } = request.params as { guildId: string }; return reply.send(await listOpenTeams(guildId)); } catch (error) { return sendError(reply, error); } });
+ app.get("/v1/team-ownership/:guildId/open-teams", async (request, reply) => {
+   try {
+     // Bot + hub both call this. Bot uses the internal API key (no Discord membership required),
+     // which is what lets Discord-only users browse/request teams via /openteams.
+     await requireBotOrUserSession(request, {
+       resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId,
+       permission: "member",
+     });
+     const { guildId } = request.params as { guildId: string };
+     return reply.send(await listOpenTeams(guildId));
+   } catch (error) {
+     return sendError(reply, error);
+   }
+ });
  app.get("/v1/team-ownership/:guildId/matrix", async (request, reply) => { try { await requireBotOrUserSession(request, { resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId, permission: "co_commissioner" }); const { guildId } = request.params as { guildId: string }; return reply.send(await getTeamLinkMatrix(guildId)); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/unlink-all", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await unlinkAllTeamsForGuild(UnlinkAllTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/unlink-team", async (request, reply) => { try { const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" }); const input = UnlinkTeamSchema.parse(request.body); if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId; return reply.send(await unlinkTeamForGuild(input)); } catch (error) { return sendError(reply, error); } });
