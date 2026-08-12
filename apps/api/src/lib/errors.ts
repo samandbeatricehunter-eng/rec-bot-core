@@ -16,11 +16,17 @@ function firstZodIssue(error:ZodError): string {
 // The optional `request` parameter (3rd arg) lets sendError extract guildId/leagueId from
 // the request body so the incident is attributed to the right league. Existing call sites
 // that pass only (reply, error) are unaffected — the incident just has no league context.
+function isOpsConfigGap(error: ApiError): boolean {
+  // Missing env / third-party credentials — real outage signal for callers, but not an
+  // application defect worth flooding the admin incident log on every retry (e.g. Stripe).
+  return error.statusCode === 503 && /\bis not configured\b/i.test(error.message);
+}
+
 export function sendError(reply:FastifyReply,error:unknown,request?:FastifyRequest){
   if(error instanceof ApiError){
     if(error.statusCode>=500){
       console.error(error.message,error.details??error);
-      captureIncident(error, request);
+      if (!isOpsConfigGap(error)) captureIncident(error, request);
       return reply.status(error.statusCode).send({error:error.message});
     }
     return reply.status(error.statusCode).send({error:error.message,details:error.details??null});

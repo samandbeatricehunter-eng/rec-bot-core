@@ -84,17 +84,28 @@ export async function syncAllRecruitingAds(): Promise<{ synced: string[] }> {
 /** What the bot's daily sweep needs: the one exempt guild, plus every guild actually linked
  * to a league on the site — anything else the bot sits in gets left. */
 export async function getDiscordGovernanceSnapshot(): Promise<{ managementGuildId: string | null; linkedGuildIds: string[] }> {
-  const [config, servers] = await Promise.all([
+  // Two-query path: the custom Postgres client does not support PostgREST `!inner` embeds
+  // (or dotted filter columns on related tables). Primary links → server guild ids.
+  const [config, links] = await Promise.all([
     getSiteDiscordConfig(),
-    // Join from servers → primary links so we always get guild_id without relying on
-    // PostgREST embed relationship naming (a prior bare embed could return empty and the
-    // daily sweep would leave every league server).
-    supabase
-      .from("rec_discord_servers")
-      .select("guild_id, rec_server_league_links!inner(id, is_primary)")
-      .eq("rec_server_league_links.is_primary", true),
+    supabase.from("rec_server_league_links").select("server_id").eq("is_primary", true),
   ]);
+  if (links.error) throw new ApiError(500, "Failed to load linked guilds.", links.error);
+
+  const serverIds = [
+    ...new Set(
+      (links.data ?? [])
+        .map((row) => (typeof row.server_id === "string" ? row.server_id : null))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (serverIds.length === 0) {
+    return { managementGuildId: config.managementGuildId, linkedGuildIds: [] };
+  }
+
+  const servers = await supabase.from("rec_discord_servers").select("guild_id").in("id", serverIds);
   if (servers.error) throw new ApiError(500, "Failed to load linked guilds.", servers.error);
+
   const linkedGuildIds: string[] = [];
   for (const row of servers.data ?? []) {
     if (typeof row.guild_id === "string" && row.guild_id.length > 0 && !linkedGuildIds.includes(row.guild_id)) {
