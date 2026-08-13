@@ -71,6 +71,25 @@
   transform: rotateY(180deg);
 }
 
+/* When flipped, front must not intercept scroll/drag on the attribute pane. */
+.rec-player-card:not(.is-flipped) .rec-player-card-back {
+  pointer-events: none;
+}
+
+.rec-player-card.is-flipped .rec-player-card-front {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.rec-player-card.is-flipped .rec-player-card-back {
+  pointer-events: auto;
+  /* Visible backface + slight Z so overflow scrolling works under 3D transforms. */
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  transform: rotateY(180deg) translateZ(1px);
+  z-index: 2;
+}
+
 .rec-player-card-face {
   position: absolute;
   inset: 0;
@@ -365,15 +384,18 @@
 /* Scroll lives on an inner pane so 3D backface doesn't kill overflow. */
 .rec-player-card-back-scroll {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 100%;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-right: 0.45rem;
   touch-action: pan-y;
+  pointer-events: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--rpc-accent) transparent;
 }

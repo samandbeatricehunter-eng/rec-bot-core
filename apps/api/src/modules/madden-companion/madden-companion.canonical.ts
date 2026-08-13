@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
 
@@ -91,7 +92,9 @@ async function applyRosterPlayer(client: PoolClient, leagueId: string, record: N
        attributes=case when excluded.attributes='{}'::jsonb then rec_players.attributes else excluded.attributes end,
        raw_payload=excluded.raw_payload, roster_status='active', updated_at=now()`,
     [leagueId, playerId, first, last, full, text(row, ["position", "positionName", "positionAbbr"]), resolvedTeamId,
-      integer(row, ["overallRating", "overall", "ovrRating", "ovr"]), text(row, ["devTrait", "developmentTrait", "dev_trait"]),
+      integer(row, ["overallRating", "overall", "ovrRating", "ovr"]),
+      normalizeMaddenDevTrait(value(row, ["devTrait", "developmentTrait", "dev_trait", "signature", "playerBest"]))
+        ?? normalizeMaddenDevTrait(integer(row, ["devTrait", "developmentTrait", "dev_trait"])),
       integer(row, ["jerseyNum", "jerseyNumber", "jersey_number"]), integer(row, ["yearsPro", "experience"]),
       integer(row, ["age", "playerAge", "player_age"]),
       integer(row, ["contractYearsLeft", "contract_years_left"]), JSON.stringify(value(row, ["attributes", "ratings"]) ?? {}), JSON.stringify(row)],

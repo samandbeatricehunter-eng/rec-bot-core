@@ -96,5 +96,6 @@ export * from "./case-status.js";
 export * from "./import-provenance.js";
 export * from "./roster.js";
 export * from "./custom-player-renders.js";
+export * from "./dev-trait.js";
 export * from "./player-builder/index.js";
 export * from "./trades/trade-value-model.js";

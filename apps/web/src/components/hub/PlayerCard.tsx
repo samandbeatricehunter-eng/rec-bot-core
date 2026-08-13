@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
-import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
+import { MADDEN_ATTRIBUTE_DEFINITIONS, normalizeMaddenDevTrait } from "@rec/shared";
 import { ATTRIBUTE_KEY_TO_CODE, attributeLabel } from "../../lib/attribute-columns.js";
 
 export type PlayerCardAbility = { name: string; description?: string };
@@ -78,11 +78,7 @@ function resolveTier(player: PlayerCardData): CardTier {
   if (player.cardKind === "legend") return "legend";
   if (player.cardKind === "immortal") return "immortal";
   if (player.cardKind === "custom") return "custom";
-  const trait = (player.devTrait ?? "normal").toLowerCase().replace(/[\s_-]/g, "");
-  if (trait.includes("xfactor") || trait === "xf") return "xfactor";
-  if (trait.includes("superstar") || trait === "ss") return "superstar";
-  if (trait === "star" || trait === "elite" || trait === "impact") return "star";
-  return "normal";
+  return resolveDevTraitTier(player.devTrait);
 }
 
 function traitBadgeSrc(tier: CardTier): string | null {
@@ -93,11 +89,7 @@ function traitBadgeSrc(tier: CardTier): string | null {
 }
 
 function resolveDevTraitTier(devTrait: string | null | undefined): CardTier {
-  const trait = (devTrait ?? "normal").toLowerCase().replace(/[\s_-]/g, "");
-  if (trait.includes("xfactor") || trait === "xf") return "xfactor";
-  if (trait.includes("superstar") || trait === "ss") return "superstar";
-  if (trait === "star" || trait === "elite" || trait === "impact") return "star";
-  return "normal";
+  return normalizeMaddenDevTrait(devTrait) ?? "normal";
 }
 
 function formatHeight(inches: number | null | undefined): string | null {
@@ -245,7 +237,10 @@ export function PlayerCard({
             <div
               className="rec-player-card-back-scroll"
               onClick={(event) => event.stopPropagation()}
-              onWheel={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onWheel={(event) => {
+                event.stopPropagation();
+              }}
               onTouchMove={(event) => event.stopPropagation()}
             >
               <section className="rec-player-card-back-section">
