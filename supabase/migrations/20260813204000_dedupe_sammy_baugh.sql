@@ -1,0 +1,9 @@
+delete from public.rec_legend_catalog where name = 'Sammy Baugh';
+insert into public.rec_legend_catalog (
+  name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,
+  attributes,abilities,legend_tier,college,body_type,photo_url,game_scope,catalog_group
+) values (
+  'Sammy Baugh','QB','offense',90.2,null,null,'Right',null,
+  'xfactor','QB legend','2K8 Gold — Signal Steal, Laser Arm, Rocket Arm.','{"Speed":75,"Acceleration":85,"Agility":83,"Strength":81,"Awareness":95,"Carrying":73,"BC Vision":73,"Break Tackle":73,"Trucking":68,"Stiff Arm":68,"Change of Direction":81,"Spin Move":68,"Juke Move":71,"Catching":63,"Catch in Traffic":58,"Spectacular Catch":58,"Short Route Running":53,"Medium Route Running":48,"Deep Route Running":43,"Release":48,"Jumping":83,"Throwing Power":95,"Short Accuracy":93,"Medium Accuracy":93,"Deep Accuracy":91,"Throw on the Run":28,"Throw Under Pressure":91,"Break Sack":78,"Play Action":91,"Pass Blocking":43,"Pass Block Power":41,"Pass Block Finesse":39,"Run Blocking":43,"Run Block Power":41,"Run Block Finesse":39,"Lead Block":38,"Impact Blocking":43,"Play Recognition":73,"Tackling":58,"Hit Power":58,"Block Shedding":53,"Finesse Moves":43,"Power Moves":43,"Pursuit":73,"Man Coverage":43,"Zone Coverage":48,"Press":38,"Kick/Punt Return":23,"Kicking Power":28,"Kicking Accuracy":23,"Stamina":93,"Toughness":93,"Injury":93,"Long Snap":43}'::jsonb,
+  '[{"name":"Truzz","description":"X-Factor: elite timing window and accuracy under duress.","type":"xfactor"},{"name":"Master Tactician","description":"Mapped from 2K8 skill ''Signal Steal''.","type":"superstar"},{"name":"Pass Lead Elite","description":"Mapped from 2K8 skill ''Laser Arm''.","type":"superstar"},{"name":"Gunslinger","description":"Mapped from 2K8 skill ''Rocket Arm''.","type":"superstar"}]'::jsonb,'immortal',null,null,null,'madden','current_catalog'
+);

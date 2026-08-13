@@ -4,7 +4,7 @@
 // player's "top 3" from the attributes that actually matter for their position, not
 // whatever 3 happen to be numerically highest overall.
 
-export const REC_LEGEND_POSITION_GROUPS = ["QB", "HB", "FB", "WR", "TE", "OLine", "DLine", "LB", "Secondary"] as const;
+export const REC_LEGEND_POSITION_GROUPS = ["QB", "HB", "FB", "WR", "TE", "OLine", "DLine", "LB", "Secondary", "K/P"] as const;
 export type RecLegendPositionGroup = (typeof REC_LEGEND_POSITION_GROUPS)[number];
 
 // rec_legend_catalog.position is already stored as one of these 9 coarse codes (not the
@@ -17,17 +17,18 @@ const POSITION_TO_GROUP: Record<string, RecLegendPositionGroup> = {
   FB: "FB",
   WR: "WR",
   TE: "TE",
-  OL: "OLine", LT: "OLine", LG: "OLine", C: "OLine", RG: "OLine", RT: "OLine", G: "OLine", T: "OLine",
+  OL: "OLine", LT: "OLine", LG: "OLine", C: "OLine", RG: "OLine", RT: "OLine", G: "OLine", T: "OLine", OT: "OLine", OG: "OLine",
   DL: "DLine", LE: "DLine", RE: "DLine", DT: "DLine", DE: "DLine",
   // LEDG/REDG are the actual CFB roster/baseline-data position codes for edge (vs. the
   // LE/RE used by the legend catalog and custom-player position list) — same DLine group.
   LEDG: "DLine", REDG: "DLine",
-  LB: "LB", LOLB: "LB", MLB: "LB", ROLB: "LB",
+  LB: "LB", LOLB: "LB", MLB: "LB", ROLB: "LB", OLB: "LB", ILB: "LB",
   // WILL/MIKE/SAM are the CFB roster's real linebacker slot codes (weak/middle/strong side) —
   // scheme-relative, not directly left/right like LOLB/ROLB, but the same LB group for
   // replacement-eligibility purposes.
   WILL: "LB", MIKE: "LB", SAM: "LB",
   DB: "Secondary", CB: "Secondary", FS: "Secondary", SS: "Secondary", S: "Secondary",
+  K: "K/P", P: "K/P",
 };
 
 export function legendPositionGroupFor(position: string | null | undefined): RecLegendPositionGroup | null {
@@ -47,6 +48,7 @@ export const REC_LEGEND_RELEVANT_ATTRIBUTES: Record<RecLegendPositionGroup, stri
   DLine: ["Block Shedding", "Power Moves", "Finesse Moves", "Pursuit", "Tackling", "Strength"],
   LB: ["Tackling", "Pursuit", "Play Recognition", "Man Coverage", "Zone Coverage", "Hit Power", "Block Shedding"],
   Secondary: ["Man Coverage", "Zone Coverage", "Press", "Speed", "Agility", "Play Recognition"],
+  "K/P": ["Kicking Power", "Kicking Accuracy", "Awareness"],
 };
 
 export function legendTopAttributes(

@@ -27,6 +27,7 @@ export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
 export const REC_LEGEND_PRICE = 4000;
 export const REC_IMMORTAL_PRICE = 8000;
+export const REC_SPECIAL_TEAMS_LEGEND_PRICE = 1000;
 export type RecLegendTier = "legend" | "immortal";
 
 // Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
@@ -131,6 +132,7 @@ export function priceForPurchase(
     case "player_trait":
       return REC_PLAYER_TRAIT_PRICE;
     case "legend":
+      if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
       return details.legendTier === "immortal" ? REC_IMMORTAL_PRICE : REC_LEGEND_PRICE;
     case "dev_upgrade": {
       const fromTier = details.fromTier as RecDevTier | undefined;
@@ -172,7 +174,10 @@ export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, detail
   // player_trait purchases were retired — the toggle that would enable them is hardcoded off
   // at every league-creation path, so this type can never actually reach a live purchase.
   if (purchaseType === "player_trait") return 0;
-  if (purchaseType === "legend") return details.legendTier === "immortal" ? prices.immortal : prices.legend;
+  if (purchaseType === "legend") {
+    if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
+    return details.legendTier === "immortal" ? prices.immortal : prices.legend;
+  }
   if (purchaseType === "contract") return details.variant === "extension" ? prices.contractExtension : prices.contractReduction;
   if (purchaseType === "attribute") return ((details.allocations as RecAttributeAllocation[] | undefined) ?? []).reduce(
     (sum, allocation) => sum + (allocation.core ? prices.coreAttributePoint : prices.nonCoreAttributePoint) * Math.max(0, Number(allocation.points) || 0), 0);

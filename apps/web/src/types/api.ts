@@ -964,6 +964,7 @@ export type LegendCatalogEntry = {
   attributes: Record<string, number>;
   abilities?: Array<{ name: string; description?: string; type?: string }>;
   legend_tier?: "legend" | "immortal";
+  catalog_group?: "current_catalog" | "notable_addition";
   photo_url: string | null;
 };
 

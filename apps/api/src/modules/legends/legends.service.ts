@@ -16,7 +16,7 @@ export async function listLegendCatalog(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,photo_url")
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,photo_url,catalog_group")
     .order("legend_tier", { ascending: true })
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })

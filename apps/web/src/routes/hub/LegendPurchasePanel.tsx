@@ -17,7 +17,7 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes } from "@rec/shared";
+import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, REC_SPECIAL_TEAMS_LEGEND_PRICE } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -79,14 +79,17 @@ export function LegendPurchasePanel({
   const positions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const legend of tierLegends) {
-      counts.set(legend.position, (counts.get(legend.position) ?? 0) + 1);
+      const label = legend.position === "K" || legend.position === "P" ? "K/P" : legend.position;
+      counts.set(label, (counts.get(label) ?? 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [tierLegends]);
 
   const visible = useMemo(() => {
     if (position === "ALL") return tierLegends;
-    return tierLegends.filter((legend) => legend.position === position);
+    return tierLegends.filter((legend) =>
+      position === "K/P" ? legend.position === "K" || legend.position === "P" : legend.position === position,
+    );
   }, [tierLegends, position]);
 
   const activePrice = tier === "immortal" ? immortalPrice : legendPrice;
@@ -200,6 +203,7 @@ export function LegendPurchasePanel({
                 >
                   {legend.photo_url ? <img className="legend-card-photo" src={legend.photo_url} alt="" loading="lazy" /> : <div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
                   <strong className="legend-card-name">{legend.name}</strong>
+                  {legend.catalog_group === "notable_addition" && <span className="legend-card-status">New addition</span>}
                   <span className="legend-card-meta">{legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.est_ovr ?? "?"} OVR</span>
                   <div className="legend-card-attrs">
                     {top3.map((attr) => (
@@ -225,7 +229,9 @@ export function LegendPurchasePanel({
           isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
-          legendPrice={activeLegend.legend_tier === "immortal" ? immortalPrice : legendPrice}
+          legendPrice={activeLegend.position === "K" || activeLegend.position === "P"
+            ? REC_SPECIAL_TEAMS_LEGEND_PRICE
+            : activeLegend.legend_tier === "immortal" ? immortalPrice : legendPrice}
           onClose={() => setActiveLegend(null)}
           onPurchase={(replacementPlayerId) => void purchase(activeLegend, replacementPlayerId)}
           onCancel={() => void cancel(activeLegend)}

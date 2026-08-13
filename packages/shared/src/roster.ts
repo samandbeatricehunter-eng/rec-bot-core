@@ -74,6 +74,11 @@ export function normalizeCfbPosition(rawPosition: string): string {
 const POSITION_ALIASES: Record<string, string[]> = {
   LE: ["LE", "LEDG", "LEDGE"], RE: ["RE", "REDG", "REDGE"],
   LOLB: ["LOLB", "WILL"], MLB: ["MLB", "MIKE"], ROLB: ["ROLB", "SAM"],
+  DE: ["LE", "RE", "LEDG", "REDG", "LEDGE", "REDGE"],
+  OLB: ["LOLB", "ROLB", "WILL", "SAM"],
+  OT: ["LT", "RT"],
+  OG: ["LG", "RG"],
+  RB: ["HB", "RB"],
 };
 
 /** Whether a roster player's position is eligible to be replaced by a legend/custom-player
