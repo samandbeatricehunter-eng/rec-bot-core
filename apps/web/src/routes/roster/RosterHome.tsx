@@ -10,7 +10,8 @@ import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { RosterMovesPanel } from "./RosterMovesPanel.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
-import { PlayerCard } from "../../components/hub/PlayerCard.js";
+import { PlayerCard, toPlayerCardData } from "../../components/hub/PlayerCard.js";
+import { Modal } from "../../components/ui/Modal.js";
 import "../../styles/player-card.css";
 
 type ViewMode = "grid" | "list";
@@ -140,7 +141,7 @@ export function RosterHome() {
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [statsPlayer, setStatsPlayer] = useState<RosterPlayer | null>(null);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [cardPlayer, setCardPlayer] = useState<RosterPlayer | null>(null);
   const [sortKey, setSortKey] = useState<string>("overallRating");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs"]);
@@ -186,8 +187,6 @@ export function RosterHome() {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir(key === "fullName" ? "asc" : "desc"); }
   }
-
-  const selectedPlayer = sortedPlayers.find((p) => p.id === selectedPlayerId) ?? sortedPlayers[0] ?? null;
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState label="Loading your roster…" />;
@@ -308,47 +307,6 @@ export function RosterHome() {
             </div>
           ) : (
             <>
-              {selectedPlayer && (
-                <div className="hub-roster-detail-with-card">
-                  <PlayerCard
-                    player={{
-                      fullName: selectedPlayer.fullName,
-                      position: selectedPlayer.position,
-                      overallRating: selectedPlayer.overallRating,
-                      photoUrl: selectedPlayer.photoUrl,
-                      attributes: selectedPlayer.attributes,
-                      heightInches: selectedPlayer.heightInches,
-                      weightLbs: selectedPlayer.weightLbs,
-                      college: selectedPlayer.college,
-                      jerseyNumber: selectedPlayer.jerseyNumber,
-                      archetype: selectedPlayer.archetype,
-                      devTrait: selectedPlayer.devTrait,
-                      abilities: selectedPlayer.abilities,
-                      cardKind: selectedPlayer.playerSource === "custom" || selectedPlayer.playerSource === "custom_player"
-                        ? "custom"
-                        : selectedPlayer.playerSource === "legend" || selectedPlayer.playerSource === "immortal"
-                          ? (selectedPlayer.playerSource as "legend" | "immortal")
-                          : "baseline",
-                    }}
-                  />
-                  <div className="hub-roster-detail">
-                    <div className="hub-roster-detail-info">
-                      <span className="hub-roster-detail-sub">{selectedPlayer.position} &middot; {selectedPlayer.positionGroup}</span>
-                      <h3 className="hub-roster-detail-name">{selectedPlayer.fullName}</h3>
-                      <div className="hub-roster-detail-meta">
-                        <span>{formatHeight(selectedPlayer.heightInches)}{selectedPlayer.weightLbs != null ? `, ${selectedPlayer.weightLbs} lbs` : ""}</span>
-                        {!isMadden && selectedPlayer.classYear && <span>Class: <strong>{selectedPlayer.classYear}</strong></span>}
-                        {selectedPlayer.devTrait && <span>Dev Trait: <strong>{selectedPlayer.devTrait}</strong></span>}
-                        {selectedPlayer.age != null && <span>Age: <strong>{selectedPlayer.age}</strong></span>}
-                      </div>
-                    </div>
-                    <div className="hub-roster-detail-ovr">
-                      <span>OVR</span>
-                      <strong>{selectedPlayer.overallRating ?? "—"}</strong>
-                    </div>
-                  </div>
-                </div>
-              )}
               <div className="hub-roster-table-wrap hub-roster-table-spreadsheet-wrap">
               <table className="hub-roster-table hub-roster-table-sortable hub-roster-table-spreadsheet">
                 <thead>
@@ -369,9 +327,11 @@ export function RosterHome() {
                 </thead>
                 <tbody>
                   {sortedPlayers.map((player) => (
-                    <tr key={player.id} className={player.id === selectedPlayer?.id ? "hub-roster-row-selected" : ""} onClick={() => setSelectedPlayerId(player.id)}>
+                    <tr key={player.id}>
                       <td className="hub-roster-name-col">
-                        <strong>{player.fullName}</strong>
+                        <button type="button" className="rec-player-card-name-btn" onClick={() => setCardPlayer(player)}>
+                          {player.fullName}
+                        </button>
                         <span className="hub-roster-pos">{player.position}</span>
                       </td>
                       <td>{formatHeight(player.heightInches)}</td>
@@ -383,11 +343,11 @@ export function RosterHome() {
                       </td>
                       {ATTRIBUTE_ALL_KEYS.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
                       <td>
-                        <button type="button" className="btn btn-secondary btn-compact" onClick={(event) => { event.stopPropagation(); setStatsPlayer(player); }}>
+                        <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
                           Add Stats
                         </button>
                       </td>
-                      {data.canEditRosterStatus && <td onClick={(event) => event.stopPropagation()}><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
+                      {data.canEditRosterStatus && <td><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
                     </tr>
                   ))}
                   {sortedPlayers.length === 0 && (
@@ -403,6 +363,12 @@ export function RosterHome() {
             </>
           )}
         </>
+      )}
+
+      {cardPlayer && (
+        <Modal title={cardPlayer.fullName} hideHeader onClose={() => setCardPlayer(null)} panelClassName="rec-player-card-modal-panel">
+          <PlayerCard player={toPlayerCardData(cardPlayer)} />
+        </Modal>
       )}
 
       {statsPlayer && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
 import { ATTRIBUTE_KEY_TO_CODE, attributeLabel } from "../../lib/attribute-columns.js";
 
@@ -78,11 +78,10 @@ function resolveTier(player: PlayerCardData): CardTier {
   if (player.cardKind === "legend") return "legend";
   if (player.cardKind === "immortal") return "immortal";
   if (player.cardKind === "custom") return "custom";
-  const trait = (player.devTrait ?? "normal").toLowerCase().replace(/[\s-]/g, "");
-  if (trait === "xfactor") return "xfactor";
-  if (trait === "superstar") return "superstar";
-  if (trait === "star" || trait === "elite") return "star";
-  if (trait === "impact") return "star";
+  const trait = (player.devTrait ?? "normal").toLowerCase().replace(/[\s_-]/g, "");
+  if (trait.includes("xfactor") || trait === "xf") return "xfactor";
+  if (trait.includes("superstar") || trait === "ss") return "superstar";
+  if (trait === "star" || trait === "elite" || trait === "impact") return "star";
   return "normal";
 }
 
@@ -91,6 +90,14 @@ function traitBadgeSrc(tier: CardTier): string | null {
   if (tier === "superstar") return "/assets/player-cards/dev-trait-superstar.png";
   if (tier === "xfactor") return "/assets/player-cards/dev-trait-xfactor.png";
   return null;
+}
+
+function resolveDevTraitTier(devTrait: string | null | undefined): CardTier {
+  const trait = (devTrait ?? "normal").toLowerCase().replace(/[\s_-]/g, "");
+  if (trait.includes("xfactor") || trait === "xf") return "xfactor";
+  if (trait.includes("superstar") || trait === "ss") return "superstar";
+  if (trait === "star" || trait === "elite" || trait === "impact") return "star";
+  return "normal";
 }
 
 function formatHeight(inches: number | null | undefined): string | null {
@@ -116,7 +123,6 @@ function attrValue(attributes: Record<string, number | null>, keyOrCode: string)
   if (keyOrCode in attributes) return attributes[keyOrCode];
   const key = CODE_TO_KEY[keyOrCode.toUpperCase()];
   if (key && key in attributes) return attributes[key];
-  // Some payloads use display names (legend catalog).
   const def = MADDEN_ATTRIBUTE_DEFINITIONS.find((d) => d.code === keyOrCode.toUpperCase() || d.name.toLowerCase() === keyOrCode.toLowerCase());
   if (def) {
     const snake = CODE_TO_KEY[def.code];
@@ -128,8 +134,8 @@ function attrValue(attributes: Record<string, number | null>, keyOrCode: string)
 
 /**
  * Flip-capable MUT-style player card. Frame/tier is CSS; portrait is always the player's
- * stored `photoUrl` (Cloudflare). Star / Superstar / X-Factor show the Madden-style trait
- * badge under the OVR hex on the front.
+ * stored `photoUrl` (Cloudflare). Star / Superstar / X-Factor show the Madden trait badge
+ * under the OVR hex on the front.
  */
 export function PlayerCard({
   player,
@@ -142,7 +148,10 @@ export function PlayerCard({
 }) {
   const [flipped, setFlipped] = useState(initiallyFlipped);
   const tier = resolveTier(player);
-  const badge = traitBadgeSrc(tier);
+  // Frame kind and development trait are independent: legends/custom players retain their
+  // special frame while still displaying the Madden/CFB development badge on the front.
+  const devTraitTier = resolveDevTraitTier(player.devTrait);
+  const badge = traitBadgeSrc(devTraitTier);
 
   const frontAttrs = useMemo(() => {
     const keys = FRONT_ATTRS_BY_POS[player.position.toUpperCase()] ?? DEFAULT_FRONT_ATTRS;
@@ -160,32 +169,33 @@ export function PlayerCard({
     player.jerseyNumber != null ? `#${player.jerseyNumber}` : null,
   ].filter(Boolean).join(" · ");
 
+  function flip(event?: MouseEvent) {
+    event?.stopPropagation();
+    setFlipped((v) => !v);
+  }
+
   return (
-    <div className={`rec-player-card-stage ${className}`.trim()}>
-      <button
-        type="button"
-        className={`rec-player-card rec-player-card--${tier}${flipped ? " is-flipped" : ""}`}
-        onClick={() => setFlipped((v) => !v)}
-        aria-pressed={flipped}
-        aria-label={`${player.fullName} player card, ${flipped ? "back" : "front"}. Activate to flip.`}
-      >
+    <div className={`rec-player-card-stage rec-player-card-stage--${tier} ${className}`.trim()}>
+      <div className={`rec-player-card rec-player-card--${tier}${flipped ? " is-flipped" : ""}`}>
         <div className="rec-player-card-inner">
-          <div className="rec-player-card-face rec-player-card-front">
+          <button
+            type="button"
+            className="rec-player-card-face rec-player-card-front"
+            onClick={flip}
+            aria-label={`${player.fullName} card front. Activate to flip.`}
+          >
+            <div className="rec-player-card-frame" aria-hidden="true" />
             <div className="rec-player-card-chrome" aria-hidden="true" />
+
             <div className="rec-player-card-top">
               <div className="rec-player-card-ovr-stack">
                 <div className="rec-player-card-ovr">
                   <strong>{player.overallRating ?? "—"}</strong>
                   <span>OVR</span>
                 </div>
-                {badge && (
-                  <img
-                    className="rec-player-card-trait-badge"
-                    src={badge}
-                    alt={tierLabel(tier)}
-                    title={tierLabel(tier)}
-                  />
-                )}
+                {badge ? (
+                  <img className="rec-player-card-trait-badge" src={badge} alt={tierLabel(devTraitTier)} title={tierLabel(devTraitTier)} />
+                ) : null}
               </div>
               <div className="rec-player-card-pos">{player.position || "—"}</div>
             </div>
@@ -205,7 +215,7 @@ export function PlayerCard({
 
             <div className="rec-player-card-nameplate">
               <strong>{player.fullName}</strong>
-              {player.archetype && <span>{player.archetype}</span>}
+              {player.archetype ? <span>{player.archetype}</span> : null}
             </div>
 
             <div className="rec-player-card-stats">
@@ -221,53 +231,100 @@ export function PlayerCard({
               <span>{bio || tierLabel(tier)}</span>
               <span className="rec-player-card-brand">REC</span>
             </div>
-          </div>
+          </button>
 
-          <div className="rec-player-card-face rec-player-card-back">
+          <div className="rec-player-card-face rec-player-card-back" aria-hidden={!flipped}>
+            <div className="rec-player-card-frame" aria-hidden="true" />
             <div className="rec-player-card-chrome" aria-hidden="true" />
+
             <header className="rec-player-card-back-head">
               <strong>{player.fullName}</strong>
               <span>{player.overallRating ?? "—"} OVR · {player.position || "—"} · {tierLabel(tier)}</span>
             </header>
 
-            <section className="rec-player-card-back-section">
-              <h4>Abilities</h4>
-              {player.abilities && player.abilities.length > 0 ? (
-                <ul className="rec-player-card-abilities">
-                  {player.abilities.map((ability, index) => (
-                    <li key={`${ability.name}-${index}`}>
-                      <strong>{ability.name}</strong>
-                      {ability.description && <p>{ability.description}</p>}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="rec-player-card-empty">No special abilities</p>
-              )}
-            </section>
-
-            {BACK_GROUPS.map((group) => (
-              <section key={group.label} className="rec-player-card-back-section">
-                <h4>{group.label}</h4>
-                <div className="rec-player-card-back-grid">
-                  {group.codes.map((code) => (
-                    <div key={code} className="rec-player-card-back-cell">
-                      <span>{code}</span>
-                      <strong>{attrValue(player.attributes, code) ?? "—"}</strong>
-                    </div>
-                  ))}
-                </div>
+            <div
+              className="rec-player-card-back-scroll"
+              onClick={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
+              onTouchMove={(event) => event.stopPropagation()}
+            >
+              <section className="rec-player-card-back-section">
+                <h4>Abilities</h4>
+                {player.abilities && player.abilities.length > 0 ? (
+                  <ul className="rec-player-card-abilities">
+                    {player.abilities.map((ability, index) => (
+                      <li key={`${ability.name}-${index}`}>
+                        <strong>{ability.name}</strong>
+                        {ability.description ? <p>{ability.description}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rec-player-card-empty">No special abilities</p>
+                )}
               </section>
-            ))}
 
-            <div className="rec-player-card-footer">
+              {BACK_GROUPS.map((group) => (
+                <section key={group.label} className="rec-player-card-back-section">
+                  <h4>{group.label}</h4>
+                  <div className="rec-player-card-back-grid">
+                    {group.codes.map((code) => (
+                      <div key={code} className="rec-player-card-back-cell">
+                        <span>{code}</span>
+                        <strong>{attrValue(player.attributes, code) ?? "—"}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            <button type="button" className="rec-player-card-footer rec-player-card-flip-btn" onClick={flip}>
               <span>Tap to flip</span>
               <span className="rec-player-card-brand">REC</span>
-            </div>
+            </button>
           </div>
         </div>
-      </button>
-      <p className="rec-player-card-hint">Tap or click to flip</p>
+      </div>
+      <p className="rec-player-card-hint">{flipped ? "Scroll attributes · tap footer to flip" : "Tap card to flip"}</p>
     </div>
   );
+}
+
+/** Map a roster/API player row into PlayerCard props. */
+export function toPlayerCardData(player: {
+  fullName: string;
+  position: string;
+  overallRating: number | null;
+  photoUrl: string | null;
+  attributes: Record<string, number | null>;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  college?: string | null;
+  jerseyNumber?: number | null;
+  archetype?: string | null;
+  devTrait?: string | null;
+  abilities?: PlayerCardAbility[] | null;
+  playerSource?: string | null;
+}): PlayerCardData {
+  const source = player.playerSource ?? null;
+  return {
+    fullName: player.fullName,
+    position: player.position,
+    overallRating: player.overallRating,
+    photoUrl: player.photoUrl,
+    attributes: player.attributes,
+    heightInches: player.heightInches,
+    weightLbs: player.weightLbs,
+    college: player.college,
+    jerseyNumber: player.jerseyNumber,
+    archetype: player.archetype,
+    devTrait: player.devTrait,
+    abilities: player.abilities,
+    cardKind: source === "custom" || source === "custom_player"
+      ? "custom"
+      : source === "legend" || source === "immortal"
+        ? (source as "legend" | "immortal")
+        : "baseline",
+  };
 }
