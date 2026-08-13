@@ -26,7 +26,7 @@ import { purchaseRoutes } from "./modules/purchases/purchases.routes.js";
 import { customPlayerRoutes } from "./modules/custom-players/custom-players.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
 import { rolesRoutes } from "./modules/roles/roles.routes.js";
-import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
+import { leagueConferenceRoutes } from "./modules/league-conferences/league-conferences.routes.js";
 import { scheduleRoutes } from "./modules/schedule/schedule.routes.js";
 import { serverConfigRoutes } from "./modules/server-config/server-config.routes.js";
 import { setupRoutes } from "./modules/setup/setup.routes.js";
@@ -75,7 +75,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await teamRequestRoutes(app);
   await recruitingBoardRoutes(app);
   await demoLeagueRoutes(app);
-  await rosterRoutes(app);
+  await leagueConferenceRoutes(app);
   await leagueContextRoutes(app);
   await scheduleRoutes(app);
   await gameChannelRoutes(app);

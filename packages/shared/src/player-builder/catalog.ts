@@ -19,6 +19,9 @@ export type RecCustomPlayerPackageDefinition = {
   configurationVersion: typeof REC_CUSTOM_PLAYER_PACKAGE_VERSION;
 };
 
+// Authoritative package definitions live here + REC_PACKAGE_RULES. Live coin prices may be
+// overridden by global economy JSON at runtime. The DB table `rec_custom_player_packages`
+// is legacy unused — do not read it for runtime package/config resolution.
 const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   CFB: ["Walk-On", "3-Star Recruit", "4-Star Recruit", "5-Star Recruit", "Campus GOAT"],
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],

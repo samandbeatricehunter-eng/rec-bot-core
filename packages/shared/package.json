@@ -1,1 +1,16 @@
-{"name":"@rec/shared","version":"0.1.0","private":true,"type":"module","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc --noEmit"}}
+{
+  "name": "@rec/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/wagers.test.ts src/player-builder/bundle.test.ts src/player-builder/optimal-allocator.test.ts src/player-builder/catalog.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

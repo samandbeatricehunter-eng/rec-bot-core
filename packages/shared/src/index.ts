@@ -47,6 +47,7 @@ export const REC_API_ROUTES = {
   setLeagueWeek: "/v1/league-week/set",
   recordStreamPost: "/v1/streams/post",
   reviewStreamPayout: "/v1/streams/review",
+  // Served by modules/league-conferences; path kept for bot compat (alias: /v1/league-conferences).
   leagueConferences: "/v1/rosters/conferences",
 
   scheduleSeedDefault: "/v1/schedule/seed-default",

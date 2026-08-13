@@ -36,6 +36,8 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
+// Runtime packages come from shared catalog + global economy coin overrides.
+// Do not read `rec_custom_player_packages` — that table is legacy unused.
 async function configuredPackages(game: RecGameFamily, year: number) {
   const prices = (await getGlobalEconomyConfig()).store;
   const byTier = [prices.customPlayerTier1, prices.customPlayerTier2, prices.customPlayerTier3, prices.customPlayerTier4, prices.customPlayerTier5];
@@ -152,12 +154,15 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   const builds = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .in("status", ["pending_review", "approved", "applied"]);
+  if (builds.error) throw new ApiError(500, "We couldn't load your custom-player season usage. Please try again.", builds.error);
   // Only recruits/manually-added players are eligible replacement targets — the default
   // baseline roster (is_default_player = true) is never selectable here.
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
     .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
+  if (roster.error) throw new ApiError(500, "We couldn't load your roster for replacement. Please try again.", roster.error);
   const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+  if (activeRosterCount.error) throw new ApiError(500, "We couldn't verify your active roster. Please try again.", activeRosterCount.error);
   const wallet = Number(baseline.wallet?.wallet_balance ?? 0);
   const attributes = new Set<string>();
   for (const position of REC_CUSTOM_PLAYER_POSITIONS) for (const code of getRecEditableAttributes(game, position)) attributes.add(code);
@@ -346,6 +351,7 @@ export async function submitCustomPlayer(input: {
   if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
+  if (existing.error) throw new ApiError(500, "We couldn't check for an existing custom-player submission. Please try again.", existing.error);
   if (existing.data) return { build: existing.data, duplicate: true };
   // A browser retry can remount the wizard and mint a new client idempotency key. Guard the
   // economic mutation by payload as well so an identical rapid resubmission cannot charge the
@@ -404,11 +410,14 @@ export async function submitCustomPlayer(input: {
   const ledger = await supabase.rpc("add_to_wallet", { p_user_id: baseline.user.id, p_amount: -pkg.coinPrice, p_league_id: context.leagueId,
     p_description: `${pkg.displayName} custom player`, p_transaction_type: "purchase_debit", p_source: "purchase", p_source_reference: { customPlayerBuildId: build.data.id } });
   if (ledger.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "We couldn't charge your wallet. Please try again.", ledger.error); }
-  await Promise.all([
+  const [buildDebitLink, purchaseDebitLink, auditInsert] = await Promise.all([
     supabase.from("rec_custom_player_builds").update({ debit_ledger_id: ledger.data }).eq("id", build.data.id),
     supabase.from("rec_purchases").update({ debit_ledger_id: ledger.data, already_deducted: true }).eq("id", purchase.data.id),
     supabase.from("rec_custom_player_audit_log").insert({ build_id: build.data.id, action: "submitted", actor_user_id: baseline.user.id, actor_discord_id: input.discordId, next_status: "pending_review", details: { evaluation } }),
   ]);
+  if (buildDebitLink.error) throw new ApiError(500, "We couldn't link the wallet debit to your custom-player build. Please try again.", buildDebitLink.error);
+  if (purchaseDebitLink.error) throw new ApiError(500, "We couldn't mark that purchase as deducted. Please try again.", purchaseDebitLink.error);
+  if (auditInsert.error) throw new ApiError(500, "We couldn't record the custom-player audit entry. Please try again.", auditInsert.error);
   // points_spent is the total CP to reach `rating`; per_point_cost_ledger is the marginal
   // cost of each successive point. Don't call calculateRecAttributeCost(1..rating) and sum —
   // that double-counts (triangular) and is O(n²) per attribute.
@@ -425,7 +434,10 @@ export async function submitCustomPlayer(input: {
   } catch (error) {
     throw new ApiError(400, error instanceof Error ? error.message : "Could not record attribute costs for this build.");
   }
-  if (attributeRows.length) await supabase.from("rec_custom_player_build_attributes").insert(attributeRows);
+  if (attributeRows.length) {
+    const attributeInsert = await supabase.from("rec_custom_player_build_attributes").insert(attributeRows);
+    if (attributeInsert.error) throw new ApiError(500, "We couldn't save attribute costs for that build. Please try again.", attributeInsert.error);
+  }
   await supabase.from("rec_custom_player_wizard_sessions").update({ status: "submitted", submitted_build_id: build.data.id, updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("status", "draft");
 
