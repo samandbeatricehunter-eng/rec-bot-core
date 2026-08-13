@@ -1,0 +1,112 @@
+# Immortal picks (curated defaults)
+
+Auto Gold→Immortal, Bronze→Legend. Below are curated elevations.
+
+## Silver → Immortal
+
+- [x] Andre Reed
+- [x] Bart Starr
+- [x] Chris Doleman
+- [x] Chuck Bednarik
+- [x] Dan Hampton
+- [x] Daryl Johnston
+- [x] Dermontti Dawson
+- [x] Dick Anderson
+- [x] Don Maynard
+- [x] Drew Pearson
+- [x] Ed "Too Tall" Jones
+- [x] Greg Lloyd
+- [x] Harry Carson
+- [x] Herman Moore
+- [x] Hugh McElhenny
+- [x] Jack Tatum
+- [x] Jack Youngblood
+- [x] Jan Stenerud
+- [x] Jim Langer
+- [x] Joe DeLamielleure
+- [x] Keith Jackson
+- [x] Keith Millard
+- [x] Ken Stabler
+- [x] Len Dawson
+- [x] Lenny Moore
+- [x] Leroy Butler
+- [x] Mel Renfro
+- [x] Mike Munchak
+- [x] Randall Cunningham
+- [x] Randall McDaniel
+- [x] Rayfield Wright
+- [x] Ricky Watters
+- [x] Roger Craig
+- [x] Ron Yary
+- [x] Todd Christensen
+
+## Catalog-only → Immortal
+
+- [x] Aaron Donald
+- [x] Adrian Peterson
+- [x] Alan Page
+- [x] Andre Johnson
+- [x] Antonio Gates
+- [x] Ben Roethlisberger
+- [x] Bo Jackson
+- [x] Brian Dawkins
+- [x] Bruce Smith
+- [x] Calvin Johnson
+- [x] Cam Newton
+- [x] Champ Bailey
+- [x] Charles Woodson
+- [x] Cris Carter
+- [x] Darrelle Revis
+- [x] Deion Sanders
+- [x] Devin Hester
+- [x] Ed Reed
+- [x] Eric Dickerson
+- [x] Forrest Gregg
+- [x] Greg Olsen
+- [x] Jack Ham
+- [x] Jason Witten
+- [x] Jim Brown
+- [x] Jim Taylor
+- [x] Jimmy Graham
+- [x] Joe Montana
+- [x] John Hannah
+- [x] Jonathan Ogden
+- [x] Julius Peppers
+- [x] LaDainian Tomlinson
+- [x] Larry Allen
+- [x] Larry Centers
+- [x] Larry Csonka
+- [x] Larry Fitzgerald
+- [x] Lawrence Taylor
+- [x] Lorenzo Neal
+- [x] Luke Kuechly
+- [x] Marshall Faulk
+- [x] Mean Joe Greene
+- [x] Michael Irvin
+- [x] Michael Vick
+- [x] Mike Alstott
+- [x] Mike Webster
+- [x] Ndamukong Suh
+- [x] Orlando Pace
+- [x] Patrick Willis
+- [x] Paul Krause
+- [x] Peyton Manning
+- [x] Randy Moss
+- [x] Ray Lewis
+- [x] Rob Gronkowski
+- [x] Sean Taylor
+- [x] Steve Atwater
+- [x] Steve Largent
+- [x] Ted Hendricks
+- [x] Terrell Owens
+- [x] Tom Brady
+- [x] Tony Dorsett
+- [x] Tony Gonzalez
+- [x] Troy Polamalu
+- [x] Von Miller
+- [x] Warren Moon
+
+## Summary
+- Immortal keys: 155
+- Legend keys: 208
+- Total unique: 363

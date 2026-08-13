@@ -17,7 +17,7 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { REC_LEGEND_POSITION_GROUPS, isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
+import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -28,32 +28,35 @@ import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 
-// Replaces the old plain <select> legend picker with the position-grouped browsing
-// experience: a group dropdown, a grid of small cards (name/height/weight + top 3
-// position-relevant attributes), and a detail modal with the full attribute list, the
-// purchase details and the purchase/cancel action.
-export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased: () => void; legendPrice: number }) {
+type LegendTier = "legend" | "immortal";
+
+export function LegendPurchasePanel({
+  onPurchased,
+  legendPrice,
+  immortalPrice,
+}: {
+  onPurchased: () => void;
+  legendPrice: number;
+  immortalPrice: number;
+}) {
   const { guildId, discordId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const isCfb = game === "cfb_27";
   const [legends, setLegends] = useState<LegendCatalogEntry[] | null>(null);
   const [sold, setSold] = useState<LegendAvailabilityEntry[] | null>(null);
-  const [group, setGroup] = useState<RecLegendPositionGroup | "">("");
+  const [tier, setTier] = useState<LegendTier | null>(null);
+  const [position, setPosition] = useState<string>("ALL");
   const [activeLegend, setActiveLegend] = useState<LegendCatalogEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  // CFB gates replacement to recruits/manually-added players at a compatible position (same
-  // rule as custom players); Madden has no such gate — any active roster player is eligible.
   const [replacementConfig, setReplacementConfig] = useState<{ replacementPlayers: LegendReplacementPlayer[]; blockedNoEligibleReplacement: boolean } | null>(null);
 
   function load() {
     Promise.all([
       recApi.listHubLegends(guildId),
       recApi.listHubLegendAvailability(guildId),
-      // Best-effort — a user with no team assignment yet shouldn't lose the whole legend
-      // catalog just because replacement-eligibility can't be determined for them.
       recApi.getLegendReplacementConfig(guildId).catch(() => ({ replacementPlayers: [], blockedNoEligibleReplacement: false })),
     ])
       .then(([catalog, availability, config]) => {
@@ -68,19 +71,25 @@ export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased:
 
   const soldByLegendId = useMemo(() => new Map((sold ?? []).map((entry) => [entry.legendId, entry])), [sold]);
 
-  const groupCounts = useMemo(() => {
-    const counts = new Map<RecLegendPositionGroup, number>();
-    for (const legend of legends ?? []) {
-      const g = legendPositionGroupFor(legend.position);
-      if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+  const tierLegends = useMemo(() => {
+    if (!tier || !legends) return [];
+    return legends.filter((legend) => (legend.legend_tier ?? "legend") === tier);
+  }, [legends, tier]);
+
+  const positions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const legend of tierLegends) {
+      counts.set(legend.position, (counts.get(legend.position) ?? 0) + 1);
     }
-    return counts;
-  }, [legends]);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [tierLegends]);
 
   const visible = useMemo(() => {
-    if (!group || !legends) return [];
-    return legends.filter((legend) => legendPositionGroupFor(legend.position) === group);
-  }, [legends, group]);
+    if (position === "ALL") return tierLegends;
+    return tierLegends.filter((legend) => legend.position === position);
+  }, [tierLegends, position]);
+
+  const activePrice = tier === "immortal" ? immortalPrice : legendPrice;
 
   async function purchase(legend: LegendCatalogEntry, replacementPlayerId: string | null) {
     setBusy(true);
@@ -120,48 +129,91 @@ export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased:
     <div className="legend-purchase-panel">
       {notice && <p style={{ color: "var(--success)" }}>{notice}</p>}
       {error && <ErrorState message={error} />}
-      <p className="form-hint">This legend inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.</p>
 
-      <label className="form-field">
-        <span className="form-label">Position</span>
-        <select className="form-input" value={group} onChange={(event) => setGroup(event.target.value as RecLegendPositionGroup | "")}>
-          <option value="">Select a position</option>
-          {REC_LEGEND_POSITION_GROUPS.map((g) => (
-            <option key={g} value={g}>{g} ({groupCounts.get(g) ?? 0})</option>
-          ))}
-        </select>
-      </label>
-
-      {group && (
-        <div className="legend-card-grid">
-          {visible.map((legend) => {
-            const soldEntry = soldByLegendId.get(legend.id);
-            const isMine = soldEntry?.purchaserDiscordId === discordId;
-            const isTaken = Boolean(soldEntry) && !isMine;
-            const top3 = legendTopAttributes(legend.attributes, legendPositionGroupFor(legend.position));
-            return (
-              <button
-                key={legend.id}
-                type="button"
-                className={`legend-card${isTaken ? " is-taken" : ""}${isMine ? " is-mine" : ""}`}
-                disabled={isTaken}
-                onClick={() => setActiveLegend(legend)}
-              >
-                {legend.photo_url ? <img className="legend-card-photo" src={legend.photo_url} alt="" loading="lazy" /> : <div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
-                <strong className="legend-card-name">{legend.name}</strong>
-                <span className="legend-card-meta">{legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs</span>
-                <div className="legend-card-attrs">
-                  {top3.map((attr) => (
-                    <span key={attr.key}>{attr.key} {attr.value}</span>
-                  ))}
-                </div>
-                {isMine && <span className="legend-card-status">Your pending purchase</span>}
-                {isTaken && <span className="legend-card-status">Already purchased</span>}
-              </button>
-            );
-          })}
-          {visible.length === 0 && <p className="hub-muted">No legends at this position.</p>}
+      {!tier && (
+        <div className="legend-tier-picker">
+          <p className="form-hint">Choose a catalog tier. Immortals are X-Factor builds; Legends are Superstar builds.</p>
+          <p className="form-hint">Every Legend and Immortal comes on a 7-year contract at the lowest possible contract value, renewed perpetually — you will never lose your purchase to negotiations.</p>
+          <div className="legend-tier-grid">
+            <button type="button" className="legend-tier-card" onClick={() => { setTier("immortal"); setPosition("ALL"); }}>
+              <strong>Immortals</strong>
+              <span className="legend-tier-price"><CoinAmount amount={immortalPrice} /></span>
+              <span className="hub-muted">X-Factor · elite icons</span>
+              <span className="hub-muted">{legends.filter((l) => l.legend_tier === "immortal").length} players</span>
+            </button>
+            <button type="button" className="legend-tier-card" onClick={() => { setTier("legend"); setPosition("ALL"); }}>
+              <strong>Legends</strong>
+              <span className="legend-tier-price"><CoinAmount amount={legendPrice} /></span>
+              <span className="hub-muted">Superstar · deep catalog</span>
+              <span className="hub-muted">{legends.filter((l) => (l.legend_tier ?? "legend") === "legend").length} players</span>
+            </button>
+          </div>
         </div>
+      )}
+
+      {tier && (
+        <>
+          <div className="legend-tier-toolbar">
+            <button type="button" className="legend-tier-back" onClick={() => { setTier(null); setPosition("ALL"); setActiveLegend(null); }}>
+              ← All tiers
+            </button>
+            <strong>{tier === "immortal" ? "Immortals" : "Legends"}</strong>
+            <span className="hub-muted"><CoinAmount amount={activePrice} /> each</span>
+          </div>
+
+          <p className="form-hint">This player inherits the in-game appearance of whoever they replace — only height, weight, and body type can be changed afterward.</p>
+          <p className="form-hint">All Legends and Immortals arrive on a 7-year contract at the lowest possible contract value. Contracts renew perpetually — you will never lose a purchased player to negotiations.</p>
+
+          <nav className="legend-position-filters" aria-label="Filter by position">
+            <button
+              type="button"
+              className={`legend-position-link${position === "ALL" ? " is-active" : ""}`}
+              onClick={() => setPosition("ALL")}
+            >
+              All ({tierLegends.length})
+            </button>
+            {positions.map(([pos, count]) => (
+              <button
+                key={pos}
+                type="button"
+                className={`legend-position-link${position === pos ? " is-active" : ""}`}
+                onClick={() => setPosition(pos)}
+              >
+                {pos} ({count})
+              </button>
+            ))}
+          </nav>
+
+          <div className="legend-card-grid">
+            {visible.map((legend) => {
+              const soldEntry = soldByLegendId.get(legend.id);
+              const isMine = soldEntry?.purchaserDiscordId === discordId;
+              const isTaken = Boolean(soldEntry) && !isMine;
+              const top3 = legendTopAttributes(legend.attributes, legendPositionGroupFor(legend.position));
+              return (
+                <button
+                  key={legend.id}
+                  type="button"
+                  className={`legend-card${isTaken ? " is-taken" : ""}${isMine ? " is-mine" : ""}${tier === "immortal" ? " is-immortal" : ""}`}
+                  disabled={isTaken}
+                  onClick={() => setActiveLegend(legend)}
+                >
+                  {legend.photo_url ? <img className="legend-card-photo" src={legend.photo_url} alt="" loading="lazy" /> : <div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
+                  <strong className="legend-card-name">{legend.name}</strong>
+                  <span className="legend-card-meta">{legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.est_ovr ?? "?"} OVR</span>
+                  <div className="legend-card-attrs">
+                    {top3.map((attr) => (
+                      <span key={attr.key}>{attr.key} {attr.value}</span>
+                    ))}
+                  </div>
+                  {isMine && <span className="legend-card-status">Your pending purchase</span>}
+                  {isTaken && <span className="legend-card-status">Already purchased</span>}
+                </button>
+              );
+            })}
+            {visible.length === 0 && <p className="hub-muted">No players at this position.</p>}
+          </div>
+        </>
       )}
 
       {activeLegend && (
@@ -173,7 +225,7 @@ export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased:
           isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
-          legendPrice={legendPrice}
+          legendPrice={activeLegend.legend_tier === "immortal" ? immortalPrice : legendPrice}
           onClose={() => setActiveLegend(null)}
           onPurchase={(replacementPlayerId) => void purchase(activeLegend, replacementPlayerId)}
           onCancel={() => void cancel(activeLegend)}
@@ -214,26 +266,37 @@ function LegendDetailModal({
   onPurchase: (replacementPlayerId: string | null) => void;
   onCancel: () => void;
 }) {
-  // CFB inherits the legend's identity onto the replaced player's roster slot, so which
-  // player gets replaced isn't optional there — Madden keeps it a free choice for the
-  // commissioner (designateReplacement toggle) since nothing is position-locked.
   const [designateReplacement, setDesignateReplacement] = useState(isCfb);
   const [replacementPlayerId, setReplacementPlayerId] = useState("");
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
   const canSubmitReplacement = isCfb ? Boolean(replacementPlayerId) : !designateReplacement || Boolean(replacementPlayerId);
+  const abilities = !isCfb ? (legend.abilities ?? []) : [];
 
   return (
     <Modal title={legend.name} onClose={onClose}>
       <div className="legend-detail-header">
         {legend.photo_url ? <img className="legend-detail-photo" src={legend.photo_url} alt="" /> : <div className="legend-detail-photo legend-card-photo-empty">{legend.position}</div>}
         <p className="hub-muted" style={{ marginTop: 0 }}>
-          {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
+          {legend.legend_tier === "immortal" ? "Immortal" : "Legend"} · {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
         </p>
       </div>
       <p>{!isCfb && <><strong>Dev Trait:</strong> {legend.dev_trait} · </>}<strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {isCfb && <p className="form-hint">This legend uses the selected replacement player's in-game development trait. REC does not change or track that trait for CFB legends.</p>}
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
+
+      {abilities.length > 0 && (
+        <div className="legend-attr-category">
+          <h4>Abilities</h4>
+          <div className="legend-attr-grid">
+            {abilities.map((ability) => (
+              <span key={`${ability.type}-${ability.name}`} className="legend-attr-chip">
+                <b>{ability.type ?? "ability"}</b> {ability.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {Object.entries(
         Object.entries(legend.attributes).reduce<Record<string, Array<[string, number]>>>((groups, [key, value]) => {
@@ -255,36 +318,26 @@ function LegendDetailModal({
         ))}
 
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
-        Purchasing this legend is applied to your roster immediately once a commissioner approves it, and will
-        replace an active player on your roster — this is a one-time, permanent addition for this league. The
-        commissioner will apply the catalog ratings shown here and record any necessary in-game edits to hit
-        that number.
+        Purchasing this player is applied to your roster once a commissioner approves it, and will replace an active
+        roster player — a one-time permanent addition for this league. They come on a 7-year contract at the lowest
+        possible value, renewed perpetually so you never lose the purchase to negotiations.
       </p>
 
       {!isTaken && !isMine && blockedNoEligibleReplacement && (
         <p className="form-hint">
           {isCfb
-            ? "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team before purchasing a legend."
-            : "Your roster has no active players yet — assign or seed your roster before purchasing a legend."}
+            ? "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team before purchasing."
+            : "Your roster has no active players yet — assign or seed your roster before purchasing."}
         </p>
       )}
       {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
           {(() => {
-            // CFB inherits the legend's exact position onto the replaced slot, so only a
-            // compatible-position recruit/added player is eligible. Madden has no such
-            // inheritance — any active roster player is eligible, seeded or not. Both lists
-            // sort ascending by OVR so the team's weakest players surface first as the
-            // natural replacement recommendation.
             const eligiblePlayers = [...(isCfb ? replacementPlayers.filter((player) => isCompatibleReplacementPosition(legend.position, player.position)) : replacementPlayers)]
               .sort((a, b) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity));
             if (isCfb) {
-              // CFB inherits the legend's position onto whichever roster slot it replaces —
-              // there's no "commissioner's choice" here, same rule as the custom-player
-              // wizard: a real added/recruited player at this position must be picked before
-              // purchasing.
               if (eligiblePlayers.length === 0) {
-                return <p className="form-hint">You have no added/recruited {legend.position} on your roster to replace — add one via the Recruiting Board or "Edit Roster" before buying this legend.</p>;
+                return <p className="form-hint">You have no added/recruited {legend.position} on your roster to replace — add one via the Recruiting Board or "Edit Roster" before buying.</p>;
               }
               return (
                 <label className="form-field">
@@ -345,7 +398,7 @@ function LegendDetailModal({
         </div>
       )}
 
-      {isTaken && <p className="form-hint">This legend has already been purchased in this league.</p>}
+      {isTaken && <p className="form-hint">This player has already been purchased in this league.</p>}
       {isMine && soldEntry?.status !== "pending" && <p className="form-hint">Approved and applied — no longer cancellable.</p>}
     </Modal>
   );

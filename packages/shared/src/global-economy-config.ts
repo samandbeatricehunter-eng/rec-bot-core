@@ -5,6 +5,7 @@ export type RecGlobalEconomyConfig = {
   store: {
     ageReset: number;
     legend: number;
+    immortal: number;
     devUpgradeStep: number;
     devUpgradeTopStep: number;
     contractReduction: number;
@@ -48,7 +49,8 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
   version: 1,
   store: {
     ageReset: 1000,
-    legend: 5000,
+    legend: 4000,
+    immortal: 8000,
     devUpgradeStep: 500,
     devUpgradeTopStep: 1500,
     contractReduction: 500,

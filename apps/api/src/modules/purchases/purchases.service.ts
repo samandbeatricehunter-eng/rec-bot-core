@@ -135,6 +135,7 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,
     archetype: details.archetype ?? null,
     attributes: mapLegendAttributes(details.attributes),
+    abilities: isCfbLeague ? [] : (Array.isArray(details.abilities) ? details.abilities : []),
     photo_url: photoUrl,
     is_free_agent: false,
     is_default_player: false,
@@ -776,7 +777,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
 
   const config = await supabase
     .from("rec_league_configuration")
-    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,legends_season_cap,custom_players_season_cap")
+    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,non_core_attribute_cap_mode,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,legends_season_cap,custom_players_season_cap")
     .eq("league_id", context.leagueId)
     .maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load store settings. Please try again.", config.error);
@@ -822,6 +823,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
     coreAttributeGroupCap: Number(cfgRow.core_attribute_group_cap ?? 0),
     nonCoreAttributeCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
     nonCoreAttributeCapOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
+    nonCoreAttributeCapMode: cfgRow.non_core_attribute_cap_mode === "individual" ? "individual" : "group",
     usedCoreByCode,
     usedNonCoreByCode,
     usedCore,

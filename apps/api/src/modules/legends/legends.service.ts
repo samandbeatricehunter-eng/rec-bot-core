@@ -14,17 +14,23 @@ const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
 
 export async function listLegendCatalog(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const gameScope = context.rec_leagues?.game === "cfb_27" ? "cfb_27" : "madden";
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,photo_url")
-    .eq("game_scope", gameScope)
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,photo_url")
+    .order("legend_tier", { ascending: true })
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })
     .order("name", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load legend catalog.", error);
   const isCfb = context.rec_leagues?.game === "cfb_27";
-  return { legends: (data ?? []).map((legend: any) => ({ ...legend, dev_trait: isCfb ? null : "xfactor" })) };
+  return {
+    legends: (data ?? []).map((legend: any) => ({
+      ...legend,
+      // Shared identity catalog: Madden sees tier-derived trait + abilities; CFB hides them.
+      dev_trait: isCfb ? null : (legend.legend_tier === "immortal" ? "xfactor" : "superstar"),
+      abilities: isCfb ? [] : (legend.abilities ?? []),
+    })),
+  };
 }
 
 async function activeLeagueLegendPurchases(leagueId: string) {
@@ -216,6 +222,7 @@ export async function createLegendPurchaseRequest(input: {
     throw new ApiError(400, "CFB legends require a specific added/recruited roster player to replace so the legend inherits that roster position.");
   }
 
+  const legendTier = legend.data.legend_tier === "immortal" ? "immortal" : "legend";
   const details = {
     legendId: legend.data.id,
     name: legend.data.name,
@@ -226,12 +233,14 @@ export async function createLegendPurchaseRequest(input: {
     weight: legend.data.weight,
     hand: legend.data.hand,
     jerseyNumber: legend.data.jersey_number,
-    devTrait: isCfb ? null : "xfactor",
+    legendTier,
+    devTrait: isCfb ? null : (legendTier === "immortal" ? "xfactor" : "superstar"),
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
     bodyType: legend.data.body_type,
     attributes: legend.data.attributes,
+    abilities: isCfb ? [] : (legend.data.abilities ?? []),
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
     isCfb,
@@ -256,8 +265,10 @@ export async function createLegendPurchaseRequest(input: {
     details.replaceTarget
       ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`
       : "Buyer left the replaced player up to you.",
+    `Tier: ${legendTier}`,
     ...(!isCfb ? [`Dev trait: ${details.devTrait}`] : []),
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
+    "Contract: 7 years at lowest possible value — renew perpetually (never lose to negotiations).",
     "Apply the catalog ratings shown and record any necessary in-game edits.",
     "",
     "Attributes:",
@@ -267,7 +278,7 @@ export async function createLegendPurchaseRequest(input: {
     .from("rec_commissioners_inbox")
     .update({
       queue_type: "legend",
-      header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR) — ${teamName ?? "Unassigned"}`,
+      header: `${legendTier === "immortal" ? "Immortal" : "Legend"}: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR) — ${teamName ?? "Unassigned"}`,
       summary: summaryLines.join("\n"),
       payload: {
         purchaseId: result.purchase.id,
@@ -276,6 +287,7 @@ export async function createLegendPurchaseRequest(input: {
         replaceTarget: details.replaceTarget,
         legendName: legend.data.name,
         legendPosition: legend.data.position,
+        legendTier,
         estOvr: legend.data.est_ovr,
         isCfb,
         ...(!isCfb ? { devTrait: details.devTrait } : {}),
@@ -284,6 +296,8 @@ export async function createLegendPurchaseRequest(input: {
         weight: legend.data.weight ?? null,
         teamName: teamName ?? null,
         attributes: legend.data.attributes ?? {},
+        abilities: details.abilities ?? [],
+        contractNote: "7-year lowest-value perpetual renew",
       },
     })
     .eq("source_table", "rec_purchases")
@@ -294,9 +308,9 @@ export async function createLegendPurchaseRequest(input: {
   if (announcementsChannelId) {
     await postDiscordChannelMessage(announcementsChannelId, {
       embeds: [{
-        title: "Legend Reserved",
+        title: `${legendTier === "immortal" ? "Immortal" : "Legend"} Reserved`,
         color: 0xd4af37,
-        description: `**${teamName ?? "A team"}** has purchased legend **${legend.data.name}** (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.`,
+        description: `**${teamName ?? "A team"}** has purchased **${legend.data.name}** (${legendTier}, ${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.\n\n7-year lowest-value contract, renewed perpetually.`,
       }],
     }).catch((err) => console.error("[ERROR] Failed to post legend purchase announcement (non-fatal):", err));
   }

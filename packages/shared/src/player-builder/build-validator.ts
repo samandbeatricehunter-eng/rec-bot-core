@@ -52,11 +52,12 @@ export interface RecPackageRules {
  * The independent OVR and high-impact attribute caps continue to enforce package strength.
  */
 export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>> = {
-  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 4495, rawOverallCap: 65, highImpactAttributeCap: 88 },
-  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4985, rawOverallCap: 71, highImpactAttributeCap: 91 },
-  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 5670, rawOverallCap: 78, highImpactAttributeCap: 94 },
-  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 6550, rawOverallCap: 84, highImpactAttributeCap: 97 },
-  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 7525, rawOverallCap: 88, highImpactAttributeCap: 99 },
+  // Authoritative custom-player OVR caps (old live 65/71/78/84/88 retired in v1.5.0).
+  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 4495, rawOverallCap: 63, highImpactAttributeCap: 88 },
+  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4985, rawOverallCap: 68, highImpactAttributeCap: 91 },
+  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 5670, rawOverallCap: 73, highImpactAttributeCap: 94 },
+  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 6550, rawOverallCap: 77, highImpactAttributeCap: 97 },
+  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 7525, rawOverallCap: 81, highImpactAttributeCap: 99 },
 } as const;
 
 // No more archetype picker — every editable attribute on every build, regardless of tier,

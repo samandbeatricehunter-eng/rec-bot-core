@@ -697,7 +697,7 @@ function PromoCodesPanel() {
 }
 
 const ECONOMY_LABELS: Record<string, string> = {
-  ageReset: "Age reset", legend: "Legend", devUpgradeStep: "Development upgrade step",
+  ageReset: "Age reset", legend: "Legend", immortal: "Immortal", devUpgradeStep: "Development upgrade step",
   devUpgradeTopStep: "Top development-tier step", contractReduction: "Contract reduction", contractExtension: "Contract extension",
   coreAttributePoint: "Core attribute point", nonCoreAttributePoint: "Non-core attribute point", boxScoreWin: "Box score — win",
   customPlayerTier1: "Custom player — Tier 1", customPlayerTier2: "Custom player — Tier 2", customPlayerTier3: "Custom player — Tier 3", customPlayerTier4: "Custom player — Tier 4", customPlayerTier5: "Custom player — Tier 5",

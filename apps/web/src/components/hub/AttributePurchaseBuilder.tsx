@@ -38,6 +38,24 @@ export function AttributePurchaseBuilder({
     [points, storeContext],
   );
 
+  function individualCapFor(code: string): number {
+    if (!storeContext) return 0;
+    if (isCore(code)) {
+      return storeContext.coreAttributeCapOverrides[code] ?? storeContext.coreAttributeDefaultCap;
+    }
+    if (storeContext.nonCoreAttributeCapMode === "individual") {
+      return storeContext.nonCoreAttributeCapOverrides[code] ?? 0;
+    }
+    return storeContext.nonCoreAttributeCapOverrides[code] ?? 0;
+  }
+
+  function usedFor(code: string): number {
+    if (!storeContext) return 0;
+    return isCore(code)
+      ? storeContext.usedCoreByCode[code] ?? 0
+      : storeContext.usedNonCoreByCode[code] ?? 0;
+  }
+
   // Every cap is additive, not either/or — an attribute's own individual cap (override, or
   // the group default for Core) AND its group's pooled total both apply at once, so the
   // remaining allowance is whichever constraint is tighter.
@@ -45,11 +63,9 @@ export function AttributePurchaseBuilder({
     if (!storeContext) return null;
     const pending = points[code] ?? 0;
     const core = isCore(code);
-    const individualCap = core
-      ? storeContext.coreAttributeCapOverrides[code] ?? storeContext.coreAttributeDefaultCap
-      : storeContext.nonCoreAttributeCapOverrides[code] ?? 0;
+    const individualCap = individualCapFor(code);
     const individualRemaining = individualCap > 0
-      ? individualCap - (core ? storeContext.usedCoreByCode[code] ?? 0 : storeContext.usedNonCoreByCode[code] ?? 0) - pending
+      ? individualCap - usedFor(code) - pending
       : null;
 
     const groupCap = core ? storeContext.coreAttributeGroupCap : storeContext.nonCoreAttributeCap;
@@ -85,9 +101,53 @@ export function AttributePurchaseBuilder({
   const allocations = Object.entries(points).filter(([, pts]) => pts > 0).map(([code, pts]) => ({ code, points: pts }));
   const canSubmit = allocations.length > 0 && Boolean(player) && totalPrice <= wallet && !busy;
 
+  const corePoolCap = storeContext?.coreAttributeGroupCap ?? 0;
+  const nonCorePoolCap = storeContext?.nonCoreAttributeCap ?? 0;
+  const nonCoreMode = storeContext?.nonCoreAttributeCapMode ?? "group";
+  const pendingCore = Object.entries(points).reduce((sum, [c, p]) => (isCore(c) ? sum + p : sum), 0);
+  const pendingNonCore = Object.entries(points).reduce((sum, [c, p]) => (!isCore(c) ? sum + p : sum), 0);
+
   return (
     <div className="attr-builder">
       <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={guildId} value={player} onChange={setPlayer} excludeDefault={excludeDefault} /></label>
+
+      {storeContext && (
+        <div className="attr-builder-caps">
+          <p className="attr-builder-caps-title">Season attribute caps</p>
+          <div className="attr-builder-caps-grid">
+            <article>
+              <span>Core (per attribute)</span>
+              <strong>
+                {storeContext.coreAttributeDefaultCap > 0
+                  ? `up to ${storeContext.coreAttributeDefaultCap} pts each`
+                  : "Unlimited"}
+              </strong>
+              <small>Overrides may differ per attribute below</small>
+            </article>
+            {corePoolCap > 0 && (
+              <article>
+                <span>Core pool (all core attrs)</span>
+                <strong>{storeContext.usedCore + pendingCore}/{corePoolCap}</strong>
+                <small>points this season</small>
+              </article>
+            )}
+            {nonCoreMode === "group" && nonCorePoolCap > 0 && (
+              <article>
+                <span>Non-core pool</span>
+                <strong>{storeContext.usedNonCore + pendingNonCore}/{nonCorePoolCap}</strong>
+                <small>points this season</small>
+              </article>
+            )}
+            {nonCoreMode === "individual" && (
+              <article>
+                <span>Non-core</span>
+                <strong>Per-attribute caps</strong>
+                <small>Shown on each attribute row</small>
+              </article>
+            )}
+          </div>
+        </div>
+      )}
 
       {(Object.entries(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS) as Array<[string, typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[keyof typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS]]>).map(([groupKey, group]) => (
         <details key={groupKey} className="attr-builder-group">
@@ -98,6 +158,9 @@ export function AttributePurchaseBuilder({
               const pts = points[code] ?? 0;
               const remaining = remainingForCode(code);
               const atCap = remaining != null && remaining <= 0;
+              const individualCap = individualCapFor(code);
+              const used = usedFor(code);
+              const showIndividualUsage = individualCap > 0;
               return (
                 <div key={code} className={`attr-builder-row${isCore(code) ? " core" : ""}`}>
                   <div className="attr-builder-name"><strong>{code}</strong><span>{def?.name ?? code}</span></div>
@@ -107,7 +170,15 @@ export function AttributePurchaseBuilder({
                     <span>{pts}</span>
                     <button type="button" disabled={atCap} onClick={() => increment(code)}>+</button>
                   </div>
-                  {remaining != null && <small className={atCap ? "attr-builder-capped" : ""}>{remaining} left this season</small>}
+                  {showIndividualUsage ? (
+                    <small className={atCap ? "attr-builder-capped" : ""}>
+                      {used + pts}/{individualCap} this season
+                    </small>
+                  ) : remaining != null ? (
+                    <small className={atCap ? "attr-builder-capped" : ""}>
+                      {remaining} left in pool
+                    </small>
+                  ) : null}
                 </div>
               );
             })}

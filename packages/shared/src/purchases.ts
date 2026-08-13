@@ -25,7 +25,9 @@ export const REC_PURCHASE_TYPE_LABELS: Record<RecPurchaseType, string> = {
 // ─── Fixed prices ───────────────────────────────────────────────────────────────
 export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
-export const REC_LEGEND_PRICE = 5000;
+export const REC_LEGEND_PRICE = 4000;
+export const REC_IMMORTAL_PRICE = 8000;
+export type RecLegendTier = "legend" | "immortal";
 
 // Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
 // CFB's stored dev_trait values order normal < impact < star < elite (matches
@@ -129,7 +131,7 @@ export function priceForPurchase(
     case "player_trait":
       return REC_PLAYER_TRAIT_PRICE;
     case "legend":
-      return REC_LEGEND_PRICE;
+      return details.legendTier === "immortal" ? REC_IMMORTAL_PRICE : REC_LEGEND_PRICE;
     case "dev_upgrade": {
       const fromTier = details.fromTier as RecDevTier | undefined;
       const toTier = details.toTier as RecDevTier | undefined;
@@ -159,7 +161,7 @@ export function priceForPurchase(
 }
 
 export type RecPurchasePriceConfig = {
-  ageReset: number; legend: number; devUpgradeStep: number; devUpgradeTopStep: number;
+  ageReset: number; legend: number; immortal: number; devUpgradeStep: number; devUpgradeTopStep: number;
   contractReduction: number; contractExtension: number; coreAttributePoint: number; nonCoreAttributePoint: number;
   customPlayerTier1: number; customPlayerTier2: number; customPlayerTier3: number; customPlayerTier4: number; customPlayerTier5: number;
 };
@@ -170,7 +172,7 @@ export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, detail
   // player_trait purchases were retired — the toggle that would enable them is hardcoded off
   // at every league-creation path, so this type can never actually reach a live purchase.
   if (purchaseType === "player_trait") return 0;
-  if (purchaseType === "legend") return prices.legend;
+  if (purchaseType === "legend") return details.legendTier === "immortal" ? prices.immortal : prices.legend;
   if (purchaseType === "contract") return details.variant === "extension" ? prices.contractExtension : prices.contractReduction;
   if (purchaseType === "attribute") return ((details.allocations as RecAttributeAllocation[] | undefined) ?? []).reduce(
     (sum, allocation) => sum + (allocation.core ? prices.coreAttributePoint : prices.nonCoreAttributePoint) * Math.max(0, Number(allocation.points) || 0), 0);

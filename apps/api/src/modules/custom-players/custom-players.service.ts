@@ -92,8 +92,7 @@ function defaultDev(game: RecGameFamily, tier: RecPackageTier) { return tier >= 
 // insensitive since "deion   sanders" is the same collision as "Deion Sanders".
 async function assertNameNotLegend(game: RecGameFamily, identity: Identity) {
   const fullName = `${identity.firstName.trim()} ${identity.lastName.trim()}`.toLowerCase().replace(/\s+/g, " ");
-  const gameScope = game === "CFB" ? "cfb_27" : "madden";
-  const legends = await supabase.from("rec_legend_catalog").select("name").eq("game_scope", gameScope);
+  const legends = await supabase.from("rec_legend_catalog").select("name");
   if (legends.error) throw new ApiError(500, "We couldn't validate that player name. Please try again.", legends.error);
   const collides = (legends.data ?? []).some((row: any) => String(row.name ?? "").trim().toLowerCase().replace(/\s+/g, " ") === fullName);
   if (collides) throw new ApiError(400, "That name matches a Legend in this game — pick a different name for your custom player.");

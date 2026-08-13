@@ -1,0 +1,367 @@
+# Ratings / bio pack summary
+
+Players: 363
+
+- **Jim Otto** · immortal · C · OVR 92.0 · 6'2" / 255 · college TBD
+- **Mike Webster** · immortal · C · OVR 92.0 · 6'1" / 255 · college TBD
+- **Champ Bailey** · immortal · CB · OVR 92.0 · 6'0" / 192 · Georgia
+- **Charles Woodson** · immortal · CB · OVR 92.0 · 6'1" / 202 · Michigan
+- **Darrelle Revis** · immortal · CB · OVR 92.0 · 5'11" / 198 · college TBD
+- **Deion Sanders** · immortal · CB · OVR 93.0 · 6'1" / 198 · Florida State
+- **Mel Renfro** · immortal · CB · OVR 92.0 · 6'1" / 190 · college TBD
+- **Mike Haynes** · immortal · CB · OVR 92.0 · 6'2" / 192 · college TBD
+- **Night Train Lane** · immortal · CB · OVR 91.0 · 6'1" / 194 · college TBD
+- **Rod Woodson** · immortal · CB · OVR 92.0 · 6'0" / 200 · college TBD
+- **Cliff Harris** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Deron Cherry** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Jack Tatum** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Lem Barney** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Leroy Butler** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Lester Hayes** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Willie Brown** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Willie Wood** · immortal · DB · OVR 89.0 · ? / ? · college TBD
+- **Art Donovan** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Chris Doleman** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Dan Hampton** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Elvin Bethea** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Gino Marchetti** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Jack Youngblood** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Keith Millard** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Lee Roy Selmon** · immortal · DL · OVR 90.0 · 6'3" / 256 · Oklahoma
+- **Randy White** · immortal · DL · OVR 89.0 · ? / ? · college TBD
+- **Aaron Donald** · immortal · DT · OVR 94.0 · 6'1" / 280 · Pitt
+- **Alan Page** · immortal · DT · OVR 91.0 · 6'4" / 245 · college TBD
+- **Bob Lilly** · immortal · DT · OVR 91.0 · 6'5" / 260 · college TBD
+- **Mean Joe Greene** · immortal · DT · OVR 92.0 · 6'4" / 275 · college TBD
+- **Ndamukong Suh** · immortal · DT · OVR 96.0 · 6'4" / 300 · Nebraska
+- **Jim Taylor** · immortal · FB · OVR 88.0 · 6'0" / 215 · college TBD
+- **Joe Perry** · immortal · FB · OVR 89.0 · ? / ? · college TBD
+- **Larry Csonka** · immortal · FB · OVR 88.0 · 6'3" / 237 · Syracuse
+- **Lorenzo Neal** · immortal · FB · OVR 88.0 · 5'11" / 255 · college TBD
+- **Mike Alstott** · immortal · FB · OVR 90.0 · 6'1" / 248 · Purdue
+- **Ed Reed** · immortal · FS · OVR 91.0 · 5'11" / 205 · Miami
+- **Paul Krause** · immortal · FS · OVR 90.0 · 6'3" / 200 · college TBD
+- **Adrian Peterson** · immortal · HB · OVR 88.0 · 6'1" / 220 · college TBD
+- **Barry Sanders** · immortal · HB · OVR 92.0 · 5'8" / 203 · Oklahoma State
+- **Bo Jackson** · immortal · HB · OVR 88.4 · 6'1" / 227 · Auburn
+- **Earl Campbell** · immortal · HB · OVR 88.0 · 5'11" / 232 · Texas
+- **Emmitt Smith** · immortal · HB · OVR 89.0 · 5'9" / 216 · college TBD
+- **Eric Dickerson** · immortal · HB · OVR 88.0 · 6'3" / 220 · college TBD
+- **Gale Sayers** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Herschel Walker** · immortal · HB · OVR 88.4 · 6'1" / 225 · Georgia
+- **Hugh McElhenny** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Jim Brown** · immortal · HB · OVR 88.0 · 6'2" / 232 · Syracuse
+- **LaDainian Tomlinson** · immortal · HB · OVR 90.0 · 5'10" / 221 · college TBD
+- **Lenny Moore** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Leroy Kelly** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Marcus Allen** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Marshall Faulk** · immortal · HB · OVR 89.0 · 5'10" / 211 · college TBD
+- **O.J. Simpson** · immortal · HB · OVR 89.0 · 6'1" / 212 · college TBD
+- **Ottis Anderson** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Paul Hornung** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Ricky Watters** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Roger Craig** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Thurman Thomas** · immortal · HB · OVR 89.0 · ? / ? · college TBD
+- **Tony Dorsett** · immortal · HB · OVR 88.0 · 5'11" / 192 · Pittsburgh
+- **Walter Payton** · immortal · HB · OVR 91.0 · 5'10" / 200 · college TBD
+- **Jan Stenerud** · immortal · K · OVR 89.0 · ? / ? · college TBD
+- **Chuck Bednarik** · immortal · LB · OVR 89.0 · ? / ? · college TBD
+- **Dave Wilcox** · immortal · LB · OVR 89.0 · ? / ? · college TBD
+- **Derrick Thomas** · immortal · LB · OVR 89.0 · 6'3" / 243 · Alabama
+- **Greg Lloyd** · immortal · LB · OVR 89.0 · ? / ? · college TBD
+- **Harry Carson** · immortal · LB · OVR 89.0 · ? / ? · college TBD
+- **Joe Schmidt** · immortal · LB · OVR 89.0 · ? / ? · college TBD
+- **John Hannah** · immortal · LG · OVR 89.0 · 6'2" / 265 · Alabama
+- **Larry Allen** · immortal · LG · OVR 91.0 · 6'3" / 335 · college TBD
+- **Jack Ham** · immortal · LOLB · OVR 89.0 · 6'1" / 225 · college TBD
+- **Ted Hendricks** · immortal · LOLB · OVR 89.0 · 6'7" / 220 · college TBD
+- **Anthony Munoz** · immortal · LT · OVR 93.0 · 6'6" / 278 · USC
+- **Jim Parker** · immortal · LT · OVR 91.0 · 6'3" / 273 · college TBD
+- **Joe Thomas** · immortal · LT · OVR 91.0 · 6'8" / 313 · Wisconsin
+- **Jonathan Ogden** · immortal · LT · OVR 93.0 · 6'9" / 345 · UCLA
+- **Orlando Pace** · immortal · LT · OVR 92.0 · 6'7" / 325 · Ohio State
+- **Dick Butkus** · immortal · MLB · OVR 89.0 · 6'3" / 245 · Illinois
+- **Jack Lambert** · immortal · MLB · OVR 90.0 · 6'4" / 220 · college TBD
+- **Luke Kuechly** · immortal · MLB · OVR 90.0 · 6'3" / 238 · Boston College
+- **Mike Singletary** · immortal · MLB · OVR 90.0 · 6'0" / 230 · college TBD
+- **Patrick Willis** · immortal · MLB · OVR 91.0 · 6'1" / 240 · Ole Miss
+- **Ray Lewis** · immortal · MLB · OVR 91.0 · 6'1" / 240 · Miami
+- **Bob Brown** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Dwight Stephenson** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Joe DeLamielleure** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Larry Little** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Mike Munchak** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Randall McDaniel** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Rayfield Wright** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Ron Mix** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Ron Yary** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Roosevelt Brown** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Russ Grimm** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Stan Jones** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Tom Mack** · immortal · OL · OVR 89.0 · ? / ? · college TBD
+- **Bart Starr** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Ben Roethlisberger** · immortal · QB · OVR 88.0 · 6'5" / 240 · college TBD
+- **Cam Newton** · immortal · QB · OVR 88.0 · 6'5" / 245 · Auburn
+- **Dan Marino** · immortal · QB · OVR 88.0 · 6'4" / 228 · college TBD
+- **Joe Burrow** · immortal · QB · OVR 89.0 · 6'4" / 215 · LSU
+- **Joe Montana** · immortal · QB · OVR 88.0 · 6'2" / 200 · college TBD
+- **Joe Theismann** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **John Elway** · immortal · QB · OVR 88.0 · 6'3" / 215 · college TBD
+- **Johnny Unitas** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Ken Stabler** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Len Dawson** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Michael Vick** · immortal · QB · OVR 88.0 · 6'0" / 215 · college TBD
+- **Otto Graham** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Peyton Manning** · immortal · QB · OVR 88.0 · 6'5" / 230 · college TBD
+- **Randall Cunningham** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Roger Staubach** · immortal · QB · OVR 88.0 · 6'3" / 197 · Navy
+- **Sammy Baugh** · immortal · QB · OVR 89.0 · ? / ? · college TBD
+- **Steve Young** · immortal · QB · OVR 88.0 · 6'2" / 215 · college TBD
+- **Tom Brady** · immortal · QB · OVR 88.0 · 6'4" / 225 · college TBD
+- **Troy Aikman** · immortal · QB · OVR 88.0 · 6'4" / 219 · college TBD
+- **Warren Moon** · immortal · QB · OVR 88.0 · 6'3" / 218 · college TBD
+- **Bruce Smith** · immortal · RE · OVR 94.0 · 6'4" / 262 · college TBD
+- **Deacon Jones** · immortal · RE · OVR 92.0 · 6'5" / 272 · college TBD
+- **Ed "Too Tall" Jones** · immortal · RE · OVR 89.0 · 6'9" / 271 · college TBD
+- **Julius Peppers** · immortal · RE · OVR 92.0 · 6'7" / 283 · North Carolina
+- **Reggie White** · immortal · RE · OVR 92.0 · 6'5" / 300 · Tennessee
+- **Lawrence Taylor** · immortal · ROLB · OVR 92.0 · 6'3" / 237 · North Carolina
+- **Von Miller** · immortal · ROLB · OVR 89.0 · 6'3" / 246 · Texas A&M
+- **Forrest Gregg** · immortal · RT · OVR 91.0 · 6'4" / 250 · college TBD
+- **Brian Dawkins** · immortal · SS · OVR 92.0 · 6'0" / 210 · college TBD
+- **Ronnie Lott** · immortal · SS · OVR 92.0 · 6'0" / 203 · USC
+- **Sean Taylor** · immortal · SS · OVR 90.0 · 6'2" / 213 · college TBD
+- **Steve Atwater** · immortal · SS · OVR 90.0 · 6'3" / 218 · college TBD
+- **Troy Polamalu** · immortal · SS · OVR 91.0 · 5'10" / 207 · college TBD
+- **Antonio Gates** · immortal · TE · OVR 91.0 · 6'4" / 255 · college TBD
+- **Jackie Smith** · immortal · TE · OVR 89.0 · ? / ? · college TBD
+- **Jason Witten** · immortal · TE · OVR 92.0 · 6'6" / 263 · college TBD
+- **John Mackey** · immortal · TE · OVR 89.0 · ? / ? · college TBD
+- **Keith Jackson** · immortal · TE · OVR 88.0 · 6'2" / 252 · Oklahoma
+- **Mike Ditka** · immortal · TE · OVR 88.0 · 6'3" / 228 · Pittsburgh
+- **Rob Gronkowski** · immortal · TE · OVR 91.0 · 6'6" / 265 · college TBD
+- **Shannon Sharpe** · immortal · TE · OVR 90.0 · 6'2" / 228 · college TBD
+- **Todd Christensen** · immortal · TE · OVR 89.0 · ? / ? · college TBD
+- **Tony Gonzalez** · immortal · TE · OVR 92.0 · 6'5" / 247 · California
+- **Andre Johnson** · immortal · WR · OVR 89.0 · 6'3" / 229 · college TBD
+- **Andre Reed** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Calvin Johnson** · immortal · WR · OVR 90.0 · 6'5" / 237 · college TBD
+- **Charley Taylor** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Cris Carter** · immortal · WR · OVR 90.0 · 6'3" / 202 · college TBD
+- **Devin Hester** · immortal · WR · OVR 88.0 · 5'11" / 190 · college TBD
+- **Don Maynard** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Drew Pearson** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Fred Biletnikoff** · immortal · WR · OVR 89.0 · 6'1" / 190 · Florida State
+- **Herman Moore** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Irving Fryar** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **James Lofton** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Jerry Rice** · immortal · WR · OVR 92.0 · 6'2" / 200 · college TBD
+- **Larry Fitzgerald** · immortal · WR · OVR 89.0 · 6'3" / 218 · Pitt
+- **Michael Irvin** · immortal · WR · OVR 88.0 · 6'2" / 207 · college TBD
+- **Randy Moss** · immortal · WR · OVR 90.0 · 6'4" / 210 · Marshall
+- **Raymond Berry** · immortal · WR · OVR 89.0 · ? / ? · college TBD
+- **Steve Largent** · immortal · WR · OVR 91.0 · 5'11" / 187 · college TBD
+- **Terrell Owens** · immortal · WR · OVR 89.0 · 6'3" / 224 · college TBD
+- **Barrett Jones** · legend · C · OVR 87.9 · 6'5" / 311 · Alabama
+- **Dave Rimington** · legend · C · OVR 88.2 · 6'3" / 290 · Nebraska
+- **Patrick Peterson** · legend · CB · OVR 89.5 · 6'1" / 219 · LSU
+- **Albert Lewis** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Charlie Waters** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Dick Anderson** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Eric Turner** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Eugene Robinson** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Fred Marion** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **George McAfee** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Joey Browner** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Nolan Cromwell** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Roger Wehrli** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Solomon Wilcots** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Terry McDaniel** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Tom Brookshier** · legend · DB · OVR 86.0 · ? / ? · college TBD
+- **Clyde Simmons** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Dan Saleaumua** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Dave Butz** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Dexter Manley** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Greg Kragen** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Harvey Martin** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Jerome Brown** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Jim Marshall** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **L.C. Greenwood** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Leon Lett** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Leonard Marshall** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Leslie O'Neal** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Marty Lyons** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Mike Golic** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Rulon Jones** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Tony Tolbert** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **William "Refrigerator" Perry** · legend · DL · OVR 86.0 · ? / ? · college TBD
+- **Bronko Nagurski** · legend · DT · OVR 89.5 · 6'2" / 226 · Minnesota
+- **Jonathan Allen** · legend · DT · OVR 89.5 · 6'3" / 291 · Alabama
+- **Alan Ameche** · legend · FB · OVR 84.0 · 6'0" / 218 · Wisconsin
+- **Daryl Johnston** · legend · FB · OVR 88.5 · 6'2" / 238 · college TBD
+- **Doc Blanchard** · legend · FB · OVR 84.0 · 6'0" / 205 · Army
+- **Glenn Davis** · legend · FB · OVR 84.0 · 5'9" / 170 · Army
+- **Howard Cassady** · legend · FB · OVR 84.0 · 5'10" / 179 · Ohio State
+- **Ickey Woods** · legend · FB · OVR 86.0 · ? / ? · college TBD
+- **Jay Berwanger** · legend · FB · OVR 84.0 · 6'1" / 195 · Chicago
+- **John Kimbrough** · legend · FB · OVR 84.0 · 6'2" / 210 · Texas A&M
+- **Larry Centers** · legend · FB · OVR 85.0 · 6'0" / 230 · college TBD
+- **Merril Hoge** · legend · FB · OVR 86.0 · ? / ? · college TBD
+- **Steve Owens** · legend · FB · OVR 84.0 · 6'2" / 215 · Oklahoma
+- **Tom Rathman** · legend · FB · OVR 86.0 · ? / ? · college TBD
+- **Minkah Fitzpatrick** · legend · FS · OVR 89.5 · 6'1" / 201 · Alabama
+- **Tyrann Mathieu** · legend · FS · OVR 89.0 · 5'9" / 175 · LSU
+- **Abner Haynes** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Archie Griffin** · legend · HB · OVR 88.0 · 5'9" / 189 · Ohio State
+- **Barry Foster** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Billy Sims** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Charley Trippi** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Chris Warren** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Christian McCaffrey** · legend · HB · OVR 89.0 · 5'11" / 202 · Stanford
+- **Christian Okoye** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Chuck Foreman** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Chuck Muncie** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Curt Warner** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Dalton Hilliard** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Dave Meggett** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Derrick Henry** · legend · HB · OVR 84.0 · 6'3" / 242 · Alabama
+- **Eric Bieniemy** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Floyd Little** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Freeman McNeil** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Greg Bell** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Matt Snell** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Mike Rozier** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Natrone Means** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Reggie Bush** · legend · HB · OVR 88.2 · 6'0" / 203 · USC
+- **Reggie Cobb** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Ricky Williams** · legend · HB · OVR 87.0 · 5'10" / 230 · Texas
+- **Ronnie Bull** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Tony Canadeo** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Tony Nathan** · legend · HB · OVR 86.0 · ? / ? · college TBD
+- **Al Del Greco** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Eddie Murray** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Garo Yepremian** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Jeff Jaeger** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Jim Bakken** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Lou Groza** · legend · K · OVR 86.0 · ? / ? · college TBD
+- **Brad Van Pelt** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Brian Bosworth** · legend · LB · OVR 89.0 · 6'2" / 248 · Oklahoma
+- **Brian Jones** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Bryce Paup** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Carl Banks** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Chris Spielman** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Chuck Noll** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Gary Plummer** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Jessie Tuggle** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **John Anderson** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **John Offerdahl** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Karl Mecklenburg** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Ken Norton Jr.** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Lamar Lathon** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Nick Buoniconti** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Otis Wilson** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Pepper Johnson** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Robert Brazile** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Scott Studwell** · legend · LB · OVR 86.0 · ? / ? · college TBD
+- **Hugh Green** · legend · LE · OVR 89.5 · 6'2" / 225 · Pitt
+- **Bill Curry** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Bill Fralic** · legend · OL · OVR 87.0 · 6'5" / 280 · Pitt
+- **Bob St. Clair** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Bubba Paris** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Dermontti Dawson** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Guy McIntyre** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Jesse Sapolu** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Jim Lachey** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Jim Langer** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Joe Jacoby** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Korey Stringer** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Lou Creekmur** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Mick Tingelhoff** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Randy Cross** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Richmond Webb** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Steve Wisniewski** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Tony Boselli** · legend · OL · OVR 86.0 · ? / ? · college TBD
+- **Ray Guy** · legend · P · OVR 86.0 · ? / ? · college TBD
+- **Andre Ware** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Archie Manning** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Baker Mayfield** · legend · QB · OVR 86.0 · 6'1" / 220 · Oklahoma
+- **Bernie Kosar** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Bill Wade** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Bobby Hebert** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Bubby Brister** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Dave Krieg** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Deshaun Watson** · legend · QB · OVR 85.0 · 6'2" / 215 · Clemson
+- **Greg Landry** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Jeff Hostetler** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Jim Harbaugh** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Jim Hart** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Jim Zorn** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **John Brodie** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Johnny Manziel** · legend · QB · OVR 84.0 · 6'0" / 210 · Texas A&M
+- **Ken O'Brien** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Lynn Dickey** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Mark Rypien** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Neil O'Donnell** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Steve Bartkowski** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Steve Grogan** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Tim Tebow** · legend · QB · OVR 84.0 · 6'3" / 245 · Florida
+- **Tommie Frazier** · legend · QB · OVR 84.0 · 6'2" / 205 · Nebraska
+- **Tommy Kramer** · legend · QB · OVR 86.0 · ? / ? · college TBD
+- **Ty Detmer** · legend · QB · OVR 84.0 · 6'0" / 188 · BYU
+- **Vince Young** · legend · QB · OVR 84.0 · 6'5" / 232 · Texas
+- **Chase Young** · legend · RE · OVR 89.5 · 6'5" / 265 · Ohio State
+- **Will Anderson Jr.** · legend · RE · OVR 89.5 · 6'4" / 243 · Alabama
+- **Richie Incognito** · legend · RG · OVR 84.0 · 6'3" / 305 · Nebraska
+- **LaVar Arrington** · legend · ROLB · OVR 89.0 · 6'3" / 250 · Penn State
+- **Terrell Suggs** · legend · ROLB · OVR 89.0 · 6'3" / 260 · Arizona State
+- **John Madden** · legend · RT · OVR 85.0 · 6'4" / 245 · college TBD
+- **Tony Mandarich** · legend · RT · OVR 88.1 · 6'6" / 330 · Michigan State
+- **Eric Berry** · legend · SS · OVR 89.5 · 5'11" / 205 · Tennessee
+- **Ben Coates** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Billy Joe Dupree** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Brent Jones** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Brock Bowers** · legend · TE · OVR 87.0 · 6'4" / 240 · Georgia
+- **Dallas Clark** · legend · TE · OVR 86.0 · 6'3" / 252 · Iowa
+- **Dave Casper** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Eric Green** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Greg Olsen** · legend · TE · OVR 89.5 · 6'5" / 255 · college TBD
+- **Jay Novacek** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Jeremy Shockey** · legend · TE · OVR 85.0 · 6'5" / 251 · Miami
+- **Jimmy Graham** · legend · TE · OVR 89.0 · 6'7" / 265 · college TBD
+- **Kellen Winslow II** · legend · TE · OVR 85.0 · 6'4" / 250 · Miami
+- **Ken MacAfee** · legend · TE · OVR 85.0 · 6'4" / 250 · Notre Dame
+- **Kyle Pitts** · legend · TE · OVR 87.0 · 6'6" / 246 · Florida
+- **Pete Metzelaars** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Troy Drayton** · legend · TE · OVR 86.0 · ? / ? · college TBD
+- **Vernon Davis** · legend · TE · OVR 89.5 · 6'3" / 253 · Maryland
+- **Alvin Harper** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Amari Cooper** · legend · WR · OVR 89.5 · 6'1" / 210 · Alabama
+- **Anthony Carter** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Bobby Mitchell** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Cliff Branch** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Dante Lavelli** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **DeVonta Smith** · legend · WR · OVR 89.5 · 6'1" / 175 · Alabama
+- **Desmond Howard** · legend · WR · OVR 87.0 · 5'10" / 185 · Michigan
+- **Dwight Clark** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Eric Martin** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Ernest Givins** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Gary Clark** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Henry Ellard** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Ja'Marr Chase** · legend · WR · OVR 89.5 · 6'0" / 201 · LSU
+- **John Jefferson** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **John Taylor** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Justin Blackmon** · legend · WR · OVR 89.0 · 6'1" / 215 · Oklahoma State
+- **Kevin Curtis** · legend · WR · OVR 84.0 · 6'0" / 206 · Texas Tech
+- **Mark Carrier** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Marvin Harrison Jr.** · legend · WR · OVR 89.5 · 6'4" / 205 · Ohio State
+- **Michael Crabtree** · legend · WR · OVR 89.0 · 6'1" / 215 · Texas Tech
+- **Pete Pihos** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Raghib "Rocket" Ismail** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Rick Upchurch** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Ricky Sanders** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Rob Moore** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Steve Tasker** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Tony Martin** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Wesley Walker** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Willie Gault** · legend · WR · OVR 86.0 · ? / ? · college TBD
+- **Yancey Thigpen** · legend · WR · OVR 86.0 · ? / ? · college TBD

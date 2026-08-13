@@ -2521,9 +2521,13 @@ export const recLegendCatalog = pgTable("rec_legend_catalog", {
   archetype: text("archetype"),
   buildNote: text("build_note"),
   attributes: jsonb("attributes").$type<Record<string, unknown> | null>(),
+  abilities: jsonb("abilities").$type<Array<{ name: string; description?: string; type?: string }> | null>(),
+  legendTier: text("legend_tier"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   gameScope: text("game_scope").notNull().default("madden"),
-  college: text("college")
+  college: text("college"),
+  bodyType: text("body_type"),
+  photoUrl: text("photo_url"),
 });
 
 export type RecCpuTeamSeasonStats = typeof recCpuTeamSeasonStats.$inferSelect;

@@ -1,0 +1,283 @@
+# Immortal picks (applied defaults)
+
+Silvers + catalog-only Immortals were curated so implementation can proceed. Edit this list and re-run `scripts/dev/build-shared-legend-catalog.py` to adjust.
+
+- Immortals: **160**
+- Legends: **203**
+- Total shared catalog: **363**
+
+## Immortal silvers
+
+- [x] Andre Reed
+- [x] Bart Starr
+- [x] Charley Taylor
+- [x] Chris Doleman
+- [x] Chuck Bednarik
+- [x] Dan Hampton
+- [x] Deron Cherry
+- [x] Don Maynard
+- [x] Drew Pearson
+- [x] Ed "Too Tall" Jones
+- [x] Elvin Bethea
+- [x] Greg Lloyd
+- [x] Harry Carson
+- [x] Herman Moore
+- [x] Hugh McElhenny
+- [x] Irving Fryar
+- [x] Jack Tatum
+- [x] Jack Youngblood
+- [x] Jan Stenerud
+- [x] Joe DeLamielleure
+- [x] Joe Theismann
+- [x] Keith Jackson
+- [x] Keith Millard
+- [x] Ken Stabler
+- [x] Lem Barney
+- [x] Len Dawson
+- [x] Lenny Moore
+- [x] Leroy Butler
+- [x] Lester Hayes
+- [x] Mel Renfro
+- [x] Mike Munchak
+- [x] Ottis Anderson
+- [x] Randall Cunningham
+- [x] Randall McDaniel
+- [x] Rayfield Wright
+- [x] Ricky Watters
+- [x] Roger Craig
+- [x] Ron Yary
+- [x] Todd Christensen
+- [x] Tom Mack
+
+## Immortal catalog-only
+
+- [x] Aaron Donald
+- [x] Adrian Peterson
+- [x] Alan Page
+- [x] Andre Johnson
+- [x] Antonio Gates
+- [x] Ben Roethlisberger
+- [x] Bo Jackson
+- [x] Brian Dawkins
+- [x] Bruce Smith
+- [x] Calvin Johnson
+- [x] Cam Newton
+- [x] Champ Bailey
+- [x] Charles Woodson
+- [x] Cris Carter
+- [x] Darrelle Revis
+- [x] Deion Sanders
+- [x] Derrick Thomas
+- [x] Devin Hester
+- [x] Earl Campbell
+- [x] Ed Reed
+- [x] Eric Dickerson
+- [x] Forrest Gregg
+- [x] Fred Biletnikoff
+- [x] Herschel Walker
+- [x] Jack Ham
+- [x] Jason Witten
+- [x] Jim Brown
+- [x] Jim Taylor
+- [x] Joe Burrow
+- [x] Joe Thomas
+- [x] John Hannah
+- [x] Jonathan Ogden
+- [x] Julius Peppers
+- [x] LaDainian Tomlinson
+- [x] Larry Allen
+- [x] Larry Csonka
+- [x] Larry Fitzgerald
+- [x] Lawrence Taylor
+- [x] Lee Roy Selmon
+- [x] Lorenzo Neal
+- [x] Luke Kuechly
+- [x] Marshall Faulk
+- [x] Mean Joe Greene
+- [x] Michael Irvin
+- [x] Michael Vick
+- [x] Mike Alstott
+- [x] Mike Webster
+- [x] Ndamukong Suh
+- [x] Orlando Pace
+- [x] Patrick Willis
+- [x] Paul Krause
+- [x] Peyton Manning
+- [x] Randy Moss
+- [x] Ray Lewis
+- [x] Rob Gronkowski
+- [x] Roger Staubach
+- [x] Sean Taylor
+- [x] Steve Atwater
+- [x] Steve Largent
+- [x] Ted Hendricks
+- [x] Terrell Owens
+- [x] Tom Brady
+- [x] Tony Dorsett
+- [x] Tony Gonzalez
+- [x] Troy Polamalu
+- [x] Von Miller
+- [x] Warren Moon
+
+## All Immortals
+
+- **Jim Otto** (C) · OVR 92.0 · XF
+- **Mike Webster** (C) · OVR 92.0 · XF
+- **Champ Bailey** (CB) · OVR 92.0 · XF
+- **Charles Woodson** (CB) · OVR 92.0 · XF
+- **Darrelle Revis** (CB) · OVR 92.0 · XF
+- **Deion Sanders** (CB) · OVR 93.0 · XF
+- **Mel Renfro** (CB) · OVR 92.0 · XF
+- **Mike Haynes** (CB) · OVR 92.0 · XF
+- **Night Train Lane** (CB) · OVR 91.0 · XF
+- **Rod Woodson** (CB) · OVR 92.0 · XF
+- **Cliff Harris** (DB) · OVR 89.0 · XF
+- **Deron Cherry** (DB) · OVR 89.0 · XF
+- **Jack Tatum** (DB) · OVR 89.0 · XF
+- **Lem Barney** (DB) · OVR 89.0 · XF
+- **Leroy Butler** (DB) · OVR 89.0 · XF
+- **Lester Hayes** (DB) · OVR 89.0 · XF
+- **Willie Brown** (DB) · OVR 89.0 · XF
+- **Willie Wood** (DB) · OVR 89.0 · XF
+- **Art Donovan** (DL) · OVR 89.0 · XF
+- **Chris Doleman** (DL) · OVR 89.0 · XF
+- **Dan Hampton** (DL) · OVR 89.0 · XF
+- **Elvin Bethea** (DL) · OVR 89.0 · XF
+- **Gino Marchetti** (DL) · OVR 89.0 · XF
+- **Jack Youngblood** (DL) · OVR 89.0 · XF
+- **Keith Millard** (DL) · OVR 89.0 · XF
+- **Lee Roy Selmon** (DL) · OVR 90.0 · XF
+- **Randy White** (DL) · OVR 89.0 · XF
+- **Aaron Donald** (DT) · OVR 94.0 · XF
+- **Alan Page** (DT) · OVR 91.0 · XF
+- **Bob Lilly** (DT) · OVR 91.0 · XF
+- **Mean Joe Greene** (DT) · OVR 92.0 · XF
+- **Ndamukong Suh** (DT) · OVR 96.0 · XF
+- **Jim Taylor** (FB) · OVR 88.0 · XF
+- **Joe Perry** (FB) · OVR 89.0 · XF
+- **Larry Csonka** (FB) · OVR 88.0 · XF
+- **Lorenzo Neal** (FB) · OVR 88.0 · XF
+- **Mike Alstott** (FB) · OVR 90.0 · XF
+- **Ed Reed** (FS) · OVR 91.0 · XF
+- **Paul Krause** (FS) · OVR 90.0 · XF
+- **Adrian Peterson** (HB) · OVR 88.0 · XF
+- **Barry Sanders** (HB) · OVR 92.0 · XF
+- **Bo Jackson** (HB) · OVR 88.4 · XF
+- **Earl Campbell** (HB) · OVR 88.0 · XF
+- **Emmitt Smith** (HB) · OVR 89.0 · XF
+- **Eric Dickerson** (HB) · OVR 88.0 · XF
+- **Gale Sayers** (HB) · OVR 89.0 · XF
+- **Herschel Walker** (HB) · OVR 88.4 · XF
+- **Hugh McElhenny** (HB) · OVR 89.0 · XF
+- **Jim Brown** (HB) · OVR 88.0 · XF
+- **LaDainian Tomlinson** (HB) · OVR 90.0 · XF
+- **Lenny Moore** (HB) · OVR 89.0 · XF
+- **Leroy Kelly** (HB) · OVR 89.0 · XF
+- **Marcus Allen** (HB) · OVR 89.0 · XF
+- **Marshall Faulk** (HB) · OVR 89.0 · XF
+- **O.J. Simpson** (HB) · OVR 89.0 · XF
+- **Ottis Anderson** (HB) · OVR 89.0 · XF
+- **Paul Hornung** (HB) · OVR 89.0 · XF
+- **Ricky Watters** (HB) · OVR 89.0 · XF
+- **Roger Craig** (HB) · OVR 89.0 · XF
+- **Thurman Thomas** (HB) · OVR 89.0 · XF
+- **Tony Dorsett** (HB) · OVR 88.0 · XF
+- **Walter Payton** (HB) · OVR 91.0 · XF
+- **Jan Stenerud** (K) · OVR 89.0 · XF
+- **Chuck Bednarik** (LB) · OVR 89.0 · XF
+- **Dave Wilcox** (LB) · OVR 89.0 · XF
+- **Derrick Thomas** (LB) · OVR 89.0 · XF
+- **Greg Lloyd** (LB) · OVR 89.0 · XF
+- **Harry Carson** (LB) · OVR 89.0 · XF
+- **Joe Schmidt** (LB) · OVR 89.0 · XF
+- **John Hannah** (LG) · OVR 89.0 · XF
+- **Larry Allen** (LG) · OVR 91.0 · XF
+- **Jack Ham** (LOLB) · OVR 89.0 · XF
+- **Ted Hendricks** (LOLB) · OVR 89.0 · XF
+- **Anthony Munoz** (LT) · OVR 93.0 · XF
+- **Jim Parker** (LT) · OVR 91.0 · XF
+- **Joe Thomas** (LT) · OVR 91.0 · XF
+- **Jonathan Ogden** (LT) · OVR 93.0 · XF
+- **Orlando Pace** (LT) · OVR 92.0 · XF
+- **Dick Butkus** (MLB) · OVR 89.0 · XF
+- **Jack Lambert** (MLB) · OVR 90.0 · XF
+- **Luke Kuechly** (MLB) · OVR 90.0 · XF
+- **Mike Singletary** (MLB) · OVR 90.0 · XF
+- **Patrick Willis** (MLB) · OVR 91.0 · XF
+- **Ray Lewis** (MLB) · OVR 91.0 · XF
+- **Bob Brown** (OL) · OVR 89.0 · XF
+- **Dwight Stephenson** (OL) · OVR 89.0 · XF
+- **Joe DeLamielleure** (OL) · OVR 89.0 · XF
+- **Larry Little** (OL) · OVR 89.0 · XF
+- **Mike Munchak** (OL) · OVR 89.0 · XF
+- **Randall McDaniel** (OL) · OVR 89.0 · XF
+- **Rayfield Wright** (OL) · OVR 89.0 · XF
+- **Ron Mix** (OL) · OVR 89.0 · XF
+- **Ron Yary** (OL) · OVR 89.0 · XF
+- **Roosevelt Brown** (OL) · OVR 89.0 · XF
+- **Russ Grimm** (OL) · OVR 89.0 · XF
+- **Stan Jones** (OL) · OVR 89.0 · XF
+- **Tom Mack** (OL) · OVR 89.0 · XF
+- **Bart Starr** (QB) · OVR 89.0 · XF
+- **Ben Roethlisberger** (QB) · OVR 88.0 · XF
+- **Cam Newton** (QB) · OVR 88.0 · XF
+- **Dan Marino** (QB) · OVR 88.0 · XF
+- **Joe Burrow** (QB) · OVR 89.0 · XF
+- **Joe Montana** (QB) · OVR 88.0 · XF
+- **Joe Theismann** (QB) · OVR 89.0 · XF
+- **John Elway** (QB) · OVR 88.0 · XF
+- **Johnny Unitas** (QB) · OVR 89.0 · XF
+- **Ken Stabler** (QB) · OVR 89.0 · XF
+- **Len Dawson** (QB) · OVR 89.0 · XF
+- **Michael Vick** (QB) · OVR 88.0 · XF
+- **Otto Graham** (QB) · OVR 89.0 · XF
+- **Peyton Manning** (QB) · OVR 88.0 · XF
+- **Randall Cunningham** (QB) · OVR 89.0 · XF
+- **Roger Staubach** (QB) · OVR 88.0 · XF
+- **Sammy Baugh** (QB) · OVR 89.0 · XF
+- **Steve Young** (QB) · OVR 88.0 · XF
+- **Tom Brady** (QB) · OVR 88.0 · XF
+- **Troy Aikman** (QB) · OVR 88.0 · XF
+- **Warren Moon** (QB) · OVR 88.0 · XF
+- **Bruce Smith** (RE) · OVR 94.0 · XF
+- **Deacon Jones** (RE) · OVR 92.0 · XF
+- **Ed "Too Tall" Jones** (RE) · OVR 89.0 · XF
+- **Julius Peppers** (RE) · OVR 92.0 · XF
+- **Reggie White** (RE) · OVR 92.0 · XF
+- **Lawrence Taylor** (ROLB) · OVR 92.0 · XF
+- **Von Miller** (ROLB) · OVR 89.0 · XF
+- **Forrest Gregg** (RT) · OVR 91.0 · XF
+- **Brian Dawkins** (SS) · OVR 92.0 · XF
+- **Ronnie Lott** (SS) · OVR 92.0 · XF
+- **Sean Taylor** (SS) · OVR 90.0 · XF
+- **Steve Atwater** (SS) · OVR 90.0 · XF
+- **Troy Polamalu** (SS) · OVR 91.0 · XF
+- **Antonio Gates** (TE) · OVR 91.0 · XF
+- **Jackie Smith** (TE) · OVR 89.0 · XF
+- **Jason Witten** (TE) · OVR 92.0 · XF
+- **John Mackey** (TE) · OVR 89.0 · XF
+- **Keith Jackson** (TE) · OVR 88.0 · XF
+- **Mike Ditka** (TE) · OVR 88.0 · XF
+- **Rob Gronkowski** (TE) · OVR 91.0 · XF
+- **Shannon Sharpe** (TE) · OVR 90.0 · XF
+- **Todd Christensen** (TE) · OVR 89.0 · XF
+- **Tony Gonzalez** (TE) · OVR 92.0 · XF
+- **Andre Johnson** (WR) · OVR 89.0 · XF
+- **Andre Reed** (WR) · OVR 89.0 · XF
+- **Calvin Johnson** (WR) · OVR 90.0 · XF
+- **Charley Taylor** (WR) · OVR 89.0 · XF
+- **Cris Carter** (WR) · OVR 90.0 · XF
+- **Devin Hester** (WR) · OVR 88.0 · XF
+- **Don Maynard** (WR) · OVR 89.0 · XF
+- **Drew Pearson** (WR) · OVR 89.0 · XF
+- **Fred Biletnikoff** (WR) · OVR 89.0 · XF
+- **Herman Moore** (WR) · OVR 89.0 · XF
+- **Irving Fryar** (WR) · OVR 89.0 · XF
+- **James Lofton** (WR) · OVR 89.0 · XF
+- **Jerry Rice** (WR) · OVR 92.0 · XF
+- **Larry Fitzgerald** (WR) · OVR 89.0 · XF
+- **Michael Irvin** (WR) · OVR 88.0 · XF
+- **Randy Moss** (WR) · OVR 90.0 · XF
+- **Raymond Berry** (WR) · OVR 89.0 · XF
+- **Steve Largent** (WR) · OVR 91.0 · XF
+- **Terrell Owens** (WR) · OVR 89.0 · XF

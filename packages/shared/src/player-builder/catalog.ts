@@ -2,7 +2,7 @@ import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
 import type { RecGameFamily, RecPackageTier } from "./archetypes.js";
 import { REC_PACKAGE_RULES } from "./build-validator.js";
 
-export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.4.0" as const;
+export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.5.0" as const;
 export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.3.0" as const;
 
 export const REC_CUSTOM_PLAYER_POSITIONS = [
@@ -27,7 +27,7 @@ const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],
 };
 const COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
-const TARGETS = [[58, 65], [66, 71], [72, 78], [79, 84], [85, 88]] as const;
+const TARGETS = [[56, 63], [64, 68], [69, 73], [74, 77], [78, 81]] as const;
 
 /** Canonical presentation order. UI aliases map to the actual stored game codes:
  * CAT=CTH, SPN=SPM, JUK=JKM, TOR=RUN, PLA=PAC, IMP=IBL, TKL=TAK, KPR=RET. */

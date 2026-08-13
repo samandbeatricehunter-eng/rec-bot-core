@@ -461,7 +461,7 @@ export function HubHome() {
     dev_upgrade: `${coinsNumber(economyValues.store.devUpgradeStep)}-${coinsNumber(economyValues.store.devUpgradeTopStep)}`,
     contract: coinsNumber(economyValues.store.contractReduction),
     attribute: `${coinsNumber(economyValues.store.nonCoreAttributePoint)}-${coinsNumber(economyValues.store.coreAttributePoint)}/pt`,
-    legend: coinsNumber(economyValues.store.legend),
+    legend: `${coinsNumber(economyValues.store.legend)}-${coinsNumber(economyValues.store.immortal)}`,
     custom_player: `${coinsNumber(economyValues.store.customPlayerTier1)}-${coinsNumber(economyValues.store.customPlayerTier5)}`,
   }), [economyValues]);
   const [error, setError] = useState<string | null>(null);
@@ -745,6 +745,9 @@ export function HubHome() {
   }
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
   useEffect(() => { if (auth.status === "ready") recApi.getGlobalEconomyValues().then(setEconomyValues).catch(() => undefined); }, [auth.status]);
+  useEffect(() => {
+    if (section === "store") void loadStoreContext(true);
+  }, [section, auth.status, auth.status === "ready" ? auth.guildId : null]);
 
   useEffect(() => {
     if (auth.status !== "ready" || (section !== "league" && section !== "wagers")) return;
@@ -937,8 +940,9 @@ export function HubHome() {
       setCommentBody(body);
     }
   }
-  async function loadStoreContext() {
-    if (auth.status !== "ready" || storeContext) return;
+  async function loadStoreContext(force = false) {
+    if (auth.status !== "ready") return;
+    if (storeContext && !force) return;
     try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
   }
   async function viewOpenTeams() {
@@ -1000,6 +1004,7 @@ export function HubHome() {
       await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details, idempotencyKey: crypto.randomUUID() });
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
       setPurchaseDetails({}); setStoreContext(null); await load();
+      void loadStoreContext(true);
     } catch (cause) { setPurchaseError(cause instanceof Error ? cause.message : "Purchase failed."); }
     finally { setPurchaseBusy(false); }
   }
@@ -1312,13 +1317,25 @@ export function HubHome() {
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
           const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
-          const used = storeContext?.seasonActive[product.type];
+          const used = storeContext?.seasonActive[product.type] ?? 0;
           const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
+          // Attribute caps are per-code / pooled points — show those only after this product expands.
+          const usageLabel = product.locked
+            ? null
+            : product.type === "attribute"
+              ? "Caps shown after select"
+              : cap != null && cap > 0
+                ? `${used}/${cap} purchased`
+                : `${used} purchased · Unlimited`;
           return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setDevUpgradePlayer(null); setDevUpgradeTargetTier(""); setAgeResetPlayer(null); setContractPlayer(null); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
             <span className="hub-store-card-price">{storeProductPriceLabels[product.type as RecPurchaseType] ?? ""}</span>
-            <span className="hub-store-card-status">{product.locked ? "Available Season 2" : used ? `${used} this season${cap ? ` / ${cap} cap` : ""}` : "Open purchase flow"}</span>
+            {product.locked ? (
+              <span className="hub-store-card-status">Available Season 2</span>
+            ) : (
+              <span className="hub-store-card-usage">{usageLabel}</span>
+            )}
           </button>;
         })}</div>
 
@@ -1326,9 +1343,9 @@ export function HubHome() {
 
           {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} onSubmit={(allocations, playerName, playerId) => void submitPurchase({ playerId, playerName, allocations })} />}
 
-          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} onPurchased={() => { setStoreContext(null); void load(); }} />}
+          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
 
-          {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); }} />}
+          {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
 
           {/* Removed obsolete Bronze/Silver/Gold custom-player form.
             <p className="form-hint">

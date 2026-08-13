@@ -949,12 +949,14 @@ export type LegendCatalogEntry = {
   weight: number | null;
   hand: string | null;
   jersey_number: number | null;
-  dev_trait: string;
+  dev_trait: string | null;
   archetype: string | null;
   build_note: string | null;
   college: string | null;
   body_type: string | null;
   attributes: Record<string, number>;
+  abilities?: Array<{ name: string; description?: string; type?: string }>;
+  legend_tier?: "legend" | "immortal";
   photo_url: string | null;
 };
 
