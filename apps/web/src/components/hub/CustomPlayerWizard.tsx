@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dices } from "lucide-react";
-import { CFB_27_TEAMS, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_DEV_TRAITS, canonicalReplacementPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_DEV_TRAITS, canonicalReplacementPosition, cardBuildsForPosition, evaluateRecCustomPlayerBuild, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, listCustomPlayerRendersFor, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -43,7 +43,8 @@ function detectBestArchetypeKey(archetypes: any[], attributes: Record<string, nu
   return best;
 }
 
-const EMPTY_IDENTITY = { firstName: "", lastName: "", jerseyNumber: 0, handedness: "right", heightInches: 72, weightLbs: 200, hometownCity: "", hometownState: "", college: "", bodyType: "standard" };
+const EMPTY_IDENTITY = { firstName: "", lastName: "", jerseyNumber: 0, handedness: "right", heightInches: 72, weightLbs: 200, hometownCity: "", hometownState: "", college: "", bodyType: "standard", cardRenderId: "" };
+const WIZARD_STEPS = 6;
 
 // Mirrors apps/api/src/modules/custom-players/custom-players.service.ts (CFB_POSITION_HEIGHT /
 // CFB_BODY_TYPE_WEIGHT) — the server is authoritative, these are just client-side hints/limits.
@@ -79,7 +80,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     setConfig(value); const draft = saved.draft;
     if (draft) {
       const savedIdentity = draft.identity ?? {};
-      setStep(Math.max(1, Math.min(5, Number(String(draft.current_step ?? "1").replace("step_", "")) || 1)));
+      setStep(Math.max(1, Math.min(WIZARD_STEPS, Number(String(draft.current_step ?? "1").replace("step_", "")) || 1)));
       setTier((draft.package_tier ?? 1) as RecPackageTier); setPosition(draft.position ?? "QB");
       setDevTrait(draft.development_trait ?? "normal");
       setIdentity({ ...EMPTY_IDENTITY, ...savedIdentity, replacementPlayerId: undefined }); setReplacementPlayerId(savedIdentity.replacementPlayerId ?? ""); setAttributes(draft.attributes ?? {});
@@ -107,7 +108,19 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   function setPositionAndReset(value: string) {
     setPosition(value);
     setAttributes(baselineAttributes(game, value));
+    setIdentity((current: any) => ({ ...current, cardRenderId: "" }));
   }
+  function setBodyType(value: string) {
+    setIdentity((current: any) => ({ ...current, bodyType: value, cardRenderId: "" }));
+  }
+  const appearanceOptions = useMemo(
+    () => listCustomPlayerRendersFor({ bodyBuild: identity.bodyType, position }),
+    [identity.bodyType, position],
+  );
+  const bodyBuildAllowed = useMemo(
+    () => (cardBuildsForPosition(position) as readonly string[]).includes(String(identity.bodyType ?? "")),
+    [position, identity.bodyType],
+  );
   // CFB position is inherited from the replaced player — the in-game roster editor can't
   // change a player's position. Choosing a replacement locks position to that player's
   // position (which re-baselines archetype + attributes for the new position).
@@ -160,6 +173,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       if (!identity.hometownCity?.trim()) return "Hometown is required.";
       if (!identity.hometownState?.trim()) return "State is required.";
       if (!identity.college?.trim()) return "College is required.";
+      if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) return "Card build is required.";
       if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) return "Height must be between 5'0\" and 7'0\".";
       if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) return "Weight must be between 140 and 400 pounds.";
     }
@@ -170,7 +184,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   if (!config) return <p className="hub-empty">{notice ?? "Loading custom-player builder…"}</p>;
   if (!config.enabled) return <p className="hub-empty">Custom-player purchases are disabled.</p>;
   if (config.blockedNoEligibleReplacement) return <p className="hub-empty">Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the "Edit Roster" quick action on My Team first.</p>;
-  return <div className="custom-player-wizard"><p className="hub-eyebrow">Step {step} of 5</p>
+  return <div className="custom-player-wizard"><p className="hub-eyebrow">Step {step} of {WIZARD_STEPS}</p>
     {config.devTraitInherited && <p className="form-hint">CFB recruits don't get a purchased development trait — whichever trait the player you replace already has carries over to this one. With no replacement (an unseeded roster), the new player starts at Normal.</p>}
     {config.appearanceNotice && <p className="form-hint">{config.appearanceNotice}</p>}
     {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>{entry.description}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
@@ -189,7 +203,8 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
             </select>
           </span>
         </label>
-        {game === "CFB" && <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setIdentity({ ...identity, bodyType: e.target.value })}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
+        {game === "CFB" && <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setBodyType(e.target.value)}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
+        {game !== "CFB" && <label>Card Build<select className="form-input" value={identity.bodyType} onChange={(e) => setBodyType(e.target.value)}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
         <label>Weight (lb){weightRule ? ` — ${weightRule.min}-${weightRule.max}` : ""}<input className="form-input" type="number" min={weightRule?.min} max={weightRule?.max} value={identity.weightLbs} onChange={(e) => setIdentity({ ...identity, weightLbs: Number(e.target.value) })}/></label>
         {game !== "CFB" && <><label>Hometown<input className="form-input" value={identity.hometownCity} onChange={(e) => setIdentity({ ...identity, hometownCity: e.target.value })}/></label><label>State<input className="form-input" value={identity.hometownState} onChange={(e) => setIdentity({ ...identity, hometownState: e.target.value })}/></label><label>College<select className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}><option value="">Select college</option>{CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></>}</div>
         {overageInches > 0 && <p className="form-hint">Height is {overageInches}" over the {position} average — costs {overageInches * 100} creation points.</p>}
@@ -210,8 +225,48 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
         {positionLocked && !selectedReplacement && <p className="form-hint">Select the active player this recruit replaces first — its position decides the attributes you can build.</p>}
       </>;
     })()}
-    {step === 4 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} max={99} value={attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} onChange={(e) => mutate(code, Math.max(REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, Math.min(99, Number(e.target.value) || REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)) - (attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
-    {step === 5 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position}</p><p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint">Identity or rating edits are logged and sent to you; {game === "CFB" ? "position remains locked to this purchase" : "position and development trait remain locked to this purchase"}.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{(evaluation?.pointsRemaining ?? 0) * 10 >= (evaluation?.creationPoints ?? 0) ? "500-coin reward after application" : "Spend no more than 90% to earn a 500-coin reward"}</strong></p>{positionLocked ? <p className="form-hint">Replacing: <strong>{(() => { const p = config.replacementPlayers.find((player: any) => player.id === replacementPlayerId); return p ? (p.full_name ?? `${p.first_name} ${p.last_name}`) : "selected player"; })()}</strong> ({position}) — chosen in Step 3, locked to this purchase.</p> : config.replacementRequired ? <label>Replace active player{game === "CFB" ? ` (must be ${position} — CFB recruits inherit that player's position)` : " (any position)"}<select className="form-input" value={replacementPlayerId} onChange={(e) => {
+    {step === 4 && <>
+      <h4>Card Appearance</h4>
+      <p className="form-hint">
+        Choose a face for this player&apos;s card. Options are filtered by <strong>{identity.bodyType}</strong> build
+        {position ? <> and <strong>{position}</strong> position</> : null}.
+      </p>
+      {!bodyBuildAllowed && (
+        <p className="form-hint">
+          The {identity.bodyType} build isn&apos;t available for {position}. Go back and pick a compatible body/build
+          ({cardBuildsForPosition(position).join(", ")}).
+        </p>
+      )}
+      {bodyBuildAllowed && appearanceOptions.length === 0 && (
+        <p className="form-hint">No card faces are available for this combination yet.</p>
+      )}
+      <div className="custom-player-render-grid" role="listbox" aria-label="Card appearance">
+        {appearanceOptions.map((render) => (
+          <button
+            type="button"
+            key={render.id}
+            role="option"
+            aria-selected={identity.cardRenderId === render.id}
+            className={identity.cardRenderId === render.id ? "active" : ""}
+            onClick={() => setIdentity({ ...identity, cardRenderId: render.id })}
+          >
+            <img src={render.imagePath} alt="" loading="lazy" />
+            <span>{render.hairstyle} · {render.skinTone}</span>
+          </button>
+        ))}
+      </div>
+    </>}
+    {step === 5 && <><h4>Attribute Builder</h4>{groupEditableAttributes(editable).map((group) => <div key={group.label} className="custom-player-attribute-group"><h5>{group.label}</h5><div className="custom-player-attribute-list">{group.codes.map((code) => <div key={code}><span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span><button onClick={() => mutate(code,-1)}>−</button><input className="custom-player-attribute-input" type="number" min={REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} max={99} value={attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} onChange={(e) => mutate(code, Math.max(REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, Math.min(99, Number(e.target.value) || REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)) - (attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR))}/><button onClick={() => mutate(code,1)}>+</button></div>)}</div></div>)}</>}
+    {step === 6 && <><h4>Review</h4><p><strong>{identity.firstName} {identity.lastName}</strong> · {position}</p>
+      {identity.cardRenderId && (
+        <div className="custom-player-review-face">
+          <img src={appearanceOptions.find((row) => row.id === identity.cardRenderId)?.imagePath
+            ?? listCustomPlayerRendersFor({ bodyBuild: identity.bodyType, position: null }).find((row) => row.id === identity.cardRenderId)?.imagePath
+            ?? "/assets/player-cards/player-silhouette.svg"} alt="" />
+          <span>Card face selected</span>
+        </div>
+      )}
+      <p>{pkg.displayName} · <CoinAmount amount={pkg.coinPrice}/> · {evaluation?.displayOverall} OVR ({evaluation?.rawOverall} raw)</p><p className="form-hint">Identity or rating edits are logged and sent to you; {game === "CFB" ? "position remains locked to this purchase" : "position and development trait remain locked to this purchase"}.</p><p>{evaluation?.totalCost}/{evaluation?.creationPoints} CP · {evaluation?.pointsRemaining} unspent · <strong>{(evaluation?.pointsRemaining ?? 0) * 10 >= (evaluation?.creationPoints ?? 0) ? "500-coin reward after application" : "Spend no more than 90% to earn a 500-coin reward"}</strong></p>{positionLocked ? <p className="form-hint">Replacing: <strong>{(() => { const p = config.replacementPlayers.find((player: any) => player.id === replacementPlayerId); return p ? (p.full_name ?? `${p.first_name} ${p.last_name}`) : "selected player"; })()}</strong> ({position}) — chosen in Step 3, locked to this purchase.</p> : config.replacementRequired ? <label>Replace active player{game === "CFB" ? ` (must be ${position} — CFB recruits inherit that player's position)` : " (any position)"}<select className="form-input" value={replacementPlayerId} onChange={(e) => {
       const nextId = e.target.value;
       if (game === "CFB" && nextId) {
         const player = config.replacementPlayers.find((entry: any) => entry.id === nextId);
@@ -226,7 +281,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     }}><option value="">Select player</option>{config.replacementPlayers
       .filter((player: any) => game !== "CFB" || canonicalReplacementPosition(player.position) === position)
       .map((player: any) => <option key={player.id} value={player.id}>{player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR</option>)}</select></label> : <p className="form-hint">Your team has no active players yet (unseeded league) — this custom player will be added to the roster as a brand-new player instead of replacing anyone.</p>}</>}
-    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < 5 ? <Button variant="primary" onClick={() => { if (step === 2) { const problem = validatePlayerDetails(); if (problem) { setNotice(problem); return; } } if (step === 3 && positionLocked && !replacementPlayerId) { setNotice("Select the active player this recruit replaces before continuing."); return; } setNotice(null); setStep(step + 1); }}>Continue</Button> :<Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId)} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
+    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < WIZARD_STEPS ? <Button variant="primary" onClick={() => { if (step === 2) { const problem = validatePlayerDetails(); if (problem) { setNotice(problem); return; } } if (step === 3 && positionLocked && !replacementPlayerId) { setNotice("Select the active player this recruit replaces before continuing."); return; } if (step === 4) { if (!bodyBuildAllowed) { setNotice(`The ${identity.bodyType} build isn't available for ${position}.`); return; } if (!identity.cardRenderId) { setNotice("Select a card appearance before continuing."); return; } } setNotice(null); setStep(step + 1); }}>Continue</Button> :<Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId) || !identity.cardRenderId} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
     {ceilingBlock && (
       <Modal title={`${getRecAttributeDisplayName(ceilingBlock.attribute)} Ceiling Reached`} onClose={() => setCeilingBlock(null)}>
         <p>{ceilingBlock.message}</p>

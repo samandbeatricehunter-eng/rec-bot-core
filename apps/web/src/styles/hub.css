@@ -3853,6 +3853,61 @@ button.poty:disabled {
   border-color: #fff;
 }
 
+.custom-player-render-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: .65rem;
+  max-height: 28rem;
+  overflow: auto;
+  padding: .15rem;
+}
+
+.custom-player-render-grid button {
+  display: grid;
+  gap: .35rem;
+  padding: .45rem;
+  text-align: center;
+  color: var(--text-primary, #fff);
+  background: #101318;
+  border: 1px solid #59616d;
+  border-radius: .5rem;
+  cursor: pointer;
+}
+
+.custom-player-render-grid button.active {
+  border-color: var(--gold, #d7a52a);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold, #d7a52a) 55%, transparent);
+}
+
+.custom-player-render-grid img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: .35rem;
+  background: #0a0d12;
+}
+
+.custom-player-render-grid span {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: var(--text-secondary, #b8c0cc);
+}
+
+.custom-player-review-face {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.custom-player-review-face img {
+  width: 4.5rem;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: .4rem;
+  border: 1px solid #59616d;
+}
+
 .custom-player-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 320" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="bg5" x1="120" y1="20" x2="120" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#141820"/>
+      <stop offset="1" stop-color="#0A0D12"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="320" fill="url(#bg5)"/>
+  <rect x="84" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="96" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="108" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="120" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="132" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="144" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><rect x="156" y="48" width="8" height="58" rx="4" fill="#0E0A08"/><ellipse cx="120" cy="58" rx="44" ry="24" fill="#0E0A08"/>
+  <ellipse cx="120" cy="98" rx="42" ry="48" fill="#8D5524"/>
+  <rect x="94" y="138" width="52" height="34" rx="8" fill="#8D5524"/>
+  <path fill="#1A222E" d="M52 300c10-70 34-120 68-120s68 50 68 120H52Z"/>
+  <path fill="#8D5524" d="M70 188c18-16 40-22 50-22s50 6 50 22c-20 8-42 12-50 12s-30-4-50-12Z" opacity=".95"/>
+</svg>

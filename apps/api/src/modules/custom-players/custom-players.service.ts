@@ -19,6 +19,8 @@ import {
   getRecEditableAttributes,
   getRecNetDevelopmentCost,
   isRecCustomPlayerPosition,
+  isCustomPlayerRenderAllowed,
+  customPlayerRenderPublicUrl,
   listRecArchetypes,
   listRecCustomPlayerPackages,
   sortRecAttributeCodes,
@@ -47,7 +49,7 @@ async function configuredPackages(game: RecGameFamily, year: number) {
 type Identity = {
   firstName: string; lastName: string; jerseyNumber: number; handedness: string;
   heightInches: number; weightLbs: number; hometownCity?: string; hometownState?: string;
-  college?: string; bodyType?: string;
+  college?: string; bodyType?: string; cardRenderId?: string;
 };
 
 // CFB-only — Madden custom players keep the flat 60-84in / 140-400lb range below. These
@@ -119,6 +121,15 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
   } else {
     if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) throw new ApiError(400, "Height must be 60-84 inches.");
     if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
+    // Body build is card-appearance only for Madden (weight stays free-range).
+    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body build is required for the player card appearance.");
+  }
+  if (!identity.cardRenderId || !isCustomPlayerRenderAllowed({
+    cardRenderId: identity.cardRenderId,
+    bodyBuild: identity.bodyType,
+    position,
+  })) {
+    throw new ApiError(400, "Pick a card appearance that matches this player's body build and position.");
   }
 }
 
@@ -547,6 +558,19 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
     await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_approved", title: "Your custom player was approved & applied", body: "It has been added to your roster.", href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
   }
   const playerId = (applied.data as { playerId?: string } | null)?.playerId;
+  if (playerId) {
+    const renderId = typeof adjusted.identity?.cardRenderId === "string" ? adjusted.identity.cardRenderId : null;
+    if (renderId && isCustomPlayerRenderAllowed({
+      cardRenderId: renderId,
+      bodyBuild: adjusted.identity?.bodyType,
+      position: build.position,
+    })) {
+      await supabase.from("rec_players").update({
+        photo_url: customPlayerRenderPublicUrl(renderId),
+        updated_at: new Date().toISOString(),
+      }).eq("id", playerId);
+    }
+  }
   const player = playerId ? await supabase.from("rec_players").select("*").eq("id", playerId).maybeSingle() : null;
   return { ...(applied.data as Record<string, unknown>), player: player?.data ?? null };
 }
