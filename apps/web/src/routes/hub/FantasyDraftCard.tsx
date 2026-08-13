@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import {
   REC_CUSTOM_PLAYER_POSITIONS,
   REC_DEV_TRAITS,
-  REC_POSITION_OVR_MODELS,
   estimateRecPlayerOverall,
   getRecAttributeDisplayName,
+  getRecEditableAttributes,
   listRecArchetypes,
+  sortRecAttributeCodes,
   type RecOvrPosition,
 } from "@rec/shared";
 import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, SlidersHorizontal, Trash2, Trophy, Undo2, X } from "lucide-react";
@@ -113,6 +114,7 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [pickOrderOpen, setPickOrderOpen] = useState(false);
   const [customPlayerOpen, setCustomPlayerOpen] = useState(false);
   const [wrapupTarget, setWrapupTarget] = useState<FantasyDraftPoolPlayer | null>(null);
+  const [assignPoolOpen, setAssignPoolOpen] = useState(false);
   const [concludeResult, setConcludeResult] = useState<{ teamName: string; draftedCount: number }[] | null>(null);
   const [openPlayer, setOpenPlayer] = useState<FantasyDraftPoolPlayer | null>(null);
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
@@ -330,6 +332,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
       });
     }
     if (status === "wrap_up") commissionerActions.push({
+      label: "Assign the Pool", icon: <CheckCircle2 size={16} />,
+      onClick: () => setAssignPoolOpen(true),
+    });
+    if (status === "wrap_up") commissionerActions.push({
       label: "Conclude Draft", icon: <CheckCircle2 size={16} />, danger: true,
       onClick: () => void runAction(async () => {
         const result = await recApi.concludeFantasyDraft(guildId);
@@ -541,6 +547,18 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
           onConfirm={(teamId) => void runAction(async () => {
             await recApi.logFantasyDraftWrapupPick({ guildId, playerId: wrapupTarget.id, teamId });
           }, `${wrapupTarget.name} assigned.`)}
+        />
+      )}
+      {assignPoolOpen && (
+        <AssignThePoolModal
+          teams={teams}
+          pool={pool}
+          busy={busy}
+          onClose={() => setAssignPoolOpen(false)}
+          onAssign={(player, teamId) => void runAction(
+            () => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id, teamId }),
+            `${player.name} assigned.`,
+          )}
         />
       )}
       {fillSkipTarget && (
@@ -1375,6 +1393,61 @@ function FillSkippedPickModal({ teamName, pool, busy, onClose, onConfirm }: {
   );
 }
 
+/** Wrap-up "Assign the Pool" — a focused commissioner view for walking every remaining
+ * undrafted player onto a team (or leaving them as free agents) once the main board closes.
+ * Differs from the inline wrap-up Assign button by giving a searchable, whole-pool list with
+ * an explicit per-player team dropdown, mirroring the plan's post-draft assign-the-pool flow. */
+function AssignThePoolModal({ teams, pool, busy, onClose, onAssign }: {
+  teams: FantasyDraftState["teams"];
+  pool: FantasyDraftPoolPlayer[];
+  busy: boolean;
+  onClose: () => void;
+  onAssign: (player: FantasyDraftPoolPlayer, teamId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const available = useMemo(() => pool.filter((p) => !p.isDrafted), [pool]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return available;
+    return available.filter((p) => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q));
+  }, [available, query]);
+  const sorted = useMemo(() => [...teams].sort((a, b) => a.displayName.localeCompare(b.displayName)), [teams]);
+  const assignedCount = Object.keys(assignments).filter((id) => assignments[id]).length;
+
+  return (
+    <Modal title="Assign the Pool" onClose={onClose} panelClassName="fantasy-draft-modal-wide">
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Assign every remaining undrafted player to a team, or leave them as free agents. Each assignment logs a wrap-up pick, exactly like the inline Assign buttons.
+      </p>
+      <input className="form-input" placeholder="Search players…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+      <div className="fantasy-draft-pick-requests" style={{ maxHeight: 420, overflowY: "auto", marginTop: "var(--space-3)" }}>
+        {filtered.map((player) => (
+          <div key={player.id} className="fantasy-draft-pick-request-row">
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {player.name} — {player.position} · {player.overallRating} OVR
+            </span>
+            <div className="fantasy-draft-pick-request-actions" style={{ minWidth: 260 }}>
+              <select className="form-input" value={assignments[player.id] ?? ""} onChange={(e) => setAssignments((current) => ({ ...current, [player.id]: e.target.value }))}>
+                <option value="">Free Agent</option>
+                {sorted.map((team) => <option key={team.id} value={team.id}>{team.displayName}</option>)}
+              </select>
+              <Button variant="primary" size="compact" disabled={busy || !assignments[player.id]} onClick={() => onAssign(player, assignments[player.id]!)}>
+                {busy ? "Assigning…" : "Assign"}
+              </Button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <p className="form-hint">No undrafted players match this search.</p>}
+      </div>
+      <div className="fantasy-draft-form-actions">
+        <span className="form-hint" style={{ margin: 0 }}>{assignedCount} queued for assignment</span>
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+      </div>
+    </Modal>
+  );
+}
+
 function SaveDraftBoardModal({ guildId, playerIds, onClose, onSaved }: { guildId: string; playerIds: string[]; onClose: () => void; onSaved: (name: string) => void }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1490,7 +1563,10 @@ function AddCustomPlayerModal({ guildId, onClose, onAdded }: { guildId: string; 
   const [notice, setNotice] = useState<string | null>(null);
 
   const archetypes = useMemo(() => { try { return listRecArchetypes("MADDEN", position); } catch { return []; } }, [position]);
-  const coefficientCodes = useMemo(() => Object.keys(REC_POSITION_OVR_MODELS[position]?.coefficients ?? {}), [position]);
+  const editableCodes = useMemo(
+    () => sortRecAttributeCodes(getRecEditableAttributes("MADDEN", position, archetype)),
+    [position, archetype],
+  );
 
   function changePosition(value: string) {
     setPosition(value as RecOvrPosition);
@@ -1508,6 +1584,10 @@ function AddCustomPlayerModal({ guildId, onClose, onAdded }: { guildId: string; 
 
   function mutate(code: string, delta: number) {
     setAttributes((current) => ({ ...current, [code]: Math.max(0, Math.min(99, (current[code] ?? 0) + delta)) }));
+  }
+
+  function setAttribute(code: string, value: number) {
+    setAttributes((current) => ({ ...current, [code]: Math.max(0, Math.min(99, Number.isFinite(value) ? Math.round(value) : 0)) }));
   }
 
   async function submit() {
@@ -1549,11 +1629,13 @@ function AddCustomPlayerModal({ guildId, onClose, onAdded }: { guildId: string; 
         </select></label>
       </div>
       <div className="fantasy-draft-attribute-list">
-        {coefficientCodes.length ? coefficientCodes.map((code) => (
+        {editableCodes.length ? editableCodes.map((code) => (
           <div key={code} className="fantasy-draft-attribute-row">
             <span><strong>{getRecAttributeDisplayName(code)}</strong><small>{code.toUpperCase()}</small></span>
             <button type="button" onClick={() => mutate(code, -1)}>−</button>
-            <b>{attributes[code] ?? 0}</b>
+            <input className="custom-player-attribute-input" type="number" min={0} max={99}
+              value={attributes[code] ?? 0}
+              onChange={(e) => setAttribute(code, Number(e.target.value))} />
             <button type="button" onClick={() => mutate(code, 1)}>+</button>
           </div>
         )) : <p className="hub-empty">No attribute model for this position.</p>}

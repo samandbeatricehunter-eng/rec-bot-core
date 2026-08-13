@@ -63,6 +63,10 @@ import type {
   TurnoverKind,
   RosterDepartureStatus,
   RosterLifecycleResult,
+  RosterPoolResponse,
+  RosterPlayerUpdateInput,
+  RosterAssignResponse,
+  RosterReleaseResponse,
   PeerWagerBoardResponse,
   MyWagersResponse,
   ChallengeableCoachesResponse,
@@ -297,6 +301,14 @@ export const recApi = {
     recApiFetch<WeekWagerLinesResponse>("/v1/wagers/week-lines", { method: "POST", body: JSON.stringify(input) }),
   getTeamRoster: (input: { guildId: string; teamId?: string | null }) =>
     recApiFetch<TeamRosterResponse>("/v1/roster/team", { method: "POST", body: JSON.stringify(input) }),
+  listRosterPool: (input: { guildId: string; search?: string | null; positionGroup?: string | null }) =>
+    recApiFetch<RosterPoolResponse>("/v1/roster/pool", { method: "POST", body: JSON.stringify(input) }),
+  assignRosterPlayer: (input: { guildId: string; playerId: string; teamId: string }) =>
+    recApiFetch<RosterAssignResponse>("/v1/roster/pool/assign", { method: "POST", body: JSON.stringify(input) }),
+  releaseRosterPlayer: (input: { guildId: string; playerId: string }) =>
+    recApiFetch<RosterReleaseResponse>("/v1/roster/pool/release", { method: "POST", body: JSON.stringify(input) }),
+  updateRosterPlayer: (input: RosterPlayerUpdateInput) =>
+    recApiFetch<RosterAssignResponse>("/v1/roster/player/update", { method: "POST", body: JSON.stringify(input) }),
   uploadPlayerPhoto: (input: { guildId: string; playerId: string; contentType: string; imageBase64: string }) =>
     recApiFetch<{ playerId: string; photoUrl: string }>("/v1/roster/player/photo", { method: "POST", body: JSON.stringify(input) }),
   setPlayerDeparture: (input: { guildId: string; playerId: string; status: RosterDepartureStatus; note?: string | null }) =>

@@ -1,4 +1,4 @@
-import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, isCfb } from "@rec/shared";
+import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, isCfb, getRecEditableAttributes, REC_DEV_TRAITS } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
@@ -422,4 +422,244 @@ export async function uploadPlayerPhoto(input: {
   if (updated.error) throw new ApiError(500, "Failed to save the player's headshot.", updated.error);
 
   return { playerId: updated.data.id, photoUrl: updated.data.photo_url };
+}
+
+// ---------------------------------------------------------------------------
+// Roster pool editor — League Mgmt "Edit Rosters" side of the plan: the commissioner
+// sees every unassigned player (the draft pool in fantasy_draft leagues, the free-agent
+// pool elsewhere) and can assign WHOLE players to a team, release a roster player back
+// into the pool, or edit a player's identity/attributes in place. Mirrors the fantasy
+// draft's team_id/is_free_agent lifecycle: assignment sets team_id + is_free_agent false,
+// release reverses it (team_id null + is_free_agent true), so released players reappear in
+// the pool the same way an undone draft pick does.
+// ---------------------------------------------------------------------------
+
+export type RosterPoolPlayer = {
+  id: string;
+  fullName: string;
+  position: string;
+  positionGroup: string;
+  jerseyNumber: number | null;
+  archetype: string | null;
+  devTrait: string | null;
+  overallRating: number | null;
+  heightInches: number | null;
+  weightLbs: number | null;
+  handedness: string | null;
+  photoUrl: string | null;
+  isFreeAgent: boolean;
+  attributes: Record<string, number | null>;
+  abilities: Array<{ name: string; description: string }> | null;
+};
+
+/** Unassigned players (team_id null) in position-group order, with per-group counts and
+ * grade so the pool view reads like the team-roster viewer it mirrors. `search` matches
+ * the player's full name; `positionGroup` is an exact position-group code. */
+export async function listRosterPool(input: { guildId: string; discordId: string; search?: string | null; positionGroup?: string | null }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const { data, error } = await supabase
+    .from("rec_players")
+    .select("id,full_name,position,jersey_number,archetype,dev_trait,overall_rating,height_inches,weight_lbs,handedness,photo_url,is_free_agent,attributes,abilities")
+    .eq("league_id", leagueId)
+    .is("team_id", null)
+    .order("position", { ascending: true })
+    .order("overall_rating", { ascending: false });
+  if (error) throw new ApiError(500, "Failed to load the player pool.", error);
+
+  const search = input.search?.trim().toLowerCase();
+  const positionGroup = input.positionGroup?.trim().toUpperCase();
+  const filtered = (data ?? []).filter((p) => {
+    if (search && !(p.full_name ?? "").toLowerCase().includes(search)) return false;
+    if (positionGroup && normalizeCfbPosition(p.position ?? "") !== positionGroup) return false;
+    return true;
+  });
+
+  const players: RosterPoolPlayer[] = filtered.map((p) => ({
+    id: p.id,
+    fullName: p.full_name ?? "Unknown",
+    position: p.position ?? "",
+    positionGroup: normalizeCfbPosition(p.position ?? ""),
+    jerseyNumber: p.jersey_number,
+    archetype: p.archetype ?? null,
+    devTrait: p.dev_trait ?? null,
+    overallRating: p.overall_rating,
+    heightInches: p.height_inches,
+    weightLbs: p.weight_lbs,
+    handedness: p.handedness ?? null,
+    photoUrl: p.photo_url ?? null,
+    isFreeAgent: Boolean(p.is_free_agent),
+    attributes: (p.attributes ?? {}) as Record<string, number | null>,
+    abilities: (p.abilities ?? null) as Array<{ name: string; description: string }> | null,
+  }));
+
+  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
+  const groupList: readonly string[] = isMadden ? MADDEN_POSITION_GROUPS : CFB_POSITION_GROUPS;
+  const positionGroups: RosterPositionGroup[] = groupList.map((group) => {
+    const inGroup = players.filter((r) => r.positionGroup === group);
+    const withOverall = inGroup.filter((r) => r.overallRating != null);
+    const avgOverall = withOverall.length
+      ? Math.round((withOverall.reduce((sum, r) => sum + (r.overallRating ?? 0), 0) / withOverall.length) * 10) / 10
+      : null;
+    return {
+      group,
+      grade: overallToGrade(avgOverall),
+      avgOverall,
+      playerCount: inGroup.length,
+    };
+  });
+
+  return { players, positionGroups };
+}
+
+/** Assign an unassigned pool player to a team — the commissioner's "assign from the pool"
+ * action and the post-draft assign-the-pool flow. Only league teams are valid targets,
+ * and only team_id-null players can be assigned (mirrors recordPick's guard). */
+export async function assignRosterPlayer(input: { guildId: string; discordId: string; playerId: string; teamId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const [player, team] = await Promise.all([
+    supabase.from("rec_players").select("id,team_id,is_free_agent").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle(),
+    supabase.from("rec_teams").select("id").eq("id", input.teamId).eq("league_id", leagueId).maybeSingle(),
+  ]);
+  if (player.error) throw new ApiError(500, "Failed to load that player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (player.data.team_id != null) throw new ApiError(409, "That player is already assigned to a team.");
+  if (team.error) throw new ApiError(500, "Failed to load that team.", team.error);
+  if (!team.data) throw new ApiError(404, "Team not found in this league.");
+
+  const updated = await supabase
+    .from("rec_players")
+    .update({ team_id: input.teamId, is_free_agent: false, updated_at: new Date().toISOString() })
+    .eq("id", input.playerId)
+    .select("id,full_name,team_id")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to assign that player.", updated.error);
+  return { ok: true as const, playerId: updated.data.id, fullName: updated.data.full_name, teamId: updated.data.team_id };
+}
+
+/** Release a roster player back into the pool (team_id null + is_free_agent true), where
+ * they reappear in the pool/assign dropdowns — the editor's "Remove" action. */
+export async function releaseRosterPlayer(input: { guildId: string; discordId: string; playerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+
+  const player = await supabase.from("rec_players").select("id,team_id,full_name").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load that player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+  if (player.data.team_id == null) throw new ApiError(409, "That player is already in the pool.");
+
+  const updated = await supabase
+    .from("rec_players")
+    .update({ team_id: null, is_free_agent: true, updated_at: new Date().toISOString() })
+    .eq("id", input.playerId)
+    .select("id,full_name")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to release that player.", updated.error);
+  return { ok: true as const, playerId: updated.data.id, fullName: updated.data.full_name };
+}
+
+/** Edit a player's identity + attributes in place — the league editor's full edit modal
+ * (all fields, including the full attribute grid). Game-aware: dev trait is a Madden
+ * concept and is ignored for CFB leagues; class year is a CFB concept and is ignored for
+ * Madden. Attributes are validated against the shared editable set (all 53 Madden codes). */
+export async function updateRosterPlayer(input: {
+  guildId: string;
+  discordId: string;
+  playerId: string;
+  firstName?: string;
+  lastName?: string;
+  position?: string;
+  jerseyNumber?: number | null;
+  archetype?: string | null;
+  devTrait?: string | null;
+  classYear?: string | null;
+  overallRating?: number | null;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  handedness?: string | null;
+  attributes?: Record<string, number>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const userId = await userIdForDiscord(input.discordId);
+  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
+
+  const player = await supabase.from("rec_players").select("id,full_name").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
+  if (player.error) throw new ApiError(500, "Failed to load that player.", player.error);
+  if (!player.data) throw new ApiError(404, "Player not found in this league.");
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.firstName !== undefined || input.lastName !== undefined) {
+    const firstName = (input.firstName ?? player.data.full_name?.split(/\s+/)[0] ?? "").trim();
+    const lastName = (input.lastName ?? player.data.full_name?.split(/\s+/).slice(1).join(" ") ?? "").trim();
+    if (!firstName || !lastName) throw new ApiError(400, "First and last name are required.");
+    patch.first_name = firstName;
+    patch.last_name = lastName;
+    patch.full_name = `${firstName} ${lastName}`;
+  }
+
+  if (input.position !== undefined) {
+    const position = input.position.trim().toUpperCase();
+    if (!position) throw new ApiError(400, "Position is required.");
+    patch.position = position;
+  }
+  if (input.jerseyNumber !== undefined) {
+    if (input.jerseyNumber != null && (input.jerseyNumber < 0 || input.jerseyNumber > 99)) throw new ApiError(400, "Jersey number must be 0-99.");
+    patch.jersey_number = input.jerseyNumber;
+  }
+  if (input.archetype !== undefined) patch.archetype = input.archetype || null;
+  if (isMadden && input.devTrait !== undefined) {
+    const valid = REC_DEV_TRAITS.MADDEN.some((t) => t.key === input.devTrait);
+    if (input.devTrait && !valid) throw new ApiError(400, "That development trait isn't valid for Madden.");
+    patch.dev_trait = input.devTrait || null;
+  }
+  if (!isMadden && input.classYear !== undefined) {
+    const valid = ["FR", "SO", "JR", "SR", "RS-FR", "RS-SO", "RS-JR", "RS-SR"].includes(input.classYear ?? "");
+    if (input.classYear && !valid) throw new ApiError(400, "That class year isn't valid.");
+    patch.class_year = input.classYear || null;
+  }
+  if (input.overallRating !== undefined) {
+    if (input.overallRating != null && (input.overallRating < 0 || input.overallRating > 99)) throw new ApiError(400, "Overall rating must be 0-99.");
+    patch.overall_rating = input.overallRating;
+  }
+  if (input.heightInches !== undefined) {
+    if (input.heightInches != null && (input.heightInches < 48 || input.heightInches > 90)) throw new ApiError(400, "Height must be 48-90 inches.");
+    patch.height_inches = input.heightInches;
+  }
+  if (input.weightLbs !== undefined) {
+    if (input.weightLbs != null && (input.weightLbs < 100 || input.weightLbs > 450)) throw new ApiError(400, "Weight must be 100-450 lbs.");
+    patch.weight_lbs = input.weightLbs;
+  }
+  if (input.handedness !== undefined) {
+    if (input.handedness && !["left", "right"].includes(input.handedness)) throw new ApiError(400, "Handedness must be left or right.");
+    patch.handedness = input.handedness || null;
+  }
+
+  if (input.attributes !== undefined) {
+    const editable = new Set(getRecEditableAttributes(isMadden ? "MADDEN" : "CFB", "", undefined));
+    const attributes: Record<string, number> = {};
+    for (const [key, value] of Object.entries(input.attributes)) {
+      const code = key.trim().toLowerCase();
+      if (!editable.has(code)) throw new ApiError(400, `Attribute ${key} isn't editable.`);
+      if (!Number.isInteger(value) || value < 0 || value > 99) throw new ApiError(400, `Attribute ${key} must be an integer from 0 through 99.`);
+      attributes[code] = value;
+    }
+    patch.attributes = attributes;
+  }
+
+  const updated = await supabase
+    .from("rec_players")
+    .update(patch)
+    .eq("id", input.playerId)
+    .select("id,full_name,position,overall_rating")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to update that player.", updated.error);
+  return { ok: true as const, playerId: updated.data.id, fullName: updated.data.full_name, position: updated.data.position, overallRating: updated.data.overall_rating };
 }

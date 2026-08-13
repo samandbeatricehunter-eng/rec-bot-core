@@ -11,6 +11,7 @@ import { Button } from "../../../components/ui/Button.js";
 import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { RosterPoolEditor } from "./RosterPoolEditor.js";
 
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";
@@ -187,6 +188,7 @@ export function TeamRosterForm() {
   const [error, setError] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState("ALL");
   const [teams, setTeams] = useState<TeamManagementSummaryRow[]>([]);
+  const [poolMode, setPoolMode] = useState(false);
   const isMadden = game === "madden_26" || game === "madden_27";
 
   function load() {
@@ -205,11 +207,16 @@ export function TeamRosterForm() {
   }, [data, positionFilter]);
 
   if (error) return <div><PageHeader title="Edit Roster" /><ErrorState message={error} /></div>;
+  if (poolMode) return <RosterPoolEditor />;
   if (!data || !teamId) return <LoadingState label="Loading roster…" />;
 
   return (
     <div>
-      <PageHeader title={data.team.name ?? "Team Roster"} subtitle="Add players directly, or review who's currently on this roster." />
+      <PageHeader
+        title={data.team.name ?? "Team Roster"}
+        subtitle="Add players directly, or review who's currently on this roster."
+        actions={<Button variant="secondary" onClick={() => setPoolMode(true)}>Assign From Pool</Button>}
+      />
       {positionFilter !== "Draft Picks" && <div style={{ marginBottom: "var(--space-4)" }}>
         <AddPlayerForm guildId={guildId} teamId={teamId} onAdded={load} />
       </div>}

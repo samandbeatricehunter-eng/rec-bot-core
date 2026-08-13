@@ -753,6 +753,34 @@ export type RosterPositionGroup = {
   avgOverall: number | null;
   playerCount: number;
 };
+export type RosterPoolPlayer = RosterPlayer & {
+  jerseyNumber: number | null;
+  archetype: string | null;
+  isFreeAgent: boolean;
+  abilities: Array<{ name: string; description: string }> | null;
+};
+export type RosterPoolResponse = {
+  players: RosterPoolPlayer[];
+  positionGroups: RosterPositionGroup[];
+};
+export type RosterPlayerUpdateInput = {
+  guildId: string;
+  playerId: string;
+  firstName?: string;
+  lastName?: string;
+  position?: string;
+  jerseyNumber?: number | null;
+  archetype?: string | null;
+  devTrait?: string | null;
+  classYear?: string | null;
+  overallRating?: number | null;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  handedness?: string | null;
+  attributes?: Record<string, number>;
+};
+export type RosterAssignResponse = { ok: true; playerId: string; fullName: string; teamId: string | null };
+export type RosterReleaseResponse = { ok: true; playerId: string; fullName: string };
 export type TradeLegInput = { type: "player"; playerId: string } | { type: "pick"; draftPickId: string };
 export type TradeBlockListing = {
   id: string;
