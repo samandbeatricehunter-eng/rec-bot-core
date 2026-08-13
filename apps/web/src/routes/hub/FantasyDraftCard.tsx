@@ -551,14 +551,15 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
       )}
       {assignPoolOpen && (
         <AssignThePoolModal
+          guildId={guildId}
           teams={teams}
           pool={pool}
-          busy={busy}
           onClose={() => setAssignPoolOpen(false)}
-          onAssign={(player, teamId) => void runAction(
-            () => recApi.logFantasyDraftWrapupPick({ guildId, playerId: player.id, teamId }),
-            `${player.name} assigned.`,
-          )}
+          onSaved={(count) => {
+            setAssignPoolOpen(false);
+            setNotice(`${count} player${count === 1 ? "" : "s"} assigned.`);
+            void load();
+          }}
         />
       )}
       {fillSkipTarget && (
@@ -1397,15 +1398,17 @@ function FillSkippedPickModal({ teamName, pool, busy, onClose, onConfirm }: {
  * undrafted player onto a team (or leaving them as free agents) once the main board closes.
  * Differs from the inline wrap-up Assign button by giving a searchable, whole-pool list with
  * an explicit per-player team dropdown, mirroring the plan's post-draft assign-the-pool flow. */
-function AssignThePoolModal({ teams, pool, busy, onClose, onAssign }: {
+function AssignThePoolModal({ guildId, teams, pool, onClose, onSaved }: {
+  guildId: string;
   teams: FantasyDraftState["teams"];
   pool: FantasyDraftPoolPlayer[];
-  busy: boolean;
   onClose: () => void;
-  onAssign: (player: FantasyDraftPoolPlayer, teamId: string) => void;
+  onSaved: (count: number) => void;
 }) {
   const [query, setQuery] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const available = useMemo(() => pool.filter((p) => !p.isDrafted), [pool]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1413,12 +1416,27 @@ function AssignThePoolModal({ teams, pool, busy, onClose, onAssign }: {
     return available.filter((p) => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q));
   }, [available, query]);
   const sorted = useMemo(() => [...teams].sort((a, b) => a.displayName.localeCompare(b.displayName)), [teams]);
-  const assignedCount = Object.keys(assignments).filter((id) => assignments[id]).length;
+  const queued = Object.entries(assignments).filter(([, teamId]) => teamId);
+
+  async function saveAll() {
+    if (queued.length === 0) { onClose(); return; }
+    setSaving(true); setError(null);
+    try {
+      for (const [playerId, teamId] of queued) {
+        await recApi.logFantasyDraftWrapupPick({ guildId, playerId, teamId });
+      }
+      onSaved(queued.length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <Modal title="Assign the Pool" onClose={onClose} panelClassName="fantasy-draft-modal-wide">
       <p className="form-hint" style={{ marginTop: 0 }}>
-        Assign every remaining undrafted player to a team, or leave them as free agents. Each assignment logs a wrap-up pick, exactly like the inline Assign buttons.
+        Pick a team for every remaining undrafted player you want to assign, then save once — anyone left as Free Agent stays in the pool.
       </p>
       <input className="form-input" placeholder="Search players…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
       <div className="fantasy-draft-pick-requests" style={{ maxHeight: 420, overflowY: "auto", marginTop: "var(--space-3)" }}>
@@ -1428,21 +1446,20 @@ function AssignThePoolModal({ teams, pool, busy, onClose, onAssign }: {
               {player.name} — {player.position} · {player.overallRating} OVR
             </span>
             <div className="fantasy-draft-pick-request-actions" style={{ minWidth: 260 }}>
-              <select className="form-input" value={assignments[player.id] ?? ""} onChange={(e) => setAssignments((current) => ({ ...current, [player.id]: e.target.value }))}>
+              <select className="form-input" disabled={saving} value={assignments[player.id] ?? ""} onChange={(e) => setAssignments((current) => ({ ...current, [player.id]: e.target.value }))}>
                 <option value="">Free Agent</option>
                 {sorted.map((team) => <option key={team.id} value={team.id}>{team.displayName}</option>)}
               </select>
-              <Button variant="primary" size="compact" disabled={busy || !assignments[player.id]} onClick={() => onAssign(player, assignments[player.id]!)}>
-                {busy ? "Assigning…" : "Assign"}
-              </Button>
             </div>
           </div>
         ))}
         {filtered.length === 0 && <p className="form-hint">No undrafted players match this search.</p>}
       </div>
+      {error && <ErrorState message={error} />}
       <div className="fantasy-draft-form-actions">
-        <span className="form-hint" style={{ margin: 0 }}>{assignedCount} queued for assignment</span>
-        <Button variant="secondary" onClick={onClose}>Close</Button>
+        <span className="form-hint" style={{ margin: 0 }}>{queued.length} queued for assignment</span>
+        <Button variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button>
+        <Button variant="primary" disabled={saving} onClick={() => void saveAll()}>{saving ? "Saving…" : "Save Assignments"}</Button>
       </div>
     </Modal>
   );
