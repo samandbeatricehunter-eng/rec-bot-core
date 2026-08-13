@@ -84,9 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Adds a Discord identity onto the *currently signed-in* account (email/password users
   // linking Discord later from My Account) rather than starting a fresh OAuth sign-in —
   // signInWithOAuth here would risk landing on a different auth user's session entirely.
-  // Requires "Manual linking" enabled in Supabase Auth settings.
+  // Requires "Manual linking" enabled in Supabase Auth settings. The rec_link=discord marker
+  // lets AuthCallback tell a linking round-trip apart from an email confirmation so a silent
+  // Supabase-side link failure can be surfaced instead of "nothing happening".
   async function linkDiscord(nextPath = "/account") {
-    const redirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&rec_link=discord`;
     const { error } = await supabase.auth.linkIdentity({
       provider: "discord",
       options: {

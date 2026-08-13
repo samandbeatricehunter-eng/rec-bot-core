@@ -69,6 +69,19 @@ export function AuthCallback() {
         const linkResult = await siteApi.linkDiscordOAuth();
         if (cancelled) return;
 
+        // A "Link Discord account" round-trip (rec_link=discord) that comes back WITHOUT a
+        // Discord identity attached is a failed link, not a fresh sign-in or email confirm —
+        // previously it fell through to a silent navigate back to /account ("nothing happens").
+        // Supabase's linkIdentity needs "Manual linking" enabled in Auth settings; when that
+        // (or the OAuth callback) misbehaves the identity is simply never persisted, so the
+        // working alternative is the DM-code identity claim on the account page.
+        if (url.searchParams.get("rec_link") === "discord" && !linkResult.discordLinked) {
+          throw new Error(
+            "Discord wasn't linked. Identity linking needs to be enabled on the auth provider — use the " +
+              "'I already have a Discord identity' code flow on your account page instead, or contact support.",
+          );
+        }
+
         let pendingPromoCode = sessionStorage.getItem("rec_pending_promo_code");
         sessionStorage.removeItem("rec_pending_promo_code");
 
