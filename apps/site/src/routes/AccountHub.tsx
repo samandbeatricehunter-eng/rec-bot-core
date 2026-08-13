@@ -18,6 +18,7 @@ import {
   type SiteHomeCard,
   type SiteNotificationItem,
 } from "../lib/site-api.js";
+import { formatUserIdentity } from "../lib/user-identity.js";
 
 type AccountTab = "profile" | "stats" | "friends" | "inbox";
 
@@ -374,9 +375,9 @@ export function AccountHub({
               </span>
             )}
             <div className="site-account-identity-info">
-              <h2>@{linked.username}</h2>
+              <h2>@{formatUserIdentity(linked)}</h2>
               {linked.discordUsername ? (
-                <p className="site-muted">Discord · {linked.discordUsername}</p>
+                <p className="site-muted">Discord linked</p>
               ) : (
                 <div className="site-account-discord-link">
                   <p className="site-muted">Discord not linked</p>

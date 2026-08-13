@@ -251,6 +251,7 @@ function Routed() {
         <Route path="/l/:leagueId/rules" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/stats" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/history" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/draft-board" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/mgmt/inbox" element={<LegacyCommissionerInboxRedirect />} />
         <Route path="/l/:leagueId/mgmt/*" element={<LeagueHubPage />} />
         <Route path="/league-mgmt/*" element={<LegacyLeagueMgmtRedirect />} />

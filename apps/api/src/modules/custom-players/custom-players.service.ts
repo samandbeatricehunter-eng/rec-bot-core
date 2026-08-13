@@ -167,8 +167,10 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   if (builds.error) throw new ApiError(500, "We couldn't load your custom-player season usage. Please try again.", builds.error);
   // Only recruits/manually-added players are eligible replacement targets — the default
   // baseline roster (is_default_player = true) is never selectable here.
-  const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
+  let rosterQuery = supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait,madden_player_id")
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+  if (game === "CFB") rosterQuery = rosterQuery.eq("is_default_player", false);
+  const roster = await rosterQuery.order("overall_rating", { ascending: true });
   if (roster.error) throw new ApiError(500, "We couldn't load your roster for replacement. Please try again.", roster.error);
   const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
@@ -193,7 +195,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // roster never applied), the replacement step is skipped and the build adds a brand-new
     // player instead of replacing one. Whenever eligible (non-default) players exist,
     // replacement stays mandatory.
-    replacementRequired: (roster.data ?? []).length > 0,
+    replacementRequired: game === "MADDEN" || (roster.data ?? []).length > 0,
     // Active players exist, but none are eligible replacement targets (the whole roster is
     // still the untouched default baseline) — the purchase can't proceed until the user tracks
     // a recruit or manually adds a player via Edit Roster.
@@ -316,9 +318,11 @@ export async function submitCustomPlayer(input: {
   // approved build creates a brand-new player instead of replacing an outgoing row.
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
-    const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
-    if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
+    let replacementQuery = supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+    if (game === "CFB") replacementQuery = replacementQuery.eq("is_default_player", false);
+    const found = await replacementQuery.maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, game === "CFB" ? "Select an active recruit/added player from your roster to replace." : "Select an active player from your roster to provide the Madden EA identity slot.");
     replacement = found as { data: Record<string, unknown> };
   } else if (config.replacementRequired) {
     throw new ApiError(400, "This team has eligible players — select one to replace. Skipping the replacement is only allowed while none are eligible yet.");

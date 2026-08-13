@@ -22,6 +22,7 @@ import {
   removeFantasyDraftPoolPlayer,
   saveNamedFantasyDraftBoard,
   skipFantasyDraftPick,
+  skipFantasyDraftToPick,
   requestFantasyDraftPick,
   resolveFantasyDraftPickRequest,
   saveFantasyDraftBoard,
@@ -200,6 +201,15 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new Error("Skipping a pick requires a website session.");
       return reply.send(await skipFantasyDraftPick(guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/pick/skip-to", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), targetRound: z.number().int().min(1), targetPickInRound: z.number().int().min(1).max(32) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new Error("Skipping picks requires a website session.");
+      return reply.send(await skipFantasyDraftToPick(body.guildId, auth.discordId, body.targetRound, body.targetPickInRound));
     } catch (error) { return sendError(reply, error); }
   });
 

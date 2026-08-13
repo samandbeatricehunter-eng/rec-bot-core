@@ -19,6 +19,7 @@ function formatHeight(inches: number | null): string {
 }
 
 const HEADSHOT_MAX_DIMENSION = 600;
+const MADDEN_EDIT_POSITIONS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "LOLB", "MLB", "ROLB", "CB", "FS", "SS", "K", "P", "LS"] as const;
 const HEADSHOT_MAX_BASE64 = 6_000_000; // ≈4.5 MB binary, safely under the server's 5 MB cap
 
 /** Read + downscale an image file to a base64 data URL the API can re-host. */
@@ -94,7 +95,7 @@ function HeadshotCell({ guildId, player, onUploaded }: { guildId: string; player
   );
 }
 
-function AddPlayerForm({ guildId, teamId, onAdded }: { guildId: string; teamId: string; onAdded: () => void }) {
+function AddPlayerForm({ guildId, teamId, positions, onAdded }: { guildId: string; teamId: string; positions: readonly string[]; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -150,7 +151,7 @@ function AddPlayerForm({ guildId, teamId, onAdded }: { guildId: string; teamId: 
           <span className="form-label">Position</span>
           <select className="form-input" value={position} onChange={(event) => setPosition(event.target.value)}>
             <option value="">Select</option>
-            {CFB_POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+            {positions.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
           </select>
         </label>
         <label className="form-field" style={{ minWidth: 100 }}>
@@ -218,14 +219,14 @@ export function TeamRosterForm() {
         actions={<Button variant="secondary" onClick={() => setPoolMode(true)}>Assign From Pool</Button>}
       />
       {positionFilter !== "Draft Picks" && <div style={{ marginBottom: "var(--space-4)" }}>
-        <AddPlayerForm guildId={guildId} teamId={teamId} onAdded={load} />
+        <AddPlayerForm guildId={guildId} teamId={teamId} positions={isMadden ? MADDEN_EDIT_POSITIONS : CFB_POSITIONS} onAdded={load} />
       </div>}
       <Card style={{ marginBottom: "var(--space-4)" }}>
         <label className="form-field" style={{ margin: 0, maxWidth: 200 }}>
           <span className="form-label">Position</span>
           <select className="form-select" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)}>
             <option value="ALL">ALL</option>
-            {CFB_POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+            {(isMadden ? MADDEN_EDIT_POSITIONS : CFB_POSITIONS).map((pos) => <option key={pos} value={pos}>{pos}</option>)}
             {isMadden && <option value="Draft Picks">Draft Picks</option>}
           </select>
         </label>

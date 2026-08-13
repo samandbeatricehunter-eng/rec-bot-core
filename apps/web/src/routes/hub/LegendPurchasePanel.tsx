@@ -11,6 +11,8 @@ const LEGEND_ATTRIBUTE_CATEGORIES: Array<{ label: string; keywords: string[] }> 
   { label: "Defense", keywords: ["Tackling", "Tackle", "Hit Power", "Power Moves", "Finesse Moves", "Block Shedding", "Pursuit", "Play Recognition", "Man Coverage", "Zone Coverage", "Press"] },
   { label: "Kicking", keywords: ["Kick Power", "Kick Accuracy"] },
 ];
+const LEGEND_POSITION_TABS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "DT", "RE", "Will", "Mike", "Sam", "CB", "FS", "SS", "K/P"] as const;
+const legendPositionLabel = (position: string) => position === "K" || position === "P" ? "K/P" : position === "LOLB" ? "Will" : position === "MLB" ? "Mike" : position === "ROLB" ? "Sam" : position;
 function legendAttributeCategory(key: string): string {
   for (const category of LEGEND_ATTRIBUTE_CATEGORIES) {
     if (category.keywords.some((keyword) => key.toLowerCase().includes(keyword.toLowerCase()))) return category.label;
@@ -79,16 +81,16 @@ export function LegendPurchasePanel({
   const positions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const legend of tierLegends) {
-      const label = legend.position === "K" || legend.position === "P" ? "K/P" : legend.position;
+      const label = legendPositionLabel(legend.position);
       counts.set(label, (counts.get(label) ?? 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return LEGEND_POSITION_TABS.flatMap((label) => counts.has(label) ? [[label, counts.get(label)!] as [string, number]] : []);
   }, [tierLegends]);
 
   const visible = useMemo(() => {
     if (position === "ALL") return tierLegends;
     return tierLegends.filter((legend) =>
-      position === "K/P" ? legend.position === "K" || legend.position === "P" : legend.position === position,
+      legendPositionLabel(legend.position) === position,
     );
   }, [tierLegends, position]);
 
@@ -272,11 +274,10 @@ function LegendDetailModal({
   onPurchase: (replacementPlayerId: string | null) => void;
   onCancel: () => void;
 }) {
-  const [designateReplacement, setDesignateReplacement] = useState(isCfb);
   const [replacementPlayerId, setReplacementPlayerId] = useState("");
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
-  const canSubmitReplacement = isCfb ? Boolean(replacementPlayerId) : !designateReplacement || Boolean(replacementPlayerId);
+  const canSubmitReplacement = Boolean(replacementPlayerId);
   const abilities = !isCfb ? (legend.abilities ?? []) : [];
 
   return (
@@ -361,13 +362,8 @@ function LegendDetailModal({
             }
             return eligiblePlayers.length > 0 && (
             <>
-              <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
-                <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
-                <span className="form-label" style={{ margin: 0 }}>Pick which roster player this replaces</span>
-              </label>
-              {designateReplacement ? (
                 <label className="form-field">
-                  <span className="form-label">Replace (any position)</span>
+                  <span className="form-label">Madden player slot to replace</span>
                   <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
                     <option value="">Select player</option>
                     {eligiblePlayers.map((player) => (
@@ -377,9 +373,7 @@ function LegendDetailModal({
                     ))}
                   </select>
                 </label>
-              ) : (
-                <p className="form-hint">Leave unchecked to let your commissioner choose which player this replaces.</p>
-              )}
+                <p className="form-hint">Required. Players are sorted lowest OVR first; the new legend keeps this player's EA identity for companion-app roster imports.</p>
             </>
             );
           })()}
@@ -388,7 +382,7 @@ function LegendDetailModal({
             <Button
               variant="primary"
               disabled={busy || !canSubmitReplacement}
-              onClick={() => onPurchase(isCfb || designateReplacement ? replacementPlayerId || null : null)}
+              onClick={() => onPurchase(replacementPlayerId || null)}
             >
               {busy ? "Submitting…" : "Purchase"}
             </Button>

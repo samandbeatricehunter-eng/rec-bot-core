@@ -92,15 +92,15 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   const legend = await supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle();
   const photoUrl = legend.data?.photo_url ?? null;
 
-  // Commissioner's final call (name-based, from the review UI) wins over the buyer's original
-  // pick (a real player id) when given; otherwise fall back to the buyer's request.
-  let replacementPlayerId: string | null = details.replaceTarget?.playerId ?? null;
-  if (!isCfbLeague && details.finalReplaceTarget) {
-    const match = await supabase.from("rec_players").select("id")
-      .eq("league_id", leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false)
-      .eq("position", details.finalReplaceTarget.position).eq("first_name", details.finalReplaceTarget.firstName).eq("last_name", details.finalReplaceTarget.lastName)
-      .maybeSingle();
-    if (match.data?.id) replacementPlayerId = match.data.id;
+  const replacementPlayerId: string | null = details.replaceTarget?.playerId ?? null;
+  let inheritedMaddenPlayerId: string | null = null;
+  if (!isCfbLeague) {
+    if (!replacementPlayerId) throw new ApiError(400, "A Madden legend must have the buyer-selected EA-linked player slot to replace.");
+    const replacement = await supabase.from("rec_players").select("id,madden_player_id")
+      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
+      .in("roster_status", ["active", "transferred_in"]).maybeSingle();
+    if (!replacement.data) throw new ApiError(409, "The selected Madden replacement player is no longer available. Reject and refund this purchase.");
+    inheritedMaddenPlayerId = replacement.data.madden_player_id;
   }
   let inheritedCfbPosition: string | null = null;
   if (isCfbLeague) {
@@ -119,7 +119,7 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   const inserted = await supabase.from("rec_players").insert({
     league_id: leagueId,
     team_id: teamId,
-    madden_player_id: `legend:${details.legendId}:${purchase.id}`,
+    madden_player_id: isCfbLeague ? `legend:${details.legendId}:${purchase.id}` : inheritedMaddenPlayerId,
     first_name: firstName,
     last_name: lastName,
     full_name: details.name,

@@ -16,7 +16,7 @@ type AuthContextValue = AuthState & {
   ) => Promise<{ error: string | null }>;
   signInWithDiscord: (nextPath?: string, keepLoggedIn?: boolean) => Promise<{ error: string | null }>;
   linkDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
-  pickDiscordGuild: () => Promise<{ error: string | null }>;
+  pickDiscordGuild: (leagueId?: string | null, nextPath?: string | null) => Promise<{ error: string | null }>;
   discordGuildOAuthUrl: () => Promise<{ url: string | null; error: string | null }>;
   signOut: () => Promise<void>;
 };
@@ -111,10 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // sign-in with prompt=consent to force Discord to re-issue one, even if Discord was already
   // linked ages ago. Safe to use signInWithOAuth (not linkIdentity) here even for an
   // already-linked account: the same Discord identity resolves back to the same site account.
-  async function pickDiscordGuild() {
-    // Keep the OAuth callback itself stable so Supabase only needs one exact URL in its
-    // redirect allowlist. The picker stores the league-specific destination in sessionStorage.
-    const redirectTo = `${sitePublicUrl() || window.location.origin}/discord-guild-picker`;
+  async function pickDiscordGuild(leagueId?: string | null, nextPath?: string | null) {
+    const callback = new URL("/discord-guild-picker", sitePublicUrl() || window.location.origin);
+    if (leagueId) callback.searchParams.set("leagueId", leagueId);
+    if (nextPath) callback.searchParams.set("next", nextPath);
+    const redirectTo = callback.toString();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "discord",
       options: {

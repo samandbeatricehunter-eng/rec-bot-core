@@ -902,6 +902,8 @@ export const recApi = {
     recApiFetch<{ ok: true; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick", { method: "POST", body: JSON.stringify(input) }),
   skipFantasyDraftPick: (guildId: string) =>
     recApiFetch<{ ok: true; skippedSlotId: string; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick/skip", { method: "POST", body: JSON.stringify({ guildId }) }),
+  skipFantasyDraftToPick: (input: { guildId: string; targetRound: number; targetPickInRound: number }) =>
+    recApiFetch<{ ok: true; skipped: number; targetRound: number; targetPickInRound: number }>("/v1/fantasy-draft/pick/skip-to", { method: "POST", body: JSON.stringify(input) }),
   listSkippedFantasyDraftPicks: (guildId: string) =>
     recApiFetch<{ skipped: Array<{ id: string; teamId: string; teamName: string; round: number; pickInRound: number; overallPickNumber: number }> }>("/v1/fantasy-draft/pick/skipped", { method: "POST", body: JSON.stringify({ guildId }) }),
   fillSkippedFantasyDraftPick: (input: { guildId: string; skippedSlotId: string; playerId: string }) =>

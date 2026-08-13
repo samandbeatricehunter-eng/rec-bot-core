@@ -10,6 +10,7 @@ import {
   ChatDrawerProvider,
   CommissionerChatHome,
   CfpPostseasonManager,
+  FantasyDraftBoardPage,
   DeleteLeagueHome,
   HubChromeProvider,
   HubHome,
@@ -362,7 +363,9 @@ export function LeagueHubPage() {
               <LeagueThemeProvider game={gameTheme}>
                 <LeagueTopNav leagueId={leagueId} />
                 <HubErrorBoundary>
-                  {/\/matchups\/[^/]+$/.test(location.pathname) ? (
+                  {location.pathname.endsWith("/draft-board") ? (
+                    <FantasyDraftBoardPage />
+                  ) : /\/matchups\/[^/]+$/.test(location.pathname) ? (
                     <MatchupDetailPage />
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />

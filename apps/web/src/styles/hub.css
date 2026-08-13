@@ -3987,6 +3987,15 @@ button.poty:disabled {
 }
 
 /* Fantasy draft tracker */
+.fantasy-draft-quick-actions .fantasy-draft-checkin-warning,
+.fantasy-draft-quick-actions .fantasy-draft-checkin-bar,
+.fantasy-draft-quick-actions .fantasy-draft-commissioner-checkins,
+.fantasy-draft-quick-actions .fantasy-draft-concluded,
+.fantasy-draft-quick-actions .fantasy-draft-warning,
+.fantasy-draft-quick-actions .fantasy-draft-empty,
+.fantasy-draft-quick-actions .fantasy-draft-pick-requests,
+.fantasy-draft-quick-actions .fantasy-draft-pool,
+.fantasy-draft-quick-actions .fantasy-draft-split { display: none !important; }
 .fantasy-draft-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .45rem; }
 .fantasy-draft-notice { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--accent, #d9a521) 45%, var(--border)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--accent, #d9a521) 8%, transparent); }
 .fantasy-draft-notice p { margin: 0; color: var(--text-primary); font-size: var(--text-sm); }

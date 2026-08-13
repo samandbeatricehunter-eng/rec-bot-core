@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { siteApi, type EntitlementSummary, type LinkProfileResponse } from "../lib/site-api.js";
+import { formatUserIdentity } from "../lib/user-identity.js";
 
 function tierLabel(entitlements: EntitlementSummary | null | undefined) {
   const tier = entitlements?.tier ?? "none";
@@ -35,11 +36,9 @@ export function ProfileChip() {
 
   if (auth.status !== "signed-in") return null;
 
-  const name =
-    profile?.displayName ??
-    profile?.username ??
-    auth.user.email?.split("@")[0] ??
-    "Member";
+  const name = profile
+    ? formatUserIdentity(profile)
+    : auth.user.email?.split("@")[0] ?? "Member";
   const initial = String(name).slice(0, 1).toUpperCase();
   const tier = tierLabel(profile?.entitlements);
 

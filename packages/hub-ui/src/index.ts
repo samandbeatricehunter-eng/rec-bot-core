@@ -4,6 +4,7 @@ export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/l
 export { HubChromeProvider, useHubChrome } from "../../../apps/web/src/lib/hub-chrome-context.js";
 export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
 export { FantasyDraftCard } from "../../../apps/web/src/routes/hub/FantasyDraftCard.js";
+export { FantasyDraftBoardPage } from "../../../apps/web/src/routes/hub/FantasyDraftBoardPage.js";
 export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
 export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/routes/hub/LeagueHistoryHome.js";
 export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";

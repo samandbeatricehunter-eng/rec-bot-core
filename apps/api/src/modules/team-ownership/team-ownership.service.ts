@@ -462,6 +462,16 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .eq("user_id", userId)
     .is("ended_at", null);
 
+  // A team can only have one current coach. Previously we only ended this user's old
+  // assignment, allowing a second user to be inserted for an already-owned team.
+  await supabase
+    .from("rec_team_assignments")
+    .update({ assignment_status: "replaced", ended_at: new Date().toISOString() })
+    .eq("league_id", league.id)
+    .eq("team_id", input.teamId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+
   const assignment = await supabase
     .from("rec_team_assignments")
     .insert({

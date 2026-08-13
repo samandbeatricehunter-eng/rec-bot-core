@@ -1541,7 +1541,7 @@ export function HubHome() {
         </div>
 
         {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && readyGuildId && (
-          <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} />
+          <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
         )}
 
         {matchupSchedule?.gotw?.status === "open" && <div className="hub-gameday-card">

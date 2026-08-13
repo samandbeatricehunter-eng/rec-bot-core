@@ -125,7 +125,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>
+              {isMadden && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
               <Button variant="secondary" onClick={() => setRepairChannelsOpen(true)}>
                 <Wrench size={16}/> Repair Game Channels

@@ -206,21 +206,13 @@ export function RosterHome() {
           <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Roster List
           </button>
-          <button type="button" onClick={() => setAddPlayerOpen(true)}>
-            Add Player
-          </button>
+          {!isMadden && <button type="button" onClick={() => setAddPlayerOpen(true)}>Add Player</button>}
         </div>
       </div>
 
       {addPlayerOpen && <EditRosterRequestModal guildId={guildId} onClose={() => setAddPlayerOpen(false)} onDone={() => { setAddPlayerOpen(false); load(); }} />}
 
-      <RosterMovesPanel
-        guildId={guildId}
-        teamId={data.team.id}
-        activePlayers={rosteredPlayers}
-        departedPlayers={departedPlayers}
-        onChanged={load}
-      />
+      {!isMadden && <RosterMovesPanel guildId={guildId} teamId={data.team.id} activePlayers={rosteredPlayers} departedPlayers={departedPlayers} onChanged={load} />}
 
       {view === "grid" ? (
         <div className="hub-roster-grade-grid">

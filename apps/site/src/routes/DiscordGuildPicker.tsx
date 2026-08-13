@@ -121,7 +121,7 @@ export function DiscordGuildPicker() {
     // on the wrong account.
     if (auth.status === "signed-in") sessionStorage.setItem("rec_guild_picker_expected_uid", auth.user.id);
     sessionStorage.setItem(PICKER_CONTEXT_KEY, JSON.stringify({ leagueId, next }));
-    const result = await auth.pickDiscordGuild();
+    const result = await auth.pickDiscordGuild(leagueId, next);
     if (result.error) {
       sessionStorage.removeItem(PICKER_CONTEXT_KEY);
       setError(result.error);

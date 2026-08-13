@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
+import { formatUserIdentity } from "../../lib/user-identity.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
@@ -188,6 +189,7 @@ export type AdminLeagueMember = {
   userId: string;
   username: string | null;
   displayName: string;
+  discordUsername: string | null;
   teamName: string | null;
   membershipRole: string | null;
 };
@@ -224,9 +226,17 @@ export async function listAdminLeagueMembers(leagueId: string): Promise<{ member
           )
       )
       select distinct on (c.user_id)
-        c.user_id, c.team_name, c.membership_role, u.username, u.display_name
+        c.user_id, c.team_name, c.membership_role, u.username, u.display_name,
+        da.username as discord_username, da.global_name as discord_global_name
       from combined c
       inner join rec_users u on u.id = c.user_id
+      left join lateral (
+        select username, global_name
+        from rec_discord_accounts
+        where user_id = c.user_id
+        order by last_seen_at desc nulls last, created_at desc
+        limit 1
+      ) da on true
       order by c.user_id, c.team_name nulls last
     `,
     [leagueId],
@@ -235,7 +245,8 @@ export async function listAdminLeagueMembers(leagueId: string): Promise<{ member
     members: result.rows.map((row: any) => ({
       userId: row.user_id,
       username: row.username,
-      displayName: row.username ?? row.display_name ?? "REC Member",
+      displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
+      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
       teamName: row.team_name,
       membershipRole: row.membership_role,
     })),
@@ -313,6 +324,7 @@ export type AdminUserSummary = {
   id: string;
   username: string | null;
   displayName: string;
+  discordUsername: string | null;
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;
@@ -322,8 +334,13 @@ export type AdminUserSummary = {
  * getAdminStats counts, listed out by name instead of just the number. */
 export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[] }> {
   const result = await getPgPool().query(`
-    select id, username, display_name, subscription_tier, billing_status, supabase_auth_user_id
-    from rec_users
+    select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
+           da.username as discord_username, da.global_name as discord_global_name
+    from rec_users u
+    left join lateral (
+      select username, global_name from rec_discord_accounts
+      where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
+    ) da on true
     where created_at >= now() - interval '7 days'
     order by created_at desc
     limit 200
@@ -332,7 +349,8 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
     users: result.rows.map((row: any) => ({
       id: row.id,
       username: row.username,
-      displayName: row.username ?? row.display_name ?? "REC Member",
+      displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
+      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
@@ -347,10 +365,16 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
   const query = input.query?.trim();
   const result = await getPgPool().query(
     `
-      select id, username, display_name, subscription_tier, billing_status, supabase_auth_user_id
-      from rec_users
-      where $1::text is null or username ilike $1 or display_name ilike $1
-      order by username nulls last, display_name
+      select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
+             da.username as discord_username, da.global_name as discord_global_name
+      from rec_users u
+      left join lateral (
+        select username, global_name from rec_discord_accounts
+        where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
+      ) da on true
+      where $1::text is null or u.username ilike $1 or u.display_name ilike $1
+         or da.username ilike $1 or da.global_name ilike $1
+      order by u.username nulls last, u.display_name
       limit $2
     `,
     [query ? `%${query}%` : null, limit],
@@ -359,7 +383,8 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
     users: result.rows.map((row: any) => ({
       id: row.id,
       username: row.username,
-      displayName: row.username ?? row.display_name ?? "REC Member",
+      displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
+      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),

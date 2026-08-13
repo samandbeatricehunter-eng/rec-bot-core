@@ -218,8 +218,10 @@ export async function createLegendPurchaseRequest(input: {
     }
     replaceTarget = { playerId: found.data.id, position: found.data.position, firstName: found.data.first_name, lastName: found.data.last_name };
   }
-  if (isCfb && !replaceTarget) {
-    throw new ApiError(400, "CFB legends require a specific added/recruited roster player to replace so the legend inherits that roster position.");
+  if (!replaceTarget) {
+    throw new ApiError(400, isCfb
+      ? "CFB legends require a specific added/recruited roster player to replace so the legend inherits that roster position."
+      : "Madden legends require a roster player to replace so the purchase is linked to that player's EA identity.");
   }
 
   const legendTier = legend.data.legend_tier === "immortal" ? "immortal" : "legend";
@@ -244,8 +246,8 @@ export async function createLegendPurchaseRequest(input: {
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
     isCfb,
-    // CFB requires this exact compatible roster row; Madden may leave it blank or allow the
-    // commissioner to override it during review.
+    // Both games require the buyer-selected roster row. Madden uses it as the durable EA-ID
+    // slot that the companion import overwrites; commissioners must not choose it later.
     replaceTarget,
   };
 

@@ -1267,6 +1267,7 @@ export type AdminLeagueMember = {
   userId: string;
   username: string | null;
   displayName: string;
+  discordUsername: string | null;
   teamName: string | null;
   membershipRole: string | null;
 };
@@ -1275,6 +1276,7 @@ export type AdminUserSummary = {
   id: string;
   username: string | null;
   displayName: string;
+  discordUsername: string | null;
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;

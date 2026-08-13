@@ -9,7 +9,7 @@ import {
   sortRecAttributeCodes,
   type RecOvrPosition,
 } from "@rec/shared";
-import { AlertTriangle, CheckCircle2, Clock, GripVertical, Plus, Search, SkipForward, SlidersHorizontal, Trash2, Trophy, Undo2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, GripVertical, ListOrdered, Plus, Search, SkipForward, SlidersHorizontal, Trash2, Trophy, Undo2, X } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { chatRealtimeClient } from "../../lib/chat-realtime-client.js";
 import { ATTRIBUTE_ALL_KEYS, ATTRIBUTE_KEY_TO_CODE, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
@@ -104,7 +104,7 @@ function nextPicksUp(state: FantasyDraftState): Array<{ round: number; pickInRou
   return result;
 }
 
-export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guildId: string; leagueId: string; compact?: boolean }) {
   const [state, setState] = useState<FantasyDraftState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +122,8 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const [pinging, setPinging] = useState(false);
   const [cpuPingNotice, setCpuPingNotice] = useState<string | null>(null);
   const [skipping, setSkipping] = useState(false);
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [skipTargetPick, setSkipTargetPick] = useState(1);
   const [skippedPicks, setSkippedPicks] = useState<Array<{ id: string; teamId: string; teamName: string; round: number; pickInRound: number; overallPickNumber: number }>>([]);
   const [fillSkipTarget, setFillSkipTarget] = useState<{ id: string; teamName: string } | null>(null);
   const prevStatusRef = useRef<string | null>(null);
@@ -304,6 +306,7 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   }
 
   const commissionerActions: { label: string; icon: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }[] = [];
+  commissionerActions.push({ label: "Draft Board", icon: <ListOrdered size={16} />, onClick: () => window.location.assign(`/l/${leagueId}/draft-board`) });
   if (isCommissioner) {
     if (status === "not_scheduled") commissionerActions.push({ label: "Schedule", icon: <Clock size={16} />, onClick: () => setScheduleOpen(true) });
     if (status === "scheduled") {
@@ -316,20 +319,10 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
     if (status === "live" && hasPickOrder) {
       commissionerActions.push({ label: "Ping On-The-Clock", icon: <AlertTriangle size={16} />, disabled: pinging, onClick: () => void pingOnClock() });
       commissionerActions.push({
-        label: "Skip Pick", icon: <SkipForward size={16} />, disabled: skipping,
-        onClick: () => {
-          if (!window.confirm("Skip this team's pick for now? The clock moves on — you can fill it in later from Missed Picks.")) return;
-          void skipCurrentPick();
-        },
+        label: "SKIP", icon: <SkipForward size={16} />, disabled: skipping,
+        onClick: () => { setSkipTargetPick(Math.min(32, session!.currentPickInRound + 1)); setSkipOpen(true); },
       });
       commissionerActions.push({ label: "Undo", icon: <Undo2 size={16} />, onClick: () => void runAction(() => recApi.undoFantasyDraftPick(guildId)) });
-      commissionerActions.push({
-        label: "Skip to End", icon: <SkipForward size={16} />,
-        onClick: () => {
-          if (!window.confirm("This auto-completes every remaining pick and moves straight to wrap-up. This cannot be undone. Continue?")) return;
-          void runAction(() => recApi.skipFantasyDraftToEnd(guildId), "Auto-completed the remaining picks.");
-        },
-      });
     }
     if (status === "wrap_up") commissionerActions.push({
       label: "Assign the Pool", icon: <CheckCircle2 size={16} />,
@@ -347,7 +340,7 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
   const showUndraftedWarning = (status === "live" || status === "wrap_up") && hasPickOrder && pool.length > draftedCount;
 
   return (
-    <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker" subtitle={statusHeadline()}>
+    <SectionFrame className={compact ? "fantasy-draft-quick-actions" : undefined} eyebrow="Fantasy Draft" title={compact ? "Draft Management" : "Draft Board"} subtitle={statusHeadline()}>
       {notice && (
         <div className="fantasy-draft-notice">
           <p>{notice}</p>
@@ -357,6 +350,32 @@ export function FantasyDraftCard({ guildId, leagueId }: { guildId: string; leagu
         </div>
       )}
       {error && <p className="hub-error">{error}</p>}
+      {skipOpen && session && (
+        <Modal title="Skip draft picks" onClose={() => setSkipOpen(false)}>
+          <p className="form-hint">Jump past Madden's fast CPU selections in one update. Bypassed slots remain available under Missed Picks.</p>
+          <div className="fantasy-draft-actions">
+            <Button variant="secondary" onClick={() => { setSkipOpen(false); void skipCurrentPick(); }}>Next pick</Button>
+            <Button variant="secondary" onClick={() => void runAction(
+              () => recApi.skipFantasyDraftToPick({ guildId, targetRound: session.currentRound + 1, targetPickInRound: 1 }),
+              "Skipped to the end of the round.",
+            ).then(() => setSkipOpen(false))}>End of round</Button>
+            <Button variant="secondary" onClick={() => {
+              if (!window.confirm("Auto-complete every remaining slot and move to wrap-up? This cannot be undone.")) return;
+              void runAction(() => recApi.skipFantasyDraftToEnd(guildId), "Auto-completed the remaining picks.").then(() => setSkipOpen(false));
+            }}>End of draft</Button>
+          </div>
+          <label className="form-field">
+            <span className="form-label">Specific pick in Round {session.currentRound}</span>
+            <select className="form-input" value={skipTargetPick} onChange={(event) => setSkipTargetPick(Number(event.target.value))}>
+              {Array.from({ length: Math.max(0, 32 - session.currentPickInRound) }, (_, index) => session.currentPickInRound + index + 1).map((pick) => <option key={pick} value={pick}>Pick {pick}</option>)}
+            </select>
+          </label>
+          <Button disabled={skipTargetPick <= session.currentPickInRound} onClick={() => void runAction(
+            () => recApi.skipFantasyDraftToPick({ guildId, targetRound: session.currentRound, targetPickInRound: skipTargetPick }),
+            `Skipped to Round ${session.currentRound}, Pick ${skipTargetPick}.`,
+          ).then(() => setSkipOpen(false))}>Skip to pick</Button>
+        </Modal>
+      )}
       {cpuPingNotice && <p className="fantasy-draft-notice">{cpuPingNotice}</p>}
 
       {status === "scheduled" && session?.scheduledAt && (

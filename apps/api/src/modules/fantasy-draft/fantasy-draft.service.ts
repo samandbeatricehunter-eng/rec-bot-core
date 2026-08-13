@@ -1506,6 +1506,54 @@ export async function skipFantasyDraftPick(guildId: string, discordId: string) {
   return { ok: true as const, skippedSlotId: inserted.data.id, round, pickInRound, teamId, overallPickNumber };
 }
 
+/** Advances across multiple CPU picks in one operation. Every bypassed slot is retained in
+ * the missed-picks queue, but Discord/push/realtime updates happen only once at the target. */
+export async function skipFantasyDraftToPick(guildId: string, discordId: string, targetRound: number, targetPickInRound: number) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const userId = await resolveRecUserId(discordId);
+  if (!userId) throw new ApiError(400, "A linked REC account is required to skip picks.");
+  if (!Number.isInteger(targetRound) || !Number.isInteger(targetPickInRound) || targetRound < session.current_round || targetPickInRound < 1 || targetPickInRound > 32) {
+    throw new ApiError(400, "Choose a valid future draft pick.");
+  }
+  const currentOverall = (session.current_round - 1) * 32 + session.current_pick_in_round;
+  const targetOverall = (targetRound - 1) * 32 + targetPickInRound;
+  const skipCount = targetOverall - currentOverall;
+  if (skipCount < 1 || skipCount > 64) throw new ApiError(400, "Skip forward between 1 and 64 picks at a time.");
+
+  const pickOrder = await listPickOrder(session.id);
+  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before skipping picks.");
+  const rows = Array.from({ length: skipCount }, (_, offset) => {
+    const overall = currentOverall + offset;
+    const round = Math.floor((overall - 1) / 32) + 1;
+    const pickInRound = ((overall - 1) % 32) + 1;
+    return {
+      session_id: session.id,
+      team_id: teamOnTheClock({ ...session, current_round: round, current_pick_in_round: pickInRound } as SessionRow, pickOrder),
+      round,
+      pick_in_round: pickInRound,
+      overall_pick_number: overall,
+      skipped_by_user_id: userId,
+    };
+  });
+  const inserted = await supabase.from("rec_fantasy_draft_skipped_picks").insert(rows);
+  if (inserted.error) throw new ApiError(500, "We couldn't record the skipped picks. Please try again.", inserted.error);
+  const advanced = await supabase.from("rec_fantasy_draft_sessions").update({
+    current_round: targetRound, current_pick_in_round: targetPickInRound, updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+  if (advanced.error) throw new ApiError(500, "We couldn't advance the draft clock. Please try again.", advanced.error);
+
+  const teams = await listTeams(leagueId);
+  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
+  const nextSession = { ...session, current_round: targetRound, current_pick_in_round: targetPickInRound } as SessionRow;
+  await bestEffort("discord.draft_on_clock_after_bulk_skip", () => postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, null), { leagueId, guildId, entityId: session.id });
+  await pushOnTheClock(leagueId, nextSession);
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, skipped: skipCount, targetRound, targetPickInRound };
+}
+
 export async function listSkippedFantasyDraftPicks(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { leagueId } = context;
