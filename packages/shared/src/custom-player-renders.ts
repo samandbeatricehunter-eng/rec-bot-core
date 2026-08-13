@@ -1,5 +1,6 @@
-// Custom-player card render catalog — 150 stylized bust options users pick after
-// setting body type + position. Assets live at /assets/custom-player-renders/{id}.svg
+// Custom-player card render catalog — 150 photoreal bust options users pick after
+// setting body type + position. Assets live at /assets/custom-player-renders/{id}.png
+// Body build drives facial morphology (jaw, fatness, neck) — not just which folder.
 
 export const REC_CARD_BODY_BUILDS = ["lean", "thin", "standard", "muscular", "heavy"] as const;
 export type RecCardBodyBuild = (typeof REC_CARD_BODY_BUILDS)[number];
@@ -60,7 +61,7 @@ export const REC_CUSTOM_PLAYER_RENDERS: readonly RecCustomPlayerRender[] = (() =
       const id = `cpr-${pad(n)}`;
       out.push({
         id,
-        imagePath: `/assets/custom-player-renders/${id}.svg`,
+        imagePath: `/assets/custom-player-renders/${id}.png`,
         bodyBuild,
         skinTone,
         hairstyle,

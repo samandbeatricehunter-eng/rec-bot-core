@@ -122,14 +122,14 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
     if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) throw new ApiError(400, "Height must be 60-84 inches.");
     if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
     // Body build is card-appearance only for Madden (weight stays free-range).
-    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body build is required for the player card appearance.");
+    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body type is required for the player card appearance.");
   }
   if (!identity.cardRenderId || !isCustomPlayerRenderAllowed({
     cardRenderId: identity.cardRenderId,
     bodyBuild: identity.bodyType,
     position,
   })) {
-    throw new ApiError(400, "Pick a card appearance that matches this player's body build and position.");
+    throw new ApiError(400, "Pick a card appearance that matches this player's body type and position.");
   }
 }
 

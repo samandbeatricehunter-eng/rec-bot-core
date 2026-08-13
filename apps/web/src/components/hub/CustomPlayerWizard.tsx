@@ -173,7 +173,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       if (!identity.hometownCity?.trim()) return "Hometown is required.";
       if (!identity.hometownState?.trim()) return "State is required.";
       if (!identity.college?.trim()) return "College is required.";
-      if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) return "Card build is required.";
+      if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) return "Body type is required.";
       if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) return "Height must be between 5'0\" and 7'0\".";
       if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) return "Weight must be between 140 and 400 pounds.";
     }
@@ -203,8 +203,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
             </select>
           </span>
         </label>
-        {game === "CFB" && <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setBodyType(e.target.value)}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
-        {game !== "CFB" && <label>Card Build<select className="form-input" value={identity.bodyType} onChange={(e) => setBodyType(e.target.value)}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>}
+        <label>Body Type<select className="form-input" value={identity.bodyType} onChange={(e) => setBodyType(e.target.value)}>{Object.keys(CFB_BODY_TYPE_WEIGHT).map((key) => <option key={key} value={key}>{key[0].toUpperCase() + key.slice(1)}</option>)}</select></label>
         <label>Weight (lb){weightRule ? ` — ${weightRule.min}-${weightRule.max}` : ""}<input className="form-input" type="number" min={weightRule?.min} max={weightRule?.max} value={identity.weightLbs} onChange={(e) => setIdentity({ ...identity, weightLbs: Number(e.target.value) })}/></label>
         {game !== "CFB" && <><label>Hometown<input className="form-input" value={identity.hometownCity} onChange={(e) => setIdentity({ ...identity, hometownCity: e.target.value })}/></label><label>State<input className="form-input" value={identity.hometownState} onChange={(e) => setIdentity({ ...identity, hometownState: e.target.value })}/></label><label>College<select className="form-input" value={identity.college} onChange={(e) => setIdentity({ ...identity, college: e.target.value })}><option value="">Select college</option>{CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></>}</div>
         {overageInches > 0 && <p className="form-hint">Height is {overageInches}" over the {position} average — costs {overageInches * 100} creation points.</p>}
@@ -228,12 +227,12 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     {step === 4 && <>
       <h4>Card Appearance</h4>
       <p className="form-hint">
-        Choose a face for this player&apos;s card. Options are filtered by <strong>{identity.bodyType}</strong> build
+        Choose a face for this player&apos;s card. Options are filtered by <strong>{identity.bodyType}</strong> body type
         {position ? <> and <strong>{position}</strong> position</> : null}.
       </p>
       {!bodyBuildAllowed && (
         <p className="form-hint">
-          The {identity.bodyType} build isn&apos;t available for {position}. Go back and pick a compatible body/build
+          The {identity.bodyType} body type isn&apos;t available for {position}. Go back and pick a compatible body type
           ({cardBuildsForPosition(position).join(", ")}).
         </p>
       )}

@@ -41,7 +41,7 @@ export function LogIn() {
     setError(null);
     setDiscordBusy(true);
     stashPromoCode();
-    const result = await auth.signInWithDiscord(next);
+    const result = await auth.signInWithDiscord(next, keepLoggedIn);
     setDiscordBusy(false);
     if (result.error) setError(result.error);
   }
@@ -55,6 +55,17 @@ export function LogIn() {
           <span>Promo code (optional)</span>
           <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Have a code? Enter it here" />
         </label>
+        <label className="site-field site-field-checkbox">
+          <input
+            type="checkbox"
+            checked={keepLoggedIn}
+            onChange={(e) => setKeepLoggedInChecked(e.target.checked)}
+          />
+          <span>Keep me logged in on this device</span>
+        </label>
+        <p className="site-muted">
+          Applies to Discord and email sign-in. Leave unchecked to sign out when you close the browser or app.
+        </p>
         <button
           className="site-btn site-btn-primary site-btn-lg"
           type="button"
@@ -84,17 +95,6 @@ export function LogIn() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <label className="site-field site-field-checkbox">
-          <input
-            type="checkbox"
-            checked={keepLoggedIn}
-            onChange={(e) => setKeepLoggedInChecked(e.target.checked)}
-          />
-          <span>Keep me logged in</span>
-        </label>
-        <p className="site-muted">
-          Leave unchecked to sign out when you close the browser or app.
-        </p>
         <button className="site-btn site-btn-ghost site-btn-lg" type="submit" disabled={busy || discordBusy}>
           {busy ? "Logging in…" : "Log in with email"}
         </button>

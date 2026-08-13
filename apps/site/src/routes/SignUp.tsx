@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../lib/auth-context.js";
+import { getKeepLoggedIn, useAuth } from "../lib/auth-context.js";
 import { safeInternalNext } from "../lib/safe-next.js";
 
 export function SignUp() {
@@ -12,6 +12,7 @@ export function SignUp() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [keepLoggedIn, setKeepLoggedInChecked] = useState(() => getKeepLoggedIn());
   const [busy, setBusy] = useState(false);
   const [discordBusy, setDiscordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export function SignUp() {
     setError(null);
     setDiscordBusy(true);
     stashPromoCode();
-    const result = await auth.signInWithDiscord(next);
+    const result = await auth.signInWithDiscord(next, keepLoggedIn);
     setDiscordBusy(false);
     if (result.error) setError(result.error);
   }
@@ -74,6 +75,15 @@ export function SignUp() {
           <span>Promo code (optional)</span>
           <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Have a code? Enter it here" />
         </label>
+        <label className="site-field site-field-checkbox">
+          <input
+            type="checkbox"
+            checked={keepLoggedIn}
+            onChange={(e) => setKeepLoggedInChecked(e.target.checked)}
+          />
+          <span>Keep me logged in on this device</span>
+        </label>
+        <p className="site-muted">Leave unchecked to sign out when you close the browser or app.</p>
         <button
           className="site-btn site-btn-primary site-btn-lg"
           type="button"

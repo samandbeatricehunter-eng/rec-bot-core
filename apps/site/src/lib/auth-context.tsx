@@ -14,14 +14,28 @@ type AuthContextValue = AuthState & {
     password: string,
     keepLoggedIn?: boolean,
   ) => Promise<{ error: string | null }>;
-  signInWithDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
+  signInWithDiscord: (nextPath?: string, keepLoggedIn?: boolean) => Promise<{ error: string | null }>;
   linkDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
-  pickDiscordGuild: (returnPath: string) => Promise<{ error: string | null }>;
+  pickDiscordGuild: () => Promise<{ error: string | null }>;
   discordGuildOAuthUrl: () => Promise<{ url: string | null; error: string | null }>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function configureSessionPersistence(keepLoggedIn: boolean) {
+  setKeepLoggedIn(keepLoggedIn);
+  // Remove only Supabase auth state from the opposite store. Clearing all session storage
+  // would also erase OAuth-adjacent state such as a pending promo code.
+  try {
+    const oppositeStore = keepLoggedIn ? sessionStorage : localStorage;
+    for (const key of Object.keys(oppositeStore)) {
+      if (key.startsWith("sb-") && key.includes("auth")) oppositeStore.removeItem(key);
+    }
+  } catch {
+    /* ignore storage-restricted browsers */
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
@@ -53,23 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signIn(email: string, password: string, keepLoggedIn = false) {
-    setKeepLoggedIn(keepLoggedIn);
-    // Drop the opposite storage so we don't resurrect a stale session later.
-    try {
-      if (keepLoggedIn) sessionStorage.clear();
-      else {
-        for (const key of Object.keys(localStorage)) {
-          if (key.startsWith("sb-") && key.includes("auth")) localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
+    configureSessionPersistence(keepLoggedIn);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   }
 
-  async function signInWithDiscord(nextPath = "/account") {
+  async function signInWithDiscord(nextPath = "/account", keepLoggedIn = false) {
+    // This must be selected before the OAuth redirect: Supabase stores the PKCE verifier now,
+    // then the callback stores the exchanged refresh session in the same backing store.
+    configureSessionPersistence(keepLoggedIn);
     const redirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "discord",
@@ -105,10 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // sign-in with prompt=consent to force Discord to re-issue one, even if Discord was already
   // linked ages ago. Safe to use signInWithOAuth (not linkIdentity) here even for an
   // already-linked account: the same Discord identity resolves back to the same site account.
-  // returnPath is the literal /discord-guild-picker?... URL to land back on (that page handles
-  // both the "before" and "after OAuth" states itself), not a downstream destination.
-  async function pickDiscordGuild(returnPath: string) {
-    const redirectTo = `${sitePublicUrl() || window.location.origin}${returnPath}`;
+  async function pickDiscordGuild() {
+    // Keep the OAuth callback itself stable so Supabase only needs one exact URL in its
+    // redirect allowlist. The picker stores the league-specific destination in sessionStorage.
+    const redirectTo = `${sitePublicUrl() || window.location.origin}/discord-guild-picker`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "discord",
       options: {

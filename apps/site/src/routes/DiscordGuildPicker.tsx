@@ -7,6 +7,23 @@ import { supabase } from "../lib/supabase-client.js";
 
 type DiscordGuild = { id: string; name: string; icon: string | null };
 
+const PICKER_CONTEXT_KEY = "rec_guild_picker_context";
+
+function readPickerContext() {
+  try {
+    const value = sessionStorage.getItem(PICKER_CONTEXT_KEY);
+    if (!value) return null;
+    const parsed = JSON.parse(value) as { leagueId?: unknown; next?: unknown };
+    if (typeof parsed.leagueId !== "string" || !parsed.leagueId) return null;
+    return {
+      leagueId: parsed.leagueId,
+      next: typeof parsed.next === "string" ? parsed.next : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A fresh Discord OAuth round-trip (see auth.pickDiscordGuild) grants "guilds" scope just long
  * enough to (1) list the servers this user owns or manages, so they pick the right one from a
@@ -19,8 +36,9 @@ type DiscordGuild = { id: string; name: string; icon: string | null };
 export function DiscordGuildPicker() {
   const auth = useAuth();
   const [params] = useSearchParams();
-  const leagueId = params.get("leagueId");
-  const next = safeInternalNext(params.get("next")) ?? "/leagues?tab=mine";
+  const savedContext = readPickerContext();
+  const leagueId = params.get("leagueId") ?? savedContext?.leagueId ?? null;
+  const next = safeInternalNext(params.get("next") ?? savedContext?.next ?? null) ?? "/leagues?tab=mine";
 
   const [phase, setPhase] = useState<"intro" | "loading" | "picking" | "connecting" | "done" | "error">("intro");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +53,9 @@ export function DiscordGuildPicker() {
     // No ?code means the OAuth redirect came back in the URL fragment (#access_token=…) — the
     // supabase client picks that up during initialization, so poll for the resulting session
     // (same handling as the /discord-guild-token popup).
-    if (!code && !url.hash) return;
+    // Supabase may consume and remove the OAuth parameters before this effect runs. The saved
+    // picker context is the durable signal that this page is handling an OAuth return.
+    if (!code && !url.hash && !savedContext) return;
 
     let cancelled = false;
     setPhase("loading");
@@ -71,6 +91,7 @@ export function DiscordGuildPicker() {
         }
         const result = await siteApi.listDiscordGuilds(token);
         if (cancelled) return;
+        sessionStorage.removeItem(PICKER_CONTEXT_KEY);
         if (!result.guilds.length) {
           setError("No Discord servers found where you're the owner or have Manage Server permission.");
           setPhase("error");
@@ -99,9 +120,12 @@ export function DiscordGuildPicker() {
     // to still be signed in as, so the return trip can catch that rather than silently acting
     // on the wrong account.
     if (auth.status === "signed-in") sessionStorage.setItem("rec_guild_picker_expected_uid", auth.user.id);
-    const returnPath = `/discord-guild-picker?leagueId=${encodeURIComponent(leagueId ?? "")}&next=${encodeURIComponent(next)}`;
-    const result = await auth.pickDiscordGuild(returnPath);
-    if (result.error) setError(result.error);
+    sessionStorage.setItem(PICKER_CONTEXT_KEY, JSON.stringify({ leagueId, next }));
+    const result = await auth.pickDiscordGuild();
+    if (result.error) {
+      sessionStorage.removeItem(PICKER_CONTEXT_KEY);
+      setError(result.error);
+    }
   }
 
   async function connectToLeague() {
