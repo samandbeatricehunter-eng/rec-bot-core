@@ -104,20 +104,31 @@ async function requireSessionStatus(session: SessionRow, allowed: FantasyDraftSt
 // (matches the existing pattern for the unlinked-guild grace period), so a process restart
 // between now and the transition just means /draft appears late instead of not at all.
 const draftVisibilityTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Last desired /draft-visible state synced per guild. Empty after a process restart, so the
+// first poll re-derives and re-asserts the correct state instead of trusting a lost timer
+// (see checkFantasyDraftScheduleNotifications below — that's the restart-tolerant backstop).
+const draftCommandVisibilityState = new Map<string, boolean>();
+
+/** PUT the guild command set only when /draft's desired visibility actually changes. */
+async function applyDraftCommandVisibility(guildId: string, includeDraft: boolean) {
+  if (draftCommandVisibilityState.get(guildId) === includeDraft) return;
+  await syncGuildCommands(guildId, includeDraft);
+  draftCommandVisibilityState.set(guildId, includeDraft);
+}
 
 function scheduleDraftCommandVisibility(guildId: string, scheduledAt: string) {
   const existing = draftVisibilityTimers.get(guildId);
   if (existing) clearTimeout(existing);
   const msUntilWindow = new Date(scheduledAt).getTime() - 60 * 60_000 - Date.now();
   if (msUntilWindow <= 0) {
-    syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (immediate window):", error));
+    applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (immediate window):", error));
     return;
   }
   // Reschedule out of the 1hr window must hide /draft again (bot ready/guildCreate never includes it).
-  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (outside window):", error));
+  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (outside window):", error));
   const timer = setTimeout(() => {
     draftVisibilityTimers.delete(guildId);
-    syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (scheduled window):", error));
+    applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (scheduled window):", error));
   }, msUntilWindow);
   draftVisibilityTimers.set(guildId, timer);
 }
@@ -125,6 +136,27 @@ function scheduleDraftCommandVisibility(guildId: string, scheduledAt: string) {
 function cancelDraftCommandVisibilityTimer(guildId: string) {
   const existing = draftVisibilityTimers.get(guildId);
   if (existing) { clearTimeout(existing); draftVisibilityTimers.delete(guildId); }
+}
+
+/** Bot-facing answer to "should /draft be visible in this guild right now?" — used by the
+ * bot's ready/guildCreate command refresh so it re-sends the FULL set including /draft when
+ * a fantasy draft is within ~1hr or live, instead of stripping it with the base-commands PUT. */
+export async function getDraftCommandState(guildId: string): Promise<{ includeDraft: boolean }> {
+  let leagueId: string;
+  try {
+    ({ leagueId } = await getCurrentLeagueContext(guildId));
+  } catch {
+    // Unlinked guild (no league context) — no draft command to show.
+    return { includeDraft: false };
+  }
+  const session = await getActiveSession(leagueId);
+  if (!session || session.status === "concluded" || session.status === "wrap_up") return { includeDraft: false };
+  if (session.status === "live") return { includeDraft: true };
+  if (session.status === "scheduled" && session.scheduled_at) {
+    const minutesUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60_000;
+    return { includeDraft: minutesUntil <= 60 };
+  }
+  return { includeDraft: false };
 }
 
 async function setLeagueFantasyDraftStatus(leagueId: string, status: string) {
@@ -889,7 +921,7 @@ export async function commenceFantasyDraft(guildId: string, discordId: string) {
 
   await setLeagueFantasyDraftStatus(leagueId, "live");
   cancelDraftCommandVisibilityTimer(guildId);
-  syncGuildCommands(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (commence):", error));
+  applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (commence):", error));
   void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft commence:", error));
 
   // Fire-and-forget side effects — never block the response on Discord/push failures.
@@ -985,14 +1017,28 @@ async function fireScheduleReminder(
 export async function checkFantasyDraftScheduleNotifications() {
   const { data, error } = await supabase
     .from("rec_fantasy_draft_sessions")
-    .select("id,league_id,scheduled_at,notified_1hr_at,notified_30min_at,notified_10min_at")
-    .eq("status", "scheduled")
-    .not("scheduled_at", "is", null);
+    .select("id,league_id,status,scheduled_at,notified_1hr_at,notified_30min_at,notified_10min_at")
+    .in("status", ["scheduled", "live", "wrap_up"]);
   if (error) { console.error("[ERROR] Failed to load scheduled fantasy drafts for reminder poll:", error); return; }
 
   const now = Date.now();
   for (const row of data ?? []) {
-    const minutesUntil = (new Date(row.scheduled_at).getTime() - now) / 60_000;
+    const minutesUntil = row.scheduled_at ? (new Date(row.scheduled_at).getTime() - now) / 60_000 : Number.POSITIVE_INFINITY;
+    // Command visibility reconciliation: /draft must be visible within ~1hr of a scheduled
+    // draft or while it's live. The one-shot in-memory timer above dies with the process, so a
+    // restart between scheduling and the window used to leave /draft invisible — this polled
+    // path re-asserts it every tick (dedup'd by draftCommandVisibilityState). wrap_up is
+    // reconciled to hidden to match skip-to-end's explicit unregister.
+    if (row.scheduled_at || row.status === "live" || row.status === "wrap_up") {
+      const includeDraft = row.status === "live" || (row.status === "scheduled" && minutesUntil <= 60);
+      try {
+        const server = await findServerRoutesForLeague(row.league_id);
+        if (server?.guildId) await applyDraftCommandVisibility(server.guildId, includeDraft);
+      } catch (error) {
+        console.error("[ERROR] Failed to reconcile /draft command visibility:", error);
+      }
+    }
+    if (row.status !== "scheduled" || !row.scheduled_at) continue;
     if (minutesUntil <= 60 && !row.notified_1hr_at) {
       await fireScheduleReminder(row as any, "1hr", "notified_1hr_at", "The fantasy draft starts in about an hour.").catch((err) => console.error("[ERROR] 1hr fantasy draft reminder failed:", err));
     }
@@ -1717,7 +1763,7 @@ export async function skipFantasyDraftToEnd(guildId: string) {
   await supabase.from("rec_fantasy_draft_sessions").update({ status: "wrap_up", updated_at: new Date().toISOString() }).eq("id", session.id);
   await setLeagueFantasyDraftStatus(leagueId, "wrap_up");
   cancelDraftCommandVisibilityTimer(guildId);
-  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (skip to end):", error));
+  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (skip to end):", error));
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
   return { ok: true as const };
 }
@@ -1735,7 +1781,7 @@ export async function concludeFantasyDraft(guildId: string) {
   }).eq("id", session.id);
   await setLeagueFantasyDraftStatus(leagueId, "concluded");
   cancelDraftCommandVisibilityTimer(guildId);
-  syncGuildCommands(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (conclude):", error));
+  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (conclude):", error));
   void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft conclude:", error));
 
   // Roster-size report for the "your team might not be fully assigned" modal — informational,

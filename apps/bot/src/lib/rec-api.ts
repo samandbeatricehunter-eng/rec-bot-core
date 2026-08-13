@@ -754,4 +754,6 @@ export const recApi = {
     recFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify({ guildId, discordId, checkedIn }) }),
   getFantasyDraftSelfCheckinStatus: (guildId: string, discordId: string) =>
     recFetch<{ teamId: string; teamName: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/status", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+  isDisplayingDraftCommand: (guildId: string) =>
+    recFetch<{ includeDraft: boolean }>("/v1/fantasy-draft/guild-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

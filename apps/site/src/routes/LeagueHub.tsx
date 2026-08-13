@@ -3,6 +3,7 @@ import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchPara
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
+import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
 import { LeagueTopNav } from "../components/LeagueTopNav.js";
 import {
@@ -225,12 +226,29 @@ function HubMgmtRoutes() {
       <Route path="manage-league/rosters/:teamId" element={<MgmtSubPage><TeamRosterForm /></MgmtSubPage>} />
       <Route path="manage-league/:teamId" element={<MgmtSubPage><TeamScheduleForm /></MgmtSubPage>} />
       <Route path="delete-league" element={<MgmtSubPage><DeleteLeagueHome /></MgmtSubPage>} />
-      <Route path="settings" element={<MgmtSubPage><SettingsHome /></MgmtSubPage>} />
+      <Route
+        path="settings"
+        element={
+          <MgmtSubPage>
+            <LeagueSettingsSection />
+          </MgmtSubPage>
+        }
+      />
       <Route path="commissioner-chat" element={<MgmtSubPage><CommissionerChatHome /></MgmtSubPage>} />
       <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
       <Route path="recruiting" element={<MgmtSubPage><RecruitingHome /></MgmtSubPage>} />
       <Route path="*" element={<LeagueMgmtHome />} />
     </Routes>
+  );
+}
+
+function LeagueSettingsSection() {
+  const { leagueId = "" } = useParams();
+  return (
+    <>
+      <DiscordServerSettings leagueId={leagueId} />
+      <SettingsHome />
+    </>
   );
 }
 

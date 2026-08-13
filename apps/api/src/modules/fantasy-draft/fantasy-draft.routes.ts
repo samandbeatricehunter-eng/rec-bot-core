@@ -7,6 +7,7 @@ import {
   commenceFantasyDraft,
   concludeFantasyDraft,
   deleteSavedFantasyDraftBoard,
+  getDraftCommandState,
   getFantasyDraftCheckins,
   getFantasyDraftSelfCheckinStatus,
   getFantasyDraftState,
@@ -33,6 +34,17 @@ import {
 } from "./fantasy-draft.service.js";
 
 export async function fantasyDraftRoutes(app: FastifyInstance) {
+  // Bot-side answer for its ready/guildCreate command refresh: whether /draft should be
+  // included in this guild's PUT (within ~1hr of a scheduled fantasy draft, or live/wrap-up).
+  // Without this the bot's base-commands PUT silently strips a correctly-registered /draft.
+  app.post("/v1/fantasy-draft/guild-command-state", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await getDraftCommandState(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/fantasy-draft/state", async (request, reply) => {
     try {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
