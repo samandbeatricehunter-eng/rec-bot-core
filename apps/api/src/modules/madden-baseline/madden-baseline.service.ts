@@ -158,7 +158,13 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
       abilities,
       ability_count: abilities ? abilities.length : null,
       college: p.college,
-      birth_year: p.date_of_birth ? new Date(p.date_of_birth).getUTCFullYear() : null,
+      birth_year: (() => {
+        if (!p.date_of_birth) return null;
+        const year = new Date(p.date_of_birth).getUTCFullYear();
+        // Scraped DOBs occasionally land in the 2090s; keep birth_year only when plausible.
+        return year >= 1970 && year <= 2010 ? year : null;
+      })(),
+      age: p.age ?? (p.years_pro != null ? Math.max(21, Math.min(45, 23 + p.years_pro)) : null),
       years_pro: p.years_pro,
       photo_url: p.photo_url ?? null,
       is_free_agent: !teamId,

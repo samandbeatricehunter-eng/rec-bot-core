@@ -79,19 +79,21 @@ async function applyRosterPlayer(client: PoolClient, leagueId: string, record: N
   await client.query(
     `insert into rec_players
        (league_id,madden_player_id,first_name,last_name,full_name,position,team_id,overall_rating,dev_trait,
-        jersey_number,years_pro,contract_years_left,attributes,raw_payload,player_source,roster_status,updated_at)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,'madden_companion','active',now())
+        jersey_number,years_pro,age,contract_years_left,attributes,raw_payload,player_source,roster_status,updated_at)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,'madden_companion','active',now())
      on conflict (league_id,madden_player_id) do update set
        first_name=coalesce(excluded.first_name,rec_players.first_name), last_name=coalesce(excluded.last_name,rec_players.last_name),
        full_name=excluded.full_name, position=coalesce(excluded.position,rec_players.position), team_id=coalesce(excluded.team_id,rec_players.team_id),
        overall_rating=coalesce(excluded.overall_rating,rec_players.overall_rating), dev_trait=coalesce(excluded.dev_trait,rec_players.dev_trait),
        jersey_number=coalesce(excluded.jersey_number,rec_players.jersey_number), years_pro=coalesce(excluded.years_pro,rec_players.years_pro),
+       age=coalesce(excluded.age,rec_players.age),
        contract_years_left=coalesce(excluded.contract_years_left,rec_players.contract_years_left),
        attributes=case when excluded.attributes='{}'::jsonb then rec_players.attributes else excluded.attributes end,
        raw_payload=excluded.raw_payload, roster_status='active', updated_at=now()`,
     [leagueId, playerId, first, last, full, text(row, ["position", "positionName", "positionAbbr"]), resolvedTeamId,
       integer(row, ["overallRating", "overall", "ovrRating", "ovr"]), text(row, ["devTrait", "developmentTrait", "dev_trait"]),
       integer(row, ["jerseyNum", "jerseyNumber", "jersey_number"]), integer(row, ["yearsPro", "experience"]),
+      integer(row, ["age", "playerAge", "player_age"]),
       integer(row, ["contractYearsLeft", "contract_years_left"]), JSON.stringify(value(row, ["attributes", "ratings"]) ?? {}), JSON.stringify(row)],
   );
 }

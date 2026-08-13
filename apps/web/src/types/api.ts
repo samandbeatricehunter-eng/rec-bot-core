@@ -746,6 +746,13 @@ export type RosterPlayer = {
   devTrait: string | null;
   photoUrl: string | null;
   attributes: Record<string, number | null>;
+  /** In-game age when known (Madden). Used by age-reset store flow. */
+  age: number | null;
+  college: string | null;
+  jerseyNumber: number | null;
+  archetype: string | null;
+  abilities: Array<{ name: string; description?: string }> | null;
+  playerSource: string | null;
 };
 export type RosterPositionGroup = {
   group: string;

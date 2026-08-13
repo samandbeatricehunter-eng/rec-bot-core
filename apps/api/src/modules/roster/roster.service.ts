@@ -44,6 +44,7 @@ export type RosterPlayer = {
   positionGroup: string;
   heightInches: number | null;
   weightLbs: number | null;
+  handedness: string | null;
   classYear: string | null;
   overallRating: number | null;
   rosterStatus: string;
@@ -52,6 +53,12 @@ export type RosterPlayer = {
   devTrait: string | null;
   photoUrl: string | null;
   attributes: Record<string, number | null>;
+  age: number | null;
+  college: string | null;
+  jerseyNumber: number | null;
+  archetype: string | null;
+  abilities: Array<{ name: string; description?: string }> | null;
+  playerSource: string | null;
 };
 
 export type RosterPositionGroup = {
@@ -72,7 +79,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
 
   const players = await supabase
     .from("rec_players")
-    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url,attributes")
+    .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url,attributes,age,birth_year,college,jersey_number,archetype,abilities,player_source")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
     .order("position", { ascending: true })
@@ -97,6 +104,12 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     devTrait: p.dev_trait ?? null,
     photoUrl: p.photo_url ?? null,
     attributes: (p.attributes ?? {}) as Record<string, number | null>,
+    age: typeof p.age === "number" ? p.age : (typeof p.birth_year === "number" ? Math.max(18, Math.min(45, 2026 - p.birth_year)) : null),
+    college: p.college ?? null,
+    jerseyNumber: typeof p.jersey_number === "number" ? p.jersey_number : null,
+    archetype: p.archetype ?? null,
+    abilities: Array.isArray(p.abilities) ? p.abilities as Array<{ name: string; description?: string }> : null,
+    playerSource: p.player_source ?? null,
   }));
 
   const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;

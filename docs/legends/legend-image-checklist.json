@@ -1,0 +1,2906 @@
+[
+  {
+    "name": "Jim Otto",
+    "pos": "C",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "jim_otto.png",
+    "photo": true
+  },
+  {
+    "name": "Mike Webster",
+    "pos": "C",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "mike_webster.png",
+    "photo": true
+  },
+  {
+    "name": "Champ Bailey",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "champ_bailey.png",
+    "photo": true
+  },
+  {
+    "name": "Charles Woodson",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "charles_woodson.png",
+    "photo": true
+  },
+  {
+    "name": "Darrelle Revis",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "darrelle_revis.png",
+    "photo": true
+  },
+  {
+    "name": "Deion Sanders",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 93.0,
+    "file": "deion_sanders.png",
+    "photo": true
+  },
+  {
+    "name": "Mel Renfro",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 89.5,
+    "file": "mel_renfro.png",
+    "photo": true
+  },
+  {
+    "name": "Mike Haynes",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "mike_haynes.png",
+    "photo": true
+  },
+  {
+    "name": "Night Train Lane",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "night_train_lane.png",
+    "photo": true
+  },
+  {
+    "name": "Rod Woodson",
+    "pos": "CB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "rod_woodson.png",
+    "photo": true
+  },
+  {
+    "name": "Cliff Harris",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "cliff_harris.png",
+    "photo": false
+  },
+  {
+    "name": "Deron Cherry",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "deron_cherry.png",
+    "photo": false
+  },
+  {
+    "name": "Jack Tatum",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "jack_tatum.png",
+    "photo": false
+  },
+  {
+    "name": "Lem Barney",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "lem_barney.png",
+    "photo": false
+  },
+  {
+    "name": "Leroy Butler",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "leroy_butler.png",
+    "photo": false
+  },
+  {
+    "name": "Lester Hayes",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "lester_hayes.png",
+    "photo": false
+  },
+  {
+    "name": "Willie Brown",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "willie_brown.png",
+    "photo": false
+  },
+  {
+    "name": "Willie Wood",
+    "pos": "DB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "willie_wood.png",
+    "photo": false
+  },
+  {
+    "name": "Art Donovan",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "art_donovan.png",
+    "photo": false
+  },
+  {
+    "name": "Chris Doleman",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "chris_doleman.png",
+    "photo": false
+  },
+  {
+    "name": "Dan Hampton",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "dan_hampton.png",
+    "photo": false
+  },
+  {
+    "name": "Elvin Bethea",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "elvin_bethea.png",
+    "photo": false
+  },
+  {
+    "name": "Gino Marchetti",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "gino_marchetti.png",
+    "photo": false
+  },
+  {
+    "name": "Jack Youngblood",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "jack_youngblood.png",
+    "photo": false
+  },
+  {
+    "name": "Keith Millard",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "keith_millard.png",
+    "photo": false
+  },
+  {
+    "name": "Lee Roy Selmon",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "lee_roy_selmon.png",
+    "photo": true
+  },
+  {
+    "name": "Randy White",
+    "pos": "DL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "randy_white.png",
+    "photo": false
+  },
+  {
+    "name": "Aaron Donald",
+    "pos": "DT",
+    "tier": "immortal",
+    "ovr": 95.0,
+    "file": "aaron_donald.png",
+    "photo": true
+  },
+  {
+    "name": "Alan Page",
+    "pos": "DT",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "alan_page.png",
+    "photo": true
+  },
+  {
+    "name": "Bob Lilly",
+    "pos": "DT",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "bob_lilly.png",
+    "photo": true
+  },
+  {
+    "name": "Mean Joe Greene",
+    "pos": "DT",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "mean_joe_greene.png",
+    "photo": true
+  },
+  {
+    "name": "Ndamukong Suh",
+    "pos": "DT",
+    "tier": "immortal",
+    "ovr": 91.5,
+    "file": "ndamukong_suh.png",
+    "photo": true
+  },
+  {
+    "name": "Jim Taylor",
+    "pos": "FB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "jim_taylor.png",
+    "photo": true
+  },
+  {
+    "name": "Joe Perry",
+    "pos": "FB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "joe_perry.png",
+    "photo": false
+  },
+  {
+    "name": "Larry Csonka",
+    "pos": "FB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "larry_csonka.png",
+    "photo": true
+  },
+  {
+    "name": "Lorenzo Neal",
+    "pos": "FB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "lorenzo_neal.png",
+    "photo": true
+  },
+  {
+    "name": "Mike Alstott",
+    "pos": "FB",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "mike_alstott.png",
+    "photo": true
+  },
+  {
+    "name": "Ed Reed",
+    "pos": "FS",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "ed_reed.png",
+    "photo": true
+  },
+  {
+    "name": "Paul Krause",
+    "pos": "FS",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "paul_krause.png",
+    "photo": true
+  },
+  {
+    "name": "Adrian Peterson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "adrian_peterson.png",
+    "photo": true
+  },
+  {
+    "name": "Barry Sanders",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "barry_sanders.png",
+    "photo": true
+  },
+  {
+    "name": "Bo Jackson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.4,
+    "file": "bo_jackson.png",
+    "photo": true
+  },
+  {
+    "name": "Earl Campbell",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "earl_campbell.png",
+    "photo": true
+  },
+  {
+    "name": "Emmitt Smith",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "emmitt_smith.png",
+    "photo": true
+  },
+  {
+    "name": "Eric Dickerson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "eric_dickerson.png",
+    "photo": true
+  },
+  {
+    "name": "Gale Sayers",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "gale_sayers.png",
+    "photo": false
+  },
+  {
+    "name": "Herschel Walker",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.4,
+    "file": "herschel_walker.png",
+    "photo": true
+  },
+  {
+    "name": "Hugh McElhenny",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "hugh_mcelhenny.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Brown",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "jim_brown.png",
+    "photo": true
+  },
+  {
+    "name": "LaDainian Tomlinson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "ladainian_tomlinson.png",
+    "photo": true
+  },
+  {
+    "name": "Lenny Moore",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "lenny_moore.png",
+    "photo": false
+  },
+  {
+    "name": "Leroy Kelly",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "leroy_kelly.png",
+    "photo": false
+  },
+  {
+    "name": "Marcus Allen",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "marcus_allen.png",
+    "photo": false
+  },
+  {
+    "name": "Marshall Faulk",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "marshall_faulk.png",
+    "photo": true
+  },
+  {
+    "name": "O.J. Simpson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "oj_simpson.png",
+    "photo": true
+  },
+  {
+    "name": "Ottis Anderson",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "ottis_anderson.png",
+    "photo": false
+  },
+  {
+    "name": "Paul Hornung",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "paul_hornung.png",
+    "photo": false
+  },
+  {
+    "name": "Ricky Watters",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "ricky_watters.png",
+    "photo": false
+  },
+  {
+    "name": "Roger Craig",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "roger_craig.png",
+    "photo": false
+  },
+  {
+    "name": "Thurman Thomas",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "thurman_thomas.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Dorsett",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "tony_dorsett.png",
+    "photo": true
+  },
+  {
+    "name": "Walter Payton",
+    "pos": "HB",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "walter_payton.png",
+    "photo": true
+  },
+  {
+    "name": "Jan Stenerud",
+    "pos": "K",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "jan_stenerud.png",
+    "photo": false
+  },
+  {
+    "name": "Chuck Bednarik",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "chuck_bednarik.png",
+    "photo": false
+  },
+  {
+    "name": "Dave Wilcox",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "dave_wilcox.png",
+    "photo": false
+  },
+  {
+    "name": "Derrick Thomas",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "derrick_thomas.png",
+    "photo": true
+  },
+  {
+    "name": "Greg Lloyd",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "greg_lloyd.png",
+    "photo": false
+  },
+  {
+    "name": "Harry Carson",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "harry_carson.png",
+    "photo": false
+  },
+  {
+    "name": "Joe Schmidt",
+    "pos": "LB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "joe_schmidt.png",
+    "photo": false
+  },
+  {
+    "name": "John Hannah",
+    "pos": "LG",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "john_hannah.png",
+    "photo": true
+  },
+  {
+    "name": "Larry Allen",
+    "pos": "LG",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "larry_allen.png",
+    "photo": true
+  },
+  {
+    "name": "Jack Ham",
+    "pos": "LOLB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "jack_ham.png",
+    "photo": true
+  },
+  {
+    "name": "Ted Hendricks",
+    "pos": "LOLB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "ted_hendricks.png",
+    "photo": true
+  },
+  {
+    "name": "Anthony Munoz",
+    "pos": "LT",
+    "tier": "immortal",
+    "ovr": 93.0,
+    "file": "anthony_munoz.png",
+    "photo": true
+  },
+  {
+    "name": "Jim Parker",
+    "pos": "LT",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "jim_parker.png",
+    "photo": true
+  },
+  {
+    "name": "Joe Thomas",
+    "pos": "LT",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "joe_thomas.png",
+    "photo": true
+  },
+  {
+    "name": "Jonathan Ogden",
+    "pos": "LT",
+    "tier": "immortal",
+    "ovr": 93.0,
+    "file": "jonathan_ogden.png",
+    "photo": true
+  },
+  {
+    "name": "Orlando Pace",
+    "pos": "LT",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "orlando_pace.png",
+    "photo": true
+  },
+  {
+    "name": "Dick Butkus",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "dick_butkus.png",
+    "photo": true
+  },
+  {
+    "name": "Jack Lambert",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "jack_lambert.png",
+    "photo": true
+  },
+  {
+    "name": "Luke Kuechly",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "luke_kuechly.png",
+    "photo": true
+  },
+  {
+    "name": "Mike Singletary",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "mike_singletary.png",
+    "photo": true
+  },
+  {
+    "name": "Patrick Willis",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "patrick_willis.png",
+    "photo": true
+  },
+  {
+    "name": "Ray Lewis",
+    "pos": "MLB",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "ray_lewis.png",
+    "photo": true
+  },
+  {
+    "name": "Bob Brown",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "bob_brown.png",
+    "photo": false
+  },
+  {
+    "name": "Dwight Stephenson",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "dwight_stephenson.png",
+    "photo": false
+  },
+  {
+    "name": "Joe DeLamielleure",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "joe_delamielleure.png",
+    "photo": false
+  },
+  {
+    "name": "Larry Little",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "larry_little.png",
+    "photo": false
+  },
+  {
+    "name": "Mike Munchak",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "mike_munchak.png",
+    "photo": false
+  },
+  {
+    "name": "Randall McDaniel",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "randall_mcdaniel.png",
+    "photo": false
+  },
+  {
+    "name": "Rayfield Wright",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "rayfield_wright.png",
+    "photo": false
+  },
+  {
+    "name": "Ron Mix",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "ron_mix.png",
+    "photo": false
+  },
+  {
+    "name": "Ron Yary",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "ron_yary.png",
+    "photo": false
+  },
+  {
+    "name": "Roosevelt Brown",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "roosevelt_brown.png",
+    "photo": false
+  },
+  {
+    "name": "Russ Grimm",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "russ_grimm.png",
+    "photo": false
+  },
+  {
+    "name": "Stan Jones",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "stan_jones.png",
+    "photo": false
+  },
+  {
+    "name": "Tom Mack",
+    "pos": "OL",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "tom_mack.png",
+    "photo": false
+  },
+  {
+    "name": "Bart Starr",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "bart_starr.png",
+    "photo": false
+  },
+  {
+    "name": "Ben Roethlisberger",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "ben_roethlisberger.png",
+    "photo": true
+  },
+  {
+    "name": "Cam Newton",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "cam_newton.png",
+    "photo": true
+  },
+  {
+    "name": "Dan Marino",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "dan_marino.png",
+    "photo": true
+  },
+  {
+    "name": "Joe Burrow",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "joe_burrow.png",
+    "photo": true
+  },
+  {
+    "name": "Joe Montana",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "joe_montana.png",
+    "photo": true
+  },
+  {
+    "name": "Joe Theismann",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "joe_theismann.png",
+    "photo": false
+  },
+  {
+    "name": "John Elway",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "john_elway.png",
+    "photo": true
+  },
+  {
+    "name": "Johnny Unitas",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "johnny_unitas.png",
+    "photo": false
+  },
+  {
+    "name": "Ken Stabler",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "ken_stabler.png",
+    "photo": false
+  },
+  {
+    "name": "Len Dawson",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "len_dawson.png",
+    "photo": false
+  },
+  {
+    "name": "Michael Vick",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "michael_vick.png",
+    "photo": true
+  },
+  {
+    "name": "Otto Graham",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "otto_graham.png",
+    "photo": false
+  },
+  {
+    "name": "Peyton Manning",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "peyton_manning.png",
+    "photo": true
+  },
+  {
+    "name": "Randall Cunningham",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "randall_cunningham.png",
+    "photo": false
+  },
+  {
+    "name": "Roger Staubach",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "roger_staubach.png",
+    "photo": true
+  },
+  {
+    "name": "Sammy Baugh",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "sammy_baugh.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Young",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "steve_young.png",
+    "photo": true
+  },
+  {
+    "name": "Tom Brady",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "tom_brady.png",
+    "photo": true
+  },
+  {
+    "name": "Troy Aikman",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "troy_aikman.png",
+    "photo": true
+  },
+  {
+    "name": "Warren Moon",
+    "pos": "QB",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "warren_moon.png",
+    "photo": true
+  },
+  {
+    "name": "Bruce Smith",
+    "pos": "RE",
+    "tier": "immortal",
+    "ovr": 94.0,
+    "file": "bruce_smith.png",
+    "photo": true
+  },
+  {
+    "name": "Deacon Jones",
+    "pos": "RE",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "deacon_jones.png",
+    "photo": true
+  },
+  {
+    "name": "Ed \"Too Tall\" Jones",
+    "pos": "RE",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "ed_too_tall_jones.png",
+    "photo": true
+  },
+  {
+    "name": "Julius Peppers",
+    "pos": "RE",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "julius_peppers.png",
+    "photo": true
+  },
+  {
+    "name": "Reggie White",
+    "pos": "RE",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "reggie_white.png",
+    "photo": true
+  },
+  {
+    "name": "Lawrence Taylor",
+    "pos": "ROLB",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "lawrence_taylor.png",
+    "photo": true
+  },
+  {
+    "name": "Von Miller",
+    "pos": "ROLB",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "von_miller.png",
+    "photo": true
+  },
+  {
+    "name": "Forrest Gregg",
+    "pos": "RT",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "forrest_gregg.png",
+    "photo": true
+  },
+  {
+    "name": "Brian Dawkins",
+    "pos": "SS",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "brian_dawkins.png",
+    "photo": true
+  },
+  {
+    "name": "Ronnie Lott",
+    "pos": "SS",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "ronnie_lott.png",
+    "photo": true
+  },
+  {
+    "name": "Sean Taylor",
+    "pos": "SS",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "sean_taylor.png",
+    "photo": true
+  },
+  {
+    "name": "Steve Atwater",
+    "pos": "SS",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "steve_atwater.png",
+    "photo": true
+  },
+  {
+    "name": "Troy Polamalu",
+    "pos": "SS",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "troy_polamalu.png",
+    "photo": true
+  },
+  {
+    "name": "Antonio Gates",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "antonio_gates.png",
+    "photo": true
+  },
+  {
+    "name": "Jackie Smith",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "jackie_smith.png",
+    "photo": false
+  },
+  {
+    "name": "Jason Witten",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "jason_witten.png",
+    "photo": true
+  },
+  {
+    "name": "John Mackey",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "john_mackey.png",
+    "photo": false
+  },
+  {
+    "name": "Keith Jackson",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 88.0,
+    "file": "keith_jackson.png",
+    "photo": true
+  },
+  {
+    "name": "Mike Ditka",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "mike_ditka.png",
+    "photo": true
+  },
+  {
+    "name": "Rob Gronkowski",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "rob_gronkowski.png",
+    "photo": true
+  },
+  {
+    "name": "Shannon Sharpe",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "shannon_sharpe.png",
+    "photo": true
+  },
+  {
+    "name": "Todd Christensen",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "todd_christensen.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Gonzalez",
+    "pos": "TE",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "tony_gonzalez.png",
+    "photo": true
+  },
+  {
+    "name": "Andre Johnson",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "andre_johnson.png",
+    "photo": true
+  },
+  {
+    "name": "Andre Reed",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "andre_reed.png",
+    "photo": false
+  },
+  {
+    "name": "Calvin Johnson",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "calvin_johnson.png",
+    "photo": true
+  },
+  {
+    "name": "Charley Taylor",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "charley_taylor.png",
+    "photo": false
+  },
+  {
+    "name": "Cris Carter",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "cris_carter.png",
+    "photo": true
+  },
+  {
+    "name": "Devin Hester",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "devin_hester.png",
+    "photo": true
+  },
+  {
+    "name": "Don Maynard",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "don_maynard.png",
+    "photo": false
+  },
+  {
+    "name": "Drew Pearson",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "drew_pearson.png",
+    "photo": false
+  },
+  {
+    "name": "Fred Biletnikoff",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "fred_biletnikoff.png",
+    "photo": true
+  },
+  {
+    "name": "Herman Moore",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "herman_moore.png",
+    "photo": false
+  },
+  {
+    "name": "Irving Fryar",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 89.0,
+    "file": "irving_fryar.png",
+    "photo": false
+  },
+  {
+    "name": "James Lofton",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "james_lofton.png",
+    "photo": false
+  },
+  {
+    "name": "Jerry Rice",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 92.0,
+    "file": "jerry_rice.png",
+    "photo": true
+  },
+  {
+    "name": "Larry Fitzgerald",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "larry_fitzgerald.png",
+    "photo": true
+  },
+  {
+    "name": "Michael Irvin",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.5,
+    "file": "michael_irvin.png",
+    "photo": true
+  },
+  {
+    "name": "Randy Moss",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.0,
+    "file": "randy_moss.png",
+    "photo": true
+  },
+  {
+    "name": "Raymond Berry",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "raymond_berry.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Largent",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 91.0,
+    "file": "steve_largent.png",
+    "photo": true
+  },
+  {
+    "name": "Terrell Owens",
+    "pos": "WR",
+    "tier": "immortal",
+    "ovr": 90.2,
+    "file": "terrell_owens.png",
+    "photo": true
+  },
+  {
+    "name": "Barrett Jones",
+    "pos": "C",
+    "tier": "legend",
+    "ovr": 87.9,
+    "file": "barrett_jones.png",
+    "photo": true
+  },
+  {
+    "name": "Dave Rimington",
+    "pos": "C",
+    "tier": "legend",
+    "ovr": 88.2,
+    "file": "dave_rimington.png",
+    "photo": true
+  },
+  {
+    "name": "Patrick Peterson",
+    "pos": "CB",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "patrick_peterson.png",
+    "photo": true
+  },
+  {
+    "name": "Albert Lewis",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "albert_lewis.png",
+    "photo": false
+  },
+  {
+    "name": "Charlie Waters",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "charlie_waters.png",
+    "photo": false
+  },
+  {
+    "name": "Dick Anderson",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dick_anderson.png",
+    "photo": false
+  },
+  {
+    "name": "Eric Turner",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eric_turner.png",
+    "photo": false
+  },
+  {
+    "name": "Eugene Robinson",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eugene_robinson.png",
+    "photo": false
+  },
+  {
+    "name": "Fred Marion",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "fred_marion.png",
+    "photo": false
+  },
+  {
+    "name": "George McAfee",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "george_mcafee.png",
+    "photo": false
+  },
+  {
+    "name": "Joey Browner",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "joey_browner.png",
+    "photo": false
+  },
+  {
+    "name": "Nolan Cromwell",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "nolan_cromwell.png",
+    "photo": false
+  },
+  {
+    "name": "Roger Wehrli",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "roger_wehrli.png",
+    "photo": false
+  },
+  {
+    "name": "Solomon Wilcots",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "solomon_wilcots.png",
+    "photo": false
+  },
+  {
+    "name": "Terry McDaniel",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "terry_mcdaniel.png",
+    "photo": false
+  },
+  {
+    "name": "Tom Brookshier",
+    "pos": "DB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tom_brookshier.png",
+    "photo": false
+  },
+  {
+    "name": "Clyde Simmons",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "clyde_simmons.png",
+    "photo": false
+  },
+  {
+    "name": "Dan Saleaumua",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dan_saleaumua.png",
+    "photo": false
+  },
+  {
+    "name": "Dave Butz",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dave_butz.png",
+    "photo": false
+  },
+  {
+    "name": "Dexter Manley",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dexter_manley.png",
+    "photo": false
+  },
+  {
+    "name": "Greg Kragen",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "greg_kragen.png",
+    "photo": false
+  },
+  {
+    "name": "Harvey Martin",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "harvey_martin.png",
+    "photo": false
+  },
+  {
+    "name": "Jerome Brown",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jerome_brown.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Marshall",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_marshall.png",
+    "photo": false
+  },
+  {
+    "name": "L.C. Greenwood",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "lc_greenwood.png",
+    "photo": false
+  },
+  {
+    "name": "Leon Lett",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "leon_lett.png",
+    "photo": false
+  },
+  {
+    "name": "Leonard Marshall",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "leonard_marshall.png",
+    "photo": false
+  },
+  {
+    "name": "Leslie O'Neal",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "leslie_o_neal.png",
+    "photo": false
+  },
+  {
+    "name": "Marty Lyons",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "marty_lyons.png",
+    "photo": false
+  },
+  {
+    "name": "Mike Golic",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "mike_golic.png",
+    "photo": false
+  },
+  {
+    "name": "Rulon Jones",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "rulon_jones.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Tolbert",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tony_tolbert.png",
+    "photo": false
+  },
+  {
+    "name": "William \"Refrigerator\" Perry",
+    "pos": "DL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "william_refrigerator_perry.png",
+    "photo": false
+  },
+  {
+    "name": "Bronko Nagurski",
+    "pos": "DT",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "bronko_nagurski.png",
+    "photo": true
+  },
+  {
+    "name": "Jonathan Allen",
+    "pos": "DT",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "jonathan_allen.png",
+    "photo": true
+  },
+  {
+    "name": "Alan Ameche",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "alan_ameche.png",
+    "photo": true
+  },
+  {
+    "name": "Daryl Johnston",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 88.5,
+    "file": "daryl_johnston.png",
+    "photo": true
+  },
+  {
+    "name": "Doc Blanchard",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "doc_blanchard.png",
+    "photo": true
+  },
+  {
+    "name": "Glenn Davis",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "glenn_davis.png",
+    "photo": true
+  },
+  {
+    "name": "Howard Cassady",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "howard_cassady.png",
+    "photo": true
+  },
+  {
+    "name": "Ickey Woods",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ickey_woods.png",
+    "photo": false
+  },
+  {
+    "name": "Jay Berwanger",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "jay_berwanger.png",
+    "photo": true
+  },
+  {
+    "name": "John Kimbrough",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "john_kimbrough.png",
+    "photo": true
+  },
+  {
+    "name": "Larry Centers",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "larry_centers.png",
+    "photo": true
+  },
+  {
+    "name": "Merril Hoge",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "merril_hoge.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Owens",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "steve_owens.png",
+    "photo": true
+  },
+  {
+    "name": "Tom Rathman",
+    "pos": "FB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tom_rathman.png",
+    "photo": false
+  },
+  {
+    "name": "Minkah Fitzpatrick",
+    "pos": "FS",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "minkah_fitzpatrick.png",
+    "photo": true
+  },
+  {
+    "name": "Tyrann Mathieu",
+    "pos": "FS",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "tyrann_mathieu.png",
+    "photo": true
+  },
+  {
+    "name": "Abner Haynes",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "abner_haynes.png",
+    "photo": false
+  },
+  {
+    "name": "Archie Griffin",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 88.0,
+    "file": "archie_griffin.png",
+    "photo": true
+  },
+  {
+    "name": "Barry Foster",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "barry_foster.png",
+    "photo": false
+  },
+  {
+    "name": "Billy Sims",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "billy_sims.png",
+    "photo": false
+  },
+  {
+    "name": "Charley Trippi",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "charley_trippi.png",
+    "photo": false
+  },
+  {
+    "name": "Chris Warren",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "chris_warren.png",
+    "photo": false
+  },
+  {
+    "name": "Christian McCaffrey",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "christian_mccaffrey.png",
+    "photo": true
+  },
+  {
+    "name": "Christian Okoye",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "christian_okoye.png",
+    "photo": false
+  },
+  {
+    "name": "Chuck Foreman",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "chuck_foreman.png",
+    "photo": false
+  },
+  {
+    "name": "Chuck Muncie",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "chuck_muncie.png",
+    "photo": false
+  },
+  {
+    "name": "Curt Warner",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "curt_warner.png",
+    "photo": false
+  },
+  {
+    "name": "Dalton Hilliard",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dalton_hilliard.png",
+    "photo": false
+  },
+  {
+    "name": "Dave Meggett",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dave_meggett.png",
+    "photo": false
+  },
+  {
+    "name": "Derrick Henry",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "derrick_henry.png",
+    "photo": true
+  },
+  {
+    "name": "Eric Bieniemy",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eric_bieniemy.png",
+    "photo": false
+  },
+  {
+    "name": "Floyd Little",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "floyd_little.png",
+    "photo": false
+  },
+  {
+    "name": "Freeman McNeil",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "freeman_mcneil.png",
+    "photo": false
+  },
+  {
+    "name": "Greg Bell",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "greg_bell.png",
+    "photo": false
+  },
+  {
+    "name": "Matt Snell",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "matt_snell.png",
+    "photo": false
+  },
+  {
+    "name": "Mike Rozier",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "mike_rozier.png",
+    "photo": false
+  },
+  {
+    "name": "Natrone Means",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "natrone_means.png",
+    "photo": false
+  },
+  {
+    "name": "Reggie Bush",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 88.2,
+    "file": "reggie_bush.png",
+    "photo": true
+  },
+  {
+    "name": "Reggie Cobb",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "reggie_cobb.png",
+    "photo": false
+  },
+  {
+    "name": "Ricky Williams",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 87.0,
+    "file": "ricky_williams.png",
+    "photo": true
+  },
+  {
+    "name": "Ronnie Bull",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ronnie_bull.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Canadeo",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tony_canadeo.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Nathan",
+    "pos": "HB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tony_nathan.png",
+    "photo": false
+  },
+  {
+    "name": "Al Del Greco",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "al_del_greco.png",
+    "photo": false
+  },
+  {
+    "name": "Eddie Murray",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eddie_murray.png",
+    "photo": false
+  },
+  {
+    "name": "Garo Yepremian",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "garo_yepremian.png",
+    "photo": false
+  },
+  {
+    "name": "Jeff Jaeger",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jeff_jaeger.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Bakken",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_bakken.png",
+    "photo": false
+  },
+  {
+    "name": "Lou Groza",
+    "pos": "K",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "lou_groza.png",
+    "photo": false
+  },
+  {
+    "name": "Brad Van Pelt",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "brad_van_pelt.png",
+    "photo": false
+  },
+  {
+    "name": "Brian Bosworth",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "brian_bosworth.png",
+    "photo": true
+  },
+  {
+    "name": "Brian Jones",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "brian_jones.png",
+    "photo": false
+  },
+  {
+    "name": "Bryce Paup",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bryce_paup.png",
+    "photo": false
+  },
+  {
+    "name": "Carl Banks",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "carl_banks.png",
+    "photo": false
+  },
+  {
+    "name": "Chris Spielman",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "chris_spielman.png",
+    "photo": false
+  },
+  {
+    "name": "Chuck Noll",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "chuck_noll.png",
+    "photo": false
+  },
+  {
+    "name": "Gary Plummer",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "gary_plummer.png",
+    "photo": false
+  },
+  {
+    "name": "Jessie Tuggle",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jessie_tuggle.png",
+    "photo": false
+  },
+  {
+    "name": "John Anderson",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "john_anderson.png",
+    "photo": false
+  },
+  {
+    "name": "John Offerdahl",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "john_offerdahl.png",
+    "photo": false
+  },
+  {
+    "name": "Karl Mecklenburg",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "karl_mecklenburg.png",
+    "photo": false
+  },
+  {
+    "name": "Ken Norton Jr.",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ken_norton_jr.png",
+    "photo": false
+  },
+  {
+    "name": "Lamar Lathon",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "lamar_lathon.png",
+    "photo": false
+  },
+  {
+    "name": "Nick Buoniconti",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "nick_buoniconti.png",
+    "photo": false
+  },
+  {
+    "name": "Otis Wilson",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "otis_wilson.png",
+    "photo": false
+  },
+  {
+    "name": "Pepper Johnson",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "pepper_johnson.png",
+    "photo": false
+  },
+  {
+    "name": "Robert Brazile",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "robert_brazile.png",
+    "photo": false
+  },
+  {
+    "name": "Scott Studwell",
+    "pos": "LB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "scott_studwell.png",
+    "photo": false
+  },
+  {
+    "name": "Hugh Green",
+    "pos": "LE",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "hugh_green.png",
+    "photo": true
+  },
+  {
+    "name": "Bill Curry",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bill_curry.png",
+    "photo": false
+  },
+  {
+    "name": "Bill Fralic",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 87.0,
+    "file": "bill_fralic.png",
+    "photo": true
+  },
+  {
+    "name": "Bob St. Clair",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bob_st_clair.png",
+    "photo": false
+  },
+  {
+    "name": "Bubba Paris",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bubba_paris.png",
+    "photo": false
+  },
+  {
+    "name": "Dermontti Dawson",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dermontti_dawson.png",
+    "photo": false
+  },
+  {
+    "name": "Guy McIntyre",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "guy_mcintyre.png",
+    "photo": false
+  },
+  {
+    "name": "Jesse Sapolu",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jesse_sapolu.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Lachey",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_lachey.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Langer",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_langer.png",
+    "photo": false
+  },
+  {
+    "name": "Joe Jacoby",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "joe_jacoby.png",
+    "photo": false
+  },
+  {
+    "name": "Korey Stringer",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "korey_stringer.png",
+    "photo": false
+  },
+  {
+    "name": "Lou Creekmur",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "lou_creekmur.png",
+    "photo": false
+  },
+  {
+    "name": "Mick Tingelhoff",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "mick_tingelhoff.png",
+    "photo": false
+  },
+  {
+    "name": "Randy Cross",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "randy_cross.png",
+    "photo": false
+  },
+  {
+    "name": "Richmond Webb",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "richmond_webb.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Wisniewski",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "steve_wisniewski.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Boselli",
+    "pos": "OL",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tony_boselli.png",
+    "photo": false
+  },
+  {
+    "name": "Ray Guy",
+    "pos": "P",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ray_guy.png",
+    "photo": false
+  },
+  {
+    "name": "Andre Ware",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "andre_ware.png",
+    "photo": false
+  },
+  {
+    "name": "Archie Manning",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "archie_manning.png",
+    "photo": false
+  },
+  {
+    "name": "Baker Mayfield",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "baker_mayfield.png",
+    "photo": true
+  },
+  {
+    "name": "Bernie Kosar",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bernie_kosar.png",
+    "photo": false
+  },
+  {
+    "name": "Bill Wade",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bill_wade.png",
+    "photo": false
+  },
+  {
+    "name": "Bobby Hebert",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bobby_hebert.png",
+    "photo": false
+  },
+  {
+    "name": "Bubby Brister",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bubby_brister.png",
+    "photo": false
+  },
+  {
+    "name": "Dave Krieg",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dave_krieg.png",
+    "photo": false
+  },
+  {
+    "name": "Deshaun Watson",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "deshaun_watson.png",
+    "photo": true
+  },
+  {
+    "name": "Greg Landry",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "greg_landry.png",
+    "photo": false
+  },
+  {
+    "name": "Jeff Hostetler",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jeff_hostetler.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Harbaugh",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_harbaugh.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Hart",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_hart.png",
+    "photo": false
+  },
+  {
+    "name": "Jim Zorn",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jim_zorn.png",
+    "photo": false
+  },
+  {
+    "name": "John Brodie",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "john_brodie.png",
+    "photo": false
+  },
+  {
+    "name": "Johnny Manziel",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "johnny_manziel.png",
+    "photo": true
+  },
+  {
+    "name": "Ken O'Brien",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ken_o_brien.png",
+    "photo": false
+  },
+  {
+    "name": "Lynn Dickey",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "lynn_dickey.png",
+    "photo": false
+  },
+  {
+    "name": "Mark Rypien",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "mark_rypien.png",
+    "photo": false
+  },
+  {
+    "name": "Neil O'Donnell",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "neil_o_donnell.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Bartkowski",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "steve_bartkowski.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Grogan",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "steve_grogan.png",
+    "photo": false
+  },
+  {
+    "name": "Tim Tebow",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "tim_tebow.png",
+    "photo": true
+  },
+  {
+    "name": "Tommie Frazier",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "tommie_frazier.png",
+    "photo": true
+  },
+  {
+    "name": "Tommy Kramer",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tommy_kramer.png",
+    "photo": false
+  },
+  {
+    "name": "Ty Detmer",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "ty_detmer.png",
+    "photo": true
+  },
+  {
+    "name": "Vince Young",
+    "pos": "QB",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "vince_young.png",
+    "photo": true
+  },
+  {
+    "name": "Chase Young",
+    "pos": "RE",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "chase_young.png",
+    "photo": true
+  },
+  {
+    "name": "Will Anderson Jr.",
+    "pos": "RE",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "will_anderson_jr.png",
+    "photo": true
+  },
+  {
+    "name": "Richie Incognito",
+    "pos": "RG",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "richie_incognito.png",
+    "photo": true
+  },
+  {
+    "name": "LaVar Arrington",
+    "pos": "ROLB",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "lavar_arrington.png",
+    "photo": true
+  },
+  {
+    "name": "Terrell Suggs",
+    "pos": "ROLB",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "terrell_suggs.png",
+    "photo": true
+  },
+  {
+    "name": "John Madden",
+    "pos": "RT",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "john_madden.png",
+    "photo": true
+  },
+  {
+    "name": "Tony Mandarich",
+    "pos": "RT",
+    "tier": "legend",
+    "ovr": 88.1,
+    "file": "tony_mandarich.png",
+    "photo": true
+  },
+  {
+    "name": "Eric Berry",
+    "pos": "SS",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "eric_berry.png",
+    "photo": true
+  },
+  {
+    "name": "Ben Coates",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ben_coates.png",
+    "photo": false
+  },
+  {
+    "name": "Billy Joe Dupree",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "billy_joe_dupree.png",
+    "photo": false
+  },
+  {
+    "name": "Brent Jones",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "brent_jones.png",
+    "photo": false
+  },
+  {
+    "name": "Brock Bowers",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 87.0,
+    "file": "brock_bowers.png",
+    "photo": true
+  },
+  {
+    "name": "Dallas Clark",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dallas_clark.png",
+    "photo": true
+  },
+  {
+    "name": "Dave Casper",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dave_casper.png",
+    "photo": false
+  },
+  {
+    "name": "Eric Green",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eric_green.png",
+    "photo": false
+  },
+  {
+    "name": "Greg Olsen",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "greg_olsen.png",
+    "photo": true
+  },
+  {
+    "name": "Jay Novacek",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "jay_novacek.png",
+    "photo": false
+  },
+  {
+    "name": "Jeremy Shockey",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "jeremy_shockey.png",
+    "photo": true
+  },
+  {
+    "name": "Jimmy Graham",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "jimmy_graham.png",
+    "photo": true
+  },
+  {
+    "name": "Kellen Winslow II",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "kellen_winslow_ii.png",
+    "photo": true
+  },
+  {
+    "name": "Ken MacAfee",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 85.0,
+    "file": "ken_macafee.png",
+    "photo": true
+  },
+  {
+    "name": "Kyle Pitts",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 87.0,
+    "file": "kyle_pitts.png",
+    "photo": true
+  },
+  {
+    "name": "Pete Metzelaars",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "pete_metzelaars.png",
+    "photo": false
+  },
+  {
+    "name": "Troy Drayton",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "troy_drayton.png",
+    "photo": false
+  },
+  {
+    "name": "Vernon Davis",
+    "pos": "TE",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "vernon_davis.png",
+    "photo": true
+  },
+  {
+    "name": "Alvin Harper",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "alvin_harper.png",
+    "photo": false
+  },
+  {
+    "name": "Amari Cooper",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "amari_cooper.png",
+    "photo": true
+  },
+  {
+    "name": "Anthony Carter",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "anthony_carter.png",
+    "photo": false
+  },
+  {
+    "name": "Bobby Mitchell",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "bobby_mitchell.png",
+    "photo": false
+  },
+  {
+    "name": "Cliff Branch",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "cliff_branch.png",
+    "photo": false
+  },
+  {
+    "name": "Dante Lavelli",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dante_lavelli.png",
+    "photo": false
+  },
+  {
+    "name": "DeVonta Smith",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "devonta_smith.png",
+    "photo": true
+  },
+  {
+    "name": "Desmond Howard",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 87.0,
+    "file": "desmond_howard.png",
+    "photo": true
+  },
+  {
+    "name": "Dwight Clark",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "dwight_clark.png",
+    "photo": false
+  },
+  {
+    "name": "Eric Martin",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "eric_martin.png",
+    "photo": false
+  },
+  {
+    "name": "Ernest Givins",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ernest_givins.png",
+    "photo": false
+  },
+  {
+    "name": "Gary Clark",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "gary_clark.png",
+    "photo": false
+  },
+  {
+    "name": "Henry Ellard",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "henry_ellard.png",
+    "photo": false
+  },
+  {
+    "name": "Ja'Marr Chase",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "ja_marr_chase.png",
+    "photo": true
+  },
+  {
+    "name": "John Jefferson",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "john_jefferson.png",
+    "photo": false
+  },
+  {
+    "name": "John Taylor",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "john_taylor.png",
+    "photo": false
+  },
+  {
+    "name": "Justin Blackmon",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "justin_blackmon.png",
+    "photo": true
+  },
+  {
+    "name": "Kevin Curtis",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 84.0,
+    "file": "kevin_curtis.png",
+    "photo": true
+  },
+  {
+    "name": "Mark Carrier",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "mark_carrier.png",
+    "photo": false
+  },
+  {
+    "name": "Marvin Harrison Jr.",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.5,
+    "file": "marvin_harrison_jr.png",
+    "photo": true
+  },
+  {
+    "name": "Michael Crabtree",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 89.0,
+    "file": "michael_crabtree.png",
+    "photo": true
+  },
+  {
+    "name": "Pete Pihos",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "pete_pihos.png",
+    "photo": false
+  },
+  {
+    "name": "Raghib \"Rocket\" Ismail",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "raghib_rocket_ismail.png",
+    "photo": false
+  },
+  {
+    "name": "Rick Upchurch",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "rick_upchurch.png",
+    "photo": false
+  },
+  {
+    "name": "Ricky Sanders",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "ricky_sanders.png",
+    "photo": false
+  },
+  {
+    "name": "Rob Moore",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "rob_moore.png",
+    "photo": false
+  },
+  {
+    "name": "Steve Tasker",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "steve_tasker.png",
+    "photo": false
+  },
+  {
+    "name": "Tony Martin",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "tony_martin.png",
+    "photo": false
+  },
+  {
+    "name": "Wesley Walker",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "wesley_walker.png",
+    "photo": false
+  },
+  {
+    "name": "Willie Gault",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "willie_gault.png",
+    "photo": false
+  },
+  {
+    "name": "Yancey Thigpen",
+    "pos": "WR",
+    "tier": "legend",
+    "ovr": 86.0,
+    "file": "yancey_thigpen.png",
+    "photo": false
+  }
+]

@@ -1,10 +1,10 @@
 // CFB roster position groups, in the standard offense -> defense -> special-teams order used
-// by the Team Roster viewer's group selector and position-grade card grid. Matches the actual
-// position codes CFB baseline data uses (LEDG/REDG, not "LEDGE"/"REDGE"; WILL/MIKE/SAM for LB).
+// by the Team Roster viewer's group selector and position-grade card grid. Display uses
+// LEDGE/REDGE; normalizeCfbPosition maps LEDG/LE and REDG/RE onto those labels.
 export const CFB_POSITION_GROUPS = [
-  "QB", "HB", "FB", "TE", "WR",
+  "QB", "HB", "FB", "WR", "TE",
   "LT", "LG", "C", "RG", "RT",
-  "LEDG", "REDG", "DT", "WILL", "MIKE", "SAM",
+  "LEDGE", "REDGE", "DT", "WILL", "MIKE", "SAM",
   "CB", "FS", "SS",
   "K", "P",
 ] as const;
@@ -15,10 +15,54 @@ export type CfbPositionGroup = (typeof CFB_POSITION_GROUPS)[number];
 export const MADDEN_POSITION_GROUPS = [...CFB_POSITION_GROUPS, "LS"] as const;
 export type MaddenPositionGroup = (typeof MADDEN_POSITION_GROUPS)[number];
 
+/** Store / roster picker chip order (horizontal). Display labels; matching accepts aliases. */
+export const REC_ROSTER_POSITION_FILTERS = [
+  "QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT",
+  "LEDGE", "REDGE", "DT", "WILL", "MIKE", "SAM", "CB", "FS", "SS", "K", "P",
+] as const;
+export type RecRosterPositionFilter = (typeof REC_ROSTER_POSITION_FILTERS)[number];
+
+const ROSTER_POSITION_FILTER_ALIASES: Record<string, readonly string[]> = {
+  QB: ["QB"],
+  HB: ["HB", "RB"],
+  FB: ["FB"],
+  WR: ["WR"],
+  TE: ["TE"],
+  LT: ["LT"],
+  LG: ["LG"],
+  C: ["C"],
+  RG: ["RG"],
+  RT: ["RT"],
+  LEDGE: ["LEDGE", "LEDG", "LE"],
+  REDGE: ["REDGE", "REDG", "RE"],
+  DT: ["DT", "NT"],
+  // Match isCompatibleReplacementPosition aliases (LOLB↔WILL, ROLB↔SAM).
+  WILL: ["WILL", "LOLB"],
+  MIKE: ["MIKE", "MLB"],
+  SAM: ["SAM", "ROLB"],
+  CB: ["CB"],
+  FS: ["FS"],
+  SS: ["SS"],
+  K: ["K"],
+  P: ["P"],
+};
+
+/** True when a player's stored position code belongs under the given filter chip. */
+export function matchesRosterPositionFilter(playerPosition: string | null | undefined, filter: string): boolean {
+  if (!playerPosition || !filter || filter === "ALL") return true;
+  const pos = normalizeCfbPosition(playerPosition);
+  const aliases = ROSTER_POSITION_FILTER_ALIASES[filter.toUpperCase()] ?? [filter.toUpperCase()];
+  return aliases.includes(pos);
+}
+
 // The baseline dataset carries handedness on QBs ("QB (Left)"/"QB (Right)") — collapse both
 // onto the QB group for grading/filtering while the raw label still displays per-player.
 export function normalizeCfbPosition(rawPosition: string): string {
-  return rawPosition.replace(/\s*\((left|right)\)\s*$/i, "").trim().toUpperCase();
+  const cleaned = rawPosition.replace(/\s*\((left|right)\)\s*$/i, "").trim().toUpperCase();
+  if (cleaned === "LEDG" || cleaned === "LE") return "LEDGE";
+  if (cleaned === "REDG" || cleaned === "RE") return "REDGE";
+  if (cleaned === "RB") return "HB";
+  return cleaned;
 }
 
 // The legend catalog and the custom-player position picker use LE/RE/LOLB/MLB/ROLB — actual

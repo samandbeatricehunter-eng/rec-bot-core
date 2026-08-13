@@ -1378,6 +1378,8 @@ export const recPlayers = pgTable("rec_players", {
   overallRating: integer("overall_rating"),
   scheme: integer("scheme"),
   yearsPro: integer("years_pro"),
+  /** In-game age (Madden). Age resets set this to 21. */
+  age: integer("age"),
   resignStatus: integer("resign_status"),
   contractYearsLeft: integer("contract_years_left"),
   contractSalary: bigint("contract_salary", { mode: "number" }),

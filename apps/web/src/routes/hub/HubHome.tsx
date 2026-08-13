@@ -1382,7 +1382,13 @@ export function HubHome() {
           </>}
 
           {purchaseType === "age_reset" && <>
-            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={ageResetPlayer} onChange={setAgeResetPlayer} excludeDefault={isCfbLeague} /></label>
+            <p className="form-hint">All age resets set the selected player&apos;s in-game age to <strong>21</strong>.</p>
+            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={ageResetPlayer} onChange={setAgeResetPlayer} excludeDefault={isCfbLeague} showAge /></label>
+            {ageResetPlayer && (
+              <p className="form-hint">
+                {ageResetPlayer.fullName}: {ageResetPlayer.age != null ? `age ${ageResetPlayer.age}` : "age unknown"} → <strong>21</strong>
+              </p>
+            )}
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={economyValues.store.ageReset} /></strong></span><Button variant="primary" disabled={purchaseBusy || !ageResetPlayer} onClick={() => void submitPurchase({ playerId: ageResetPlayer!.id, playerName: ageResetPlayer!.fullName })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 

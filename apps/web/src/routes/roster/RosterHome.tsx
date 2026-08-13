@@ -10,6 +10,8 @@ import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { RosterMovesPanel } from "./RosterMovesPanel.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
+import { PlayerCard } from "../../components/hub/PlayerCard.js";
+import "../../styles/player-card.css";
 
 type ViewMode = "grid" | "list";
 
@@ -307,22 +309,43 @@ export function RosterHome() {
           ) : (
             <>
               {selectedPlayer && (
-                <div className="hub-roster-detail">
-                  <div className="hub-roster-detail-photo" aria-hidden="true">
-                    {selectedPlayer.photoUrl ? <img src={selectedPlayer.photoUrl} alt="" /> : <span>{selectedPlayer.position}</span>}
-                  </div>
-                  <div className="hub-roster-detail-info">
-                    <span className="hub-roster-detail-sub">{selectedPlayer.position} &middot; {selectedPlayer.positionGroup}</span>
-                    <h3 className="hub-roster-detail-name">{selectedPlayer.fullName}</h3>
-                    <div className="hub-roster-detail-meta">
-                      <span>{formatHeight(selectedPlayer.heightInches)}{selectedPlayer.weightLbs != null ? `, ${selectedPlayer.weightLbs} lbs` : ""}</span>
-                      {!isMadden && selectedPlayer.classYear && <span>Class: <strong>{selectedPlayer.classYear}</strong></span>}
-                      {selectedPlayer.devTrait && <span>Dev Trait: <strong>{selectedPlayer.devTrait}</strong></span>}
+                <div className="hub-roster-detail-with-card">
+                  <PlayerCard
+                    player={{
+                      fullName: selectedPlayer.fullName,
+                      position: selectedPlayer.position,
+                      overallRating: selectedPlayer.overallRating,
+                      photoUrl: selectedPlayer.photoUrl,
+                      attributes: selectedPlayer.attributes,
+                      heightInches: selectedPlayer.heightInches,
+                      weightLbs: selectedPlayer.weightLbs,
+                      college: selectedPlayer.college,
+                      jerseyNumber: selectedPlayer.jerseyNumber,
+                      archetype: selectedPlayer.archetype,
+                      devTrait: selectedPlayer.devTrait,
+                      abilities: selectedPlayer.abilities,
+                      cardKind: selectedPlayer.playerSource === "custom" || selectedPlayer.playerSource === "custom_player"
+                        ? "custom"
+                        : selectedPlayer.playerSource === "legend" || selectedPlayer.playerSource === "immortal"
+                          ? (selectedPlayer.playerSource as "legend" | "immortal")
+                          : "baseline",
+                    }}
+                  />
+                  <div className="hub-roster-detail">
+                    <div className="hub-roster-detail-info">
+                      <span className="hub-roster-detail-sub">{selectedPlayer.position} &middot; {selectedPlayer.positionGroup}</span>
+                      <h3 className="hub-roster-detail-name">{selectedPlayer.fullName}</h3>
+                      <div className="hub-roster-detail-meta">
+                        <span>{formatHeight(selectedPlayer.heightInches)}{selectedPlayer.weightLbs != null ? `, ${selectedPlayer.weightLbs} lbs` : ""}</span>
+                        {!isMadden && selectedPlayer.classYear && <span>Class: <strong>{selectedPlayer.classYear}</strong></span>}
+                        {selectedPlayer.devTrait && <span>Dev Trait: <strong>{selectedPlayer.devTrait}</strong></span>}
+                        {selectedPlayer.age != null && <span>Age: <strong>{selectedPlayer.age}</strong></span>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="hub-roster-detail-ovr">
-                    <span>OVR</span>
-                    <strong>{selectedPlayer.overallRating ?? "—"}</strong>
+                    <div className="hub-roster-detail-ovr">
+                      <span>OVR</span>
+                      <strong>{selectedPlayer.overallRating ?? "—"}</strong>
+                    </div>
                   </div>
                 </div>
               )}
