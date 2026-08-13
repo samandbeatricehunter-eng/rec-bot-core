@@ -21,7 +21,7 @@ import { REC_LEGEND_POSITION_GROUPS, isCompatibleReplacementPosition, legendPosi
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { LegendAvailabilityEntry, LegendCatalogEntry } from "../../types/api.js";
+import type { LegendAvailabilityEntry, LegendCatalogEntry, LegendReplacementPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -44,9 +44,9 @@ export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased:
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  // Reuses the custom-player builder's replacement-eligibility config — same rule for both
-  // purchase types: only recruits/manually-added players (never the default baseline roster).
-  const [replacementConfig, setReplacementConfig] = useState<{ replacementPlayers: any[]; blockedNoEligibleReplacement: boolean } | null>(null);
+  // CFB gates replacement to recruits/manually-added players at a compatible position (same
+  // rule as custom players); Madden has no such gate — any active roster player is eligible.
+  const [replacementConfig, setReplacementConfig] = useState<{ replacementPlayers: LegendReplacementPlayer[]; blockedNoEligibleReplacement: boolean } | null>(null);
 
   function load() {
     Promise.all([
@@ -54,7 +54,7 @@ export function LegendPurchasePanel({ onPurchased, legendPrice }: { onPurchased:
       recApi.listHubLegendAvailability(guildId),
       // Best-effort — a user with no team assignment yet shouldn't lose the whole legend
       // catalog just because replacement-eligibility can't be determined for them.
-      recApi.getCustomPlayerConfig(guildId).catch(() => ({ replacementPlayers: [], blockedNoEligibleReplacement: false })),
+      recApi.getLegendReplacementConfig(guildId).catch(() => ({ replacementPlayers: [], blockedNoEligibleReplacement: false })),
     ])
       .then(([catalog, availability, config]) => {
         setLegends(catalog.legends);
@@ -207,7 +207,7 @@ function LegendDetailModal({
   isMine: boolean;
   busy: boolean;
   isCfb: boolean;
-  replacementPlayers: any[];
+  replacementPlayers: LegendReplacementPlayer[];
   blockedNoEligibleReplacement: boolean;
   legendPrice: number;
   onClose: () => void;
@@ -257,23 +257,33 @@ function LegendDetailModal({
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
         Purchasing this legend is applied to your roster immediately once a commissioner approves it, and will
         replace an active player on your roster — this is a one-time, permanent addition for this league. The
-        the commissioner will apply the catalog ratings shown here and record any necessary in-game edits
-        by the commissioner to hit that number.
+        commissioner will apply the catalog ratings shown here and record any necessary in-game edits to hit
+        that number.
       </p>
 
       {!isTaken && !isMine && blockedNoEligibleReplacement && (
-        <p className="form-hint">Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the "Edit Roster" quick action on My Team before purchasing a legend.</p>
+        <p className="form-hint">
+          {isCfb
+            ? "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team before purchasing a legend."
+            : "Your roster has no active players yet — assign or seed your roster before purchasing a legend."}
+        </p>
       )}
       {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
           {(() => {
-            const samePositionPlayers = replacementPlayers.filter((player: any) => isCompatibleReplacementPosition(legend.position, player.position));
+            // CFB inherits the legend's exact position onto the replaced slot, so only a
+            // compatible-position recruit/added player is eligible. Madden has no such
+            // inheritance — any active roster player is eligible, seeded or not. Both lists
+            // sort ascending by OVR so the team's weakest players surface first as the
+            // natural replacement recommendation.
+            const eligiblePlayers = [...(isCfb ? replacementPlayers.filter((player) => isCompatibleReplacementPosition(legend.position, player.position)) : replacementPlayers)]
+              .sort((a, b) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity));
             if (isCfb) {
               // CFB inherits the legend's position onto whichever roster slot it replaces —
               // there's no "commissioner's choice" here, same rule as the custom-player
               // wizard: a real added/recruited player at this position must be picked before
               // purchasing.
-              if (samePositionPlayers.length === 0) {
+              if (eligiblePlayers.length === 0) {
                 return <p className="form-hint">You have no added/recruited {legend.position} on your roster to replace — add one via the Recruiting Board or "Edit Roster" before buying this legend.</p>;
               }
               return (
@@ -281,7 +291,7 @@ function LegendDetailModal({
                   <span className="form-label">Replace ({legend.position})</span>
                   <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
                     <option value="">Select player to replace</option>
-                    {samePositionPlayers.map((player: any) => (
+                    {eligiblePlayers.map((player) => (
                       <option key={player.id} value={player.id}>
                         {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
                       </option>
@@ -290,7 +300,7 @@ function LegendDetailModal({
                 </label>
               );
             }
-            return samePositionPlayers.length > 0 && (
+            return eligiblePlayers.length > 0 && (
             <>
               <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
                 <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
@@ -298,10 +308,10 @@ function LegendDetailModal({
               </label>
               {designateReplacement ? (
                 <label className="form-field">
-                  <span className="form-label">Replace ({legend.position})</span>
+                  <span className="form-label">Replace (any position)</span>
                   <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
                     <option value="">Select player</option>
-                    {samePositionPlayers.map((player: any) => (
+                    {eligiblePlayers.map((player) => (
                       <option key={player.id} value={player.id}>
                         {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
                       </option>

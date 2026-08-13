@@ -966,6 +966,22 @@ export type LegendAvailabilityEntry = {
   status: string;
 };
 
+export type LegendReplacementPlayer = {
+  id: string;
+  full_name: string | null;
+  first_name: string;
+  last_name: string;
+  position: string;
+  overall_rating: number | null;
+  dev_trait: string | null;
+};
+
+export type LegendReplacementConfig = {
+  replacementPlayers: LegendReplacementPlayer[];
+  blockedNoEligibleReplacement: boolean;
+  isCfb: boolean;
+};
+
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
 export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };

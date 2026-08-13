@@ -139,6 +139,41 @@ async function purchasingTeam(leagueId: string, discordId: string): Promise<{ te
   return { teamId: assignment.data?.team_id ?? null, teamName: team?.name ?? team?.display_abbr ?? team?.abbreviation ?? null };
 }
 
+/** Replacement-eligibility for the legend purchase panel. CFB inherits the legend's identity
+ * onto the replaced player's roster slot, so it stays locked to the same recruit-only /
+ * position-matched rule as custom players. Madden has no such inheritance — the commissioner
+ * can apply the purchase to any active roster player, seeded or not — so every active player
+ * is a candidate, sorted ascending by OVR to surface the team's weakest players first as the
+ * natural replacement recommendation. */
+export async function getLegendReplacementConfig(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const isCfb = context.rec_leagues.game === "cfb_27";
+  const { teamId } = await purchasingTeam(context.leagueId, discordId);
+  if (!teamId) return { replacementPlayers: [], blockedNoEligibleReplacement: false, isCfb };
+
+  if (isCfb) {
+    const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
+      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
+    if (roster.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", roster.error);
+    const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+    if (activeRosterCount.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", activeRosterCount.error);
+    return {
+      replacementPlayers: roster.data ?? [],
+      blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
+      isCfb,
+    };
+  }
+
+  const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+  if (roster.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", roster.error);
+  // Worst-OVR-first so the weakest players surface as the natural replacement recommendation;
+  // unrated players sort last since we can't actually vouch for them being the weakest.
+  const sorted = [...(roster.data ?? [])].sort((a: any, b: any) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity));
+  return { replacementPlayers: sorted, blockedNoEligibleReplacement: sorted.length === 0, isCfb };
+}
+
 export async function createLegendPurchaseRequest(input: {
   guildId: string;
   discordId: string;
@@ -159,15 +194,19 @@ export async function createLegendPurchaseRequest(input: {
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
   const isCfb = context.rec_leagues.game === "cfb_27";
 
-  // Only recruits/manually-added players are eligible replacement targets — same rule as
-  // custom-player builds (the default baseline roster is never selectable here).
+  // CFB inherits the legend's identity onto the replaced player's roster slot, so it stays
+  // gated to recruits/manually-added players at a compatible position — same rule as
+  // custom-player builds. Madden has no such inheritance: any active roster player (seeded,
+  // fantasy-drafted, or recruited) is a valid replacement target.
   let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
   if (input.replacementPlayerId) {
     if (!teamId) throw new ApiError(403, "A linked league team is required.");
-    const found = await supabase.from("rec_players").select("id,first_name,last_name,position")
+    let query = supabase.from("rec_players").select("id,first_name,last_name,position")
       .eq("id", input.replacementPlayerId).eq("league_id", context.leagueId).eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
-    if (found.error || !found.data) throw new ApiError(400, "Select an active recruit/added player from your roster to replace.");
+      .in("roster_status", ["active", "transferred_in"]);
+    if (isCfb) query = query.eq("is_default_player", false);
+    const found = await query.maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, isCfb ? "Select an active recruit/added player from your roster to replace." : "Select an active player from your roster to replace.");
     if (isCfb && !isCompatibleReplacementPosition(legend.data.position, found.data.position)) {
       throw new ApiError(400, `${legend.data.name} must replace an added/recruited player at a compatible ${legend.data.position} position.`);
     }
