@@ -710,8 +710,8 @@ export async function searchSiteLeagues(input: {
       lower(l.name) like $${idx}
       or lower(coalesce(owner.username, '')) like $${idx}
       or lower(coalesce(owner.display_name, '')) like $${idx}
-      or lower(coalesce(da.username, '')) like $${idx}
-      or lower(coalesce(da.global_name, '')) like $${idx}
+      or lower(coalesce(owner_da.username, '')) like $${idx}
+      or lower(coalesce(owner_da.global_name, '')) like $${idx}
     )`);
   }
   if (input.filters.game) {
@@ -939,6 +939,7 @@ export async function searchSiteLeagues(input: {
       from rec_leagues l
       left join rec_league_configuration c on c.league_id = l.id
       left join rec_users owner on owner.id = l.owner_user_id
+      left join rec_discord_accounts owner_da on owner_da.user_id = owner.id
       where ${where.join("\n        and ")}
       order by ${orderBy}
       limit $${params.length}

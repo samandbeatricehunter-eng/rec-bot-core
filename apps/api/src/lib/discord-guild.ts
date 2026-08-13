@@ -167,8 +167,14 @@ export async function lockRecGuideChannel(guildId: string, channelId: string): P
 }
 
 export async function listGuildChannels(guildId: string) {
+  if (!isDiscordSnowflake(guildId)) return [];
   const res = await discordBotFetch(`/guilds/${guildId}/channels`);
-  if (!res.ok) throw new ApiError(502, `Discord rejected the channel list request (${res.status}).`);
+  if (!res.ok) {
+    // Bot left the guild, stale link, or invalid snowflake — degrade to empty so channel
+    // pickers and server-config pages stay usable instead of 502ing the whole admin view.
+    if (res.status === 400 || res.status === 404) return [];
+    throw new ApiError(502, `Discord rejected the channel list request (${res.status}).`);
+  }
   const channels = await res.json() as Array<{ id: string; name: string; type: number; parent_id?: string | null; position?: number }>;
   return channels.filter((c) => c.type === 0 || c.type === 5 || c.type === 4).map((c) => ({ id: c.id, name: c.name, type: c.type === 4 ? "category" : "text", parentId: c.parent_id ?? null, position: c.position ?? 0 })).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
 }
@@ -426,12 +432,10 @@ async function getGuildRoles(guildId: string): Promise<Map<string, { name: strin
     if (!res.ok) {
       const stale = staleCacheValue(roleListCache, guildId);
       if (res.status === 429 && stale) return stale;
-      // 404 here means the bot isn't actually in this guild (removed, kicked, or a broken/
-      // never-completed Discord link) — every sub-resource request 404s uniformly in that
-      // case, the same way getMemberRoleIds already treats it as "no data" rather than a hard
-      // failure. Degrading to an empty role list keeps callers (permission checks, role
-      // dropdowns) working instead of 502ing the whole page.
-      if (res.status === 404) {
+      // 404/400 here means the bot isn't in this guild or the guild id is invalid — every
+      // sub-resource request fails uniformly in that case. Degrading to an empty role list
+      // keeps callers (permission checks, role dropdowns) working instead of 502ing the page.
+      if (res.status === 404 || res.status === 400) {
         const empty = new Map<string, { name: string; permissions: bigint }>();
         toCache(roleListCache, guildId, empty);
         return empty;
