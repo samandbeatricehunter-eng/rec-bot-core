@@ -17,6 +17,8 @@ export function AttributePurchaseBuilder({
   wallet,
   busy,
   excludeDefault = false,
+  corePointPrice = REC_ATTRIBUTE_POINT_PRICE.core,
+  nonCorePointPrice = REC_ATTRIBUTE_POINT_PRICE.non_core,
   onSubmit,
 }: {
   guildId: string;
@@ -24,6 +26,8 @@ export function AttributePurchaseBuilder({
   wallet: number;
   busy: boolean;
   excludeDefault?: boolean;
+  corePointPrice?: number;
+  nonCorePointPrice?: number;
   onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string, playerId: string) => void;
 }) {
   const [points, setPoints] = useState<Record<string, number>>({});
@@ -31,11 +35,11 @@ export function AttributePurchaseBuilder({
   const [warning, setWarning] = useState<string | null>(null);
 
   const isCore = (code: string) => storeContext?.coreAttributes.includes(code) ?? false;
-  const unitPrice = (code: string) => (isCore(code) ? REC_ATTRIBUTE_POINT_PRICE.core : REC_ATTRIBUTE_POINT_PRICE.non_core);
+  const unitPrice = (code: string) => (isCore(code) ? corePointPrice : nonCorePointPrice);
 
   const totalPrice = useMemo(
     () => Object.entries(points).reduce((sum, [code, pts]) => sum + pts * unitPrice(code), 0),
-    [points, storeContext],
+    [points, storeContext, corePointPrice, nonCorePointPrice],
   );
 
   function individualCapFor(code: string): number {
