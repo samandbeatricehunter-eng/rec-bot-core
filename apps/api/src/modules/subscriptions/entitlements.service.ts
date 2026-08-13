@@ -315,7 +315,6 @@ export async function countClaimableUsers(): Promise<number> {
           and ta.assignment_status = 'active'
           and ta.ended_at is null
         where u.supabase_auth_user_id is null
-          and da.username is not null
         group by u.id
       ) claimable
     `,
@@ -359,15 +358,23 @@ export async function setIdentityClaimDropdownClosed(closed: boolean): Promise<v
 
 export async function isIdentityClaimDropdownOpen(): Promise<boolean> {
   const settings = await readClaimDropdownSettings();
-  if (settings.closed === true) return false;
 
   const autoClose = settings.auto_close_when_empty !== false;
-  if (autoClose) {
-    const claimable = await countClaimableUsers();
-    if (claimable === 0) {
-      await setIdentityClaimDropdownClosed(true);
-      return false;
+  const claimable = autoClose ? await countClaimableUsers() : null;
+
+  // A stale closed latch from a prior auto-close (when the claimable set was empty) must not
+  // permanently hide the dropdown once claimable identities exist again. Reopen automatically.
+  if (settings.closed === true) {
+    if (autoClose && (claimable ?? 0) > 0) {
+      await setIdentityClaimDropdownClosed(false);
+      return true;
     }
+    return false;
+  }
+
+  if (autoClose && (claimable ?? 0) === 0) {
+    await setIdentityClaimDropdownClosed(true);
+    return false;
   }
   return true;
 }

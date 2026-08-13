@@ -512,12 +512,6 @@ async function claimIdentityWithClient(
         and u.supabase_auth_user_id is null
         and exists (
           select 1
-          from rec_discord_accounts da
-          where da.user_id = u.id
-            and da.username is not null
-        )
-        and exists (
-          select 1
           from rec_team_assignments ta
           where ta.user_id = u.id
             and ta.assignment_status = 'active'
@@ -564,7 +558,8 @@ export async function requestIdentityClaimCode(input: {
   let row:
     | {
         discord_id: string;
-        username: string;
+        username: string | null;
+        global_name: string | null;
         rec_user_id: string;
       }
     | undefined;
@@ -589,12 +584,11 @@ export async function requestIdentityClaimCode(input: {
     }
     const candidate = await client.query(
       `
-        select da.discord_id, da.username, da.user_id as rec_user_id
+        select da.discord_id, da.username, da.global_name, da.user_id as rec_user_id
         from rec_discord_accounts da
         inner join rec_users u on u.id = da.user_id
         where da.id = $1
           and u.supabase_auth_user_id is null
-          and da.username is not null
           and exists (
             select 1
             from rec_team_assignments ta
@@ -607,7 +601,7 @@ export async function requestIdentityClaimCode(input: {
       [input.discordAccountId],
     );
     row = candidate.rows[0] as
-      | { discord_id: string; username: string; rec_user_id: string }
+      | { discord_id: string; username: string | null; global_name: string | null; rec_user_id: string }
       | undefined;
     if (!row) {
       throw new ApiError(409, "This Discord identity is no longer available.");
@@ -685,7 +679,7 @@ export async function requestIdentityClaimCode(input: {
   }
   return {
     sent: true,
-    discordUsername: row!.username,
+    discordUsername: pickDiscordHandle(row!.username, row!.global_name) ?? row!.username ?? "Discord member",
     expiresInSeconds: 600,
   };
 }
