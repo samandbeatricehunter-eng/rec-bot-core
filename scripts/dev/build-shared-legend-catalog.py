@@ -48,6 +48,15 @@ IMMORTAL_CATALOG_ONLY = {
     "Fred Biletnikoff", "John Hannah",
 }
 
+# Explicit commissioner exclusions. These players remain valid in normal Madden rosters but
+# must never be emitted into the purchasable REC legend catalog.
+EXCLUDED_LEGENDS = {
+    "Joe Burrow", "Christian McCaffrey", "Derrick Henry", "Baker Mayfield",
+    "Deshaun Watson", "Johnny Manziel", "Kyle Pitts", "Vernon Davis",
+    "Amari Cooper", "DeVonta Smith", "Ja'Marr Chase", "Justin Blackmon",
+    "Marvin Harrison Jr.",
+}
+
 # Map 2K8 position → catalog coarse position + group
 POS_MAP = {
     "QB": ("QB", "offense"), "HB": ("HB", "offense"), "FB": ("FB", "offense"),
@@ -552,7 +561,10 @@ def main():
             "abilities_2k8": None,
         }
 
-    players = sorted(union.values(), key=lambda p: (p["legend_tier"], p["position"], p["name"]))
+    players = sorted(
+        (player for player in union.values() if player["name"] not in EXCLUDED_LEGENDS),
+        key=lambda p: (p["legend_tier"], p["position"], p["name"]),
+    )
     (DOCS / "shared-catalog-seed.json").write_text(json.dumps(players, indent=2), encoding="utf-8")
 
     # Immortal picks applied doc
