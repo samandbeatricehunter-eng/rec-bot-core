@@ -1362,7 +1362,7 @@ export type RecGlobalGotwGuessingRecord = typeof recGlobalGotwGuessingRecords.$i
 export const recPlayers = pgTable("rec_players", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  maddenPlayerId: text("madden_player_id").notNull(),
+  maddenPlayerId: text("madden_player_id"),
   firstName: text("first_name"),
   lastName: text("last_name"),
   fullName: text("full_name"),
@@ -1390,38 +1390,27 @@ export const recPlayers = pgTable("rec_players", {
   isXfactor: boolean("is_xfactor"),
   abilityCount: integer("ability_count"),
   abilities: jsonb("abilities").$type<Array<{ name: string; description: string }> | null>(),
-  teamId: uuid("team_id")
-});
-
-export const recRosterSnapshots = pgTable("rec_roster_snapshots", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  seasonNumber: integer("season_number"),
-  seasonIndex: integer("season_index"),
-  weekNumber: integer("week_number"),
-  teamId: uuid("team_id").references(() => recTeams.id),
-  playerId: uuid("player_id").references(() => recPlayers.id),
-  maddenTeamId: text("madden_team_id"),
-  maddenPlayerId: text("madden_player_id").notNull(),
-  playerName: text("player_name"),
-  position: text("position"),
+  teamId: uuid("team_id"),
+  attributes: jsonb("attributes").$type<Record<string, unknown> | null>(),
+  /** Why the player is on the roster: active / drafted / transferred_out / transferred_in / retired / graduated. */
+  rosterStatus: text("roster_status").notNull().default("active"),
+  classYear: text("class_year"),
+  statusChangedAt: timestamp("status_changed_at", { withTimezone: true, mode: "string" }),
+  statusNote: text("status_note"),
+  isDefaultPlayer: boolean("is_default_player").notNull().default(false),
+  /** Provenance: imported (baseline), madden_companion, custom_player, manual_roster_add, ... */
+  playerSource: text("player_source").notNull().default("imported"),
+  customPlayerBuildId: uuid("custom_player_build_id"),
+  hometownCity: text("hometown_city"),
+  hometownState: text("hometown_state"),
   jerseyNumber: integer("jersey_number"),
-  overallRating: integer("overall_rating"),
-  age: integer("age"),
-  devTrait: text("dev_trait"),
-  isFreeAgent: boolean("is_free_agent").notNull().default(false),
-  isActive: boolean("is_active"),
-  isOnIr: boolean("is_on_ir"),
-  isOnPracticeSquad: boolean("is_on_practice_squad"),
-  contractSalary: integer("contract_salary"),
-  contractBonus: integer("contract_bonus"),
-  contractYearsLeft: integer("contract_years_left"),
-  ratings: jsonb("ratings").$type<Record<string, unknown> | null>(),
-  traits: jsonb("traits").$type<Record<string, unknown> | null>(),
-  contract: jsonb("contract").$type<Record<string, unknown> | null>(),
-  rawPayload: jsonb("raw_payload").$type<Record<string, unknown> | null>(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
+  handedness: text("handedness"),
+  archetype: text("archetype"),
+  contractBonus: bigint("contract_bonus", { mode: "number" }),
+  photoUrl: text("photo_url"),
+  onTradeBlock: boolean("on_trade_block").notNull().default(false),
+  tradeBlockNote: text("trade_block_note"),
+  tradeBlockListedAt: timestamp("trade_block_listed_at", { withTimezone: true, mode: "string" })
 });
 
 export const recPlayerWeeklyStats = pgTable("rec_player_weekly_stats", {
@@ -1450,23 +1439,6 @@ export const recPlayerWeeklyStats = pgTable("rec_player_weekly_stats", {
   sourceWeekIndex: integer("source_week_index"),
   sourceTeamId: text("source_team_id"),
   sourceRosterId: text("source_roster_id")
-});
-
-export const recTeamWeeklyStats = pgTable("rec_team_weekly_stats", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  seasonNumber: integer("season_number"),
-  seasonIndex: integer("season_index"),
-  seasonStage: text("season_stage").notNull().default("regular_season"),
-  weekNumber: integer("week_number"),
-  teamId: uuid("team_id").references(() => recTeams.id),
-  maddenTeamId: text("madden_team_id").notNull(),
-  teamName: text("team_name"),
-  statCategory: text("stat_category").notNull().default("team"),
-  stats: jsonb("stats").$type<Record<string, unknown> | null>(),
-  rawPayload: jsonb("raw_payload").$type<Record<string, unknown> | null>(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
 export const recUserH2hGlobalRecords = pgTable("rec_user_h2h_global_records", {
@@ -1549,9 +1521,7 @@ export const recPowerRankings = pgTable("rec_power_rankings", {
 });
 
 export type RecPlayer = typeof recPlayers.$inferSelect;
-export type RecRosterSnapshot = typeof recRosterSnapshots.$inferSelect;
 export type RecPlayerWeeklyStats = typeof recPlayerWeeklyStats.$inferSelect;
-export type RecTeamWeeklyStats = typeof recTeamWeeklyStats.$inferSelect;
 export type RecUserH2hGlobalRecord = typeof recUserH2hGlobalRecords.$inferSelect;
 export type RecUserH2hLeagueRecord = typeof recUserH2hLeagueRecords.$inferSelect;
 export type RecLeagueRecord = typeof recLeagueRecords.$inferSelect;
@@ -2576,8 +2546,7 @@ export const recDiscordServersRelations = relations(recDiscordServers, ({ many }
 
 export const recTeamsRelations = relations(recTeams, ({ one, many }) => ({
   league: one(recLeagues, { fields: [recTeams.leagueId], references: [recLeagues.id] }),
-  players: many(recPlayers),
-  rosterSnapshots: many(recRosterSnapshots)
+  players: many(recPlayers)
 }));
 
 export const recDiscordAccountsRelations = relations(recDiscordAccounts, ({ one }) => ({
@@ -2848,25 +2817,13 @@ export const recGlobalGotwGuessingRecordsRelations = relations(recGlobalGotwGues
 
 export const recPlayersRelations = relations(recPlayers, ({ one, many }) => ({
   league: one(recLeagues, { fields: [recPlayers.leagueId], references: [recLeagues.id] }),
-  rosterSnapshots: many(recRosterSnapshots),
   weeklyStats: many(recPlayerWeeklyStats)
-}));
-
-export const recRosterSnapshotsRelations = relations(recRosterSnapshots, ({ one }) => ({
-  league: one(recLeagues, { fields: [recRosterSnapshots.leagueId], references: [recLeagues.id] }),
-  team: one(recTeams, { fields: [recRosterSnapshots.teamId], references: [recTeams.id] }),
-  player: one(recPlayers, { fields: [recRosterSnapshots.playerId], references: [recPlayers.id] })
 }));
 
 export const recPlayerWeeklyStatsRelations = relations(recPlayerWeeklyStats, ({ one }) => ({
   league: one(recLeagues, { fields: [recPlayerWeeklyStats.leagueId], references: [recLeagues.id] }),
   player: one(recPlayers, { fields: [recPlayerWeeklyStats.playerId], references: [recPlayers.id] }),
   team: one(recTeams, { fields: [recPlayerWeeklyStats.teamId], references: [recTeams.id] })
-}));
-
-export const recTeamWeeklyStatsRelations = relations(recTeamWeeklyStats, ({ one }) => ({
-  league: one(recLeagues, { fields: [recTeamWeeklyStats.leagueId], references: [recLeagues.id] }),
-  team: one(recTeams, { fields: [recTeamWeeklyStats.teamId], references: [recTeams.id] })
 }));
 
 export const recUserH2hGlobalRecordsRelations = relations(recUserH2hGlobalRecords, ({ one }) => ({
