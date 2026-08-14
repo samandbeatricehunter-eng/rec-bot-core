@@ -351,13 +351,7 @@ async function publishMediaStory(submission: any, discordId: string | null) {
             weekNumber: Number(submission.week_number ?? 1),
           })
         : existingTitle || "League Story";
-  const roundtable = isInterview
-    ? buildRoundtableDiscussion({
-        headline: publishedHeadline,
-        body,
-        notes: interviewAnswers.map((a) => `${a.question} ${a.answer}`),
-      })
-    : buildRoundtableDiscussion({ headline: publishedHeadline, body });
+  const roundtable = null;
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,
@@ -645,12 +639,13 @@ export async function getHub(guildId: string, discordId: string) {
       let roundtable =
         story.story_type === "headline"
           ? null
-          : story.roundtable ??
-            buildRoundtableDiscussion({
-              headline,
-              body,
-              notes: Array.isArray(story.notes) ? story.notes : [],
-            });
+          : story.story_type === "game_article" && !story.roundtable
+            ? buildRoundtableDiscussion({
+                headline,
+                body,
+                notes: Array.isArray(story.notes) ? story.notes : [],
+              })
+            : story.roundtable ?? null;
       const existingTakes = Array.isArray(story.roundtable)
         ? story.roundtable.map((p: any) => String(p.take ?? "").trim()).filter(Boolean)
         : [];

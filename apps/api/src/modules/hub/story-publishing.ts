@@ -115,16 +115,7 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     submission.submission_type === "interview" && interviewAnswers.length
       ? formatInterviewBody(interviewAnswers)
       : submission.body;
-  const hostOverrides = await loadHostOverridesForLeague(submission.league_id);
-  const roundtable =
-    submission.submission_type === "interview"
-      ? buildRoundtableDiscussion({
-          headline: submission.title,
-          body,
-          notes: interviewAnswers.map((a) => a.answer),
-          hostOverrides,
-        })
-      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body, hostOverrides });
+  const roundtable = null;
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,
