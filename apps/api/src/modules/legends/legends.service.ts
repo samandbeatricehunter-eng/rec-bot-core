@@ -8,7 +8,7 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { createPurchaseRequest } from "../purchases/purchases.service.js";
-import { isCompatibleReplacementPosition } from "@rec/shared";
+import { isCompatibleReplacementPosition, sortRecAttributeKeys } from "@rec/shared";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
 
@@ -257,9 +257,9 @@ export async function createLegendPurchaseRequest(input: {
   // get their own tab, and the notification needs the full attribute list plus an explicit
   // warning not to approve until the player actually exists in the game save. One line per
   // detail/attribute (not a run-on paragraph) so it's actually readable in the Pending panel.
-  const attrLines = Object.entries((legend.data.attributes as Record<string, number>) ?? {})
-    .sort(([, a], [, b]) => b - a)
-    .map(([key, value]) => `${key}: ${value}`)
+  const attributeMap = (legend.data.attributes as Record<string, number>) ?? {};
+  const attrLines = sortRecAttributeKeys(Object.keys(attributeMap))
+    .map((key) => `${key}: ${attributeMap[key]}`)
     .join("\n");
   const summaryLines = [
     "DO NOT mark Approved & Applied In-Game until you have actually created this player.",

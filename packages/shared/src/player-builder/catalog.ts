@@ -91,6 +91,48 @@ export function getRecAttributeDisplayName(code: string): string {
   return ATTRIBUTE_NAMES.get(normalized) ?? EXTRA_ATTRIBUTE_NAMES[normalized] ?? normalized.toUpperCase();
 }
 
+// Legend catalog keys use full display names (and a few aliases that differ from
+// MADDEN_ATTRIBUTE_DEFINITIONS.name, e.g. "Throwing Power" vs "Throw Power"). Map those
+// to the same 3-letter codes so notification/list UIs can share one in-game sort order.
+const ATTRIBUTE_LABEL_ALIASES: Record<string, string> = {
+  "throwing power": "THP",
+  "tackling": "TAK",
+  "bc vision": "BCV",
+  "run blocking": "RBK",
+  "pass blocking": "PBK",
+  "kicking power": "KPW",
+  "kicking accuracy": "KAC",
+  "kick/punt return": "RET",
+  "long snap": "LSN",
+};
+const ATTRIBUTE_LABEL_TO_CODE = new Map<string, string>();
+for (const [code, name] of Object.entries(EXTRA_ATTRIBUTE_NAMES)) {
+  ATTRIBUTE_LABEL_TO_CODE.set(name.toLowerCase(), code.toUpperCase());
+}
+for (const definition of MADDEN_ATTRIBUTE_DEFINITIONS) {
+  ATTRIBUTE_LABEL_TO_CODE.set(definition.name.toLowerCase(), definition.code);
+}
+for (const [label, code] of Object.entries(ATTRIBUTE_LABEL_ALIASES)) {
+  ATTRIBUTE_LABEL_TO_CODE.set(label, code);
+}
+
+/** Resolve a 3-letter code or a display/legend label to the canonical attribute code. */
+export function resolveRecAttributeCode(key: string): string {
+  const trimmed = key.trim();
+  const upper = trimmed.toUpperCase();
+  if (ATTRIBUTE_DISPLAY_RANK.has(upper)) return upper;
+  return ATTRIBUTE_LABEL_TO_CODE.get(trimmed.toLowerCase()) ?? upper;
+}
+
+/** Sort attribute keys whether they are codes (SPD) or display/legend labels (Speed). */
+export function sortRecAttributeKeys(keys: readonly string[]): string[] {
+  return [...keys].sort((a, b) => {
+    const rankA = ATTRIBUTE_DISPLAY_RANK.get(resolveRecAttributeCode(a)) ?? 999;
+    const rankB = ATTRIBUTE_DISPLAY_RANK.get(resolveRecAttributeCode(b)) ?? 999;
+    return rankA - rankB || a.localeCompare(b);
+  });
+}
+
 export function isRecCustomPlayerPosition(value: string): value is RecCustomPlayerPosition {
   return (REC_CUSTOM_PLAYER_POSITIONS as readonly string[]).includes(value.toUpperCase());
 }
