@@ -39,11 +39,11 @@ test("archetype catalog has primary attributes and cost multipliers", () => {
 
 test("package rules keep tier CP and high-impact caps", () => {
   assert.equal(REC_PACKAGE_RULES[1].highImpactAttributeCap, 88, "Tier 1 cap drift");
-  assert.equal(REC_PACKAGE_RULES[1].creationPoints, 4495, "Tier 1 CP drift");
-  assert.equal(REC_PACKAGE_RULES[2].creationPoints, 4985, "Tier 2 CP drift");
-  assert.equal(REC_PACKAGE_RULES[3].creationPoints, 5670, "Tier 3 CP drift");
-  assert.equal(REC_PACKAGE_RULES[4].creationPoints, 6550, "Tier 4 CP drift");
-  assert.equal(REC_PACKAGE_RULES[5].creationPoints, 7525, "Tier 5 CP drift");
+  assert.equal(REC_PACKAGE_RULES[1].creationPoints, 2450, "Tier 1 CP drift");
+  assert.equal(REC_PACKAGE_RULES[2].creationPoints, 3450, "Tier 2 CP drift");
+  assert.equal(REC_PACKAGE_RULES[3].creationPoints, 4450, "Tier 3 CP drift");
+  assert.equal(REC_PACKAGE_RULES[4].creationPoints, 5450, "Tier 4 CP drift");
+  assert.equal(REC_PACKAGE_RULES[5].creationPoints, 6450, "Tier 5 CP drift");
 });
 
 test("WR editable attributes stay position-wide across archetypes", () => {

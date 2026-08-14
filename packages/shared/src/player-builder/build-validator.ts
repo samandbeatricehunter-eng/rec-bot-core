@@ -46,18 +46,20 @@ export interface RecPackageRules {
 }
 
 /**
- * baseCalibrationCp preserves the original empirical calibration. creationPoints now gives
- * each tier 15% more than its prior allowance after position-spanning checks showed that the
- * most expensive QB and WR builds still stopped several OVR below their advertised ceiling.
- * The independent OVR and high-impact attribute caps continue to enforce package strength.
+ * creationPoints is the CP budget every tier's build starts with AND the number the store
+ * card advertises — they must always match. baseCalibrationCp preserves the original
+ * empirical calibration; the two are kept identical (as of the 6450/5450/4450/3450/2450
+ * recalibration) so the advertised card value never diverges from the actual starting
+ * budget. The independent OVR and high-impact attribute caps continue to enforce package
+ * strength.
  */
 export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>> = {
   // Authoritative custom-player OVR caps (old live 65/71/78/84/88 retired in v1.5.0).
-  1: { tier: 1, baseCalibrationCp: 4600, creationPoints: 4495, rawOverallCap: 63, highImpactAttributeCap: 88 },
-  2: { tier: 2, baseCalibrationCp: 5100, creationPoints: 4985, rawOverallCap: 68, highImpactAttributeCap: 91 },
-  3: { tier: 3, baseCalibrationCp: 5800, creationPoints: 5670, rawOverallCap: 73, highImpactAttributeCap: 94 },
-  4: { tier: 4, baseCalibrationCp: 6700, creationPoints: 6550, rawOverallCap: 77, highImpactAttributeCap: 97 },
-  5: { tier: 5, baseCalibrationCp: 7700, creationPoints: 7525, rawOverallCap: 81, highImpactAttributeCap: 99 },
+  1: { tier: 1, baseCalibrationCp: 2450, creationPoints: 2450, rawOverallCap: 63, highImpactAttributeCap: 88 },
+  2: { tier: 2, baseCalibrationCp: 3450, creationPoints: 3450, rawOverallCap: 68, highImpactAttributeCap: 91 },
+  3: { tier: 3, baseCalibrationCp: 4450, creationPoints: 4450, rawOverallCap: 73, highImpactAttributeCap: 94 },
+  4: { tier: 4, baseCalibrationCp: 5450, creationPoints: 5450, rawOverallCap: 77, highImpactAttributeCap: 97 },
+  5: { tier: 5, baseCalibrationCp: 6450, creationPoints: 6450, rawOverallCap: 81, highImpactAttributeCap: 99 },
 } as const;
 
 // No more archetype picker — every editable attribute on every build, regardless of tier,
