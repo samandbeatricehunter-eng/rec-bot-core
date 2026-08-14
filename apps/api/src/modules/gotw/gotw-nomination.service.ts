@@ -139,8 +139,9 @@ async function recentGotwTeamIds(leagueId: string, seasonNumber: number, weekNum
 
 /**
  * Score and rank every eligible H2H matchup in a week. Eligibility: both teams assigned,
- * both users linked, and the game is not already completed. The highest score is flagged
- * `recommended`; ties break on home-team name for stable ordering.
+ * both users linked (via live team assignments — not the stale home_user_id/away_user_id
+ * snapshotted at schedule seed), and the game is not already completed. The highest score
+ * is flagged `recommended`; ties break on home-team name for stable ordering.
  */
 export async function scoreWeekGotwCandidates(guildId: string, weekNumber: number): Promise<GotwCandidate[]> {
   const context = await getCurrentLeagueContext(guildId);
@@ -160,9 +161,27 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
       "rivalry:rec_league_rivalries(rivalry_name,is_active)");
   if (gamesRes.error) throw new ApiError(500, "We couldn't load games for GOTW nomination. Please try again.", gamesRes.error);
 
-  const eligible = ((gamesRes.data ?? []) as any[]).filter((g) =>
-    g.home_team_id && g.away_team_id && g.home_user_id && g.away_user_id &&
-    g.status !== "completed" && g.status !== "final" && g.home_score == null && g.away_score == null);
+  const teamIds = [...new Set(((gamesRes.data ?? []) as any[])
+    .flatMap((g) => [g.home_team_id, g.away_team_id])
+    .filter(Boolean))];
+  const assignments = teamIds.length
+    ? await supabase.from("rec_team_assignments").select("team_id,user_id")
+      .eq("league_id", leagueId).in("team_id", teamIds)
+      .eq("assignment_status", "active").is("ended_at", null)
+    : { data: [] as any[], error: null };
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for GOTW. Please try again.", assignments.error);
+  const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
+
+  const eligible = ((gamesRes.data ?? []) as any[]).filter((g) => {
+    const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null;
+    const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null;
+    return g.home_team_id && g.away_team_id && homeUserId && awayUserId
+      && g.status !== "completed" && g.status !== "final" && g.home_score == null && g.away_score == null;
+  }).map((g) => ({
+    ...g,
+    home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,
+    away_user_id: userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null,
+  }));
   if (!eligible.length) return [];
 
   const [coach, users, recentForm, recentTeams] = await Promise.all([

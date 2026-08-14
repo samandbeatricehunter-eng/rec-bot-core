@@ -271,6 +271,116 @@ export async function generateRollingDraftClass(input: {
   return { generated: newRows.length, reordered: pickNumberUpdates.length };
 }
 
+/**
+ * Recompute pick_number for a draft class from a season's results (worst record first,
+ * playoff finish breaking ties — same formula as generateRollingDraftClass). Skips
+ * manual_lock and compensatory rows. Used so year-1 order starts from the real-life
+ * baseline at seed, then shifts as this league's rankings change once games are played.
+ */
+export async function syncDraftOrderFromLeagueStandings(input: {
+  leagueId: string;
+  draftSeasonNumber: number;
+  standingsSeasonNumber: number;
+}) {
+  const teamsResult = await supabase.from("rec_teams").select("id,name,abbreviation").eq("league_id", input.leagueId);
+  if (teamsResult.error) throw new ApiError(500, "Failed to load teams for draft-order sync.", teamsResult.error);
+  const teams = teamsResult.data ?? [];
+  if (teams.length !== 32) return { reordered: 0, skipped: "incomplete_teams" as const };
+
+  const games = await supabase.from("rec_game_results").select("home_team_id,away_team_id,winning_team_id,losing_team_id,week_number,is_playoff,is_tie")
+    .eq("league_id", input.leagueId).eq("season_number", input.standingsSeasonNumber);
+  if (games.error) throw new ApiError(500, "Failed to load results for draft-order sync.", games.error);
+  if (!(games.data ?? []).length) return { reordered: 0, skipped: "no_results" as const };
+
+  const snapshots = await supabase.from("rec_team_standings_snapshots").select("team_id,total_wins,total_losses,total_ties,win_pct,week_number,created_at")
+    .eq("league_id", input.leagueId).eq("season_number", input.standingsSeasonNumber)
+    .order("week_number", { ascending: false }).order("created_at", { ascending: false });
+  if (snapshots.error) throw new ApiError(500, "Failed to load standings for draft-order sync.", snapshots.error);
+  const latest = new Map<string, any>();
+  for (const row of snapshots.data ?? []) if (!latest.has(String(row.team_id))) latest.set(String(row.team_id), row);
+
+  const record = new Map<string, { wins: number; losses: number; ties: number }>(teams.map((team: any) => {
+    const row = latest.get(String(team.id));
+    if (row) return [String(team.id), { wins: Number(row.total_wins ?? 0), losses: Number(row.total_losses ?? 0), ties: Number(row.total_ties ?? 0) }];
+    return [String(team.id), { wins: 0, losses: 0, ties: 0 }];
+  }));
+  // Fall back to summing results when snapshots are missing (common mid-season before first advance snapshot).
+  if (!latest.size) {
+    for (const game of games.data ?? []) {
+      const home = game.home_team_id ? String(game.home_team_id) : null;
+      const away = game.away_team_id ? String(game.away_team_id) : null;
+      if (game.is_tie) {
+        if (home) record.get(home)!.ties += 1;
+        if (away) record.get(away)!.ties += 1;
+      } else {
+        if (game.winning_team_id) record.get(String(game.winning_team_id))!.wins += 1;
+        if (game.losing_team_id) record.get(String(game.losing_team_id))!.losses += 1;
+      }
+    }
+  }
+
+  const opponents = new Map<string, string[]>();
+  const playoffTeams = new Set<string>();
+  const eliminatedAt = new Map<string, number>();
+  let championId: string | null = null;
+  let latestPlayoffWeek = -1;
+  for (const game of games.data ?? []) {
+    const home = game.home_team_id ? String(game.home_team_id) : null;
+    const away = game.away_team_id ? String(game.away_team_id) : null;
+    if (home && away) {
+      (opponents.get(home) ?? opponents.set(home, []).get(home)!).push(away);
+      (opponents.get(away) ?? opponents.set(away, []).get(away)!).push(home);
+    }
+    if (game.is_playoff) {
+      if (home) playoffTeams.add(home); if (away) playoffTeams.add(away);
+      if (game.losing_team_id) eliminatedAt.set(String(game.losing_team_id), Number(game.week_number ?? 0));
+      if (game.winning_team_id && Number(game.week_number ?? 0) >= latestPlayoffWeek) {
+        latestPlayoffWeek = Number(game.week_number ?? 0);
+        championId = String(game.winning_team_id);
+      }
+    }
+  }
+  const winPct = (teamId: string) => {
+    const r = record.get(teamId)!;
+    return (r.wins + r.ties * 0.5) / Math.max(1, r.wins + r.losses + r.ties);
+  };
+  const sos = (teamId: string) => {
+    const list = opponents.get(teamId) ?? [];
+    return list.length ? list.reduce((sum, id) => sum + winPct(id), 0) / list.length : 0;
+  };
+  const ordered = [...teams].sort((a: any, b: any) => {
+    const aId = String(a.id), bId = String(b.id);
+    const aPlayoff = playoffTeams.has(aId), bPlayoff = playoffTeams.has(bId);
+    if (aPlayoff !== bPlayoff) return aPlayoff ? 1 : -1;
+    if (aPlayoff) {
+      if (aId === championId) return 1; if (bId === championId) return -1;
+      const roundDifference = (eliminatedAt.get(aId) ?? latestPlayoffWeek) - (eliminatedAt.get(bId) ?? latestPlayoffWeek);
+      if (roundDifference) return roundDifference;
+    }
+    const pctDifference = winPct(aId) - winPct(bId); if (pctDifference) return pctDifference;
+    const sosDifference = sos(aId) - sos(bId); if (sosDifference) return sosDifference;
+    return String(a.abbreviation).localeCompare(String(b.abbreviation));
+  });
+  const slot = new Map(ordered.map((team: any, index) => [String(team.id), index + 1]));
+
+  const picks = await supabase.from("rec_draft_picks").select("id,original_team_id,asset_key,manual_lock")
+    .eq("league_id", input.leagueId).eq("season_number", input.draftSeasonNumber);
+  if (picks.error) throw new ApiError(500, "Failed to load draft picks for order sync.", picks.error);
+  const now = new Date().toISOString();
+  const updates = (picks.data ?? [])
+    .filter((pick: any) => !pick.manual_lock && !String(pick.asset_key ?? "").endsWith(":COMP"))
+    .map((pick: any) => ({
+      id: pick.id,
+      pick_number: slot.get(String(pick.original_team_id)) ?? null,
+      updated_at: now,
+    }))
+    .filter((row) => row.pick_number != null);
+  if (!updates.length) return { reordered: 0 };
+  const result = await supabase.from("rec_draft_picks").upsert(updates, { onConflict: "id" });
+  if (result.error) throw new ApiError(500, "Failed to sync draft pick order from standings.", result.error);
+  return { reordered: updates.length };
+}
+
 export async function setUpcomingDraftOrder(input: {
   guildId: string;
   discordId: string;
