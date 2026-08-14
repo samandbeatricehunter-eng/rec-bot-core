@@ -308,7 +308,7 @@ export function PublishingHome() {
 function DiscordHeadlineRepairCard() {
   const { guildId } = useReadyAuth();
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ scanned: number; imageAttached: number; reposted: number; skipped: number; failures: Array<{ storyId: string; reason: string }> } | null>(null);
+  const [result, setResult] = useState<{ scanned: number; imageAttached: number; reposted: number; skipped: number; posted: number; failures: Array<{ storyId: string; reason: string }> } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function runBackfill() {
@@ -322,15 +322,16 @@ function DiscordHeadlineRepairCard() {
   return <Card>
     <h2>Repair Discord Headlines</h2>
     <p className="form-hint">
-      Scans every headline this league already posted to Discord and fixes two legacy issues: stories that had an image
-      in the Hub but none on the Discord embed get the image attached, and stories whose body was too long to fit in a
-      single embed get re-posted (with the image) split across messages, replacing the old truncated post.
+      Posts any headline that never reached the Discord headlines channel, then scans every headline this league
+      already posted and fixes two legacy issues: stories that had an image in the Hub but none on the Discord embed
+      get the image attached, and stories whose body was too long to fit in a single embed get re-posted (with the
+      image) split across messages, replacing the old truncated post.
     </p>
     {error && <ErrorState message={error} />}
     <Button variant="secondary" disabled={busy} onClick={() => void runBackfill()}>{busy ? "Scanning…" : "Scan & Repair"}</Button>
     {result && (
       <p className="form-hint" style={{ margin: "var(--space-3) 0 0" }}>
-        Scanned {result.scanned} posted headline{result.scanned === 1 ? "" : "s"} — {result.imageAttached} image{result.imageAttached === 1 ? "" : "s"} attached, {result.reposted} re-posted, {result.skipped} already fine.
+        {result.posted} never-posted headline{result.posted === 1 ? "" : "s"} now in the channel; scanned {result.scanned} posted headline{result.scanned === 1 ? "" : "s"} — {result.imageAttached} image{result.imageAttached === 1 ? "" : "s"} attached, {result.reposted} re-posted, {result.skipped} already fine.
         {result.failures.length > 0 && <> {result.failures.length} failed: {result.failures.map((f) => `${f.reason}`).join("; ")}.</>}
       </p>
     )}

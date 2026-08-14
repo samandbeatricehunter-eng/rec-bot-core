@@ -80,20 +80,44 @@ export type HeadlineBackfillResult = {
   imageAttached: number;
   reposted: number;
   skipped: number;
+  posted: number;
   failures: Array<{ storyId: string; reason: string }>;
 };
 
 /** Retroactively repair Discord-published headlines for a league:
+ *  - stories that never reached the headlines channel at all get posted now through the
+ *    current image-aware/splitting path,
  *  - stories with an image_url but no image on their posted embed get the image attached,
  *  - stories whose body was posted as a single (truncated) embed when it exceeded the
  *    embed limit get re-posted through the current splitting/image-aware path,
- *  - the superseded message is deleted when a story is re-posted.
- *  Only touches rows with a posted_message_id; old messages that no longer exist are skipped. */
+ *  - the superseded message is deleted when a story is re-posted. */
 export async function backfillDiscordHeadlines(guildId: string): Promise<HeadlineBackfillResult> {
-  const result: HeadlineBackfillResult = { scanned: 0, imageAttached: 0, reposted: 0, skipped: 0, failures: [] };
+  const result: HeadlineBackfillResult = { scanned: 0, imageAttached: 0, reposted: 0, skipped: 0, posted: 0, failures: [] };
   const context = await getCurrentLeagueContext(guildId);
   const linked = await findServerRoutesForLeague(context.leagueId);
   const fallbackChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+
+  // Pass 1 — stories that never got posted to Discord: post them through the current
+  // image-aware/splitting path so every headline in the feed ends up in the channel.
+  const unposted = await supabase.from("rec_game_stories")
+    .select("id,headline,body,image_url")
+    .eq("league_id", context.leagueId)
+    .is("posted_message_id", null)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (unposted.error) throw new ApiError(500, "We couldn't load unpublished headlines right now. Please try again.", unposted.error);
+  for (const story of unposted.data ?? []) {
+    await postGeneratedHeadlineToDiscord({
+      leagueId: context.leagueId,
+      storyId: story.id,
+      headline: story.headline as string,
+      body: (story.body as string | null) ?? "",
+      image_url: (story.image_url as string | null) ?? undefined,
+    });
+    const check = await supabase.from("rec_game_stories").select("posted_message_id").eq("id", story.id).maybeSingle();
+    if (check.data?.posted_message_id) result.posted += 1;
+  }
+
   const rows = await supabase.from("rec_game_stories")
     .select("id,headline,body,image_url,posted_channel_id,posted_message_id")
     .eq("league_id", context.leagueId)
