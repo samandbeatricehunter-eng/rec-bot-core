@@ -254,6 +254,8 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/polls/vote", { method: "POST", body: JSON.stringify(input) }),
   publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>
     recApiFetch<{ published: true; id: string }>("/v1/hub/stories/publish", { method: "POST", body: JSON.stringify(input) }),
+  backfillDiscordHeadlines: (guildId: string) =>
+    recApiFetch<{ scanned: number; imageAttached: number; reposted: number; skipped: number; failures: Array<{ storyId: string; reason: string }> }>("/v1/hub/publishing/backfill-discord-headlines", { method: "POST", body: JSON.stringify({ guildId }) }),
   uploadHubMediaImage: (guildId: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);

@@ -300,8 +300,41 @@ export function PublishingHome() {
       <RoundtableHostsCard />
       <CommissionerTradeBuilderCard />
       <CommissionerPollsCard />
+      <DiscordHeadlineRepairCard />
     </div>
   </div>;
+}
+
+function DiscordHeadlineRepairCard() {
+  const { guildId } = useReadyAuth();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ scanned: number; imageAttached: number; reposted: number; skipped: number; failures: Array<{ storyId: string; reason: string }> } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runBackfill() {
+    setBusy(true); setError(null); setResult(null);
+    try {
+      setResult(await recApi.backfillDiscordHeadlines(guildId));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to repair Discord headlines."); }
+    finally { setBusy(false); }
+  }
+
+  return <Card>
+    <h2>Repair Discord Headlines</h2>
+    <p className="form-hint">
+      Scans every headline this league already posted to Discord and fixes two legacy issues: stories that had an image
+      in the Hub but none on the Discord embed get the image attached, and stories whose body was too long to fit in a
+      single embed get re-posted (with the image) split across messages, replacing the old truncated post.
+    </p>
+    {error && <ErrorState message={error} />}
+    <Button variant="secondary" disabled={busy} onClick={() => void runBackfill()}>{busy ? "Scanning…" : "Scan & Repair"}</Button>
+    {result && (
+      <p className="form-hint" style={{ margin: "var(--space-3) 0 0" }}>
+        Scanned {result.scanned} posted headline{result.scanned === 1 ? "" : "s"} — {result.imageAttached} image{result.imageAttached === 1 ? "" : "s"} attached, {result.reposted} re-posted, {result.skipped} already fine.
+        {result.failures.length > 0 && <> {result.failures.length} failed: {result.failures.map((f) => `${f.reason}`).join("; ")}.</>}
+      </p>
+    )}
+  </Card>;
 }
 
 function RoundtableHostsCard() {
