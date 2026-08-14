@@ -44,7 +44,6 @@ import {
   type Persona,
   type Personas,
   type SystemConsole,
-  type TokenInfo,
 } from "./ea-constants.js";
 import type { EaStage } from "./ea-weeks.js";
 import type { EaSessionCache, EaTokenPair } from "./ea-token-vault.js";
@@ -146,51 +145,58 @@ export async function exchangeCodeForToken(code: string): Promise<AccountToken> 
   return token;
 }
 
-// ── Step 3: pid ──
-
-export async function getPidId(accessToken: string): Promise<string> {
-  const response = await undiciFetch(
-    `${EA_ACCOUNTS_BASE}/connect/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
-    {
-      headers: {
-        "Accept-Charset": "UTF-8",
-        "X-Include-Deviceid": "true",
-        "User-Agent": ANDROID_USER_AGENT,
-        "Accept-Encoding": "gzip",
-      },
-    },
-  );
-  const text = await response.text();
-  if (!response.ok) throw new EaAuthError(`EA could not identify this account: ${text.slice(0, 300)}`, "Try connecting again.");
-  const info = JSON.parse(text) as TokenInfo;
-  if (!info.pid_id) throw new EaAuthError("EA did not return an account id.", "Try connecting again.");
-  return info.pid_id;
-}
-
-// ── Steps 4-5: entitlements -> personas ──
+// ── Steps 3-5: entitlements -> pidId -> personas ──
+//
+// snallabot does NOT call /connect/tokeninfo. Instead it fetches entitlements using the
+// access_token as a query param (matching EA's companion-app traffic pattern), then
+// extracts pidId from the entitlement's pidUri. We follow the same approach.
 
 export type MaddenPersona = Persona & { maddenEntitlement: string; console: SystemConsole };
 
-export async function getMaddenPersonas(accessToken: string, pidId: string): Promise<MaddenPersona[]> {
-  const entitlementsResponse = await undiciFetch(
-    `${EA_GATEWAY_BASE}/proxy/identity/pids/${pidId}/entitlements/?status=ACTIVE`,
+/** Fetch entitlements for the given pidId, matching snallabot's headers exactly. */
+async function fetchEntitlements(accessToken: string, pidId: string): Promise<Entitlements> {
+  const response = await undiciFetch(
+    `${EA_GATEWAY_BASE}/proxy/identity/pids/${pidId}/entitlements/?status=ACTIVE&access_token=${encodeURIComponent(accessToken)}`,
     {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "User-Agent": ANDROID_USER_AGENT,
         "Accept-Charset": "UTF-8",
+        "User-Agent": ANDROID_USER_AGENT,
         "X-Expand-Results": "true",
         "Accept-Encoding": "gzip",
       },
     },
   );
-  const entitlementsText = await entitlementsResponse.text();
-  if (!entitlementsResponse.ok) {
-    throw new EaAuthError(`EA would not list this account's games: ${entitlementsText.slice(0, 300)}`, "Try connecting again.");
+  const text = await response.text();
+  if (!response.ok) {
+    throw new EaAuthError(`EA would not list this account's games: ${text.slice(0, 300)}`, "Try connecting again.");
   }
-  const parsed = JSON.parse(entitlementsText) as Entitlements;
+  return JSON.parse(text) as Entitlements;
+}
+
+/**
+ * Extract the EA account pid from an entitlement's pidUri (e.g. "/pids/12345" -> "12345").
+ * snallabot gets the pidId this way rather than calling /connect/tokeninfo.
+ */
+function pidFromEntitlementUri(pidUri: string): string {
+  const match = pidUri.match(/\/pids\/(\d+)/);
+  if (!match) throw new EaAuthError("EA returned an unrecognised account reference.", "Try connecting again.");
+  return match[1];
+}
+
+/**
+ * Combined steps 3-5: given a temporary access token, discover Madden entitlements and
+ * return the matching personas. Returns both the personas and the pidId (needed for the
+ * persona-scoped re-auth in step 6).
+ */
+export async function getMaddenPersonas(accessToken: string): Promise<{ pidId: string; personas: MaddenPersona[] }> {
+  // snallabot fetches entitlements first using a "probe" pidId of 0 — EA's gateway ignores
+  // the pidId when an access_token query param is present and returns the caller's entitlements.
+  // We do the same to avoid the /connect/tokeninfo endpoint that crashes on some accounts.
+  const probe = await fetchEntitlements(accessToken, "0");
+  const allEntitlements = probe.entitlements?.entitlement ?? [];
+
   const validGroups = new Set(Object.values(VALID_ENTITLEMENTS));
-  const maddenEntitlements = (parsed.entitlements?.entitlement ?? []).filter(
+  const maddenEntitlements = allEntitlements.filter(
     (entitlement) => entitlement.entitlementTag === "ONLINE_ACCESS" && validGroups.has(entitlement.groupName),
   );
   if (maddenEntitlements.length === 0) {
@@ -199,6 +205,9 @@ export async function getMaddenPersonas(accessToken: string, pidId: string): Pro
       "Make sure you signed in with the EA account that owns Madden and plays in your league.",
     );
   }
+
+  // Extract the real pidId from the first entitlement's pidUri.
+  const pidId = pidFromEntitlementUri(maddenEntitlements[0].pidUri);
 
   const personaLists = await Promise.all(
     maddenEntitlements.map(async (entitlement) => {
@@ -225,10 +234,12 @@ export async function getMaddenPersonas(accessToken: string, pidId: string): Pro
 
   // A persona only belongs to an entitlement when the namespace matches, otherwise an Xbox
   // gamertag can appear under a PlayStation entitlement and Blaze login fails later.
-  return personaLists
+  const filtered = personaLists
     .flat()
     .filter((persona) => ENTITLEMENT_TO_VALID_NAMESPACE[persona.maddenEntitlement] === persona.namespaceName)
     .map((persona) => ({ ...persona, console: ENTITLEMENT_TO_SYSTEM[persona.maddenEntitlement] }));
+
+  return { pidId, personas: filtered };
 }
 
 // ── Step 6: persona-scoped token ──

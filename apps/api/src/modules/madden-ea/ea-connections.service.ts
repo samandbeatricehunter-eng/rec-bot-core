@@ -27,7 +27,6 @@ import {
   exchangeCodeForToken,
   getMaddenPersonas,
   getPersonaScopedToken,
-  getPidId,
   BlazeSessionError,
   type MaddenPersona,
 } from "./ea-client.js";
@@ -272,8 +271,7 @@ export async function submitEaCode(leagueId: string, requestedByDiscordId: strin
   const userId = await recUserIdFromDiscordId(requestedByDiscordId);
   const code = extractAuthCode(pasted);
   const temporary = await exchangeCodeForToken(code);
-  const pidId = await getPidId(temporary.access_token);
-  const maddenPersonas = await getMaddenPersonas(temporary.access_token, pidId);
+  const { personas: maddenPersonas } = await getMaddenPersonas(temporary.access_token);
   if (maddenPersonas.length === 0) {
     throw new ApiError(422, "This EA account has no Madden gamertag on a supported platform.");
   }
