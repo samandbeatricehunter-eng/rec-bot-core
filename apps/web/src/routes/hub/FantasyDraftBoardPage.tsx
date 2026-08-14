@@ -17,10 +17,10 @@ export function FantasyDraftBoardPage() {
   useEffect(() => {
     let cancelled = false;
     if (!guildId || !leagueId) return;
-    // Hub chrome can lag behind conclude; confirm session status before mounting the board.
+    // Confirm session status before mounting — concluded drafts redirect to the league hub.
     recApi.getFantasyDraftState(guildId).then((state) => {
       if (cancelled) return;
-      if (state.session?.status === "concluded" || hub.currentLeague?.fantasyDraftStatus === "concluded") {
+      if (state.session?.status === "concluded") {
         navigate(`/l/${leagueId}`, { replace: true });
         return;
       }
@@ -29,7 +29,7 @@ export function FantasyDraftBoardPage() {
       if (!cancelled) setReady(true);
     });
     return () => { cancelled = true; };
-  }, [guildId, leagueId, hub.currentLeague?.fantasyDraftStatus, navigate]);
+  }, [guildId, leagueId, navigate]);
 
   if (!ready) return <div className="hub-section"><LoadingState label="Loading…" /></div>;
 
