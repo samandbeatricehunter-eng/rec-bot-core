@@ -201,10 +201,12 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // a recruit or manually adds a player via Edit Roster.
     blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
     contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only.",
-    // In-game roster editors don't let you change a player's face/model — only body sliders
-    // (height, weight, body type). The created player keeps the replaced player's in-game
-    // appearance, so pick a replacement you're actually comfortable looking like.
-    appearanceNotice: "This player inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.",
+    // CFB: in-game editors can't swap a recruit's face/model, so the replaced player's look
+    // carries over. Madden: the created player is a fresh create — face is chosen from the
+    // 150 card-render catalog (wizard Step 4); the replaced player only supplies the EA slot.
+    appearanceNotice: game === "MADDEN"
+      ? "Madden custom players do not inherit the replaced player's face or body. Set height, weight, and body type on this step, then pick a card headshot on Card Appearance. The player you replace only frees an EA roster slot."
+      : "This player inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.",
     versions: { package: REC_CUSTOM_PLAYER_PACKAGE_VERSION, cost: REC_CUSTOM_PLAYER_COST_VERSION, archetype: REC_ARCHETYPE_CONFIG_VERSION, rules: REC_BUILD_RULES_VERSION, ovr: REC_OVR_MODEL_VERSION, names: REC_NAME_CORPUS_VERSION },
   };
 }
