@@ -617,8 +617,31 @@ export const recApi = {
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,
   // same convention as reviewBoxScore above.
-  reviewPurchase: (input: { guildId: string; leagueId?: string; purchaseId: string; action: "approve" | "deny"; deniedReason?: string; finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
+  reviewPurchase: (input: {
+    guildId: string;
+    leagueId?: string;
+    purchaseId: string;
+    action: "approve" | "deny";
+    deniedReason?: string;
+    finalReplaceTarget?: { playerId: string; position?: string; firstName?: string; lastName?: string } | null;
+  }) =>
     recApiFetch<unknown>("/v1/purchases/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  listLegendReplacementCandidates: (input: { guildId: string; leagueId?: string; purchaseId: string }) =>
+    recApiFetch<{
+      isMadden: boolean;
+      teamId: string | null;
+      buyerReplaceTarget: { playerId: string; position: string; firstName: string; lastName: string; overallRating: number | null } | null;
+      replacementPlayers: Array<{
+        id: string;
+        full_name: string | null;
+        first_name: string;
+        last_name: string;
+        position: string;
+        overall_rating: number | null;
+        dev_trait: string | null;
+        madden_player_id?: string | null;
+      }>;
+    }>("/v1/purchases/legend-replacement-candidates", { method: "POST", body: JSON.stringify(input) }),
   reviewHighlight: (input: { guildId: string; leagueId?: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHighlightReviewDetail: (guildId: string, reviewId: string) =>
@@ -863,7 +886,29 @@ export const recApi = {
   generateCustomPlayerName: (guildId: string, seed: string) => recApiFetch<{ firstName: string; lastName: string; fullName: string }>("/v1/custom-players/name", { method: "POST", body: JSON.stringify({ guildId, seed }) }),
   submitCustomPlayer: (input: Record<string, unknown>) => recApiFetch<any>("/v1/custom-players/submit", { method: "POST", body: JSON.stringify(input) }),
   listCustomPlayerBuilds: (guildId: string, manage = false) => recApiFetch<any>("/v1/custom-players/list", { method: "POST", body: JSON.stringify({ guildId, manage }) }),
-  reviewCustomPlayer: (input: { guildId: string; buildId: string; action: "approve" | "reject"; note?: string; adjustments?: Record<string, unknown> }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
+  reviewCustomPlayer: (input: {
+    guildId: string;
+    buildId: string;
+    action: "approve" | "reject";
+    note?: string;
+    adjustments?: Record<string, unknown>;
+    replacementPlayerId?: string | null;
+  }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
+  listCustomReplacementCandidates: (input: { guildId: string; buildId: string }) =>
+    recApiFetch<{
+      isMadden: boolean;
+      buyerReplaceTarget: { playerId: string; snapshot: Record<string, unknown> | null } | null;
+      replacementPlayers: Array<{
+        id: string;
+        full_name: string | null;
+        first_name: string;
+        last_name: string;
+        position: string;
+        overall_rating: number | null;
+        dev_trait: string | null;
+        madden_player_id?: string | null;
+      }>;
+    }>("/v1/custom-players/replacement-candidates", { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

@@ -33,26 +33,105 @@ function HeightFields({ heightInches, onChange }: { heightInches: number; onChan
   </>;
 }
 
+function formatCandidate(player: {
+  id: string;
+  full_name: string | null;
+  first_name: string;
+  last_name: string;
+  position: string;
+  overall_rating: number | null;
+}) {
+  const name = player.full_name || `${player.first_name} ${player.last_name}`.trim();
+  const ovr = player.overall_rating != null ? `${player.overall_rating} OVR` : "— OVR";
+  return `${player.position} ${name} · ${ovr}`;
+}
+
 // Single-build review UI — the identity/attribute-edit form a generic approve/deny modal
 // can't offer. Shared by the full Settings > Purchases queue (every pending build at once)
 // and CustomPlayerReviewModal (one build, opened straight from a Pending Items notification).
-function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteChange, onReview }: {
+function CustomPlayerBuildRow({
+  guildId,
+  build,
+  edit,
+  note,
+  busy,
+  onEditChange,
+  onNoteChange,
+  onReview,
+}: {
+  guildId: string;
   build: any;
   edit: { identity: any; attributes: Record<string, number> };
   note: string;
   busy: boolean;
   onEditChange: (patch: Record<string, unknown>) => void;
   onNoteChange: (value: string) => void;
-  onReview: (action: "approve" | "reject") => void;
+  onReview: (action: "approve" | "reject", replacementPlayerId?: string | null) => void;
 }) {
   const identity = edit.identity;
   const setIdentity = (key: string, value: unknown) => onEditChange({ identity: { ...identity, [key]: value } });
+  const buyerChose = Boolean(build.replacement_player_id);
+  const isMadden = String(build.game_family) === "MADDEN";
+  const [candidates, setCandidates] = useState<Array<{
+    id: string;
+    full_name: string | null;
+    first_name: string;
+    last_name: string;
+    position: string;
+    overall_rating: number | null;
+  }> | null>(null);
+  const [selectedReplacementId, setSelectedReplacementId] = useState(String(build.replacement_player_id ?? ""));
+  const [candidateError, setCandidateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isMadden || buyerChose) return;
+    let cancelled = false;
+    recApi.listCustomReplacementCandidates({ guildId, buildId: build.id })
+      .then((result) => {
+        if (cancelled) return;
+        setCandidates(result.replacementPlayers);
+        if (!selectedReplacementId && result.replacementPlayers[0]) {
+          setSelectedReplacementId(result.replacementPlayers[0].id);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setCandidateError(error instanceof Error ? error.message : String(error));
+      });
+    return () => { cancelled = true; };
+  }, [guildId, build.id, isMadden, buyerChose]);
+
   return <div className="settings-review-row">
     <div>
       <strong>{identity.firstName} {identity.lastName}</strong> · {build.position} · {build.estimated_ovr} OVR
       <p className="form-hint">{String(build.package_key).replaceAll("_", " ")} · {build.coin_price} coins · {build.creation_points_spent}/{build.creation_point_budget} CP · {build.unused_cp_refund_coins > 0 ? "500-coin unspent CP reward" : "no unspent CP reward"}</p>
-      <p className="form-hint">Replacing: {build.replacement_player_snapshot?.full_name ?? "Unknown player"} · {build.replacement_player_snapshot?.position ?? "—"} · {build.replacement_player_snapshot?.overall_rating ?? "—"} OVR</p>
+      {buyerChose ? (
+        <p className="form-hint">
+          Replacing: {build.replacement_player_snapshot?.full_name ?? "Unknown player"} · {build.replacement_player_snapshot?.position ?? "—"} · {build.replacement_player_snapshot?.overall_rating ?? "—"} OVR
+          {" "}(permanently removed on approve &amp; apply)
+        </p>
+      ) : isMadden ? (
+        <p className="form-hint">Buyer left the replaced player up to you — choose one below (lowest OVR first). That player is permanently swapped out on approve &amp; apply.</p>
+      ) : (
+        <p className="form-hint">No replacement player designated (new roster add).</p>
+      )}
     </div>
+    {isMadden && !buyerChose && (
+      <label className="form-field">
+        <span className="form-label">Replace roster player</span>
+        <select
+          className="form-select"
+          value={selectedReplacementId}
+          onChange={(event) => setSelectedReplacementId(event.target.value)}
+          disabled={!candidates?.length}
+        >
+          <option value="">{candidates?.length ? "Select a player" : "Loading roster…"}</option>
+          {(candidates ?? []).map((player) => (
+            <option key={player.id} value={player.id}>{formatCandidate(player)}</option>
+          ))}
+        </select>
+        {candidateError && <p className="form-hint">{candidateError}</p>}
+      </label>
+    )}
     <p className="form-hint">All commissioner edits are logged and sent to the purchaser. Position, archetype, and development trait remain locked to the submitted purchase.</p>
     <div className="custom-player-fields">
       <label>First name<input className="form-input" value={identity.firstName ?? ""} onChange={(event) => setIdentity("firstName", event.target.value)} /></label>
@@ -68,7 +147,13 @@ function CustomPlayerBuildRow({ build, edit, note, busy, onEditChange, onNoteCha
     <div className="custom-player-fields">{sortRecAttributeCodes(Object.keys(edit.attributes ?? {})).map((code) => <label key={code}>{getRecAttributeDisplayName(code)} ({code.toUpperCase()})<input className="form-input" type="number" min={0} max={99} value={Number(edit.attributes[code])} onChange={(event) => onEditChange({ attributes: { ...edit.attributes, [code]: Math.max(0, Math.min(99, Number(event.target.value))) } })} /></label>)}</div>
     <textarea className="form-input" rows={2} placeholder="Commissioner note or required rejection reason" value={note} onChange={(event) => onNoteChange(event.target.value)} />
     <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-      <Button variant="primary" disabled={busy} onClick={() => onReview("approve")}>Approve &amp; Apply</Button>
+      <Button
+        variant="primary"
+        disabled={busy || (isMadden && !buyerChose && !selectedReplacementId)}
+        onClick={() => onReview("approve", isMadden && !buyerChose ? selectedReplacementId : build.replacement_player_id ?? null)}
+      >
+        Approve &amp; Apply
+      </Button>
       <Button variant="danger" disabled={busy} onClick={() => onReview("reject")}>Reject &amp; Refund</Button>
     </div>
   </div>;
@@ -89,11 +174,18 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
   }
   useEffect(() => { void load().catch((error) => setMessage(error instanceof Error ? error.message : String(error))); }, [guildId]);
 
-  async function review(buildId: string, action: "approve" | "reject") {
+  async function review(buildId: string, action: "approve" | "reject", replacementPlayerId?: string | null) {
     if (action === "reject" && !notes[buildId]?.trim()) { setMessage("A rejection reason is required."); return; }
     setBusy(buildId); setMessage(null);
     try {
-      await recApi.reviewCustomPlayer({ guildId, buildId, action, note: notes[buildId]?.trim() || undefined, adjustments: action === "approve" ? edits[buildId] : undefined });
+      await recApi.reviewCustomPlayer({
+        guildId,
+        buildId,
+        action,
+        note: notes[buildId]?.trim() || undefined,
+        adjustments: action === "approve" ? edits[buildId] : undefined,
+        replacementPlayerId: action === "approve" ? replacementPlayerId : undefined,
+      });
       setMessage(action === "approve" ? "Custom player approved and applied. Any earned unspent CP reward was credited." : "Custom player rejected and the package price refunded.");
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
@@ -109,13 +201,14 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
       return (
         <CustomPlayerBuildRow
           key={build.id}
+          guildId={guildId}
           build={build}
           edit={edit}
           note={notes[build.id] ?? ""}
           busy={busy === build.id}
           onEditChange={(patch) => setEdits((current) => ({ ...current, [build.id]: { ...edit, ...patch } }))}
           onNoteChange={(value) => setNotes((current) => ({ ...current, [build.id]: value }))}
-          onReview={(action) => void review(build.id, action)}
+          onReview={(action, replacementPlayerId) => void review(build.id, action, replacementPlayerId)}
         />
       );
     })}
@@ -141,11 +234,18 @@ export function CustomPlayerReviewModal({ guildId, buildId, onClose, onResolved 
       .catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
   }, [guildId, buildId]);
 
-  async function review(action: "approve" | "reject") {
+  async function review(action: "approve" | "reject", replacementPlayerId?: string | null) {
     if (action === "reject" && !note.trim()) { setMessage("A rejection reason is required."); return; }
     setBusy(true); setMessage(null);
     try {
-      await recApi.reviewCustomPlayer({ guildId, buildId, action, note: note.trim() || undefined, adjustments: action === "approve" && edit ? { identity: edit.identity, attributes: edit.attributes } : undefined });
+      await recApi.reviewCustomPlayer({
+        guildId,
+        buildId,
+        action,
+        note: note.trim() || undefined,
+        adjustments: action === "approve" && edit ? { identity: edit.identity, attributes: edit.attributes } : undefined,
+        replacementPlayerId: action === "approve" ? replacementPlayerId : undefined,
+      });
       onResolved();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); setBusy(false); }
   }
@@ -157,13 +257,14 @@ export function CustomPlayerReviewModal({ guildId, buildId, onClose, onResolved 
       {build === null && <p className="form-hint">This build is no longer pending review (already approved, rejected, or withdrawn).</p>}
       {build && edit && (
         <CustomPlayerBuildRow
+          guildId={guildId}
           build={build}
           edit={edit}
           note={note}
           busy={busy}
           onEditChange={(patch) => setEdit((current) => (current ? { ...current, ...patch } : current))}
           onNoteChange={setNote}
-          onReview={(action) => void review(action)}
+          onReview={(action, replacementPlayerId) => void review(action, replacementPlayerId)}
         />
       )}
     </Modal>

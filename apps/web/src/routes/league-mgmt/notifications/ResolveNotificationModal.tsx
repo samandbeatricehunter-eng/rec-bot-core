@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { REC_DEFENSE_POSITIONS, REC_OFFENSE_POSITIONS, CASE_STATUS_BADGE, sortRecAttributeKeys } from "@rec/shared";
+import { CASE_STATUS_BADGE, sortRecAttributeKeys } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { ChatTopic, CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
@@ -9,66 +9,95 @@ import { Badge } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 
-type ReplaceTarget = { position: string; firstName: string; lastName: string };
-const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
+type ReplaceTarget = { playerId?: string; position: string; firstName: string; lastName: string };
+type ReplacementCandidate = {
+  id: string;
+  full_name: string | null;
+  first_name: string;
+  last_name: string;
+  position: string;
+  overall_rating: number | null;
+};
 
 function humanize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-// Legend (and future Custom Recruit) approval: lets the commissioner confirm or override
-// which roster player this replaces, independent of whatever the buyer requested — or
-// explicitly skip designating one at all.
-function ReplacementDesignator({
-  initial,
-  designate,
-  setDesignate,
-  position,
-  setPosition,
-  firstName,
-  setFirstName,
-  lastName,
-  setLastName,
+function formatCandidate(player: ReplacementCandidate) {
+  const name = player.full_name || `${player.first_name} ${player.last_name}`.trim();
+  const ovr = player.overall_rating != null ? `${player.overall_rating} OVR` : "— OVR";
+  return `${player.position} ${name} · ${ovr}`;
+}
+
+// Madden legend review: when the buyer left the outgoing player to the commissioner, show
+// their roster sorted worst-OVR-first and require a pick before Approve & Apply. That pick
+// (or the buyer's own designation) is permanently deleted when the legend is installed.
+function MaddenReplacementPicker({
+  purchaseId,
+  guildId,
+  leagueId,
+  buyerReplaceTarget,
+  selectedPlayerId,
+  setSelectedPlayerId,
 }: {
-  initial: ReplaceTarget | null;
-  designate: boolean;
-  setDesignate: (value: boolean) => void;
-  position: string;
-  setPosition: (value: string) => void;
-  firstName: string;
-  setFirstName: (value: string) => void;
-  lastName: string;
-  setLastName: (value: string) => void;
+  purchaseId: string;
+  guildId: string;
+  leagueId?: string;
+  buyerReplaceTarget: ReplaceTarget | null;
+  selectedPlayerId: string;
+  setSelectedPlayerId: (value: string) => void;
 }) {
+  const [candidates, setCandidates] = useState<ReplacementCandidate[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const buyerChose = Boolean(buyerReplaceTarget?.playerId);
+
+  useEffect(() => {
+    let cancelled = false;
+    recApi.listLegendReplacementCandidates({ guildId, leagueId, purchaseId })
+      .then((result) => {
+        if (cancelled) return;
+        setCandidates(result.replacementPlayers);
+        if (result.buyerReplaceTarget?.playerId) {
+          setSelectedPlayerId(result.buyerReplaceTarget.playerId);
+        } else if (!selectedPlayerId && result.replacementPlayers[0]) {
+          setSelectedPlayerId(result.replacementPlayers[0].id);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Could not load roster players.");
+      });
+    return () => { cancelled = true; };
+  }, [guildId, leagueId, purchaseId]);
+
   return (
     <div className="form-field">
-      {initial ? (
-        <p className="form-hint" style={{ marginTop: 0 }}>Buyer requested replacing: {initial.position} {initial.firstName} {initial.lastName}</p>
+      {buyerChose ? (
+        <p className="form-hint" style={{ marginTop: 0 }}>
+          Buyer designated replacement: {buyerReplaceTarget!.position} {buyerReplaceTarget!.firstName} {buyerReplaceTarget!.lastName}.
+          That player will be permanently removed from their roster when you approve &amp; apply.
+        </p>
       ) : (
-        <p className="form-hint" style={{ marginTop: 0 }}>Buyer left the replaced player up to you.</p>
+        <p className="form-hint" style={{ marginTop: 0 }}>
+          Buyer left the replaced player up to you. Choose one of their roster players (lowest OVR first).
+          That player is permanently swapped out when the legend is installed.
+        </p>
       )}
-      <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
-        <input type="checkbox" checked={designate} onChange={(event) => setDesignate(event.target.checked)} />
-        <span className="form-label" style={{ margin: 0 }}>Designate replaced player</span>
-      </label>
-      {designate && (
-        <>
-          <label className="form-field">
-            <span className="form-label">Position</span>
-            <select className="form-input" value={position} onChange={(event) => setPosition(event.target.value)}>
-              <option value="">Select position</option>
-              {REPLACE_TARGET_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </label>
-          <label className="form-field">
-            <span className="form-label">First name</span>
-            <input className="form-input" value={firstName} onChange={(event) => setFirstName(event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="form-label">Last name</span>
-            <input className="form-input" value={lastName} onChange={(event) => setLastName(event.target.value)} />
-          </label>
-        </>
+      {loadError && <p className="form-hint">{loadError}</p>}
+      {!buyerChose && (
+        <label className="form-field">
+          <span className="form-label">Replace roster player</span>
+          <select
+            className="form-input"
+            value={selectedPlayerId}
+            onChange={(event) => setSelectedPlayerId(event.target.value)}
+            disabled={!candidates?.length}
+          >
+            <option value="">{candidates?.length ? "Select a player" : "Loading roster…"}</option>
+            {(candidates ?? []).map((player) => (
+              <option key={player.id} value={player.id}>{formatCandidate(player)}</option>
+            ))}
+          </select>
+        </label>
       )}
     </div>
   );
@@ -81,7 +110,7 @@ function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> })
   const isCfb = payload.isCfb === true;
   const attributeMap = (payload.attributes as Record<string, number>) ?? {};
   const attributes = sortRecAttributeKeys(Object.keys(attributeMap)).map((key) => [key, attributeMap[key]!] as const);
-  const replaceTarget = payload.replaceTarget as { position: string; firstName: string; lastName: string } | null | undefined;
+  const replaceTarget = payload.replaceTarget as { playerId?: string; position: string; firstName: string; lastName: string } | null | undefined;
   const facts: Array<[string, string]> = [
     ["Team", String(payload.teamName ?? "Unassigned")],
     ["Position", String(payload.legendPosition ?? "—")],
@@ -90,7 +119,9 @@ function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> })
     ["Est. OVR", String(payload.estOvr ?? "—")],
     ...(!isCfb ? [["Dev Trait", String(payload.devTrait ?? "—")] as [string, string]] : []),
     ...(payload.bodyType ? [["Body Type", String(payload.bodyType)] as [string, string]] : []),
-    ["Replaces", replaceTarget ? `${replaceTarget.position} ${replaceTarget.firstName} ${replaceTarget.lastName}` : isCfb ? "Required replacement missing" : "Commissioner's choice"],
+    ["Replaces", replaceTarget?.playerId
+      ? `${replaceTarget.position} ${replaceTarget.firstName} ${replaceTarget.lastName}`
+      : isCfb ? "Required replacement missing" : "Commissioner's choice"],
   ];
   return (
     <div className="legend-purchase-detail">
@@ -222,14 +253,21 @@ async function resolveAction(
   notification: CommissionerNotification,
   action: "approve" | "deny",
   reason: string,
-  finalReplaceTarget?: ReplaceTarget | null,
+  finalReplaceTarget?: { playerId: string } | null,
 ) {
   const sourceId = notification.sourceId ?? "";
   switch (notification.type) {
     case "purchase":
       return recApi.reviewPurchase({ guildId, leagueId, purchaseId: sourceId, action, deniedReason: reason || undefined });
     case "legend":
-      return recApi.reviewPurchase({ guildId, leagueId, purchaseId: sourceId, action, deniedReason: reason || undefined, finalReplaceTarget: action === "approve" ? finalReplaceTarget : undefined });
+      return recApi.reviewPurchase({
+        guildId,
+        leagueId,
+        purchaseId: sourceId,
+        action,
+        deniedReason: reason || undefined,
+        finalReplaceTarget: action === "approve" ? finalReplaceTarget : undefined,
+      });
     case "highlight":
       return recApi.reviewHighlight({ guildId, leagueId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "game_of_the_year":
@@ -279,10 +317,7 @@ export function ResolveNotificationModal({
   const [error, setError] = useState<string | null>(null);
 
   const buyerReplaceTarget = (notification.payload?.replaceTarget as ReplaceTarget | null | undefined) ?? null;
-  const [designateReplacement, setDesignateReplacement] = useState(false);
-  const [replacePosition, setReplacePosition] = useState(buyerReplaceTarget?.position ?? "");
-  const [replaceFirstName, setReplaceFirstName] = useState(buyerReplaceTarget?.firstName ?? "");
-  const [replaceLastName, setReplaceLastName] = useState(buyerReplaceTarget?.lastName ?? "");
+  const [selectedReplacementPlayerId, setSelectedReplacementPlayerId] = useState(buyerReplaceTarget?.playerId ?? "");
 
   // Commissioner Command Center: internal memo, audit timeline, and case voting — additive,
   // shown for every notification type since the underlying columns exist on every case.
@@ -357,7 +392,20 @@ export function ResolveNotificationModal({
     setBusy(true);
     setError(null);
     try {
-      const finalReplaceTarget = designateReplacement ? { position: replacePosition, firstName: replaceFirstName, lastName: replaceLastName } : undefined;
+      const needsCommissionerPick =
+        notification.type === "legend" &&
+        notification.payload?.isCfb !== true &&
+        !buyerReplaceTarget?.playerId;
+      if (action === "approve" && needsCommissionerPick && !selectedReplacementPlayerId) {
+        throw new Error("Choose which roster player this legend permanently replaces.");
+      }
+      const finalReplaceTarget =
+        action === "approve" && notification.type === "legend" && notification.payload?.isCfb !== true
+          ? { playerId: selectedReplacementPlayerId || buyerReplaceTarget?.playerId || "" }
+          : undefined;
+      if (finalReplaceTarget && !finalReplaceTarget.playerId) {
+        throw new Error("Choose which roster player this legend permanently replaces.");
+      }
       await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
       onResolved();
     } catch (err) {
@@ -393,17 +441,14 @@ export function ResolveNotificationModal({
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>
       )}
 
-      {notification.type === "legend" && notification.payload?.isCfb !== true && (
-        <ReplacementDesignator
-          initial={buyerReplaceTarget}
-          designate={designateReplacement}
-          setDesignate={setDesignateReplacement}
-          position={replacePosition}
-          setPosition={setReplacePosition}
-          firstName={replaceFirstName}
-          setFirstName={setReplaceFirstName}
-          lastName={replaceLastName}
-          setLastName={setReplaceLastName}
+      {notification.type === "legend" && notification.payload?.isCfb !== true && notification.sourceId && (
+        <MaddenReplacementPicker
+          purchaseId={notification.sourceId}
+          guildId={guildId}
+          leagueId={leagueId}
+          buyerReplaceTarget={buyerReplaceTarget}
+          selectedPlayerId={selectedReplacementPlayerId}
+          setSelectedPlayerId={setSelectedReplacementPlayerId}
         />
       )}
 

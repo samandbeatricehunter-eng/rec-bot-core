@@ -297,6 +297,7 @@ export async function createLegendPurchaseRequest(input: {
         height: legend.data.height ?? null,
         weight: legend.data.weight ?? null,
         teamName: teamName ?? null,
+        purchasingTeamId: teamId,
         attributes: legend.data.attributes ?? {},
         abilities: details.abilities ?? [],
         contractNote: "7-year lowest-value perpetual renew",
