@@ -160,6 +160,47 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
   return response.json() as Promise<T>;
 }
 
+export type EaDataset =
+  | "teams" | "standings" | "schedule" | "rosters" | "free_agents"
+  | "passing" | "rushing" | "receiving" | "defense" | "kicking" | "punting" | "team_stats";
+
+export type EaConnection = {
+  id: string;
+  leagueId: string;
+  console: string;
+  personaDisplayName: string | null;
+  eaNamespace: string | null;
+  eaLeagueId: string | null;
+  eaLeagueName: string | null;
+  eaSeasonYear: number | null;
+  enabledDatasets: EaDataset[];
+  autoImport: boolean;
+  status: string;
+  lastError: string | null;
+  lastImportAt: string | null;
+  lastRefreshedAt: string | null;
+  createdAt: string;
+};
+
+export type EaFranchise = {
+  leagueId: number;
+  leagueName: string;
+  calendarYear: number;
+  numMembers: number;
+  userTeamId: number;
+  userTeamName: string;
+  seasonText: string;
+  currentWeekCompleted: boolean;
+};
+
+export type EaImportResult = {
+  dataset: EaDataset;
+  label: string;
+  importJobId: string | null;
+  duplicate: boolean;
+  recordsStored: number;
+};
+
 export const recApi = {
   getMaddenCompanionConnections: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ connections: Array<{ id: string; status: string; external_league_id: string | null; last_health_status: string | null; last_health_check_at: string | null; last_import_at: string | null; import_count: number }> }>("/v1/import/madden/companion/connections", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
@@ -178,6 +219,28 @@ export const recApi = {
     ),
   rollbackMaddenCompanionImportJob: (input: { guildId: string; leagueId: string; jobId: string }) =>
     recApiFetch<{ reverted: number; cleared: number }>("/v1/import/madden/companion/rollback", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, job_id: input.jobId }) }),
+  getMaddenEaHealth: () =>
+    recApiFetch<{ ok: boolean; configured: boolean; datasets: EaDataset[] }>("/v1/import/madden/ea/health", { method: "GET" }),
+  getMaddenEaStatus: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ configured: boolean; connection: EaConnection | null }>("/v1/import/madden/ea/status", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  beginMaddenEaLogin: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ loginUrl: string; expiresInSeconds: number }>("/v1/import/madden/ea/login", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  submitMaddenEaCode: (input: { guildId: string; leagueId: string; pasted: string }) =>
+    recApiFetch<{ pendingAuthId: string; personas: Array<{ personaId: number; displayName: string; name: string; namespaceName: string; console: string }> }>("/v1/import/madden/ea/code", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, pasted: input.pasted }) }),
+  selectMaddenEaPersona: (input: { guildId: string; leagueId: string; pendingAuthId: string; personaId: number }) =>
+    recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/persona", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, pending_auth_id: input.pendingAuthId, persona_id: input.personaId }) }),
+  listMaddenEaLeagues: (input: { guildId: string; leagueId: string; connectionId: string }) =>
+    recApiFetch<{ leagues: EaFranchise[] }>("/v1/import/madden/ea/leagues", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
+  bindMaddenEaLeague: (input: { guildId: string; leagueId: string; connectionId: string; eaLeagueId: number }) =>
+    recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/bind", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ea_league_id: input.eaLeagueId }) }),
+  updateMaddenEaSettings: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; autoImport?: boolean }) =>
+    recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/settings", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.autoImport !== undefined ? { auto_import: input.autoImport } : {}) }) }),
+  importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[] }) =>
+    recApiFetch<{ imports: EaImportResult[] }>("/v1/import/madden/ea/import", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}) }) }),
+  listMaddenEaImportJobs: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>("/v1/import/madden/ea/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
+    recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/disconnect", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   uploadLeagueLogo: (guildId: string, file: File) => {
     const formData = new FormData();

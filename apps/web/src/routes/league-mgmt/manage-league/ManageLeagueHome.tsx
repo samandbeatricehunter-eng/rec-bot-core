@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, GraduationCap, ListOrdered, Newspaper, Settings, Shield, ShieldAlert, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { BarChart3, ChevronRight, Database, GraduationCap, ListOrdered, Newspaper, Settings, Shield, ShieldAlert, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { TeamManagementSummaryRow } from "../../../types/api.js";
+import type { TeamManagementSummary, TeamManagementSummaryRow } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { SearchInput } from "../../../components/ui/SearchInput.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -15,6 +15,7 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
+import { ImportDataModal } from "./ImportDataModal.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -40,10 +41,11 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const { guildId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const navigate = useNavigate();
-  const [summary, setSummary] = useState<{ teams: TeamManagementSummaryRow[] } | null>(null);
+  const [summary, setSummary] = useState<TeamManagementSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [repairChannelsOpen, setRepairChannelsOpen] = useState(false);
+  const [importDataOpen, setImportDataOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
@@ -123,6 +125,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               </Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
               {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
+              {isMadden && summary && <Button variant="secondary" onClick={() => setImportDataOpen(true)}><Database size={16}/> Import Data</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
               {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
               {isMadden && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
@@ -278,6 +281,9 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
           onClose={() => setRepairChannelsOpen(false)}
           onDone={handleGameChannelsRepaired}
         />
+      )}
+      {importDataOpen && summary && (
+        <ImportDataModal guildId={guildId} leagueId={summary.league.id} onClose={() => setImportDataOpen(false)} />
       )}
     </div>
   );
