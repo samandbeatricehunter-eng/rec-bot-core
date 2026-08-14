@@ -13,6 +13,7 @@ import {
   getEntitlementSummary,
   isIdentityClaimDropdownOpen,
   listClaimableFrozenLeagues,
+  purgeIncompleteUnpaidSignup,
   resolveRecUserIdByAuthUserId,
   setIdentityClaimDropdownClosed,
 } from "./entitlements.service.js";
@@ -31,11 +32,8 @@ import { getBotUserId } from "../../lib/discord-guild.js";
 async function resolveCheckoutRecUserId(authUserId: string, email: string | null): Promise<string> {
   const existing = await resolveRecUserIdByAuthUserId(authUserId);
   if (existing) return existing;
-  // When the grandfather claim dropdown is closed, paid signup creates a free-standing
-  // rec_users row. While the dropdown is open, require claiming Discord identity first.
-  if (await isIdentityClaimDropdownOpen()) {
-    throw new ApiError(404, "Link a REC profile before managing subscriptions.");
-  }
+  // Identity-claim dropdown is retired — paid/promo signup always creates a free-standing
+  // rec_users row bound to this auth user (Discord OAuth linking is additive afterward).
   return ensureRecUserForAuthUser(authUserId, email);
 }
 async function requireLinkedRecUserId(authUserId: string): Promise<string> {
@@ -189,6 +187,18 @@ export async function subscriptionRoutes(app: FastifyInstance) {
         claimDropdownOpen: await isIdentityClaimDropdownOpen(),
         closed: body.closed,
       });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Cancels an unfinished signup: no promo grant and no completed Stripe payment → delete the
+  // auth user + empty rec_users row immediately so incomplete accounts do not clutter admin.
+  app.post("/v1/subscriptions/abandon-incomplete", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      z.object({}).parse(request.body ?? {});
+      return reply.send(await purgeIncompleteUnpaidSignup(session.authUserId));
     } catch (error) {
       return sendError(reply, error);
     }

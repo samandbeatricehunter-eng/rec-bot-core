@@ -7,10 +7,7 @@ import {
   checkSiteUsername,
   getSiteLinkProfile,
   linkDiscordFromOAuth,
-  listLinkCandidates,
-  requestIdentityClaimCode,
   setSiteUsername,
-  verifyIdentityClaimCode,
 } from "./site-auth.service.js";
 
 export async function siteAuthRoutes(app: FastifyInstance) {
@@ -53,20 +50,10 @@ export async function siteAuthRoutes(app: FastifyInstance) {
   app.post("/v1/site-auth/link/candidates", async (request, reply) => {
     try {
       await requireSiteUserSession(request);
-      const body = z
-        .object({
-          query: z.string().trim().max(100).optional(),
-          limit: z.number().int().min(1).max(100).optional(),
-          offset: z.number().int().min(0).optional(),
-        })
-        .parse(request.body ?? {});
-      return reply.send(
-        await listLinkCandidates({
-          query: body.query,
-          limit: body.limit ?? 25,
-          offset: body.offset ?? 0,
-        }),
-      );
+      // Grandfather Discord identity claim dropdown is retired.
+      return reply.code(410).send({
+        error: "Identity claiming via Discord username dropdown has been removed. Use Discord OAuth or email signup, then subscribe.",
+      });
     } catch (error) {
       return sendError(reply, error);
     }
@@ -74,18 +61,10 @@ export async function siteAuthRoutes(app: FastifyInstance) {
 
   app.post("/v1/site-auth/link/request-code", async (request, reply) => {
     try {
-      const session = await requireSiteUserSession(request);
-      const body = z
-        .object({
-          discordAccountId: z.string().uuid(),
-        })
-        .parse(request.body);
-      return reply.send(
-        await requestIdentityClaimCode({
-          authUserId: session.authUserId,
-          discordAccountId: body.discordAccountId,
-        }),
-      );
+      await requireSiteUserSession(request);
+      return reply.code(410).send({
+        error: "Identity claiming via Discord DM code has been removed. Link Discord from My Account after you subscribe.",
+      });
     } catch (error) {
       return sendError(reply, error);
     }
@@ -93,20 +72,10 @@ export async function siteAuthRoutes(app: FastifyInstance) {
 
   app.post("/v1/site-auth/link/verify", async (request, reply) => {
     try {
-      const session = await requireSiteUserSession(request);
-      const body = z
-        .object({
-          discordAccountId: z.string().uuid(),
-          code: z.string().regex(/^\d{6}$/),
-        })
-        .parse(request.body);
-      return reply.send(
-        await verifyIdentityClaimCode({
-          authUserId: session.authUserId,
-          discordAccountId: body.discordAccountId,
-          code: body.code,
-        }),
-      );
+      await requireSiteUserSession(request);
+      return reply.code(410).send({
+        error: "Identity claiming via Discord DM code has been removed. Link Discord from My Account after you subscribe.",
+      });
     } catch (error) {
       return sendError(reply, error);
     }

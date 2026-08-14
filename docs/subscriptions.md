@@ -12,7 +12,7 @@ Locked product decisions for REC Bot subscription entitlements.
 | Transfer | Transfer only to **Platinum** |
 | Frozen takeover | After grace expires and owned leagues freeze, any **active member** with **Platinum** (including lifetime grandfather) and an **open create slot** for that game can claim ownership. **First claim wins** and unfreezes the league. Previous head commissioner is demoted to co-commissioner when a membership row exists. |
 | New create/join caps | Caps apply **immediately** on create/join |
-| Claim dropdown | **Auto + manual** (auto-close when empty; manual kill switch) |
+| Claim dropdown | **Closed permanently** (Discord OAuth / email + Stripe replace it) |
 | Billing cadence | **Monthly or annual** |
 | Payments | **Stripe** |
 
@@ -42,9 +42,9 @@ Locked product decisions for REC Bot subscription entitlements.
 - Everyone else must subscribe (Gold or Platinum) for site access.
 - Paying Stripe subscribers are never downgraded by the lifetime sync.
 
-The identity claim dropdown is **closed**. Discord-only bot users can still play in a paying commissioner's league via Discord; site/app access still requires OAuth/email account + subscription (or REC OG lifetime).
+The identity claim dropdown is **closed permanently**. Discord-only bot users can still play in a paying commissioner's league via Discord; site/app access still requires OAuth/email account + subscription (or REC OG lifetime). New signups never see the grandfather "Link your REC identity" dropdown — Discord linking after account creation is OAuth callback only.
 
-After close-out: Discord-only users can still exist in bot leagues; to get site/app they must subscribe then link Discord. Stats backfill only counts results on/after `stats_credit_starts_at` for that team assignment.
+Incomplete unpaid signups (no Stripe card on file — including trial-only promo codes — when checkout is canceled) are deleted immediately so they do not linger in Auth or the admin user list. Lifetime/comp promo grants skip Stripe and are never deleted by that path. The default 7-day trial is granted by Stripe Checkout after card details are entered (no promo required).
 
 ## Limits (per game title)
 

@@ -137,7 +137,7 @@ export async function createCheckoutSession(input: {
     client_reference_id: input.userId,
     line_items: [{ price: priceIdForTier(input.tier, interval), quantity: 1 }],
     success_url: `${base}/account?checkout=success`,
-    cancel_url: `${base}/account?checkout=cancel`,
+    cancel_url: `${base}/pricing?checkout=cancel`,
     metadata: {
       rec_user_id: input.userId,
       tier: input.tier,

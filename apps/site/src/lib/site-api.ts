@@ -421,6 +421,9 @@ export const siteApi = {
   attachCheckoutSession(sessionId: string) {
     return request<EntitlementSummary>("/v1/subscriptions/checkout/attach", { sessionId });
   },
+  abandonIncompleteSignup() {
+    return request<{ purged: boolean; reason?: string }>("/v1/subscriptions/abandon-incomplete", {});
+  },
   openBillingPortal() {
     const origin = window.location.origin;
     return request<{ url: string }>("/v1/subscriptions/portal", {
@@ -1277,9 +1280,11 @@ export type AdminUserSummary = {
   username: string | null;
   displayName: string;
   discordUsername: string | null;
+  email: string | null;
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;
+  createdAt: string | null;
 };
 
 export type AdminDiscordConfig = {

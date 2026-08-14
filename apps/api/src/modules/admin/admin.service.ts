@@ -329,9 +329,11 @@ export type AdminUserSummary = {
   username: string | null;
   displayName: string;
   discordUsername: string | null;
+  email: string | null;
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;
+  createdAt: string | null;
 };
 
 /** Backs the Stats snapshot's expandable "New accounts (7d)" tile — same 7-day window
@@ -339,14 +341,16 @@ export type AdminUserSummary = {
 export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[] }> {
   const result = await getPgPool().query(`
     select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
+           u.created_at, au.email as auth_email,
            da.username as discord_username, da.global_name as discord_global_name
     from rec_users u
+    left join auth.users au on au.id = u.supabase_auth_user_id
     left join lateral (
       select username, global_name from rec_discord_accounts
       where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
     ) da on true
-    where created_at >= now() - interval '7 days'
-    order by created_at desc
+    where u.created_at >= now() - interval '7 days'
+    order by u.created_at desc
     limit 200
   `);
   return {
@@ -355,9 +359,11 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
       username: row.username,
       displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
       discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+      email: row.auth_email ?? null,
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
+      createdAt: row.created_at ? String(row.created_at) : null,
     })),
   };
 }
@@ -365,20 +371,28 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
 export async function searchAdminUsers(input: { query?: string; limit?: number }): Promise<{
   users: AdminUserSummary[];
 }> {
-  const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
   const query = input.query?.trim();
   const result = await getPgPool().query(
     `
       select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
+             u.created_at, au.email as auth_email,
              da.username as discord_username, da.global_name as discord_global_name
       from rec_users u
+      left join auth.users au on au.id = u.supabase_auth_user_id
       left join lateral (
         select username, global_name from rec_discord_accounts
         where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
       ) da on true
-      where $1::text is null or u.username ilike $1 or u.display_name ilike $1
-         or da.username ilike $1 or da.global_name ilike $1
-      order by u.username nulls last, u.display_name
+      where $1::text is null
+         or u.username ilike $1
+         or u.display_name ilike $1
+         or au.email ilike $1
+         or da.username ilike $1
+         or da.global_name ilike $1
+         or cast(u.supabase_auth_user_id as text) ilike $1
+         or cast(u.id as text) ilike $1
+      order by u.created_at desc nulls last, u.username nulls last, u.display_name
       limit $2
     `,
     [query ? `%${query}%` : null, limit],
@@ -389,9 +403,11 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
       username: row.username,
       displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
       discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+      email: row.auth_email ?? null,
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
+      createdAt: row.created_at ? String(row.created_at) : null,
     })),
   };
 }

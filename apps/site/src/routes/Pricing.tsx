@@ -31,12 +31,23 @@ export function Pricing() {
       setEntitlements(null);
       return;
     }
+    // Cancel return deletes the incomplete account — skip ensuring a rec_users row here.
+    if (checkout === "cancel") return;
     let active = true;
     setEntitlementsLoading(true);
+    // Ensure a rec_users row exists for email-only signups before loading entitlements /
+    // starting checkout — otherwise brand-new accounts are invisible in admin until pay.
     siteApi
-      .getEntitlements()
-      .then((summary) => {
-        if (active) setEntitlements(summary);
+      .linkDiscordOAuth()
+      .then((profile) => {
+        if (!active) return;
+        if (profile.entitlements) {
+          setEntitlements(profile.entitlements);
+          return;
+        }
+        return siteApi.getEntitlements().then((summary) => {
+          if (active) setEntitlements(summary);
+        });
       })
       .catch(() => {
         if (active) setEntitlements(null);
@@ -47,7 +58,32 @@ export function Pricing() {
     return () => {
       active = false;
     };
-  }, [auth.status]);
+  }, [auth.status, checkout]);
+
+  // Stripe cancel return: no promo grant and no completed payment → delete the incomplete
+  // account immediately so unfinished signups do not linger in Auth/admin lists.
+  useEffect(() => {
+    if (auth.status !== "signed-in") return;
+    if (checkout !== "cancel") return;
+    let active = true;
+    void (async () => {
+      try {
+        const result = await siteApi.abandonIncompleteSignup();
+        if (!active) return;
+        if (result.purged) {
+          await auth.signOut();
+          if (active) {
+            setError("Checkout canceled — your incomplete account was removed. Sign up again when you're ready to subscribe.");
+          }
+        }
+      } catch {
+        /* keep the soft cancel message below if purge fails */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [auth, checkout]);
 
   async function startCheckout(tier: "gold" | "platinum") {
     setError(null);
@@ -120,15 +156,20 @@ export function Pricing() {
             Pick a subscription to unlock the REC League hub. Cancel anytime from
             Manage billing.
           </p>
-          {!subscribed && (
+          {!subscribed || needsCheckoutForTrial ? (
             <>
-              <p className="site-trial-badge">New subscribers get a 7-day free trial — no charge until it ends.</p>
+              <p className="site-trial-badge">
+                {needsCheckoutForTrial
+                  ? "Add a payment method to keep your trial — card required, no charge until the trial ends."
+                  : "New subscribers get a 7-day free trial — enter card details on Stripe (no charge until it ends)."}
+              </p>
               <p className="site-muted site-trial-note">
                 During the trial: Gold can join 1 league per game; Platinum can join 1 and create
-                1 league per game. Full limits unlock once the trial ends and you subscribe.
+                1 league per game. Full limits unlock once the trial ends. Canceling checkout
+                removes an unfinished account unless you redeemed a comp promo code.
               </p>
             </>
-          )}
+          ) : null}
           <div className="site-billing-interval" role="tablist" aria-label="Billing interval">
             <button
               type="button"
@@ -156,7 +197,10 @@ export function Pricing() {
             </p>
           )}
           {checkout === "cancel" && (
-            <p className="site-muted">Checkout canceled. No charge was made.</p>
+            <p className="site-muted">
+              Checkout canceled. Without a completed subscription (or a comp promo), the incomplete
+              account is removed.
+            </p>
           )}
           {error && <p className="site-auth-error">{error}</p>}
           {signedIn && subscribed && !entitlementsLoading && entitlements && (

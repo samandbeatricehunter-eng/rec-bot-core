@@ -131,6 +131,9 @@ export async function linkDiscordFromOAuth(input: {
 
   const discord = discordIdentityFromAuthUser(data.user);
   if (!discord) {
+    // Email/password confirmations hit this path too — still create the rec_users row so the
+    // account is visible in admin and can proceed to promo/Stripe without the retired claim UI.
+    await ensureRecUserForAuthUser(input.authUserId, input.email);
     const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
     return { ...profile, lifetimePlatinum: false, discordLinked: false, isNewDiscordLink: false };
   }

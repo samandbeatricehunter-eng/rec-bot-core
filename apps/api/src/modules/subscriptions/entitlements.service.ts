@@ -357,26 +357,15 @@ export async function setIdentityClaimDropdownClosed(closed: boolean): Promise<v
 }
 
 export async function isIdentityClaimDropdownOpen(): Promise<boolean> {
+  // Grandfather Discord-username + DM-code claiming is retired. Paid/promo signup via email or
+  // Discord OAuth replaces it. Keep the settings row for audit history, but never reopen —
+  // auto-reopen when claimable Discord-only coaches still existed was routing brand-new
+  // email/OAuth signups back onto the removed "Link your REC identity" screen.
   const settings = await readClaimDropdownSettings();
-
-  const autoClose = settings.auto_close_when_empty !== false;
-  const claimable = autoClose ? await countClaimableUsers() : null;
-
-  // A stale closed latch from a prior auto-close (when the claimable set was empty) must not
-  // permanently hide the dropdown once claimable identities exist again. Reopen automatically.
-  if (settings.closed === true) {
-    if (autoClose && (claimable ?? 0) > 0) {
-      await setIdentityClaimDropdownClosed(false);
-      return true;
-    }
-    return false;
-  }
-
-  if (autoClose && (claimable ?? 0) === 0) {
+  if (settings.closed !== true) {
     await setIdentityClaimDropdownClosed(true);
-    return false;
   }
-  return true;
+  return false;
 }
 
 export async function getEntitlementSummary(userId: string): Promise<EntitlementSummary> {
@@ -813,4 +802,87 @@ export async function ensureRecUserForAuthUser(
   }
   void grantWelcomeBonus(String(created.data.id));
   return String(created.data.id);
+}
+
+/**
+ * Deletes a brand-new signup that never finished Stripe card checkout.
+ * Comp/lifetime promo grants are kept. Trial-only promo grants (no card yet) and tier-none
+ * accounts are removed on checkout cancel — the default 7-day trial requires Stripe card info.
+ */
+export async function purgeIncompleteUnpaidSignup(authUserId: string): Promise<{
+  purged: boolean;
+  reason?: string;
+}> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { env } = await import("../../config/env.js");
+  const { getPgPool } = await import("../../db/client.js");
+  const authAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const recUserId = await resolveRecUserIdByAuthUserId(authUserId);
+  if (recUserId) {
+    const user = await loadUser(recUserId);
+    const billing = asBillingStatus(user.billing_status);
+
+    // Comp promo / REC OG lifetime — never delete.
+    if (billing === "lifetime_comp") {
+      return { purged: false, reason: "Account has a lifetime/comp grant." };
+    }
+    // Stripe card already on file (including Checkout's built-in 7-day trial → billing active).
+    if (user.stripe_subscription_id) {
+      return { purged: false, reason: "Account already has a Stripe subscription." };
+    }
+    // Paid/grace/past_due without a stale null subscription id — keep.
+    if (billing === "active" || billing === "grace" || billing === "past_due") {
+      return { purged: false, reason: "Account already has an active billing relationship." };
+    }
+    // billing none | promo_trial | canceled with no Stripe sub → eligible to purge
+
+    const blockers = await getPgPool().query(
+      `
+        select
+          exists(
+            select 1 from rec_team_assignments
+            where user_id = $1 and assignment_status = 'active' and ended_at is null
+          ) as has_team,
+          exists(
+            select 1 from rec_league_memberships
+            where user_id = $1 and status = 'active'
+          ) as has_membership,
+          exists(
+            select 1 from rec_leagues where owner_user_id = $1
+          ) as owns_league
+      `,
+      [recUserId],
+    );
+    const row = blockers.rows[0] as
+      | { has_team: boolean; has_membership: boolean; owns_league: boolean }
+      | undefined;
+    if (row?.has_team || row?.has_membership || row?.owns_league) {
+      return { purged: false, reason: "Account already has league or team history." };
+    }
+
+    await getPgPool().query(`delete from rec_site_identity_claims where auth_user_id = $1 or rec_user_id = $2`, [
+      authUserId,
+      recUserId,
+    ]);
+    await getPgPool().query(`delete from rec_site_identity_claim_challenges where auth_user_id = $1 or rec_user_id = $2`, [
+      authUserId,
+      recUserId,
+    ]);
+    // Discord row cascades from rec_users; delete the user row (welcome-bonus ledger cascades).
+    const deleted = await supabase.from("rec_users").delete().eq("id", recUserId);
+    if (deleted.error) throw new ApiError(500, "Failed to delete incomplete REC user.", deleted.error);
+  }
+
+  const removed = await authAdmin.auth.admin.deleteUser(authUserId);
+  if (removed.error) {
+    // Auth user may already be gone; treat missing as success once rec_users is cleared.
+    const message = removed.error.message?.toLowerCase() ?? "";
+    if (!message.includes("not found") && !message.includes("user not found")) {
+      throw new ApiError(500, "Failed to delete incomplete auth user.", removed.error);
+    }
+  }
+  return { purged: true };
 }
