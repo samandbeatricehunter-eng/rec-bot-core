@@ -84,6 +84,7 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
       await recApi.reviewBoxScore({ submissionId, action, deniedReason: action === "deny" ? denyReason : undefined });
       window.dispatchEvent(new Event("rec:notifications-changed"));
       onResolved(action);
+      onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to review submission.");
       setBusy(false);

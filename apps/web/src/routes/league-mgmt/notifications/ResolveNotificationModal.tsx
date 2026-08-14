@@ -408,6 +408,7 @@ export function ResolveNotificationModal({
       }
       await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
       onResolved();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to resolve this notification.");
       setBusy(false);

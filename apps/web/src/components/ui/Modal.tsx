@@ -5,8 +5,8 @@ import { Button } from "./Button.js";
 
 export function Modal({ title, onClose, children, panelClassName = "", hideHeader = false }: { title: string; onClose: () => void; children: ReactNode; panelClassName?: string; hideHeader?: boolean }) {
   return createPortal(
-    <div className={`modal-overlay ${panelClassName ? `${panelClassName}-overlay` : ""}`.trim()} onClick={onClose}>
-      <div className={`modal-panel ${panelClassName}`.trim()} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className={`modal-overlay ${panelClassName ? `${panelClassName}-overlay` : ""}`.trim()}>
+      <div className={`modal-panel ${panelClassName}`.trim()} role="dialog" aria-modal="true" aria-label={title}>
         {hideHeader ? (
           <Button className="modal-panel-floating-close" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
             <X size={18} />

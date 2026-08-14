@@ -73,6 +73,7 @@ export function ActiveCheckReviewModal({
     try {
       await recApi.finishActiveCheckReview({ guildId, eventId });
       onResolved();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to close out this active check.");
       setBusy(false);

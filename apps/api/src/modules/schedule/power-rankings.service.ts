@@ -1,4 +1,4 @@
-import { isCfb, type LeagueGame } from "@rec/shared";
+import { isCfb, isMadden, type LeagueGame } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -21,12 +21,16 @@ const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 //                 actually playing/posting over advance-only force-wins)
 //   closeClutch — full credit if >50% of H2H games are won AND those wins
 //                 average a ≤7-point margin (winning close games vs humans)
-const W_WIN = 0.35;
+// For Madden leagues, an additional OVR component blends team average OVR and QB OVR
+// to give lines more pre-season/early-season differentiation before enough games
+// have been played for win% to diverge meaningfully.
+const W_WIN = 0.30;
 const W_PD = 0.15;
-const W_SOS = 0.15;
-const W_STATS = 0.10;
-const W_ENGAGE = 0.15;
-const W_CLUTCH = 0.10;
+const W_SOS = 0.12;
+const W_STATS = 0.08;
+const W_ENGAGE = 0.12;
+const W_CLUTCH = 0.08;
+const W_OVR_MADDEN = 0.15;  // Madden-only: team OVR + QB OVR signal
 const PD_SCALE = 14;
 const CLOSE_MARGIN = 7;
 const BOX_SCORE_SOURCES = new Set(["box_score", "box_score_screenshot"]);
@@ -85,7 +89,7 @@ async function aggregateTeams(leagueId: string, seasonNumber: number): Promise<M
   return map;
 }
 
-function scoreFor(a: Agg, sosFull = 1, statScore = 50): number {
+function scoreFor(a: Agg, sosFull = 1, statScore = 50, ovrBonus = 0): number {
   const gp = a.wins + a.losses + a.ties;
   const winPct = gp > 0 ? (a.wins + 0.5 * a.ties) / gp : 0.5;
   const avgPd = a.scored > 0 ? (a.pf - a.pa) / a.scored : 0;
@@ -96,14 +100,52 @@ function scoreFor(a: Agg, sosFull = 1, statScore = 50): number {
   const closeClutch = h2hWinRate > 0.5 && avgWinMargin <= CLOSE_MARGIN ? 1 : 0;
   const normalizedSos = clamp(0.5 + (sosFull - 1), 0, 1);
   const normalizedStats = clamp(statScore / 100, 0, 1);
-  return W_WIN * winPct + W_PD * normPd01 + W_SOS * normalizedSos
+  const base = W_WIN * winPct + W_PD * normPd01 + W_SOS * normalizedSos
     + W_STATS * normalizedStats + W_ENGAGE * engagement + W_CLUTCH * closeClutch;
+  // Madden leagues: blend in team OVR signal (weighted to not overwhelm early-season data)
+  return base + (ovrBonus > 0 ? W_OVR_MADDEN * ovrBonus : 0);
 }
 
 type RankedTeam = { teamId: string; score: number; rank: number };
 type ComputePowerRankingsOptions = {
   completedWeekNumber?: number | null;
 };
+
+/** For Madden leagues, compute a 0-1 OVR bonus per team from roster snapshots.
+ *  Blends team average OVR (60%) with starting QB OVR (40%) — QB play is the single
+ *  biggest differentiator in Madden outcomes. Returns 0 for non-Madden or when no
+ *  player data is available (early pre-roster-import). */
+async function computeTeamOvrBonus(leagueId: string, teamIds: string[], game: LeagueGame): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!isMadden(game) || !teamIds.length) return result;
+
+  const { data: players, error } = await supabase
+    .from("rec_players")
+    .select("team_id,position,overall_rating")
+    .eq("league_id", leagueId)
+    .in("team_id", teamIds)
+    .not("overall_rating", "is", null);
+  if (error || !players?.length) return result;
+
+  const byTeam = new Map<string, any[]>();
+  for (const p of players) {
+    const list = byTeam.get(p.team_id) ?? [];
+    list.push(p);
+    byTeam.set(p.team_id, list);
+  }
+
+  for (const [teamId, roster] of byTeam) {
+    if (!roster.length) continue;
+    const avgOvr = roster.reduce((s, p) => s + (p.overall_rating ?? 0), 0) / roster.length;
+    const qb = roster.find((p) => p.position === "QB");
+    const qbOvr = qb?.overall_rating ?? avgOvr;
+    // Normalize to 0..1 range (Madden OVRs typically 50-99)
+    const teamBonus = clamp((avgOvr - 50) / 49, 0, 1);
+    const qbBonus = clamp((qbOvr - 50) / 49, 0, 1);
+    result.set(teamId, 0.6 * teamBonus + 0.4 * qbBonus);
+  }
+  return result;
+}
 
 async function rankTeams(guildId: string, leagueId: string, seasonNumber: number, game: LeagueGame = null): Promise<RankedTeam[]> {
   const [teamsRes, aggs, sos, userRatings] = await Promise.all([
@@ -130,11 +172,15 @@ async function rankTeams(guildId: string, leagueId: string, seasonNumber: number
     teamIds = teamIds.filter((id) => humanTeamIds.has(id));
   }
 
+  // For Madden leagues, fetch OVR data with the actual team IDs
+  const maddenOvrBonuses = isMadden(game) ? await computeTeamOvrBonus(leagueId, teamIds, game) : new Map<string, number>();
+
   const sosByTeam = new Map((sos?.teams ?? []).map((row) => [row.teamId, row.sosFull]));
   const statsByTeam = new Map((userRatings?.users ?? []).filter((row) => row.teamId).map((row) => [row.teamId!, row.statScore]));
   const rows = teamIds.map((id) => {
     const a = aggs.get(id) ?? emptyAgg();
-    return { teamId: id, agg: a, score: scoreFor(a, sosByTeam.get(id) ?? 1, statsByTeam.get(id) ?? 50) };
+    const ovrBonus = maddenOvrBonuses.get(id) ?? 0;
+    return { teamId: id, agg: a, score: scoreFor(a, sosByTeam.get(id) ?? 1, statsByTeam.get(id) ?? 50, ovrBonus) };
   });
   rows.sort((x, y) =>
     y.score - x.score ||

@@ -43,6 +43,7 @@ export function EosAwardResolveModal({
     try {
       await recApi.settleEosAwardPoll({ guildId, pollId, voteCounts });
       onResolved();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to settle this award poll.");
       setBusy(false);

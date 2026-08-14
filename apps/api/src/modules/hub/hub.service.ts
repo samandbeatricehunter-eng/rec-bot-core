@@ -1350,15 +1350,15 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       ? NFL_TEAM_PRIMARY_COLORS
       : CFB_TEAM_PRIMARY_COLORS;
     await Promise.all((leagueTeams.data ?? []).map((team: any) => {
-      // Preserve any existing team color (including commissioner-assigned relocated colors).
-      // Only backfill when a team has no primary_color set.
-      if (String(team.primary_color ?? "").trim()) return Promise.resolve();
-      const color =
-        colorMap[String(team.abbreviation ?? "").toUpperCase()] ??
-        "#FFFFFF";
+      // For relocated/custom teams, preserve commissioner-assigned colors.
+      // For standard teams, update if the DB color doesn't match the catalog (handles both
+      // empty/null values AND the default '#FFFFFF' that was seeded before the color catalog existed).
+      if (team.is_relocated) return Promise.resolve();
+      const catalogColor = colorMap[String(team.abbreviation ?? "").toUpperCase()] ?? "#FFFFFF";
+      if (String(team.primary_color ?? "").trim().toUpperCase() === catalogColor.toUpperCase()) return Promise.resolve();
       return supabase
         .from("rec_teams")
-        .update({ primary_color: color })
+        .update({ primary_color: catalogColor })
         .eq("id", team.id)
         .then(() => undefined);
     }));

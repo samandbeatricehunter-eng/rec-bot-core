@@ -594,15 +594,17 @@ export async function reviewCustomPlayer(input: {
   const track = (field: string, from: unknown, to: unknown) => { if (JSON.stringify(from ?? null) !== JSON.stringify(to ?? null)) changes.push({ field, from: from ?? null, to: to ?? null }); };
   for (const key of ["firstName", "lastName", "jerseyNumber", "handedness", "heightInches", "weightLbs", "hometownCity", "hometownState", "college"] as const) track(`identity.${key}`, build.identity?.[key], adjusted.identity[key]);
   for (const key of new Set([...Object.keys(build.attributes ?? {}), ...Object.keys(adjusted.attributes)])) track(`attribute.${key}`, build.attributes?.[key] ?? 0, adjusted.attributes[key] ?? 0);
+  // Sanitize evaluation to ensure every value is JSON-serializable (no Infinity/NaN/etc.)
+  const safeEvaluation = JSON.parse(JSON.stringify(reevaluated));
   const applied = await supabase.rpc("apply_adjusted_custom_player_build", {
     p_build_id: build.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note ?? null,
-    p_identity: adjusted.identity, p_attributes: adjusted.attributes, p_evaluation: reevaluated,
+    p_identity: adjusted.identity, p_attributes: adjusted.attributes, p_evaluation: safeEvaluation,
     p_estimated_ovr_raw: reevaluated.rawOverall, p_estimated_ovr: reevaluated.displayOverall, p_linear_score: reevaluated.linearScore,
     p_attribute_points_spent: reevaluated.attributeCost, p_development_points_spent: reevaluated.netDevelopmentCost,
     p_creation_points_spent: reevaluated.totalCost, p_creation_points_remaining: reevaluated.pointsRemaining,
     // Reward eligibility is locked when the user finishes creation. Commissioner edits must
     // not grant or remove it later.
-    p_unused_cp_refund_coins: Number(build.unused_cp_refund_coins) === 500 ? 500 : 0, p_changes: changes,
+    p_unused_cp_refund_coins: Number(build.unused_cp_refund_coins) === 500 ? 500 : 0, p_changes: [...changes],
   });
   if (applied.error) {
     const msg = (applied.error.message || "").toString().trim();

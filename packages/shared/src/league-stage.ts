@@ -34,6 +34,10 @@ export function isCfb(game: LeagueGame) {
   return game === "cfb_27";
 }
 
+export function isMadden(game: LeagueGame) {
+  return game === "madden_26" || game === "madden_27";
+}
+
 /** Last week number of the regular season for this game. CFB is 0-indexed (Week 0-14, 15 weeks, byes scattered per team). */
 export function regularSeasonWeeks(game: LeagueGame): number {
   return isCfb(game) ? 14 : 18;
