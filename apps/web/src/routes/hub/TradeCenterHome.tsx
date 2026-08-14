@@ -381,7 +381,7 @@ function TradeBlockPanel({ guildId, myRoster, game, onChanged }: {
       ) : (
         listings.map((listing) => (
           <div key={listing.id} className="hub-trade-row">
-            <span><strong>{listing.teamName}</strong> is ISO <strong>{listing.lookingFor}</strong> and is offering: {describeListingOffer(listing, myRoster)}</span>
+            <span><strong>{listing.teamName}</strong> is ISO <strong>{listing.lookingFor}</strong> and is offering: {describeListingOffer(listing, myRoster, game)}</span>
             {listing.teamId === myRoster.team.id && (
               <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(listing.id)}>Withdraw</button>
             )}
@@ -870,7 +870,7 @@ export function TradeCenterHome() {
         </CollapsibleSection>
 
         <CollapsibleSection title="Open Trade Block Offers">
-          <TradeBlockPanel guildId={guildId} myRoster={myRoster} onChanged={loadCore} />
+          <TradeBlockPanel guildId={guildId} myRoster={myRoster} game={hub.currentLeague?.game ?? ""} onChanged={loadCore} />
         </CollapsibleSection>
 
         <CollapsibleSection title="Trade Block" defaultOpen={false}>
