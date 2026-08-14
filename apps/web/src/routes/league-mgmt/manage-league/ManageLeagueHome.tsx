@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, Database, GraduationCap, ListOrdered, Newspaper, Settings, Shield, ShieldAlert, Trophy, UserPlus, Users, Wrench } from "lucide-react";
+import { AlertTriangle, Database, Inbox, Newspaper, Settings, UserPlus, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -14,8 +14,9 @@ import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
-import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ImportDataModal } from "./ImportDataModal.js";
+import { TroubleshootModal } from "./TroubleshootModal.js";
+import { ReportIssueModal } from "./ReportIssueModal.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -44,14 +45,14 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [summary, setSummary] = useState<TeamManagementSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [repairChannelsOpen, setRepairChannelsOpen] = useState(false);
   const [importDataOpen, setImportDataOpen] = useState(false);
+  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+  const [reportIssueOpen, setReportIssueOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
   const [missing, setMissing] = useState<MissingFilter>("all");
   const [conferenceFilter, setConferenceFilter] = useState<string>("all");
-  const [draftOrderOpen, setDraftOrderOpen] = useState(false);
   const isMadden = game === "madden_26" || game === "madden_27";
 
   useEffect(() => {
@@ -60,11 +61,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       .then((res) => setSummary(res))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load teams."));
   }, [guildId]);
-
-  function handleGameChannelsRepaired(message: string) {
-    setRepairChannelsOpen(false);
-    setNotice(message);
-  }
 
   // Built off the full team list (not the filtered subset) so picking a conference never
   // makes other conferences disappear from the dropdown itself.
@@ -116,50 +112,32 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         subtitle={mode === "roster" ? "Find a team and add or review players on its roster." : "Find a team, see its schedule and box-score health, and enter its games and scores."}
         actions={
           mode === "roster" ? undefined : (
-            <div className="manage-league-header-groups">
-              <div className="manage-league-header-group">
-                <span className="manage-league-header-group-label">League</span>
-                <div className="manage-league-header-actions">
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
-                    <Users size={16} /> Link/Unlink Teams
-                  </Button>
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
-                    <Shield size={16} /> Manage Roles
-                  </Button>
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
-                  {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
-                </div>
-              </div>
-              <div className="manage-league-header-group">
-                <span className="manage-league-header-group-label">Data & Rosters</span>
-                <div className="manage-league-header-actions">
-                  {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
-                  {isMadden && summary && <Button variant="secondary" onClick={() => setImportDataOpen(true)}><Database size={16}/> Import Data</Button>}
-                  {isMadden && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
-                  <Button variant="secondary" onClick={() => setRepairChannelsOpen(true)}>
-                    <Wrench size={16}/> Repair Game Channels
-                  </Button>
-                </div>
-              </div>
-              <div className="manage-league-header-group">
-                <span className="manage-league-header-group-label">Admin</span>
-                <div className="manage-league-header-actions">
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
-                    <Settings size={16} /> Settings
-                  </Button>
-                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
-                    <Newspaper size={16} /> Media
-                  </Button>
-                </div>
-              </div>
+            <div className="manage-league-header-actions">
+              {isMadden && summary && (
+                <Button variant="secondary" onClick={() => setImportDataOpen(true)}>
+                  <Database size={16} /> Import Data
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/notifications")}>
+                <Inbox size={16} /> Pending Items
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
+                <Newspaper size={16} /> Generate Media
+              </Button>
+              <Button variant="secondary" onClick={() => setTroubleshootOpen(true)}>
+                <Wrench size={16} /> Troubleshoot
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
+                <Settings size={16} /> Settings
+              </Button>
+              <Button variant="secondary" onClick={() => setReportIssueOpen(true)}>
+                <AlertTriangle size={16} /> Report Issue
+              </Button>
             </div>
           )
         }
       />
       {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
-      {mode === "schedule" && isMadden && draftOrderOpen && summary && <UpcomingDraftOrder guildId={guildId} teams={summary.teams} />}
       {error && <ErrorState message={error} />}
       {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}
@@ -222,15 +200,15 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
             {grouped.map(({ conference, groups }) => (
               <div key={conference}>
-                <h3 style={{ margin: "0 0 var(--space-2)", color: "var(--gold)" }}>{conference}</h3>
-                {groups.map(({ division, teams }) => (
-                  <div key={division ?? "flat"} style={{ marginBottom: "var(--space-3)" }}>
-                    {division && (
-                      <div style={{ margin: "0 0 var(--space-1)", color: "var(--text-secondary)", fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                        {division}
-                      </div>
-                    )}
-                    <Card style={{ padding: 0 }}>
+                <h3 style={{ margin: "0 0 var(--space-3)", color: "var(--gold)" }}>{conference}</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-3)" }}>
+                  {groups.map(({ division, teams }) => (
+                    <Card key={division ?? "flat"} style={{ padding: 0 }}>
+                      {division && (
+                        <div style={{ padding: "var(--space-2) var(--space-3)", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                          {division}
+                        </div>
+                      )}
                       <div style={{ display: "flex", flexDirection: "column" }}>
                         {teams.map((team) => (
                           <div
@@ -239,111 +217,67 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "space-between",
-                              gap: "var(--space-3)",
+                              gap: "var(--space-2)",
                               borderBottom: "1px solid var(--border)",
-                              padding: "var(--space-1) var(--space-2) var(--space-1) var(--space-4)",
+                              padding: "var(--space-1) var(--space-2) var(--space-1) var(--space-3)",
                             }}
                           >
                             <button
                               onClick={() => navigate(mode === "roster" ? `/league-mgmt/manage-league/rosters/${team.id}` : `/league-mgmt/manage-league/${team.id}`)}
                               className="btn btn-ghost"
-                              style={{ flex: 1, justifyContent: "flex-start", textAlign: "left", padding: "var(--space-2)" }}
+                              style={{ flex: 1, justifyContent: "flex-start", textAlign: "left", padding: "var(--space-1) var(--space-2)", minWidth: 0 }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-                                <span style={{ fontWeight: 700 }}>{team.name}</span>
-                                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-                                  {team.linkedUser?.displayName ?? "Open"}
-                                </span>
-                                {mode === "schedule" && (
-                                  <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
-                                    {team.gamesScheduled}/{team.gamesExpected} games
-                                  </Badge>
-                                )}
-                                {mode === "schedule" && team.missingBoxScoreCount > 0 && (
-                                  <Badge status="denied">{team.missingBoxScoreCount} missing box score{team.missingBoxScoreCount === 1 ? "" : "s"}</Badge>
-                                )}
-                                {mode === "schedule" && team.awaitingReviewCount > 0 && (
-                                  <Badge status="pending">{team.awaitingReviewCount} awaiting review</Badge>
-                                )}
-                                <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
-                                  {team.record.wins}-{team.record.losses}{team.record.ties > 0 ? `-${team.record.ties}` : ""}
-                                </span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                                  <span style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{team.name}</span>
+                                  <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
+                                    {team.record.wins}-{team.record.losses}{team.record.ties > 0 ? `-${team.record.ties}` : ""}
+                                  </span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                                  <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)" }}>
+                                    {team.linkedUser?.displayName ?? "Open"}
+                                  </span>
+                                  {mode === "schedule" && (
+                                    <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
+                                      {team.gamesScheduled}/{team.gamesExpected}
+                                    </Badge>
+                                  )}
+                                  {mode === "schedule" && team.missingBoxScoreCount > 0 && (
+                                    <Badge status="denied">{team.missingBoxScoreCount} missing</Badge>
+                                  )}
+                                </div>
                               </div>
                             </button>
                             {!team.linkedUser && (
                               <Button
                                 variant="secondary"
+                                size="compact"
                                 onClick={() => navigate(`/league-mgmt/manage-league/teams/link?teamId=${team.id}`)}
                               >
-                                <UserPlus size={14} /> Link
+                                <UserPlus size={12} />
                               </Button>
                             )}
-                            <ChevronRight size={16} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
                           </div>
                         ))}
                       </div>
                     </Card>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </>
       )}
-      {repairChannelsOpen && (
-        <RepairGameChannelsModal
-          guildId={guildId}
-          onClose={() => setRepairChannelsOpen(false)}
-          onDone={handleGameChannelsRepaired}
-        />
-      )}
       {importDataOpen && summary && (
         <ImportDataModal guildId={guildId} leagueId={summary.league.id} onClose={() => setImportDataOpen(false)} />
       )}
+      {troubleshootOpen && (
+        <TroubleshootModal guildId={guildId} onClose={() => setTroubleshootOpen(false)} />
+      )}
+      {reportIssueOpen && (
+        <ReportIssueModal guildId={guildId} onClose={() => setReportIssueOpen(false)} />
+      )}
     </div>
   );
-}
-
-function UpcomingDraftOrder({ guildId, teams }: { guildId: string; teams: TeamManagementSummaryRow[] }) {
-  const [picks, setPicks] = useState<Array<{ season_number: number; round: number; original_team_id: string; pick_number: number | null }>>([]);
-  const [seasonNumber, setSeasonNumber] = useState(1);
-  const [slots, setSlots] = useState<string[]>(Array(32).fill(""));
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  useEffect(() => { void recApi.listLeagueDraftPicks(guildId).then(setPicks); }, [guildId]);
-  const seasons = useMemo(() => [...new Set(picks.map((pick) => pick.season_number))].sort((a, b) => a - b), [picks]);
-  useEffect(() => { if (seasons.length && !seasons.includes(seasonNumber)) setSeasonNumber(seasons[0]); }, [seasons, seasonNumber]);
-  useEffect(() => {
-    const classPicks = picks.filter((pick) => pick.season_number === seasonNumber);
-    const seeded = Array(32).fill("") as string[];
-    for (const pick of [...classPicks].sort((a, b) => a.round - b.round)) {
-      if (pick.pick_number && !seeded[pick.pick_number - 1]) seeded[pick.pick_number - 1] = pick.original_team_id;
-    }
-    const assigned = new Set(seeded.filter(Boolean));
-    const remaining = teams.map((team) => team.id).filter((id) => !assigned.has(id));
-    for (let index = 0; index < seeded.length; index++) if (!seeded[index]) seeded[index] = remaining.shift() ?? "";
-    setSlots(seeded);
-  }, [picks, seasonNumber, teams]);
-  const complete = slots.length === 32 && new Set(slots.filter(Boolean)).size === 32;
-  async function save() {
-    setBusy(true); setMessage(null);
-    try {
-      const result = await recApi.setUpcomingDraftOrder({ guildId, seasonNumber, orderedTeamIds: slots });
-      setMessage(`Saved Season ${result.seasonNumber} order across ${result.updated} standard picks.`);
-      setPicks(await recApi.listLeagueDraftPicks(guildId));
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Failed to save draft order."); }
-    finally { setBusy(false); }
-  }
-  return <Card style={{ marginBottom: "var(--space-4)" }}>
-    <h3 style={{ marginTop: 0 }}>Upcoming Draft Order</h3>
-    <p className="form-hint">The generated NFL-style order is preloaded from the league's current pick positions. Assigning a team to a slot applies that pick number in all seven rounds; traded ownership stays intact.</p>
-    <label className="form-field" style={{ maxWidth: 220 }}><span className="form-label">Draft year</span><select className="form-select" value={seasonNumber} onChange={(event) => setSeasonNumber(Number(event.target.value))}>{seasons.map((season) => <option key={season} value={season}>Season {season}</option>)}</select></label>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "var(--space-2)" }}>
-      {slots.map((teamId, index) => <label className="form-field" style={{ margin: 0 }} key={index}><span className="form-label">{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"}</span>
-        <select className="form-select" value={teamId} onChange={(event) => setSlots((current) => current.map((value, slotIndex) => slotIndex === index ? event.target.value : value))}>
-          <option value="">Select team</option>{teams.filter((team) => team.id === teamId || !slots.includes(team.id)).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-        </select></label>)}
-    </div>
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-4)" }}><Button disabled={!complete || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save Draft Order"}</Button>{message && <span className="form-hint">{message}</span>}</div>
-  </Card>;
 }

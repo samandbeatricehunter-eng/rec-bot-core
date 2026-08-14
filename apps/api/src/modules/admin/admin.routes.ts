@@ -28,6 +28,7 @@ import {
   closeWorkorder,
   listIncidents,
   getIncidentPatternSummary,
+  recordIncident,
 } from "./incident.service.js";
 import { getDiscordGovernanceSnapshot, getSiteDiscordConfig, syncAllRecruitingAds, updateSiteDiscordConfig } from "./site-discord-config.service.js";
 import { getGlobalEconomyConfig, updateGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
@@ -410,6 +411,29 @@ export async function adminRoutes(app: FastifyInstance) {
       const session = await requireSiteAdmin(request);
       const body = z.object({ incidentId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(await closeWorkorder({ incidentId: body.incidentId, resolvedByUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // User-facing: any signed-in league member can report an issue to the admin inbox.
+  app.post("/v1/admin/report-issue", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const body = z.object({
+        guild_id: z.string().min(1),
+        message: z.string().min(10).max(5000),
+      }).parse(request.body ?? {});
+      const incidentId = await recordIncident({
+        leagueId: null,
+        guildId: body.guild_id,
+        process: "user_report",
+        severity: "user_report",
+        title: `User report from ${session.authUserId}`,
+        detail: body.message,
+        context: { reportedByUserId: session.authUserId },
+      });
+      return reply.send({ ok: true, incidentId });
     } catch (error) {
       return sendError(reply, error);
     }

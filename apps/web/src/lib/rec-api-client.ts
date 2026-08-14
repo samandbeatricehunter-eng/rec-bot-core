@@ -242,6 +242,8 @@ export const recApi = {
   disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/disconnect", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
+  sendLeagueReport: (input: { guildId: string; message: string }) =>
+    recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),
   uploadLeagueLogo: (guildId: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);
