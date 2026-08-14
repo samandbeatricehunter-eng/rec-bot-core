@@ -44,7 +44,7 @@ Locked product decisions for REC Bot subscription entitlements.
 
 The identity claim dropdown is **closed permanently**. Discord-only bot users can still play in a paying commissioner's league via Discord; site/app access still requires OAuth/email account + subscription (or REC OG lifetime). New signups never see the grandfather "Link your REC identity" dropdown — Discord linking after account creation is OAuth callback only.
 
-Incomplete unpaid signups (no promo grant, Stripe checkout canceled) are deleted immediately so they do not linger in Auth or the admin user list.
+Incomplete unpaid signups (no Stripe card on file — including trial-only promo codes — when checkout is canceled) are deleted immediately so they do not linger in Auth or the admin user list. Lifetime/comp promo grants skip Stripe and are never deleted by that path. The default 7-day trial is granted by Stripe Checkout after card details are entered (no promo required).
 
 ## Limits (per game title)
 

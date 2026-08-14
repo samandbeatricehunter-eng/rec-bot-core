@@ -184,13 +184,18 @@ export function Account() {
   }
 
   const linkedAccount = linked?.linked;
-  const subscribed =
+  // Stripe Checkout maps trialing → billing active. promo_trial (code only, no card yet) is
+  // not enough — they must finish Stripe. lifetime_comp (comp promo / REC OG) skips Stripe.
+  const registrationComplete =
     entitlements != null &&
-    (entitlements.tier === "gold" || entitlements.tier === "platinum");
+    (entitlements.tier === "gold" || entitlements.tier === "platinum") &&
+    entitlements.billingStatus !== "none" &&
+    entitlements.billingStatus !== "promo_trial" &&
+    entitlements.billingStatus !== "canceled";
 
-  // No free tier — unfinished signups go pay (or redeem a promo) before Account Hub.
+  // No free tier — unfinished signups go pay (card for the 7-day trial) or redeem a comp promo.
   // The retired "Link your REC identity" dropdown is never shown.
-  if (!linkedAccount || !subscribed) {
+  if (!linkedAccount || !registrationComplete) {
     return <Navigate to="/pricing" replace />;
   }
 

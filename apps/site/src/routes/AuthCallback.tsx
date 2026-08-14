@@ -83,15 +83,21 @@ export function AuthCallback() {
           : await siteApi.getLinkProfile().catch(() => null);
         if (cancelled) return;
 
-        // REC OG lifetime (or any existing grant) — skip promo/pricing and enter the app.
-        if (profile?.entitlements && profile.entitlements.tier !== "none") {
+        // Comp/lifetime (promo or REC OG) or an already-paid/Stripe-trialing account — enter app.
+        // promo_trial alone still needs card checkout and must not skip pricing.
+        const billing = profile?.entitlements?.billingStatus;
+        const tier = profile?.entitlements?.tier;
+        if (
+          billing === "lifetime_comp" ||
+          (tier && tier !== "none" && billing != null && billing !== "none" && billing !== "promo_trial" && billing !== "canceled")
+        ) {
           setMessage("You're in. Taking you to REC Leagues…");
           navigate(next, { replace: true });
           return;
         }
 
-        // Email and first-time Discord signups both get one promo prompt when nothing was
-        // stashed on /signup or /login, then Stripe if the code did not comp the account.
+        // Optional promo: lifetime/comp skips Stripe; trial promos and no-code both still need
+        // Stripe card checkout (Checkout attaches the standard 7-day trial when no promo trial).
         if (!pendingPromoCode) {
           setMessage("You're in.");
           pendingPromoCode = await waitForPromoDecision();
@@ -99,11 +105,14 @@ export function AuthCallback() {
         }
 
         let redeemedTrialEffect = false;
+        let redeemedLifetimeEffect = false;
         if (pendingPromoCode) {
           setMessage("Applying your promo code…");
           try {
             const result = await siteApi.redeemPromoCode(pendingPromoCode);
             redeemedTrialEffect = result.effectType === "trial_gold" || result.effectType === "trial_platinum";
+            redeemedLifetimeEffect =
+              result.effectType === "lifetime_gold" || result.effectType === "lifetime_platinum";
           } catch (promoError) {
             if (cancelled) return;
             const reason = promoError instanceof Error ? promoError.message : "That promo code didn't apply.";
@@ -113,6 +122,14 @@ export function AuthCallback() {
           if (cancelled) return;
         }
 
+        if (redeemedLifetimeEffect) {
+          setMessage("You're in. Taking you to REC Leagues…");
+          navigate(next, { replace: true });
+          return;
+        }
+
+        // Trial promo or no promo: Stripe is required (card on file). Canceling checkout deletes
+        // the incomplete account. Checkout itself grants the 7-day trial when applicable.
         if (redeemedTrialEffect) {
           navigate("/pricing?checkoutRequired=1", { replace: true });
           return;
@@ -120,7 +137,7 @@ export function AuthCallback() {
 
         profile = await siteApi.getLinkProfile().catch(() => null);
         if (cancelled) return;
-        if (profile?.entitlements && profile.entitlements.tier !== "none") {
+        if (profile?.entitlements?.billingStatus === "lifetime_comp") {
           setMessage("You're in. Taking you to REC Leagues…");
           navigate(next, { replace: true });
           return;
@@ -149,7 +166,10 @@ export function AuthCallback() {
       <div className="site-page site-auth-page">
         <form className="site-auth-card" onSubmit={submitPromoPrompt}>
           <h1>Have a promo code?</h1>
-          <p className="site-muted">Enter a code now if you have one — otherwise continue to plans.</p>
+          <p className="site-muted">
+            Optional. A comp code unlocks access immediately; otherwise you&apos;ll start a 7-day
+            trial after entering payment details on the next step.
+          </p>
           <label className="site-field">
             <span>Promo code</span>
             <input
@@ -161,7 +181,7 @@ export function AuthCallback() {
           </label>
           <button className="site-btn site-btn-primary site-btn-lg" type="submit">Apply code</button>
           <button className="site-btn site-btn-ghost site-btn-lg" type="button" onClick={skipPromoPrompt}>
-            I don't have a code
+            Continue without a code
           </button>
         </form>
       </div>

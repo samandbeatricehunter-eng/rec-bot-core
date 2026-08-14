@@ -805,9 +805,9 @@ export async function ensureRecUserForAuthUser(
 }
 
 /**
- * Deletes a brand-new signup that never received a promo grant and never finished Stripe.
- * Safe only for empty profiles (tier/billing none, no Stripe sub, no leagues/teams).
- * Used when checkout is canceled so unpaid incomplete accounts do not linger in Auth/admin.
+ * Deletes a brand-new signup that never finished Stripe card checkout.
+ * Comp/lifetime promo grants are kept. Trial-only promo grants (no card yet) and tier-none
+ * accounts are removed on checkout cancel — the default 7-day trial requires Stripe card info.
  */
 export async function purgeIncompleteUnpaidSignup(authUserId: string): Promise<{
   purged: boolean;
@@ -823,14 +823,21 @@ export async function purgeIncompleteUnpaidSignup(authUserId: string): Promise<{
   const recUserId = await resolveRecUserIdByAuthUserId(authUserId);
   if (recUserId) {
     const user = await loadUser(recUserId);
-    const tier = asTier(user.subscription_tier);
     const billing = asBillingStatus(user.billing_status);
-    if (tier !== "none" || billing !== "none") {
-      return { purged: false, reason: "Account already has a subscription or grant." };
+
+    // Comp promo / REC OG lifetime — never delete.
+    if (billing === "lifetime_comp") {
+      return { purged: false, reason: "Account has a lifetime/comp grant." };
     }
+    // Stripe card already on file (including Checkout's built-in 7-day trial → billing active).
     if (user.stripe_subscription_id) {
       return { purged: false, reason: "Account already has a Stripe subscription." };
     }
+    // Paid/grace/past_due without a stale null subscription id — keep.
+    if (billing === "active" || billing === "grace" || billing === "past_due") {
+      return { purged: false, reason: "Account already has an active billing relationship." };
+    }
+    // billing none | promo_trial | canceled with no Stripe sub → eligible to purge
 
     const blockers = await getPgPool().query(
       `
