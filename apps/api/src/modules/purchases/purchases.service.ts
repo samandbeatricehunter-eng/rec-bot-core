@@ -1,4 +1,4 @@
-import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, formatCoins, devTierOrderForGame, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
+import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, REC_DEV_TIER_LABELS, formatCoins, devTierOrderForGame, getRecAttributeDisplayName, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -31,6 +31,92 @@ const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player"
 
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";
+}
+
+function devTierLabel(tier: unknown): string {
+  return REC_DEV_TIER_LABELS[tier as RecDevTier] ?? String(tier ?? "");
+}
+
+async function fetchTeamName(leagueId: string, teamId: string | null | undefined): Promise<string | null> {
+  if (!teamId) return null;
+  const { data } = await supabase.from("rec_teams").select("name").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
+  return (data?.name as string | undefined) ?? null;
+}
+
+// Pending-purchase notifications used to say only "Purchase: <label> — coins" with a bare
+// "requested by <@user>" summary, so commissioners couldn't tell WHO/WHAT the purchase was
+// for without opening it. Every player-targeting type now leads with the player, position
+// and team, and spells out the exact change being requested (age → 21, per-attribute
+// prior → +points → final, dev tier current → next) in the card AND the review modal,
+// which both render this same header/summary.
+function buildPurchaseInboxCopy(input: {
+  purchaseType: RecPurchaseType;
+  label: string;
+  price: number;
+  details: Record<string, unknown>;
+  teamName: string | null;
+  discordId: string;
+}): { header: string; summary: string } {
+  const d = input.details as Record<string, unknown> & {
+    playerName?: string; playerPosition?: string; position?: string;
+    fromTier?: string; toTier?: string; legendName?: string; name?: string; buildName?: string;
+    allocations?: Array<Record<string, unknown>>;
+  };
+  const playerName = String(d.playerName ?? "");
+  const playerPosition = String(d.playerPosition ?? d.position ?? "");
+  const team = input.teamName;
+  const who = [playerName, playerPosition ? `(${playerPosition})` : null, team ? `— ${team}` : null].filter(Boolean).join(" ");
+  const requester = `<@${input.discordId}>`;
+
+  switch (input.purchaseType) {
+    case "age_reset":
+      return {
+        header: `Age Reset — ${who || input.label}`,
+        summary: `${who || input.label} should be set to age 21. Requested by ${requester}.`,
+      };
+    case "attribute": {
+      const lines = (d.allocations ?? []).map((allocation) => {
+        const code = String(allocation.code ?? "");
+        const points = Math.max(0, Number(allocation.points) || 0);
+        const priorValue = allocation.priorValue;
+        const finalValue = allocation.finalValue;
+        const name = getRecAttributeDisplayName(code) || code;
+        const change = typeof priorValue === "number"
+          ? `${priorValue} → +${points} → ${typeof finalValue === "number" ? finalValue : priorValue + points}`
+          : `+${points} points`;
+        return `${name}: ${change}`;
+      });
+      return {
+        header: `Attribute Purchase — ${who || input.label}`,
+        summary: [who ? `${who}:` : null, ...lines, `Requested by ${requester}.`].filter(Boolean).join("\n"),
+      };
+    }
+    case "dev_upgrade":
+      return {
+        header: `Dev Trait Upgrade — ${who || input.label}`,
+        summary: `${who || input.label}: ${devTierLabel(d.fromTier)} → ${devTierLabel(d.toTier)}. Requested by ${requester}.`,
+      };
+    case "contract":
+      return {
+        header: `Contract Adjustment — ${who || input.label}`,
+        summary: `Adjust the contract for ${who || input.label}. Requested by ${requester}.`,
+      };
+    case "legend":
+      return {
+        header: `Legend Purchase — ${String(d.legendName ?? d.name ?? "") || input.label}`,
+        summary: `${d.legendName ?? d.name ?? "Legend"} requested by ${requester}.`,
+      };
+    case "custom_player":
+      return {
+        header: `Custom Player — ${String(d.buildName ?? d.playerName ?? "") || input.label}`,
+        summary: `${String(d.buildName ?? d.playerName ?? "") || "Custom player"} requested by ${requester}.`,
+      };
+    default:
+      return {
+        header: `Purchase: ${input.label} — ${formatCoins(input.price)}`,
+        summary: `${input.label} requested by ${requester}.`,
+      };
+  }
 }
 
 // rec_legend_catalog.attributes is keyed by the same full display names shown in the
@@ -253,12 +339,14 @@ async function enforceAttributeCaps(args: {
 // its baseline roster is the exact pool teams are supposed to build from. The
 // madden_player_id prefix check is belt-and-suspenders on top of is_default_player so
 // leagues seeded before the flag was backfilled still get the guard.
-async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: string; game: string; playerId: string; label: string }) {
+async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: string; game: string; playerId: string; label: string; includeAttributes?: boolean }) {
   const playerId = opts.playerId ?? "";
   if (!playerId) throw new ApiError(400, "Select a player.");
+  const select = ["id", "team_id", "full_name", "position", "roster_status", "is_default_player", "madden_player_id"];
+  if (opts.includeAttributes) select.push("attributes");
   const player = await supabase
     .from("rec_players")
-    .select("id,team_id,full_name,roster_status,is_default_player,madden_player_id")
+    .select(select.join(","))
     .eq("id", playerId)
     .eq("league_id", opts.leagueId)
     .maybeSingle();
@@ -270,7 +358,13 @@ async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: s
   if (isCfb(opts.game) && (player.data.is_default_player || String(player.data.madden_player_id ?? "").startsWith("cfb27:"))) {
     throw new ApiError(400, `${player.data.full_name} is part of the default seeded roster — ${opts.label} can only be purchased for players you've added (recruits, transfers, or manually added players).`);
   }
-  return { id: player.data.id, fullName: player.data.full_name };
+  return {
+    id: player.data.id,
+    fullName: player.data.full_name,
+    position: String(player.data.position ?? ""),
+    teamId: player.data.team_id,
+    attributes: opts.includeAttributes ? ((player.data as any).attributes as Record<string, number> | null) ?? {} : undefined,
+  };
 }
 
 // Re-derives fromTier from the player's actual current dev_trait (never trust the client for
@@ -278,7 +372,7 @@ async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: s
 async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leagueId: string, game: string, userId: string): Promise<Record<string, unknown>> {
   const playerId = String((details as any).playerId ?? "");
   if (!playerId) throw new ApiError(400, "Select a player to upgrade.");
-  const player = await supabase.from("rec_players").select("id,team_id,full_name,dev_trait,roster_status,is_default_player,madden_player_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
+  const player = await supabase.from("rec_players").select("id,team_id,full_name,position,dev_trait,roster_status,is_default_player,madden_player_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
   if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
@@ -293,7 +387,7 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
   if (order.indexOf(toTier) <= order.indexOf(fromTier)) {
     throw new ApiError(400, `${player.data.full_name} is already at or above that tier.`);
   }
-  return { playerId, playerName: player.data.full_name, fromTier, toTier };
+  return { playerId, playerName: player.data.full_name, playerPosition: String(player.data.position ?? ""), teamId: player.data.team_id, fromTier, toTier };
 }
 
 // Enforces one of two league-configured cap modes for dev upgrades: a flat count of purchase
@@ -385,13 +479,21 @@ export async function createPurchaseRequest(input: {
   const game = String(context.rec_leagues?.game ?? "madden_27");
   if (input.purchaseType === "attribute") {
     details = normalizeAttributeAllocations(details, cfgRow);
-    const target = await loadAndValidatePurchaseTarget({ leagueId, userId, game, playerId: String((details as any).playerId ?? ""), label });
-    details = { ...details, playerId: target.id, playerName: target.fullName };
+    const target = await loadAndValidatePurchaseTarget({ leagueId, userId, game, playerId: String((details as any).playerId ?? ""), label, includeAttributes: true });
+    // Snapshot each allocation's current value so the review shows prior -> +points -> final.
+    const currentAttributes = target.attributes ?? {};
+    const allocations = ((details as any).allocations as Array<Record<string, unknown>> ?? []).map((allocation) => {
+      const code = String(allocation.code ?? "");
+      const points = Math.max(0, Number(allocation.points) || 0);
+      const priorValue = typeof currentAttributes[code] === "number" ? currentAttributes[code] as number : null;
+      return { ...allocation, priorValue, finalValue: priorValue != null ? priorValue + points : null };
+    });
+    details = { ...details, playerId: target.id, playerName: target.fullName, playerPosition: target.position, teamId: target.teamId, allocations };
   } else if (input.purchaseType === "dev_upgrade") {
     details = await normalizeDevUpgradeDetails(details, leagueId, game, userId);
   } else if (input.purchaseType === "age_reset" || input.purchaseType === "contract") {
     const target = await loadAndValidatePurchaseTarget({ leagueId, userId, game, playerId: String((details as any).playerId ?? ""), label });
-    details = { ...details, playerId: target.id, playerName: target.fullName };
+    details = { ...details, playerId: target.id, playerName: target.fullName, playerPosition: target.position, teamId: target.teamId };
   }
 
   const economy = await getGlobalEconomyConfig();
@@ -574,6 +676,8 @@ export async function createPurchaseRequest(input: {
     .single();
   if (finalized.error) throw new ApiError(500, "We couldn't finalize that purchase request. Please try again.", finalized.error);
 
+  const teamName = await fetchTeamName(leagueId, (details as any).teamId ?? null);
+  const copy = buildPurchaseInboxCopy({ purchaseType: input.purchaseType, label, price, details, teamName, discordId: input.discordId });
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
     server_id: null,
@@ -583,14 +687,14 @@ export async function createPurchaseRequest(input: {
     queue_type: "purchase",
     status: "pending",
     priority: 0,
-    header: `Purchase: ${label} — ${formatCoins(price)}`,
-    summary: `${label} requested by <@${input.discordId}>.`,
+    header: copy.header,
+    summary: copy.summary,
     requester_discord_id: input.discordId,
     requester_user_id: userId,
     amount: price,
     source_table: "rec_purchases",
     source_id: finalized.data.id,
-    payload: { purchaseId: finalized.data.id, purchaseType: input.purchaseType, cost: price },
+    payload: { purchaseId: finalized.data.id, purchaseType: input.purchaseType, cost: price, details },
   });
   void notifyLeagueCommissionersOfPendingItem(leagueId);
 
