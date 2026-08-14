@@ -367,9 +367,28 @@ export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber
   const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
     "id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)");
   if (games.error) throw new ApiError(500, "We couldn't load flagged postseason games. Please try again.", games.error);
-  const flagged = (games.data ?? []).filter((g: any) =>
-    g.home_team_id && g.away_team_id && g.home_user_id && g.away_user_id
-    && (input.allH2h || g.is_bowl_game || g.is_national_championship || Boolean(g.postseason_round)));
+
+  // Live assignments — schedule seed often writes null home_user_id/away_user_id before
+  // coaches claim teams, so GOTW eligibility must not rely on those stale columns alone.
+  const teamIds = [...new Set((games.data ?? []).flatMap((g: any) => [g.home_team_id, g.away_team_id]).filter(Boolean))];
+  const assignments = teamIds.length
+    ? await supabase.from("rec_team_assignments").select("team_id,user_id")
+      .eq("league_id", context.leagueId).in("team_id", teamIds)
+      .eq("assignment_status", "active").is("ended_at", null)
+    : { data: [] as any[], error: null };
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for GOTW. Please try again.", assignments.error);
+  const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
+
+  const flagged = (games.data ?? []).filter((g: any) => {
+    const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id;
+    const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id;
+    return g.home_team_id && g.away_team_id && homeUserId && awayUserId
+      && (input.allH2h || g.is_bowl_game || g.is_national_championship || Boolean(g.postseason_round));
+  }).map((g: any) => ({
+    ...g,
+    home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,
+    away_user_id: userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null,
+  }));
   if (!flagged.length) return { created: 0 };
 
   const existing = await supabase

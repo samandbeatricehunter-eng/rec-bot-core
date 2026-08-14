@@ -8,7 +8,7 @@ import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.serv
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
-import { generateRollingDraftClass } from "../draft-picks/draft-picks.service.js";
+import { generateRollingDraftClass, syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -55,8 +55,29 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
 
   if (result.error) throw new ApiError(500, "We couldn't update the league week. Please try again.", result.error);
 
+  // Madden year-1 (and later unlocked classes): once games exist, pick order tracks league
+  // standings so traded picks follow the original franchise's slot as rankings shift.
+  if ((context.rec_leagues.game === "madden_26" || context.rec_leagues.game === "madden_27") && input.seasonStage === "regular_season") {
+    const standingsSeason = effectiveSeasonNumber ?? previousSeasonNumber;
+    await syncDraftOrderFromLeagueStandings({
+      leagueId: context.leagueId,
+      draftSeasonNumber: standingsSeason,
+      standingsSeasonNumber: standingsSeason,
+    }).catch((error) => {
+      console.error("[ERROR] Failed to sync Madden draft order from standings (non-fatal):", error);
+    });
+  }
+
   if (effectiveSeasonNumber && effectiveSeasonNumber !== previousSeasonNumber) {
     if (context.rec_leagues.game === "madden_26" || context.rec_leagues.game === "madden_27") {
+      // Finalize the next draft class from the season that just ended (season 2 from S1, etc.).
+      await syncDraftOrderFromLeagueStandings({
+        leagueId: context.leagueId,
+        draftSeasonNumber: previousSeasonNumber + 1,
+        standingsSeasonNumber: previousSeasonNumber,
+      }).catch((error) => {
+        console.error("[ERROR] Failed to finalize next draft class order on rollover (non-fatal):", error);
+      });
       await generateRollingDraftClass({
         leagueId: context.leagueId,
         completedSeasonNumber: previousSeasonNumber,

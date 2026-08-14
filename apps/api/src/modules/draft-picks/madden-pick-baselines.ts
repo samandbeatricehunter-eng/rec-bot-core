@@ -60,3 +60,32 @@ export function transfersForMaddenGame(game: "madden_26" | "madden_27") {
 export function supplementalPicksForMaddenGame(game: "madden_26" | "madden_27") {
   return game === "madden_26" ? M26_SUPPLEMENTAL_PICKS : [];
 }
+
+// Projected year-1 draft slot by ORIGINAL franchise (1 = first overall). Ownership transfers
+// are applied separately — pick_number follows the original team, so a traded Colts pick
+// keeps IND's slot even when Jets currently own it. Source for M27: nfldraftbook / Tankathon
+// projected 2027 order as of mid-2026 (Super Bowl futures before the 2026 season), with
+// original-team slots inferred from reported via-picks (NYJ via IND/DAL, DAL via GB).
+export const M27_YEAR1_ORIGINAL_PICK_ORDER: readonly string[] = [
+  "MIA", "ARI", "NYJ", "CLE", "LV", "TEN", "NO", "CAR", "ATL", "PIT",
+  "NYG", "WAS", "MIN", "IND", "DAL", "CIN", "JAX", "CHI", "TB", "HOU",
+  "DEN", "NE", "GB", "SF", "DET", "LAC", "KC", "SEA", "PHI", "BAL",
+  "BUF", "LAR",
+];
+
+// M26 year-1 (2026 draft) used the same pre-season futures-style board relative to that
+// game's snapshot; keep a dedicated list so the two baselines can diverge later.
+export const M26_YEAR1_ORIGINAL_PICK_ORDER: readonly string[] = [
+  "NE", "TEN", "CLE", "NYG", "JAX", "LV", "NYJ", "CAR", "NO", "CHI",
+  "SF", "DAL", "MIA", "IND", "ATL", "ARI", "CIN", "SEA", "TB", "DEN",
+  "PIT", "LAC", "GB", "MIN", "HOU", "LAR", "BAL", "DET", "WAS", "BUF",
+  "PHI", "KC",
+];
+
+export function year1OriginalPickOrderForMaddenGame(game: "madden_26" | "madden_27"): readonly string[] {
+  return game === "madden_26" ? M26_YEAR1_ORIGINAL_PICK_ORDER : M27_YEAR1_ORIGINAL_PICK_ORDER;
+}
+
+export function year1PickNumberByAbbreviation(game: "madden_26" | "madden_27"): Map<string, number> {
+  return new Map(year1OriginalPickOrderForMaddenGame(game).map((abbr, index) => [abbr, index + 1]));
+}

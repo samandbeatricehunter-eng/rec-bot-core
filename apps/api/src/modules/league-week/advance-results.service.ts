@@ -27,6 +27,7 @@ import { publishScheduledMediaForAdvance, publishTransitionStory } from "../hub/
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
+import { syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
@@ -803,6 +804,16 @@ export async function completeAdvanceWeek(input: {
     snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek, context.rec_leagues.game).catch((err) => {
       console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
     }),
+    // Shift year-1 (current) draft pick numbers as league standings change.
+    (context.rec_leagues.game === "madden_26" || context.rec_leagues.game === "madden_27")
+      ? syncDraftOrderFromLeagueStandings({
+        leagueId: context.leagueId,
+        draftSeasonNumber: seasonNumber,
+        standingsSeasonNumber: seasonNumber,
+      }).catch((err) => {
+        console.error("[ERROR] syncDraftOrderFromLeagueStandings failed after advance (non-fatal):", err);
+      })
+      : Promise.resolve(),
   ]);
 
   const timingConfig = await supabase
