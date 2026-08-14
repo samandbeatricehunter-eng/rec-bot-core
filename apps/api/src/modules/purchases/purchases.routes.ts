@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
+import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listLegendReplacementCandidates, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
 
 // Player trait purchases have been retired app-wide — no longer accepted here.
 const PurchaseTypeSchema = z.enum([
@@ -33,9 +33,10 @@ const ReviewPurchaseSchema = z.object({
   reviewedByDiscordId: z.string().min(1),
   deniedReason: z.string().optional().nullable(),
   finalReplaceTarget: z.object({
-    position: z.string().min(1),
-    firstName: z.string(),
-    lastName: z.string(),
+    playerId: z.string().uuid(),
+    position: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
   }).optional().nullable(),
 });
 
@@ -62,6 +63,23 @@ export async function purchaseRoutes(app: FastifyInstance) {
       const leagueId = canonicalLeagueId ?? body.leagueId;
       if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
       return reply.send(await reviewPurchase({ ...body, leagueId: leagueId ?? undefined }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/purchases/legend-replacement-candidates", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1).optional(),
+        leagueId: z.string().uuid().optional(),
+        purchaseId: z.string().uuid(),
+      }).parse(request.body ?? {});
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      const canonicalLeagueId = await resolveCanonicalLeagueId(auth);
+      if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
+      const leagueId = canonicalLeagueId ?? body.leagueId;
+      return reply.send(await listLegendReplacementCandidates({ purchaseId: body.purchaseId, leagueId: leagueId ?? undefined }));
     } catch (error) {
       return sendError(reply, error);
     }
