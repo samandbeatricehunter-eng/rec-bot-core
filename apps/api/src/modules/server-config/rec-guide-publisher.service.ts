@@ -19,9 +19,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   const boxScoreSubmission = routes.box_scores_channel_id
     ? `Submit the two required current-week box-score images in ${mention(routes.box_scores_channel_id)} or upload them through the REC website.`
     : "Upload the two required current-week box-score images through the REC website.";
-  const highlightSubmission = routes.highlights_channel_id
-    ? `Post highlights in ${mention(routes.highlights_channel_id)} or upload them through the REC website.`
-    : "Upload highlights through the REC website.";
+  const highlightSubmission = "Submit highlights through the REC website (league quick-action **Submit Highlights** or the public league page's **Submit Highlight(s)** button) — Discord highlight submissions were retired.";
   const footer = { text: `${league.name ?? "REC League"} - REC Guide` };
   const base = (number: number, title: string, parts: Array<string | false | null | undefined>) => ({
     title: `${number}. ${title}`,

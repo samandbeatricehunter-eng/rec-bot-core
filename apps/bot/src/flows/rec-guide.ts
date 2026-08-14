@@ -36,7 +36,7 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
     ].join("\n\n")),
     base(3, "Streams & Highlights").setDescription([
       `Post streams in ${mention(routes.streams_channel_id, "Streams channel not assigned")}. A valid stream pays **${formatCoins(50)}**, once per user per league week. Regular-season and postseason requirements follow the league's configured rules; invalid or duplicate streams may be denied.`,
-      media ? `Post one in-game highlight per message in ${mention(routes.highlights_channel_id, "Highlights channel not assigned")}. Phone recordings are not accepted. Highlights pay **${formatCoins(25)}** each, up to two payouts per league week; accepted extras can still enter voting.` : "Media features are currently disabled for this league.",
+      media ? `Submit highlights through the REC site/app — use **Submit Highlights** on your league's quick action panel, or the **Submit Highlight(s)** button on the public league page (/viewleague). Phone recordings are not accepted. Highlights pay **${formatCoins(25)}** each, up to two payouts per league week; accepted extras can still enter voting.` : "Media features are currently disabled for this league.",
       media ? "Award reactions are Best Throw, Best Catch, Best Run, Best Interception, and Best Hit. A voter may choose only one category per highlight, may vote on multiple highlights, and tied category winners split the payout." : "",
     ].filter(Boolean).join("\n\n")),
     base(4, "My Team, Wagers & Schedules").setDescription([

@@ -16,26 +16,6 @@ function emojiResolvable(emoji: { name: string; id: string }) {
   return `${emoji.name}:${emoji.id}`;
 }
 
-function mediaAttachments(message: Message) {
-  return [...message.attachments.values()].filter((attachment) => {
-    const contentType = attachment.contentType ?? "";
-    const name = attachment.name ?? "";
-    return contentType.startsWith("video/") ||
-      contentType.startsWith("image/") ||
-      /\.(mp4|mov|webm|mkv|avi|png|jpe?g|gif|webp)$/i.test(name);
-  });
-}
-
-function isInHighlightsChannel(message: Pick<Message, "channelId" | "channel">, highlightsChannelId: string) {
-  return message.channelId === highlightsChannelId ||
-    ("parentId" in message.channel && message.channel.parentId === highlightsChannelId);
-}
-
-async function getHighlightsChannelId(guildId: string) {
-  const config = await recApi.getEconomyConfig(guildId).catch(() => null);
-  return config?.routes?.highlights_channel_id ?? null;
-}
-
 // One category vote per user per highlight: when a user adds one of the five
 // vote emojis, remove any other vote emoji they had on that message (radio-button).
 export async function handleHighlightReactionRestrict(
@@ -50,21 +30,13 @@ export async function handleHighlightReactionRestrict(
 }
 
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
-  // Linked users' first two media attachments for the league week are ingested for
-  // payout review and season hosting. Unlinked users may still post; the API declines persistence.
-  if (!message.guildId || message.author.bot) return false;
-  const highlightsChannelId = await getHighlightsChannelId(message.guildId);
-  if (!highlightsChannelId || !isInHighlightsChannel(message, highlightsChannelId)) return false;
-  const urls = mediaAttachments(message).map((attachment) => attachment.url).slice(0, 2);
-  if (!urls.length) return true;
-  // Unlinked users remain free to post; the API declines their ingest, so no
-  // payout or retained season clip is created for them.
-  for (const [index, url] of urls.entries()) {
-    await recApi.recordHighlightPost({ guildId: message.guildId, discordId: message.author.id,
-      discordChannelId: message.channelId, discordMessageId: message.id, attachmentIndex: index,
-      messageUrl: message.url, content: url }).catch(() => null);
-  }
-  return true;
+  // Discord-only highlight submission was retired — highlights are submitted through the
+  // site/app only (league quick-action "Submit Highlights" or the public league page's
+  // "Submit Highlight(s)" button), then reviewed in the commissioner pending items panel.
+  // Messages in a legacy highlights channel are ignored entirely so nobody is led to believe
+  // a Discord post counts as a submission.
+  void message;
+  return false;
 }
 
 export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
