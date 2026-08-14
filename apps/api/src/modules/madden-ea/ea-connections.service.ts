@@ -363,11 +363,19 @@ export async function selectEaPersona(
 // ── Status / franchise binding ──
 
 export async function getEaConnectionStatus(leagueId: string): Promise<{ configured: boolean; connection: EaConnectionSummary | null }> {
-  const result = await getPgPool().query<EaConnectionRow>(
-    `select * from rec_ea_connections where league_id=$1 order by updated_at desc limit 1`,
-    [leagueId],
-  );
-  return { configured: isEaImportConfigured(), connection: result.rows[0] ? toSummary(result.rows[0]) : null };
+  // Defensive: a transient/missing-table Postgres error must surface as a structured error,
+  // never as an unhandled throw that reaches Fastify's generic 500 handler. Callers (the
+  // Import Data modal) need the chooser to render even if the connection row can't be read.
+  try {
+    const result = await getPgPool().query<EaConnectionRow>(
+      `select * from rec_ea_connections where league_id=$1 order by updated_at desc limit 1`,
+      [leagueId],
+    );
+    return { configured: isEaImportConfigured(), connection: result.rows[0] ? toSummary(result.rows[0]) : null };
+  } catch (error) {
+    console.error("[EA] getEaConnectionStatus failed:", error);
+    return { configured: isEaImportConfigured(), connection: null };
+  }
 }
 
 export async function listEaLeagues(connectionId: string, leagueId: string): Promise<EaFranchiseSummary[]> {
@@ -608,15 +616,20 @@ export async function disconnectEaConnection(connectionId: string, leagueId: str
 }
 
 export async function listEaImportJobs(leagueId: string) {
-  const result = await getPgPool().query<{
-    id: string; task_key: string; status: string; completed_at: string | null; record_count: number;
-    rolled_back_at: string | null;
-  }>(
-    `select id, task_key, status, completed_at, record_count, rolled_back_at
-       from rec_import_jobs
-      where league_id=$1 and source_type='madden_direct_sync' and status='completed'
-      order by completed_at desc limit 25`,
-    [leagueId],
-  );
-  return result.rows;
+  try {
+    const result = await getPgPool().query<{
+      id: string; task_key: string; status: string; completed_at: string | null; record_count: number;
+      rolled_back_at: string | null;
+    }>(
+      `select id, task_key, status, completed_at, record_count, rolled_back_at
+         from rec_import_jobs
+        where league_id=$1 and source_type='madden_direct_sync' and status='completed'
+        order by completed_at desc limit 25`,
+      [leagueId],
+    );
+    return result.rows;
+  } catch (error) {
+    console.error("[EA] listEaImportJobs failed:", error);
+    return [];
+  }
 }

@@ -31,9 +31,13 @@ async function requireLeagueCommissioner(request: FastifyRequest, guildId: strin
 
 export async function maddenEaRoutes(app: FastifyInstance) {
   // Whether the server is configured to offer direct EA linking at all.
-  app.get("/v1/import/madden/ea/health", async () => {
-    const { isEaImportConfigured } = await import("./ea-constants.js");
-    return { ok: true, configured: isEaImportConfigured(), datasets: EA_DATASETS };
+  app.get("/v1/import/madden/ea/health", async (_request, reply) => {
+    try {
+      const { isEaImportConfigured } = await import("./ea-constants.js");
+      return reply.send({ ok: true, configured: isEaImportConfigured(), datasets: EA_DATASETS });
+    } catch (error) {
+      return sendError(reply, error);
+    }
   });
 
   // Step 1 of the link flow: returns the EA login URL the commissioner opens in a browser.
