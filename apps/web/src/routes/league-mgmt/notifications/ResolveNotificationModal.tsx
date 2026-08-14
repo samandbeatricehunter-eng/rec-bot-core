@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CASE_STATUS_BADGE } from "@rec/shared";
+import { CASE_STATUS_BADGE, sortRecAttributeKeys } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { ChatTopic, CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
@@ -108,7 +108,8 @@ function MaddenReplacementPicker({
 // run-on paragraph or a plain list of newline-separated lines.
 function LegendPurchaseDetail({ payload }: { payload: Record<string, unknown> }) {
   const isCfb = payload.isCfb === true;
-  const attributes = Object.entries((payload.attributes as Record<string, number>) ?? {}).sort(([, a], [, b]) => b - a);
+  const attributeMap = (payload.attributes as Record<string, number>) ?? {};
+  const attributes = sortRecAttributeKeys(Object.keys(attributeMap)).map((key) => [key, attributeMap[key]!] as const);
   const replaceTarget = payload.replaceTarget as { playerId?: string; position: string; firstName: string; lastName: string } | null | undefined;
   const facts: Array<[string, string]> = [
     ["Team", String(payload.teamName ?? "Unassigned")],
