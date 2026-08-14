@@ -92,10 +92,14 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   const legend = await supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle();
   const photoUrl = legend.data?.photo_url ?? null;
 
-  const replacementPlayerId: string | null = details.replaceTarget?.playerId ?? null;
+  // Prefer the commissioner's final pick when present (Madden "commissioner's choice" path),
+  // otherwise the buyer's designated replaceTarget. Either way the outgoing roster row is
+  // permanently deleted so the installed legend occupies that slot.
+  const replacementPlayerId: string | null =
+    details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
   let inheritedMaddenPlayerId: string | null = null;
   if (!isCfbLeague) {
-    if (!replacementPlayerId) throw new ApiError(400, "A Madden legend must have the buyer-selected EA-linked player slot to replace.");
+    if (!replacementPlayerId) throw new ApiError(400, "A Madden legend must have a roster player selected to replace before it can be applied.");
     const replacement = await supabase.from("rec_players").select("id,madden_player_id")
       .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
       .in("roster_status", ["active", "transferred_in"]).maybeSingle();
@@ -588,10 +592,10 @@ export async function reviewPurchase(input: {
   action: "approve" | "deny";
   reviewedByDiscordId: string;
   deniedReason?: string | null;
-  // Legend/Custom Recruit only: the commissioner's final call on which roster player this
-  // replaces — independent of whatever the buyer requested. Undefined leaves details
-  // untouched; null explicitly records "commissioner chose not to designate one".
-  finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null;
+  // Legend only: commissioner's roster player to permanently swap out when applying. When the
+  // buyer already designated one, the UI may omit this; when they left it to "commissioner's
+  // choice" (Madden), this playerId is required and becomes the authoritative replaceTarget.
+  finalReplaceTarget?: { playerId: string; position?: string; firstName?: string; lastName?: string } | null;
 }) {
   let purchaseQuery = supabase.from("rec_purchases").select("*").eq("id", input.purchaseId);
   if (input.leagueId) purchaseQuery = purchaseQuery.eq("league_id", input.leagueId);
@@ -652,6 +656,48 @@ export async function reviewPurchase(input: {
     return { updated: true, action: "deny" as const, purchase: denied.data, refunded: cost, buyerDiscordId: existing.data.discord_id };
   }
 
+  const existingDetails = (existing.data.details ?? {}) as Record<string, any>;
+  let nextDetails: Record<string, unknown> | undefined;
+
+  if (existing.data.purchase_type === "legend" && input.finalReplaceTarget?.playerId) {
+    const teamId = existingDetails.purchasingTeamId as string | null;
+    if (!teamId) throw new ApiError(400, "This legend purchase has no purchasing team to swap a player on.");
+    const found = await supabase.from("rec_players").select("id,first_name,last_name,position,overall_rating,madden_player_id")
+      .eq("id", input.finalReplaceTarget.playerId)
+      .eq("league_id", existing.data.league_id)
+      .eq("team_id", teamId)
+      .in("roster_status", ["active", "transferred_in"])
+      .maybeSingle();
+    if (found.error || !found.data) {
+      throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+    }
+    const replaceTarget = {
+      playerId: found.data.id,
+      position: found.data.position,
+      firstName: found.data.first_name,
+      lastName: found.data.last_name,
+      overallRating: found.data.overall_rating,
+    };
+    nextDetails = {
+      ...existingDetails,
+      replaceTarget,
+      finalReplaceTarget: replaceTarget,
+    };
+  } else if (input.finalReplaceTarget !== undefined) {
+    nextDetails = { ...existingDetails, finalReplaceTarget: input.finalReplaceTarget };
+  }
+
+  // Madden legends always need a concrete roster playerId before apply — buyer pick or
+  // commissioner pick from the review dropdown.
+  if (existing.data.purchase_type === "legend") {
+    const league = await supabase.from("rec_leagues").select("game").eq("id", existing.data.league_id).maybeSingle();
+    const isMadden = String(league.data?.game ?? "").startsWith("madden");
+    const effectiveReplace = (nextDetails ?? existingDetails) as Record<string, any>;
+    if (isMadden && !effectiveReplace.replaceTarget?.playerId && !effectiveReplace.finalReplaceTarget?.playerId) {
+      throw new ApiError(400, "Choose which of the buyer's roster players this legend permanently replaces before approving.");
+    }
+  }
+
   const approved = await supabase
     .from("rec_purchases")
     .update({
@@ -659,9 +705,7 @@ export async function reviewPurchase(input: {
       reviewed_by_discord_id: input.reviewedByDiscordId,
       approved_at: now,
       updated_at: now,
-      ...(input.finalReplaceTarget !== undefined
-        ? { details: { ...(existing.data.details as Record<string, unknown>), finalReplaceTarget: input.finalReplaceTarget } }
-        : {}),
+      ...(nextDetails ? { details: nextDetails } : {}),
     })
     .eq("id", input.purchaseId)
     .select("*")
@@ -710,6 +754,53 @@ export async function reviewPurchase(input: {
   }).catch((err) => console.error("[ERROR] Failed to notify purchaser of approval (non-fatal):", err));
 
   return { updated: true, action: "approve" as const, purchase: approved.data, buyerDiscordId: existing.data.discord_id };
+}
+
+/** Commissioner review helper — Madden legend "commissioner's choice" dropdown. */
+export async function listLegendReplacementCandidates(input: {
+  purchaseId: string;
+  leagueId?: string | null;
+}) {
+  let purchaseQuery = supabase.from("rec_purchases").select("id,league_id,purchase_type,details,status").eq("id", input.purchaseId);
+  if (input.leagueId) purchaseQuery = purchaseQuery.eq("league_id", input.leagueId);
+  const purchase = await purchaseQuery.maybeSingle();
+  if (purchase.error) throw new ApiError(500, "We couldn't load that purchase. Please try again.", purchase.error);
+  if (!purchase.data) throw new ApiError(404, "Purchase was not found.");
+  if (purchase.data.purchase_type !== "legend") throw new ApiError(400, "Replacement candidates are only available for legend purchases.");
+
+  const league = await supabase.from("rec_leagues").select("game").eq("id", purchase.data.league_id).maybeSingle();
+  if (league.error) throw new ApiError(500, "We couldn't load the league. Please try again.", league.error);
+  const isMadden = String(league.data?.game ?? "").startsWith("madden");
+  if (!isMadden) {
+    return { isMadden: false, teamId: null, buyerReplaceTarget: null, replacementPlayers: [] as Array<Record<string, unknown>> };
+  }
+
+  const details = (purchase.data.details ?? {}) as Record<string, any>;
+  const teamId = details.purchasingTeamId as string | null;
+  const buyerReplaceTarget = details.replaceTarget?.playerId
+    ? {
+        playerId: String(details.replaceTarget.playerId),
+        position: String(details.replaceTarget.position ?? ""),
+        firstName: String(details.replaceTarget.firstName ?? ""),
+        lastName: String(details.replaceTarget.lastName ?? ""),
+        overallRating: details.replaceTarget.overallRating ?? null,
+      }
+    : null;
+
+  if (!teamId) {
+    return { isMadden: true, teamId: null, buyerReplaceTarget, replacementPlayers: [] as Array<Record<string, unknown>> };
+  }
+
+  const roster = await supabase.from("rec_players")
+    .select("id,full_name,first_name,last_name,position,overall_rating,dev_trait,madden_player_id")
+    .eq("league_id", purchase.data.league_id)
+    .eq("team_id", teamId)
+    .in("roster_status", ["active", "transferred_in"]);
+  if (roster.error) throw new ApiError(500, "We couldn't load the buyer's roster. Please try again.", roster.error);
+  const replacementPlayers = [...(roster.data ?? [])].sort(
+    (a: any, b: any) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity),
+  );
+  return { isMadden: true, teamId, buyerReplaceTarget, replacementPlayers };
 }
 
 export async function listPendingPurchases(guildId: string) {

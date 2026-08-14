@@ -504,7 +504,16 @@ export async function listCustomPlayerBuilds(guildId: string, discordId: string,
   return { builds: result.data ?? [] };
 }
 
-export async function reviewCustomPlayer(input: { guildId: string; buildId: string; action: "approve" | "reject"; reviewerDiscordId: string; note?: string; adjustments?: { identity: Identity; attributes: Record<string, number> } }) {
+export async function reviewCustomPlayer(input: {
+  guildId: string;
+  buildId: string;
+  action: "approve" | "reject";
+  reviewerDiscordId: string;
+  note?: string;
+  adjustments?: { identity: Identity; attributes: Record<string, number> };
+  // Madden commissioner-choice path: permanently swap this roster player for the installed custom.
+  replacementPlayerId?: string | null;
+}) {
   const context = await getCurrentLeagueContext(input.guildId);
   const loaded = await supabase.from("rec_custom_player_builds").select("*").eq("id", input.buildId).eq("league_id", context.leagueId).maybeSingle();
   if (loaded.error || !loaded.data) throw new ApiError(404, "Custom-player build not found.");
@@ -521,6 +530,41 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
       .catch((error) => console.error("[WARN] Failed to notify custom-player purchaser of denial:", error));
     return rejected.data;
   }
+
+  const game = String(build.game_family ?? "");
+  let replacementPlayerId: string | null = build.replacement_player_id ?? null;
+  if (input.replacementPlayerId) {
+    const found = await supabase.from("rec_players").select("*")
+      .eq("id", input.replacementPlayerId)
+      .eq("league_id", build.league_id)
+      .eq("team_id", build.team_id)
+      .in("roster_status", ["active", "transferred_in"])
+      .maybeSingle();
+    if (found.error || !found.data) {
+      throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+    }
+    replacementPlayerId = found.data.id;
+    const snapshot = {
+      id: found.data.id,
+      full_name: found.data.full_name,
+      first_name: found.data.first_name,
+      last_name: found.data.last_name,
+      position: found.data.position,
+      overall_rating: found.data.overall_rating,
+      madden_player_id: found.data.madden_player_id,
+    };
+    const updated = await supabase.from("rec_custom_player_builds").update({
+      replacement_player_id: replacementPlayerId,
+      replacement_player_snapshot: snapshot,
+      updated_at: new Date().toISOString(),
+    }).eq("id", build.id);
+    if (updated.error) throw new ApiError(500, "We couldn't save the replacement player. Please try again.", updated.error);
+  }
+
+  if (game === "MADDEN" && !replacementPlayerId) {
+    throw new ApiError(400, "Choose which of the buyer's roster players this custom player permanently replaces before approving.");
+  }
+
   const requested = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
   // Legacy pending builds can be sparse. Every omitted rating represents the universal
   // attribute floor; normalize server-side as well so non-UI callers cannot accidentally
@@ -577,4 +621,39 @@ export async function reviewCustomPlayer(input: { guildId: string; buildId: stri
   }
   const player = playerId ? await supabase.from("rec_players").select("*").eq("id", playerId).maybeSingle() : null;
   return { ...(applied.data as Record<string, unknown>), player: player?.data ?? null };
+}
+
+/** Commissioner review helper — Madden custom-player "commissioner's choice" dropdown. */
+export async function listCustomReplacementCandidates(input: { guildId: string; buildId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const loaded = await supabase.from("rec_custom_player_builds").select("id,league_id,team_id,game_family,replacement_player_id,replacement_player_snapshot,status")
+    .eq("id", input.buildId).eq("league_id", context.leagueId).maybeSingle();
+  if (loaded.error || !loaded.data) throw new ApiError(404, "Custom-player build not found.");
+  const build: any = loaded.data;
+  const isMadden = String(build.game_family ?? "") === "MADDEN";
+  if (!isMadden) {
+    return {
+      isMadden: false,
+      buyerReplaceTarget: build.replacement_player_id
+        ? { playerId: build.replacement_player_id, snapshot: build.replacement_player_snapshot }
+        : null,
+      replacementPlayers: [] as Array<Record<string, unknown>>,
+    };
+  }
+  const roster = await supabase.from("rec_players")
+    .select("id,full_name,first_name,last_name,position,overall_rating,dev_trait,madden_player_id")
+    .eq("league_id", build.league_id)
+    .eq("team_id", build.team_id)
+    .in("roster_status", ["active", "transferred_in"]);
+  if (roster.error) throw new ApiError(500, "We couldn't load the buyer's roster. Please try again.", roster.error);
+  const replacementPlayers = [...(roster.data ?? [])].sort(
+    (a: any, b: any) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity),
+  );
+  return {
+    isMadden: true,
+    buyerReplaceTarget: build.replacement_player_id
+      ? { playerId: build.replacement_player_id, snapshot: build.replacement_player_snapshot }
+      : null,
+    replacementPlayers,
+  };
 }

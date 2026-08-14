@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { cancelCustomPlayerDraft, evaluateCustomPlayer, generateCustomPlayerName, getCustomPlayerConfig, getCustomPlayerDraft, listCustomPlayerBuilds, reviewCustomPlayer, saveCustomPlayerDraft, submitCustomPlayer } from "./custom-players.service.js";
+import { cancelCustomPlayerDraft, evaluateCustomPlayer, generateCustomPlayerName, getCustomPlayerConfig, getCustomPlayerDraft, listCustomPlayerBuilds, listCustomReplacementCandidates, reviewCustomPlayer, saveCustomPlayerDraft, submitCustomPlayer } from "./custom-players.service.js";
 
 const GameSchema = z.enum(["CFB", "MADDEN"]);
 const BuildSchema = z.object({
@@ -93,10 +93,26 @@ export async function customPlayerRoutes(app: FastifyInstance) {
 
   app.post("/v1/custom-players/review", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), buildId: z.string().uuid(), action: z.enum(["approve", "reject"]), note: z.string().max(1000).optional(), adjustments: z.object({ identity: IdentitySchema, attributes: z.record(z.number().int().min(0).max(99)) }).strict().optional() }).parse(request.body);
+      const body = z.object({
+        guildId: z.string().min(1),
+        buildId: z.string().uuid(),
+        action: z.enum(["approve", "reject"]),
+        note: z.string().max(1000).optional(),
+        adjustments: z.object({ identity: IdentitySchema, attributes: z.record(z.number().int().min(0).max(99)) }).strict().optional(),
+        replacementPlayerId: z.string().uuid().optional().nullable(),
+      }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Custom-player review requires a website session.");
       return reply.send(await reviewCustomPlayer({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/custom-players/replacement-candidates", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), buildId: z.string().uuid() }).parse(request.body ?? {});
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Custom-player review requires a website session.");
+      return reply.send(await listCustomReplacementCandidates(body));
     } catch (error) { return sendError(reply, error); }
   });
 }
