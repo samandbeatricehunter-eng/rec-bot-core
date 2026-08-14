@@ -110,7 +110,13 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
   const away = await teamId(client, leagueId, awaySource);
   const homeScore = integer(row, ["homeScore", "home_score"]);
   const awayScore = integer(row, ["awayScore", "away_score"]);
-  const completed = homeScore !== null && awayScore !== null;
+  // EA sends every scheduled game with scores present but zeroed and status=1 (NOT_PLAYED),
+  // so scores alone cannot mean "final" or unplayed games import as 0-0 completed.
+  const eaStatus = integer(row, ["status", "gameStatus"]);
+  const played = bool(row, ["isGamePlayed", "is_game_played"]);
+  const completed = played === true
+    || (played === null && eaStatus !== null && eaStatus > 1)
+    || (played === null && eaStatus === null && homeScore !== null && awayScore !== null);
   await client.query(
     `insert into rec_games(league_id,week_number,phase,home_team_id,away_team_id,home_score,away_score,status,source,import_verified,manual_entered,result_payout_eligible,eos_payout_eligible,external_game_id,updated_at)
      values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
@@ -118,19 +124,40 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
        week_number=excluded.week_number,home_team_id=coalesce(excluded.home_team_id,rec_games.home_team_id),
        away_team_id=coalesce(excluded.away_team_id,rec_games.away_team_id),home_score=excluded.home_score,
        away_score=excluded.away_score,status=excluded.status,source='madden_companion_export',import_verified=true,updated_at=now()`,
-    [leagueId, record.weekNumber, bool(row, ["isPlayoff", "is_playoff"]) ? "playoffs" : "regular_season", home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+    [leagueId, record.weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
   );
+}
+
+/**
+ * Resolves preseason/regular_season/playoffs for an imported row.
+ *
+ * EA does not send a phase. It sends stageIndex (0 preseason, 1 everything else) and a week
+ * index that keeps counting through the playoffs, so the postseason has to be recognised from
+ * the week itself: display weeks 19/20/21 are the playoff rounds and 23 is the Super Bowl
+ * (22 is the Pro Bowl, which exports no data).
+ */
+function seasonStage(row: Json, record: NormalizedCompanionRecord): "preseason" | "regular_season" | "playoffs" {
+  const explicit = text(row, ["seasonStage", "season_stage", "phase"]);
+  if (explicit === "preseason" || explicit === "regular_season" || explicit === "playoffs") return explicit;
+  const stageIndex = integer(row, ["stageIndex", "stage_index"]);
+  if (stageIndex === 0) return "preseason";
+  if (bool(row, ["isPlayoff", "is_playoff"]) === true) return "playoffs";
+  const week = record.weekNumber ?? integer(row, ["week", "weekNumber", "week_number"]);
+  if (week !== null && (week === 19 || week === 20 || week === 21 || week === 23)) return "playoffs";
+  return "regular_season";
 }
 
 function statCategory(row: Json, record: NormalizedCompanionRecord) {
   if (record.statCategory) return record.statCategory.toLowerCase();
   const keys = Object.keys(row).join(" ").toLowerCase();
-  if (/pass/.test(keys)) return "passing";
-  if (/rush/.test(keys)) return "rushing";
-  if (/rec|catch/.test(keys)) return "receiving";
-  if (/tackle|sack|def|interception|forcedfumble/.test(keys)) return "defense";
-  if (/punt/.test(keys)) return "punting";
-  if (/kick|fieldgoal|extra/.test(keys)) return "kicking";
+  // Order matters, and each pattern is anchored to the prefix EA actually uses. Defence is
+  // tested before receiving because defensive rows carry `deffumrec`, which contains "rec".
+  if (/\bdef[a-z]*|tackle|sack|interception/.test(keys)) return "defense";
+  if (/\bpass[a-z]*/.test(keys)) return "passing";
+  if (/\brush[a-z]*/.test(keys)) return "rushing";
+  if (/\brec[a-z]*|catch/.test(keys)) return "receiving";
+  if (/\bpunt[a-z]*/.test(keys)) return "punting";
+  if (/\bkick[a-z]*|fieldgoal|\bfg|\bxp/.test(keys)) return "kicking";
   return "all";
 }
 
@@ -153,14 +180,15 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
        (league_id,season_number,season_stage,week_number,player_id,team_id,madden_player_id,madden_team_id,
         player_name,team_name,position,stat_category,stats,raw_payload,source_stat_id,source_schedule_id,
         source_week_index,source_team_id,source_roster_id,source_type,source_companion_record_id,updated_at)
-     values ($1,$2,'regular_season',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$3,$7,$6,'madden_companion',$16,now())
+     values ($1,$2,$17,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$3,$7,$6,'madden_companion',$16,now())
      on conflict (source_companion_record_id) where source_companion_record_id is not null do update set
-       season_number=excluded.season_number,week_number=excluded.week_number,player_id=excluded.player_id,team_id=excluded.team_id,
+       season_number=excluded.season_number,season_stage=excluded.season_stage,week_number=excluded.week_number,player_id=excluded.player_id,team_id=excluded.team_id,
        player_name=excluded.player_name,team_name=excluded.team_name,position=excluded.position,stat_category=excluded.stat_category,
        stats=excluded.stats,raw_payload=excluded.raw_payload,updated_at=now()`,
     [leagueId, season, record.weekNumber ?? 0, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
       player.full_name, team?.name ?? null, player.position, category, JSON.stringify(statPayload(record.rawData)), JSON.stringify(record.rawData),
-      record.recordKey, record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`, canonicalRecordId],
+      record.recordKey, record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`, canonicalRecordId,
+      seasonStage(record.rawData, record)],
   );
 }
 
@@ -213,7 +241,7 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
        pass_yards_allowed=excluded.pass_yards_allowed,first_downs_allowed=excluded.first_downs_allowed,
        red_zone_def_percentage=excluded.red_zone_def_percentage,offensive_stats=excluded.offensive_stats,
        defensive_stats=excluded.defensive_stats,raw_payload=excluded.raw_payload`,
-    [leagueId, season, record.weekNumber ?? 0, game?.phase ?? "regular_season", game?.id ?? null, resolvedTeamId, opponentTeamId,
+    [leagueId, season, record.weekNumber ?? 0, game?.phase ?? seasonStage(row, record), game?.id ?? null, resolvedTeamId, opponentTeamId,
       userId, opponentUserId, isHome, result, pointsFor, pointsAgainst,
       integer(row, ["offYds", "offensiveYards", "off_yards_gained", "totalOffense"]), integer(row, ["rushYds", "rushingYards", "off_rush_yards"]),
       integer(row, ["passYds", "passingYards", "off_pass_yards"]), integer(row, ["firstDowns", "off_first_down"]),

@@ -1,0 +1,554 @@
+// EA OAuth + Blaze client: REC's alternative to asking commissioners to run the Madden
+// Companion App. Reverse-engineered flow documented in snallabot/snallabot-service
+// (docs/madden/ea_api.md); this is an independent implementation of the same 10 steps.
+//
+// The flow, in order:
+//   1  user opens EA_LOGIN_URL, EA redirects to http://127.0.0.1/success?code=...
+//   2  code -> temporary access token
+//   3  tokeninfo -> pid_id
+//   4  entitlements for pid -> which Madden platforms the account owns
+//   5  personas per entitlement -> user picks one
+//   6  re-auth scoped to that persona -> the token pair we actually persist
+//   7  refresh when expired
+//   8  Blaze login -> sessionKey + blazeId
+//   9  Blaze RPC (league list, league hub)
+//  10  Blaze exports (teams/standings/schedule/stats/rosters)
+
+import crypto from "node:crypto";
+import { Agent, fetch as undiciFetch } from "undici";
+import {
+  ANDROID_USER_AGENT,
+  AUTH_SOURCE,
+  BLAZE_BASE_URL,
+  BLAZE_COMPONENT_NAME,
+  BLAZE_PRODUCT_NAME,
+  BLAZE_SERVICE,
+  CLIENT_ID,
+  EA_ACCOUNTS_BASE,
+  EA_EXPORTS,
+  EA_GATEWAY_BASE,
+  ENTITLEMENT_TO_SYSTEM,
+  ENTITLEMENT_TO_VALID_NAMESPACE,
+  MACHINE_KEY,
+  REDIRECT_URL,
+  VALID_ENTITLEMENTS,
+  eaClientSecret,
+  type AccountToken,
+  type BlazeAuthenticatedResponse,
+  type BlazeLeagueResponse,
+  type EaLeagueResponse,
+  type EaLeagueSummary,
+  type EaNamespace,
+  type Entitlements,
+  type GetMyLeaguesResponse,
+  type Persona,
+  type Personas,
+  type SystemConsole,
+  type TokenInfo,
+} from "./ea-constants.js";
+import type { EaStage } from "./ea-weeks.js";
+import type { EaSessionCache, EaTokenPair } from "./ea-token-vault.js";
+
+/** EA's Blaze hosts still negotiate legacy SSL; Node's defaults reject them outright. */
+const legacySslAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+    secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+  },
+});
+
+export class EaAuthError extends Error {
+  readonly guidance: string;
+  constructor(message: string, guidance: string) {
+    super(message);
+    this.name = "EaAuthError";
+    this.guidance = guidance;
+  }
+}
+
+export class BlazeSessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BlazeSessionError";
+  }
+}
+
+const formHeaders = {
+  "Accept-Charset": "UTF-8",
+  "User-Agent": ANDROID_USER_AGENT,
+  "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+  "Accept-Encoding": "gzip",
+};
+
+function blazeHeaders(console: SystemConsole) {
+  return {
+    "Accept-Charset": "UTF-8",
+    Accept: "application/json",
+    "X-BLAZE-ID": BLAZE_SERVICE[console],
+    "X-BLAZE-VOID-RESP": "XML",
+    "X-Application-Key": "MADDEN-MCA",
+    "Content-Type": "application/json",
+    "User-Agent": ANDROID_USER_AGENT,
+  };
+}
+
+/**
+ * Pulls the `code` out of whatever the user pasted. EA redirects to a localhost URL that
+ * never reaches our server, so the commissioner copies the address bar; accept a bare code
+ * too, since some browsers show only the fragment.
+ */
+export function extractAuthCode(pasted: string): string {
+  const trimmed = pasted.trim();
+  if (!trimmed) throw new EaAuthError("No EA redirect URL was provided.", "Paste the full URL from your browser's address bar.");
+  const queryStart = trimmed.indexOf("?");
+  if (queryStart >= 0) {
+    const code = new URLSearchParams(trimmed.slice(queryStart)).get("code");
+    if (code) return code;
+  }
+  // A bare code: EA codes are opaque but never contain spaces, slashes, or a scheme.
+  if (!/[\s/]/.test(trimmed) && !trimmed.includes("://") && trimmed.length > 8) return trimmed;
+  throw new EaAuthError(
+    `Could not find a login code in the pasted URL.`,
+    "Expected something like http://127.0.0.1/success?code=... — copy the whole address bar after signing in to EA.",
+  );
+}
+
+// ── Step 2: code -> temporary token ──
+
+export async function exchangeCodeForToken(code: string): Promise<AccountToken> {
+  const body = new URLSearchParams({
+    authentication_source: AUTH_SOURCE,
+    client_secret: eaClientSecret(),
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: REDIRECT_URL,
+    release_type: "prod",
+    client_id: CLIENT_ID,
+  });
+  const response = await undiciFetch(`${EA_ACCOUNTS_BASE}/connect/token`, {
+    method: "POST",
+    headers: formHeaders,
+    body: body.toString(),
+  });
+  const text = await response.text();
+  let token: AccountToken;
+  try {
+    token = JSON.parse(text) as AccountToken;
+  } catch {
+    throw new EaAuthError(`EA returned an unreadable token response: ${text.slice(0, 300)}`, "Try the login again.");
+  }
+  if (!response.ok || !token.access_token) {
+    throw new EaAuthError(
+      `EA rejected the login code: ${text.slice(0, 300)}`,
+      "Each login URL works only once. Go back, click Login to EA again, and paste the fresh URL. An incognito window can help if it keeps failing.",
+    );
+  }
+  return token;
+}
+
+// ── Step 3: pid ──
+
+export async function getPidId(accessToken: string): Promise<string> {
+  const response = await undiciFetch(
+    `${EA_ACCOUNTS_BASE}/connect/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+    {
+      headers: {
+        "Accept-Charset": "UTF-8",
+        "X-Include-Deviceid": "true",
+        "User-Agent": ANDROID_USER_AGENT,
+        "Accept-Encoding": "gzip",
+      },
+    },
+  );
+  const text = await response.text();
+  if (!response.ok) throw new EaAuthError(`EA could not identify this account: ${text.slice(0, 300)}`, "Try connecting again.");
+  const info = JSON.parse(text) as TokenInfo;
+  if (!info.pid_id) throw new EaAuthError("EA did not return an account id.", "Try connecting again.");
+  return info.pid_id;
+}
+
+// ── Steps 4-5: entitlements -> personas ──
+
+export type MaddenPersona = Persona & { maddenEntitlement: string; console: SystemConsole };
+
+export async function getMaddenPersonas(accessToken: string, pidId: string): Promise<MaddenPersona[]> {
+  const entitlementsResponse = await undiciFetch(
+    `${EA_GATEWAY_BASE}/proxy/identity/pids/${pidId}/entitlements/?status=ACTIVE`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": ANDROID_USER_AGENT,
+        "Accept-Charset": "UTF-8",
+        "X-Expand-Results": "true",
+        "Accept-Encoding": "gzip",
+      },
+    },
+  );
+  const entitlementsText = await entitlementsResponse.text();
+  if (!entitlementsResponse.ok) {
+    throw new EaAuthError(`EA would not list this account's games: ${entitlementsText.slice(0, 300)}`, "Try connecting again.");
+  }
+  const parsed = JSON.parse(entitlementsText) as Entitlements;
+  const validGroups = new Set(Object.values(VALID_ENTITLEMENTS));
+  const maddenEntitlements = (parsed.entitlements?.entitlement ?? []).filter(
+    (entitlement) => entitlement.entitlementTag === "ONLINE_ACCESS" && validGroups.has(entitlement.groupName),
+  );
+  if (maddenEntitlements.length === 0) {
+    throw new EaAuthError(
+      "This EA account has no Madden online access entitlement.",
+      "Make sure you signed in with the EA account that owns Madden and plays in your league.",
+    );
+  }
+
+  const personaLists = await Promise.all(
+    maddenEntitlements.map(async (entitlement) => {
+      const response = await undiciFetch(
+        `${EA_GATEWAY_BASE}/proxy/identity${entitlement.pidUri}/personas?status=ACTIVE&access_token=${encodeURIComponent(accessToken)}`,
+        {
+          headers: {
+            "Accept-Charset": "UTF-8",
+            "X-Expand-Results": "true",
+            "User-Agent": ANDROID_USER_AGENT,
+            "Accept-Encoding": "gzip",
+          },
+        },
+      );
+      const text = await response.text();
+      if (!response.ok) throw new EaAuthError(`EA would not list your gamertags: ${text.slice(0, 300)}`, "Try connecting again.");
+      const personas = JSON.parse(text) as Personas;
+      return (personas.personas?.persona ?? []).map((persona) => ({
+        ...persona,
+        maddenEntitlement: entitlement.groupName,
+      }));
+    }),
+  );
+
+  // A persona only belongs to an entitlement when the namespace matches, otherwise an Xbox
+  // gamertag can appear under a PlayStation entitlement and Blaze login fails later.
+  return personaLists
+    .flat()
+    .filter((persona) => ENTITLEMENT_TO_VALID_NAMESPACE[persona.maddenEntitlement] === persona.namespaceName)
+    .map((persona) => ({ ...persona, console: ENTITLEMENT_TO_SYSTEM[persona.maddenEntitlement] }));
+}
+
+// ── Step 6: persona-scoped token ──
+
+export async function getPersonaScopedToken(
+  temporaryAccessToken: string,
+  personaId: number,
+  namespaceName: EaNamespace,
+): Promise<EaTokenPair> {
+  const authUrl =
+    `${EA_ACCOUNTS_BASE}/connect/auth?hide_create=true&release_type=prod&response_type=code` +
+    `&redirect_uri=${REDIRECT_URL}&client_id=${CLIENT_ID}&machineProfileKey=${MACHINE_KEY}` +
+    `&authentication_source=${AUTH_SOURCE}&access_token=${encodeURIComponent(temporaryAccessToken)}` +
+    `&persona_id=${personaId}&persona_namespace=${namespaceName}`;
+
+  // EA answers with a redirect to the localhost URL; we only want its `code`, so we must not
+  // let the client follow it.
+  const authResponse = await undiciFetch(authUrl, {
+    method: "GET",
+    redirect: "manual",
+    headers: { "Accept-Charset": "UTF-8", "User-Agent": ANDROID_USER_AGENT, "Accept-Encoding": "gzip" },
+  });
+  const location = authResponse.headers.get("location");
+  if (!location) {
+    throw new EaAuthError(
+      `EA did not return a persona login redirect (status ${authResponse.status}).`,
+      "Try connecting again; if it persists, EA may have changed the companion app flow.",
+    );
+  }
+  const code = extractAuthCode(location);
+
+  const body = new URLSearchParams({
+    authentication_source: AUTH_SOURCE,
+    code,
+    grant_type: "authorization_code",
+    token_format: "JWS",
+    release_type: "prod",
+    client_secret: eaClientSecret(),
+    redirect_uri: REDIRECT_URL,
+    client_id: CLIENT_ID,
+  });
+  const tokenResponse = await undiciFetch(`${EA_ACCOUNTS_BASE}/connect/token`, {
+    method: "POST",
+    headers: formHeaders,
+    body: body.toString(),
+  });
+  const text = await tokenResponse.text();
+  let token: AccountToken;
+  try {
+    token = JSON.parse(text) as AccountToken;
+  } catch {
+    throw new EaAuthError(`EA returned an unreadable persona token: ${text.slice(0, 300)}`, "Try connecting again.");
+  }
+  if (!tokenResponse.ok || !token.access_token) {
+    throw new EaAuthError(`EA would not issue a token for that gamertag: ${text.slice(0, 300)}`, "Try connecting again.");
+  }
+  return {
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token,
+    expiresAt: Date.now() + token.expires_in * 1000,
+  };
+}
+
+// ── Step 7: refresh ──
+
+export async function refreshEaToken(refreshToken: string): Promise<EaTokenPair> {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: CLIENT_ID,
+    client_secret: eaClientSecret(),
+    release_type: "prod",
+    refresh_token: refreshToken,
+    authentication_source: AUTH_SOURCE,
+    token_format: "JWS",
+  });
+  const response = await undiciFetch(`${EA_ACCOUNTS_BASE}/connect/token`, {
+    method: "POST",
+    headers: formHeaders,
+    body: body.toString(),
+  });
+  const text = await response.text();
+  let token: AccountToken;
+  try {
+    token = JSON.parse(text) as AccountToken;
+  } catch {
+    throw new EaAuthError(`EA returned an unreadable refresh response: ${text.slice(0, 300)}`, "Reconnect this league to EA.");
+  }
+  if (!response.ok || !token.access_token) {
+    throw new EaAuthError(
+      `EA would not refresh the connection: ${text.slice(0, 300)}`,
+      "EA connections expire after about ten days of inactivity. Reconnect this league to EA from the Import Data window.",
+    );
+  }
+  return {
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token,
+    expiresAt: Date.now() + token.expires_in * 1000,
+  };
+}
+
+// ── Step 8: Blaze session ──
+
+export async function createBlazeSession(accessToken: string, console: SystemConsole): Promise<EaSessionCache> {
+  const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/authentication/login`, {
+    dispatcher: legacySslAgent,
+    method: "POST",
+    headers: blazeHeaders(console),
+    body: JSON.stringify({ accessToken, productName: BLAZE_PRODUCT_NAME[console] }),
+  });
+  const text = await response.text();
+  try {
+    const session = JSON.parse(text) as BlazeAuthenticatedResponse;
+    return {
+      blazeId: session.userLoginInfo.personaDetails.personaId,
+      sessionKey: session.userLoginInfo.sessionKey,
+      requestId: 1,
+    };
+  } catch {
+    throw new EaAuthError(
+      `Could not start a Madden session with EA: ${text.slice(0, 300)}`,
+      "This is often temporary (EA servers down or in maintenance). If it keeps happening, unlink and reconnect the league.",
+    );
+  }
+}
+
+// ── Step 9: signed Blaze RPC ──
+
+type MessageAuth = { authData: string; authCode: string; authType: number };
+
+const AUTH_STATIC_DATA = "05e6a7ead5584ab4";
+const AUTH_XOR_STATIC_BYTES = Buffer.from("634203362017bf72f70ba900c0aa4e6b", "hex");
+const AUTH_CODE_STATIC_BYTES = Buffer.from("3a53413521464c3b6531326530705b70203a2900", "hex");
+const AUTH_TYPE = 17039361;
+
+/**
+ * Every Blaze RPC carries a signed blob. The bytes must match the companion app exactly:
+ * 4 random bytes, then the request JSON XOR'd with md5(random + static), prefixed by those
+ * random bytes; authCode is md5(staticAuthCode + authData).
+ */
+export function calculateMessageAuthData(blazeId: number, requestId: number): MessageAuth {
+  const random4 = crypto.randomBytes(4);
+  const requestData = JSON.stringify({ staticData: AUTH_STATIC_DATA, requestId, blazeId });
+  const xorHash = crypto.createHash("md5").update(random4).update(AUTH_XOR_STATIC_BYTES).digest();
+  const scrambled = Buffer.from(requestData, "utf-8").map((byte, index) => byte ^ xorHash[index % 16]);
+  const authDataBytes = Buffer.concat([random4, scrambled]);
+  const authCode = crypto.createHash("md5").update(AUTH_CODE_STATIC_BYTES).update(authDataBytes).digest("base64");
+  return { authData: authDataBytes.toString("base64"), authCode, authType: AUTH_TYPE };
+}
+
+/** EA embeds control characters in export payloads that are illegal in strict JSON. */
+export function stripControlCharacters(text: string): string {
+  return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+}
+
+type BlazeRpc = { commandName: string; commandId: number; requestPayload: Record<string, unknown> };
+
+async function sendBlazeRpc<T>(
+  token: { accessToken: string; console: SystemConsole },
+  session: EaSessionCache,
+  rpc: BlazeRpc,
+): Promise<T> {
+  const auth = calculateMessageAuthData(session.blazeId, session.requestId);
+  const body = {
+    apiVersion: 2,
+    clientDevice: 3,
+    requestInfo: JSON.stringify({
+      commandName: rpc.commandName,
+      componentId: 2060,
+      commandId: rpc.commandId,
+      componentName: BLAZE_COMPONENT_NAME,
+      messageAuthData: auth,
+      messageExpirationTime: Math.floor(Date.now() / 1000),
+      deviceId: MACHINE_KEY,
+      ipAddress: "127.0.0.1",
+      requestPayload: JSON.stringify(rpc.requestPayload),
+    }),
+  };
+  const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/Process/${session.sessionKey}`, {
+    dispatcher: legacySslAgent,
+    method: "POST",
+    headers: blazeHeaders(token.console),
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripControlCharacters(text));
+  } catch {
+    throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
+  }
+  if (parsed && typeof parsed === "object" && "error" in parsed) {
+    // A stale sessionKey surfaces as a Blaze error; callers re-authenticate and retry.
+    throw new BlazeSessionError(JSON.stringify((parsed as Record<string, unknown>).error).slice(0, 400));
+  }
+  return parsed as T;
+}
+
+// ── Step 10: exports ──
+
+async function sendExport<T>(
+  token: { accessToken: string; console: SystemConsole },
+  session: EaSessionCache,
+  exportName: string,
+  payload: Record<string, unknown>,
+  retries = 5,
+  baseDelayMs = 1000,
+): Promise<T> {
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${exportName}/${session.sessionKey}`, {
+      dispatcher: legacySslAgent,
+      method: "POST",
+      headers: blazeHeaders(token.console),
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stripControlCharacters(text));
+    } catch {
+      throw new EaAuthError(`EA returned unreadable export data: ${text.slice(0, 300)}`, "Try the import again.");
+    }
+    const errorName =
+      parsed && typeof parsed === "object" && "error" in parsed
+        ? (parsed as { error?: { errorname?: string } }).error?.errorname
+        : undefined;
+    // EA times out under load far more often than it fails outright; back off and retry.
+    if (errorName === "ERR_TIMEOUT") {
+      if (attempt < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** attempt));
+        continue;
+      }
+      throw new EaAuthError(
+        `EA timed out after ${retries} attempts fetching ${exportName}.`,
+        "EA's servers are busy. Wait a few minutes and import again.",
+      );
+    }
+    if (errorName) throw new BlazeSessionError(`${exportName}: ${errorName}`);
+    return parsed as T;
+  }
+  throw new EaAuthError(`EA request for ${exportName} failed.`, "Try the import again.");
+}
+
+export type EaClient = {
+  console: SystemConsole;
+  session: EaSessionCache;
+  getLeagues(): Promise<EaLeagueSummary[]>;
+  getLeagueInfo(leagueId: number): Promise<EaLeagueResponse>;
+  getTeams(leagueId: number): Promise<unknown>;
+  getStandings(leagueId: number): Promise<unknown>;
+  getSchedules(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getPassingStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getRushingStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getReceivingStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getDefensiveStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getKickingStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getPuntingStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getTeamStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
+  getTeamRoster(leagueId: number, teamId: number, teamIndex: number): Promise<unknown>;
+  getFreeAgents(leagueId: number): Promise<unknown>;
+};
+
+export function createEaClient(
+  token: { accessToken: string; console: SystemConsole },
+  session: EaSessionCache,
+): EaClient {
+  const weekPayload = (leagueId: number, stage: EaStage, weekIndex: number) => ({
+    leagueId,
+    stageIndex: stage,
+    weekIndex,
+  });
+  return {
+    console: token.console,
+    session,
+    async getLeagues() {
+      const response = await sendBlazeRpc<GetMyLeaguesResponse>(token, session, {
+        commandName: "Mobile_GetMyLeagues",
+        commandId: 801,
+        requestPayload: {},
+      });
+      return response.responseInfo.value.leagues ?? [];
+    },
+    async getLeagueInfo(leagueId) {
+      const response = await sendBlazeRpc<BlazeLeagueResponse>(token, session, {
+        commandName: "Mobile_Career_GetLeagueHub",
+        commandId: 811,
+        requestPayload: { leagueId },
+      });
+      return response.responseInfo.value;
+    },
+    getTeams: (leagueId) => sendExport(token, session, EA_EXPORTS.TEAMS, { leagueId }),
+    getStandings: (leagueId) => sendExport(token, session, EA_EXPORTS.STANDINGS, { leagueId }),
+    getSchedules: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.WEEKLY_SCHEDULE, weekPayload(leagueId, stage, weekIndex)),
+    getPassingStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.PASSING_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getRushingStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.RUSHING_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getReceivingStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.RECEIVING_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getDefensiveStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.DEFENSIVE_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getKickingStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.KICKING_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getPuntingStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.PUNTING_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getTeamStats: (leagueId, stage, weekIndex) =>
+      sendExport(token, session, EA_EXPORTS.TEAM_STATS, weekPayload(leagueId, stage, weekIndex)),
+    getTeamRoster: (leagueId, teamId, teamIndex) =>
+      sendExport(token, session, EA_EXPORTS.TEAM_ROSTER, {
+        leagueId,
+        listIndex: teamIndex,
+        returnFreeAgents: false,
+        teamId,
+      }),
+    getFreeAgents: (leagueId) =>
+      sendExport(token, session, EA_EXPORTS.TEAM_ROSTER, {
+        leagueId,
+        listIndex: -1,
+        returnFreeAgents: true,
+        teamId: 0,
+      }),
+  };
+}

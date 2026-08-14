@@ -56,6 +56,34 @@ const EnvSchema = z.object({
   VAPID_SUBJECT: z.string().default("mailto:samandbeatricehunter@gmail.com"),
   // Discord Activity hub (apps/web) — used when exchanging a site session for a hub JWT.
   WEB_APP_URL: z.string().url().optional(),
+  // EA / Madden direct import (companion-app alternative). All optional so the API boots
+  // without them; the EA import routes report "not configured" until EA_CLIENT_SECRET is set.
+  // Defaults for the non-secret values live in modules/madden-ea/ea-constants.ts.
+  EA_CLIENT_SECRET: z.string().optional(),
+  EA_CLIENT_ID: z.string().optional(),
+  EA_YEAR: z.string().optional(),
+  EA_TWO_DIGIT_YEAR: z.string().optional(),
+  EA_AUTH_SOURCE: z.string().optional(),
+  EA_MACHINE_KEY: z.string().optional(),
+  EA_REDIRECT_URL: z.string().optional(),
+  EA_BLAZE_COMPONENT_NAME: z.string().optional(),
+  EA_BLAZE_BASE_URL: z.string().optional(),
+  // Overrides a single export command name, e.g. EA_EXPORT_TEAMS=FranchiseMode_GetLeagueTeamsExport.
+  EA_EXPORT_TEAMS: z.string().optional(),
+  EA_EXPORT_STANDINGS: z.string().optional(),
+  EA_EXPORT_WEEKLY_SCHEDULE: z.string().optional(),
+  EA_EXPORT_RUSHING_STATS: z.string().optional(),
+  EA_EXPORT_TEAM_STATS: z.string().optional(),
+  EA_EXPORT_PUNTING_STATS: z.string().optional(),
+  EA_EXPORT_RECEIVING_STATS: z.string().optional(),
+  EA_EXPORT_DEFENSIVE_STATS: z.string().optional(),
+  EA_EXPORT_KICKING_STATS: z.string().optional(),
+  EA_EXPORT_PASSING_STATS: z.string().optional(),
+  EA_EXPORT_TEAM_ROSTER: z.string().optional(),
+  // 64-char hex (32 bytes) AES-256-GCM key for the EA token vault. Without it, tokens
+  // cannot be stored and the EA import stays disabled.
+  EA_TOKEN_ENC_KEY: z.string().optional(),
+  EA_REFRESHER_ENABLED: z.string().optional(),
 });
 export const env = EnvSchema.parse(process.env);
 

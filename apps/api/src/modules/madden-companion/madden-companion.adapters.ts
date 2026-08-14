@@ -17,13 +17,20 @@ export type NormalizedCompanionRecord = {
   contentChecksum: string;
 };
 
+// Envelope keys are checked in order. The *InfoList names are what EA's own exports use
+// (both the Companion App and REC's direct EA client emit them).
 const LIST_KEYS: Record<MaddenEndpointKey, string[]> = {
   league_metadata: ["leagueInfo", "league", "leagues", "data"],
-  teams: ["teams", "teamInfoList", "teamInfo", "data"],
+  teams: ["teams", "leagueTeamInfoList", "teamInfoList", "teamInfo", "data"],
   standings: ["standings", "teamStandingInfoList", "teamStandings", "data"],
   schedule: ["schedule", "schedules", "gameScheduleInfoList", "games", "data"],
   rosters: ["rosters", "rosterInfoList", "players", "data"],
-  player_stats: ["playerStats", "playerStatInfoList", "stats", "data"],
+  player_stats: [
+    "playerStats", "playerStatInfoList",
+    "playerPassingStatInfoList", "playerRushingStatInfoList", "playerReceivingStatInfoList",
+    "playerDefensiveStatInfoList", "playerKickingStatInfoList", "playerPuntingStatInfoList",
+    "stats", "data",
+  ],
   team_stats: ["teamStats", "teamStatInfoList", "stats", "data"],
 };
 
@@ -92,7 +99,14 @@ function metadata(root: JsonObject, row: JsonObject) {
   const sourceTeamId = scalar(first(row, ["teamId", "team_id", "rosterTeamId", "roster_team_id"]));
   const sourcePlayerId = scalar(first(row, ["playerId", "player_id", "rosterId", "roster_id", "personaId"]));
   const sourceGameId = scalar(first(row, ["gameId", "game_id", "scheduleId", "schedule_id"]));
-  const weekNumber = numberValue(first(row, ["week", "weekIndex", "week_index", "stageIndex", "stage_index"]));
+  // `week` is the 1-based display week REC stores. EA rows only carry the 0-based weekIndex,
+  // so prefer an explicit week and never fall back to stageIndex, which is a phase (0/1) and
+  // would otherwise be silently written as "week 0"/"week 1".
+  const weekNumber = numberValue(first(row, ["week", "week_number", "weekNumber"]))
+    ?? (() => {
+      const index = numberValue(first(row, ["weekIndex", "week_index"]));
+      return index === null ? null : index + 1;
+    })();
   const statCategory = scalar(first(row, ["statType", "stat_type", "category", "statCategory", "stat_category"]));
   return { externalLeagueId, externalSeasonKey: season, sourceTeamId, sourcePlayerId, sourceGameId, weekNumber, statCategory };
 }

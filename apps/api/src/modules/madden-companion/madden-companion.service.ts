@@ -68,7 +68,11 @@ export async function validateCompanionConnection(connectionToken: string, endpo
   return connection;
 }
 
-export async function ingestCompanionPayload(connection: CompanionConnection, endpointKey: MaddenEndpointKey, payload: unknown, requestHeaders: Record<string, string>): Promise<IngestResult> {
+/** Import provenance. REC's direct EA client reuses this whole pipeline but is recorded
+ *  separately so audit/rollback can tell a push from the app apart from a pull from EA. */
+export type ImportSourceType = "madden_companion" | "madden_direct_sync";
+
+export async function ingestCompanionPayload(connection: CompanionConnection, endpointKey: MaddenEndpointKey, payload: unknown, requestHeaders: Record<string, string>, sourceType: ImportSourceType = "madden_companion"): Promise<IngestResult> {
   const payloadChecksum = companionChecksum(payload);
   const payloadString = JSON.stringify(payload);
   const records = normalizeCompanionPayload(endpointKey, payload);
@@ -87,8 +91,8 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
 
     const rate = await client.query<{ count: number }>(
       `select count(*)::int as count from rec_import_jobs
-        where connection_id=$1 and source_type='madden_companion' and created_at >= now() - interval '1 minute'`,
-      [connection.id],
+        where connection_id=$1 and source_type=$2 and created_at >= now() - interval '1 minute'`,
+      [connection.id, sourceType],
     );
     if ((rate.rows[0]?.count ?? 0) >= (connection.config.rate_limit_per_minute ?? 60)) {
       throw new ApiError(429, "Companion import rate limit exceeded; retry in one minute.");
@@ -97,9 +101,9 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
     const duplicate = await client.query<{ id: string; record_count: number }>(
       `select id, record_count from rec_import_jobs
         where league_id=$1 and connection_id=$2 and task_key=$3 and source_checksum=$4
-          and source_type='madden_companion' and duplicate_of_job_id is null
+          and source_type=$5 and duplicate_of_job_id is null
         limit 1`,
-      [connection.league_id, connection.id, endpointKey, payloadChecksum],
+      [connection.league_id, connection.id, endpointKey, payloadChecksum, sourceType],
     );
     if (duplicate.rows[0]) {
       await client.query(
@@ -118,9 +122,9 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
     const job = await client.query<{ id: string }>(
       `insert into rec_import_jobs
          (league_id, connection_id, source_type, task_key, status, started_at, source_checksum, external_season_key, record_count)
-       values ($1,$2,'madden_companion',$3,'processing',now(),$4,$5,$6)
+       values ($1,$2,$7,$3,'processing',now(),$4,$5,$6)
        returning id`,
-      [connection.league_id, connection.id, endpointKey, payloadChecksum, externalSeasonKey, records.length],
+      [connection.league_id, connection.id, endpointKey, payloadChecksum, externalSeasonKey, records.length, sourceType],
     );
     const jobId = job.rows[0].id;
 
@@ -291,7 +295,7 @@ export async function getCompanionConnectionStatus(leagueId: string) {
 // advance-results.service.ts) — without this, an imported game would sit there fully scored
 // yet still show up as "needs input" forever. Best-effort, idempotent (upserts on the same
 // records_apply_key the manual/screenshot prelog paths use), called after any schedule import.
-async function syncCompanionScheduleResultsIntoGameResults(leagueId: string): Promise<void> {
+export async function syncCompanionScheduleResultsIntoGameResults(leagueId: string): Promise<void> {
   const pool = getPgPool();
   const games = await pool.query<{
     id: string; week_number: number; phase: string; home_team_id: string; away_team_id: string;
