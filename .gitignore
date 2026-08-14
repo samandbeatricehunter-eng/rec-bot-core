@@ -11,6 +11,13 @@ dist
 # Hub assets copied into site at Vite build time from apps/web/public
 apps/site/public/assets/
 
+# Custom-player card renders (150 PNGs, ~348 MB) are served from Cloudflare Images in
+# production — see apps/api/scripts/upload-custom-player-renders.ts. The generator
+# (scripts/dev/generate-custom-player-renders.py) still writes here locally for regeneration.
+apps/web/public/assets/custom-player-renders/
+# Upload manifest written by upload-custom-player-renders.ts (local record, not source).
+apps/api/scripts/.custom-player-renders-upload.json
+
 # Tesseract language data (downloaded/bundled at runtime, not source)
 *.traineddata
 # Local OCR debug scratch output

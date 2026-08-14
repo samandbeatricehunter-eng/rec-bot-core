@@ -1,6 +1,8 @@
 // Custom-player card render catalog — 150 photoreal bust options users pick after
-// setting body type + position. Assets live at /assets/custom-player-renders/{id}.png
-// Body build drives facial morphology (jaw, fatness, neck) — not just which folder.
+// setting body type + position. Assets live at {base}/custom-player-renders/{id}.png, where
+// {base} is a CDN/asset host (Cloudflare Images in production) or empty for the local
+// /assets folder in dev. Body build drives facial morphology (jaw, fatness, neck) — not just
+// which folder.
 
 export const REC_CARD_BODY_BUILDS = ["lean", "thin", "standard", "muscular", "heavy"] as const;
 export type RecCardBodyBuild = (typeof REC_CARD_BODY_BUILDS)[number];
@@ -50,6 +52,52 @@ function pad(n: number): string {
   return String(n).padStart(3, "0");
 }
 
+/**
+ * Delivery base that custom-player render images are served from, without a trailing slash.
+ *
+ * The 150 renders are ~348 MB of PNGs, so in production they live on Cloudflare Images and
+ * are served from `https://imagedelivery.net/<account-hash>` rather than bundled into every
+ * site deploy. This module is shared between the site (Vite/browser) and the API (Node), and
+ * the shared package deliberately has no Vite or Node type dependencies, so the base is
+ * resolved isomorphically off `globalThis`:
+ *   1. `__REC_SITE_CONFIG__.VITE_ASSET_BASE_URL` — injected into the page by the site server
+ *      (apps/site/server/serve.js) so Railway env can override it without a rebuild;
+ *   2. `process.env.CUSTOM_PLAYER_RENDER_BASE_URL` — the API (Node) when it writes
+ *      `rec_players.photo_url`;
+ *   3. `""` — empty, which yields the local `/assets/custom-player-renders/...` path so dev
+ *      works offline against the files generated into apps/web/public.
+ *
+ * The value may itself be empty/whitespace (treated as unset) and may or may not carry a
+ * trailing slash; it is normalized to no trailing slash.
+ */
+export function customPlayerRenderBaseUrl(): string {
+  const g = globalThis as {
+    __REC_SITE_CONFIG__?: { VITE_ASSET_BASE_URL?: string };
+    process?: { env?: Record<string, string | undefined> };
+  };
+  const fromRuntime = g.__REC_SITE_CONFIG__?.VITE_ASSET_BASE_URL?.trim();
+  if (fromRuntime) return fromRuntime.replace(/\/+$/, "");
+  const fromProcess = g.process?.env?.CUSTOM_PLAYER_RENDER_BASE_URL?.trim();
+  if (fromProcess) return fromProcess.replace(/\/+$/, "");
+  return "";
+}
+
+/**
+ * Public URL for one render id, honoring the configured delivery base.
+ *
+ * Two layouts are supported:
+ *   - Cloudflare Images (`https://imagedelivery.net/<account-hash>`): the render id is the
+ *     Cloudflare image id, so the URL is `{base}/{id}/public` (the `public` variant).
+ *   - Anything else (including the empty dev default): a plain static file at
+ *     `{base}/assets/custom-player-renders/{id}.png`.
+ */
+export function customPlayerRenderImagePath(id: string): string {
+  const base = customPlayerRenderBaseUrl();
+  if (!base) return `/assets/custom-player-renders/${id}.png`;
+  if (/^https:\/\/imagedelivery\.net\//i.test(base)) return `${base}/${id}/public`;
+  return `${base}/assets/custom-player-renders/${id}.png`;
+}
+
 /** Deterministic 150-entry catalog (30 per body build × 5 builds). */
 export const REC_CUSTOM_PLAYER_RENDERS: readonly RecCustomPlayerRender[] = (() => {
   const out: RecCustomPlayerRender[] = [];
@@ -61,7 +109,7 @@ export const REC_CUSTOM_PLAYER_RENDERS: readonly RecCustomPlayerRender[] = (() =
       const id = `cpr-${pad(n)}`;
       out.push({
         id,
-        imagePath: `/assets/custom-player-renders/${id}.png`,
+        imagePath: customPlayerRenderImagePath(id),
         bodyBuild,
         skinTone,
         hairstyle,
@@ -80,7 +128,10 @@ export function getCustomPlayerRender(id: string | null | undefined): RecCustomP
 
 export function customPlayerRenderPublicUrl(id: string): string {
   const row = getCustomPlayerRender(id);
-  return row?.imagePath ?? "/assets/player-cards/player-silhouette.svg";
+  // Resolve at call time (not from the cached catalog entry) so a runtime-injected base URL
+  // is honored even if the module was imported before the config script ran. The silhouette
+  // fallback is a tiny local SVG and always stays on the bundle.
+  return row ? customPlayerRenderImagePath(row.id) : "/assets/player-cards/player-silhouette.svg";
 }
 
 /** Filter catalog by selected body build and (optional) position constraints. */

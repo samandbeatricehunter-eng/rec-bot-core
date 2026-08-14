@@ -10,6 +10,7 @@ const PROD_DEFAULTS = {
   VITE_REC_CORE_API_URL: "https://recapi-production.up.railway.app",
   VITE_SITE_URL: "https://rec-leagues.com",
   VITE_BUILD_ID: "",
+  VITE_ASSET_BASE_URL: "",
 } as const;
 
 type RuntimeConfig = {
@@ -18,6 +19,7 @@ type RuntimeConfig = {
   VITE_REC_CORE_API_URL?: string;
   VITE_SITE_URL?: string;
   VITE_BUILD_ID?: string;
+  VITE_ASSET_BASE_URL?: string;
 };
 
 declare global {

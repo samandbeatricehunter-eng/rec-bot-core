@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_REC_CORE_API_URL: string;
   readonly VITE_SITE_URL?: string;
   readonly VITE_BUILD_ID?: string;
+  readonly VITE_ASSET_BASE_URL?: string;
 }
 
 interface ImportMeta {

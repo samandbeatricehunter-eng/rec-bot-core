@@ -26,6 +26,9 @@ const runtimeConfig = {
     process.env.VITE_REC_CORE_API_URL || "https://recapi-production.up.railway.app",
   VITE_SITE_URL: process.env.VITE_SITE_URL || "https://rec-leagues.com",
   VITE_BUILD_ID: buildId,
+  // Base URL for the custom-player render images (Cloudflare Images in production). Empty
+  // means serve the local /assets/custom-player-renders folder (dev).
+  VITE_ASSET_BASE_URL: process.env.VITE_ASSET_BASE_URL || "",
 };
 
 const serializedConfig = JSON.stringify(runtimeConfig).replaceAll("<", "\\u003c");

@@ -35,6 +35,10 @@ const EnvSchema = z.object({
   CLOUDFLARE_STREAM_WEBHOOK_SECRET: z.string().optional(),
   CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN: z.string().optional(),
   CLOUDFLARE_STREAM_ALLOWED_ORIGINS: z.string().optional(),
+  // Base URL the custom-player card renders are served from (Cloudflare Images delivery host,
+  // e.g. https://imagedelivery.net/<account-hash>). Optional: empty means the API writes the
+  // local /assets/custom-player-renders path into rec_players.photo_url (dev).
+  CUSTOM_PLAYER_RENDER_BASE_URL: z.string().optional(),
   // Stripe billing (site subscriptions). Optional so the API boots without Stripe;
   // checkout / portal / webhook routes fail closed when unset.
   STRIPE_SECRET_KEY: z.string().optional(),
