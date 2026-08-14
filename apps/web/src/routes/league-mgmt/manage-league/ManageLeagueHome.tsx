@@ -116,29 +116,44 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         subtitle={mode === "roster" ? "Find a team and add or review players on its roster." : "Find a team, see its schedule and box-score health, and enter its games and scores."}
         actions={
           mode === "roster" ? undefined : (
-            <div className="manage-league-header-actions">
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
-                <Users size={16} /> Link/Unlink Teams
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
-                <Shield size={16} /> Manage Roles
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
-              {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
-              {isMadden && summary && <Button variant="secondary" onClick={() => setImportDataOpen(true)}><Database size={16}/> Import Data</Button>}
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
-              {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
-              {isMadden && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
-              <Button variant="secondary" onClick={() => setRepairChannelsOpen(true)}>
-                <Wrench size={16}/> Repair Game Channels
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
-                <Settings size={16} /> Settings
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
-                <Newspaper size={16} /> Media
-              </Button>
+            <div className="manage-league-header-groups">
+              <div className="manage-league-header-group">
+                <span className="manage-league-header-group-label">League</span>
+                <div className="manage-league-header-actions">
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
+                    <Users size={16} /> Link/Unlink Teams
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
+                    <Shield size={16} /> Manage Roles
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP, Bowls & Top 25</Button>
+                  {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
+                </div>
+              </div>
+              <div className="manage-league-header-group">
+                <span className="manage-league-header-group-label">Data & Rosters</span>
+                <div className="manage-league-header-actions">
+                  {isMadden && <Button variant="secondary" onClick={() => setDraftOrderOpen((open) => !open)}><ListOrdered size={16}/> Upcoming Draft Order</Button>}
+                  {isMadden && summary && <Button variant="secondary" onClick={() => setImportDataOpen(true)}><Database size={16}/> Import Data</Button>}
+                  {isMadden && <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/rosters")}><UserPlus size={16}/> Edit Rosters</Button>}
+                  <Button variant="secondary" onClick={() => setRepairChannelsOpen(true)}>
+                    <Wrench size={16}/> Repair Game Channels
+                  </Button>
+                </div>
+              </div>
+              <div className="manage-league-header-group">
+                <span className="manage-league-header-group-label">Admin</span>
+                <div className="manage-league-header-actions">
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings?category=moderation")}><ShieldAlert size={16}/> Bans & Restrictions</Button>
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
+                    <Settings size={16} /> Settings
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
+                    <Newspaper size={16} /> Media
+                  </Button>
+                </div>
+              </div>
             </div>
           )
         }

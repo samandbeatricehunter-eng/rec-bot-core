@@ -834,6 +834,31 @@
   }
 }
 
+/* Grouped header actions: visually separate clusters (League / Data & Rosters / Admin) so
+   the dozen Manage League shortcuts read as a small nav rather than one undifferentiated
+   button wall. */
+.manage-league-header-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  align-items: flex-end;
+}
+.manage-league-header-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  align-items: flex-end;
+}
+.manage-league-header-group-label {
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 /* Commissioner's Office tab strip — same wrap-safety issue as the readiness buttons above. */
 .commissioner-chat-tabs {
   display: flex;
