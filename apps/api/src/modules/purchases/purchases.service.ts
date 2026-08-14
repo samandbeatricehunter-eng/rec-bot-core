@@ -78,7 +78,15 @@ function mapLegendAttributes(raw: Record<string, number> | null | undefined): Re
 /** Fires once a legend purchase is approved ("Approved & Applied In-Game") — creates the
  * actual rec_players row with the legend's full mapped attributes and photo, and removes
  * whichever roster player it replaces. Mirrors apply_custom_player_build's shape, just from
- * JS instead of a DB function since there's no atomic-CP-refund step to protect here. */
+ * JS instead of a DB function since there's no atomic-CP-refund step to protect here.
+ *
+ * When there's a replacement, this UPDATEs that player's row in place rather than inserting
+ * a new row and deleting the old one. The old insert-then-delete order used to race
+ * rec_players' (league_id, madden_player_id) unique constraint: any new row that needed to
+ * carry the replaced player's real EA/madden id (so future stat imports keep matching that
+ * roster slot) collided with the still-present old row, since the delete hadn't happened yet.
+ * Updating in place sidesteps the whole class of bug — one statement, same row id, same
+ * madden_player_id, nothing to race. */
 async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   const details = (purchase.details ?? {}) as Record<string, any>;
   const leagueId = purchase.league_id as string;
@@ -94,40 +102,35 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
 
   // Prefer the commissioner's final pick when present (Madden "commissioner's choice" path),
   // otherwise the buyer's designated replaceTarget. Either way the outgoing roster row is
-  // permanently deleted so the installed legend occupies that slot.
-  const replacementPlayerId: string | null =
+  // updated in place so the installed legend occupies that slot and keeps its real EA/madden
+  // id (no insert/delete race on the (league_id, madden_player_id) unique constraint).
+  let replacementPlayerId: string | null =
     details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
-  let inheritedMaddenPlayerId: string | null = null;
-  if (!isCfbLeague) {
-    if (!replacementPlayerId) throw new ApiError(400, "A Madden legend must have a roster player selected to replace before it can be applied.");
-    const replacement = await supabase.from("rec_players").select("id,madden_player_id")
+
+  let replacement: { id: string; position: string } | null = null;
+  if (replacementPlayerId) {
+    let query = supabase.from("rec_players").select("id,position")
       .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"]).maybeSingle();
-    if (!replacement.data) throw new ApiError(409, "The selected Madden replacement player is no longer available. Reject and refund this purchase.");
-    inheritedMaddenPlayerId = replacement.data.madden_player_id;
+      .in("roster_status", ["active", "transferred_in"]);
+    if (isCfbLeague) query = query.eq("is_default_player", false);
+    const found = await query.maybeSingle();
+    replacement = found.data ?? null;
+    if (!replacement) {
+      if (isCfbLeague) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
+      replacementPlayerId = null; // Madden: fall back to a brand-new roster slot below.
+    }
   }
-  let inheritedCfbPosition: string | null = null;
-  if (isCfbLeague) {
-    if (!replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
-    const replacement = await supabase.from("rec_players").select("id,position")
-      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
-    if (!replacement.data) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
-    inheritedCfbPosition = replacement.data.position;
-  }
+  if (isCfbLeague && !replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
 
   const nameParts = String(details.name ?? "").trim().split(/\s+/);
   const firstName = nameParts[0] ?? details.name;
   const lastName = nameParts.slice(1).join(" ") || details.name;
 
-  const inserted = await supabase.from("rec_players").insert({
-    league_id: leagueId,
-    team_id: teamId,
-    madden_player_id: isCfbLeague ? `legend:${details.legendId}:${purchase.id}` : inheritedMaddenPlayerId,
+  const playerRow = {
     first_name: firstName,
     last_name: lastName,
     full_name: details.name,
-    position: inheritedCfbPosition ?? details.position,
+    position: isCfbLeague ? replacement!.position : details.position,
     height_inches: parseLegendHeightInches(details.height),
     weight_lbs: details.weight ?? null,
     handedness: details.hand ?? null,
@@ -135,7 +138,7 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     college: !isCfbLeague ? (details.college ?? null) : null,
     dev_trait: isCfbLeague ? null : (details.devTrait ?? null),
     // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
-    // is an integer column — round it, or the insert fails outright with a Postgres type error.
+    // is an integer column — round it, or the write fails outright with a Postgres type error.
     overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,
     archetype: details.archetype ?? null,
     attributes: mapLegendAttributes(details.attributes),
@@ -146,12 +149,24 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     roster_status: "active",
     player_source: "legend",
     raw_payload: { legend: true, legendId: details.legendId, purchaseId: purchase.id },
-  });
-  if (inserted.error) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", inserted.error);
+  };
 
   if (replacementPlayerId) {
-    await supabase.from("rec_players").delete().eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId);
+    const updated = await supabase.from("rec_players").update(playerRow)
+      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId).select("id").maybeSingle();
+    if (updated.error || !updated.data) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", updated.error);
+    return;
   }
+
+  // No replacement (Madden-only — e.g. an unseeded league with no roster yet) — a genuinely
+  // new roster slot, so it needs its own synthetic identity.
+  const inserted = await supabase.from("rec_players").insert({
+    league_id: leagueId,
+    team_id: teamId,
+    madden_player_id: `legend:${details.legendId}:${purchase.id}`,
+    ...playerRow,
+  });
+  if (inserted.error) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", inserted.error);
 }
 
 type AttributeAllocation = { code: string; points: number; core: boolean };
