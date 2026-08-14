@@ -40,6 +40,7 @@ export function ImportDataModal({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -52,22 +53,39 @@ export function ImportDataModal({
   const [jobs, setJobs] = useState<Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> | null>(null);
 
   async function loadStatus() {
+    if (!guildId || !leagueId) {
+      setLoading(false);
+      setLoadError("Missing league context — close this window and try again from Manage League.");
+      setConfigured(false);
+      return;
+    }
     setLoading(true);
+    setLoadError(null);
     setError(null);
     try {
-      const [health, status] = await Promise.all([
-        recApi.getMaddenEaHealth(),
-        recApi.getMaddenEaStatus({ guildId, leagueId }),
-      ]);
-      setConfigured(health.configured);
-      setDatasets(health.datasets);
-      setConnection(status.connection);
-      if (status.connection) {
-        const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
+      // Load health and status independently so a single failing call can't blank the modal.
+      const healthResult = await recApi.getMaddenEaHealth().catch((cause) => {
+        throw new Error(cause instanceof Error ? cause.message : "Failed to reach the EA import health check.");
+      });
+      setConfigured(Boolean(healthResult.configured));
+      setDatasets(Array.isArray(healthResult.datasets) ? healthResult.datasets : []);
+
+      if (!healthResult.configured) {
+        setConnection(null);
+        return;
+      }
+
+      const statusResult = await recApi.getMaddenEaStatus({ guildId, leagueId });
+      setConnection(statusResult.connection);
+      if (statusResult.connection) {
+        const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] as NonNullable<typeof jobs> }));
         setJobs(jobsResult.jobs);
+      } else {
+        setJobs(null);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Failed to check EA import status.");
+      setConfigured((prev) => prev ?? false);
+      setLoadError(cause instanceof Error ? cause.message : "Failed to check EA import status.");
     } finally {
       setLoading(false);
     }
@@ -180,15 +198,24 @@ export function ImportDataModal({
   return (
     <Modal title="Import Data" onClose={onClose}>
       {loading && <LoadingState label="Checking EA connection…" />}
-      {!loading && configured === false && (
+      {!loading && loadError && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          <ErrorState message={loadError} />
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" onClick={() => void loadStatus()}>Retry</Button>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      )}
+      {!loading && !loadError && configured === false && (
         <>
-          <p className="form-hint">Direct EA import isn't configured on this server. Use the Madden Companion import URL (Settings → Integrations) instead.</p>
+          <p className="form-hint">Direct EA import isn't configured on this server yet (missing EA_CLIENT_SECRET / EA_TOKEN_ENC_KEY). Use the Madden Companion import URL under Settings → Integrations instead.</p>
           <Button variant="secondary" onClick={onClose}>Close</Button>
         </>
       )}
-      {!loading && configured && error && <ErrorState message={error} />}
-      {!loading && configured && !error && (
+      {!loading && !loadError && configured && (
         <>
+          {error && <ErrorState message={error} />}
           {notice && <p className="form-hint" style={{ color: "var(--gold)" }}>{notice}</p>}
 
           {connection ? (
