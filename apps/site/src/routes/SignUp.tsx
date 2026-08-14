@@ -94,8 +94,8 @@ export function SignUp() {
         </button>
         <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>
           Played REC before through Discord? Use "Continue with Discord" above — it finds your
-          existing leagues, badges, and stats. Signing up with email instead creates a brand-new,
-          empty account.
+          existing leagues, badges, and stats. Signing up with email instead creates a brand-new
+          account you can link to Discord later from My Account.
         </p>
         <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>or use email</p>
         <label className="site-field">

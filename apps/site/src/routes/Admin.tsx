@@ -895,7 +895,7 @@ function ImpersonatePanel() {
       </p>
       <label className="site-field">
         <span>Search users</span>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Username" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Username, email, or Discord name" />
       </label>
       {error && <p className="site-auth-error">{error}</p>}
       <div className="site-account-tabs" role="tablist" aria-label="Account type">
@@ -911,6 +911,7 @@ function ImpersonatePanel() {
             <span>
               {user.subscriptionTier}{user.billingStatus === "lifetime_comp" ? " · comp" : ""} {user.hasSiteAccount ? "" : "· no site account"}
             </span>
+            {user.email ? <span className="site-muted">{user.email}</span> : null}
             <span className="site-muted">Click to manage →</span>
           </li>
         ))}

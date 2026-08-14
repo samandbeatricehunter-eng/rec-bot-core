@@ -31,12 +31,23 @@ export function Pricing() {
       setEntitlements(null);
       return;
     }
+    // Cancel return deletes the incomplete account — skip ensuring a rec_users row here.
+    if (checkout === "cancel") return;
     let active = true;
     setEntitlementsLoading(true);
+    // Ensure a rec_users row exists for email-only signups before loading entitlements /
+    // starting checkout — otherwise brand-new accounts are invisible in admin until pay.
     siteApi
-      .getEntitlements()
-      .then((summary) => {
-        if (active) setEntitlements(summary);
+      .linkDiscordOAuth()
+      .then((profile) => {
+        if (!active) return;
+        if (profile.entitlements) {
+          setEntitlements(profile.entitlements);
+          return;
+        }
+        return siteApi.getEntitlements().then((summary) => {
+          if (active) setEntitlements(summary);
+        });
       })
       .catch(() => {
         if (active) setEntitlements(null);
@@ -47,7 +58,32 @@ export function Pricing() {
     return () => {
       active = false;
     };
-  }, [auth.status]);
+  }, [auth.status, checkout]);
+
+  // Stripe cancel return: no promo grant and no completed payment → delete the incomplete
+  // account immediately so unfinished signups do not linger in Auth/admin lists.
+  useEffect(() => {
+    if (auth.status !== "signed-in") return;
+    if (checkout !== "cancel") return;
+    let active = true;
+    void (async () => {
+      try {
+        const result = await siteApi.abandonIncompleteSignup();
+        if (!active) return;
+        if (result.purged) {
+          await auth.signOut();
+          if (active) {
+            setError("Checkout canceled — your incomplete account was removed. Sign up again when you're ready to subscribe.");
+          }
+        }
+      } catch {
+        /* keep the soft cancel message below if purge fails */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [auth, checkout]);
 
   async function startCheckout(tier: "gold" | "platinum") {
     setError(null);
