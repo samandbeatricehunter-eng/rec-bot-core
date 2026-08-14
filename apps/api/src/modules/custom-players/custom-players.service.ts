@@ -580,8 +580,14 @@ export async function reviewCustomPlayer(input: {
   };
   validateIdentity(build.game_family, adjusted.identity, build.position);
   const reevaluated = evaluateCustomPlayer({ game: build.game_family, packageTier: build.package_tier, position: build.position, archetypeKey: build.selected_archetype_key, developmentTrait: build.development_trait, attributes: adjusted.attributes, mode: "submit" });
-  if (!reevaluated.valid) {
-    const reason = reevaluated.violations?.[0]?.message;
+  // A build submitted while the CP cost model was cheaper can now exceed its package budget
+  // (the shared pricing was raised so 90+ ratings cost real CP). The buyer was validated and
+  // charged at submit time, and the commissioner is the authority here, so a CP-budget shortfall
+  // must not lock a legitimate pending build out of approval — only flag it. Every other
+  // integrity check (floors, archetype identity, OVR cap) still blocks approval.
+  const blockingViolations = (reevaluated.violations ?? []).filter((violation) => violation.code !== "INSUFFICIENT_POINTS");
+  if (!reevaluated.valid && blockingViolations.length > 0) {
+    const reason = blockingViolations[0]?.message;
     throw new ApiError(409, reason || "The adjusted build does not pass authoritative validation.");
   }
   const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
