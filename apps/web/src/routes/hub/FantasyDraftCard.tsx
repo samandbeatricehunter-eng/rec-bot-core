@@ -260,6 +260,9 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
   if (loading && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><LoadingState label="Loading the draft board…" /></SectionFrame>;
   if (error && !state) return <SectionFrame eyebrow="Fantasy Draft" title="Draft Tracker"><ErrorState message={error} /><div style={{ marginTop: "var(--space-3)" }}><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>Try again</Button></div></SectionFrame>;
   if (!state) return null;
+  // After conclude, the hub no longer mounts this card — keep the full board route empty too
+  // so deep links don't resurrect a finished draft room.
+  if (state.session?.status === "concluded") return null;
 
   const { session, teams, pickOrder, pool, picks, pickRequests, caller } = state;
   const isCommissioner = caller.isCommissioner;

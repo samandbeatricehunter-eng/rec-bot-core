@@ -1540,7 +1540,7 @@ export function HubHome() {
           </SectionFrame>
         </div>
 
-        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && readyGuildId && (
+        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
           <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
         )}
 
