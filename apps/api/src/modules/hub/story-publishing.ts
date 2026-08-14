@@ -10,13 +10,20 @@ import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
 // Mirrors an auto-generated headline/article to the guild's configured Headlines channel
 // (Platinum Discord-bot add-on). Shared by every generated-story path in this file.
-export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
     if (!channelId) return;
+    const embed: any = {
+      title: input.headline, color: 0xd9a521, description: input.body.slice(0, 4096),
+    };
+    if (input.image_url) {
+      embed.image = { url: input.image_url };
+    }
     const sent = await postDiscordChannelMessage(channelId, {
-      embeds: [{ title: input.headline, color: 0xd9a521, description: input.body.slice(0, 4096) }],
+      content: "@everyone",
+      embeds: [embed],
     });
     if (sent?.id) {
       await supabase.from("rec_game_stories").update({ posted_channel_id: channelId, posted_message_id: sent.id }).eq("id", input.storyId);
@@ -99,7 +106,7 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that scheduled media story. Please try again.", result.error);
-  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body });
+  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body, image_url: submission.image_url ?? undefined });
   return result.data.id as string;
 }
 
