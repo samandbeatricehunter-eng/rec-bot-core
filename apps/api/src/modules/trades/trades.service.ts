@@ -6,6 +6,7 @@ import {
   type RecTradePickInput,
   type RecTradePlayerInput,
 } from "@rec/shared";
+import { MADDEN_PICK_BASELINE_META } from "../draft-picks/madden-pick-baselines.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -327,10 +328,21 @@ async function announceAppliedTrade(guildId: string, leagueId: string, tradeId: 
       teamLabel(leagueId, trade.data.receiving_team_id),
     ]);
     const playerIds = (legs.data ?? []).filter((l: any) => l.leg_type === "player").map((l: any) => l.player_id);
-    const players = playerIds.length ? await supabase.from("rec_players").select("id,full_name").in("id", playerIds) : { data: [] as any[] };
+    const pickIds = (legs.data ?? []).filter((l: any) => l.leg_type === "pick").map((l: any) => l.draft_pick_id);
+    const [players, picks] = await Promise.all([
+      playerIds.length ? supabase.from("rec_players").select("id,full_name").in("id", playerIds) : { data: [] as any[] },
+      pickIds.length ? supabase.from("rec_draft_picks").select("id,season_number,round,pick_number").in("id", pickIds) : { data: [] as any[] },
+    ]);
     const nameByPlayer = new Map((players.data ?? []).map((p: any) => [p.id, p.full_name]));
+    // Resolve game for year conversion
+    const leagueRow = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
+    const game = String(leagueRow.data?.game ?? "");
+    const pickById = new Map<string, { season_number: number; round: number; pick_number: number | null }>((picks.data ?? []).map((p: any) => [p.id, p]));
     const toLine = (l: any) => {
-      const label = l.leg_type === "player" ? (nameByPlayer.get(l.player_id) ?? "a player") : "a draft pick";
+      const picked = pickById.get(l.draft_pick_id);
+      const label = l.leg_type === "player"
+        ? (nameByPlayer.get(l.player_id) ?? "a player")
+        : (picked ? pickLabel(picked, game) : "a draft pick");
       return `${label} (${l.from_team_id === trade.data!.proposing_team_id ? proposingName : receivingName} → ${l.to_team_id === trade.data!.proposing_team_id ? proposingName : receivingName})`;
     };
     const lines = (legs.data ?? []).map(toLine);
@@ -623,7 +635,7 @@ export async function logCommissionerTrade(input: {
     pickIds.length ? supabase.from("rec_draft_picks").select("id,season_number,round,pick_number").in("id", pickIds) : Promise.resolve({ data: [] as any[] }),
   ]);
   const playerNames = new Map((players.data ?? []).map((row: any) => [row.id, row.full_name]));
-  const pickNames = new Map((picks.data ?? []).map((row: any) => [row.id, `Season ${row.season_number} Round ${row.round}${row.pick_number ? ` Pick ${row.pick_number}` : ""}`]));
+  const pickNames = new Map((picks.data ?? []).map((row: any) => [row.id, pickLabel(row, context.league.game)]));
   const describe = (selected: LegInput[], coinAmount: number) => [...selected.map((leg) => leg.type === "player" ? playerNames.get(leg.playerId) ?? "Player" : pickNames.get(leg.draftPickId) ?? "Draft pick"), ...(coinAmount ? [`${coinAmount.toLocaleString()} coins`] : [])];
   const firstAssets = describe(input.offeredLegs, input.offeredCoins);
   const secondAssets = describe(input.requestedLegs, input.requestedCoins);
@@ -704,23 +716,35 @@ export async function getTradeDetail(guildId: string, tradeId: string) {
 // channel, same as a proposal does.
 // ---------------------------------------------------------------------------
 
-async function describeLegsForAnnouncement(leagueId: string, legs: LegInput[]): Promise<string> {
+/** Convert a 1-based season_number to the actual draft year (e.g. Madden 27: 1 → 2027). */
+function seasonNumberToYear(seasonNumber: number, game: string): number {
+  const meta = MADDEN_PICK_BASELINE_META[game as keyof typeof MADDEN_PICK_BASELINE_META];
+  return meta ? meta.firstDraftYear + seasonNumber - 1 : seasonNumber;
+}
+
+function pickLabel(p: { season_number: number; round: number; pick_number?: number | null }, game: string): string {
+  const year = seasonNumberToYear(p.season_number, game);
+  const pickNum = p.pick_number ? `, Pick ${p.pick_number}` : "";
+  return `${year} Round ${p.round}${pickNum}`;
+}
+
+async function describeLegsForAnnouncement(leagueId: string, legs: LegInput[], game: string): Promise<string> {
   if (!legs.length) return "nothing";
   const playerIds = legs.filter((l) => l.type === "player").map((l: any) => l.playerId);
   const pickIds = legs.filter((l) => l.type === "pick").map((l: any) => l.draftPickId);
   const [players, picks] = await Promise.all([
     playerIds.length ? supabase.from("rec_players").select("id,full_name,position").in("id", playerIds) : Promise.resolve({ data: [] as any[] }),
-    pickIds.length ? supabase.from("rec_draft_picks").select("id,season_number,round").in("id", pickIds) : Promise.resolve({ data: [] as any[] }),
+    pickIds.length ? supabase.from("rec_draft_picks").select("id,season_number,round,pick_number").in("id", pickIds) : Promise.resolve({ data: [] as any[] }),
   ]);
   const playerById = new Map<string, { full_name: string; position: string }>((players.data ?? []).map((p: any) => [p.id, p]));
-  const pickById = new Map<string, { season_number: number; round: number }>((picks.data ?? []).map((p: any) => [p.id, p]));
+  const pickById = new Map<string, { season_number: number; round: number; pick_number: number | null }>((picks.data ?? []).map((p: any) => [p.id, p]));
   return legs.map((leg) => {
     if (leg.type === "player") {
       const p = playerById.get(leg.playerId);
       return p ? `${p.full_name} (${p.position})` : "a player";
     }
     const p = pickById.get(leg.draftPickId);
-    return p ? `Season ${p.season_number} Round ${p.round} pick` : "a draft pick";
+    return p ? pickLabel(p, game) : "a draft pick";
   }).join(", ");
 }
 
@@ -747,7 +771,7 @@ export async function createTradeBlockListing(input: {
 
   const [teamName, offerDescription] = await Promise.all([
     teamLabel(context.leagueId, teamId),
-    describeLegsForAnnouncement(context.leagueId, input.legs),
+    describeLegsForAnnouncement(context.leagueId, input.legs, context.league.game),
   ]);
   const offerLine = [offerDescription !== "nothing" ? offerDescription : null, input.coins > 0 ? `${input.coins} coins` : null].filter(Boolean).join(" + ");
   const channelId = await resolveTradeBlockChannelId(context.leagueId);

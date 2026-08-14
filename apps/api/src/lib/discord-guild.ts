@@ -334,6 +334,13 @@ export async function getDiscordMessage(channelId: string, messageId: string): P
   return res.json() as any;
 }
 
+/** Fetch the full Discord message payload including embeds (used for editing embeds in-place). */
+export async function getDiscordMessagePayload(channelId: string, messageId: string): Promise<{ embeds?: Array<Record<string, any>> } | null> {
+  const res = await bestEffort("discord.get_message_payload", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`), { entityId: messageId }) ?? null;
+  if (!res || !res.ok) return null;
+  return res.json() as any;
+}
+
 export type DiscordPollAnswerCount = { id: number; count: number; me_voted: boolean };
 export type DiscordPollResult = { question: string; answers: Array<{ id: number; text: string }>; isFinalized: boolean; answerCounts: DiscordPollAnswerCount[] } | null;
 

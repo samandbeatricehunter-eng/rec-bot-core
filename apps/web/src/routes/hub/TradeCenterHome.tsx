@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
+import { MADDEN_PICK_BASELINE_META } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -277,15 +278,22 @@ function statusLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterResponse): string {
+function seasonNumberToYear(seasonNumber: number, game: string): number {
+  const meta = MADDEN_PICK_BASELINE_META[game as keyof typeof MADDEN_PICK_BASELINE_META];
+  return meta ? meta.firstDraftYear + seasonNumber - 1 : seasonNumber;
+}
+
+function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterResponse, game: string): string {
   const parts = listing.offeredLegs.map((leg) => {
     if (leg.type === "player") {
       const playerName = listing.playerNamesById[leg.playerId];
       return playerName ?? "a player";
     }
-    // draft pick - look up in viewer's roster since all teams share the same draft database
     const pick = myRoster.draftPicks.find((p) => p.id === leg.draftPickId);
-    return pick ? `Season ${pick.seasonNumber} Round ${pick.round} pick` : "a draft pick";
+    if (!pick) return "a draft pick";
+    const year = seasonNumberToYear(pick.seasonNumber, game);
+    const pickNum = pick.pickNumber ? `, Pick ${pick.pickNumber}` : "";
+    return `${year} Round ${pick.round}${pickNum}`;
   });
   if (listing.offeredCoins > 0) parts.push(`${listing.offeredCoins} coins`);
   return parts.length ? parts.join(", ") : "nothing yet";
@@ -294,9 +302,10 @@ function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterRe
 /** Open "package offer" board: post up to 7 players/picks + coins with a free-text "looking
  * for", visible league-wide and announced to Discord's trade-block channel — distinct from
  * the simple single-player TradeBlockSection below, which just flags one player as available. */
-function TradeBlockPanel({ guildId, myRoster, onChanged }: {
+function TradeBlockPanel({ guildId, myRoster, game, onChanged }: {
   guildId: string;
   myRoster: TeamRosterResponse;
+  game: string;
   onChanged: () => void;
 }) {
   const [listings, setListings] = useState<TradeBlockListing[] | null>(null);

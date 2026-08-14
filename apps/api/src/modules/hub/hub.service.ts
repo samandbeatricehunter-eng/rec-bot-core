@@ -381,7 +381,7 @@ async function publishMediaStory(submission: any, discordId: string | null) {
     updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that media story. Please try again.", result.error);
-  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: publishedHeadline, body });
+  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: publishedHeadline, body, image_url: submission.image_url ?? undefined });
   return result.data.id as string;
 }
 

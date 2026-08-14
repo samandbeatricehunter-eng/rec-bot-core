@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { gameplaySeasonStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, editDiscordMessage, getDiscordMessagePayload } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { formatInterviewBody } from "./interview-headlines.js";
@@ -10,26 +10,68 @@ import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
 // Mirrors an auto-generated headline/article to the guild's configured Headlines channel
 // (Platinum Discord-bot add-on). Shared by every generated-story path in this file.
+const EMBED_DESC_LIMIT = 4000;
+const EMBED_MAX_PER_MESSAGE = 10;
+
+/** Split a long body into chunks that fit within Discord's embed description limit,
+ *  breaking at paragraph boundaries when possible. */
+function splitBodyIntoChunks(body: string, maxLen = EMBED_DESC_LIMIT): string[] {
+  if (body.length <= maxLen) return [body];
+  const chunks: string[] = [];
+  let remaining = body;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) { chunks.push(remaining); break; }
+    // Find the last paragraph break before the limit
+    let cut = remaining.lastIndexOf("\n\n", maxLen);
+    if (cut <= 0) cut = remaining.lastIndexOf("\n", maxLen);
+    if (cut <= 0) cut = remaining.lastIndexOf(". ", maxLen);
+    if (cut <= 0) cut = maxLen;
+    else cut += (remaining[cut] === "\n" ? 1 : 2); // skip past the delimiter
+    chunks.push(remaining.slice(0, cut).trimEnd());
+    remaining = remaining.slice(cut).trimStart();
+  }
+  return chunks;
+}
+
 export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
     if (!channelId) return;
-    const embed: any = {
-      title: input.headline, color: 0xd9a521, description: input.body.slice(0, 4096),
-    };
-    if (input.image_url) {
-      embed.image = { url: input.image_url };
-    }
+    const chunks = splitBodyIntoChunks(input.body);
+    const embeds = chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
+      const embed: any = {
+        title: i === 0 ? input.headline : `${input.headline} (${i + 1}/${chunks.length})`,
+        color: 0xd9a521,
+        description: chunk,
+      };
+      // Attach the image to the first embed only
+      if (i === 0 && input.image_url) {
+        embed.image = { url: input.image_url };
+      }
+      return embed;
+    });
     const sent = await postDiscordChannelMessage(channelId, {
       content: "@everyone",
-      embeds: [embed],
+      embeds,
     });
     if (sent?.id) {
       await supabase.from("rec_game_stories").update({ posted_channel_id: channelId, posted_message_id: sent.id }).eq("id", input.storyId);
     }
   } catch (err) {
     console.error("[ERROR] Failed to post generated headline to Discord (non-fatal):", err);
+  }
+}
+
+/** Retroactively attach an image to an existing headline embed by editing the Discord message. */
+export async function attachImageToExistingHeadline(channelId: string, messageId: string, imageUrl: string): Promise<boolean> {
+  try {
+    const msg = await getDiscordMessagePayload(channelId, messageId);
+    if (!msg?.embeds?.length) return false;
+    const embeds = msg.embeds.map((e, i) => ({ ...e, ...(i === 0 ? { image: { url: imageUrl } } : {}) }));
+    return editDiscordMessage(channelId, messageId, { embeds });
+  } catch {
+    return false;
   }
 }
 
