@@ -116,6 +116,7 @@ export async function getPublicLeagueSnapshot(guildId: string) {
 
   return {
     league: {
+      id: context.rec_leagues.id,
       name: context.rec_leagues.name ?? "REC League",
       slug: slugifyLeagueName(context.rec_leagues.name ?? "league"),
       game: context.rec_leagues.game ?? null,

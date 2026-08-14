@@ -1132,6 +1132,7 @@ export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft"
 
 export type PublicLeagueSnapshot = {
   league: {
+    id: string;
     name: string;
     slug: string;
     game: string | null;

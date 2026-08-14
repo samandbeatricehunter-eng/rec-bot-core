@@ -8,6 +8,121 @@ function isCfbGame(game: string | null) {
   return (game ?? "").startsWith("cfb");
 }
 
+// Public "Submit Highlight(s)" — non-site users can reach the league page via /viewleague and
+// submit clips here without the Discord Activity hub. Same direct-to-Cloudflare-Stream flow the
+// hub's HighlightUploadModal uses; uploaded clips enter commissioner review.
+function PublicHighlightSubmit({ leagueId, onClose }: { leagueId: string; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [games, setGames] = useState<Array<{ gameId: string; weekNumber: number; label: string }> | null>(null);
+  const [gameId, setGameId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    siteApi.listHighlightGames(leagueId)
+      .then((res) => {
+        if (cancelled) return;
+        setGames(res.games);
+        if (res.games[0]) setGameId(res.games[0].gameId);
+      })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load this week's games."); });
+    return () => { cancelled = true; };
+  }, [leagueId]);
+
+  async function readVideoDurationSeconds(file: File): Promise<number> {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise<number>((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => resolve(Number(video.duration) || 0);
+        video.onerror = () => reject(new Error(`Could not read duration for ${file.name}.`));
+        video.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  async function uploadOne(file: File): Promise<void> {
+    const duration = await readVideoDurationSeconds(file);
+    if (duration > 45) throw new Error(`${file.name} is ${Math.ceil(duration)}s. Crop to 45 seconds or less and try again.`);
+    const direct = await siteApi.createHighlightDirectUpload({ leagueId, gameId, fileName: file.name });
+    const form = new FormData();
+    form.append("file", file);
+    const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+    if (!uploaded.ok) throw new Error(`Cloudflare upload failed for ${file.name} (${uploaded.status}).`);
+    await siteApi.markHighlightUploadReceived({ leagueId, highlightId: direct.highlightId });
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const status = await siteApi.getHighlightUploadStatus({ leagueId, highlightId: direct.highlightId });
+      if (status.mediaStatus === "ready") return;
+      if (status.mediaStatus === "failed") throw new Error(status.failureReason ?? `${file.name} was rejected. Crop to 45 seconds or less and try again.`);
+    }
+  }
+
+  async function onFilesSelected(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    if (!gameId) { setError("Choose which game the highlight is from first."); return; }
+    const files = Array.from(fileList).slice(0, 2);
+    setBusy(true);
+    setError(null);
+    setNotice(files.length === 1 ? `Uploading ${files[0].name}…` : `Uploading ${files.length} highlights…`);
+    const failures: string[] = [];
+    let succeeded = 0;
+    for (const file of files) {
+      try {
+        setNotice(`Uploading ${file.name}…`);
+        await uploadOne(file);
+        succeeded += 1;
+      } catch (cause) {
+        failures.push(cause instanceof Error ? cause.message : `Upload failed for ${file.name}.`);
+      }
+    }
+    setBusy(false);
+    if (failures.length) setError(failures.join(" "));
+    if (succeeded > 0) {
+      setNotice(succeeded === 1
+        ? "Uploaded — encoding at up to 1080p. Commissioner approval publishes it and issues payout when a paid slot is available."
+        : `${succeeded} clips uploaded — encoding at up to 1080p. Commissioner approval publishes and pays (when slots remain).`);
+    } else {
+      setNotice(null);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,16,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+      <div style={{ background: "#151923", border: "1px solid #2a3142", borderRadius: 12, padding: 24, width: "min(480px, 92vw)", maxHeight: "90vh", overflow: "auto" }}>
+        <h2 style={{ marginTop: 0 }}>Submit Highlight(s)</h2>
+        {error && <p style={{ color: "#ff6b6b" }}>{error}</p>}
+        {notice && <p style={{ color: "#4ade80" }}>{notice}</p>}
+        {!games && !error && <p className="site-muted">Loading this week's games…</p>}
+        {games && games.length === 0 && <p className="site-muted">No games are available to attach highlights to this week.</p>}
+        {games && games.length > 0 && (
+          <>
+            <label className="form-field" style={{ display: "block", marginBottom: 12 }}>
+              <span className="form-label" style={{ display: "block", marginBottom: 4 }}>Game</span>
+              <select className="form-input" value={gameId} onChange={(event) => setGameId(event.target.value)} style={{ width: "100%", padding: 8 }}>
+                {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.label}</option>)}
+              </select>
+            </label>
+            <label className="form-field" style={{ display: "block" }}>
+              <span className="form-label" style={{ display: "block", marginBottom: 4 }}>Highlight clips (up to 2 videos, ≤45s each)</span>
+              <input type="file" accept="video/*" multiple disabled={busy}
+                onChange={(event) => { void onFilesSelected(event.target.files); event.target.value = ""; }} />
+            </label>
+            {busy && <p className="site-muted">Working…</p>}
+          </>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+          <button type="button" className="site-btn site-btn-ghost" onClick={onClose} disabled={busy}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function shiftLabel(delta: number | null): string {
   if (delta == null) return "new";
   if (delta === 0) return "—";
@@ -160,6 +275,7 @@ export function PublicLeague() {
   const [history, setHistory] = useState<PublicLeagueHistory | null>(null);
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<PublicLeagueTab>("this-week");
+  const [highlightOpen, setHighlightOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -210,6 +326,12 @@ export function PublicLeague() {
           <>
             <h1>{data.league.name}</h1>
             <p className="site-muted">{data.league.statusLabel}</p>
+
+            <div style={{ display: "flex", gap: 8, margin: "12px 0 4px", flexWrap: "wrap" }}>
+              {auth.status === "signed-in"
+                ? <button type="button" className="site-btn site-btn-primary" onClick={() => setHighlightOpen(true)}>Submit Highlight(s)</button>
+                : <Link className="site-btn site-btn-primary" to="/login">Log In to Submit Highlight(s)</Link>}
+            </div>
 
             <div className="site-public-league-season-tabs" role="tablist" aria-label="League sections">
               {tabs.filter((tab) => tab.show).map((tab) => (
@@ -318,6 +440,8 @@ export function PublicLeague() {
           </>
         )}
       </main>
+
+      {highlightOpen && <PublicHighlightSubmit leagueId={data!.league.id} onClose={() => setHighlightOpen(false)} />}
 
       <SiteFooter />
     </div>
