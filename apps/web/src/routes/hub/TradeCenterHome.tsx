@@ -13,6 +13,51 @@ import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
+function CollapsibleSection({ title, count, defaultOpen = true, flash = false, children }: {
+  title: string;
+  count?: number;
+  defaultOpen?: boolean;
+  flash?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="hub-trade-collapsible">
+      <button type="button" className={`hub-trade-collapsible-header${flash ? " hub-trade-collapsible-header--alert" : ""}`} onClick={() => setOpen((o) => !o)}>
+        <span>{title}{count != null ? ` (${count})` : ""}</span>
+        <span className="hub-trade-collapsible-chevron">{open ? "\u25B2" : "\u25BC"}</span>
+      </button>
+      {open && <div className="hub-trade-collapsible-body">{children}</div>}
+    </section>
+  );
+}
+
+function describeTradeAssets(trade: Trade, myTeamId: string, myRoster: TeamRosterResponse): { youReceive: string; theyReceive: string } {
+  const vs = trade.value_snapshot;
+  if (!vs) {
+    const amSender = trade.proposing_team_id === myTeamId;
+    return {
+      youReceive: amSender ? "Waiting for evaluator data…" : "Waiting for evaluator data…",
+      theyReceive: amSender ? "Waiting for evaluator data…" : "Waiting for evaluator data…",
+    };
+  }
+  const fmt = (assets: TradeAssetDisplay[]) =>
+    assets.map((a) => {
+      const parts = [a.label];
+      if (a.position) parts[0] = `${a.label} (${a.position})`;
+      if (a.overallRating != null) parts.push(`${a.overallRating} OVR`);
+      return parts.join(" \u2014 ");
+    });
+  const amSender = trade.proposing_team_id === myTeamId;
+  const senderAssets = amSender ? vs.proposingAssets : vs.receivingAssets;
+  const receiverAssets = amSender ? vs.receivingAssets : vs.proposingAssets;
+  const senderCoins = amSender ? trade.proposing_coins : trade.receiving_coins;
+  const receiverCoins = amSender ? trade.receiving_coins : trade.proposing_coins;
+  const senderStr = fmt(senderAssets).join(", ") + (senderCoins > 0 ? ` + ${senderCoins} coins` : "");
+  const receiverStr = fmt(receiverAssets).join(", ") + (receiverCoins > 0 ? ` + ${receiverCoins} coins` : "");
+  return { youReceive: receiverStr || "Nothing", theyReceive: senderStr || "Nothing" };
+}
+
 function legKey(leg: TradeLegInput) {
   return leg.type === "player" ? `player:${leg.playerId}` : `pick:${leg.draftPickId}`;
 }
@@ -236,7 +281,7 @@ function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterRe
   const parts = listing.offeredLegs.map((leg) => {
     if (leg.type === "player") {
       const playerName = listing.playerNamesById[leg.playerId];
-      return playerName ? `${playerName} (${leg.playerId})` : "a player";
+      return playerName ?? "a player";
     }
     // draft pick - look up in viewer's roster since all teams share the same draft database
     const pick = myRoster.draftPicks.find((p) => p.id === leg.draftPickId);
@@ -727,146 +772,213 @@ export function TradeCenterHome() {
         <button type="button" className={viewMode === "builder" ? "active" : ""} onClick={() => setViewMode("builder")}>Trade Builder</button>
       </div>
 
-      {viewMode === "block" && (
-        <>
+      {viewMode === "block" && (<>
+        <CollapsibleSection title="Pending Offers" count={pendingReceived.length + pendingSent.length} flash={pendingReceived.length > 0}>
+          {pendingReceived.length === 0 && pendingSent.length === 0 && <p className="hub-empty">No active trades.</p>}
+          {pendingReceived.map((trade) => {
+            const { youReceive, theyReceive } = describeTradeAssets(trade, myRoster.team.id, myRoster);
+            const vs = trade.value_snapshot;
+            const badge = vs ? evaluatorBadge(vs, trade.proposing_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.proposing_team_id)?.name ?? "Opponent"), trade.receiving_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.receiving_team_id)?.name ?? "Opponent")) : null;
+            return (
+              <div key={trade.id} className="hub-trade-pending-card">
+                <div className="hub-trade-pending-card-header">
+                  <span>{statusLabel(trade.status)}</span>
+                  {badge && <span className={`hub-trade-evaluator-badge hub-trade-evaluator-badge-${badge.tone}`} style={{ fontSize: "0.65rem" }}>{badge.text}</span>}
+                </div>
+                <div className="hub-trade-pending-sides">
+                  <div className="hub-trade-pending-side">
+                    <h5>You receive</h5>
+                    <p>{youReceive}</p>
+                  </div>
+                  <div className="hub-trade-pending-side">
+                    <h5>They receive</h5>
+                    <p>{theyReceive}</p>
+                  </div>
+                </div>
+                {vs && (
+                  <div className="hub-trade-pending-evaluator">
+                    <div className="hub-trade-evaluator-bar-track" style={{ height: 4, marginBottom: 8 }}>
+                      <div className="hub-trade-evaluator-bar-fill" style={{
+                        left: 0,
+                        width: `${Math.max(4, Math.min(96, 50 - vs.deltaPct / 2))}%`,
+                        background: vs.verdict === "balanced" ? "linear-gradient(90deg, #3b6bd8, #3fbf6f)" : "linear-gradient(90deg, #d0451f, #f0923c)"
+                      }} />
+                    </div>
+                    <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+                      Value: {vs.proposing.needAdjustedTotal} vs {vs.receiving.needAdjustedTotal} ({vs.deltaPct > 0 ? "+" : ""}{vs.deltaPct}%)
+                    </p>
+                  </div>
+                )}
+                <div className="hub-trade-row-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void respond(trade.id, "accept")}>Accept</button>
+                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void respond(trade.id, "decline")}>Decline</button>
+                </div>
+              </div>
+            );
+          })}
+          {pendingSent.map((trade) => {
+            const { youReceive, theyReceive } = describeTradeAssets(trade, myRoster.team.id, myRoster);
+            const vs = trade.value_snapshot;
+            const badge = vs ? evaluatorBadge(vs, trade.proposing_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.proposing_team_id)?.name ?? "Opponent"), trade.receiving_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.receiving_team_id)?.name ?? "Opponent")) : null;
+            return (
+              <div key={trade.id} className="hub-trade-pending-card">
+                <div className="hub-trade-pending-card-header">
+                  <span>Sent to {teams.find((t) => t.id === trade.receiving_team_id)?.name ?? "Opponent"} \u2014 {statusLabel(trade.status)}</span>
+                  {badge && <span className={`hub-trade-evaluator-badge hub-trade-evaluator-badge-${badge.tone}`} style={{ fontSize: "0.65rem" }}>{badge.text}</span>}
+                </div>
+                <div className="hub-trade-pending-sides">
+                  <div className="hub-trade-pending-side">
+                    <h5>You offer</h5>
+                    <p>{theyReceive}</p>
+                  </div>
+                  <div className="hub-trade-pending-side">
+                    <h5>You request</h5>
+                    <p>{youReceive}</p>
+                  </div>
+                </div>
+                {vs && (
+                  <div className="hub-trade-pending-evaluator">
+                    <div className="hub-trade-evaluator-bar-track" style={{ height: 4, marginBottom: 8 }}>
+                      <div className="hub-trade-evaluator-bar-fill" style={{
+                        left: 0,
+                        width: `${Math.max(4, Math.min(96, 50 - vs.deltaPct / 2))}%`,
+                        background: vs.verdict === "balanced" ? "linear-gradient(90deg, #3b6bd8, #3fbf6f)" : "linear-gradient(90deg, #d0451f, #f0923c)"
+                      }} />
+                    </div>
+                    <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+                      Value: {vs.proposing.needAdjustedTotal} vs {vs.receiving.needAdjustedTotal} ({vs.deltaPct > 0 ? "+" : ""}{vs.deltaPct}%)
+                    </p>
+                  </div>
+                )}
+                {trade.status !== "pending_review" && (
+                  <div className="hub-trade-row-actions" style={{ marginTop: 8 }}>
+                    <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(trade.id)}>Withdraw</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Open Trade Block Offers">
           <TradeBlockPanel guildId={guildId} myRoster={myRoster} onChanged={loadCore} />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Trade Block" defaultOpen={false}>
           <TradeBlockSection guildId={guildId} myTeamId={myRoster.team.id} myPlayers={myRoster.players.filter((p) => p.rosterStatus === "active" || p.rosterStatus === "transferred_in")} tradeBlock={tradeBlock} busy={busy} onRemove={removeFromTradeBlock} onChanged={loadCore} />
-        </>
-      )}
+        </CollapsibleSection>
+      </>)}
 
-      {viewMode === "builder" && <>
-      <section className="hub-trade-propose">
-        <h3>Propose a Trade</h3>
-        <label className="form-field">
-          <span className="form-label">Trade with</span>
-          <select className="form-input" value={opponentTeamId} onChange={(event) => {
-            const nextTeamId = event.target.value;
-            const nextTeam = teams.find((team) => team.id === nextTeamId);
-            setOpponentTeamId(nextTeamId);
-            setRequestedLegs([]);
-            if (!nextTeam?.hasSiteAccount) { setOfferedCoins(0); setRequestedCoins(0); }
-          }}>
-            <option value="">Select a team…</option>
-            {otherTeams.map((team) => (
-              <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
+      {viewMode === "builder" && (<>
+        <section className="hub-trade-propose">
+          <h3>Propose a Trade</h3>
+          <label className="form-field">
+            <span className="form-label">Trade with</span>
+            <select className="form-input" value={opponentTeamId} onChange={(event) => {
+              const nextTeamId = event.target.value;
+              const nextTeam = teams.find((team) => team.id === nextTeamId);
+              setOpponentTeamId(nextTeamId);
+              setRequestedLegs([]);
+              if (!nextTeam?.hasSiteAccount) { setOfferedCoins(0); setRequestedCoins(0); }
+            }}>
+              <option value="">Select a team\u2026</option>
+              {otherTeams.map((team) => (
+                <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="hub-trade-sides">
+            <div className="hub-trade-side">
+              <h4>You offer ({offeredLegs.length}/{MAX_LEGS})</h4>
+              <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
+              <label className="form-field">
+                <span className="form-label">Coins to include</span>
+                <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={opponentIsDiscordOnly} />
+              </label>
+            </div>
+            <div className="hub-trade-side">
+              <h4>You request ({requestedLegs.length}/{MAX_LEGS})</h4>
+              <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
+              <label className="form-field">
+                <span className="form-label">Coins to request</span>
+                <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || opponent?.isCpu || opponentIsDiscordOnly} />
+              </label>
+            </div>
+          </div>
+
+          {opponentIsDiscordOnly && (
+            <p className="form-hint">Coins are unavailable for this trade because the other coach does not have a REC site account.</p>
+          )}
+
+          {opponentTeamId && (
+            <section className="hub-trade-evaluator">
+              <h4>Trade Evaluator</h4>
+              <TradeEvaluatorPanel
+                guildId={guildId}
+                proposingTeamId={myRoster.team.id}
+                receivingTeamId={opponentTeamId}
+                proposingLabel={myRoster.team.name ?? "Your team"}
+                receivingLabel={otherTeams.find((t) => t.id === opponentTeamId)?.name ?? "Other team"}
+                offeredLegs={offeredLegs}
+                requestedLegs={requestedLegs}
+                offeredCoins={offeredCoins}
+                requestedCoins={requestedCoins}
+              />
+            </section>
+          )}
+
+          <button type="button" className="btn btn-primary" disabled={busy || !opponentTeamId || (offeredLegs.length === 0 && requestedLegs.length === 0 && offeredCoins === 0 && requestedCoins === 0)} onClick={() => void submitProposal()}>
+            Propose Trade
+          </button>
+        </section>
+
+        {isCommissioner && reviewTrades && reviewTrades.length > 0 && (
+          <section className="hub-trade-review">
+            <h3>Pending Committee/Commissioner Review ({reviewTrades.length})</h3>
+            {reviewTrades.map((trade) => (
+              <div key={trade.id} className="hub-trade-row hub-trade-row-review">
+                <span>
+                  Trade {trade.id.slice(0, 8)} · {trade.proposing_coins > 0 ? `+${trade.proposing_coins} coins` : ""} {trade.receiving_coins > 0 ? `/ -${trade.receiving_coins} coins` : ""}
+                  {trade.value_snapshot && (
+                    <> · {evaluatorBadge(trade.value_snapshot, "proposing team", "receiving team").text} ({trade.value_snapshot.deltaPct > 0 ? "+" : ""}{trade.value_snapshot.deltaPct}%) — proposing gives {trade.value_snapshot.proposing.needAdjustedTotal}, gets {trade.value_snapshot.receiving.needAdjustedTotal}</>
+                  )}
+                </span>
+                {trade.approval_policy_snapshot === "competition_committee_review" ? (
+                  <TradeVotePanel guildId={guildId} tradeId={trade.id} isHeadCommissioner={true} busy={busy} onChanged={loadCore} />
+                ) : (
+                  <div className="hub-trade-row-actions">
+                    <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "approve")}>Approve</button>
+                    <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "reject")}>Reject</button>
+                  </div>
+                )}
+              </div>
             ))}
-          </select>
-        </label>
-
-        <div className="hub-trade-sides">
-          <div className="hub-trade-side">
-            <h4>You offer ({offeredLegs.length}/{MAX_LEGS})</h4>
-            <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
-            <label className="form-field">
-              <span className="form-label">Coins to include</span>
-              <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={opponentIsDiscordOnly} />
-            </label>
-          </div>
-          <div className="hub-trade-side">
-            <h4>You request ({requestedLegs.length}/{MAX_LEGS})</h4>
-            <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
-            <label className="form-field">
-              <span className="form-label">Coins to request</span>
-              <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || opponent?.isCpu || opponentIsDiscordOnly} />
-            </label>
-          </div>
-        </div>
-
-        {opponentIsDiscordOnly && (
-          <p className="form-hint">Coins are unavailable for this trade because the other coach does not have a REC site account.</p>
-        )}
-
-        {opponentTeamId && (
-          <section className="hub-trade-evaluator">
-            <h4>Trade Evaluator</h4>
-            <TradeEvaluatorPanel
-              guildId={guildId}
-              proposingTeamId={myRoster.team.id}
-              receivingTeamId={opponentTeamId}
-              proposingLabel={myRoster.team.name ?? "Your team"}
-              receivingLabel={otherTeams.find((t) => t.id === opponentTeamId)?.name ?? "Other team"}
-              offeredLegs={offeredLegs}
-              requestedLegs={requestedLegs}
-              offeredCoins={offeredCoins}
-              requestedCoins={requestedCoins}
-            />
           </section>
         )}
 
-        <button type="button" className="btn btn-primary" disabled={busy || !opponentTeamId || (offeredLegs.length === 0 && requestedLegs.length === 0 && offeredCoins === 0 && requestedCoins === 0)} onClick={() => void submitProposal()}>
-          Propose Trade
-        </button>
-      </section>
+        {isCommissioner && tradeCounts && (
+          <section className="hub-trade-review">
+            <h3>Season Trade Counts</h3>
+            <div style={{ overflowX: "auto" }}>
+              <table className="fantasy-draft-pool-table">
+                <thead><tr><th>Team</th><th>Coach</th><th>Human</th><th>CPU</th><th>Total</th></tr></thead>
+                <tbody>{tradeCounts.map((row) => <tr key={row.teamId}><td>{row.abbreviation || row.teamName}</td><td>{row.coachName}</td><td>{row.humanTrades}</td><td>{row.cpuTrades}</td><td>{row.totalTrades}</td></tr>)}</tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
-      {isCommissioner && reviewTrades && reviewTrades.length > 0 && (
-        <section className="hub-trade-review">
-          <h3>Pending Committee/Commissioner Review ({reviewTrades.length})</h3>
-          {reviewTrades.map((trade) => (
-            <div key={trade.id} className="hub-trade-row hub-trade-row-review">
-              <span>
-                Trade {trade.id.slice(0, 8)} · {trade.proposing_coins > 0 ? `+${trade.proposing_coins} coins` : ""} {trade.receiving_coins > 0 ? `/ -${trade.receiving_coins} coins` : ""}
-                {trade.value_snapshot && (
-                  <> · {evaluatorBadge(trade.value_snapshot, "proposing team", "receiving team").text} ({trade.value_snapshot.deltaPct > 0 ? "+" : ""}{trade.value_snapshot.deltaPct}%) — proposing gives {trade.value_snapshot.proposing.needAdjustedTotal}, gets {trade.value_snapshot.receiving.needAdjustedTotal}</>
-                )}
-              </span>
-              {trade.approval_policy_snapshot === "competition_committee_review" ? (
-                <TradeVotePanel guildId={guildId} tradeId={trade.id} isHeadCommissioner={true} busy={busy} onChanged={loadCore} />
-              ) : (
-                <div className="hub-trade-row-actions">
-                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "approve")}>Approve</button>
-                  <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void review(trade.id, "reject")}>Reject</button>
-                </div>
-              )}
+        <section className="hub-trade-mine">
+          <h3>History</h3>
+          {history.length === 0 && <p className="hub-empty">No settled trades yet.</p>}
+          {history.map((trade) => (
+            <div key={trade.id} className="hub-trade-row">
+              <span>Trade {trade.id.slice(0, 8)} · {statusLabel(trade.status)}</span>
             </div>
           ))}
         </section>
-      )}
-
-      {isCommissioner && tradeCounts && (
-        <section className="hub-trade-review">
-          <h3>Season Trade Counts</h3>
-          <div style={{ overflowX: "auto" }}>
-            <table className="fantasy-draft-pool-table">
-              <thead><tr><th>Team</th><th>Coach</th><th>Human</th><th>CPU</th><th>Total</th></tr></thead>
-              <tbody>{tradeCounts.map((row) => <tr key={row.teamId}><td>{row.abbreviation || row.teamName}</td><td>{row.coachName}</td><td>{row.humanTrades}</td><td>{row.cpuTrades}</td><td>{row.totalTrades}</td></tr>)}</tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <section className="hub-trade-mine">
-        <h3>Trades Awaiting Your Response ({pendingReceived.length})</h3>
-        {pendingReceived.length === 0 && <p className="hub-empty">Nothing waiting on you.</p>}
-        {pendingReceived.map((trade) => (
-          <div key={trade.id} className="hub-trade-row">
-            <span>Trade {trade.id.slice(0, 8)}</span>
-            <div className="hub-trade-row-actions">
-              <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void respond(trade.id, "accept")}>Accept</button>
-              <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void respond(trade.id, "decline")}>Decline</button>
-            </div>
-          </div>
-        ))}
-
-        <h3>Sent / In Progress ({pendingSent.length})</h3>
-        {pendingSent.length === 0 && <p className="hub-empty">No active proposals.</p>}
-        {pendingSent.map((trade) => (
-          <div key={trade.id} className="hub-trade-row">
-            <span>Trade {trade.id.slice(0, 8)} · {statusLabel(trade.status)}</span>
-            {trade.status !== "pending_review" && (
-              <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(trade.id)}>Withdraw</button>
-            )}
-          </div>
-        ))}
-
-        <h3>History</h3>
-        {history.length === 0 && <p className="hub-empty">No settled trades yet.</p>}
-        {history.map((trade) => (
-          <div key={trade.id} className="hub-trade-row">
-            <span>Trade {trade.id.slice(0, 8)} · {statusLabel(trade.status)}</span>
-          </div>
-        ))}
-      </section>
-      </>}
+      </>)}
     </div>
   );
 }

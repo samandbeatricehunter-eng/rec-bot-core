@@ -680,6 +680,46 @@ button.poty:disabled {
 .hub-trade-vote-tally { margin: 0; font-size: var(--text-xs); color: var(--text-muted); }
 .hub-notice { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); border-radius: var(--radius-md); color: var(--success, #3fbf6f); font-size: var(--text-sm); }
 .hub-error { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, #ff6b6b 40%, var(--border)); border-radius: var(--radius-md); color: #ff8a8a; font-size: var(--text-sm); }
+
+/* ── Collapsible trade sections ─────────────────────────────────────────── */
+.hub-trade-collapsible { margin-bottom: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); overflow: hidden; }
+.hub-trade-collapsible-header { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: var(--space-3) var(--space-4); border: none; background: rgba(255,255,255,.04); color: var(--text-primary); font-size: var(--text-md); font-weight: 700; cursor: pointer; text-align: left; }
+.hub-trade-collapsible-header:hover { background: rgba(255,255,255,.07); }
+.hub-trade-collapsible-chevron { font-size: var(--text-xs); color: var(--text-muted); }
+.hub-trade-collapsible-body { padding: var(--space-3) var(--space-4); }
+
+/* Flash animation for pending trade alerts */
+@keyframes trade-alert-flash {
+  0%, 100% { background: rgba(255,255,255,.04); }
+  25% { background: rgba(220,53,69,.25); }
+  50% { background: rgba(255,255,255,.04); }
+  75% { background: rgba(220,53,69,.18); }
+}
+.hub-trade-collapsible-header--alert {
+  animation: trade-alert-flash 2s ease-in-out infinite;
+  border-left: 3px solid #dc3545;
+}
+.hub-trade-collapsible-header--alert span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc3545;
+  margin-right: 8px;
+  vertical-align: middle;
+  box-shadow: 0 0 6px rgba(220,53,69,.6);
+}
+
+/* ── Pending trade detail card ──────────────────────────────────────────── */
+.hub-trade-pending-card { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.02); margin-bottom: var(--space-2); }
+.hub-trade-pending-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.hub-trade-pending-card-header span { font-size: var(--text-sm); color: var(--text-muted); }
+.hub-trade-pending-sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-2); }
+@media (max-width: 600px) { .hub-trade-pending-sides { grid-template-columns: 1fr; } }
+.hub-trade-pending-side h5 { margin: 0 0 4px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 700; }
+.hub-trade-pending-side p { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+.hub-trade-pending-evaluator { margin-top: var(--space-2); }
 .hub-highlight-carousel { position: relative; width: 100%; max-width: 880px; min-width: 0; margin: 0 auto; padding: 0 58px; }
 .hub-highlight { width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: #111; }
 .hub-highlight-arrow { position: absolute; top: 42%; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border-strong); border-radius: 999px; background: rgba(15,15,15,.9); color: var(--gold); cursor: pointer; box-shadow: var(--shadow-card); }
