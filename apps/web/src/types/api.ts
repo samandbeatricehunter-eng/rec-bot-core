@@ -729,6 +729,13 @@ export type WagerOptionsResponse = {
   awayLabel: string;
   humanInvolved: boolean;
   markets: Array<{ market: string; label: string; kind: string; line: number | null; unit?: string; sides: Array<{ pick: string; label: string; odds: number }> }>;
+  matchup?: {
+    net: number;
+    homeOffScore: number;
+    awayOffScore: number;
+    defEdge: number;
+    units: Array<{ key: string; label: string; weight: number; edge: number }>;
+  } | null;
 };
 export type RosterPlayer = {
   id: string;

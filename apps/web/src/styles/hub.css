@@ -2659,6 +2659,17 @@ button.poty:disabled {
 .matchup-preview__wager-sides span { display:flex; justify-content:space-between; gap:12px; font-variant-numeric:tabular-nums; }
 .matchup-preview__wager-sides em { font-style:normal; color:var(--text-muted); font-size:.76rem; }
 .matchup-preview__wager-sides strong { font-size:.84rem; }
+.matchup-preview__lanes { margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border); display:grid; gap:10px; }
+.matchup-preview__lane-grid { display:grid; gap:7px; }
+.matchup-preview__lane { display:grid; grid-template-columns:minmax(0,1fr) 1.4fr 72px; align-items:center; gap:10px; }
+.matchup-preview__lane-label { font-size:.74rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.matchup-preview__lane-bar { position:relative; height:7px; border-radius:99px; background:var(--border); overflow:hidden; display:block; }
+.matchup-preview__lane-bar span { position:absolute; top:0; bottom:0; border-radius:99px; }
+.matchup-preview__lane-bar span.is-home { right:50%; background:var(--team-color-home, var(--rec-accent)); }
+.matchup-preview__lane-bar span.is-away { left:50%; background:var(--team-color-away, var(--rec-accent-2, var(--rec-accent))); }
+.matchup-preview__lane-edge { font-size:.72rem; text-align:right; font-variant-numeric:tabular-nums; color:var(--text-muted); }
+.matchup-preview__lane-edge.is-home { color:var(--rec-accent); }
+.matchup-preview__lane-edge.is-away { color:var(--rec-accent-2, var(--rec-accent)); }
 @media (max-width:620px) {
   .matchup-gotw { padding:12px; }
   .matchup-gotw__head strong { font-size:1.02rem; }
@@ -2680,6 +2691,8 @@ button.poty:disabled {
   .matchup-preview__wager-card { padding:9px; }
   .matchup-preview__wager-head b { font-size:.77rem; }
   .matchup-preview__wager-head small { font-size:.65rem; }
+  .matchup-preview__lane { grid-template-columns:minmax(0,1fr) 1.2fr 64px; gap:7px; }
+  .matchup-preview__lane-label { font-size:.68rem; }
 }
 
 /* —— Discord hub chrome (bottom nav + league selector + notifications) —— */

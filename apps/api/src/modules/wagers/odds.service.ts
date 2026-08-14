@@ -18,6 +18,30 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getMatchupPreview } from "../hub/matchup-preview.service.js";
+import {
+  computeMatchupFromRosters,
+  computeMatchupScores,
+  loadMatchupRosters,
+  matchupCalculatorEnabled,
+  type MatchupRoster,
+  type MatchupScores,
+} from "./matchup-calculator.service.js";
+
+// How much of the roster-based matchup signal blends into the moneyline probability on top
+// of the power-ranking score. 0.4 keeps the matchup meaningful (it can swing a pick'em)
+// without letting it drown the season results that power-rankings already encode.
+const MATCHUP_PROB_WEIGHT = 0.4;
+// Roster rating-point net → spread points (net +10 ⇒ home lays 2 more points).
+const SPREAD_RATING_TO_POINTS = 0.2;
+// Combined defensive edge → total-line points (defEdge +6 ⇒ total drops 3).
+const DEF_EDGE_TO_TOTAL = 0.5;
+
+function clamp01(n: number) {
+  return Math.max(0.05, Math.min(0.95, n));
+}
+function clampSpread(n: number) {
+  return Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(n * 2) / 2));
+}
 
 // Relocated/custom teams keep the original `abbreviation`; the custom abbr lives in
 // `display_abbr`. Prefer the display abbr so wager labels match the rest of the bot.
@@ -65,6 +89,14 @@ export type GameWagerOptions = {
   awayLabel: string;
   humanInvolved: boolean;
   markets: WagerMarketOption[];
+  /** Roster-based matchup breakdown (Madden leagues only); null for CFB or missing rosters. */
+  matchup: {
+    net: number;
+    homeOffScore: number;
+    awayOffScore: number;
+    defEdge: number;
+    units: { key: string; label: string; weight: number; edge: number }[];
+  } | null;
 };
 
 type TeamRow = { id: string; name: string | null; abbreviation: string | null; display_abbr: string | null; display_city: string | null; display_nick: string | null; is_relocated: boolean | null };
@@ -198,9 +230,21 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   const homeScore = scoreByTeam.get(game.home_team_id ?? "") ?? 0.5;
   const awayScore = scoreByTeam.get(game.away_team_id ?? "") ?? 0.5;
   const total = homeScore + awayScore || 1;
-  const homeProb = homeScore / total;
-  const awayProb = awayScore / total;
-  const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
+  let homeProb = homeScore / total;
+  let awayProb = awayScore / total;
+  let rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
+
+  // Madden leagues: fold the roster matchup (WR1 vs CB1, QB vs secondary, ...) into the
+  // line so identical-looking power scores still produce distinct spreads/totals.
+  let matchup: MatchupScores | null = null;
+  if (matchupCalculatorEnabled(context.rec_leagues.game) && game.home_team_id && game.away_team_id) {
+    matchup = await bestEffort("odds.matchup_calculator", () => computeMatchupScores(leagueId, game.home_team_id, game.away_team_id), { guildId, entityId: gameId }) ?? null;
+  }
+  if (matchup) {
+    homeProb = clamp01(homeProb + MATCHUP_PROB_WEIGHT * (matchup.homeProb - 0.5));
+    awayProb = 1 - homeProb;
+    rawSpread = clampSpread(rawSpread + matchup.net * SPREAD_RATING_TO_POINTS);
+  }
 
   const averagesByTeam = await seasonAveragesForTeams(leagueId, seasonNumber, [game.home_team_id, game.away_team_id]);
   const homeAvg = averagesByTeam.get(game.home_team_id ?? "") ?? null;
@@ -238,7 +282,9 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
     } else if (def.kind === "team_total") {
       const isHomeSide = (def.team ?? "home") === "home";
       const projected = isHomeSide ? projectedHomeScore : projectedAwayScore;
-      const line = def.statKey === "points" && projected != null ? projected : teamTotalLine(def.statKey ?? "points", homeAvg, awayAvg, def.team ?? "home");
+      // Stingier defenses shave a little off each team total too (half the shared edge).
+      const defAdjust = matchup ? Math.round(-matchup.defEdge * DEF_EDGE_TO_TOTAL * 0.5) : 0;
+      const line = (def.statKey === "points" && projected != null ? projected : teamTotalLine(def.statKey ?? "points", homeAvg, awayAvg, def.team ?? "home")) + defAdjust;
       const teamLabel = def.team === "away" ? awayLabel : homeLabel;
       markets.push({
         market: def.key, label: `${teamLabel} Total Points O/U`, kind: def.kind, line, unit: def.unit,
@@ -249,7 +295,8 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
       });
     } else {
       const projectedTotal = projectedHomeScore != null && projectedAwayScore != null ? projectedHomeScore + projectedAwayScore : null;
-      const line = def.statKey === "points" && projectedTotal != null ? projectedTotal : totalLine(def.statKey ?? "points", homeAvg, awayAvg);
+      let line = def.statKey === "points" && projectedTotal != null ? projectedTotal : totalLine(def.statKey ?? "points", homeAvg, awayAvg);
+      if (def.statKey === "points" && matchup) line += Math.round(-matchup.defEdge * DEF_EDGE_TO_TOTAL);
       markets.push({
         market: def.key, label: def.label, kind: def.kind, line, unit: def.unit,
         sides: [
@@ -264,6 +311,15 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
     gameId, weekNumber: Number(game.week_number ?? 0), seasonNumber,
     homeTeamId: game.home_team_id, awayTeamId: game.away_team_id,
     homeLabel, awayLabel, humanInvolved, markets,
+    matchup: matchup
+      ? {
+          net: matchup.net,
+          homeOffScore: matchup.homeOffScore,
+          awayOffScore: matchup.awayOffScore,
+          defEdge: matchup.defEdge,
+          units: matchup.units,
+        }
+      : null,
   };
 }
 
@@ -304,6 +360,11 @@ export async function listWeekWagerLines(guildId: string, weekNumber: number): P
   const teamIds = h2hGames.flatMap((g) => [g.home_team_id, g.away_team_id]);
   const averagesByTeam = await seasonAveragesForTeams(leagueId, seasonNumber, teamIds);
 
+  const matchupEnabled = matchupCalculatorEnabled(context.rec_leagues.game);
+  const matchupRosters: Map<string, MatchupRoster> = matchupEnabled
+    ? await loadMatchupRosters(leagueId, teamIds)
+    : new Map<string, MatchupRoster>();
+
   return h2hGames.map((game) => {
     const home = game.home_team as unknown as TeamRow | null;
     const away = game.away_team as unknown as TeamRow | null;
@@ -313,13 +374,23 @@ export async function listWeekWagerLines(guildId: string, weekNumber: number): P
     const homeScore = scoreByTeam.get(game.home_team_id ?? "") ?? 0.5;
     const awayScore = scoreByTeam.get(game.away_team_id ?? "") ?? 0.5;
     const total = homeScore + awayScore || 1;
-    const homeProb = homeScore / total;
-    const awayProb = awayScore / total;
-    const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
+    let homeProb = homeScore / total;
+    let awayProb = awayScore / total;
+    let rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
 
     const homeAvg = averagesByTeam.get(game.home_team_id ?? "") ?? null;
     const awayAvg = averagesByTeam.get(game.away_team_id ?? "") ?? null;
-    const line = totalLine("points", homeAvg, awayAvg);
+    let line = totalLine("points", homeAvg, awayAvg);
+
+    const homeRoster = matchupEnabled ? matchupRosters.get(game.home_team_id ?? "") : undefined;
+    const awayRoster = matchupEnabled ? matchupRosters.get(game.away_team_id ?? "") : undefined;
+    if (homeRoster && awayRoster) {
+      const m = computeMatchupFromRosters(homeRoster, awayRoster);
+      homeProb = clamp01(homeProb + MATCHUP_PROB_WEIGHT * (m.homeProb - 0.5));
+      awayProb = 1 - homeProb;
+      rawSpread = clampSpread(rawSpread + m.net * SPREAD_RATING_TO_POINTS);
+      line += Math.round(-m.defEdge * DEF_EDGE_TO_TOTAL);
+    }
 
     return {
       gameId: game.id,

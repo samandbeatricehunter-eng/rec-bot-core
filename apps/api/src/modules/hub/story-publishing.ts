@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { gameplaySeasonStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage, editDiscordMessage, getDiscordMessagePayload } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, editDiscordMessage, getDiscordMessagePayload, deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { formatInterviewBody } from "./interview-headlines.js";
@@ -73,6 +73,72 @@ export async function attachImageToExistingHeadline(channelId: string, messageId
   } catch {
     return false;
   }
+}
+
+export type HeadlineBackfillResult = {
+  scanned: number;
+  imageAttached: number;
+  reposted: number;
+  skipped: number;
+  failures: Array<{ storyId: string; reason: string }>;
+};
+
+/** Retroactively repair Discord-published headlines for a league:
+ *  - stories with an image_url but no image on their posted embed get the image attached,
+ *  - stories whose body was posted as a single (truncated) embed when it exceeded the
+ *    embed limit get re-posted through the current splitting/image-aware path,
+ *  - the superseded message is deleted when a story is re-posted.
+ *  Only touches rows with a posted_message_id; old messages that no longer exist are skipped. */
+export async function backfillDiscordHeadlines(guildId: string): Promise<HeadlineBackfillResult> {
+  const result: HeadlineBackfillResult = { scanned: 0, imageAttached: 0, reposted: 0, skipped: 0, failures: [] };
+  const context = await getCurrentLeagueContext(guildId);
+  const linked = await findServerRoutesForLeague(context.leagueId);
+  const fallbackChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+  const rows = await supabase.from("rec_game_stories")
+    .select("id,headline,body,image_url,posted_channel_id,posted_message_id")
+    .eq("league_id", context.leagueId)
+    .not("posted_message_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (rows.error) throw new ApiError(500, "We couldn't load posted headlines right now. Please try again.", rows.error);
+  for (const story of rows.data ?? []) {
+    result.scanned += 1;
+    const channelId = (story.posted_channel_id as string | null) ?? fallbackChannelId;
+    const messageId = story.posted_message_id as string | null;
+    if (!channelId || !messageId) { result.skipped += 1; continue; }
+    let msg: Awaited<ReturnType<typeof getDiscordMessagePayload>>;
+    try { msg = await getDiscordMessagePayload(channelId, messageId); } catch { msg = null; }
+    if (!msg?.embeds?.length) {
+      result.failures.push({ storyId: story.id, reason: "no embeds on posted message" });
+      continue;
+    }
+    const body = (story.body as string | null) ?? "";
+    const chunkCount = splitBodyIntoChunks(body).length;
+    const embedCount = msg.embeds.length;
+    const imageUrl = (story.image_url as string | null) ?? undefined;
+    const needsRepost = chunkCount > 1 && embedCount < chunkCount;
+    if (needsRepost) {
+      await postGeneratedHeadlineToDiscord({ leagueId: context.leagueId, storyId: story.id, headline: story.headline as string, body, image_url: imageUrl });
+      const check = await supabase.from("rec_game_stories").select("posted_message_id").eq("id", story.id).maybeSingle();
+      const newMessageId = (check.data?.posted_message_id as string | null) ?? null;
+      if (newMessageId && newMessageId !== messageId) {
+        try { await deleteDiscordMessage(channelId, messageId); } catch { /* superseded message already gone */ }
+        result.reposted += 1;
+      } else {
+        result.failures.push({ storyId: story.id, reason: "re-post did not produce a new message id" });
+      }
+      continue;
+    }
+    const embedHasImage = Boolean(msg.embeds[0]?.image);
+    if (imageUrl && !embedHasImage) {
+      const ok = await attachImageToExistingHeadline(channelId, messageId, imageUrl);
+      if (ok) result.imageAttached += 1;
+      else result.failures.push({ storyId: story.id, reason: "image attach failed" });
+      continue;
+    }
+    result.skipped += 1;
+  }
+  return result;
 }
 
 // Shared by Recruiting and Transfer Portal — both need to drop a non-game-attached

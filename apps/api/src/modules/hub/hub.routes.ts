@@ -43,6 +43,7 @@ import {
   toggleHubStoryReaction,
   voteGameOfWeek,
 } from "./hub.service.js";
+import { backfillDiscordHeadlines } from "./story-publishing.js";
 
 const ImageUrl = z.string().url().optional().nullable();
 
@@ -234,6 +235,15 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "League stories require a commissioner session.");
       return reply.send(await publishHubStory({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/backfill-discord-headlines", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Discord headline backfill requires a website session.");
+      return reply.send(await backfillDiscordHeadlines(guildId));
     } catch (error) { return sendError(reply, error); }
   });
 
