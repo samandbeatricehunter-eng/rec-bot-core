@@ -11,6 +11,7 @@ import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-b
 import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
 import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
+import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
 import { snapshotLeagueHistory } from "../users/league-history.service.js";
@@ -1037,6 +1038,8 @@ export async function completeWizard(input: {
       discord_joined_at: new Date().toISOString(),
     }).select("*").single();
     if (assignment.error) throw new ApiError(500, "We couldn't assign that team. Please try again.", assignment.error);
+
+    await syncScheduleGameUserIdsForTeams(input.leagueId, [input.teamId]);
 
     // Update Discord nickname if guild + discord ID provided
     if (input.guildId && input.discordId) {

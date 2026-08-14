@@ -8,6 +8,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
+import { syncScheduleGameUserIdsForLeague } from "../schedule/sync-game-user-ids.js";
 
 const supabaseAuthAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -260,7 +261,7 @@ export async function adminRemoveUserFromLeague(input: { leagueId: string; userI
       update rec_team_assignments
       set assignment_status = 'unlinked', ended_at = now(), user_id = null, updated_at = now()
       where league_id = $1 and user_id = $2 and ended_at is null
-      returning id
+      returning id, team_id
     `,
     [input.leagueId, input.userId],
   );
@@ -270,6 +271,9 @@ export async function adminRemoveUserFromLeague(input: { leagueId: string; userI
   );
   if (!ended.rows.length && !removedMembership.rows.length) {
     throw new ApiError(404, "This user has no active team assignment or membership in this league.");
+  }
+  if (ended.rows.length) {
+    await syncScheduleGameUserIdsForLeague(input.leagueId);
   }
   await bestEffort("audit.league_member_removed", () => writeAuditLog({
     action: "league.member.removed_by_admin",

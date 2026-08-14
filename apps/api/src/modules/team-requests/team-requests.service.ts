@@ -11,6 +11,7 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
+import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -344,6 +345,7 @@ export async function completeTeamLinkRequest(input: {
       .select("*")
       .single();
     if (assignment.error) throw new ApiError(500, "Failed to assign the requested team.", assignment.error);
+    await syncScheduleGameUserIdsForTeams(request.league_id, [request.team_id]);
     link = { assignment: assignment.data, authority: "member", accountKind: "site" };
     void syncLeagueRecruitingAd(request.league_id);
   } else {

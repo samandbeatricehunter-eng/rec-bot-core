@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
+import { syncScheduleGameUserIdsForLeague, syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
@@ -455,6 +456,17 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .from("rec_league_memberships")
     .upsert({ league_id: league.id, user_id: userId, status: "active", role: input.authority }, { onConflict: "league_id,user_id" });
 
+  // Capture teams this user (or the prior coach of this slot) is leaving so schedule
+  // home_user_id/away_user_id can be cleared/rewritten for those matchups too.
+  const priorAssignments = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", league.id)
+    .is("ended_at", null)
+    .or(`user_id.eq.${userId},and(team_id.eq.${input.teamId},assignment_status.eq.active)`);
+  if (priorAssignments.error) throw new ApiError(500, "We couldn't check existing team assignments. Please try again.", priorAssignments.error);
+  const scheduleTeamIds = [...new Set([...(priorAssignments.data ?? []).map((row) => row.team_id), input.teamId].filter(Boolean))];
+
   await supabase
     .from("rec_team_assignments")
     .update({ assignment_status: "replaced", ended_at: new Date().toISOString() })
@@ -488,6 +500,8 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .single();
 
   if (assignment.error) throw new ApiError(500, "We couldn't create that team assignment. Please try again.", assignment.error);
+
+  await syncScheduleGameUserIdsForTeams(league.id, scheduleTeamIds);
 
   // Team linking intentionally starts everyone at Member. Commissioners can elevate the
   // user independently from the Roles screen after the link is established.
@@ -846,6 +860,7 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
     .select("*");
 
   if (result.error) throw new ApiError(500, "We couldn't unlink that team assignment. Please try again.", result.error);
+  await syncScheduleGameUserIdsForTeams(league.id, [input.teamId]);
   const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({
@@ -871,6 +886,7 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
     .select("*");
 
   if (result.error) throw new ApiError(500, "We couldn't unlink those team assignments. Please try again.", result.error);
+  await syncScheduleGameUserIdsForLeague(league.id);
   const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
 
   await writeAuditLog({
@@ -917,6 +933,9 @@ export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; di
     .is("ended_at", null)
     .select("team_id");
   if (ended.error) throw new ApiError(500, "Failed to release the leaving member's team assignments.", ended.error);
+  if (ended.data?.length) {
+    await syncScheduleGameUserIdsForTeams(league.id, ended.data.map((row) => row.team_id).filter(Boolean));
+  }
 
   // Reject any pending/approved requests this member still has — same team-freeing effect, and
   // prevents an orphaned "approved" request from forever hiding the team (the state that caused
