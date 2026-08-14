@@ -188,7 +188,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     : "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team first."}</p>;
   return <div className="custom-player-wizard"><p className="hub-eyebrow">Step {step} of {WIZARD_STEPS}</p>
     {config.devTraitInherited && <p className="form-hint">CFB recruits don't get a purchased development trait — whichever trait the player you replace already has carries over to this one. With no replacement (an unseeded roster), the new player starts at Normal.</p>}
-    {config.appearanceNotice && <p className="form-hint">{config.appearanceNotice}</p>}
+    {config.appearanceNotice && (step === 2 || step === 4 || (game === "CFB" && step === 3)) && <p className="form-hint">{config.appearanceNotice}</p>}
     {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>{entry.description}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
     {step === 2 && (() => {
       const heightRule = game === "CFB" ? (CFB_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84, avg: 72 }) : null;
@@ -229,8 +229,9 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     {step === 4 && <>
       <h4>Card Appearance</h4>
       <p className="form-hint">
-        Choose a face for this player&apos;s card. Options are filtered by <strong>{identity.bodyType}</strong> body type
-        {position ? <> and <strong>{position}</strong> position</> : null}.
+        {game === "MADDEN"
+          ? <>Pick one of the {appearanceOptions.length || 150} headshot renders for this player&apos;s card and site roster photo. Filtered by <strong>{identity.bodyType}</strong> body type{position ? <> and <strong>{position}</strong></> : null}.</>
+          : <>Choose a face for this player&apos;s card. Options are filtered by <strong>{identity.bodyType}</strong> body type{position ? <> and <strong>{position}</strong> position</> : null}.</>}
       </p>
       {!bodyBuildAllowed && (
         <p className="form-hint">
