@@ -401,7 +401,42 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
   let userId = account.data?.user_id;
 
-  if (!userId) {
+  // site:{recUserId} is a synthetic discord id for site-only members. Always resolve to that
+  // embedded user — never mint a blank ghost rec_users row the way a missing real Discord
+  // snowflake would. Completing a Discord-guild team request for a site requester used to
+  // create an empty-named assignment that blocked open teams while the real profile stayed unlinked.
+  if (isSiteOnlyDiscordId(input.discordId)) {
+    const siteUserId = recUserIdFromSiteOnlyDiscordId(input.discordId);
+    const siteUser = await supabase.from("rec_users").select("id,display_name,username").eq("id", siteUserId).maybeSingle();
+    if (siteUser.error) throw new ApiError(500, "We couldn't load that REC account. Please try again.", siteUser.error);
+    if (!siteUser.data) throw new ApiError(404, "That site account was not found.");
+    userId = siteUser.data.id;
+
+    if (account.data?.user_id && account.data.user_id !== siteUserId) {
+      // Heal a prior ghost mapping so future lookups hit the real user.
+      const healed = await supabase
+        .from("rec_discord_accounts")
+        .update({
+          user_id: siteUserId,
+          username: siteUser.data.username ?? siteUser.data.display_name ?? null,
+          global_name: siteUser.data.display_name ?? siteUser.data.username ?? null,
+        })
+        .eq("discord_id", input.discordId);
+      if (healed.error) throw new ApiError(500, "We couldn't repair that site account link. Please try again.", healed.error);
+    } else if (!account.data) {
+      const created = await supabase
+        .from("rec_discord_accounts")
+        .insert({
+          user_id: siteUserId,
+          discord_id: input.discordId,
+          username: siteUser.data.username ?? siteUser.data.display_name ?? null,
+          global_name: siteUser.data.display_name ?? siteUser.data.username ?? null,
+        })
+        .select("user_id")
+        .single();
+      if (created.error) throw new ApiError(500, "We couldn't link that site account. Please try again.", created.error);
+    }
+  } else if (!userId) {
     // Look up the real Discord nickname/username instead of stashing the raw snowflake as
     // a placeholder — that placeholder was never getting corrected later, so it just showed
     // up permanently as a number in every team/roster/chat display. Leave the name columns
@@ -823,7 +858,9 @@ export async function listOpenTeamsForLeagueId(leagueId: string) {
   if (teams.error) throw new ApiError(500, "We couldn't load league teams right now. Please try again.", teams.error);
 
   const [assignments, pendingRequests] = await Promise.all([
-    supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).is("ended_at", null),
+    // Only real active coaches occupy a team. ended_at-null rows with a null/ghost user_id
+    // (or non-active status) must not hide the team from /openteams or the recruiting board.
+    supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null).not("user_id", "is", null),
     // A team with a pending (unapproved) request shouldn't show as open — otherwise a second
     // member could request the same team while the first request is still awaiting the
     // commissioner. Only "pending"/"approved" hold the team; "rejected"/"completed" don't

@@ -322,12 +322,28 @@ export async function completeTeamLinkRequest(input: {
   await assertLeagueHasMemberCapacity(request.league_id, request.requester_user_id ?? null);
 
   let link: unknown;
-  if (String(request.guild_id).startsWith("site:")) {
+  // Prefer the request's requester_user_id whenever the requester is site-identified
+  // (synthetic site:{userId} discord id, or an explicit requester_user_id on a Discord-guild
+  // request). Routing those through linkUserToTeam(discordId=site:...) used to mint a blank
+  // ghost user when the synthetic discord account was missing/mis-pointed.
+  const siteRequesterUserId = request.requester_user_id
+    ?? (isSiteOnlyDiscordId(String(request.requester_discord_id ?? ""))
+      ? recUserIdFromSiteOnlyDiscordId(String(request.requester_discord_id))
+      : null);
+  if (String(request.guild_id).startsWith("site:") || (siteRequesterUserId && isSiteOnlyDiscordId(String(request.requester_discord_id ?? "")))) {
+    if (!siteRequesterUserId) throw new ApiError(400, "This team request is missing the requester account.");
     const now = new Date().toISOString();
+    // End any prior open assignment for this user or team before inserting.
+    await supabase
+      .from("rec_team_assignments")
+      .update({ assignment_status: "replaced", ended_at: now })
+      .eq("league_id", request.league_id)
+      .is("ended_at", null)
+      .or(`user_id.eq.${siteRequesterUserId},and(team_id.eq.${request.team_id},assignment_status.eq.active)`);
     const membership = await supabase
       .from("rec_league_memberships")
       .upsert(
-        { league_id: request.league_id, user_id: request.requester_user_id, status: "active", role: "member" },
+        { league_id: request.league_id, user_id: siteRequesterUserId, status: "active", role: "member" },
         { onConflict: "league_id,user_id" },
       );
     if (membership.error) throw new ApiError(500, "Failed to add the league member.", membership.error);
@@ -336,7 +352,7 @@ export async function completeTeamLinkRequest(input: {
       .insert({
         league_id: request.league_id,
         team_id: request.team_id,
-        user_id: request.requester_user_id,
+        user_id: siteRequesterUserId,
         assignment_status: "active",
         source: "manual_admin_entry",
         notes: "Authority: member",
