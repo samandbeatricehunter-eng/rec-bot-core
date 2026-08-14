@@ -31,6 +31,7 @@ import {
   interviewRoundtableLooksLikeQa,
 } from "./interview-headlines.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
+import { postGeneratedHeadlineToDiscord } from "./story-publishing.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
@@ -380,6 +381,7 @@ async function publishMediaStory(submission: any, discordId: string | null) {
     updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that media story. Please try again.", result.error);
+  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: publishedHeadline, body });
   return result.data.id as string;
 }
 
@@ -1058,6 +1060,7 @@ export async function publishHubStory(input: { guildId: string; discordId: strin
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that league story. Please try again.", result.error);
+  await postGeneratedHeadlineToDiscord({ leagueId: context.leagueId, storyId: result.data.id, headline: input.headline, body: input.body });
   return { published: true, id: result.data.id };
 }
 

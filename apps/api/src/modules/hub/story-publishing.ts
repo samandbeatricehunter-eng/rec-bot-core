@@ -10,7 +10,7 @@ import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
 // Mirrors an auto-generated headline/article to the guild's configured Headlines channel
 // (Platinum Discord-bot add-on). Shared by every generated-story path in this file.
-async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
@@ -99,6 +99,7 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that scheduled media story. Please try again.", result.error);
+  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body });
   return result.data.id as string;
 }
 
