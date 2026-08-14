@@ -4,6 +4,7 @@ import { getPgPool } from "../../db/client.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { snapshotLeagueHistory } from "../users/league-history.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
+import { syncScheduleGameUserIdsForLeague } from "../schedule/sync-game-user-ids.js";
 
 async function resolveActor(discordId: string | null): Promise<string> {
   if (!discordId) throw new ApiError(403, "A linked commissioner account is required.");
@@ -133,6 +134,11 @@ export async function createLeagueBan(input: {
     );
     await client.query("commit");
     committed = true;
+    for (const leagueId of affectedLeagueIds) {
+      await syncScheduleGameUserIdsForLeague(leagueId).catch((error) => {
+        console.error(`[ERROR] syncScheduleGameUserIdsForLeague failed after ban for league ${leagueId}:`, error);
+      });
+    }
     if (target.discord_id) {
       const guildIds = input.scope === "league"
         ? [input.guildId]
@@ -299,6 +305,9 @@ export async function kickLeagueUser(input: { guildId: string; target: string; s
       await client.query("commit");
     } catch (error) { await client.query("rollback"); throw error; }
     finally { client.release(); }
+    await syncScheduleGameUserIdsForLeague(context.leagueId).catch((error) => {
+      console.error(`[ERROR] syncScheduleGameUserIdsForLeague failed after kick for league ${context.leagueId}:`, error);
+    });
   }
   if ((input.scope === "server" || input.scope === "both") && target.discord_id) await kickDiscordGuildMember(input.guildId, target.discord_id, `REC commissioner kick: ${input.reason}`);
   return { kicked: true, registered: Boolean(target.id), scope: input.scope };

@@ -334,6 +334,18 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
   if (boxScores.error) throw new ApiError(500, "We couldn't load box score submissions right now. Please try again.", boxScores.error);
 
+  // Live assignments — schedule seed often writes null home_user_id/away_user_id before
+  // coaches claim teams. Game channels (and advance H2H filtering) must not treat those
+  // stale columns as authoritative; same overlay as GOTW nomination/auto-assign.
+  const teamIds = [...new Set((games ?? []).flatMap((g: any) => [g.home_team_id, g.away_team_id]).filter(Boolean))];
+  const assignments = teamIds.length
+    ? await supabase.from("rec_team_assignments").select("team_id,user_id")
+      .eq("league_id", context.leagueId).in("team_id", teamIds)
+      .eq("assignment_status", "active").is("ended_at", null)
+    : { data: [] as any[], error: null };
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for this week's games. Please try again.", assignments.error);
+  const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
+
   const boxScoreGameIds = new Set((boxScores.data ?? []).map((row) => String(row.game_id)).filter(Boolean));
   const resultByMatchup = new Map(
     (results.data ?? []).map((row) => [`${row.home_team_id}:${row.away_team_id}`, row.source ?? null]),
@@ -344,20 +356,23 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     const existingSource = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
     const hasOfficialResult = existingSource != null && RESOLVED_RESULT_SOURCES.includes(String(existingSource));
     const needsInput = !hasBoxScore && !hasOfficialResult;
+    const homeUserId = userByTeam.get(game.home_team_id) ?? game.home_user_id ?? null;
+    const awayUserId = userByTeam.get(game.away_team_id) ?? game.away_user_id ?? null;
+    const isH2h = Boolean(homeUserId && awayUserId);
     return {
       gameId: game.id,
       weekNumber: game.week_number,
       homeTeamId: game.home_team_id,
       awayTeamId: game.away_team_id,
-      homeUserId: game.home_user_id,
-      awayUserId: game.away_user_id,
+      homeUserId,
+      awayUserId,
       homeTeamName: formatTeamDisplayName(game.home_team) ?? game.home_team?.name ?? "Home",
       awayTeamName: formatTeamDisplayName(game.away_team) ?? game.away_team?.name ?? "Away",
       hasBoxScore,
       existingResultSource: existingSource,
       needsInput,
-      isCpuGame: !(game.home_user_id && game.away_user_id),
-      isH2h: Boolean(game.home_user_id && game.away_user_id),
+      isCpuGame: !isH2h,
+      isH2h,
       isBowlGame: Boolean(game.is_bowl_game),
       isNationalChampionship: Boolean(game.is_national_championship),
     };
