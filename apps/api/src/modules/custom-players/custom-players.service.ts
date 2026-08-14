@@ -604,7 +604,10 @@ export async function reviewCustomPlayer(input: {
     // not grant or remove it later.
     p_unused_cp_refund_coins: Number(build.unused_cp_refund_coins) === 500 ? 500 : 0, p_changes: changes,
   });
-  if (applied.error) throw new ApiError(500, "We couldn't apply that custom player. Please try again.", applied.error);
+  if (applied.error) {
+    const msg = (applied.error.message || "").toString().trim();
+    throw new ApiError(500, msg || "We couldn't apply that custom player. Please try again.", applied.error);
+  }
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
     .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
   if (changes.length) {

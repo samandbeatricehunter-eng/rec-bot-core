@@ -1,0 +1,1496 @@
+[
+  {
+    "pos": "C",
+    "name": "Dwight Stephenson",
+    "class": "Gold",
+    "abilities": "Stonewall, Brick Wall, Qucik Feet, Speed Burner"
+  },
+  {
+    "pos": "C",
+    "name": "Jim Otto",
+    "class": "Gold",
+    "abilities": "Leadership, Bulldozer, Durability"
+  },
+  {
+    "pos": "C",
+    "name": "Dermontti Dawson",
+    "class": "Silver",
+    "abilities": "Bulldozer, Durability, Strength"
+  },
+  {
+    "pos": "C",
+    "name": "Jim Langer",
+    "class": "Silver",
+    "abilities": "Bulldozer, Durability, Quick Feet, Strength"
+  },
+  {
+    "pos": "C",
+    "name": "Bill Curry",
+    "class": "Bronze",
+    "abilities": "Leadership"
+  },
+  {
+    "pos": "C",
+    "name": "Jesse Sapolu",
+    "class": "Bronze",
+    "abilities": "Durability, Strength"
+  },
+  {
+    "pos": "C",
+    "name": "Mick Tingelhoff",
+    "class": "Bronze",
+    "abilities": "Bulldozer, Durability"
+  },
+  {
+    "pos": "CB",
+    "name": "Willie Brown",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Mike Haynes",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Night Train Lane",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Rod Woodson",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Lem Barney",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Lester Hayes",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Mel Renfro",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Roger Wehrli",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Tom Brookshier",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Albert Lewis",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "CB",
+    "name": "Terry McDaniel",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Deacon Jones",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Gino Marchetti",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Lee Roy Selmon",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Reggie White",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Elvin Bethea",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Chris Doleman",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "L.C. Greenwood",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Ed \"Too Tall\" Jones",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Leslie O'Neal",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Jack Youngblood",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Rulon Jones",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Dexter Manley",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Jim Marshall",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Leonard Marshall",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Harvey Martin",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Clyde Simmons",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DE",
+    "name": "Tony Tolbert",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Art Donovan",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Bob Lilly",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Randy White",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Jerome Brown",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Dan Hampton",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Keith Millard",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Dave Butz",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Mike Golic",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Greg Kragen",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Leon Lett",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Marty Lyons",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "William \"Refrigerator\" Perry",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "DT",
+    "name": "Dan Saleaumua",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "FB",
+    "name": "Joe Perry",
+    "class": "Gold",
+    "abilities": "Cutback, Speed Burner"
+  },
+  {
+    "pos": "FB",
+    "name": "Daryl Johnston",
+    "class": "Silver",
+    "abilities": "Brick Wall, Bulldozer, Soft Hands"
+  },
+  {
+    "pos": "FB",
+    "name": "Ickey Woods",
+    "class": "Silver",
+    "abilities": "Power"
+  },
+  {
+    "pos": "FB",
+    "name": "Merril Hoge",
+    "class": "Bronze",
+    "abilities": "Arm of Steel, Soft Hands"
+  },
+  {
+    "pos": "FB",
+    "name": "Tom Rathman",
+    "class": "Bronze",
+    "abilities": "Brick Wall, Soft Hands"
+  },
+  {
+    "pos": "FS",
+    "name": "Cliff Harris",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Ronnie Lott",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Willie Wood",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Deron Cherry",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Jack Tatum",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Eric Turner",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Nolan Cromwell",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Fred Marion",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Eugene Robinson",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "FS",
+    "name": "Solomon Wilcots",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "HB",
+    "name": "Marcus Allen",
+    "class": "Gold",
+    "abilities": "Clutch, Branching Tackles, Cutback, Soft Hands, Goalline"
+  },
+  {
+    "pos": "HB",
+    "name": "Earl Campbell",
+    "class": "Gold",
+    "abilities": "Branching Tackles, Workhorse, Stamina, Power"
+  },
+  {
+    "pos": "HB",
+    "name": "Paul Hornung",
+    "class": "Gold",
+    "abilities": "Clutch, Leadership, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Leroy Kelly",
+    "class": "Gold",
+    "abilities": "Return Spec, Durability, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Walter Payton",
+    "class": "Gold",
+    "abilities": "Leadership, Durability, Goalline, Scissors, Finesse and Power"
+  },
+  {
+    "pos": "HB",
+    "name": "Barry Sanders",
+    "class": "Gold",
+    "abilities": "Branching Tackles, Cutback, Quick Feet, Speed Burner, Finesse"
+  },
+  {
+    "pos": "HB",
+    "name": "Gale Sayers",
+    "class": "Gold",
+    "abilities": "Return Spec, Break Away, Quick Feet, Speed Burner, Finesse"
+  },
+  {
+    "pos": "HB",
+    "name": "O.J. Simpson",
+    "class": "Gold",
+    "abilities": "Break Away, Quick Feet, Speed Burner, Finesse"
+  },
+  {
+    "pos": "HB",
+    "name": "Emmitt Smith",
+    "class": "Gold",
+    "abilities": "Arm of Steel, Branchin Tackles, Workhorse, Durability, Goaline"
+  },
+  {
+    "pos": "HB",
+    "name": "Thurman Thomas",
+    "class": "Gold",
+    "abilities": "Arm of Steel, Stop on a Dime, Soft Hands, Finesse"
+  },
+  {
+    "pos": "HB",
+    "name": "Ottis Anderson",
+    "class": "Silver",
+    "abilities": "Battering Ram, Workhorse, Secure Ball"
+  },
+  {
+    "pos": "HB",
+    "name": "Tony Canadeo",
+    "class": "Silver",
+    "abilities": "Return Specialist"
+  },
+  {
+    "pos": "HB",
+    "name": "Roger Craig",
+    "class": "Silver",
+    "abilities": "Mr. 3rd Down, Possession Receiver, Cyclone, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Chuck Foreman",
+    "class": "Silver",
+    "abilities": "Ankle Breaker, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Abner Haynes",
+    "class": "Silver",
+    "abilities": "Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Hugh McElhenny",
+    "class": "Silver",
+    "abilities": "Return Specialist, Cutback Ability"
+  },
+  {
+    "pos": "HB",
+    "name": "Lenny Moore",
+    "class": "Silver",
+    "abilities": "Ankle Breaker"
+  },
+  {
+    "pos": "HB",
+    "name": "Chuck Muncie",
+    "class": "Silver",
+    "abilities": "Arm of Steel, Branching Tackles"
+  },
+  {
+    "pos": "HB",
+    "name": "Billy Sims",
+    "class": "Silver",
+    "abilities": "Break Away Burst, Finesse"
+  },
+  {
+    "pos": "HB",
+    "name": "Matt Snell",
+    "class": "Silver",
+    "abilities": "Battering Ram, Brick Wall, Bulldozer"
+  },
+  {
+    "pos": "HB",
+    "name": "Charley Trippi",
+    "class": "Silver",
+    "abilities": "Quick Feet"
+  },
+  {
+    "pos": "HB",
+    "name": "Curt Warner",
+    "class": "Silver",
+    "abilities": "Battering Ram, Stop on a Dime, Workhorse"
+  },
+  {
+    "pos": "HB",
+    "name": "Chris Warren",
+    "class": "Silver",
+    "abilities": "Workhorse"
+  },
+  {
+    "pos": "HB",
+    "name": "Ricky Watters",
+    "class": "Silver",
+    "abilities": "Possession Recevier, Cyclone, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Greg Bell",
+    "class": "Bronze",
+    "abilities": "Arm of Steel"
+  },
+  {
+    "pos": "HB",
+    "name": "Eric Bieniemy",
+    "class": "Bronze",
+    "abilities": "Return Spec, Cyclone, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Ronnie Bull",
+    "class": "Bronze",
+    "abilities": "Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Reggie Cobb",
+    "class": "Bronze",
+    "abilities": "N/A"
+  },
+  {
+    "pos": "HB",
+    "name": "Barry Foster",
+    "class": "Bronze",
+    "abilities": "Battering Ram"
+  },
+  {
+    "pos": "HB",
+    "name": "Dalton Hilliard",
+    "class": "Bronze",
+    "abilities": "Cyclone"
+  },
+  {
+    "pos": "HB",
+    "name": "Floyd Little",
+    "class": "Bronze",
+    "abilities": "Return Spec, Cutback"
+  },
+  {
+    "pos": "HB",
+    "name": "Freeman McNeil",
+    "class": "Bronze",
+    "abilities": "Ankle Breaker, Cutback"
+  },
+  {
+    "pos": "HB",
+    "name": "Natrone Means",
+    "class": "Bronze",
+    "abilities": "Battering Ram, Workhorse"
+  },
+  {
+    "pos": "HB",
+    "name": "Dave Meggett",
+    "class": "Bronze",
+    "abilities": "Return Spec, Ankle Breaker, Stop on a Dime, Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Tony Nathan",
+    "class": "Bronze",
+    "abilities": "Soft Hands"
+  },
+  {
+    "pos": "HB",
+    "name": "Christian Okoye",
+    "class": "Bronze",
+    "abilities": "Battering Ram, Branching Tackles, Workhorse, Strength"
+  },
+  {
+    "pos": "HB",
+    "name": "Mike Rozier",
+    "class": "Bronze",
+    "abilities": "Arm of Steel"
+  },
+  {
+    "pos": "ILB",
+    "name": "Dick Butkus",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Jack Lambert",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Joe Schmidt",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Mike Singletary",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Nick Buoniconti",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Harry Carson",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Karl Mecklenburg",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Jessie Tuggle",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Brian Bosworth",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Pepper Johnson",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Brian Jones",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Chuck Noll",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Ken Norton Jr.",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "John Offerdahl",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Gary Plummer",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Chris Spielman",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "ILB",
+    "name": "Scott Studwell",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "K",
+    "name": "Jan Stenerud",
+    "class": "Silver",
+    "abilities": "Clutch, Kick Accuracy, Kick Power"
+  },
+  {
+    "pos": "K",
+    "name": "Jim Bakken",
+    "class": "Bronze",
+    "abilities": "Clutch, Durability"
+  },
+  {
+    "pos": "K",
+    "name": "Al Del Greco",
+    "class": "Bronze",
+    "abilities": "Kick Accuracy, Kick Power"
+  },
+  {
+    "pos": "K",
+    "name": "Lou Groza",
+    "class": "Bronze",
+    "abilities": "Stamina"
+  },
+  {
+    "pos": "K",
+    "name": "Jeff Jaeger",
+    "class": "Bronze",
+    "abilities": "Kick Accuracy, Kick Power, Strength"
+  },
+  {
+    "pos": "K",
+    "name": "Eddie Murray",
+    "class": "Bronze",
+    "abilities": "Kick Accuracy"
+  },
+  {
+    "pos": "K",
+    "name": "Garo Yepremian",
+    "class": "Bronze",
+    "abilities": "Kick Accuracy"
+  },
+  {
+    "pos": "OG",
+    "name": "Russ Grimm",
+    "class": "Gold",
+    "abilities": "Bulldozer, Speed Burner, Strength"
+  },
+  {
+    "pos": "OG",
+    "name": "Stan Jones",
+    "class": "Gold",
+    "abilities": "Leadership, Brick Wall, Quick Feet, Strength"
+  },
+  {
+    "pos": "OG",
+    "name": "Larry Little",
+    "class": "Gold",
+    "abilities": "Leadership, Brick Wall, Bulldozer, Quick Feet, Speed Burner"
+  },
+  {
+    "pos": "OG",
+    "name": "Joe DeLamielleure",
+    "class": "Silver",
+    "abilities": "Stonewall, Bulldozer, Speed Burner"
+  },
+  {
+    "pos": "OG",
+    "name": "Tom Mack",
+    "class": "Silver",
+    "abilities": "Leadership, Durability"
+  },
+  {
+    "pos": "OG",
+    "name": "Randall McDaniel",
+    "class": "Silver",
+    "abilities": "Strength"
+  },
+  {
+    "pos": "OG",
+    "name": "Randy Cross",
+    "class": "Bronze",
+    "abilities": "Brick Wall"
+  },
+  {
+    "pos": "OG",
+    "name": "Bill Fralic",
+    "class": "Bronze",
+    "abilities": "Strength"
+  },
+  {
+    "pos": "OG",
+    "name": "Guy McIntyre",
+    "class": "Bronze",
+    "abilities": "Brick Wall"
+  },
+  {
+    "pos": "OG",
+    "name": "Steve Wisniewski",
+    "class": "Bronze",
+    "abilities": "Leader"
+  },
+  {
+    "pos": "OLB",
+    "name": "Derrick Thomas",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Dave Wilcox",
+    "class": "Gold",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Chuck Bednarik",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Greg Lloyd",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "John Anderson",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Carl Banks",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Robert Brazile",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Lamar Lathon",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Bryce Paup",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Brad Van Pelt",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OLB",
+    "name": "Otis Wilson",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "OT",
+    "name": "Bob Brown",
+    "class": "Gold",
+    "abilities": "Stonewall, Brick Wall, Quick Feet, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Roosevelt Brown",
+    "class": "Gold",
+    "abilities": "Clutch, Brick Wall, Speed Burner"
+  },
+  {
+    "pos": "OT",
+    "name": "Ron Mix",
+    "class": "Gold",
+    "abilities": "Speed Burner, Stamina, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Anthony Munoz",
+    "class": "Gold",
+    "abilities": "Stonewall, Bulldozer, Quick Feet, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Jim Parker",
+    "class": "Gold",
+    "abilities": "Stonewall, Brick Wall, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Lou Creekmur",
+    "class": "Silver",
+    "abilities": "Brick Wall, Bulldozer, Durability"
+  },
+  {
+    "pos": "OT",
+    "name": "Jim Lachey",
+    "class": "Silver",
+    "abilities": "Brick Wall"
+  },
+  {
+    "pos": "OT",
+    "name": "Mike Munchak",
+    "class": "Silver",
+    "abilities": "Special Team Demon, Brick Wall, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Bob St. Clair",
+    "class": "Silver",
+    "abilities": "Brick Wall, Bulldozer, Speed Burner, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Richmond Webb",
+    "class": "Silver",
+    "abilities": "Brick Wall"
+  },
+  {
+    "pos": "OT",
+    "name": "Rayfield Wright",
+    "class": "Silver",
+    "abilities": "Quick Feet, Speed Burner"
+  },
+  {
+    "pos": "OT",
+    "name": "Ron Yary",
+    "class": "Silver",
+    "abilities": "Durability, Quick Feet"
+  },
+  {
+    "pos": "OT",
+    "name": "Tony Boselli",
+    "class": "Bronze",
+    "abilities": "Brick Wall"
+  },
+  {
+    "pos": "OT",
+    "name": "Joe Jacoby",
+    "class": "Bronze",
+    "abilities": "Bulldozer, Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Bubba Paris",
+    "class": "Bronze",
+    "abilities": "Strength"
+  },
+  {
+    "pos": "OT",
+    "name": "Korey Stringer",
+    "class": "Bronze",
+    "abilities": "Brick Wall, Strength"
+  },
+  {
+    "pos": "P",
+    "name": "Ray Guy",
+    "class": "Bronze",
+    "abilities": "Coffin Corner, Clutch, Kick Accuracy, Kick Power"
+  },
+  {
+    "pos": "QB",
+    "name": "Troy Aikman",
+    "class": "Gold",
+    "abilities": "Pocket Presence, Signal Stealer, Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Sammy Baugh",
+    "class": "Gold",
+    "abilities": "Signal Steal, Laser Arm, Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "John Elway",
+    "class": "Gold",
+    "abilities": "Cadence, 4th Qtr, Scrambler, Speed Burner, Rocker Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Otto Graham",
+    "class": "Gold",
+    "abilities": "Scrambler, Clutch, Leadership, Stamina"
+  },
+  {
+    "pos": "QB",
+    "name": "Dan Marino",
+    "class": "Gold",
+    "abilities": "Pocket Presence, Quick Release, 4th Qtr, Laser Arm, Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Joe Montana",
+    "class": "Gold",
+    "abilities": "Scrambler, Clutch, Signal Steal, Leadership, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Warren Moon",
+    "class": "Gold",
+    "abilities": "Pocket Presence, Pass Threat, Signal Stealer, Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Roger Staubach",
+    "class": "Gold",
+    "abilities": "4th Qtr, Tough as Nails, Scrambler, Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Johnny Unitas",
+    "class": "Gold",
+    "abilities": "Pocket Presence, Tough as Nails, Clutch, Signal Steal, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Steve Young",
+    "class": "Gold",
+    "abilities": "Tough as Nails, Scrambler, Quick Feet, Speed Burner, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Randall Cunningham",
+    "class": "Silver",
+    "abilities": "Scrambler, Quick Feet, Speed Burner, Rocket Arm, QB Evade"
+  },
+  {
+    "pos": "QB",
+    "name": "Len Dawson",
+    "class": "Silver",
+    "abilities": "Play Fake, Clutch, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Archie Manning",
+    "class": "Silver",
+    "abilities": "Tough as Nails, Durability"
+  },
+  {
+    "pos": "QB",
+    "name": "Ken Stabler",
+    "class": "Silver",
+    "abilities": "Deception, Scrambler, Clutch, Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Bart Starr",
+    "class": "Silver",
+    "abilities": "Clutch, Signal Steal, Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Joe Theismann",
+    "class": "Silver",
+    "abilities": "Leadership, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Steve Bartkowski",
+    "class": "Bronze",
+    "abilities": "Signal Stealer, Strength, Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Bubby Brister",
+    "class": "Bronze",
+    "abilities": "N/A"
+  },
+  {
+    "pos": "QB",
+    "name": "John Brodie",
+    "class": "Bronze",
+    "abilities": "Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Lynn Dickey",
+    "class": "Bronze",
+    "abilities": "Play Fake"
+  },
+  {
+    "pos": "QB",
+    "name": "Steve Grogan",
+    "class": "Bronze",
+    "abilities": "Tough As Nails, Scrambler, Quick Feet"
+  },
+  {
+    "pos": "QB",
+    "name": "Jim Harbaugh",
+    "class": "Bronze",
+    "abilities": "4th Qtr, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Jim Hart",
+    "class": "Bronze",
+    "abilities": "4th Qtr"
+  },
+  {
+    "pos": "QB",
+    "name": "Bobby Hebert",
+    "class": "Bronze",
+    "abilities": "Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Jeff Hostetler",
+    "class": "Bronze",
+    "abilities": "Scrambler"
+  },
+  {
+    "pos": "QB",
+    "name": "Bernie Kosar",
+    "class": "Bronze",
+    "abilities": "Pocket Pressence, Signal Stealer, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Tommy Kramer",
+    "class": "Bronze",
+    "abilities": "4th Qtr, Quick Feet"
+  },
+  {
+    "pos": "QB",
+    "name": "Dave Krieg",
+    "class": "Bronze",
+    "abilities": "Scrambler, Laser Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Greg Landry",
+    "class": "Bronze",
+    "abilities": "Scrambler, Quick Feet"
+  },
+  {
+    "pos": "QB",
+    "name": "Ken O'Brien",
+    "class": "Bronze",
+    "abilities": "Pocket Pressence, Signal Stealer"
+  },
+  {
+    "pos": "QB",
+    "name": "Neil O'Donnell",
+    "class": "Bronze",
+    "abilities": "Signal Stealer, Leadership"
+  },
+  {
+    "pos": "QB",
+    "name": "Mark Rypien",
+    "class": "Bronze",
+    "abilities": "Rocket Arm"
+  },
+  {
+    "pos": "QB",
+    "name": "Bill Wade",
+    "class": "Bronze",
+    "abilities": "Scrambler"
+  },
+  {
+    "pos": "QB",
+    "name": "Andre Ware",
+    "class": "Bronze",
+    "abilities": "Pass Threat"
+  },
+  {
+    "pos": "QB",
+    "name": "Jim Zorn",
+    "class": "Bronze",
+    "abilities": "Scrambler"
+  },
+  {
+    "pos": "SS",
+    "name": "Dick Anderson",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "SS",
+    "name": "Joey Browner",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "SS",
+    "name": "Leroy Butler",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "SS",
+    "name": "George McAfee",
+    "class": "Silver",
+    "abilities": "?"
+  },
+  {
+    "pos": "SS",
+    "name": "Charlie Waters",
+    "class": "Bronze",
+    "abilities": "?"
+  },
+  {
+    "pos": "TE",
+    "name": "Mike Ditka",
+    "class": "Gold",
+    "abilities": "Tough in Middle, Leadership, Bulldozer, Durability, Strength"
+  },
+  {
+    "pos": "TE",
+    "name": "John Mackey",
+    "class": "Gold",
+    "abilities": "Return Spec, Break Away, Durability, Speed Burner"
+  },
+  {
+    "pos": "TE",
+    "name": "Shannon Sharpe",
+    "class": "Gold",
+    "abilities": "Route God, Speed Burner"
+  },
+  {
+    "pos": "TE",
+    "name": "Jackie Smith",
+    "class": "Gold",
+    "abilities": "Bulldozer, Durability, Soft Hands"
+  },
+  {
+    "pos": "TE",
+    "name": "Todd Christensen",
+    "class": "Silver",
+    "abilities": "Route God, Magic Feet, Break Away"
+  },
+  {
+    "pos": "TE",
+    "name": "Ben Coates",
+    "class": "Silver",
+    "abilities": "Break Away, Soft Hands, Strength"
+  },
+  {
+    "pos": "TE",
+    "name": "Billy Joe Dupree",
+    "class": "Silver",
+    "abilities": "Bulldozer"
+  },
+  {
+    "pos": "TE",
+    "name": "Keith Jackson",
+    "class": "Silver",
+    "abilities": "Bulldozer"
+  },
+  {
+    "pos": "TE",
+    "name": "Brent Jones",
+    "class": "Silver",
+    "abilities": "Mr 3rd Down, Possession"
+  },
+  {
+    "pos": "TE",
+    "name": "Jay Novacek",
+    "class": "Silver",
+    "abilities": "Tough in Middle, Possession"
+  },
+  {
+    "pos": "TE",
+    "name": "Dave Casper",
+    "class": "Bronze",
+    "abilities": "N/A"
+  },
+  {
+    "pos": "TE",
+    "name": "Troy Drayton",
+    "class": "Bronze",
+    "abilities": "N/A"
+  },
+  {
+    "pos": "TE",
+    "name": "Eric Green",
+    "class": "Bronze",
+    "abilities": "Bulldozer"
+  },
+  {
+    "pos": "TE",
+    "name": "Pete Metzelaars",
+    "class": "Bronze",
+    "abilities": "Tough in Middle, Possession"
+  },
+  {
+    "pos": "WR",
+    "name": "Raymond Berry",
+    "class": "Gold",
+    "abilities": "Route God, Bumper, Tough in Middle, Possession Rec, Secure Ball"
+  },
+  {
+    "pos": "WR",
+    "name": "Fred Biletnikoff",
+    "class": "Gold",
+    "abilities": "Deep Threat, Clutch, Durability, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "James Lofton",
+    "class": "Gold",
+    "abilities": "Deep Threat, Durability, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Jerry Rice",
+    "class": "Gold",
+    "abilities": "Route God, Clutch, Break Away, Leadership, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Gary Clark",
+    "class": "Silver",
+    "abilities": "Tough in Middle, Break Away, Quick Feet"
+  },
+  {
+    "pos": "WR",
+    "name": "Henry Ellard",
+    "class": "Silver",
+    "abilities": "Return Spec, Hops"
+  },
+  {
+    "pos": "WR",
+    "name": "Irving Fryar",
+    "class": "Silver",
+    "abilities": "Tough in Middle, Possession, Return Spec, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "John Jefferson",
+    "class": "Silver",
+    "abilities": "Acrobatic Catches"
+  },
+  {
+    "pos": "WR",
+    "name": "Dante Lavelli",
+    "class": "Silver",
+    "abilities": "Route God, Bumper, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Don Maynard",
+    "class": "Silver",
+    "abilities": "Route God, Bumper, Tough in Middle, Deep Threat, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Bobby Mitchell",
+    "class": "Silver",
+    "abilities": "Deep Threat, Return Spec, Ankle Breaker, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Herman Moore",
+    "class": "Silver",
+    "abilities": "Bumper, Acrobatic Catches, Mr 3rd Down, Magic Feet, Possession"
+  },
+  {
+    "pos": "WR",
+    "name": "Drew Pearson",
+    "class": "Silver",
+    "abilities": "Deep Threat, Clutch, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Pete Pihos",
+    "class": "Silver",
+    "abilities": "Bumper, Tough in Middle, Battering Ram, Stamina"
+  },
+  {
+    "pos": "WR",
+    "name": "Andre Reed",
+    "class": "Silver",
+    "abilities": "Tough in Middle, Mr. 3rd Down, Possession, Break Away, Quick Feet"
+  },
+  {
+    "pos": "WR",
+    "name": "Charley Taylor",
+    "class": "Silver",
+    "abilities": "Bumper, Return Spec, Ankle Breaker, Cutback, Quick Feet"
+  },
+  {
+    "pos": "WR",
+    "name": "Cliff Branch",
+    "class": "Bronze",
+    "abilities": "Acrobactic, Deep Threat, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Mark Carrier",
+    "class": "Bronze",
+    "abilities": "Acrobatic Catches, Magic Feet"
+  },
+  {
+    "pos": "WR",
+    "name": "Anthony Carter",
+    "class": "Bronze",
+    "abilities": "Acrobactic Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Dwight Clark",
+    "class": "Bronze",
+    "abilities": "Magic Feet, Clutch, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Willie Gault",
+    "class": "Bronze",
+    "abilities": "Deep Threat, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Ernest Givins",
+    "class": "Bronze",
+    "abilities": "Hops, Quick Feet"
+  },
+  {
+    "pos": "WR",
+    "name": "Alvin Harper",
+    "class": "Bronze",
+    "abilities": "Acrobactic, Deep Threat, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Raghib \"Rocket\" Ismail",
+    "class": "Bronze",
+    "abilities": "Return Spec, Speed Burner"
+  },
+  {
+    "pos": "WR",
+    "name": "Eric Martin",
+    "class": "Bronze",
+    "abilities": "Bump Buster"
+  },
+  {
+    "pos": "WR",
+    "name": "Tony Martin",
+    "class": "Bronze",
+    "abilities": "Deep Threat"
+  },
+  {
+    "pos": "WR",
+    "name": "Rob Moore",
+    "class": "Bronze",
+    "abilities": "Tough in Middle, Acrobatic Catches, Possession, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Ricky Sanders",
+    "class": "Bronze",
+    "abilities": "Return Spec, Quick Feet, Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Steve Tasker",
+    "class": "Bronze",
+    "abilities": "Special Team Demon, Big Hit, Strength"
+  },
+  {
+    "pos": "WR",
+    "name": "John Taylor",
+    "class": "Bronze",
+    "abilities": "Return Spec, Ankle Breaker, Soft Hands, Strength"
+  },
+  {
+    "pos": "WR",
+    "name": "Yancey Thigpen",
+    "class": "Bronze",
+    "abilities": "Soft Hands"
+  },
+  {
+    "pos": "WR",
+    "name": "Rick Upchurch",
+    "class": "Bronze",
+    "abilities": "Return Spec"
+  },
+  {
+    "pos": "WR",
+    "name": "Wesley Walker",
+    "class": "Bronze",
+    "abilities": "Magic Feet, Deep Threat, Return Spec, Stamina"
+  }
+]

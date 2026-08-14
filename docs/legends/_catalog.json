@@ -1,0 +1,1059 @@
+[
+  {
+    "name": "Aaron Donald",
+    "scope": "madden",
+    "pos": "DT",
+    "ovr": "88",
+    "key": "aaron donald"
+  },
+  {
+    "name": "Adrian Peterson",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "87.7",
+    "key": "adrian peterson"
+  },
+  {
+    "name": "Alan Ameche",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "86",
+    "key": "alan ameche"
+  },
+  {
+    "name": "Alan Page",
+    "scope": "madden",
+    "pos": "DT",
+    "ovr": "87.8",
+    "key": "alan page"
+  },
+  {
+    "name": "Amari Cooper",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "86",
+    "key": "amari cooper"
+  },
+  {
+    "name": "Andre Johnson",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.3",
+    "key": "andre johnson"
+  },
+  {
+    "name": "Anthony Munoz",
+    "scope": "madden",
+    "pos": "LT",
+    "ovr": "88.2",
+    "key": "anthony munoz"
+  },
+  {
+    "name": "Antonio Gates",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "88.1",
+    "key": "antonio gates"
+  },
+  {
+    "name": "Archie Griffin",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "87",
+    "key": "archie griffin"
+  },
+  {
+    "name": "Baker Mayfield",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "86",
+    "key": "baker mayfield"
+  },
+  {
+    "name": "Barrett Jones",
+    "scope": "cfb_27",
+    "pos": "C",
+    "ovr": "85",
+    "key": "barrett jones"
+  },
+  {
+    "name": "Barry Sanders",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "88.6",
+    "key": "barry sanders"
+  },
+  {
+    "name": "Ben Roethlisberger",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "87.5",
+    "key": "ben roethlisberger"
+  },
+  {
+    "name": "Bill Fralic",
+    "scope": "cfb_27",
+    "pos": "RG",
+    "ovr": "86",
+    "key": "bill fralic"
+  },
+  {
+    "name": "Bo Jackson",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "88",
+    "key": "bo jackson"
+  },
+  {
+    "name": "Bob Lilly",
+    "scope": "madden",
+    "pos": "DT",
+    "ovr": "87.8",
+    "key": "bob lilly"
+  },
+  {
+    "name": "Brian Bosworth",
+    "scope": "cfb_27",
+    "pos": "MLB",
+    "ovr": "85",
+    "key": "brian bosworth"
+  },
+  {
+    "name": "Brian Dawkins",
+    "scope": "madden",
+    "pos": "SS",
+    "ovr": "87.5",
+    "key": "brian dawkins"
+  },
+  {
+    "name": "Brock Bowers",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "86",
+    "key": "brock bowers"
+  },
+  {
+    "name": "Bronko Nagurski",
+    "scope": "cfb_27",
+    "pos": "DT",
+    "ovr": "86",
+    "key": "bronko nagurski"
+  },
+  {
+    "name": "Bruce Smith",
+    "scope": "madden",
+    "pos": "RE",
+    "ovr": "88.3",
+    "key": "bruce smith"
+  },
+  {
+    "name": "Calvin Johnson",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.6",
+    "key": "calvin johnson"
+  },
+  {
+    "name": "Cam Newton",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "87",
+    "key": "cam newton"
+  },
+  {
+    "name": "Champ Bailey",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.4",
+    "key": "champ bailey"
+  },
+  {
+    "name": "Charles Woodson",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.3",
+    "key": "charles woodson"
+  },
+  {
+    "name": "Chase Young",
+    "scope": "cfb_27",
+    "pos": "RE",
+    "ovr": "86",
+    "key": "chase young"
+  },
+  {
+    "name": "Christian McCaffrey",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "87",
+    "key": "christian mccaffrey"
+  },
+  {
+    "name": "Cris Carter",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.3",
+    "key": "cris carter"
+  },
+  {
+    "name": "Dallas Clark",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "86",
+    "key": "dallas clark"
+  },
+  {
+    "name": "Dan Marino",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "87.5",
+    "key": "dan marino"
+  },
+  {
+    "name": "Darrelle Revis",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.5",
+    "key": "darrelle revis"
+  },
+  {
+    "name": "Daryl Johnston",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "88.5",
+    "key": "daryl johnston"
+  },
+  {
+    "name": "Dave Rimington",
+    "scope": "cfb_27",
+    "pos": "C",
+    "ovr": "86",
+    "key": "dave rimington"
+  },
+  {
+    "name": "Deacon Jones",
+    "scope": "madden",
+    "pos": "RE",
+    "ovr": "87.9",
+    "key": "deacon jones"
+  },
+  {
+    "name": "Deion Sanders",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "89",
+    "key": "deion sanders"
+  },
+  {
+    "name": "Derrick Henry",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "87",
+    "key": "derrick henry"
+  },
+  {
+    "name": "Derrick Thomas",
+    "scope": "cfb_27",
+    "pos": "ROLB",
+    "ovr": "88",
+    "key": "derrick thomas"
+  },
+  {
+    "name": "Deshaun Watson",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "85",
+    "key": "deshaun watson"
+  },
+  {
+    "name": "Desmond Howard",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "85",
+    "key": "desmond howard"
+  },
+  {
+    "name": "Devin Hester",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "87.2",
+    "key": "devin hester"
+  },
+  {
+    "name": "DeVonta Smith",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "86",
+    "key": "devonta smith"
+  },
+  {
+    "name": "Dick Butkus",
+    "scope": "madden",
+    "pos": "MLB",
+    "ovr": "87.7",
+    "key": "dick butkus"
+  },
+  {
+    "name": "Doc Blanchard",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "85",
+    "key": "doc blanchard"
+  },
+  {
+    "name": "Earl Campbell",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "88",
+    "key": "earl campbell"
+  },
+  {
+    "name": "Ed \"Too Tall\" Jones",
+    "scope": "madden",
+    "pos": "RE",
+    "ovr": "87.6",
+    "key": "ed jones"
+  },
+  {
+    "name": "Ed Reed",
+    "scope": "madden",
+    "pos": "FS",
+    "ovr": "87.9",
+    "key": "ed reed"
+  },
+  {
+    "name": "Emmitt Smith",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "87.9",
+    "key": "emmitt smith"
+  },
+  {
+    "name": "Eric Berry",
+    "scope": "cfb_27",
+    "pos": "SS",
+    "ovr": "86",
+    "key": "eric berry"
+  },
+  {
+    "name": "Eric Dickerson",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "88",
+    "key": "eric dickerson"
+  },
+  {
+    "name": "Forrest Gregg",
+    "scope": "madden",
+    "pos": "RT",
+    "ovr": "87.9",
+    "key": "forrest gregg"
+  },
+  {
+    "name": "Fred Biletnikoff",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "87",
+    "key": "fred biletnikoff"
+  },
+  {
+    "name": "Glenn Davis",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "85",
+    "key": "glenn davis"
+  },
+  {
+    "name": "Greg Olsen",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "87.8",
+    "key": "greg olsen"
+  },
+  {
+    "name": "Herschel Walker",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "87",
+    "key": "herschel walker"
+  },
+  {
+    "name": "Howard Cassady",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "85",
+    "key": "howard cassady"
+  },
+  {
+    "name": "Hugh Green",
+    "scope": "cfb_27",
+    "pos": "LE",
+    "ovr": "86",
+    "key": "hugh green"
+  },
+  {
+    "name": "Ja'Marr Chase",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "87",
+    "key": "ja'marr chase"
+  },
+  {
+    "name": "Jack Ham",
+    "scope": "madden",
+    "pos": "LOLB",
+    "ovr": "88.1",
+    "key": "jack ham"
+  },
+  {
+    "name": "Jack Lambert",
+    "scope": "madden",
+    "pos": "MLB",
+    "ovr": "88",
+    "key": "jack lambert"
+  },
+  {
+    "name": "Jason Witten",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "88.1",
+    "key": "jason witten"
+  },
+  {
+    "name": "Jay Berwanger",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "84",
+    "key": "jay berwanger"
+  },
+  {
+    "name": "Jeremy Shockey",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "85",
+    "key": "jeremy shockey"
+  },
+  {
+    "name": "Jerry Rice",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.8",
+    "key": "jerry rice"
+  },
+  {
+    "name": "Jim Brown",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "87.8",
+    "key": "jim brown"
+  },
+  {
+    "name": "Jim Otto",
+    "scope": "madden",
+    "pos": "C",
+    "ovr": "88.2",
+    "key": "jim otto"
+  },
+  {
+    "name": "Jim Parker",
+    "scope": "madden",
+    "pos": "LT",
+    "ovr": "88",
+    "key": "jim parker"
+  },
+  {
+    "name": "Jim Taylor",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "87.3",
+    "key": "jim taylor"
+  },
+  {
+    "name": "Jimmy Graham",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "87.8",
+    "key": "jimmy graham"
+  },
+  {
+    "name": "Joe Burrow",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "87",
+    "key": "joe burrow"
+  },
+  {
+    "name": "Joe Montana",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "88.4",
+    "key": "joe montana"
+  },
+  {
+    "name": "Joe Thomas",
+    "scope": "cfb_27",
+    "pos": "LT",
+    "ovr": "87",
+    "key": "joe thomas"
+  },
+  {
+    "name": "John Elway",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "88.4",
+    "key": "john elway"
+  },
+  {
+    "name": "John Hannah",
+    "scope": "cfb_27",
+    "pos": "LG",
+    "ovr": "88",
+    "key": "john hannah"
+  },
+  {
+    "name": "John Kimbrough",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "84",
+    "key": "john kimbrough"
+  },
+  {
+    "name": "John Madden",
+    "scope": "madden",
+    "pos": "RT",
+    "ovr": "87.2",
+    "key": "john madden"
+  },
+  {
+    "name": "Johnny Manziel",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "85",
+    "key": "johnny manziel"
+  },
+  {
+    "name": "Jonathan Allen",
+    "scope": "cfb_27",
+    "pos": "DT",
+    "ovr": "85",
+    "key": "jonathan allen"
+  },
+  {
+    "name": "Jonathan Ogden",
+    "scope": "madden",
+    "pos": "LT",
+    "ovr": "88.2",
+    "key": "jonathan ogden"
+  },
+  {
+    "name": "Julius Peppers",
+    "scope": "cfb_27",
+    "pos": "RE",
+    "ovr": "87",
+    "key": "julius peppers"
+  },
+  {
+    "name": "Justin Blackmon",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "85",
+    "key": "justin blackmon"
+  },
+  {
+    "name": "Keith Jackson",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "86",
+    "key": "keith jackson"
+  },
+  {
+    "name": "Kellen Winslow II",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "85",
+    "key": "kellen winslow ii"
+  },
+  {
+    "name": "Ken MacAfee",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "85",
+    "key": "ken macafee"
+  },
+  {
+    "name": "Kevin Curtis",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "84",
+    "key": "kevin curtis"
+  },
+  {
+    "name": "Kyle Pitts",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "85",
+    "key": "kyle pitts"
+  },
+  {
+    "name": "LaDainian Tomlinson",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "88.2",
+    "key": "ladainian tomlinson"
+  },
+  {
+    "name": "Larry Allen",
+    "scope": "madden",
+    "pos": "LG",
+    "ovr": "88.4",
+    "key": "larry allen"
+  },
+  {
+    "name": "Larry Centers",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "87.2",
+    "key": "larry centers"
+  },
+  {
+    "name": "Larry Csonka",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "88",
+    "key": "larry csonka"
+  },
+  {
+    "name": "Larry Fitzgerald",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88",
+    "key": "larry fitzgerald"
+  },
+  {
+    "name": "LaVar Arrington",
+    "scope": "cfb_27",
+    "pos": "ROLB",
+    "ovr": "86",
+    "key": "lavar arrington"
+  },
+  {
+    "name": "Lawrence Taylor",
+    "scope": "madden",
+    "pos": "ROLB",
+    "ovr": "88",
+    "key": "lawrence taylor"
+  },
+  {
+    "name": "Lee Roy Selmon",
+    "scope": "cfb_27",
+    "pos": "RE",
+    "ovr": "88",
+    "key": "lee roy selmon"
+  },
+  {
+    "name": "Lorenzo Neal",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "88.6",
+    "key": "lorenzo neal"
+  },
+  {
+    "name": "Luke Kuechly",
+    "scope": "madden",
+    "pos": "MLB",
+    "ovr": "88",
+    "key": "luke kuechly"
+  },
+  {
+    "name": "Marshall Faulk",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "87.9",
+    "key": "marshall faulk"
+  },
+  {
+    "name": "Marvin Harrison Jr.",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "86",
+    "key": "marvin harrison jr"
+  },
+  {
+    "name": "Mean Joe Greene",
+    "scope": "madden",
+    "pos": "DT",
+    "ovr": "88",
+    "key": "mean joe greene"
+  },
+  {
+    "name": "Mel Renfro",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.2",
+    "key": "mel renfro"
+  },
+  {
+    "name": "Michael Crabtree",
+    "scope": "cfb_27",
+    "pos": "WR",
+    "ovr": "85",
+    "key": "michael crabtree"
+  },
+  {
+    "name": "Michael Irvin",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "87.7",
+    "key": "michael irvin"
+  },
+  {
+    "name": "Michael Vick",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "88.6",
+    "key": "michael vick"
+  },
+  {
+    "name": "Mike Alstott",
+    "scope": "madden",
+    "pos": "FB",
+    "ovr": "88.5",
+    "key": "mike alstott"
+  },
+  {
+    "name": "Mike Ditka",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "87.4",
+    "key": "mike ditka"
+  },
+  {
+    "name": "Mike Haynes",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.3",
+    "key": "mike haynes"
+  },
+  {
+    "name": "Mike Singletary",
+    "scope": "madden",
+    "pos": "MLB",
+    "ovr": "88",
+    "key": "mike singletary"
+  },
+  {
+    "name": "Mike Webster",
+    "scope": "madden",
+    "pos": "C",
+    "ovr": "88.1",
+    "key": "mike webster"
+  },
+  {
+    "name": "Minkah Fitzpatrick",
+    "scope": "cfb_27",
+    "pos": "FS",
+    "ovr": "86",
+    "key": "minkah fitzpatrick"
+  },
+  {
+    "name": "Ndamukong Suh",
+    "scope": "cfb_27",
+    "pos": "DT",
+    "ovr": "87",
+    "key": "ndamukong suh"
+  },
+  {
+    "name": "Night Train Lane",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.1",
+    "key": "night train lane"
+  },
+  {
+    "name": "O.J. Simpson",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "88.1",
+    "key": "oj simpson"
+  },
+  {
+    "name": "Orlando Pace",
+    "scope": "madden",
+    "pos": "LT",
+    "ovr": "88.2",
+    "key": "orlando pace"
+  },
+  {
+    "name": "Patrick Peterson",
+    "scope": "cfb_27",
+    "pos": "CB",
+    "ovr": "86",
+    "key": "patrick peterson"
+  },
+  {
+    "name": "Patrick Willis",
+    "scope": "cfb_27",
+    "pos": "MLB",
+    "ovr": "87",
+    "key": "patrick willis"
+  },
+  {
+    "name": "Paul Krause",
+    "scope": "madden",
+    "pos": "FS",
+    "ovr": "87.9",
+    "key": "paul krause"
+  },
+  {
+    "name": "Peyton Manning",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "87.6",
+    "key": "peyton manning"
+  },
+  {
+    "name": "Randy Moss",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.6",
+    "key": "randy moss"
+  },
+  {
+    "name": "Ray Lewis",
+    "scope": "madden",
+    "pos": "MLB",
+    "ovr": "88.5",
+    "key": "ray lewis"
+  },
+  {
+    "name": "Reggie Bush",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "86",
+    "key": "reggie bush"
+  },
+  {
+    "name": "Reggie White",
+    "scope": "madden",
+    "pos": "RE",
+    "ovr": "88.3",
+    "key": "reggie white"
+  },
+  {
+    "name": "Richie Incognito",
+    "scope": "cfb_27",
+    "pos": "RG",
+    "ovr": "84",
+    "key": "richie incognito"
+  },
+  {
+    "name": "Ricky Williams",
+    "scope": "cfb_27",
+    "pos": "HB",
+    "ovr": "86",
+    "key": "ricky williams"
+  },
+  {
+    "name": "Rob Gronkowski",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "88.3",
+    "key": "rob gronkowski"
+  },
+  {
+    "name": "Rod Woodson",
+    "scope": "madden",
+    "pos": "CB",
+    "ovr": "88.3",
+    "key": "rod woodson"
+  },
+  {
+    "name": "Roger Staubach",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "88",
+    "key": "roger staubach"
+  },
+  {
+    "name": "Ronnie Lott",
+    "scope": "madden",
+    "pos": "SS",
+    "ovr": "87.9",
+    "key": "ronnie lott"
+  },
+  {
+    "name": "Sean Taylor",
+    "scope": "madden",
+    "pos": "SS",
+    "ovr": "87.4",
+    "key": "sean taylor"
+  },
+  {
+    "name": "Shannon Sharpe",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "88",
+    "key": "shannon sharpe"
+  },
+  {
+    "name": "Steve Atwater",
+    "scope": "madden",
+    "pos": "SS",
+    "ovr": "87.2",
+    "key": "steve atwater"
+  },
+  {
+    "name": "Steve Largent",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88.4",
+    "key": "steve largent"
+  },
+  {
+    "name": "Steve Owens",
+    "scope": "cfb_27",
+    "pos": "FB",
+    "ovr": "85",
+    "key": "steve owens"
+  },
+  {
+    "name": "Steve Young",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "88.8",
+    "key": "steve young"
+  },
+  {
+    "name": "Ted Hendricks",
+    "scope": "madden",
+    "pos": "LOLB",
+    "ovr": "88",
+    "key": "ted hendricks"
+  },
+  {
+    "name": "Terrell Owens",
+    "scope": "madden",
+    "pos": "WR",
+    "ovr": "88",
+    "key": "terrell owens"
+  },
+  {
+    "name": "Terrell Suggs",
+    "scope": "cfb_27",
+    "pos": "ROLB",
+    "ovr": "86",
+    "key": "terrell suggs"
+  },
+  {
+    "name": "Tim Tebow",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "84",
+    "key": "tim tebow"
+  },
+  {
+    "name": "Tom Brady",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "87.6",
+    "key": "tom brady"
+  },
+  {
+    "name": "Tommie Frazier",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "86",
+    "key": "tommie frazier"
+  },
+  {
+    "name": "Tony Dorsett",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "87.7",
+    "key": "tony dorsett"
+  },
+  {
+    "name": "Tony Gonzalez",
+    "scope": "madden",
+    "pos": "TE",
+    "ovr": "88.5",
+    "key": "tony gonzalez"
+  },
+  {
+    "name": "Tony Mandarich",
+    "scope": "cfb_27",
+    "pos": "RT",
+    "ovr": "84",
+    "key": "tony mandarich"
+  },
+  {
+    "name": "Troy Aikman",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "87.3",
+    "key": "troy aikman"
+  },
+  {
+    "name": "Troy Polamalu",
+    "scope": "madden",
+    "pos": "SS",
+    "ovr": "87.5",
+    "key": "troy polamalu"
+  },
+  {
+    "name": "Ty Detmer",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "84",
+    "key": "ty detmer"
+  },
+  {
+    "name": "Tyrann Mathieu",
+    "scope": "cfb_27",
+    "pos": "FS",
+    "ovr": "85",
+    "key": "tyrann mathieu"
+  },
+  {
+    "name": "Vernon Davis",
+    "scope": "cfb_27",
+    "pos": "TE",
+    "ovr": "85",
+    "key": "vernon davis"
+  },
+  {
+    "name": "Vince Young",
+    "scope": "cfb_27",
+    "pos": "QB",
+    "ovr": "85",
+    "key": "vince young"
+  },
+  {
+    "name": "Von Miller",
+    "scope": "cfb_27",
+    "pos": "ROLB",
+    "ovr": "87",
+    "key": "von miller"
+  },
+  {
+    "name": "Walter Payton",
+    "scope": "madden",
+    "pos": "HB",
+    "ovr": "88.3",
+    "key": "walter payton"
+  },
+  {
+    "name": "Warren Moon",
+    "scope": "madden",
+    "pos": "QB",
+    "ovr": "88.1",
+    "key": "warren moon"
+  },
+  {
+    "name": "Will Anderson Jr.",
+    "scope": "cfb_27",
+    "pos": "RE",
+    "ovr": "86",
+    "key": "will anderson jr"
+  }
+]

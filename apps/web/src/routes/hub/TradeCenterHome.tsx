@@ -235,9 +235,10 @@ function statusLabel(status: string) {
 function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterResponse): string {
   const parts = listing.offeredLegs.map((leg) => {
     if (leg.type === "player") {
-      const player = myRoster.players.find((p) => p.id === leg.playerId);
-      return player ? `${player.fullName} (${player.position})` : "a player";
+      const playerName = listing.playerNamesById[leg.playerId];
+      return playerName ? `${playerName} (${leg.playerId})` : "a player";
     }
+    // draft pick - look up in viewer's roster since all teams share the same draft database
     const pick = myRoster.draftPicks.find((p) => p.id === leg.draftPickId);
     return pick ? `Season ${pick.seasonNumber} Round ${pick.round} pick` : "a draft pick";
   });
@@ -302,6 +303,19 @@ function TradeBlockPanel({ guildId, myRoster, onChanged }: {
     }
   }
 
+  async function accept(listingId: string) {
+    setBusy(true); setError(null);
+    try {
+      await recApi.acceptTradeBlockListing({ guildId, listingId });
+      load();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to accept the listing.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="hub-trade-block-panel">
       <h3>Open Trade Block Offers</h3>
@@ -316,6 +330,9 @@ function TradeBlockPanel({ guildId, myRoster, onChanged }: {
             <span><strong>{listing.teamName}</strong> is ISO <strong>{listing.lookingFor}</strong> and is offering: {describeListingOffer(listing, myRoster)}</span>
             {listing.teamId === myRoster.team.id && (
               <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(listing.id)}>Withdraw</button>
+            )}
+            {listing.teamId !== myRoster.team.id && !busy && (
+              <button type="button" className="btn btn-success btn-compact" onClick={() => void accept(listing.id)}>Accept</button>
             )}
           </div>
         ))

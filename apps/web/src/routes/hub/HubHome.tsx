@@ -798,7 +798,7 @@ export function HubHome() {
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, subTab]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || section !== "team" || mediaPortal) return;
+    if (auth.status !== "ready" || !(section === "team" || section === "league") || mediaPortal) return;
     recApi.getHubMediaPortal(auth.guildId).then(setMediaPortal).catch(() => setMediaPortal(null));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, mediaPortal]);
 

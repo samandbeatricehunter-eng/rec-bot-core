@@ -1,0 +1,557 @@
+[
+  {
+    "sheet": {
+      "pos": "C",
+      "name": "Jim Otto",
+      "class": "Gold",
+      "abilities": "Leadership, Bulldozer, Durability"
+    },
+    "catalog": {
+      "name": "Jim Otto",
+      "scope": "madden",
+      "pos": "C",
+      "ovr": "88.2",
+      "key": "jim otto"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "CB",
+      "name": "Mike Haynes",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Mike Haynes",
+      "scope": "madden",
+      "pos": "CB",
+      "ovr": "88.3",
+      "key": "mike haynes"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "CB",
+      "name": "Night Train Lane",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Night Train Lane",
+      "scope": "madden",
+      "pos": "CB",
+      "ovr": "88.1",
+      "key": "night train lane"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "CB",
+      "name": "Rod Woodson",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Rod Woodson",
+      "scope": "madden",
+      "pos": "CB",
+      "ovr": "88.3",
+      "key": "rod woodson"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "CB",
+      "name": "Mel Renfro",
+      "class": "Silver",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Mel Renfro",
+      "scope": "madden",
+      "pos": "CB",
+      "ovr": "88.2",
+      "key": "mel renfro"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "DE",
+      "name": "Deacon Jones",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Deacon Jones",
+      "scope": "madden",
+      "pos": "RE",
+      "ovr": "87.9",
+      "key": "deacon jones"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "DE",
+      "name": "Lee Roy Selmon",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Lee Roy Selmon",
+      "scope": "cfb_27",
+      "pos": "RE",
+      "ovr": "88",
+      "key": "lee roy selmon"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "DE",
+      "name": "Reggie White",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Reggie White",
+      "scope": "madden",
+      "pos": "RE",
+      "ovr": "88.3",
+      "key": "reggie white"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "DE",
+      "name": "Ed \"Too Tall\" Jones",
+      "class": "Silver",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Ed \"Too Tall\" Jones",
+      "scope": "madden",
+      "pos": "RE",
+      "ovr": "87.6",
+      "key": "ed jones"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "DT",
+      "name": "Bob Lilly",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Bob Lilly",
+      "scope": "madden",
+      "pos": "DT",
+      "ovr": "87.8",
+      "key": "bob lilly"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "FB",
+      "name": "Daryl Johnston",
+      "class": "Silver",
+      "abilities": "Brick Wall, Bulldozer, Soft Hands"
+    },
+    "catalog": {
+      "name": "Daryl Johnston",
+      "scope": "madden",
+      "pos": "FB",
+      "ovr": "88.5",
+      "key": "daryl johnston"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "FS",
+      "name": "Ronnie Lott",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Ronnie Lott",
+      "scope": "madden",
+      "pos": "SS",
+      "ovr": "87.9",
+      "key": "ronnie lott"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "HB",
+      "name": "Earl Campbell",
+      "class": "Gold",
+      "abilities": "Branching Tackles, Workhorse, Stamina, Power"
+    },
+    "catalog": {
+      "name": "Earl Campbell",
+      "scope": "cfb_27",
+      "pos": "HB",
+      "ovr": "88",
+      "key": "earl campbell"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "HB",
+      "name": "Walter Payton",
+      "class": "Gold",
+      "abilities": "Leadership, Durability, Goalline, Scissors, Finesse and Power"
+    },
+    "catalog": {
+      "name": "Walter Payton",
+      "scope": "madden",
+      "pos": "HB",
+      "ovr": "88.3",
+      "key": "walter payton"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "HB",
+      "name": "Barry Sanders",
+      "class": "Gold",
+      "abilities": "Branching Tackles, Cutback, Quick Feet, Speed Burner, Finesse"
+    },
+    "catalog": {
+      "name": "Barry Sanders",
+      "scope": "madden",
+      "pos": "HB",
+      "ovr": "88.6",
+      "key": "barry sanders"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "HB",
+      "name": "O.J. Simpson",
+      "class": "Gold",
+      "abilities": "Break Away, Quick Feet, Speed Burner, Finesse"
+    },
+    "catalog": {
+      "name": "O.J. Simpson",
+      "scope": "madden",
+      "pos": "HB",
+      "ovr": "88.1",
+      "key": "oj simpson"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "HB",
+      "name": "Emmitt Smith",
+      "class": "Gold",
+      "abilities": "Arm of Steel, Branchin Tackles, Workhorse, Durability, Goaline"
+    },
+    "catalog": {
+      "name": "Emmitt Smith",
+      "scope": "madden",
+      "pos": "HB",
+      "ovr": "87.9",
+      "key": "emmitt smith"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "ILB",
+      "name": "Dick Butkus",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Dick Butkus",
+      "scope": "madden",
+      "pos": "MLB",
+      "ovr": "87.7",
+      "key": "dick butkus"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "ILB",
+      "name": "Jack Lambert",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Jack Lambert",
+      "scope": "madden",
+      "pos": "MLB",
+      "ovr": "88",
+      "key": "jack lambert"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "ILB",
+      "name": "Mike Singletary",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Mike Singletary",
+      "scope": "madden",
+      "pos": "MLB",
+      "ovr": "88",
+      "key": "mike singletary"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "ILB",
+      "name": "Brian Bosworth",
+      "class": "Bronze",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Brian Bosworth",
+      "scope": "cfb_27",
+      "pos": "MLB",
+      "ovr": "85",
+      "key": "brian bosworth"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "OG",
+      "name": "Bill Fralic",
+      "class": "Bronze",
+      "abilities": "Strength"
+    },
+    "catalog": {
+      "name": "Bill Fralic",
+      "scope": "cfb_27",
+      "pos": "RG",
+      "ovr": "86",
+      "key": "bill fralic"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "OLB",
+      "name": "Derrick Thomas",
+      "class": "Gold",
+      "abilities": "?"
+    },
+    "catalog": {
+      "name": "Derrick Thomas",
+      "scope": "cfb_27",
+      "pos": "ROLB",
+      "ovr": "88",
+      "key": "derrick thomas"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "OT",
+      "name": "Anthony Munoz",
+      "class": "Gold",
+      "abilities": "Stonewall, Bulldozer, Quick Feet, Strength"
+    },
+    "catalog": {
+      "name": "Anthony Munoz",
+      "scope": "madden",
+      "pos": "LT",
+      "ovr": "88.2",
+      "key": "anthony munoz"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "OT",
+      "name": "Jim Parker",
+      "class": "Gold",
+      "abilities": "Stonewall, Brick Wall, Strength"
+    },
+    "catalog": {
+      "name": "Jim Parker",
+      "scope": "madden",
+      "pos": "LT",
+      "ovr": "88",
+      "key": "jim parker"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Troy Aikman",
+      "class": "Gold",
+      "abilities": "Pocket Presence, Signal Stealer, Leadership"
+    },
+    "catalog": {
+      "name": "Troy Aikman",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "87.3",
+      "key": "troy aikman"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "John Elway",
+      "class": "Gold",
+      "abilities": "Cadence, 4th Qtr, Scrambler, Speed Burner, Rocker Arm"
+    },
+    "catalog": {
+      "name": "John Elway",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "88.4",
+      "key": "john elway"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Dan Marino",
+      "class": "Gold",
+      "abilities": "Pocket Presence, Quick Release, 4th Qtr, Laser Arm, Rocket Arm"
+    },
+    "catalog": {
+      "name": "Dan Marino",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "87.5",
+      "key": "dan marino"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Joe Montana",
+      "class": "Gold",
+      "abilities": "Scrambler, Clutch, Signal Steal, Leadership, Laser Arm"
+    },
+    "catalog": {
+      "name": "Joe Montana",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "88.4",
+      "key": "joe montana"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Warren Moon",
+      "class": "Gold",
+      "abilities": "Pocket Presence, Pass Threat, Signal Stealer, Rocket Arm"
+    },
+    "catalog": {
+      "name": "Warren Moon",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "88.1",
+      "key": "warren moon"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Roger Staubach",
+      "class": "Gold",
+      "abilities": "4th Qtr, Tough as Nails, Scrambler, Leadership"
+    },
+    "catalog": {
+      "name": "Roger Staubach",
+      "scope": "cfb_27",
+      "pos": "QB",
+      "ovr": "88",
+      "key": "roger staubach"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "QB",
+      "name": "Steve Young",
+      "class": "Gold",
+      "abilities": "Tough as Nails, Scrambler, Quick Feet, Speed Burner, Laser Arm"
+    },
+    "catalog": {
+      "name": "Steve Young",
+      "scope": "madden",
+      "pos": "QB",
+      "ovr": "88.8",
+      "key": "steve young"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "TE",
+      "name": "Mike Ditka",
+      "class": "Gold",
+      "abilities": "Tough in Middle, Leadership, Bulldozer, Durability, Strength"
+    },
+    "catalog": {
+      "name": "Mike Ditka",
+      "scope": "madden",
+      "pos": "TE",
+      "ovr": "87.4",
+      "key": "mike ditka"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "TE",
+      "name": "Shannon Sharpe",
+      "class": "Gold",
+      "abilities": "Route God, Speed Burner"
+    },
+    "catalog": {
+      "name": "Shannon Sharpe",
+      "scope": "madden",
+      "pos": "TE",
+      "ovr": "88",
+      "key": "shannon sharpe"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "TE",
+      "name": "Keith Jackson",
+      "class": "Silver",
+      "abilities": "Bulldozer"
+    },
+    "catalog": {
+      "name": "Keith Jackson",
+      "scope": "cfb_27",
+      "pos": "TE",
+      "ovr": "86",
+      "key": "keith jackson"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "WR",
+      "name": "Fred Biletnikoff",
+      "class": "Gold",
+      "abilities": "Deep Threat, Clutch, Durability, Soft Hands"
+    },
+    "catalog": {
+      "name": "Fred Biletnikoff",
+      "scope": "cfb_27",
+      "pos": "WR",
+      "ovr": "87",
+      "key": "fred biletnikoff"
+    }
+  },
+  {
+    "sheet": {
+      "pos": "WR",
+      "name": "Jerry Rice",
+      "class": "Gold",
+      "abilities": "Route God, Clutch, Break Away, Leadership, Soft Hands"
+    },
+    "catalog": {
+      "name": "Jerry Rice",
+      "scope": "madden",
+      "pos": "WR",
+      "ovr": "88.8",
+      "key": "jerry rice"
+    }
+  }
+]

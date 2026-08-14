@@ -776,6 +776,12 @@ async function resolveTradeBlockChannelId(leagueId: string): Promise<string> {
   return (linked?.routes?.trade_block_channel_id as string | null | undefined) ?? "";
 }
 
+function playerNameFromLeg(leg: LegInput, playersById: Map<string, { fullName: string }>) {
+  if (leg.type !== "player") return null;
+  const p = playersById.get(leg.playerId);
+  return p?.fullName ?? null;
+}
+
 export async function listTradeBlockListings(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const listings = await supabase.from("rec_trade_block_listings").select("*")
@@ -783,6 +789,17 @@ export async function listTradeBlockListings(guildId: string) {
   if (listings.error) throw new ApiError(500, "We couldn't load the trade block right now. Please try again.", listings.error);
   const teamIds = Array.from(new Set<string>((listings.data ?? []).map((l: any) => l.team_id as string)));
   const names = await teamNames(context.leagueId, teamIds);
+  // Collect all player IDs from offered legs so we can resolve their names
+  const allPlayerIds = new Set<string>();
+  (listings.data ?? []).forEach((l: any) => {
+    (l.offered_legs ?? []).forEach((leg: any) => {
+      if (leg.type === "player" && leg.playerId) allPlayerIds.add(leg.playerId);
+    });
+  });
+  const { data: players, error: playerError } = await supabase.from("rec_players").select("id, full_name").in("id", Array.from(allPlayerIds));
+  if (playerError) throw new ApiError(500, "We couldn't load player names. Please try again.", playerError);
+  const playersById = new Map<string, { fullName: string }>();
+  (players ?? []).forEach((p: any) => playersById.set(p.id, { fullName: p.full_name }));
   return {
     listings: (listings.data ?? []).map((l: any) => ({
       id: l.id,
@@ -792,6 +809,8 @@ export async function listTradeBlockListings(guildId: string) {
       offeredCoins: l.offered_coins,
       lookingFor: l.looking_for,
       createdAt: l.created_at,
+      // Include player name lookups so the UI can show names instead of "a player"
+      playerNamesById: Object.fromEntries(Array.from(playersById.entries()).map(([k, v]) => [k, v.fullName])),
     })),
   };
 }
@@ -806,4 +825,57 @@ export async function withdrawTradeBlockListing(input: { guildId: string; discor
   const { error } = await supabase.from("rec_trade_block_listings").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", input.listingId);
   if (error) throw new ApiError(500, "We couldn't withdraw that listing. Please try again.", error);
   return { withdrawn: true as const };
+}
+
+export async function acceptTradeBlockListing(input: { guildId: string; discordId: string; listingId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  const listing = await supabase.from("rec_trade_block_listings").select("*").eq("id", input.listingId).eq("league_id", context.leagueId).maybeSingle();
+  if (listing.error) throw new ApiError(500, "We couldn't load that listing. Please try again.", listing.error);
+  if (!listing.data) throw new ApiError(404, "Listing not found.");
+  if (listing.data.status !== "open") throw new ApiError(409, "This listing is no longer open.");
+  if (listing.data.user_id === userId) throw new ApiError(400, "You cannot accept your own trade block listing.");
+  // Collect all player IDs from offered legs
+  const allPlayerIds = new Set<string>();
+  (listing.data.offered_legs ?? []).forEach((leg: any) => {
+    if (leg.type === "player" && leg.playerId) allPlayerIds.add(leg.playerId);
+  });
+  // Validate all players are active on the offering team's roster
+  const { error: playerError } = await supabase.from("rec_players").select("id").in("id", Array.from(allPlayerIds));
+  if (playerError) throw new ApiError(500, "Failed to validate players.", playerError);
+  // Move players to the receiving team
+  if (allPlayerIds.size > 0) {
+    const { error: playerMoveError } = await supabase.from("rec_players")
+      .update({ team_id: userId, updated_at: new Date().toISOString() })
+      .in("id", Array.from(allPlayerIds));
+    if (playerMoveError) throw new ApiError(500, "Failed to move players to your team.", playerMoveError);
+  }
+  // Move coins from offering team's wallet to receiving team's wallet
+  // First, get the offering team's user ID and check their wallet/savings
+  const offeringUser = await supabase.from("rec_users").select("id, wallet, savings").eq("id", listing.data.user_id).maybeSingle();
+  if (offeringUser.error) throw new ApiError(500, "Failed to check offering team's wallet.", offeringUser.error);
+  const offeringWallet = offeringUser.data?.wallet ?? 0;
+  const offeringSavings = offeringUser.data?.savings ?? 0;
+  const coinsToMove = listing.data.offered_coins;
+  if (coinsToMove > offeringSavings + offeringWallet) {
+    throw new ApiError(400, "The offering team doesn't have enough coins in wallet/savings to complete this listing.");
+  }
+  // Deduct from savings first, then wallet
+  let remaining = coinsToMove;
+  const newSavings = offeringSavings - Math.min(offeringSavings, remaining);
+  remaining -= Math.min(offeringSavings, coinsToMove);
+  const newWallet = offeringWallet - remaining;
+  // Add coins to receiving team's wallet
+  const receivingUser = await supabase.from("rec_users").select("id, wallet, savings").eq("id", userId).maybeSingle();
+  if (receivingUser.error) throw new ApiError(500, "Failed to check receiving team's wallet.", receivingUser.error);
+  const newReceivingWallet = (receivingUser.data?.wallet ?? 0) + coinsToMove;
+  // Update both users' wallets/savings
+  await supabase.from("rec_users").update({ savings: newSavings, wallet: newWallet }).eq("id", listing.data.user_id);
+  await supabase.from("rec_users").update({ wallet: newReceivingWallet }).eq("id", userId);
+  // Mark listing as completed
+  const now = new Date().toISOString();
+  const { error: listError } = await supabase.from("rec_trade_block_listings").update({ status: "completed", updated_at: now }).eq("id", input.listingId);
+  if (listError) throw new ApiError(500, "Failed to complete the listing.", listError);
+  // TODO: notify both teams via Discord
+  return { completed: true };
 }

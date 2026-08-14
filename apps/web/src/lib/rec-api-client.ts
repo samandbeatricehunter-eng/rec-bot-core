@@ -403,6 +403,8 @@ export const recApi = {
     recApiFetch<{ listing: unknown }>("/v1/trades/block-listings/create", { method: "POST", body: JSON.stringify(input) }),
   withdrawTradeBlockListing: (input: { guildId: string; listingId: string }) =>
     recApiFetch<{ withdrawn: true }>("/v1/trades/block-listings/withdraw", { method: "POST", body: JSON.stringify(input) }),
+  acceptTradeBlockListing: (input: { guildId: string; listingId: string }) =>
+    recApiFetch<{ completed: true }>("/v1/trades/block-listings/accept", { method: "POST", body: JSON.stringify(input) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: {

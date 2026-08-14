@@ -1,0 +1,11 @@
+insert into public.rec_legend_catalog (
+  name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,
+  attributes,abilities,legend_tier,college,body_type,photo_url,game_scope,catalog_group
+) values
+  ('Shane Lechler','P','offense',98,'6''2"',230,'Right',9,'superstar','Power punter','Generational punter with elite distance, hang time, directional control and consistency.','{"Speed":80,"Acceleration":82,"Agility":80,"Strength":78,"Awareness":98,"Carrying":70,"BC Vision":70,"Break Tackle":70,"Trucking":65,"Stiff Arm":65,"Change of Direction":78,"Spin Move":65,"Juke Move":68,"Catching":60,"Catch in Traffic":55,"Spectacular Catch":55,"Short Route Running":50,"Medium Route Running":45,"Deep Route Running":40,"Release":45,"Jumping":80,"Throwing Power":40,"Short Accuracy":30,"Medium Accuracy":25,"Deep Accuracy":20,"Throw on the Run":25,"Throw Under Pressure":25,"Break Sack":40,"Play Action":30,"Pass Blocking":40,"Pass Block Power":38,"Pass Block Finesse":36,"Run Blocking":40,"Run Block Power":38,"Run Block Finesse":36,"Lead Block":35,"Impact Blocking":40,"Play Recognition":70,"Tackling":55,"Hit Power":55,"Block Shedding":50,"Finesse Moves":40,"Power Moves":40,"Pursuit":70,"Man Coverage":40,"Zone Coverage":45,"Press":35,"Kick/Punt Return":20,"Kicking Power":99,"Kicking Accuracy":97,"Stamina":98,"Toughness":90,"Injury":90,"Long Snap":40}'::jsonb,'[{"name":"Punt Elite","description":"Improved punt power and placement.","type":"superstar"},{"name":"Precision Kicker","description":"Improved directional accuracy.","type":"superstar"},{"name":"Clutch Kicker","description":"Resists pressure effects.","type":"superstar"}]'::jsonb,'legend','Texas A&M',null,null,'madden','notable_addition')
+on conflict (name,position) do update set
+  position_group=excluded.position_group,est_ovr=excluded.est_ovr,height=excluded.height,weight=excluded.weight,
+  hand=excluded.hand,jersey_number=excluded.jersey_number,dev_trait=excluded.dev_trait,archetype=excluded.archetype,
+  build_note=excluded.build_note,attributes=excluded.attributes,abilities=excluded.abilities,legend_tier=excluded.legend_tier,
+  college=excluded.college,body_type=excluded.body_type,photo_url=excluded.photo_url,game_scope=excluded.game_scope,
+  catalog_group=excluded.catalog_group;

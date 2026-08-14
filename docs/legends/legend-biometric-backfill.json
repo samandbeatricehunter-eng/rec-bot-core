@@ -1,0 +1,842 @@
+[
+  {
+    "name": "Cliff Harris",
+    "item": "http://www.wikidata.org/entity/Q1101137",
+    "height": "6'1\"",
+    "weight": 188
+  },
+  {
+    "name": "Deron Cherry",
+    "item": "https://en.wikipedia.org/wiki/Deron_Cherry",
+    "height": "5'11\"",
+    "weight": 203
+  },
+  {
+    "name": "Jack Tatum",
+    "item": "http://www.wikidata.org/entity/Q687509",
+    "height": "5'10\"",
+    "weight": 200
+  },
+  {
+    "name": "Lem Barney",
+    "item": "https://en.wikipedia.org/wiki/Lem_Barney",
+    "height": "6'0\"",
+    "weight": 188
+  },
+  {
+    "name": "Leroy Butler",
+    "item": "https://en.wikipedia.org/wiki/Leroy_Butler",
+    "height": "6'0\"",
+    "weight": 197
+  },
+  {
+    "name": "Lester Hayes",
+    "item": "http://www.wikidata.org/entity/Q4874408",
+    "height": "6'0\"",
+    "weight": 200
+  },
+  {
+    "name": "Willie Brown",
+    "item": "https://en.wikipedia.org/wiki/Willie_Brown_(American_football)",
+    "height": "6'1\"",
+    "weight": 195
+  },
+  {
+    "name": "Willie Wood",
+    "item": "http://www.wikidata.org/entity/Q1322973",
+    "height": "5'10\"",
+    "weight": 190
+  },
+  {
+    "name": "Art Donovan",
+    "item": "https://en.wikipedia.org/wiki/Art_Donovan",
+    "height": "6'2\"",
+    "weight": 263
+  },
+  {
+    "name": "Chris Doleman",
+    "item": "https://en.wikipedia.org/wiki/Chris_Doleman",
+    "height": "6'5\"",
+    "weight": 289
+  },
+  {
+    "name": "Dan Hampton",
+    "item": "http://www.wikidata.org/entity/Q4874497",
+    "height": "6'5\"",
+    "weight": 264
+  },
+  {
+    "name": "Elvin Bethea",
+    "item": "https://en.wikipedia.org/wiki/Elvin_Bethea",
+    "height": "6'2\"",
+    "weight": 260
+  },
+  {
+    "name": "Gino Marchetti",
+    "item": "http://www.wikidata.org/entity/Q957946",
+    "height": "6'4\"",
+    "weight": 244
+  },
+  {
+    "name": "Jack Youngblood",
+    "item": "https://en.wikipedia.org/wiki/Jack_Youngblood",
+    "height": "6'4\"",
+    "weight": 247
+  },
+  {
+    "name": "Keith Millard",
+    "item": "https://en.wikipedia.org/wiki/Keith_Millard",
+    "height": "6'6\"",
+    "weight": 260
+  },
+  {
+    "name": "Randy White",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Joe Perry",
+    "item": "http://www.wikidata.org/entity/Q377430",
+    "height": "6'0\"",
+    "weight": 200
+  },
+  {
+    "name": "Gale Sayers",
+    "item": "http://www.wikidata.org/entity/Q503760",
+    "height": "6'0\"",
+    "weight": 198
+  },
+  {
+    "name": "Hugh McElhenny",
+    "item": "http://www.wikidata.org/entity/Q457791",
+    "height": "6'1\"",
+    "weight": 195
+  },
+  {
+    "name": "Lenny Moore",
+    "item": "https://en.wikipedia.org/wiki/Lenny_Moore",
+    "height": "6'1\"",
+    "weight": 191
+  },
+  {
+    "name": "Leroy Kelly",
+    "item": "https://en.wikipedia.org/wiki/Leroy_Kelly",
+    "height": "6'0\"",
+    "weight": 202
+  },
+  {
+    "name": "Marcus Allen",
+    "item": "https://en.wikipedia.org/wiki/Marcus_Allen",
+    "height": "6'2\"",
+    "weight": 210
+  },
+  {
+    "name": "Paul Hornung",
+    "item": "https://en.wikipedia.org/wiki/Paul_Hornung",
+    "height": "6'2\"",
+    "weight": 215
+  },
+  {
+    "name": "Roger Craig",
+    "item": "http://www.wikidata.org/entity/Q886606",
+    "height": "6'0\"",
+    "weight": 222
+  },
+  {
+    "name": "Thurman Thomas",
+    "item": "http://www.wikidata.org/entity/Q1379562",
+    "height": "5'10\"",
+    "weight": 206
+  },
+  {
+    "name": "Jan Stenerud",
+    "item": "https://en.wikipedia.org/wiki/Jan_Stenerud",
+    "height": "6'2\"",
+    "weight": 187
+  },
+  {
+    "name": "Chuck Bednarik",
+    "item": "https://en.wikipedia.org/wiki/Chuck_Bednarik",
+    "height": "6'3\"",
+    "weight": 233
+  },
+  {
+    "name": "Dave Wilcox",
+    "item": "https://en.wikipedia.org/wiki/Dave_Wilcox",
+    "height": "6'3\"",
+    "weight": 241
+  },
+  {
+    "name": "Greg Lloyd",
+    "item": "http://www.wikidata.org/entity/Q5605922",
+    "height": "6'2\"",
+    "weight": 228
+  },
+  {
+    "name": "Harry Carson",
+    "item": "https://en.wikipedia.org/wiki/Harry_Carson",
+    "height": "6'2\"",
+    "weight": 237
+  },
+  {
+    "name": "Joe Schmidt",
+    "item": "http://www.wikidata.org/entity/Q284169",
+    "height": "6'1\"",
+    "weight": 220
+  },
+  {
+    "name": "Bob Brown",
+    "item": "http://www.wikidata.org/entity/Q4931947",
+    "height": "6'5\"",
+    "weight": 260
+  },
+  {
+    "name": "Dwight Stephenson",
+    "item": "https://en.wikipedia.org/wiki/Dwight_Stephenson",
+    "height": "6'2\"",
+    "weight": 255
+  },
+  {
+    "name": "Joe DeLamielleure",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Larry Little",
+    "item": "http://www.wikidata.org/entity/Q1806086",
+    "height": "6'1\"",
+    "weight": 265
+  },
+  {
+    "name": "Mike Munchak",
+    "item": "http://www.wikidata.org/entity/Q504333",
+    "height": "6'3\"",
+    "weight": 263
+  },
+  {
+    "name": "Randall McDaniel",
+    "item": "http://www.wikidata.org/entity/Q524826",
+    "height": "6'4\"",
+    "weight": 287
+  },
+  {
+    "name": "Rayfield Wright",
+    "item": "https://en.wikipedia.org/wiki/Rayfield_Wright",
+    "height": "6'6\"",
+    "weight": 255
+  },
+  {
+    "name": "Ron Mix",
+    "item": "http://www.wikidata.org/entity/Q278663",
+    "height": "6'4\"",
+    "weight": 250
+  },
+  {
+    "name": "Ron Yary",
+    "item": "https://en.wikipedia.org/wiki/Ron_Yary",
+    "height": "6'5\"",
+    "weight": 255
+  },
+  {
+    "name": "Roosevelt Brown",
+    "item": "https://en.wikipedia.org/wiki/Roosevelt_Brown",
+    "height": "6'3\"",
+    "weight": 255
+  },
+  {
+    "name": "Russ Grimm",
+    "item": "https://en.wikipedia.org/wiki/Russ_Grimm",
+    "height": "6'3\"",
+    "weight": 273
+  },
+  {
+    "name": "Stan Jones",
+    "item": "https://en.wikipedia.org/wiki/Stan_Jones_(American_football)",
+    "height": "6'1\"",
+    "weight": 252
+  },
+  {
+    "name": "Tom Mack",
+    "item": "https://en.wikipedia.org/wiki/Tom_Mack",
+    "height": "6'3\"",
+    "weight": 250
+  },
+  {
+    "name": "Bart Starr",
+    "item": "https://en.wikipedia.org/wiki/Bart_Starr",
+    "height": "6'1\"",
+    "weight": 197
+  },
+  {
+    "name": "Joe Theismann",
+    "item": "https://en.wikipedia.org/wiki/Joe_Theismann",
+    "height": "6'0\"",
+    "weight": 192
+  },
+  {
+    "name": "Johnny Unitas",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Ken Stabler",
+    "item": "https://en.wikipedia.org/wiki/Ken_Stabler",
+    "height": "6'3\"",
+    "weight": 215
+  },
+  {
+    "name": "Len Dawson",
+    "item": "http://www.wikidata.org/entity/Q726229",
+    "height": "6'0\"",
+    "weight": 190
+  },
+  {
+    "name": "Otto Graham",
+    "item": "https://en.wikipedia.org/wiki/Otto_Graham",
+    "height": "6'1\"",
+    "weight": 196
+  },
+  {
+    "name": "Randall Cunningham",
+    "item": "https://en.wikipedia.org/wiki/Randall_Cunningham",
+    "height": "6'4\"",
+    "weight": 215
+  },
+  {
+    "name": "Sammy Baugh",
+    "item": "https://en.wikipedia.org/wiki/Sammy_Baugh",
+    "height": "6'2\"",
+    "weight": 182
+  },
+  {
+    "name": "Jackie Smith",
+    "item": "http://www.wikidata.org/entity/Q1677297",
+    "height": "6'4\"",
+    "weight": 235
+  },
+  {
+    "name": "John Mackey",
+    "item": "https://en.wikipedia.org/wiki/John_Mackey_(American_football)",
+    "height": "6'2\"",
+    "weight": 224
+  },
+  {
+    "name": "Todd Christensen",
+    "item": "http://www.wikidata.org/entity/Q4873683",
+    "height": "6'3\"",
+    "weight": 230
+  },
+  {
+    "name": "Andre Reed",
+    "item": "https://en.wikipedia.org/wiki/Andre_Reed",
+    "height": "6'2\"",
+    "weight": 190
+  },
+  {
+    "name": "Charley Taylor",
+    "item": "https://en.wikipedia.org/wiki/Charley_Taylor",
+    "height": "6'3\"",
+    "weight": 210
+  },
+  {
+    "name": "Don Maynard",
+    "item": "https://en.wikipedia.org/wiki/Don_Maynard",
+    "height": "6'0\"",
+    "weight": 180
+  },
+  {
+    "name": "Drew Pearson",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "James Lofton",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Raymond Berry",
+    "item": "https://en.wikipedia.org/wiki/Raymond_Berry",
+    "height": "6'2\"",
+    "weight": 187
+  },
+  {
+    "name": "Albert Lewis",
+    "item": "http://www.wikidata.org/entity/Q4710729",
+    "height": "6'2\"",
+    "weight": 196
+  },
+  {
+    "name": "Charlie Waters",
+    "item": "http://www.wikidata.org/entity/Q24400",
+    "height": "6'1\"",
+    "weight": 193
+  },
+  {
+    "name": "Dick Anderson",
+    "item": "https://en.wikipedia.org/wiki/Dick_Anderson",
+    "height": "6'2\"",
+    "weight": 196
+  },
+  {
+    "name": "Eric Turner",
+    "item": "http://www.wikidata.org/entity/Q16195371",
+    "height": "6'3\"",
+    "weight": 180
+  },
+  {
+    "name": "Eugene Robinson",
+    "item": "https://en.wikipedia.org/wiki/Eugene_Robinson_(American_football)",
+    "height": "6'0\"",
+    "weight": 186
+  },
+  {
+    "name": "George McAfee",
+    "item": "http://www.wikidata.org/entity/Q952451",
+    "height": "6'0\"",
+    "weight": 392
+  },
+  {
+    "name": "Joey Browner",
+    "item": "https://en.wikipedia.org/wiki/Joey_Browner",
+    "height": "6'2\"",
+    "weight": 221
+  },
+  {
+    "name": "Nolan Cromwell",
+    "item": "https://en.wikipedia.org/wiki/Nolan_Cromwell",
+    "height": "6'1\"",
+    "weight": 200
+  },
+  {
+    "name": "Roger Wehrli",
+    "item": "https://en.wikipedia.org/wiki/Roger_Wehrli",
+    "height": "6'0\"",
+    "weight": 190
+  },
+  {
+    "name": "Terry McDaniel",
+    "item": "https://en.wikipedia.org/wiki/Terry_McDaniel",
+    "height": "5'10\"",
+    "weight": 180
+  },
+  {
+    "name": "Tom Brookshier",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Clyde Simmons",
+    "item": "http://www.wikidata.org/entity/Q5137017",
+    "height": "6'6\"",
+    "weight": 292
+  },
+  {
+    "name": "Dan Saleaumua",
+    "item": "http://www.wikidata.org/entity/Q5214329",
+    "height": "6'0\"",
+    "weight": 315
+  },
+  {
+    "name": "Dave Butz",
+    "item": "https://en.wikipedia.org/wiki/Dave_Butz",
+    "height": "6'7\"",
+    "weight": 295
+  },
+  {
+    "name": "Dexter Manley",
+    "item": "http://www.wikidata.org/entity/Q3025626",
+    "height": "6'3\"",
+    "weight": 253
+  },
+  {
+    "name": "Greg Kragen",
+    "item": "http://www.wikidata.org/entity/Q5605849",
+    "height": "6'3\"",
+    "weight": 267
+  },
+  {
+    "name": "Harvey Martin",
+    "item": "http://www.wikidata.org/entity/Q48695",
+    "height": "6'5\"",
+    "weight": 262
+  },
+  {
+    "name": "Jerome Brown",
+    "item": "http://www.wikidata.org/entity/Q18719314",
+    "height": "6'4\"",
+    "weight": 290
+  },
+  {
+    "name": "Jim Marshall",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "L.C. Greenwood",
+    "item": "https://en.wikipedia.org/wiki/L.C._Greenwood",
+    "height": "6'6\"",
+    "weight": 245
+  },
+  {
+    "name": "Leon Lett",
+    "item": "http://www.wikidata.org/entity/Q1801942",
+    "height": "6'6\"",
+    "weight": 290
+  },
+  {
+    "name": "Leonard Marshall",
+    "item": "https://en.wikipedia.org/wiki/Leonard_Marshall",
+    "height": "6'3\"",
+    "weight": 288
+  },
+  {
+    "name": "Leslie O'Neal",
+    "item": "https://en.wikipedia.org/wiki/Leslie_O'Neal",
+    "height": "6'4\"",
+    "weight": 275
+  },
+  {
+    "name": "Marty Lyons",
+    "item": "https://en.wikipedia.org/wiki/Marty_Lyons",
+    "height": "6'5\"",
+    "weight": 269
+  },
+  {
+    "name": "William \"Refrigerator\" Perry",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Merril Hoge",
+    "item": "https://en.wikipedia.org/wiki/Merril_Hoge",
+    "height": "6'2\"",
+    "weight": 230
+  },
+  {
+    "name": "Tom Rathman",
+    "item": "https://en.wikipedia.org/wiki/Tom_Rathman",
+    "height": "6'1\"",
+    "weight": 230
+  },
+  {
+    "name": "Abner Haynes",
+    "item": "https://en.wikipedia.org/wiki/Abner_Haynes",
+    "height": "6'0\"",
+    "weight": 190
+  },
+  {
+    "name": "Charley Trippi",
+    "item": "https://en.wikipedia.org/wiki/Charley_Trippi",
+    "height": "6'0\"",
+    "weight": 186
+  },
+  {
+    "name": "Floyd Little",
+    "item": "http://www.wikidata.org/entity/Q1430369",
+    "height": "5'10\"",
+    "weight": 196
+  },
+  {
+    "name": "Tony Canadeo",
+    "item": "https://en.wikipedia.org/wiki/Tony_Canadeo",
+    "height": "5'11\"",
+    "weight": 190
+  },
+  {
+    "name": "Eddie Murray",
+    "item": "http://www.wikidata.org/entity/Q5336344",
+    "height": "5'10\"",
+    "weight": 390
+  },
+  {
+    "name": "Garo Yepremian",
+    "item": "http://www.wikidata.org/entity/Q5523735",
+    "height": "5'7\"",
+    "weight": 386
+  },
+  {
+    "name": "Jim Bakken",
+    "item": "http://www.wikidata.org/entity/Q1689029",
+    "height": "5'11\"",
+    "weight": 200
+  },
+  {
+    "name": "Lou Groza",
+    "item": "https://en.wikipedia.org/wiki/Lou_Groza",
+    "height": "6'3\"",
+    "weight": 240
+  },
+  {
+    "name": "Brad Van Pelt",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Bryce Paup",
+    "item": "http://www.wikidata.org/entity/Q2927195",
+    "height": "6'5\"",
+    "weight": 250
+  },
+  {
+    "name": "Carl Banks",
+    "item": "https://en.wikipedia.org/wiki/Carl_Banks",
+    "height": "6'4\"",
+    "weight": 235
+  },
+  {
+    "name": "Chris Spielman",
+    "item": "http://www.wikidata.org/entity/Q5108134",
+    "height": "6'0\"",
+    "weight": 248
+  },
+  {
+    "name": "Jessie Tuggle",
+    "item": "http://www.wikidata.org/entity/Q6187845",
+    "height": "5'11\"",
+    "weight": 232
+  },
+  {
+    "name": "John Anderson",
+    "item": "http://www.wikidata.org/entity/Q93374",
+    "height": "6'7\"",
+    "weight": 226
+  },
+  {
+    "name": "John Offerdahl",
+    "item": "https://en.wikipedia.org/wiki/John_Offerdahl",
+    "height": "6'3\"",
+    "weight": 240
+  },
+  {
+    "name": "Karl Mecklenburg",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Ken Norton Jr.",
+    "item": "http://www.wikidata.org/entity/Q263903",
+    "height": "6'2\"",
+    "weight": 236
+  },
+  {
+    "name": "Nick Buoniconti",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Otis Wilson",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Pepper Johnson",
+    "item": "http://www.wikidata.org/entity/Q4872097",
+    "height": "6'3\"",
+    "weight": 250
+  },
+  {
+    "name": "Robert Brazile",
+    "item": "https://en.wikipedia.org/wiki/Robert_Brazile",
+    "height": "6'4\"",
+    "weight": 241
+  },
+  {
+    "name": "Scott Studwell",
+    "item": "https://en.wikipedia.org/wiki/Scott_Studwell",
+    "height": "6'2\"",
+    "weight": 228
+  },
+  {
+    "name": "Bill Curry",
+    "item": "https://en.wikipedia.org/wiki/Bill_Curry",
+    "height": "6'3\"",
+    "weight": 235
+  },
+  {
+    "name": "Bob St. Clair",
+    "item": "https://en.wikipedia.org/wiki/Bob_St._Clair",
+    "height": "6'9\"",
+    "weight": 263
+  },
+  {
+    "name": "Dermontti Dawson",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Jesse Sapolu",
+    "item": "http://www.wikidata.org/entity/Q3373184",
+    "height": "6'4\"",
+    "weight": 278
+  },
+  {
+    "name": "Jim Lachey",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Jim Langer",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Joe Jacoby",
+    "item": "https://en.wikipedia.org/wiki/Joe_Jacoby",
+    "height": "6'7\"",
+    "weight": 295
+  },
+  {
+    "name": "Korey Stringer",
+    "item": "https://en.wikipedia.org/wiki/Korey_Stringer",
+    "height": "6'4\"",
+    "weight": 346
+  },
+  {
+    "name": "Lou Creekmur",
+    "item": "https://en.wikipedia.org/wiki/Lou_Creekmur",
+    "height": "6'4\"",
+    "weight": 246
+  },
+  {
+    "name": "Mick Tingelhoff",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Randy Cross",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Richmond Webb",
+    "item": null,
+    "height": null,
+    "weight": null
+  },
+  {
+    "name": "Steve Wisniewski",
+    "item": "http://www.wikidata.org/entity/Q609687",
+    "height": "6'4\"",
+    "weight": 305
+  },
+  {
+    "name": "Tony Boselli",
+    "item": "https://en.wikipedia.org/wiki/Tony_Boselli",
+    "height": "6'7\"",
+    "weight": 324
+  },
+  {
+    "name": "Ray Guy",
+    "item": "http://www.wikidata.org/entity/Q1857411",
+    "height": "6'3\"",
+    "weight": 195
+  },
+  {
+    "name": "Bernie Kosar",
+    "item": "http://www.wikidata.org/entity/Q2053337",
+    "height": "6'5\"",
+    "weight": 215
+  },
+  {
+    "name": "John Brodie",
+    "item": "http://www.wikidata.org/entity/Q785227",
+    "height": "6'1\"",
+    "weight": 198
+  },
+  {
+    "name": "Mark Rypien",
+    "item": "https://en.wikipedia.org/wiki/Mark_Rypien",
+    "height": "6'4\"",
+    "weight": 225
+  },
+  {
+    "name": "Ben Coates",
+    "item": "http://www.wikidata.org/entity/Q3301837",
+    "height": "6'5\"",
+    "weight": 245
+  },
+  {
+    "name": "Billy Joe Dupree",
+    "item": "https://en.wikipedia.org/wiki/Billy_Joe_Dupree",
+    "height": "6'4\"",
+    "weight": 225
+  },
+  {
+    "name": "Brent Jones",
+    "item": "http://www.wikidata.org/entity/Q3373154",
+    "height": "6'4\"",
+    "weight": 230
+  },
+  {
+    "name": "Dave Casper",
+    "item": "https://en.wikipedia.org/wiki/Dave_Casper",
+    "height": "6'4\"",
+    "weight": 240
+  },
+  {
+    "name": "Eric Green",
+    "item": "http://www.wikidata.org/entity/Q5386611",
+    "height": "5'11\"",
+    "weight": 196
+  },
+  {
+    "name": "Jay Novacek",
+    "item": "http://www.wikidata.org/entity/Q761728",
+    "height": "6'4\"",
+    "weight": 234
+  },
+  {
+    "name": "Bobby Mitchell",
+    "item": "https://en.wikipedia.org/wiki/Bobby_Mitchell",
+    "height": "6'0\"",
+    "weight": 192
+  },
+  {
+    "name": "Cliff Branch",
+    "item": "http://www.wikidata.org/entity/Q1101091",
+    "height": "5'11\"",
+    "weight": 375
+  },
+  {
+    "name": "Dante Lavelli",
+    "item": "https://en.wikipedia.org/wiki/Dante_Lavelli",
+    "height": "6'0\"",
+    "weight": 191
+  },
+  {
+    "name": "Dwight Clark",
+    "item": "http://www.wikidata.org/entity/Q1268463",
+    "height": "6'4\"",
+    "weight": 212
+  },
+  {
+    "name": "Ernest Givins",
+    "item": "https://en.wikipedia.org/wiki/Ernest_Givins",
+    "height": "5'9\"",
+    "weight": 172
+  },
+  {
+    "name": "Pete Pihos",
+    "item": null,
+    "height": null,
+    "weight": null
+  }
+]
