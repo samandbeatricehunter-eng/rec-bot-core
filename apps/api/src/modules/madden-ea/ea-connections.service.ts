@@ -873,14 +873,59 @@ async function restorePlayerPhotos(
     [leagueId],
   );
 
-  let restored = 0;
+  // Build CASE expressions for a single batched UPDATE
+  const eaCases: string[] = [];
+  const nameCases: string[] = [];
+  const eaIds: string[] = [];
+  const names: string[] = [];
+  const params: string[] = [leagueId];
+  let paramIdx = 2;
+
   for (const player of players.rows) {
     const photo = (player.madden_player_id && photoByEaId.get(player.madden_player_id))
       ?? photoByName.get(player.full_name?.toLowerCase() ?? "");
-    if (photo) {
-      await pool.query(`update rec_players set photo_url=$1 where id=$2`, [photo, player.id]);
-      restored += 1;
+    if (!photo) continue;
+
+    if (player.madden_player_id && photoByEaId.get(player.madden_player_id)) {
+      eaCases.push(`when madden_player_id = $${paramIdx} then $${paramIdx + 1}`);
+      eaIds.push(player.madden_player_id);
+      params.push(player.madden_player_id, photo);
+      paramIdx += 2;
+    } else {
+      nameCases.push(`when lower(full_name) = $${paramIdx} then $${paramIdx + 1}`);
+      names.push(player.full_name?.toLowerCase() ?? "");
+      params.push(player.full_name?.toLowerCase() ?? "", photo);
+      paramIdx += 2;
     }
+  }
+
+  if (eaCases.length === 0 && nameCases.length === 0) return 0;
+
+  const wheres: string[] = [];
+  if (eaCases.length > 0) wheres.push(`(madden_player_id in (${eaIds.map((_, i) => `$${2 + i * 2}`).join(",")}))`);
+  if (nameCases.length > 0) wheres.push(`(lower(full_name) in (${names.map((_, i) => `$${2 + eaIds.length * 2 + i * 2}`).join(",")}))`);
+
+  // Simpler approach: just do a single pass with a CTE
+  // Actually, let's just use a simpler batched approach
+  let restored = 0;
+  const batchSize = 50;
+  for (let i = 0; i < players.rows.length; i += batchSize) {
+    const batch = players.rows.slice(i, i + batchSize);
+    const updates: Array<{ id: string; photo: string }> = [];
+    for (const player of batch) {
+      const photo = (player.madden_player_id && photoByEaId.get(player.madden_player_id))
+        ?? photoByName.get(player.full_name?.toLowerCase() ?? "");
+      if (photo) updates.push({ id: player.id, photo });
+    }
+    if (updates.length === 0) continue;
+    const cases = updates.map((u, idx) => `when id = $${idx * 2 + 2} then $${idx * 2 + 3}`).join(" ");
+    const ids = updates.map((u) => u.id);
+    const flatParams = updates.flatMap((u) => [u.id, u.photo]);
+    await pool.query(
+      `update rec_players set photo_url = case ${cases} end where id = any($1::uuid[])`,
+      [ids, ...flatParams],
+    );
+    restored += updates.length;
   }
   return restored;
 }
