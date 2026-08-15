@@ -77,8 +77,12 @@ export async function listManualScoreGames(input: {
   if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
 
   const resultByMatchup = new Map<string, any>((results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, row]));
+  const importedMatchups = new Set(
+    (results.data ?? []).filter((row: any) => row.source === "madden_companion_import").map((row: any) => `${row.home_team_id}:${row.away_team_id}`),
+  );
 
-  const eligible = (games as any[]).filter((g) => !boxScored.has(String(g.id)));
+  // Box-scored games and EA-imported results are both off-limits for manual entry.
+  const eligible = (games as any[]).filter((g) => !boxScored.has(String(g.id)) && !importedMatchups.has(`${g.home_team_id}:${g.away_team_id}`));
   const mapped: ManualScoreGame[] = eligible.map((g) => {
     const existing = resultByMatchup.get(`${g.home_team_id}:${g.away_team_id}`) ?? null;
     return {
@@ -135,6 +139,17 @@ export async function recordManualGameResult(input: {
     .limit(1);
   if (boxScored.error) throw new ApiError(500, "We couldn't check for an existing box score. Please try again.", boxScored.error);
   if (boxScored.data?.length) throw new ApiError(409, "This game already has a box score submission — correct it through Box Scores instead.");
+
+  // Imported results are hard-locked: the EA import is the source of truth for scores, so
+  // manual entry can never quietly overwrite what the game reported. Re-import to change.
+  const imported = await supabase
+    .from("rec_game_results")
+    .select("id")
+    .eq("game_id", input.gameId)
+    .eq("source", "madden_companion_import")
+    .limit(1);
+  if (imported.error) throw new ApiError(500, "We couldn't check for an imported result. Please try again.", imported.error);
+  if (imported.data?.length) throw new ApiError(409, "This game's score was imported from EA and is locked — re-import the week to change it.");
 
   // Prefer real final scores when the commissioner supplied them; otherwise fall back
   // to a 1-0 win/loss flag, matching the advance wizard's W/L/T-only convention.

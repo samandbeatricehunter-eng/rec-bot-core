@@ -4,10 +4,12 @@
 //   stageIndex 0 = preseason, 1 = regular season + playoffs (one continuous index space)
 //   weekIndex is 0-based, so display week = weekIndex + 1
 //
-// The regular-season stage keeps counting through the playoffs, and index 20 (display 21)
+// The regular-season stage keeps counting through the playoffs, and index 21 (display 22)
 // is the Pro Bowl, which has no exportable data. EA still reserves it, so the Super Bowl
-// lands on index 22 / display 23 rather than 22. Getting this wrong silently imports the
-// wrong week, so all conversion goes through this module.
+// lands on index 22 / display 23 rather than 22. Week indexes verified against snallabot's
+// SEASON_WEEKS (filters weekIndex 21) — playoffs are stage 1 weekIndexes 18/19/20/22.
+// Getting this wrong silently imports the wrong week, so all conversion goes through this
+// module.
 
 export type EaStage = 0 | 1;
 
@@ -15,12 +17,12 @@ export type EaWeekRef = { stageIndex: EaStage; weekIndex: number };
 
 export const PRESEASON_WEEK_INDEXES = [0, 1, 2, 3] as const;
 
-/** Regular season + playoffs, excluding the Pro Bowl (index 20 / display 21). */
+/** Regular season + playoffs, excluding the Pro Bowl (index 21 / display 22). */
 export const SEASON_WEEK_INDEXES = Array.from({ length: 23 }, (_, index) => index).filter(
-  (index) => index !== 20,
+  (index) => index !== 21,
 );
 
-export const PRO_BOWL_WEEK_INDEX = 20;
+export const PRO_BOWL_WEEK_INDEX = 21;
 
 /** REC's canonical phase values for rec_games.phase / rec_*_stats.season_stage. */
 export type RecPhase = "preseason" | "regular_season" | "playoffs";
@@ -43,9 +45,9 @@ const PLAYOFF_LABELS: Record<number, string> = {
 };
 
 /**
- * Human label for a 1-based regular-season/playoff display week. Mirrors EA's own naming
- * (see snallabot getMessageForWeek): 1-18 regular season, 19/20/21 playoff rounds,
- * 22 is the Pro Bowl (no data), 23 is the Super Bowl.
+ * Human label for a 1-based regular-season/playoff display week. Mirrors snallabot's week
+ * table exactly: 1-18 regular season, 19 Wild Card, 20 Divisional, 21 Conference
+ * Championship, 22 the Pro Bowl (no data), 23 the Super Bowl — all under stage 1.
  */
 export function seasonWeekLabel(displayWeek: number): string {
   if (displayWeek >= 1 && displayWeek <= 18) return `Week ${displayWeek}`;

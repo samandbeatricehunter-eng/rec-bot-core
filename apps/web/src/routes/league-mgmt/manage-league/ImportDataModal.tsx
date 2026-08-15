@@ -34,7 +34,8 @@ function seasonWeekLabel(displayWeek: number): string {
   return PLAYOFF_LABELS[displayWeek] ?? `Week ${displayWeek}`;
 }
 const PRESEASON_DISPLAY_WEEKS = [1, 2, 3, 4];
-const SEASON_DISPLAY_WEEKS = Array.from({ length: 23 }, (_, i) => i + 1).filter((w) => w !== 21);
+// Display 22 is the Pro Bowl — reserved by EA but never exportable, so it's not offered.
+const SEASON_DISPLAY_WEEKS = Array.from({ length: 23 }, (_, i) => i + 1).filter((w) => w !== 22);
 type WeekMode = "current" | "week" | "span";
 
 // Two-phase EA link: the commissioner opens EA's login page, pastes the redirect URL back,
