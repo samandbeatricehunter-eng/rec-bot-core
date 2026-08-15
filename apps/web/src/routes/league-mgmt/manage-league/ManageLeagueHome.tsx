@@ -17,6 +17,7 @@ import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 import { ImportDataModal } from "./ImportDataModal.js";
 import { TroubleshootModal } from "./TroubleshootModal.js";
 import { ReportIssueModal } from "./ReportIssueModal.js";
+import { TeamDropdown } from "./TeamDropdown.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -199,13 +200,21 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
 
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
             {grouped.map(({ conference, groups }) => (
-              <div key={conference}>
-                <h3 style={{ margin: "0 0 var(--space-3)", color: "var(--gold)" }}>{conference}</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-3)" }}>
+              <section key={conference}>
+                <h3 style={{ margin: "0 0 var(--space-3)", color: "var(--gold)", textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em" }}>{conference}</h3>
+                <div
+                  style={{
+                    display: "grid",
+                    // 4 division cards per conference in a 2x2 grid; conferences without
+                    // divisions (CFB) fall back to evenly filling cards.
+                    gridTemplateColumns: groups.length === 4 ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fill, minmax(300px, 1fr))",
+                    gap: "var(--space-3)",
+                  }}
+                >
                   {groups.map(({ division, teams }) => (
                     <Card key={division ?? "flat"} style={{ padding: 0 }}>
                       {division && (
-                        <div style={{ padding: "var(--space-2) var(--space-3)", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                        <div style={{ padding: "var(--space-2) var(--space-3)", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "center" }}>
                           {division}
                         </div>
                       )}
@@ -219,7 +228,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                               justifyContent: "space-between",
                               gap: "var(--space-2)",
                               borderBottom: "1px solid var(--border)",
-                              padding: "var(--space-1) var(--space-2) var(--space-1) var(--space-3)",
+                              padding: "var(--space-2) var(--space-2) var(--space-2) var(--space-3)",
                             }}
                           >
                             <button
@@ -227,17 +236,30 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                               className="btn btn-ghost"
                               style={{ flex: 1, justifyContent: "flex-start", textAlign: "left", padding: "var(--space-1) var(--space-2)", minWidth: 0 }}
                             >
-                              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+                                <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                   <span style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{team.name}</span>
+                                  <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
+                                    {team.linkedUser?.displayName ?? "CPU"}
+                                  </span>
+                                  {team.linkedUser?.discordId && (
+                                    <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
+                                      ({team.linkedUser.displayName ?? team.linkedUser.discordId})
+                                    </span>
+                                  )}
+                                  {team.linkedUser?.role && team.linkedUser.role !== "member" && (
+                                    <span style={{ color: "var(--gold)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
+                                      {team.linkedUser.role === "co_commissioner" ? "Co-Commish" : team.linkedUser.role === "commissioner" ? "Commish" : team.linkedUser.role}
+                                    </span>
+                                  )}
                                   <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
                                     {team.record.wins}-{team.record.losses}{team.record.ties > 0 ? `-${team.record.ties}` : ""}
                                   </span>
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
-                                  <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)" }}>
-                                    {team.linkedUser?.displayName ?? "Open"}
-                                  </span>
+                                  {team.pendingRequest && (
+                                    <Badge status="pending">request pending</Badge>
+                                  )}
                                   {mode === "schedule" && (
                                     <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
                                       {team.gamesScheduled}/{team.gamesExpected}
@@ -249,22 +271,23 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                                 </div>
                               </div>
                             </button>
-                            {!team.linkedUser && (
-                              <Button
-                                variant="secondary"
-                                size="compact"
-                                onClick={() => navigate(`/league-mgmt/manage-league/teams/link?teamId=${team.id}`)}
-                              >
-                                <UserPlus size={12} />
-                              </Button>
-                            )}
+                            <TeamDropdown
+                              team={team}
+                              guildId={guildId}
+                              leagueId={summary.league.id}
+                              isMadden={isMadden}
+                              onAction={(message) => {
+                                setNotice(message);
+                                void recApi.getTeamManagementSummary(guildId).then(setSummary);
+                              }}
+                            />
                           </div>
                         ))}
                       </div>
                     </Card>
                   ))}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         </>

@@ -1,7 +1,9 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { recUserIdFromDiscordId } from "../madden-companion/madden-companion.service.js";
 import {
   listFriendships,
   listSharedLeagueFriendSuggestions,
@@ -11,12 +13,30 @@ import {
   respondFriendship,
 } from "./site-friends.service.js";
 
+// The friends list is also read from the league management dashboard ("Invite Friend"
+// dropdown), whose bot-minted session isn't a Supabase session — fall back to it with
+// co-commissioner permission, same approach as the league-invite routes.
+async function resolveFriendActor(request: FastifyRequest, guildId?: string): Promise<{ recUserId: string }> {
+  try {
+    const session = await requireSiteUserSession(request);
+    const user = await requireLinkedSiteUser(session.authUserId);
+    return { recUserId: user.recUserId };
+  } catch (siteError) {
+    const auth = await requireBotOrUserSession(request, {
+      resolveGuildId: () => guildId ?? "",
+      permission: "co_commissioner",
+    });
+    if (auth.mode !== "user") throw siteError;
+    return { recUserId: await recUserIdFromDiscordId(auth.discordId) };
+  }
+}
+
 export async function siteFriendsRoutes(app: FastifyInstance) {
   app.post("/v1/site-friends/list", async (request, reply) => {
     try {
-      const session = await requireSiteUserSession(request);
-      const user = await requireLinkedSiteUser(session.authUserId);
-      return reply.send(await listFriendships({ recUserId: user.recUserId }));
+      const body = z.object({ guildId: z.string().min(1).optional() }).parse(request.body ?? {});
+      const actor = await resolveFriendActor(request, body.guildId);
+      return reply.send(await listFriendships({ recUserId: actor.recUserId }));
     } catch (error) {
       return sendError(reply, error);
     }

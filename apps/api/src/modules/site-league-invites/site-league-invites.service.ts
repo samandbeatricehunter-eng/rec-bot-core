@@ -1,5 +1,6 @@
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { requireLinkedSiteUser } from "../site-inbox/site-inbox.service.js";
 
@@ -53,6 +54,54 @@ async function resolveTargetUser(input: {
     username: row.username,
     displayName: row.display_name ?? row.username,
   };
+}
+
+/** Guild members with a site account who don't hold an active team in this league — the
+ *  "Invite from Discord Server" picker. Members without a site account can't be invited
+ *  (they couldn't log in to accept), so they're simply omitted. */
+export async function listDiscordInviteTargets(input: {
+  recUserId: string;
+  leagueId: string;
+  guildId: string;
+}) {
+  const canInvite = await isLeagueOwnerOrCommissioner(input.recUserId, input.leagueId);
+  if (!canInvite) {
+    throw new ApiError(403, "Only the league creator or a commissioner can send invites.");
+  }
+  // The guild's live member list is the source of truth for who's on the server; site
+  // accounts are matched by discord_id (rec_discord_accounts is global, not per-guild).
+  const displayNames = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
+  const guildDiscordIds = [...displayNames.keys()];
+  if (guildDiscordIds.length === 0) return { members: [] };
+
+  const members: Array<{ userId: string; username: string | null; discordId: string; displayName: string }> = [];
+  for (let i = 0; i < guildDiscordIds.length; i += 500) {
+    const chunk = guildDiscordIds.slice(i, i + 500);
+    const result = await getPgPool().query(
+      `
+        select u.id as user_id, u.username, d.discord_id
+        from rec_discord_accounts d
+        inner join rec_users u on u.id = d.user_id
+        where d.discord_id = any($1::text[])
+          and not exists (
+            select 1 from rec_team_assignments a
+            where a.league_id = $2 and a.user_id = u.id
+              and a.assignment_status = 'active' and a.ended_at is null
+          )
+        order by lower(coalesce(u.username, '')) asc
+      `,
+      [chunk, input.leagueId],
+    );
+    for (const row of result.rows as Array<{ user_id: string; username: string | null; discord_id: string }>) {
+      members.push({
+        userId: row.user_id,
+        username: row.username,
+        discordId: row.discord_id,
+        displayName: displayNames.get(row.discord_id) ?? row.username ?? row.discord_id,
+      });
+    }
+  }
+  return { members };
 }
 
 async function isLeagueOwnerOrCommissioner(recUserId: string, leagueId: string): Promise<boolean> {
@@ -190,6 +239,7 @@ export async function sendLeagueInvite(input: {
   leagueId: string;
   userId?: string;
   username?: string;
+  teamId?: string;
   message?: string | null;
 }) {
   const canInvite = await isLeagueOwnerOrCommissioner(input.recUserId, input.leagueId);
@@ -202,6 +252,24 @@ export async function sendLeagueInvite(input: {
   });
   if (target.id === input.recUserId) {
     throw new ApiError(400, "You cannot invite yourself.");
+  }
+
+  // Team-scoped invites (Manage League dropdown): the team must exist, belong to this
+  // league, and be unlinked — inviting someone to a taken team would dead-end on accept.
+  let teamId: string | null = null;
+  if (input.teamId) {
+    const team = await getPgPool().query(
+      `select t.id from rec_teams t
+         where t.id = $1 and t.league_id = $2
+           and not exists (
+             select 1 from rec_team_assignments a
+              where a.team_id = t.id and a.league_id = $2
+                and a.assignment_status = 'active' and a.ended_at is null
+           )`,
+      [input.teamId, input.leagueId],
+    );
+    if (!team.rows[0]) throw new ApiError(409, "That team is not available to invite to.");
+    teamId = input.teamId;
   }
 
   const league = await getPgPool().query(
@@ -241,12 +309,12 @@ export async function sendLeagueInvite(input: {
   const inserted = await getPgPool().query(
     `
       insert into rec_league_invites (
-        league_id, inviter_user_id, invitee_user_id, status, message
+        league_id, inviter_user_id, invitee_user_id, status, message, team_id
       )
-      values ($1, $2, $3, 'pending', $4)
+      values ($1, $2, $3, 'pending', $4, $5)
       returning id, created_at::text
     `,
-    [input.leagueId, input.recUserId, target.id, input.message ?? null],
+    [input.leagueId, input.recUserId, target.id, input.message ?? null, teamId],
   );
   const invite = inserted.rows[0] as { id: string; created_at: string };
 
@@ -424,6 +492,34 @@ export async function respondToLeagueInvite(input: {
       `,
       [row.league_id, input.recUserId],
     );
+
+    // Team-scoped invite: link the accepter to the invited team when it is still open.
+    const inviteTeam = await getPgPool().query<{ team_id: string | null }>(
+      `select team_id from rec_league_invites where id = $1 limit 1`,
+      [input.inviteId],
+    );
+    const teamId = inviteTeam.rows[0]?.team_id;
+    if (teamId) {
+      const teamTaken = await getPgPool().query(
+        `select 1 from rec_team_assignments
+          where team_id = $2 and league_id = $1
+            and assignment_status = 'active' and ended_at is null`,
+        [row.league_id, teamId],
+      );
+      if (!teamTaken.rows[0]) {
+        await getPgPool().query(
+          `update rec_team_assignments set assignment_status = 'replaced', ended_at = now()
+            where league_id = $1 and user_id = $2 and ended_at is null and assignment_status = 'active'`,
+          [row.league_id, input.recUserId],
+        );
+        await getPgPool().query(
+          `insert into rec_team_assignments
+             (league_id, team_id, user_id, assignment_status, source, notes)
+           values ($1, $2, $3, 'active', 'site_invite', 'Accepted team invite')`,
+          [row.league_id, teamId, input.recUserId],
+        );
+      }
+    }
   }
 
   await getPgPool().query(

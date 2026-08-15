@@ -25,7 +25,9 @@ export type TeamManagementSummaryRow = {
   conference: string;
   division: string | null;
   isRelocated: boolean;
-  linkedUser: { userId: string; discordId: string | null; displayName: string | null } | null;
+  linkedUser: { userId: string; discordId: string | null; displayName: string | null; role: string | null } | null;
+  /** Pending team link request, surfaced so the division-card dropdown can offer Approve/Deny. */
+  pendingRequest: { requestId: string; userId: string; displayName: string | null; discordUsername: string | null } | null;
   scheduleStatus: "empty" | "partial" | "complete";
   gamesScheduled: number;
   gamesExpected: number;
@@ -78,6 +80,31 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     : { data: [], error: null };
   if (accountsRes.error) throw new ApiError(500, "Failed to load Discord accounts.", accountsRes.error);
   const discordByUser = new Map<string, string>((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+
+  // League-membership role (member / co_commissioner / commissioner) for the linked-user row.
+  const roleRes = userIds.length
+    ? await supabase.from("rec_league_memberships").select("user_id,role").eq("league_id", leagueId).eq("status", "active").in("user_id", userIds)
+    : { data: [], error: null };
+  if (roleRes.error) throw new ApiError(500, "Failed to load member roles.", roleRes.error);
+  const roleByUser = new Map<string, string>((roleRes.data ?? []).map((row: any) => [row.user_id, String(row.role ?? "member")]));
+
+  // Pending link requests per team drive the dropdown's Approve/Deny Link Request entries.
+  const requestsRes = await supabase
+    .from("rec_team_link_requests")
+    .select("id,team_id,requester_user_id,requester_discord_id,requester:rec_users(id,username,display_name)")
+    .eq("league_id", leagueId)
+    .eq("status", "pending");
+  if (requestsRes.error) throw new ApiError(500, "Failed to load team link requests.", requestsRes.error);
+  const pendingRequestByTeam = new Map<string, { requestId: string; userId: string; displayName: string | null; discordUsername: string | null }>();
+  for (const row of requestsRes.data ?? []) {
+    const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
+    pendingRequestByTeam.set(row.team_id, {
+      requestId: row.id,
+      userId: row.requester_user_id,
+      displayName: (!isRawDiscordSnowflake(requester?.username) ? requester?.username : null) ?? requester?.display_name ?? null,
+      discordUsername: row.requester_discord_id ?? null,
+    });
+  }
   // A rec-leagues username is the canonical display name once set (see assignmentByTeam
   // above); the live Discord nickname/username lookup below is only a fallback for accounts
   // that never set one — some were auto-provisioned with their raw Discord ID as the name.
@@ -158,8 +185,10 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
               (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ??
               assignment.displayName ??
               null,
+            role: roleByUser.get(assignment.userId) ?? "member",
           }
         : null,
+      pendingRequest: pendingRequestByTeam.get(team.id) ?? null,
       scheduleStatus,
       gamesScheduled,
       gamesExpected,

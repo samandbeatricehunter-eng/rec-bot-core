@@ -76,7 +76,8 @@ export type TeamManagementSummaryRow = {
   conference: string;
   division: string | null;
   isRelocated: boolean;
-  linkedUser: { userId: string; discordId: string | null; displayName: string | null } | null;
+  linkedUser: { userId: string; discordId: string | null; displayName: string | null; role: string | null } | null;
+  pendingRequest: { requestId: string; userId: string; displayName: string | null; discordUsername: string | null } | null;
   scheduleStatus: "empty" | "partial" | "complete";
   gamesScheduled: number;
   gamesExpected: number;

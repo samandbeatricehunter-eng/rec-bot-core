@@ -723,6 +723,19 @@ export const recApi = {
     recApiFetch<unknown>("/v1/team-requests/approve", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
   rejectTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
     recApiFetch<unknown>("/v1/team-requests/reject", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
+
+  // Team invites from the Manage League division-card dropdown. These routes accept either
+  // a site session or the dashboard's bot-minted session (co-commissioner).
+  searchLeagueInviteTargets: (input: { guildId: string; query?: string; limit?: number }) =>
+    recApiFetch<{ users: Array<{ userId: string; username: string; displayName: string }> }>("/v1/site-league-invites/search", { method: "POST", body: JSON.stringify(input) }),
+  sendLeagueTeamInvite: (input: { guildId: string; leagueId: string; userId: string; teamId: string; message?: string }) =>
+    recApiFetch<{ inviteId: string; status: string }>("/v1/site-league-invites/send", { method: "POST", body: JSON.stringify(input) }),
+  listDiscordInviteTargets: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ members: Array<{ userId: string; username: string | null; discordId: string; displayName: string }> }>("/v1/site-league-invites/discord-members", { method: "POST", body: JSON.stringify(input) }),
+  listFriends: (guildId: string) =>
+    recApiFetch<{ accepted: Array<{ friendshipId: string; peer: { userId: string; username: string; displayName: string } }> }>("/v1/site-friends/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  updateLeagueMemberRole: (input: { guildId: string; leagueId: string; userId: string; role: "member" | "co_commissioner" }) =>
+    recApiFetch<{ ok: true }>("/v1/league-memberships/role", { method: "POST", body: JSON.stringify(input) }),
   settleWager: (input: { guildId: string; leagueId?: string; wagerId: string }) =>
     recApiFetch<unknown>("/v1/wagers/settle", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   approveWeeklyScoreReview: (input: { guildId: string; reviewId: string }) =>
