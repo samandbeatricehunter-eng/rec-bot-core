@@ -191,10 +191,35 @@ export async function directWriteRoster(
     const age = num(row, ["age", "playerAge"]);
     const contractYearsLeft = num(row, ["contractYearsLeft", "contract_years_left"]);
 
+    // Map EA's camelCase rating fields to the snake_case keys the roster page expects
+    const EA_RATING_TO_SNAKE: Record<string, string> = {
+      speedRating: "speed", accelerationRating: "acceleration", strengthRating: "strength",
+      agilityRating: "agility", awarenessRating: "awareness", jumpingRating: "jumping",
+      injuryRating: "injury", staminaRating: "stamina", toughnessRating: "toughness",
+      throwPowerRating: "throw_power", throwUnderPressureRating: "throw_under_pressure",
+      throwAccShortRating: "throw_accuracy_short", throwAccMidRating: "throw_accuracy_mid",
+      throwAccDeepRating: "throw_accuracy_deep", throwOnRunRating: "throw_on_the_run",
+      playActionRating: "play_action", catchingRating: "catching", specCatchRating: "spectacular_catch",
+      cITRating: "catch_in_traffic", routeRunShortRating: "route_running_short",
+      routeRunMedRating: "route_running_medium", routeRunDeepRating: "route_running_deep",
+      releaseRating: "release", carryRating: "carrying", breakTackleRating: "break_tackle",
+      truckRating: "trucking", changeOfDirectionRating: "change_of_direction",
+      bCVRating: "bc_vision", stiffArmRating: "stiff_arm", spinMoveRating: "spin_move",
+      jukeMoveRating: "juke_move", breakSackRating: "break_sack", tackleRating: "tackle",
+      powerMovesRating: "power_moves", finesseMovesRating: "finesse_moves",
+      blockShedRating: "block_shedding", pursuitRating: "pursuit",
+      playRecRating: "play_recognition", manCoverRating: "man_coverage",
+      zoneCoverRating: "zone_coverage", hitPowerRating: "hit_power", pressRating: "press",
+      runBlockRating: "run_block", passBlockRating: "pass_block", impactBlockRating: "impact_blocking",
+      runBlockPowerRating: "run_block_power", runBlockFinesseRating: "run_block_finesse",
+      passBlockPowerRating: "pass_block_power", passBlockFinesseRating: "pass_block_finesse",
+      leadBlockRating: "lead_block", kickPowerRating: "kick_power",
+      kickAccRating: "kick_accuracy", kickRetRating: "kick_return",
+    };
     const attrs: Record<string, number> = {};
     for (const [key, val] of Object.entries(row)) {
-      if ((key.endsWith("Rating") || key.endsWith("rating")) && typeof val === "number") {
-        attrs[key] = val;
+      if (typeof val === "number" && EA_RATING_TO_SNAKE[key]) {
+        attrs[EA_RATING_TO_SNAKE[key]] = val;
       }
     }
     const attributes = Object.keys(attrs).length > 0 ? attrs : null;
