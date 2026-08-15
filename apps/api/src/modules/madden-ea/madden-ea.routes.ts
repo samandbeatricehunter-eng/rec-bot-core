@@ -10,15 +10,16 @@ import {
   getEaConnectionStatus,
   importEaDatasets,
   importEaDatasetsWithProgress,
+  getImportProgress,
+  clearImportProgress,
+  pushProgress,
   listEaImportJobs,
   listEaLeagues,
   selectEaPersona,
   submitEaCode,
   updateEaConnectionSettings,
   wipeBaselineRoster,
-  reconcilePendingPurchasesToImport,
   type EaDataset,
-  type EaImportProgressEvent,
 } from "./ea-connections.service.js";
 import { EA_DATASETS } from "./ea-datasets.js";
 import { validateWeekRef } from "./ea-weeks.js";
@@ -146,13 +147,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
     }
   });
 
-  // SSE streaming variant of the import endpoint — emits real-time progress events
-  // as each dataset starts, completes, or fails. The frontend connects via fetch()
-  // with response.body.getReader() since EventSource only supports GET.
-  app.post("/v1/import/madden/ea/import-stream", async (request, reply) => {
-    let body: { guild_id: string; league_id: string; connection_id: string; datasets?: EaDataset[]; stage?: 0 | 1; week_index?: number; week_refs?: Array<{ stage: 0 | 1; week_index: number }> };
+  // Start an import — runs in background, progress polled via /import-progress.
+  app.post("/v1/import/madden/ea/import-async", async (request, reply) => {
     try {
-      body = z.object({
+      const body = z.object({
         guild_id: z.string().min(1), league_id: z.string().uuid(), connection_id: z.string().uuid(),
         datasets: z.array(datasetSchema).min(1).optional(),
         stage: z.union([z.literal(0), z.literal(1)]).optional(),
@@ -160,33 +158,36 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
       }).parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
+      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+
+      // Clear any stale progress for this league
+      clearImportProgress(body.league_id);
+
+      // Fire and forget — the import runs in the background
+      importEaDatasetsWithProgress(body.connection_id, body.league_id, {
+        datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs,
+      }).catch((error) => {
+        console.error("[EA] Background import failed:", error);
+        pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });
+      });
+
+      return reply.send({ ok: true, message: "Import started. Poll /v1/import/madden/ea/import-progress for status." });
     } catch (error) {
       return sendError(reply, error);
     }
+  });
 
-    // Hijack the reply so Fastify doesn't buffer our SSE stream
-    reply.hijack();
-    reply.raw.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
-
-    function sendEvent(event: EaImportProgressEvent) {
-      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-    }
-
+  // Poll import progress — returns all events since the import started.
+  app.post("/v1/import/madden/ea/import-progress", async (request, reply) => {
     try {
-      if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
-      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
-      await importEaDatasetsWithProgress(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }, sendEvent);
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send(getImportProgress(body.league_id));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      sendEvent({ type: "error", error: message });
-    } finally {
-      reply.raw.end();
+      return sendError(reply, error);
     }
+  });
   });
 
   app.post("/v1/import/madden/ea/jobs", async (request, reply) => {

@@ -502,11 +502,31 @@ export type EaImportProgressEvent =
   | { type: "done"; results: EaImportResult[] }
   | { type: "error"; error: string };
 
+// In-memory progress store keyed by leagueId — the import writes events here,
+// the frontend polls them via /v1/import/madden/ea/import-progress.
+const importProgressStore = new Map<string, { events: EaImportProgressEvent[]; startedAt: number }>();
+
+export function pushProgress(leagueId: string, event: EaImportProgressEvent) {
+  const entry = importProgressStore.get(leagueId) ?? { events: [], startedAt: Date.now() };
+  entry.events.push(event);
+  importProgressStore.set(leagueId, entry);
+}
+
+export function getImportProgress(leagueId: string): { events: EaImportProgressEvent[]; running: boolean } {
+  const entry = importProgressStore.get(leagueId);
+  if (!entry) return { events: [], running: false };
+  const done = entry.events.some((e) => e.type === "done" || e.type === "error");
+  return { events: entry.events, running: !done };
+}
+
+export function clearImportProgress(leagueId: string) {
+  importProgressStore.delete(leagueId);
+}
+
 export async function importEaDatasetsWithProgress(
   connectionId: string,
   leagueId: string,
   options: EaImportOptions = {},
-  onProgress: (event: EaImportProgressEvent) => void,
 ): Promise<EaImportResult[]> {
   requireEaImportConfigured();
   const row = await loadEaConnection(connectionId, leagueId);
@@ -633,12 +653,12 @@ export async function importEaDatasetsWithProgress(
   // First EA import for this league: wipe all baseline/seeded players so the EA data
   // becomes the sole source of truth. Custom player builds are preserved.
   if (!row.last_import_at && datasets.includes("rosters")) {
-    onProgress({ type: "reconciling", step: "First import — clearing baseline roster…" });
+    pushProgress(leagueId, { type: "reconciling", step: "First import — clearing baseline roster…" });
     const wiped = await wipeBaselineRoster(leagueId);
     console.log(`[EA] First import: wiped ${wiped} baseline player(s) for league ${leagueId}`);
   }
 
-  onProgress({ type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
+  pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
     const t0 = Date.now();
@@ -653,69 +673,86 @@ export async function importEaDatasetsWithProgress(
 
     let records = 0;
 
-    // Schedule and rosters: write directly to rec_games/rec_players, bypassing the
-    // companion adapter pipeline that was losing field names in translation.
     if (dataset === "schedule") {
       records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
       scheduleImported = true;
     } else if (dataset === "rosters") {
       records = await directWriteRoster(leagueId, raw, false);
-      // Collect player IDs for reconciliation
       const rows = extractEaRows(raw, "rosterInfoList");
-      for (const row of rows) {
-        const id = (row as any).rosterId ?? (row as any).roster_id ?? (row as any).playerId ?? (row as any).player_id;
+      for (const r of rows) {
+        const id = (r as any).rosterId ?? (r as any).roster_id ?? (r as any).playerId ?? (r as any).player_id;
         if (id != null) importedPlayerIds.add(String(id));
       }
     } else if (dataset === "free_agents") {
       records = await directWriteRoster(leagueId, raw, true);
     } else {
-      // Stats datasets: still go through companion adapter (they have correct field names)
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
       const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
       records = ingested.records_stored;
     }
 
-    const existing = results.find((result) => result.dataset === dataset && result.label === label);
-    if (existing) {
-      existing.recordsStored += records;
-    } else {
-      results.push({ dataset, label, importJobId: null, duplicate: false, recordsStored: records });
-    }
-    return { label, records, duplicate: false };
+    return { dataset, label, records };
   };
 
-  for (const dataset of datasets) {
-    const datasetLabel = EA_DATASET_LABELS[dataset];
-    onProgress({ type: "dataset_start", dataset: String(dataset), label: datasetLabel });
-    try {
-      if (WEEKLY_DATASETS.has(dataset)) {
-        for (const week of weeklyRefs) {
-          const result = await importDatasetAtWeek(dataset, week);
-          onProgress({ type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
-        }
-      } else {
+  // Split datasets into snapshot (no week) and weekly types
+  const snapshotDatasets = datasets.filter((d) => !WEEKLY_DATASETS.has(d));
+  const weeklyDatasets = datasets.filter((d) => WEEKLY_DATASETS.has(d));
+
+  // Snapshot datasets: fetch all in parallel
+  if (snapshotDatasets.length > 0) {
+    pushProgress(leagueId, { type: "dataset_start", dataset: "snapshots", label: `Fetching ${snapshotDatasets.map((d) => EA_DATASET_LABELS[d]).join(", ")}…` });
+    const snapshotResults = await Promise.allSettled(
+      snapshotDatasets.map(async (dataset) => {
         const result = await importDatasetAtWeek(dataset, defaultWeekRef);
-        onProgress({ type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
+        results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
+        pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
+        return result;
+      }),
+    );
+    for (const r of snapshotResults) {
+      if (r.status === "rejected") {
+        pushProgress(leagueId, { type: "dataset_error", dataset: "snapshots", label: "Snapshots", error: r.reason?.message ?? String(r.reason) });
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      onProgress({ type: "dataset_error", dataset: String(dataset), label: datasetLabel, error: message });
-      await getPgPool().query(
-        `update rec_ea_connections set status='error', last_error=$2, updated_at=now() where id=$1`,
-        [connectionId, `${dataset}: ${message}`],
-      );
-      throw new ApiError(502, `EA import failed for ${datasetLabel}: ${message}`);
+    }
+  }
+
+  // Weekly datasets: process in batches of 2 weeks, all stat types within a batch in parallel
+  if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
+    const BATCH_SIZE = 2;
+    for (let i = 0; i < weeklyRefs.length; i += BATCH_SIZE) {
+      const batch = weeklyRefs.slice(i, i + BATCH_SIZE);
+      const batchLabel = batch.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).label).join(", ");
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel}…` });
+
+      const weekPromises = batch.map(async (week) => {
+        const datasetPromises = weeklyDatasets.map(async (dataset) => {
+          const result = await importDatasetAtWeek(dataset, week);
+          results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
+          pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
+          return result;
+        });
+        return Promise.allSettled(datasetPromises);
+      });
+
+      const batchResults = await Promise.all(weekPromises);
+      for (const weekResults of batchResults) {
+        for (const r of weekResults) {
+          if (r.status === "rejected") {
+            pushProgress(leagueId, { type: "dataset_error", dataset: "weekly", label: batchLabel, error: r.reason?.message ?? String(r.reason) });
+          }
+        }
+      }
     }
   }
 
   if (scheduleImported) {
-    onProgress({ type: "reconciling", step: "Syncing game results…" });
+    pushProgress(leagueId, { type: "reconciling", step: "Syncing game results…" });
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
   }
   // Process badges/stories for games that now have team_stats from the import.
   if (datasets.includes("team_stats") || datasets.includes("schedule")) {
-    onProgress({ type: "reconciling", step: "Processing badges & headlines…" });
+    pushProgress(leagueId, { type: "reconciling", step: "Processing badges & headlines…" });
     const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
     const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
     for (const weekNumber of affectedWeeks) {
@@ -738,13 +775,13 @@ export async function importEaDatasetsWithProgress(
   // Subsequent imports: reconcile — remove players no longer in the EA export.
   // First imports already wiped the baseline, so this only applies to re-imports.
   if (datasets.includes("rosters") && row.last_import_at && importedPlayerIds.size > 0) {
-    onProgress({ type: "reconciling", step: "Reconciling rosters…" });
+    pushProgress(leagueId, { type: "reconciling", step: "Reconciling rosters…" });
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
   }
   // Match pending custom-player/legend purchases to the new imported players by name.
   if (datasets.includes("rosters")) {
-    onProgress({ type: "reconciling", step: "Linking pending purchases to imported players…" });
+    pushProgress(leagueId, { type: "reconciling", step: "Linking pending purchases to imported players…" });
     const matched = await reconcilePendingPurchasesToImport(leagueId).catch((error) => {
       console.error("[WARN] Failed to reconcile pending purchases to import (non-fatal):", error);
       return 0;
@@ -755,13 +792,13 @@ export async function importEaDatasetsWithProgress(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
     [connectionId],
   );
-  onProgress({ type: "done", results });
+  pushProgress(leagueId, { type: "done", results });
   return results;
 }
 
 /** Backward-compatible wrapper — callers that don't need progress events. */
 export async function importEaDatasets(connectionId: string, leagueId: string, options: EaImportOptions = {}): Promise<EaImportResult[]> {
-  return importEaDatasetsWithProgress(connectionId, leagueId, options, () => {});
+  return importEaDatasetsWithProgress(connectionId, leagueId, options);
 }
 
 /**
