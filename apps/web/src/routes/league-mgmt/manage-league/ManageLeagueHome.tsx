@@ -98,13 +98,17 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
     return [...byConference.entries()]
       .sort(([a], [b]) => conferenceSortKey(a) - conferenceSortKey(b) || a.localeCompare(b))
       .map(([conference, teams]) => {
-        const divisions = new Set(teams.map((t) => t.division).filter(Boolean));
-        const byDivision = divisions.size > 1
-          ? [...new Set(teams.map((t) => t.division ?? "Other"))]
-              .sort()
-              .map((division) => ({ division, teams: teams.filter((t) => (t.division ?? "Other") === division) }))
-          : [{ division: null, teams }];
-        return { conference, groups: byDivision };
+        const byDivision = new Map<string, TeamManagementSummaryRow[]>();
+        for (const team of teams) {
+          const div = team.division && team.division.trim() ? team.division : "Other";
+          const list = byDivision.get(div) ?? [];
+          list.push(team);
+          byDivision.set(div, list);
+        }
+        const groups = [...byDivision.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([division, divTeams]) => ({ division, teams: divTeams }));
+        return { conference, groups };
       });
   }, [filtered]);
 

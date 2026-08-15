@@ -480,7 +480,21 @@ export type EaImportOptions = {
   weekRefs?: EaWeekRef[];
 };
 
-export async function importEaDatasets(connectionId: string, leagueId: string, options: EaImportOptions = {}): Promise<EaImportResult[]> {
+export type EaImportProgressEvent =
+  | { type: "starting"; datasets: string[]; weeks: number }
+  | { type: "dataset_start"; dataset: string; label: string }
+  | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
+  | { type: "dataset_error"; dataset: string; label: string; error: string }
+  | { type: "reconciling"; step: string }
+  | { type: "done"; results: EaImportResult[] }
+  | { type: "error"; error: string };
+
+export async function importEaDatasetsWithProgress(
+  connectionId: string,
+  leagueId: string,
+  options: EaImportOptions = {},
+  onProgress: (event: EaImportProgressEvent) => void,
+): Promise<EaImportResult[]> {
   requireEaImportConfigured();
   const row = await loadEaConnection(connectionId, leagueId);
   const direct = await loadDirectSyncConnection(leagueId);
@@ -534,6 +548,8 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
   // reconciliation once the import lands.
   const importedPlayerIds = new Set<string>();
 
+  onProgress({ type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
+
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
     const raw = await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
     const envelope = toIngestEnvelope({
@@ -564,35 +580,41 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
       results.push({ dataset, label, importJobId: ingested.import_job_id, duplicate: ingested.duplicate, recordsStored: ingested.records_stored });
     }
     if (dataset === "schedule") scheduleImported = true;
+    return { label, records: ingested.records_stored, duplicate: ingested.duplicate };
   };
 
   for (const dataset of datasets) {
+    const datasetLabel = EA_DATASET_LABELS[dataset];
+    onProgress({ type: "dataset_start", dataset: String(dataset), label: datasetLabel });
     try {
       if (WEEKLY_DATASETS.has(dataset)) {
         for (const week of weeklyRefs) {
-          await importDatasetAtWeek(dataset, week);
+          const result = await importDatasetAtWeek(dataset, week);
+          onProgress({ type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
         }
       } else {
-        await importDatasetAtWeek(dataset, defaultWeekRef);
+        const result = await importDatasetAtWeek(dataset, defaultWeekRef);
+        onProgress({ type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      onProgress({ type: "dataset_error", dataset: String(dataset), label: datasetLabel, error: message });
       await getPgPool().query(
         `update rec_ea_connections set status='error', last_error=$2, updated_at=now() where id=$1`,
         [connectionId, `${dataset}: ${message}`],
       );
-      throw new ApiError(502, `EA import failed for ${EA_DATASET_LABELS[dataset]}: ${message}`);
+      throw new ApiError(502, `EA import failed for ${datasetLabel}: ${message}`);
     }
   }
 
   if (scheduleImported) {
+    onProgress({ type: "reconciling", step: "Syncing game results…" });
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
   }
   // Process badges/stories for games that now have team_stats from the import.
-  // Each game's rec_team_game_stats rows are keyed by game_id; processGameIntelligence
-  // falls back to game_id when submission_id is null (the EA import case).
   if (datasets.includes("team_stats") || datasets.includes("schedule")) {
+    onProgress({ type: "reconciling", step: "Processing badges & headlines…" });
     const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
     const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
     for (const weekNumber of affectedWeeks) {
@@ -613,6 +635,7 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
     }
   }
   if (datasets.includes("rosters") && importedPlayerIds.size > 0) {
+    onProgress({ type: "reconciling", step: "Reconciling rosters…" });
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
   }
@@ -620,7 +643,13 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
     [connectionId],
   );
+  onProgress({ type: "done", results });
   return results;
+}
+
+/** Backward-compatible wrapper — callers that don't need progress events. */
+export async function importEaDatasets(connectionId: string, leagueId: string, options: EaImportOptions = {}): Promise<EaImportResult[]> {
+  return importEaDatasetsWithProgress(connectionId, leagueId, options, () => {});
 }
 
 /**

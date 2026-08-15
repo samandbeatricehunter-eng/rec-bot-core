@@ -201,6 +201,15 @@ export type EaImportResult = {
   recordsStored: number;
 };
 
+export type EaImportProgressEvent =
+  | { type: "starting"; datasets: string[]; weeks: number }
+  | { type: "dataset_start"; dataset: string; label: string }
+  | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
+  | { type: "dataset_error"; dataset: string; label: string; error: string }
+  | { type: "reconciling"; step: string }
+  | { type: "done"; results: EaImportResult[] }
+  | { type: "error"; error: string };
+
 export const recApi = {
   getMaddenCompanionConnections: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ connections: Array<{ id: string; status: string; external_league_id: string | null; last_health_status: string | null; last_health_check_at: string | null; last_import_at: string | null; import_count: number }> }>("/v1/import/madden/companion/connections", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
@@ -237,6 +246,46 @@ export const recApi = {
     recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/settings", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.autoImport !== undefined ? { auto_import: input.autoImport } : {}) }) }),
   importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }> }) =>
     recApiFetch<{ imports: EaImportResult[] }>("/v1/import/madden/ea/import", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}) }), signal: AbortSignal.timeout(300_000) }),
+  /** SSE streaming variant — calls onEvent for each progress event, returns final results. */
+  importMaddenEaDatasetsStream: async (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }> }, onEvent: (event: EaImportProgressEvent) => void): Promise<EaImportResult[]> => {
+    const response = await fetch(`${apiBaseUrl()}/v1/import/madden/ea/import-stream`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+        ...(hubGuildId ? { "x-rec-guild-id": hubGuildId } : {}),
+      },
+      body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}) }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || `Import failed with status ${response.status}`);
+    }
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let results: EaImportResult[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6)) as EaImportProgressEvent;
+          onEvent(event);
+          if (event.type === "done") results = event.results;
+          if (event.type === "error") throw new Error(event.error);
+        } catch (e) {
+          if (e instanceof Error && e.message === (JSON.parse(line.slice(6)) as EaImportProgressEvent & { error: string }).error) throw e;
+        }
+      }
+    }
+    return results;
+  },
   listMaddenEaImportJobs: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>("/v1/import/madden/ea/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>

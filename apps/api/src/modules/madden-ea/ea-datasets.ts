@@ -171,6 +171,39 @@ export function toIngestEnvelope(input: {
     if (dataset === "rosters" && input.teamId !== undefined && enriched.teamId === undefined) {
       enriched.teamId = input.teamId;
     }
+    // EA schedule exports use different field names than the companion adapter expects.
+    // Normalize so applySchedule finds homeScore/awayScore/isGamePlayed/status correctly.
+    if (dataset === "schedule") {
+      if (enriched.home_team_id === undefined && enriched.homeTeamId !== undefined) {
+        enriched.home_team_id = enriched.homeTeamId;
+      }
+      if (enriched.away_team_id === undefined && enriched.awayTeamId !== undefined) {
+        enriched.away_team_id = enriched.awayTeamId;
+      }
+      if (enriched.home_score === undefined && enriched.homeScore !== undefined) {
+        enriched.home_score = enriched.homeScore;
+      }
+      if (enriched.away_score === undefined && enriched.awayScore !== undefined) {
+        enriched.away_score = enriched.awayScore;
+      }
+      if (enriched.is_game_played === undefined && enriched.isGamePlayed === undefined) {
+        // EA status: 1=NOT_PLAYED, 2=AWAY_WIN, 3=HOME_WIN, 4=TIE
+        // The adapter checks isGamePlayed first, then status > 1, then both scores non-null.
+        // Map EA's status enum so the adapter's status > 1 check works for completed games.
+        const eaStatus = typeof enriched.status === "number" ? enriched.status : null;
+        if (eaStatus !== null) {
+          enriched.gameStatus = eaStatus;
+          // Only set isGamePlayed for clearly completed games (status 2/3/4).
+          // For NOT_PLAYED (1), leave it absent — the adapter's status > 1 check handles it.
+          if (eaStatus > 1) enriched.isGamePlayed = true;
+        }
+      }
+      // EA sends scheduleId but the adapter expects external_game_id for upsert matching.
+      if (enriched.external_game_id === undefined) {
+        const scheduleId = enriched.scheduleId ?? enriched.schedule_id;
+        if (scheduleId != null) enriched.external_game_id = String(scheduleId);
+      }
+    }
     return enriched;
   });
 

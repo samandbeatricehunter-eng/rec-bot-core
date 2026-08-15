@@ -9,12 +9,14 @@ import {
   disconnectEaConnection,
   getEaConnectionStatus,
   importEaDatasets,
+  importEaDatasetsWithProgress,
   listEaImportJobs,
   listEaLeagues,
   selectEaPersona,
   submitEaCode,
   updateEaConnectionSettings,
   type EaDataset,
+  type EaImportProgressEvent,
 } from "./ea-connections.service.js";
 import { EA_DATASETS } from "./ea-datasets.js";
 import { validateWeekRef } from "./ea-weeks.js";
@@ -139,6 +141,47 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }) });
     } catch (error) {
       return sendError(reply, error);
+    }
+  });
+
+  // SSE streaming variant of the import endpoint — emits real-time progress events
+  // as each dataset starts, completes, or fails. The frontend connects via fetch()
+  // with response.body.getReader() since EventSource only supports GET.
+  app.post("/v1/import/madden/ea/import-stream", async (request, reply) => {
+    let body: { guild_id: string; league_id: string; connection_id: string; datasets?: EaDataset[]; stage?: 0 | 1; week_index?: number; week_refs?: Array<{ stage: 0 | 1; week_index: number }> };
+    try {
+      body = z.object({
+        guild_id: z.string().min(1), league_id: z.string().uuid(), connection_id: z.string().uuid(),
+        datasets: z.array(datasetSchema).min(1).optional(),
+        stage: z.union([z.literal(0), z.literal(1)]).optional(),
+        week_index: z.number().int().min(0).max(22).optional(),
+        week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
+      }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    function sendEvent(event: EaImportProgressEvent) {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+
+    try {
+      if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
+      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+      await importEaDatasetsWithProgress(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }, sendEvent);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      sendEvent({ type: "error", error: message });
+    } finally {
+      reply.raw.end();
     }
   });
 

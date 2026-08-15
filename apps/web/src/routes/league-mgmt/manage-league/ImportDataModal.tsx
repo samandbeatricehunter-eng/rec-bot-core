@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportResult } from "../../../lib/rec-api-client.js";
+import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../lib/rec-api-client.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -74,6 +74,8 @@ export function ImportDataModal({
   const [franchises, setFranchises] = useState<EaFranchise[] | null>(null);
   const [importResults, setImportResults] = useState<EaImportResult[] | null>(null);
   const [jobs, setJobs] = useState<Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> | null>(null);
+  const [importProgress, setImportProgress] = useState<EaImportProgressEvent[]>([]);
+  const [leagueName, setLeagueName] = useState<string | null>(null);
 
   async function loadStatus() {
     if (!guildId || !leagueId) {
@@ -200,7 +202,7 @@ export function ImportDataModal({
 
   async function runImport() {
     if (!connection) return;
-    setBusy(true); setBusyLabel("Pulling data from EA…"); setError(null); setImportResults(null);
+    setBusy(true); setBusyLabel("Connecting to EA…"); setError(null); setImportResults(null); setImportProgress([]);
     try {
       const weekRefs =
         weekMode === "current" ? undefined
@@ -211,15 +213,21 @@ export function ImportDataModal({
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }))
             : PRESEASON_DISPLAY_WEEKS.filter((w) => w >= Math.min(spanFrom, spanTo) && w <= Math.max(spanFrom, spanTo))
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }));
-      const result = await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs });
-      setImportResults(result.imports);
-      setNotice(result.imports.length ? "Import finished." : "Nothing to import with the selected datasets.");
+      const result = await recApi.importMaddenEaDatasetsStream(
+        { guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs },
+        (event) => {
+          setImportProgress((prev) => [...prev, event]);
+          if (event.type === "dataset_start") setBusyLabel(`Importing ${event.label}…`);
+          if (event.type === "reconciling") setBusyLabel(event.step);
+        },
+      );
+      setImportResults(result);
+      setNotice(result.length ? "Import finished." : "Nothing to import with the selected datasets.");
       const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
       setJobs(jobsResult.jobs);
+      showImportNotification(result);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Failed to import data from EA.";
-      // NetworkError means the platform proxy killed the connection before EA finished.
-      // The backend keeps processing — poll for the result instead of showing a hard error.
       const isNetworkError = cause instanceof TypeError && message.toLowerCase().includes("network");
       if (isNetworkError) {
         setBusyLabel("Import running in background — checking for results…");
@@ -234,6 +242,24 @@ export function ImportDataModal({
       }
     }
     finally { setBusy(false); setBusyLabel(null); }
+  }
+
+  function showImportNotification(results: EaImportResult[]) {
+    const succeeded = results.filter((r) => r.recordsStored > 0);
+    const leagueLabel = connection?.eaLeagueName ?? "your league";
+    const summary = succeeded.map((r) => `${r.label}: ${r.recordsStored} records`).join("\n");
+    const body = succeeded.length
+      ? `EA import for ${leagueLabel} completed.\n${summary}`
+      : `EA import for ${leagueLabel} completed with no new data.`;
+    try {
+      if (Notification.permission === "granted") {
+        new Notification("EA Import Complete", { body: summary || "No new data.", tag: `ea-import-${leagueId}` });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((perm) => {
+          if (perm === "granted") new Notification("EA Import Complete", { body: summary || "No new data.", tag: `ea-import-${leagueId}` });
+        });
+      }
+    } catch { /* Notification API not available */ }
   }
 
   /** Poll the jobs list every 5 seconds for up to 3 minutes waiting for a new import job. */
@@ -462,10 +488,28 @@ export function ImportDataModal({
                         {busy && busyLabel === "Saving settings…" ? "Saving…" : "Save Settings"}
                       </Button>
                       <Button disabled={busy || !selectedDatasets.length} onClick={() => void runImport()}>
-                        {busy && busyLabel === "Pulling data from EA…" ? "Importing…" : "Import Now"}
+                        {busy ? (busyLabel ?? "Importing…") : "Import Now"}
                       </Button>
                     </div>
                   </Card>
+
+                  {importProgress.length > 0 && (
+                    <Card style={{ padding: "var(--space-3)" }}>
+                      <h4 style={{ margin: "0 0 var(--space-2)", fontSize: "var(--text-sm)" }}>Import Progress</h4>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        {importProgress.map((event, i) => {
+                          if (event.type === "starting") return <ProgressLine key={i} icon="⏳" text={`Starting import — ${event.datasets.join(", ")}`} />;
+                          if (event.type === "dataset_start") return <ProgressLine key={i} icon="⏳" text={`${event.label} — fetching…`} />;
+                          if (event.type === "dataset_done") return <ProgressLine key={i} icon="✅" text={`${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (no changes)" : ""}`} />;
+                          if (event.type === "dataset_error") return <ProgressLine key={i} icon="❌" text={`${event.label} — ${event.error}`} isError />;
+                          if (event.type === "reconciling") return <ProgressLine key={i} icon="⏳" text={event.step} />;
+                          if (event.type === "done") return <ProgressLine key={i} icon="✅" text="Import complete!" />;
+                          if (event.type === "error") return <ProgressLine key={i} icon="❌" text={event.error} isError />;
+                          return null;
+                        })}
+                      </div>
+                    </Card>
+                  )}
 
                   {importResults && (
                     <Card>
@@ -538,5 +582,14 @@ export function ImportDataModal({
         </>
       )}
     </Modal>
+  );
+}
+
+function ProgressLine({ icon, text, isError }: { icon: string; text: string; isError?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", fontSize: "var(--text-sm)", color: isError ? "var(--error)" : "var(--text-secondary)" }}>
+      <span style={{ flexShrink: 0 }}>{icon}</span>
+      <span style={{ wordBreak: "break-word" }}>{text}</span>
+    </div>
   );
 }
