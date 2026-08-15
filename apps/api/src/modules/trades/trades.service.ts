@@ -365,18 +365,36 @@ async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, gu
   }
   await supabase.from("rec_trades").update({ status: "pending_review", accepted_at: now, updated_at: now }).eq("id", tradeId);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "accepted", previous_status: "pending_response", next_status: "pending_review" });
-  const snapshotRow = await supabase.from("rec_trades").select("value_snapshot").eq("id", tradeId).maybeSingle();
+  const [snapshotRow, tradeRow] = await Promise.all([
+    supabase.from("rec_trades").select("value_snapshot").eq("id", tradeId).maybeSingle(),
+    supabase.from("rec_trades").select("proposing_team_id,receiving_team_id").eq("id", tradeId).maybeSingle(),
+  ]);
   const snapshot = snapshotRow.data?.value_snapshot as TradeEvaluatorReport | null | undefined;
+  const [proposingTeamName, receivingTeamName] = await Promise.all([
+    teamLabel(leagueId, tradeRow.data?.proposing_team_id ?? ""),
+    teamLabel(leagueId, tradeRow.data?.receiving_team_id ?? ""),
+  ]);
+  // The inbox card is the commissioner's first (often only) look at the trade — spell out
+  // both teams, every asset each side sends, and the evaluator verdict with its totals.
+  const assetLine = (assets: TradeAssetDisplay[] | undefined) =>
+    assets?.length ? assets.map((asset) => asset.label).join(", ") : "no players or picks";
   const verdictLine = snapshot
     ? snapshot.verdict === "balanced"
-      ? `Estimated fair value (within ${Math.abs(snapshot.deltaPct)}%).`
-      : `Estimated value favors ${snapshot.verdict === "favors_proposing" ? "the proposing" : "the receiving"} team by ~${Math.abs(snapshot.deltaPct)}%.`
+      ? `Evaluator: estimated fair value (within ${Math.abs(snapshot.deltaPct)}%) — ${proposingTeamName} ${snapshot.proposing.needAdjustedTotal} vs ${receivingTeamName} ${snapshot.receiving.needAdjustedTotal}.`
+      : `Evaluator: favors ${snapshot.verdict === "favors_proposing" ? proposingTeamName : receivingTeamName} by ~${Math.abs(snapshot.deltaPct)}% — ${proposingTeamName} ${snapshot.proposing.needAdjustedTotal} vs ${receivingTeamName} ${snapshot.receiving.needAdjustedTotal}.`
     : null;
+  const summary = [
+    `Accepted by both teams, awaiting review.`,
+    `${proposingTeamName} sends: ${assetLine(snapshot?.proposingAssets)}.`,
+    `${receivingTeamName} sends: ${assetLine(snapshot?.receivingAssets)}.`,
+    verdictLine,
+  ].filter(Boolean).join("\n");
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: guildId, league_id: leagueId, queue_type: "trade", status: "pending", priority: 0,
-    header: "Trade pending review",
-    summary: ["A trade has been accepted by both teams and needs review.", verdictLine].filter(Boolean).join(" "),
-    source_table: "rec_trades", source_id: tradeId, payload: { tradeId, approvalPolicy, valueSnapshot: snapshot ?? null },
+    header: `Trade pending review — ${proposingTeamName} ⇄ ${receivingTeamName}`,
+    summary,
+    source_table: "rec_trades", source_id: tradeId,
+    payload: { tradeId, approvalPolicy, proposingTeam: proposingTeamName, receivingTeam: receivingTeamName, valueSnapshot: snapshot ?? null },
   });
   void notifyLeagueCommissionersOfPendingItem(leagueId);
   return { status: "pending_review" };

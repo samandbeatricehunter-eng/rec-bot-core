@@ -23,13 +23,62 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
   custom_player: "Custom Player",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
-  matchup_issue_report: "Matchup Issue",
+  matchup_issue_report: "Matchup Issue", trade: "Trade",
 };
 const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
 // EOS Payout and Stream get their own tab regardless of whether anything is pending right
 // now, since they're recurring commissioner workflows worth always being able to find —
 // unlike the other types, which only earn a pill when something's actually waiting.
 const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "stream"];
+
+// Trade cards render a structured breakdown (teams, assets, evaluator verdict) from the
+// inbox payload — the same value snapshot the trade was evaluated with. Works for rows
+// written before the summary was enriched, since the payload always carried the snapshot.
+type TradeAsset = { label: string };
+type TradeValueSnapshot = {
+  proposingAssets?: TradeAsset[];
+  receivingAssets?: TradeAsset[];
+  verdict?: "balanced" | "favors_proposing" | "favors_receiving";
+  deltaPct?: number;
+  proposing?: { needAdjustedTotal?: number };
+  receiving?: { needAdjustedTotal?: number };
+};
+
+function TradeDetail({ payload, fallbackTeams }: { payload: CommissionerNotification["payload"]; fallbackTeams: { proposing?: unknown; receiving?: unknown } }) {
+  const snapshot = (payload as { valueSnapshot?: TradeValueSnapshot } | null)?.valueSnapshot ?? null;
+  const proposingTeam = typeof fallbackTeams.proposing === "string" ? fallbackTeams.proposing : null;
+  const receivingTeam = typeof fallbackTeams.receiving === "string" ? fallbackTeams.receiving : null;
+  if (!snapshot && !proposingTeam && !receivingTeam) return null;
+  const assetLine = (assets?: TradeAsset[]) =>
+    assets?.length ? assets.map((asset) => asset.label).join(", ") : "no players or picks";
+  const verdict =
+    snapshot?.verdict === "balanced"
+      ? `Estimated fair value (within ${Math.abs(snapshot.deltaPct ?? 0)}%)`
+      : snapshot?.verdict
+        ? `Favors ${snapshot.verdict === "favors_proposing" ? proposingTeam ?? "the proposing team" : receivingTeam ?? "the receiving team"} by ~${Math.abs(snapshot.deltaPct ?? 0)}%`
+        : null;
+  return (
+    <div style={{ marginTop: "var(--space-2)", display: "flex", flexDirection: "column", gap: "2px", fontSize: "var(--text-sm)" }}>
+      {proposingTeam && receivingTeam && (
+        <div><strong>{proposingTeam}</strong> ⇄ <strong>{receivingTeam}</strong></div>
+      )}
+      {snapshot && (
+        <>
+          <div>{proposingTeam ?? "Proposing team"} sends: {assetLine(snapshot.proposingAssets)}</div>
+          <div>{receivingTeam ?? "Receiving team"} sends: {assetLine(snapshot.receivingAssets)}</div>
+          {(verdict || snapshot.proposing?.needAdjustedTotal != null) && (
+            <div style={{ color: "var(--text-secondary)" }}>
+              Evaluator: {verdict}
+              {snapshot.proposing?.needAdjustedTotal != null && snapshot.receiving?.needAdjustedTotal != null
+                ? ` — ${snapshot.proposing.needAdjustedTotal} vs ${snapshot.receiving.needAdjustedTotal} need-adjusted value`
+                : ""}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 // The guts of the commissioner pending-items workflow (category filters, list, review
 // modals) — extracted so it can be embedded both as its own League Mgmt page
@@ -117,6 +166,12 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
                 <div className="pending-item-card-copy">
                   <div className="pending-item-card-heading"><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span className="pending-item-card-title">{notification.title}</span></div>
                   <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
+                  {notification.type === "trade" && (
+                    <TradeDetail
+                      payload={notification.payload}
+                      fallbackTeams={{ proposing: (notification.payload as Record<string, unknown> | null)?.proposingTeam, receiving: (notification.payload as Record<string, unknown> | null)?.receivingTeam }}
+                    />
+                  )}
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>
                 {notification.amount != null && <span className="pending-item-card-amount"><CoinAmount amount={notification.amount} /></span>}
