@@ -535,19 +535,23 @@ export async function importEaDatasetsWithProgress(
   }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
-  // Keep the Blaze session alive before each request. If the session dies, recreate it
-  // (with token refresh if needed) and retry. Single retry — if it still fails, let it throw.
+  // Keep the Blaze session alive. Sends a single keepalive ping, then runs the operation.
+  // If the session dies, recreates it (with token refresh if needed) and retries once.
   let activeSession = session;
+  let lastKeepAlive = 0;
   const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
-    // Send a keepalive ping to prevent EA from killing the session between requests
-    const keepAliveClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
-    try {
-      await keepAliveClient.keepAlive();
-    } catch {
-      // Session already dead — recreate below before the real request
+    const now = Date.now();
+    // Keepalive at most once per 30 seconds to avoid hammering EA
+    if (now - lastKeepAlive > 30_000) {
+      lastKeepAlive = now;
+      try {
+        const ka = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
+        await ka.keepAlive();
+      } catch { /* session dead — will recreate below if needed */ }
     }
     try {
-      return await operation(keepAliveClient);
+      const opClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
+      return await operation(opClient);
     } catch (error) {
       const isSessionError = error instanceof BlazeSessionError;
       const isAuthError = error instanceof EaAuthError;
@@ -557,7 +561,6 @@ export async function importEaDatasetsWithProgress(
       try {
         activeSession = await createBlazeSession(token.accessToken, token.console);
       } catch {
-        // Token might be stale too — refresh first
         const { refreshEaToken } = await import("./ea-client.js");
         const refreshed = await refreshEaToken(token.refreshToken);
         const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
@@ -568,6 +571,7 @@ export async function importEaDatasetsWithProgress(
         activeSession = await createBlazeSession(refreshed.accessToken, token.console);
       }
       await persistSession(row.id, activeSession);
+      lastKeepAlive = Date.now();
       const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
       return await operation(freshClient);
     }
@@ -625,7 +629,10 @@ export async function importEaDatasetsWithProgress(
   onProgress({ type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
+    const t0 = Date.now();
+    console.log(`[EA] Fetching ${dataset} week ${week.weekIndex}...`);
     const raw = await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
+    console.log(`[EA] Fetched ${dataset} week ${week.weekIndex} in ${Date.now() - t0}ms`);
     const envelope = toIngestEnvelope({
       dataset,
       raw,

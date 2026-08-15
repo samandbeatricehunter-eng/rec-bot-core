@@ -164,6 +164,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
 
+    // Hijack the reply so Fastify doesn't buffer our SSE stream
+    reply.hijack();
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
