@@ -100,7 +100,11 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       .map(([conference, teams]) => {
         const byDivision = new Map<string, TeamManagementSummaryRow[]>();
         for (const team of teams) {
-          const div = team.division && team.division.trim() ? team.division : "Other";
+          // Normalize division: strip conference prefix if present (e.g. "AFC West" -> "West")
+          let div = team.division && team.division.trim() ? team.division : "Other";
+          const confPrefix = conference.toUpperCase() + " ";
+          if (div.toUpperCase().startsWith(confPrefix)) div = div.slice(confPrefix.length).trim();
+          if (!div) div = "Other";
           const list = byDivision.get(div) ?? [];
           list.push(team);
           byDivision.set(div, list);
@@ -216,9 +220,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                 <div
                   style={{
                     display: "grid",
-                    // 4 division cards per conference in a 2x2 grid; conferences without
-                    // divisions (CFB) fall back to evenly filling cards.
-                    gridTemplateColumns: groups.length === 4 ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fill, minmax(300px, 1fr))",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                     gap: "var(--space-3)",
                   }}
                 >

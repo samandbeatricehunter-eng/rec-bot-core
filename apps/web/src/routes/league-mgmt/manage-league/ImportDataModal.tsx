@@ -533,12 +533,20 @@ export function ImportDataModal({
                     </Card>
                   )}
 
-                  <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                  <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)", flexWrap: "wrap" }}>
                     <Button variant="secondary" disabled={busy} onClick={() => {
-                      if (!window.confirm("Reset roster? This removes all current players (except custom builds) so the next EA import becomes the only source of truth. This cannot be undone.")) return;
+                      if (!window.confirm("Reset roster? This removes all players without an EA ID so the next import repopulates from EA.")) return;
                       recApi.wipeBaselineRoster({ guildId, leagueId }).then((r) => setNotice(`Wiped ${r.wiped} players. Run an import now to repopulate from EA.`)).catch((e) => setError(e instanceof Error ? e.message : "Failed to wipe roster."));
                     }}>
                       Reset Roster from EA
+                    </Button>
+                    <Button variant="secondary" disabled={busy} onClick={() => {
+                      setBusy(true); setBusyLabel("Backfilling scores…");
+                      recApi.backfillEaScores({ guildId, leagueId }).then(() => {
+                        setNotice("Scores backfilled. Refresh the page to see them in Advance Readiness.");
+                      }).catch((e) => setError(e instanceof Error ? e.message : "Failed to backfill scores.")).finally(() => { setBusy(false); setBusyLabel(null); });
+                    }}>
+                      Backfill Scores
                     </Button>
                     <Button variant="danger" disabled={busy} onClick={() => void disconnect()}>
                       {busy && busyLabel === "Disconnecting…" ? "Disconnecting…" : "Disconnect from EA"}

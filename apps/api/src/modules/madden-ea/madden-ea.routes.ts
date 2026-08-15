@@ -222,4 +222,18 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
   });
+
+  // Backfill: sync existing imported scores from rec_games into rec_game_results
+  // so advance readiness picks them up without re-importing.
+  app.post("/v1/import/madden/ea/backfill-scores", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      const { syncCompanionScheduleResultsIntoGameResults } = await import("../madden-companion/madden-companion.service.js");
+      await syncCompanionScheduleResultsIntoGameResults(body.league_id);
+      return reply.send({ ok: true });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
 }

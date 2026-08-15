@@ -292,6 +292,8 @@ export const recApi = {
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/disconnect", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
   wipeBaselineRoster: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ ok: boolean; wiped: number }>("/v1/import/madden/ea/wipe-roster", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  backfillEaScores: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/backfill-scores", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   sendLeagueReport: (input: { guildId: string; message: string }) =>
     recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),
