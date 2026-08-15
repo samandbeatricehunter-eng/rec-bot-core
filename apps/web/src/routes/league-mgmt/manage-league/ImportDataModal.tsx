@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportResult } from "../../../lib/rec-api-client.js";
+import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportResult } from "../../../lib/rec-api-client.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -29,11 +29,17 @@ export function ImportDataModal({
   guildId,
   leagueId,
   onClose,
+  onManualEntry,
 }: {
   guildId: string;
   leagueId: string;
   onClose: () => void;
+  onManualEntry: () => void;
 }) {
+  const [mode, setMode] = useState<"choose" | "ea" | "companion">("choose");
+  const [companion, setCompanion] = useState<{ url: string; connectionId: string } | null>(null);
+  const [companionBusy, setCompanionBusy] = useState(false);
+  const [companionError, setCompanionError] = useState<string | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [connection, setConnection] = useState<EaConnection | null>(null);
   const [datasets, setDatasets] = useState<EaDataset[]>([]);
@@ -195,8 +201,70 @@ export function ImportDataModal({
     finally { setBusy(false); setBusyLabel(null); }
   }
 
+  async function generateCompanionUrl() {
+    setCompanionBusy(true);
+    setCompanionError(null);
+    try {
+      const existing = await recApi.getMaddenCompanionConnections({ guildId, leagueId }).catch(() => ({ connections: [] as Array<{ id: string; status: string }> }));
+      const active = existing.connections.find((c) => c.status === "active");
+      const result = active
+        ? await recApi.rotateMaddenCompanionConnection({ guildId, leagueId, connectionId: active.id })
+        : await recApi.createMaddenCompanionConnection({ guildId, leagueId });
+      setCompanion({ url: `${apiBaseUrl()}${result.import_path}`, connectionId: active?.id ?? "" });
+    } catch (cause) {
+      setCompanionError(cause instanceof Error ? cause.message : "Failed to generate the Companion URL.");
+    } finally {
+      setCompanionBusy(false);
+    }
+  }
+
+  if (mode === "choose") {
+    return (
+      <Modal title="Import Data" onClose={onClose}>
+        <p className="form-hint">Choose how to get this league's data into REC.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <Button variant="secondary" onClick={() => setMode("ea")}>Import via EA OAuth</Button>
+          <p className="form-hint" style={{ margin: "-6px 0 0" }}>Link your EA account and pull rosters, scores, and stats straight from the game.</p>
+          <Button variant="secondary" onClick={() => { setMode("companion"); void generateCompanionUrl(); }}>Import via Companion App</Button>
+          <p className="form-hint" style={{ margin: "-6px 0 0" }}>Generate this league's unique URL to enter in the Madden Companion App for exports.</p>
+          <Button variant="secondary" onClick={onManualEntry}>Input Data Manually</Button>
+          <p className="form-hint" style={{ margin: "-6px 0 0" }}>Type in box scores, results, and player stat lines yourself — opens the manual entry page.</p>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (mode === "companion") {
+    return (
+      <Modal title="Import via Companion App" onClose={onClose}>
+        {companionError && <ErrorState message={companionError} />}
+        {companionBusy && <LoadingState label="Generating league URL…" />}
+        {companion && (
+          <>
+            <p><strong>Copy this now.</strong> The same URL accepts full exports or any supported subset. For security it's shown only after generation; rotating immediately disables the old URL.</p>
+            <div className="form-field">
+              <label className="form-label" htmlFor="companion-import-url-modal">League Companion import URL</label>
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                <input id="companion-import-url-modal" className="form-input" readOnly value={companion.url} />
+                <Button variant="secondary" size="compact" onClick={() => void navigator.clipboard.writeText(companion.url)}>Copy</Button>
+              </div>
+            </div>
+            <p className="form-hint">Enter this URL in the Madden Companion App under League Settings → Export, then export from the app after each advance.</p>
+          </>
+        )}
+        <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+          <Button variant="ghost" onClick={() => setMode("choose")}>Back</Button>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
-    <Modal title="Import Data" onClose={onClose}>
+    <Modal title="Import via EA OAuth" onClose={onClose}>
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <Button variant="ghost" size="compact" onClick={() => setMode("choose")}>← All import options</Button>
+      </div>
       {loading && <LoadingState label="Checking EA connection…" />}
       {!loading && loadError && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>

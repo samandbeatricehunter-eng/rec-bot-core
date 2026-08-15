@@ -11,11 +11,7 @@ import { Button } from "../ui/Button.js";
 import { LoadingState } from "../ui/LoadingState.js";
 import { ErrorState } from "../ui/ErrorState.js";
 import { Modal } from "../ui/Modal.js";
-import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
-import { ReviewBoxScoreModal } from "../box-score/ReviewBoxScoreModal.js";
-import { HighlightUploadModal } from "../hub/HighlightUploadModal.js";
 import { ManageLeagueHome } from "../../routes/league-mgmt/manage-league/ManageLeagueHome.js";
-import { PendingItemsPanel } from "../../routes/league-mgmt/notifications/PendingItemsPanel.js";
 
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
@@ -117,8 +113,7 @@ export function CollapsibleSection({
 // surface area once this section already fronts the weekly workflow directly). That page and
 // its "Advance" League Actions button are gone; this is now the only place to advance a week.
 function AdvanceReadinessSection() {
-  const { guildId, discordId } = useReadyAuth();
-  const { game } = useLeagueTheme();
+  const { guildId } = useReadyAuth();
   const [data, setData] = useState<AdvanceWeekGames | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, GameEntry>>({});
@@ -126,16 +121,11 @@ function AdvanceReadinessSection() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceDate, setAdvanceDate] = useState<AdvanceTimeDraft>(() => blankAdvanceDate());
-  const [boxScoreGame, setBoxScoreGame] = useState<AdvanceGame | null>(null);
-  const [reviewBoxScoreId, setReviewBoxScoreId] = useState<string | null>(null);
-  const [highlightGame, setHighlightGame] = useState<AdvanceGame | null>(null);
   const [nextGotwCandidates, setNextGotwCandidates] = useState<GotwCandidate[] | null>(null);
   const [nextGotwGameId, setNextGotwGameId] = useState("");
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [notifyBusyGameId, setNotifyBusyGameId] = useState<string | null>(null);
   const [notifyPrompt, setNotifyPrompt] = useState<{ gameId: string; target: "home" | "away" | "both" } | null>(null);
-  const [companionStatus, setCompanionStatus] = useState<{ connected: boolean; gamesTotal: number; gamesImported: number; ready: boolean } | null>(null);
-  const isMadden = Boolean(game?.startsWith("madden_"));
 
   function load() {
     recApi
@@ -147,13 +137,6 @@ function AdvanceReadinessSection() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load this week's games."));
   }
   useEffect(load, [guildId]);
-
-  useEffect(() => {
-    if (!isMadden || !data?.league.id || !data.currentWeek) { setCompanionStatus(null); return; }
-    recApi.getMaddenCompanionWeekStatus({ guildId, leagueId: data.league.id, weekNumber: data.currentWeek })
-      .then(setCompanionStatus)
-      .catch(() => setCompanionStatus(null));
-  }, [guildId, isMadden, data?.league.id, data?.currentWeek]);
 
   const emptyEntry: GameEntry = { awayScore: "", homeScore: "" };
   function setEntry(gameId: string, patch: Partial<GameEntry>) {
@@ -272,24 +255,6 @@ function AdvanceReadinessSection() {
       {notice && <p className="advance-notice">{notice}</p>}
       {error && <ErrorState message={error} />}
 
-      {isMadden && (
-        <div className={`advance-companion-status${companionStatus?.ready ? " is-ready" : ""}`}>
-          <div>
-            <strong>
-              {!companionStatus?.connected
-                ? "Madden Companion not connected"
-                : companionStatus.ready
-                  ? "DATA IMPORTED, ADVANCE READY"
-                  : companionStatus.gamesTotal > 0
-                    ? `DATA NOT IMPORTED, LOG SCORES OR IMPORT TO ADVANCE (${companionStatus.gamesImported}/${companionStatus.gamesTotal} imported)`
-                    : "No games scheduled this week yet"}
-            </strong>
-            {!companionStatus?.connected && <span className="form-hint">Generate this league's import URL to have scores populate here automatically as you sim games.</span>}
-          </div>
-          <Link className="btn btn-secondary" to="../settings?category=integrations">{companionStatus?.connected ? "Manage Import" : "Set Up Companion Import"}</Link>
-        </div>
-      )}
-
       <div className="advance-game-list">
         {data.games.map((g) => {
           const entry = entries[g.gameId];
@@ -319,8 +284,6 @@ function AdvanceReadinessSection() {
                 </div>
               )}
               <div className="advance-game-actions">
-                <Button variant="secondary" onClick={() => setBoxScoreGame(g)}>Submit Box Score</Button>
-                <Button variant="ghost" onClick={() => setHighlightGame(g)}>Upload Highlight</Button>
                 {g.needsInput && g.isH2h && (
                   <>
                     <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "home" })}>Notify Home</Button>
@@ -439,42 +402,6 @@ function AdvanceReadinessSection() {
           </div>
         </Modal>
       )}
-      {boxScoreGame && (
-        <UploadBoxScoreModal
-          guildId={guildId}
-          discordId={discordId}
-          weekNumber={boxScoreGame.weekNumber}
-          seasonNumber={data.seasonNumber}
-          gameId={boxScoreGame.gameId}
-          commissionerSubmission
-          onClose={() => setBoxScoreGame(null)}
-          onSubmitted={(submissionId) => {
-            setBoxScoreGame(null);
-            setReviewBoxScoreId(submissionId);
-          }}
-        />
-      )}
-      {reviewBoxScoreId && (
-        <ReviewBoxScoreModal
-          submissionId={reviewBoxScoreId}
-          onClose={() => setReviewBoxScoreId(null)}
-          onResolved={() => {
-            setReviewBoxScoreId(null);
-            load();
-          }}
-        />
-      )}
-      {highlightGame && (
-        <HighlightUploadModal
-          guildId={guildId}
-          gameId={highlightGame.gameId}
-          onClose={() => setHighlightGame(null)}
-          onSubmitted={() => {
-            setHighlightGame(null);
-            setNotice("Highlight uploaded and queued for the league reel.");
-          }}
-        />
-      )}
     </Card>
   );
 }
@@ -507,16 +434,14 @@ function ManageLeagueSection() {
 }
 
 // Urgency-ordered Commissioner Command Center dashboard:
-// Advance Readiness → Manage League (collapsible) → Awaiting Review
+// Advance Readiness → Manage League (collapsible)
+// The old "Awaiting Review" panel moved to the Pending Items button in Manage League's
+// header (it routes to /league-mgmt/notifications, which hosts the same panel).
 export function CommandCenterDashboard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
       <AdvanceReadinessSection />
       <ManageLeagueSection />
-      <Card>
-        <SectionHeading>Awaiting Review</SectionHeading>
-        <PendingItemsPanel />
-      </Card>
     </div>
   );
 }

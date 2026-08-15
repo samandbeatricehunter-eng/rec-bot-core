@@ -15,6 +15,7 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 import { ImportDataModal } from "./ImportDataModal.js";
+import { ManualEntryPage } from "./ManualEntryPage.js";
 import { TroubleshootModal } from "./TroubleshootModal.js";
 import { ReportIssueModal } from "./ReportIssueModal.js";
 import { TeamDropdown } from "./TeamDropdown.js";
@@ -47,6 +48,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importDataOpen, setImportDataOpen] = useState(false);
+  const [manualEntry, setManualEntry] = useState(false);
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -105,6 +107,11 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         return { conference, groups: byDivision };
       });
   }, [filtered]);
+
+  // Manual entry replaces the division-card view until the user navigates back.
+  if (manualEntry && summary) {
+    return <ManualEntryPage summary={summary} onBack={() => setManualEntry(false)} />;
+  }
 
   return (
     <div>
@@ -293,7 +300,15 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         </>
       )}
       {importDataOpen && summary && (
-        <ImportDataModal guildId={guildId} leagueId={summary.league.id} onClose={() => setImportDataOpen(false)} />
+        <ImportDataModal
+          guildId={guildId}
+          leagueId={summary.league.id}
+          onClose={() => setImportDataOpen(false)}
+          onManualEntry={() => {
+            setImportDataOpen(false);
+            setManualEntry(true);
+          }}
+        />
       )}
       {troubleshootOpen && (
         <TroubleshootModal guildId={guildId} onClose={() => setTroubleshootOpen(false)} />

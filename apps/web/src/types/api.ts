@@ -233,7 +233,8 @@ export type CommissionerNotificationType =
   | "custom_player"
   | "force_win_request"
   | "autopilot_request"
-  | "matchup_issue_report";
+  | "matchup_issue_report"
+  | "trade";
 
 export type CommissionerNotification = {
   id: string;
