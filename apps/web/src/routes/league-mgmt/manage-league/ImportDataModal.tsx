@@ -542,15 +542,19 @@ export function ImportDataModal({
                     </Button>
                     <Button variant="secondary" disabled={busy} onClick={() => {
                       setBusy(true); setBusyLabel("Backfilling scores…");
-                      recApi.backfillEaScores({ guildId, leagueId }).then((r) => {
-                        const g = (r as any).games;
-                        const res = (r as any).results;
+                      recApi.backfillEaScores({ guildId, leagueId }).then((r: any) => {
+                        const g = r.games;
+                        const res = r.results;
+                        const sample = r.sampleGames ?? [];
                         if (g) {
-                          setNotice(`Backfill complete. Games: ${g.total_games} total, ${g.companion_games} from EA, ${g.completed} completed, ${g.with_scores} with scores, ${g.ready} ready to sync. Results table: ${res?.total ?? 0} total, ${res?.companion_import ?? 0} from EA import.`);
+                          const sampleInfo = sample.length
+                            ? `\nLatest games: ${sample.map((s: any) => `${s.source}/${s.status} score=${s.home_score}-${s.away_score} teams=${s.home_team_id ?? 'null'}-${s.away_team_id ?? 'null'}`).join('; ')}`
+                            : '\nNo games found in rec_games.';
+                          setNotice(`Games: ${g.total_games} total, ${g.companion_games} EA, ${g.completed} completed, ${g.with_scores} w/scores, ${g.ready} ready. Results: ${res?.total ?? 0} total, ${res?.companion_import ?? 0} EA.${sampleInfo}`);
                         } else {
-                          setNotice("Scores backfilled. Refresh the page to see them in Advance Readiness.");
+                          setNotice("Backfill complete.");
                         }
-                      }).catch((e) => setError(e instanceof Error ? e.message : "Failed to backfill scores.")).finally(() => { setBusy(false); setBusyLabel(null); });
+                      }).catch((e: any) => setError(e instanceof Error ? e.message : "Failed to backfill scores.")).finally(() => { setBusy(false); setBusyLabel(null); });
                     }}>
                       Backfill Scores
                     </Button>

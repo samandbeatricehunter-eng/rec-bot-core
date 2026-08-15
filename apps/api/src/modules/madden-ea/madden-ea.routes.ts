@@ -224,16 +224,16 @@ export async function maddenEaRoutes(app: FastifyInstance) {
   });
 
   // Backfill: sync existing imported scores from rec_games into rec_game_results
-  // so advance readiness picks them up without re-importing.
+  // so advance readiness picks them up without re-importing. Returns diagnostic counts.
   app.post("/v1/import/madden/ea/backfill-scores", async (request, reply) => {
     try {
       const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
-      const { syncCompanionScheduleResultsIntoGameResults } = await import("../madden-companion/madden-companion.service.js");
-      await syncCompanionScheduleResultsIntoGameResults(body.league_id);
-      // Diagnostic: count games at each filter stage
       const { getPgPool } = await import("../../db/client.js");
-      const counts = await getPgPool().query(
+      const pool = getPgPool();
+
+      // Diagnostic: count games at each filter stage
+      const counts = await pool.query(
         `select
            count(*) filter (where source='madden_companion_export') as companion_games,
            count(*) filter (where source='madden_companion_export' and status='completed') as completed,
@@ -245,13 +245,26 @@ export async function maddenEaRoutes(app: FastifyInstance) {
          from rec_games where league_id=$1`,
         [body.league_id],
       );
-      // Also check rec_game_results
-      const resultsCount = await getPgPool().query(
+
+      // Sample some games to see what source/status they have
+      const sample = await pool.query(
+        `select id, source, status, home_score, away_score, home_team_id, away_team_id, external_game_id
+         from rec_games where league_id=$1 order by updated_at desc limit 5`,
+        [body.league_id],
+      );
+
+      // Run the sync
+      const { syncCompanionScheduleResultsIntoGameResults } = await import("../madden-companion/madden-companion.service.js");
+      await syncCompanionScheduleResultsIntoGameResults(body.league_id);
+
+      // Check results after sync
+      const resultsCount = await pool.query(
         `select count(*) as total, count(*) filter (where source='madden_companion_import') as companion_import
          from rec_game_results where league_id=$1`,
         [body.league_id],
       );
-      return reply.send({ ok: true, games: counts.rows[0], results: resultsCount.rows[0] });
+
+      return reply.send({ ok: true, games: counts.rows[0], results: resultsCount.rows[0], sampleGames: sample.rows });
     } catch (error) {
       return sendError(reply, error);
     }
