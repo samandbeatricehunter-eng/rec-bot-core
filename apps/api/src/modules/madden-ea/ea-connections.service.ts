@@ -505,8 +505,33 @@ export async function importEaDatasetsWithProgress(
   if (datasets.length === 0) throw new ApiError(422, "No datasets are enabled for import.");
 
   const token = await refreshedToken(row);
-  const session = await cachedSession(row) ?? await createBlazeSession(token.accessToken, token.console);
-  if (!cachedSession(row)) await persistSession(row.id, session);
+  // Create Blaze session with retry — ERR_SYSTEM often means a stale token, so force
+  // a token refresh and retry once before giving up.
+  let session: EaSessionCache;
+  const cached = await cachedSession(row);
+  if (cached) {
+    session = cached;
+  } else {
+    try {
+      session = await createBlazeSession(token.accessToken, token.console);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("ERR_SYSTEM") || message.includes("ERR_TIMEOUT")) {
+        console.warn("[EA] Blaze session creation failed, refreshing token and retrying:", message);
+        const { refreshEaToken } = await import("./ea-client.js");
+        const refreshed = await refreshEaToken(token.refreshToken);
+        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
+        await updateSealedToken(row.id, next);
+        token.accessToken = refreshed.accessToken;
+        token.refreshToken = refreshed.refreshToken;
+        token.expiresAt = refreshed.expiresAt;
+        session = await createBlazeSession(refreshed.accessToken, token.console);
+      } else {
+        throw error;
+      }
+    }
+    await persistSession(row.id, session);
+  }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
   const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
@@ -528,15 +553,32 @@ export async function importEaDatasetsWithProgress(
   const seasonInfo = info.careerHubInfo?.seasonInfo;
   const teamIdInfoList = info.teamIdInfoList ?? [];
 
+  // Build the list of weeks to import. When no explicit week is requested (the default),
+  // import ALL weeks up to and including the current week — not just the current week.
+  // EA's schedule/stats exports are per-week, so importing only the current week misses
+  // all previously played games' scores.
   const defaultWeekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
     ? { stageIndex: options.stage, weekIndex: options.weekIndex }
     : seasonInfo
       ? currentWeekFromSeasonInfo({ seasonWeek: seasonInfo.seasonWeek, seasonWeekType: seasonInfo.seasonWeekType })
       : { stageIndex: 1, weekIndex: 0 };
-  // An explicit week list drives weekly datasets; without one everything imports at the
-  // franchise's current (or explicitly chosen single) week. Deduplicated so a range that
-  // repeats a week never fetches it twice.
-  const weeklyRefs = [...(options.weekRefs ?? [defaultWeekRef])].reduce<EaWeekRef[]>((unique, ref) => {
+  // An explicit week list drives weekly datasets; without one, import ALL weeks up to and
+  // including the franchise's current week. This ensures previously played weeks' scores
+  // are captured — EA's schedule export is per-week, so only requesting the current week
+  // misses all completed games.
+  const weeklyRefs = [...(options.weekRefs ?? (() => {
+    const allWeeks: EaWeekRef[] = [];
+    if (defaultWeekRef.stageIndex === 0) {
+      // Preseason: import all preseason weeks up to current
+      for (let i = 0; i <= defaultWeekRef.weekIndex; i++) allWeeks.push({ stageIndex: 0, weekIndex: i });
+    } else {
+      // Regular season + playoffs: import all weeks 0 through current, skipping Pro Bowl
+      for (let i = 0; i <= defaultWeekRef.weekIndex; i++) {
+        if (i !== 21) allWeeks.push({ stageIndex: 1, weekIndex: i });
+      }
+    }
+    return allWeeks;
+  })())].reduce<EaWeekRef[]>((unique, ref) => {
     const key = `${ref.stageIndex}:${ref.weekIndex}`;
     if (!unique.some((existing) => `${existing.stageIndex}:${existing.weekIndex}` === key)) unique.push(ref);
     return unique;

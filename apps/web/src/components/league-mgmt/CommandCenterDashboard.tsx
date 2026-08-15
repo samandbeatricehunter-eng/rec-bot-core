@@ -114,6 +114,8 @@ export function CollapsibleSection({
 // its "Advance" League Actions button are gone; this is now the only place to advance a week.
 function AdvanceReadinessSection() {
   const { guildId } = useReadyAuth();
+  const { game } = useLeagueTheme();
+  const isMadden = game === "madden_26" || game === "madden_27";
   const [data, setData] = useState<AdvanceWeekGames | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, GameEntry>>({});
@@ -174,9 +176,14 @@ function AdvanceReadinessSection() {
       setError("Select the Game of the Week for the week you are advancing into.");
       return;
     }
-    const missing = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
+    const missing = data.gamesNeedingInput.filter((g) => {
+      if (isMadden) return !entryHasScores(entries[g.gameId]);
+      return involvesHuman(g) && !entryHasScores(entries[g.gameId]);
+    });
     if (missing.length) {
-      setError(`Enter a final score for all ${missing.length} remaining game${missing.length === 1 ? "" : "s"} involving a human before advancing.`);
+      setError(isMadden
+        ? `Enter a final score for all ${missing.length} remaining game${missing.length === 1 ? "" : "s"} before advancing.`
+        : `Enter a final score for all ${missing.length} remaining game${missing.length === 1 ? "" : "s"} involving a human before advancing.`);
       return;
     }
     setAdvancing(true);
@@ -239,15 +246,20 @@ function AdvanceReadinessSection() {
     }
   }
 
-  if (error && !data) return <Card><ErrorState message={error} /></Card>;
-  if (!data) return <Card><SectionHeading>Advance Readiness</SectionHeading><LoadingState /></Card>;
+  if (error && !data) return <ErrorState message={error} />;
+  if (!data) return <LoadingState />;
 
   const pollByGameId = new Map((gotwPolls ?? []).map((p) => [p.game_id, p]));
-  const missingScoreGames = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
+  // In Madden leagues, ALL games (including CPU vs CPU) must have scores before advancing.
+  // In CFB leagues, only human-involving games require scores.
+  const missingScoreGames = data.gamesNeedingInput.filter((g) => {
+    if (isMadden) return !entryHasScores(entries[g.gameId]);
+    return involvesHuman(g) && !entryHasScores(entries[g.gameId]);
+  });
   const readyToAdvance = missingScoreGames.length === 0;
 
   return (
-    <Card className="advance-card advance-card-primary">
+    <div className="advance-card advance-card-primary">
       <div className="advance-card-heading">
         <SectionHeading>Advance Readiness</SectionHeading>
         <Badge status={data.games.length ? "info" : "pending"}>{data.games.length ? `${data.games.length} game${data.games.length === 1 ? "" : "s"}` : "No games"}</Badge>
@@ -280,7 +292,7 @@ function AdvanceReadinessSection() {
                   </label>
                   {entryHasScores(entry)
                     ? <span className="advance-derived-outcome">{deriveOutcome(entry!.awayScore, entry!.homeScore) === "tie" ? "Tie" : `${deriveOutcome(entry!.awayScore, entry!.homeScore) === "away" ? g.awayTeamName : g.homeTeamName} win`}</span>
-                    : involvesHuman(g) && <span className="advance-score-required">Score required</span>}
+                    : (isMadden || involvesHuman(g)) && <span className="advance-score-required">Score required</span>}
                 </div>
               )}
               <div className="advance-game-actions">
@@ -302,7 +314,7 @@ function AdvanceReadinessSection() {
         <div>
           <span className="advance-eyebrow">Next Advance</span>
           <strong className={readyToAdvance ? "advance-ready-label" : "advance-not-ready-label"}>{data.nextLabel}</strong>
-          {!readyToAdvance && <span className="form-hint">{missingScoreGames.length} game{missingScoreGames.length === 1 ? "" : "s"} involving a human still need a final score.</span>}
+          {!readyToAdvance && <span className="form-hint">{missingScoreGames.length} game{missingScoreGames.length === 1 ? "" : "s"} still need{missingScoreGames.length === 1 ? "s" : ""} a final score{isMadden ? "" : " (involving a human)"}.</span>}
         </div>
         <Button variant="tactical" onClick={() => void openAdvanceReview()} disabled={advancing || !readyToAdvance}>
           Complete Advance
@@ -402,7 +414,7 @@ function AdvanceReadinessSection() {
           </div>
         </Modal>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -434,13 +446,15 @@ function ManageLeagueSection() {
 }
 
 // Urgency-ordered Commissioner Command Center dashboard:
-// Advance Readiness → Manage League (collapsible)
+// Advance Readiness (collapsible, collapsed by default) → Manage League (collapsible)
 // The old "Awaiting Review" panel moved to the Pending Items button in Manage League's
 // header (it routes to /league-mgmt/notifications, which hosts the same panel).
 export function CommandCenterDashboard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <AdvanceReadinessSection />
+      <CollapsibleSection title="Advance Readiness" defaultOpen={false} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>}>
+        <AdvanceReadinessSection />
+      </CollapsibleSection>
       <ManageLeagueSection />
     </div>
   );

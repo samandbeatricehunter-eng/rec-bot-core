@@ -154,6 +154,7 @@ export function toIngestEnvelope(input: {
       ? describeEaWeek(input.stage, input.weekIndex)
       : null;
 
+  let firstScheduleRow = true;
   const stamped = rows.map((row) => {
     const enriched: Json = { ...row, leagueId: String(eaLeagueId), seasonYear };
     if (week) {
@@ -174,6 +175,12 @@ export function toIngestEnvelope(input: {
     // EA schedule exports use different field names than the companion adapter expects.
     // Normalize so applySchedule finds homeScore/awayScore/isGamePlayed/status correctly.
     if (dataset === "schedule") {
+      // Debug: log first raw row to diagnose score field presence
+      if (firstScheduleRow) {
+        firstScheduleRow = false;
+        console.log("[EA] Raw schedule row keys:", Object.keys(row));
+        console.log("[EA] Raw schedule row sample:", JSON.stringify(row).slice(0, 500));
+      }
       if (enriched.home_team_id === undefined && enriched.homeTeamId !== undefined) {
         enriched.home_team_id = enriched.homeTeamId;
       }
@@ -202,6 +209,10 @@ export function toIngestEnvelope(input: {
       if (enriched.external_game_id === undefined) {
         const scheduleId = enriched.scheduleId ?? enriched.schedule_id;
         if (scheduleId != null) enriched.external_game_id = String(scheduleId);
+      }
+      // Debug: log enriched schedule row
+      if (!firstScheduleRow && rows.indexOf(row) < 2) {
+        console.log("[EA] Enriched schedule row:", JSON.stringify({ homeScore: enriched.homeScore, home_score: enriched.home_score, awayScore: enriched.awayScore, away_score: enriched.away_score, status: enriched.status, isGamePlayed: enriched.isGamePlayed, gameStatus: enriched.gameStatus, external_game_id: enriched.external_game_id }));
       }
     }
     return enriched;
