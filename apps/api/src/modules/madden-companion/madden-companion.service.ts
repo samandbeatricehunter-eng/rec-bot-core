@@ -297,6 +297,19 @@ export async function getCompanionConnectionStatus(leagueId: string) {
 // records_apply_key the manual/screenshot prelog paths use), called after any schedule import.
 export async function syncCompanionScheduleResultsIntoGameResults(leagueId: string): Promise<void> {
   const pool = getPgPool();
+  // Debug: count total games and completed games for this league
+  const debugCounts = await pool.query(
+    `select
+       count(*) filter (where source='madden_companion_export') as companion_games,
+       count(*) filter (where source='madden_companion_export' and status='completed') as completed_games,
+       count(*) filter (where source='madden_companion_export' and status='completed' and home_score is not null) as with_scores,
+       count(*) filter (where source='madden_companion_export' and status='completed' and home_score is not null and home_team_id is not null) as ready_to_sync
+     from rec_games where league_id=$1`,
+    [leagueId],
+  );
+  const counts = debugCounts.rows[0];
+  console.log(`[SYNC] Games for league ${leagueId}: companion=${counts?.companion_games}, completed=${counts?.completed_games}, with_scores=${counts?.with_scores}, ready=${counts?.ready_to_sync}`);
+
   const games = await pool.query<{
     id: string; week_number: number; phase: string; home_team_id: string; away_team_id: string;
     home_score: number; away_score: number; external_game_id: string | null;
@@ -307,7 +320,8 @@ export async function syncCompanionScheduleResultsIntoGameResults(leagueId: stri
         and home_score is not null and away_score is not null and home_team_id is not null and away_team_id is not null`,
     [leagueId],
   );
-  if (!games.rows.length) return;
+  if (!games.rows.length) { console.log("[SYNC] No games ready to sync."); return; }
+  console.log(`[SYNC] Syncing ${games.rows.length} games to rec_game_results`);
 
   const league = await pool.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId]);
   const seasonNumber = league.rows[0]?.season_number ?? 1;
