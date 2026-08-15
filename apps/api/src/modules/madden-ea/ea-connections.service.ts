@@ -15,6 +15,7 @@ import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import type { CompanionConnection } from "../madden-companion/madden-companion.service.js";
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
+import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import {
   BLAZE_COMPONENT_NAME,
   EA_LOGIN_URL,
@@ -528,6 +529,9 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
+  // EA player ids seen in this run's roster/free-agent rows — drives the source-of-truth
+  // reconciliation once the import lands.
+  const importedPlayerIds = new Set<string>();
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
     const raw = await runWithFreshSession(() => fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList));
@@ -539,6 +543,13 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
       stage: week.stageIndex,
       weekIndex: week.weekIndex,
     });
+    if (dataset === "rosters" || dataset === "free_agents") {
+      const rows = (envelope.payload as { rosterInfoList?: Array<Record<string, unknown>> }).rosterInfoList ?? [];
+      for (const row of rows) {
+        const id = row.playerId ?? row.player_id ?? row.rosterId ?? row.roster_id;
+        if (id != null) importedPlayerIds.add(String(id));
+      }
+    }
     const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
     const label = weeklyRefs.length > 1
       ? `${EA_DATASET_LABELS[dataset]} — ${describeEaWeek(week.stageIndex, week.weekIndex).label}`
@@ -577,11 +588,73 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
   }
+  // Process badges/stories for games that now have team_stats from the import.
+  // Each game's rec_team_game_stats rows are keyed by game_id; processGameIntelligence
+  // falls back to game_id when submission_id is null (the EA import case).
+  if (datasets.includes("team_stats") || datasets.includes("schedule")) {
+    const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
+    const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
+    for (const weekNumber of affectedWeeks) {
+      const weekGames = await getPgPool().query<{ id: string }>(
+        `select g.id from rec_games g where g.league_id=$1 and g.week_number=$2`,
+        [leagueId, weekNumber],
+      );
+      for (const game of weekGames.rows) {
+        await processGameIntelligence({
+          id: `ea-import-${game.id}`,
+          league_id: leagueId,
+          season_number: seasonNumber,
+          week_number: weekNumber,
+          game_id: game.id,
+        }).catch((error) =>
+          console.error(`[WARN] Badge processing failed for game ${game.id} (non-fatal):`, error));
+      }
+    }
+  }
+  if (datasets.includes("rosters") && importedPlayerIds.size > 0) {
+    await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
+      console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
+  }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
     [connectionId],
   );
   return results;
+}
+
+/**
+ * Source-of-truth reconciliation: the EA import defines the league's rosters. Players absent
+ * from the imported rows are removed — imported rows themselves already upserted by
+ * madden_player_id, overwriting any manually edited values. Players minted by custom-player
+ * builds (paid content, referenced from rec_custom_player_builds.created_player_id) are
+ * always spared. A hard delete can trip NO ACTION foreign keys (award nominees, fantasy
+ * draft picks); those rows fall back to roster_status='removed' so they leave the active
+ * roster either way.
+ */
+async function reconcileRostersToImport(leagueId: string, importedPlayerIds: string[]): Promise<void> {
+  const staleFilter = `
+    league_id=$1
+    and madden_player_id::text <> all($2::text[])
+    and not exists (
+      select 1 from rec_custom_player_builds b
+       where b.league_id=$1 and b.created_player_id = rec_players.id
+    )`;
+  const stale = await getPgPool().query<{ id: string }>(
+    `select id from rec_players where ${staleFilter}`,
+    [leagueId, importedPlayerIds],
+  );
+  if (!stale.rows.length) return;
+  try {
+    await getPgPool().query(`delete from rec_players where ${staleFilter}`, [leagueId, importedPlayerIds]);
+    console.log(`[EA] Roster reconciliation: removed ${stale.rows.length} stale player(s) not present in the EA import.`);
+  } catch (error) {
+    // FK-blocked rows: retire them from the roster instead of deleting outright.
+    await getPgPool().query(
+      `update rec_players set roster_status='removed', updated_at=now() where ${staleFilter}`,
+      [leagueId, importedPlayerIds],
+    );
+    console.warn(`[EA] Roster reconciliation: marked ${stale.rows.length} stale player(s) removed (blocked by references):`, error instanceof Error ? error.message : error);
+  }
 }
 
 function fetchDataset(

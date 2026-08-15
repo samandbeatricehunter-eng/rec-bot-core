@@ -124,11 +124,22 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   const gameId = sub.game_id ?? null;
   const leagueGame = await loadLeagueGame(sub.league_id);
 
-  const { data: rows, error } = await supabase
+  // Look up team-game-stats rows by submission_id first (box-score path). If none found,
+  // fall back to game_id — EA-imported stats have submission_id=null but game_id is set.
+  let { data: rows, error } = await supabase
     .from("rec_team_game_stats")
     .select("*")
     .eq("submission_id", sub.id);
   if (error) throw error;
+  if ((!rows || rows.length === 0) && gameId) {
+    const fallback = await supabase
+      .from("rec_team_game_stats")
+      .select("*")
+      .eq("game_id", gameId)
+      .eq("league_id", sub.league_id);
+    if (fallback.error) throw fallback.error;
+    rows = fallback.data;
+  }
   if (!rows || rows.length === 0) return;
 
   const games = rows.map((r) => rowToGameStats(r as TeamGameStatsRow, leagueGame));
