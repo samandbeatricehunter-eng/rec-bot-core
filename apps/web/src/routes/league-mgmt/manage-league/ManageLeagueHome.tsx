@@ -56,7 +56,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
   const [missing, setMissing] = useState<MissingFilter>("all");
   const [conferenceFilter, setConferenceFilter] = useState<string>("all");
-  const isMadden = game === "madden_26" || game === "madden_27";
+  const isMadden = Boolean(game?.startsWith("madden_"));
 
   useEffect(() => {
     recApi

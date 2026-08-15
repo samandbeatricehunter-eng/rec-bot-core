@@ -3,7 +3,7 @@
 // table) and the other 9 sources' service files for the insert/update side that populates
 // it. This module only reads; the writes live next to each source's own business logic.
 import { formatCoins, deriveCaseDisplayStatus, type CaseDisplayStatus } from "@rec/shared";
-import { bestEffortVoid } from "../../lib/best-effort.js";
+import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import {
@@ -12,6 +12,7 @@ import {
   resolveRecUserIdForDiscordId,
   type CommissionerPendingSummary,
 } from "./commissioner-pending-summary.js";
+import { buildPurchaseInboxCopy } from "../purchases/purchases.service.js";
 
 export type CommissionerNotification = {
   id: string;
@@ -116,6 +117,81 @@ function scalarDetails(payload: Record<string, unknown> | null | undefined) {
     .map(([key, value]) => ({ label: humanize(key), value: String(value) }));
 }
 
+// Trade cards must show teams, assets, and the evaluator verdict. Rows written before that
+// enrichment shipped only carry a generic summary, so the read side rebuilds the detail for
+// every pending trade row from rec_trades — existing notifications are upgraded in place
+// and the write side can never fall out of sync with what the panel shows.
+type TradeInboxRow = {
+  inboxId: string;
+  tradeId: string;
+  payload: Record<string, unknown> | null;
+};
+
+type TradeEnrichment = {
+  header: string;
+  summary: string;
+  payload: Record<string, unknown>;
+};
+
+async function enrichPendingTradeRows(rows: TradeInboxRow[]): Promise<Map<string, TradeEnrichment>> {
+  const byId = new Map<string, TradeEnrichment>();
+  if (rows.length === 0) return byId;
+  const tradeIds = [...new Set(rows.map((row) => row.tradeId))];
+  const trades = await supabase
+    .from("rec_trades")
+    .select("id,proposing_team_id,receiving_team_id,value_snapshot")
+    .in("id", tradeIds);
+  if (trades.error) return byId;
+  const teamIds = [...new Set((trades.data ?? []).flatMap((t: any) => [t.proposing_team_id, t.receiving_team_id]).filter(Boolean))];
+  const teams = teamIds.length
+    ? await supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").in("id", teamIds)
+    : { data: [] as any[], error: null };
+  const teamName = new Map<string, string>(
+    (teams.data ?? []).map((t: any) => [t.id, t.name ?? t.display_abbr ?? t.abbreviation ?? "A team"]),
+  );
+  const snapshotType = (value: unknown) => value as
+    | { proposingAssets?: Array<{ label?: string }>; receivingAssets?: Array<{ label?: string }>; verdict?: string; deltaPct?: number; proposing?: { needAdjustedTotal?: number }; receiving?: { needAdjustedTotal?: number } }
+    | null;
+  const rowsByTrade = new Map<string, TradeInboxRow[]>();
+  for (const row of rows) rowsByTrade.set(row.tradeId, [...(rowsByTrade.get(row.tradeId) ?? []), row]);
+  for (const trade of trades.data ?? []) {
+    const snapshot = snapshotType(trade.value_snapshot ?? null);
+    const proposingTeamName = teamName.get(trade.proposing_team_id) ?? "the proposing team";
+    const receivingTeamName = teamName.get(trade.receiving_team_id) ?? "the receiving team";
+    const assetLine = (assets?: Array<{ label?: string }>) =>
+      assets?.length ? assets.map((asset) => asset.label ?? "an asset").join(", ") : "no players or picks";
+    const totals =
+      snapshot?.proposing?.needAdjustedTotal != null && snapshot?.receiving?.needAdjustedTotal != null
+        ? `${proposingTeamName} ${snapshot.proposing.needAdjustedTotal} vs ${receivingTeamName} ${snapshot.receiving.needAdjustedTotal} need-adjusted value`
+        : null;
+    const verdict =
+      snapshot?.verdict === "balanced"
+        ? `Evaluator: estimated fair value (within ${Math.abs(snapshot.deltaPct ?? 0)}%)${totals ? ` — ${totals}` : ""}.`
+        : snapshot?.verdict
+          ? `Evaluator: favors ${snapshot.verdict === "favors_proposing" ? proposingTeamName : receivingTeamName} by ~${Math.abs(snapshot.deltaPct ?? 0)}%${totals ? ` — ${totals}` : ""}.`
+          : "Evaluator: no value snapshot was stored for this trade.";
+    for (const row of rowsByTrade.get(trade.id) ?? []) {
+      byId.set(row.inboxId, {
+        header: `Trade pending review — ${proposingTeamName} ⇄ ${receivingTeamName}`,
+        summary: [
+          "Accepted by both teams, awaiting review.",
+          `${proposingTeamName} sends: ${assetLine(snapshot?.proposingAssets)}.`,
+          `${receivingTeamName} sends: ${assetLine(snapshot?.receivingAssets)}.`,
+          verdict,
+        ].join("\n"),
+        payload: {
+          ...(row.payload ?? {}),
+          tradeId: trade.id,
+          proposingTeam: proposingTeamName,
+          receivingTeam: receivingTeamName,
+          valueSnapshot: snapshot ?? null,
+        },
+      });
+    }
+  }
+  return byId;
+}
+
 export async function listCommissionerNotifications(
   guildId: string,
   sinceIso?: string | null,
@@ -134,30 +210,79 @@ export async function listCommissionerNotifications(
 
   const names = await discordNameMap((data ?? []).flatMap((row: any) => [row.requester_discord_id]));
   const requesterMaps = await requesterNameMaps(data ?? []);
-  return {
-    notifications: (data ?? []).map((row: any) => ({
-      id: row.id,
-      type: row.queue_type,
-      title: row.header,
-      subtitle: replaceDiscordMentions(row.summary, names),
-      amount: row.amount == null ? null : Number(row.amount),
-      submittedBy: row.requester_discord_id,
-      submittedByName: resolveRequesterName(row, requesterMaps),
-      submittedAt: row.created_at,
-      teamId: row.team_id,
-      weekNumber: row.week_number,
-      sourceId: row.source_id,
+  const tradeRows: TradeInboxRow[] = (data ?? [])
+    .filter((row: any) => row.queue_type === "trade")
+    .map((row: any) => ({
+      inboxId: row.id,
+      tradeId: String(row.payload?.tradeId ?? row.source_id ?? ""),
       payload: row.payload ?? null,
-      internalMemo: row.internal_memo ?? null,
-      votingTopicId: row.voting_topic_id ?? null,
-      awaitingUserResponse: Boolean(row.awaiting_user_response),
-      displayStatus: deriveCaseDisplayStatus({
-        status: "pending",
-        internalMemo: row.internal_memo,
-        votingTopicId: row.voting_topic_id,
-        awaitingUserResponse: row.awaiting_user_response,
-      }),
-    })),
+    }))
+    .filter((row) => Boolean(row.tradeId));
+  const tradeEnrichments = await bestEffort(
+    "notifications.trade_enrichment",
+    () => enrichPendingTradeRows(tradeRows),
+    undefined,
+  ).then((map) => map ?? new Map<string, TradeEnrichment>());
+
+  // Same idea for purchases: pending rows written before the detailed copy shipped only say
+  // "Purchase: <label>", but the payload still carries the full details, so the copy can be
+  // rebuilt on read. Team name comes from details.teamId.
+  const purchaseRows = (data ?? []).filter(
+    (row: any) => row.queue_type === "purchase" && row.payload?.details && row.payload?.purchaseType,
+  );
+  const purchaseTeamIds = [...new Set(purchaseRows.map((row: any) => row.payload?.details?.teamId).filter(Boolean))] as string[];
+  const purchaseTeams = purchaseTeamIds.length
+    ? await bestEffort(
+        "notifications.purchase_team_names",
+        async () => (await supabase.from("rec_teams").select("id,name").in("id", purchaseTeamIds)).data ?? [],
+        undefined,
+      )
+    : [];
+  const purchaseTeamName = new Map<string, string>((purchaseTeams as any[]).map((t) => [t.id, t.name]));
+  const purchaseEnrichments = new Map<string, TradeEnrichment>();
+  for (const row of purchaseRows as any[]) {
+    try {
+      const copy = buildPurchaseInboxCopy({
+        purchaseType: row.payload.purchaseType,
+        label: String(row.header?.replace(/^Purchase:\s*/, "").split("—")[0]?.trim() ?? "Purchase"),
+        price: Number(row.amount ?? row.payload.cost ?? 0),
+        details: row.payload.details,
+        teamName: row.payload.details?.teamId ? purchaseTeamName.get(row.payload.details.teamId) ?? null : null,
+        discordId: row.requester_discord_id ?? "",
+      });
+      purchaseEnrichments.set(row.id, { header: copy.header, summary: copy.summary, payload: row.payload });
+    } catch {
+      // A malformed old payload keeps its original copy.
+    }
+  }
+  return {
+    notifications: (data ?? []).map((row: any) => {
+      const trade = row.queue_type === "trade" ? tradeEnrichments.get(row.id) : undefined;
+      const purchase = row.queue_type === "purchase" ? purchaseEnrichments.get(row.id) : undefined;
+      return {
+        id: row.id,
+        type: row.queue_type,
+        title: trade?.header ?? purchase?.header ?? row.header,
+        subtitle: replaceDiscordMentions(trade?.summary ?? purchase?.summary ?? row.summary, names),
+        amount: row.amount == null ? null : Number(row.amount),
+        submittedBy: row.requester_discord_id,
+        submittedByName: resolveRequesterName(row, requesterMaps),
+        submittedAt: row.created_at,
+        teamId: row.team_id,
+        weekNumber: row.week_number,
+        sourceId: row.source_id,
+        payload: trade?.payload ?? row.payload ?? null,
+        internalMemo: row.internal_memo ?? null,
+        votingTopicId: row.voting_topic_id ?? null,
+        awaitingUserResponse: Boolean(row.awaiting_user_response),
+        displayStatus: deriveCaseDisplayStatus({
+          status: "pending",
+          internalMemo: row.internal_memo,
+          votingTopicId: row.voting_topic_id,
+          awaitingUserResponse: row.awaiting_user_response,
+        }),
+      };
+    }),
   };
 }
 

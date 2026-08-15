@@ -89,15 +89,23 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
   const roleByUser = new Map<string, string>((roleRes.data ?? []).map((row: any) => [row.user_id, String(row.role ?? "member")]));
 
   // Pending link requests per team drive the dropdown's Approve/Deny Link Request entries.
+  // rec_team_link_requests has no PostgREST-resolvable FK to rec_users (its column is
+  // requester_user_id), so the requester's name is a separate lookup instead of an embed.
   const requestsRes = await supabase
     .from("rec_team_link_requests")
-    .select("id,team_id,requester_user_id,requester_discord_id,requester:rec_users(id,username,display_name)")
+    .select("id,team_id,requester_user_id,requester_discord_id")
     .eq("league_id", leagueId)
     .eq("status", "pending");
   if (requestsRes.error) throw new ApiError(500, "Failed to load team link requests.", requestsRes.error);
+  const requesterIds = [...new Set((requestsRes.data ?? []).map((row: any) => row.requester_user_id).filter(Boolean))];
+  const requestersRes = requesterIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", requesterIds)
+    : { data: [], error: null };
+  if (requestersRes.error) throw new ApiError(500, "Failed to load team link requesters.", requestersRes.error);
+  const requesterById = new Map<string, any>((requestersRes.data ?? []).map((row: any) => [row.id, row]));
   const pendingRequestByTeam = new Map<string, { requestId: string; userId: string; displayName: string | null; discordUsername: string | null }>();
   for (const row of requestsRes.data ?? []) {
-    const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
+    const requester = requesterById.get(row.requester_user_id);
     pendingRequestByTeam.set(row.team_id, {
       requestId: row.id,
       userId: row.requester_user_id,

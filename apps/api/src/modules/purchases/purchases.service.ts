@@ -49,7 +49,9 @@ async function fetchTeamName(leagueId: string, teamId: string | null | undefined
 // and team, and spells out the exact change being requested (age → 21, per-attribute
 // prior → +points → final, dev tier current → next) in the card AND the review modal,
 // which both render this same header/summary.
-function buildPurchaseInboxCopy(input: {
+// Exported so the notifications read side can rebuild this copy for pending rows written
+// before the enrichment shipped (same pattern as the trade enrichment).
+export function buildPurchaseInboxCopy(input: {
   purchaseType: RecPurchaseType;
   label: string;
   price: number;
