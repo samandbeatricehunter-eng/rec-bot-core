@@ -25,7 +25,7 @@ export type TeamManagementSummaryRow = {
   conference: string;
   division: string | null;
   isRelocated: boolean;
-  linkedUser: { userId: string; discordId: string | null; displayName: string | null; role: string | null } | null;
+  linkedUser: { userId: string; discordId: string | null; discordUsername: string | null; displayName: string | null; role: string | null } | null;
   /** Pending team link request, surfaced so the division-card dropdown can offer Approve/Deny. */
   pendingRequest: { requestId: string; userId: string; displayName: string | null; discordUsername: string | null } | null;
   scheduleStatus: "empty" | "partial" | "complete";
@@ -76,10 +76,15 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
 
   const userIds = [...new Set<string>([...assignmentByTeam.values()].map((a) => a.userId).filter(Boolean))];
   const accountsRes = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
   if (accountsRes.error) throw new ApiError(500, "Failed to load Discord accounts.", accountsRes.error);
   const discordByUser = new Map<string, string>((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  // Discord handle for the division-card row's parenthetical — distinct from the site
+  // display name, which is what linkedUser.displayName carries.
+  const discordUsernameByUser = new Map<string, string | null>(
+    (accountsRes.data ?? []).map((row: any) => [row.user_id, row.username ?? row.global_name ?? null]),
+  );
 
   // League-membership role (member / co_commissioner / commissioner) for the linked-user row.
   const roleRes = userIds.length
@@ -188,6 +193,9 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
         ? {
             userId: assignment.userId,
             discordId: assignmentDiscordId,
+            discordUsername: assignmentDiscordId
+              ? discordUsernameByUser.get(assignment.userId) ?? liveDiscordNames.get(assignmentDiscordId) ?? null
+              : null,
             displayName:
               (!isRawDiscordSnowflake(assignment.displayName) ? assignment.displayName : null) ??
               (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ??

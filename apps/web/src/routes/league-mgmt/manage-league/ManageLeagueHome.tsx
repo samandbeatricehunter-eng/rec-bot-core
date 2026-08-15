@@ -251,7 +251,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                                   </span>
                                   {team.linkedUser?.discordId && (
                                     <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
-                                      ({team.linkedUser.displayName ?? team.linkedUser.discordId})
+                                      ({team.linkedUser.discordUsername ?? team.linkedUser.displayName ?? team.linkedUser.discordId})
                                     </span>
                                   )}
                                   {team.linkedUser?.role && team.linkedUser.role !== "member" && (
