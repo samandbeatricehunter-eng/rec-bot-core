@@ -677,9 +677,12 @@ export async function importEaDatasetsWithProgress(
     }
   }
   if (datasets.includes("rosters") && importedPlayerIds.size > 0) {
+    console.log(`[EA] Roster reconciliation: ${importedPlayerIds.size} player IDs collected from import`);
     onProgress({ type: "reconciling", step: "Reconciling rosters…" });
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
+  } else if (datasets.includes("rosters")) {
+    console.warn("[EA] Roster reconciliation skipped: no player IDs collected. importedPlayerIds.size =", importedPlayerIds.size);
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,

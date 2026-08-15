@@ -155,6 +155,7 @@ export function toIngestEnvelope(input: {
       : null;
 
   let firstScheduleRow = true;
+  let firstRosterRow = true;
   const stamped = rows.map((row) => {
     const enriched: Json = { ...row, leagueId: String(eaLeagueId), seasonYear };
     if (week) {
@@ -171,6 +172,45 @@ export function toIngestEnvelope(input: {
     if (dataset === "free_agents") enriched.isFreeAgent = true;
     if (dataset === "rosters" && input.teamId !== undefined && enriched.teamId === undefined) {
       enriched.teamId = input.teamId;
+    }
+    // EA roster exports use different field names than the companion adapter expects.
+    // Map EA's player object to the names applyRosterPlayer looks for.
+    if (dataset === "rosters" || dataset === "free_agents") {
+      // Debug: log first raw roster row to diagnose field names
+      if (firstRosterRow) {
+        firstRosterRow = false;
+        console.log("[EA] Raw roster row keys:", Object.keys(row).slice(0, 30));
+        console.log("[EA] Roster sample — rosterId:", row.rosterId, "playerBestOvr:", row.playerBestOvr, "firstName:", row.firstName, "position:", row.position, "teamId:", row.teamId);
+      }
+      // EA uses playerBestOvr; adapter looks for overallRating/overall/ovrRating/ovr
+      if (enriched.overallRating === undefined && enriched.overall === undefined) {
+        const ovr = enriched.playerBestOvr ?? enriched.ovrRating;
+        if (typeof ovr === "number") enriched.overallRating = ovr;
+      }
+      // EA uses jerseyNum; adapter looks for jerseyNum/jerseyNumber
+      if (enriched.jerseyNumber === undefined && enriched.jerseyNum === undefined) {
+        if (typeof enriched.jerseyNum === "number") enriched.jerseyNum = enriched.jerseyNum;
+      }
+      // EA puts individual ratings at the top level (speedRating, throwPowerRating, etc.)
+      // but the adapter expects them under "attributes" or "ratings".
+      if (enriched.attributes === undefined && enriched.ratings === undefined) {
+        const ratingSuffixes = ["Rating", "rating"];
+        const attrs: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(enriched)) {
+          if (ratingSuffixes.some((s) => key.endsWith(s)) && typeof val === "number") {
+            attrs[key] = val;
+          }
+        }
+        if (Object.keys(attrs).length > 0) enriched.attributes = attrs;
+      }
+      // EA uses signatureSlotList for abilities; adapter looks for abilities
+      if (enriched.abilities === undefined && Array.isArray(enriched.signatureSlotList)) {
+        enriched.abilities = enriched.signatureSlotList;
+      }
+      // EA uses developmentTrait for dev trait enum; adapter looks for devTrait
+      if (enriched.devTrait === undefined && enriched.developmentTrait !== undefined) {
+        enriched.devTrait = enriched.developmentTrait;
+      }
     }
     // EA schedule exports use different field names than the companion adapter expects.
     // Normalize so applySchedule finds homeScore/awayScore/isGamePlayed/status correctly.
