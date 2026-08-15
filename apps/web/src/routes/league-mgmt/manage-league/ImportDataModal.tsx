@@ -201,8 +201,8 @@ export function ImportDataModal({
   }
 
   async function runImport() {
-    if (!connection || busy) return; // Prevent duplicate submissions
-    setBusy(true); setBusyLabel("Connecting to EA…"); setError(null); setImportResults(null); setImportProgress([]);
+    if (!connection || busy) return;
+    setBusy(true); setBusyLabel("Starting import…"); setError(null); setImportResults(null); setImportProgress([]);
     try {
       const weekRefs =
         weekMode === "current" ? undefined
@@ -213,33 +213,46 @@ export function ImportDataModal({
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }))
             : PRESEASON_DISPLAY_WEEKS.filter((w) => w >= Math.min(spanFrom, spanTo) && w <= Math.max(spanFrom, spanTo))
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }));
-      const result = await recApi.importMaddenEaDatasetsStream(
-        { guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs },
-        (event) => {
-          setImportProgress((prev) => [...prev, event]);
-          if (event.type === "dataset_start") setBusyLabel(`Importing ${event.label}…`);
-          if (event.type === "reconciling") setBusyLabel(event.step);
-        },
-      );
-      setImportResults(result);
-      setNotice(result.length ? "Import finished." : "Nothing to import with the selected datasets.");
+
+      // Start the import (runs in background)
+      await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs });
+
+      // Poll for progress every 2 seconds
+      let done = false;
+      while (!done && busy) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const progress = await recApi.getImportProgress({ guildId, leagueId });
+          setImportProgress(progress.events);
+
+          // Update busy label from latest event
+          const latest = progress.events[progress.events.length - 1];
+          if (latest) {
+            if (latest.type === "dataset_start") setBusyLabel(`Importing ${latest.label}…`);
+            if (latest.type === "reconciling") setBusyLabel(latest.step);
+            if (latest.type === "done") setBusyLabel("Complete!");
+            if (latest.type === "error") setBusyLabel("Failed");
+          }
+
+          if (!progress.running) {
+            done = true;
+            const doneEvent = progress.events.find((e) => e.type === "done") as any;
+            const errorEvent = progress.events.find((e) => e.type === "error") as any;
+            if (doneEvent?.results) {
+              setImportResults(doneEvent.results);
+              setNotice("Import finished.");
+              showImportNotification(doneEvent.results);
+            } else if (errorEvent) {
+              setError(errorEvent.error);
+            }
+          }
+        } catch { /* poll error, retry */ }
+      }
+
       const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
       setJobs(jobsResult.jobs);
-      showImportNotification(result);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Failed to import data from EA.";
-      const isNetworkError = cause instanceof TypeError && message.toLowerCase().includes("network");
-      if (isNetworkError) {
-        setBusyLabel("Import running in background — checking for results…");
-        const completed = await pollForImportCompletion();
-        if (completed) {
-          setNotice("Import completed. The connection timed out but the data was imported successfully.");
-        } else {
-          setError("Import is still running in the background. Results will appear in Recent Imports below once complete. Do not start another import until this one finishes.");
-        }
-      } else {
-        setError(message);
-      }
+      setError(cause instanceof Error ? cause.message : "Failed to start import.");
     }
     finally { setBusy(false); setBusyLabel(null); }
   }
@@ -260,31 +273,6 @@ export function ImportDataModal({
         });
       }
     } catch { /* Notification API not available */ }
-  }
-
-  /** Poll the jobs list every 5 seconds for up to 3 minutes waiting for a new import job. */
-  async function pollForImportCompletion(): Promise<boolean> {
-    const startedAt = Date.now();
-    const initialJobIds = new Set((jobs ?? []).map((j) => j.id));
-    while (Date.now() - startedAt < 180_000) {
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
-      try {
-        const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId });
-        setJobs(jobsResult.jobs);
-        const newJobs = jobsResult.jobs.filter((j) => !initialJobIds.has(j.id) && j.status === "completed");
-        if (newJobs.length > 0) {
-          setImportResults(newJobs.map((j) => ({
-            dataset: j.task_key as EaDataset,
-            label: j.task_key,
-            importJobId: j.id,
-            duplicate: false,
-            recordsStored: j.record_count,
-          })));
-          return true;
-        }
-      } catch { /* ignore poll errors */ }
-    }
-    return false;
   }
 
   async function disconnect() {

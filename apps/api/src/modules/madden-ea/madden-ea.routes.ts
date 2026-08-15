@@ -188,7 +188,6 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
   });
-  });
 
   app.post("/v1/import/madden/ea/jobs", async (request, reply) => {
     try {
