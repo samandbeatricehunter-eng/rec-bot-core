@@ -485,8 +485,8 @@ async function sendExport<T>(
   session: EaSessionCache,
   exportName: string,
   payload: Record<string, unknown>,
-  retries = 5,
-  baseDelayMs = 1000,
+  retries = 8,
+  baseDelayMs = 2000,
 ): Promise<T> {
   for (let attempt = 0; attempt < retries; attempt += 1) {
     const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${exportName}/${session.sessionKey}`, {
@@ -507,7 +507,10 @@ async function sendExport<T>(
         ? (parsed as { error?: { errorname?: string } }).error?.errorname
         : undefined;
     // EA times out under load far more often than it fails outright; back off and retry.
+    // After 4 timeouts the session may be stale — throw BlazeSessionError so the caller
+    // re-creates the session and retries.
     if (errorName === "ERR_TIMEOUT") {
+      if (attempt >= 4) throw new BlazeSessionError(`${exportName}: persistent ERR_TIMEOUT — session may be stale`);
       if (attempt < retries - 1) {
         await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** attempt));
         continue;

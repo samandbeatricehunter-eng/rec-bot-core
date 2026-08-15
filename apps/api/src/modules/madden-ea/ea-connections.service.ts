@@ -495,20 +495,21 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
   if (!cachedSession(row)) await persistSession(row.id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
-  const runWithFreshSession = async <T>(operation: () => Promise<T>): Promise<T> => {
+  const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
     try {
-      return await operation();
+      return await operation(client);
     } catch (error) {
       if (!(error instanceof BlazeSessionError)) throw error;
       await clearSession(row.id);
       const fresh = await createBlazeSession(token.accessToken, token.console);
       await persistSession(row.id, fresh);
-      return await createEaClient({ accessToken: token.accessToken, console: token.console }, fresh) as unknown as T;
+      const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, fresh);
+      return await operation(freshClient);
     }
   };
 
   const eaLeagueId = Number(row.ea_league_id);
-  const info = await runWithFreshSession(() => client.getLeagueInfo(eaLeagueId));
+  const info = await runWithFreshSession((c) => c.getLeagueInfo(eaLeagueId));
   const seasonYear = info.careerHubInfo?.seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
   const seasonInfo = info.careerHubInfo?.seasonInfo;
   const teamIdInfoList = info.teamIdInfoList ?? [];
@@ -534,7 +535,7 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
   const importedPlayerIds = new Set<string>();
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
-    const raw = await runWithFreshSession(() => fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList));
+    const raw = await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
     const envelope = toIngestEnvelope({
       dataset,
       raw,
