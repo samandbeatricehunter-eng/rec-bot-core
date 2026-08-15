@@ -216,8 +216,49 @@ export function ImportDataModal({
       setNotice(result.imports.length ? "Import finished." : "Nothing to import with the selected datasets.");
       const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
       setJobs(jobsResult.jobs);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to import data from EA."); }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Failed to import data from EA.";
+      // NetworkError means the platform proxy killed the connection before EA finished.
+      // The backend keeps processing — poll for the result instead of showing a hard error.
+      const isNetworkError = cause instanceof TypeError && message.toLowerCase().includes("network");
+      if (isNetworkError) {
+        setBusyLabel("Import running in background — checking for results…");
+        const completed = await pollForImportCompletion();
+        if (completed) {
+          setNotice("Import completed. The connection timed out but the data was imported successfully.");
+        } else {
+          setError("Import is still running. Check the Recent Imports section below for results, or wait a moment and refresh.");
+        }
+      } else {
+        setError(message);
+      }
+    }
     finally { setBusy(false); setBusyLabel(null); }
+  }
+
+  /** Poll the jobs list every 5 seconds for up to 3 minutes waiting for a new import job. */
+  async function pollForImportCompletion(): Promise<boolean> {
+    const startedAt = Date.now();
+    const initialJobIds = new Set((jobs ?? []).map((j) => j.id));
+    while (Date.now() - startedAt < 180_000) {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      try {
+        const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId });
+        setJobs(jobsResult.jobs);
+        const newJobs = jobsResult.jobs.filter((j) => !initialJobIds.has(j.id) && j.status === "completed");
+        if (newJobs.length > 0) {
+          setImportResults(newJobs.map((j) => ({
+            dataset: j.task_key as EaDataset,
+            label: j.task_key,
+            importJobId: j.id,
+            duplicate: false,
+            recordsStored: j.record_count,
+          })));
+          return true;
+        }
+      } catch { /* ignore poll errors */ }
+    }
+    return false;
   }
 
   async function disconnect() {
