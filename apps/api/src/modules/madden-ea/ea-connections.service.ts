@@ -650,6 +650,22 @@ export async function importEaDatasetsWithProgress(
   let scheduleImported = false;
   const importedPlayerIds = new Set<string>();
 
+  // Save photo_url mapping before wipe — keyed by madden_player_id and full_name
+  // so we can restore photos after the EA import creates new players.
+  let photoByEaId = new Map<string, string>();
+  let photoByName = new Map<string, string>();
+  if (datasets.includes("rosters")) {
+    const existingPhotos = await getPgPool().query<{ madden_player_id: string | null; full_name: string | null; photo_url: string }>(
+      `select madden_player_id, full_name, photo_url from rec_players where league_id=$1 and photo_url is not null and photo_url != ''`,
+      [leagueId],
+    );
+    for (const p of existingPhotos.rows) {
+      if (p.madden_player_id) photoByEaId.set(p.madden_player_id, p.photo_url);
+      if (p.full_name) photoByName.set(p.full_name.toLowerCase(), p.photo_url);
+    }
+    console.log(`[EA] Saved ${photoByEaId.size} photos by EA ID, ${photoByName.size} by name for photo restore.`);
+  }
+
   // First EA import for this league: wipe all baseline/seeded players so the EA data
   // becomes the sole source of truth. Custom player builds are preserved.
   if (!row.last_import_at && datasets.includes("rosters")) {
@@ -796,6 +812,13 @@ export async function importEaDatasetsWithProgress(
       return 0;
     });
     if (matched > 0) console.log(`[EA] Matched ${matched} pending purchase(s) to imported players.`);
+
+    // Restore player photos from the saved mapping (by EA ID first, then by name)
+    if (photoByEaId.size > 0 || photoByName.size > 0) {
+      pushProgress(leagueId, { type: "reconciling", step: "Restoring player photos…" });
+      const restored = await restorePlayerPhotos(leagueId, photoByEaId, photoByName);
+      if (restored > 0) console.log(`[EA] Restored ${restored} player photo(s).`);
+    }
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
@@ -830,6 +853,36 @@ export async function wipeBaselineRoster(leagueId: string): Promise<number> {
     );
     return count.rows.length;
   }
+}
+
+/**
+ * Restore player photos after an EA import. Matches by madden_player_id first (exact),
+ * then falls back to full_name (case-insensitive) for baseline players that didn't have
+ * an EA ID when the photo was uploaded.
+ */
+async function restorePlayerPhotos(
+  leagueId: string,
+  photoByEaId: Map<string, string>,
+  photoByName: Map<string, string>,
+): Promise<number> {
+  if (photoByEaId.size === 0 && photoByName.size === 0) return 0;
+
+  const pool = getPgPool();
+  const players = await pool.query<{ id: string; madden_player_id: string | null; full_name: string }>(
+    `select id, madden_player_id, full_name from rec_players where league_id=$1 and (photo_url is null or photo_url = '')`,
+    [leagueId],
+  );
+
+  let restored = 0;
+  for (const player of players.rows) {
+    const photo = (player.madden_player_id && photoByEaId.get(player.madden_player_id))
+      ?? photoByName.get(player.full_name?.toLowerCase() ?? "");
+    if (photo) {
+      await pool.query(`update rec_players set photo_url=$1 where id=$2`, [photo, player.id]);
+      restored += 1;
+    }
+  }
+  return restored;
 }
 
 /**
