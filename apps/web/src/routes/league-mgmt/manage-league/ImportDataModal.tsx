@@ -533,9 +533,17 @@ export function ImportDataModal({
                     </Card>
                   )}
 
-                  <Button variant="danger" disabled={busy} onClick={() => void disconnect()}>
-                    {busy && busyLabel === "Disconnecting…" ? "Disconnecting…" : "Disconnect from EA"}
-                  </Button>
+                  <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                    <Button variant="secondary" disabled={busy} onClick={() => {
+                      if (!window.confirm("Reset roster? This removes all current players (except custom builds) so the next EA import becomes the only source of truth. This cannot be undone.")) return;
+                      recApi.wipeBaselineRoster({ guildId, leagueId }).then((r) => setNotice(`Wiped ${r.wiped} players. Run an import now to repopulate from EA.`)).catch((e) => setError(e instanceof Error ? e.message : "Failed to wipe roster."));
+                    }}>
+                      Reset Roster from EA
+                    </Button>
+                    <Button variant="danger" disabled={busy} onClick={() => void disconnect()}>
+                      {busy && busyLabel === "Disconnecting…" ? "Disconnecting…" : "Disconnect from EA"}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>

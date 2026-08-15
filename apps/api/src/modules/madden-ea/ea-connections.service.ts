@@ -29,6 +29,7 @@ import {
   getMaddenPersonas,
   getPersonaScopedToken,
   BlazeSessionError,
+  EaAuthError,
   type MaddenPersona,
 } from "./ea-client.js";
 import {
@@ -534,13 +535,34 @@ export async function importEaDatasetsWithProgress(
   }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
+  // Retry wrapper: catches both BlazeSessionError (stale session) and EaAuthError (ERR_SYSTEM
+  // from stale session). Refreshes the Blaze session and retries the operation. If session
+  // creation itself fails, forces a token refresh first.
   const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
     try {
       return await operation(client);
     } catch (error) {
-      if (!(error instanceof BlazeSessionError)) throw error;
+      const isSessionError = error instanceof BlazeSessionError;
+      const isAuthError = error instanceof EaAuthError;
+      if (!isSessionError && !isAuthError) throw error;
+      console.warn("[EA] Blaze session error, refreshing:", error instanceof Error ? error.message : error);
       await clearSession(row.id);
-      const fresh = await createBlazeSession(token.accessToken, token.console);
+      let fresh: EaSessionCache;
+      try {
+        fresh = await createBlazeSession(token.accessToken, token.console);
+      } catch (sessionErr) {
+        // Session creation failed — force a token refresh and retry once
+        const sessionMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr);
+        console.warn("[EA] Session creation failed, refreshing token:", sessionMsg);
+        const { refreshEaToken } = await import("./ea-client.js");
+        const refreshed = await refreshEaToken(token.refreshToken);
+        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
+        await updateSealedToken(row.id, next);
+        token.accessToken = refreshed.accessToken;
+        token.refreshToken = refreshed.refreshToken;
+        token.expiresAt = refreshed.expiresAt;
+        fresh = await createBlazeSession(refreshed.accessToken, token.console);
+      }
       await persistSession(row.id, fresh);
       const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, fresh);
       return await operation(freshClient);
@@ -586,9 +608,15 @@ export async function importEaDatasetsWithProgress(
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
-  // EA player ids seen in this run's roster/free-agent rows — drives the source-of-truth
-  // reconciliation once the import lands.
   const importedPlayerIds = new Set<string>();
+
+  // First EA import for this league: wipe all baseline/seeded players so the EA data
+  // becomes the sole source of truth. Custom player builds are preserved.
+  if (!row.last_import_at && datasets.includes("rosters")) {
+    onProgress({ type: "reconciling", step: "First import — clearing baseline roster…" });
+    const wiped = await wipeBaselineRoster(leagueId);
+    console.log(`[EA] First import: wiped ${wiped} baseline player(s) for league ${leagueId}`);
+  }
 
   onProgress({ type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
 
@@ -676,13 +704,12 @@ export async function importEaDatasetsWithProgress(
       }
     }
   }
-  if (datasets.includes("rosters") && importedPlayerIds.size > 0) {
-    console.log(`[EA] Roster reconciliation: ${importedPlayerIds.size} player IDs collected from import`);
+  // Subsequent imports: reconcile — remove players no longer in the EA export.
+  // First imports already wiped the baseline, so this only applies to re-imports.
+  if (datasets.includes("rosters") && row.last_import_at && importedPlayerIds.size > 0) {
     onProgress({ type: "reconciling", step: "Reconciling rosters…" });
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
-  } else if (datasets.includes("rosters")) {
-    console.warn("[EA] Roster reconciliation skipped: no player IDs collected. importedPlayerIds.size =", importedPlayerIds.size);
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
@@ -695,6 +722,36 @@ export async function importEaDatasetsWithProgress(
 /** Backward-compatible wrapper — callers that don't need progress events. */
 export async function importEaDatasets(connectionId: string, leagueId: string, options: EaImportOptions = {}): Promise<EaImportResult[]> {
   return importEaDatasetsWithProgress(connectionId, leagueId, options, () => {});
+}
+
+/**
+ * Wipe all baseline/seeded players for a league so the EA import becomes the sole source
+ * of truth. Custom player builds (paid content) are preserved. Called automatically on the
+ * first EA import, and can be called retroactively for leagues that already imported.
+ */
+export async function wipeBaselineRoster(leagueId: string): Promise<number> {
+  const preserveCustom = `
+    league_id=$1
+    and not exists (
+      select 1 from rec_custom_player_builds b
+       where b.league_id=$1 and b.created_player_id = rec_players.id
+    )`;
+  const count = await getPgPool().query<{ id: string }>(
+    `select id from rec_players where ${preserveCustom}`,
+    [leagueId],
+  );
+  if (!count.rows.length) return 0;
+  try {
+    await getPgPool().query(`delete from rec_players where ${preserveCustom}`, [leagueId]);
+    return count.rows.length;
+  } catch {
+    // FK-blocked rows: mark removed instead
+    await getPgPool().query(
+      `update rec_players set roster_status='removed', updated_at=now() where ${preserveCustom}`,
+      [leagueId],
+    );
+    return count.rows.length;
+  }
 }
 
 /**

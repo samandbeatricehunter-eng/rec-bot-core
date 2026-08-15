@@ -82,6 +82,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     .select("id,full_name,position,height_inches,weight_lbs,handedness,class_year,overall_rating,roster_status,is_default_player,dev_trait,photo_url,attributes,age,birth_year,college,jersey_number,archetype,abilities,player_source")
     .eq("league_id", leagueId)
     .eq("team_id", teamId)
+    .in("roster_status", ["active", "transferred_in"])
     .order("position", { ascending: true })
     .order("overall_rating", { ascending: false });
   if (players.error) throw new ApiError(500, "Failed to load roster.", players.error);

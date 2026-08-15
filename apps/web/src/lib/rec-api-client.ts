@@ -290,6 +290,8 @@ export const recApi = {
     recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>("/v1/import/madden/ea/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/disconnect", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId }) }),
+  wipeBaselineRoster: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ ok: boolean; wiped: number }>("/v1/import/madden/ea/wipe-roster", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
   sendLeagueReport: (input: { guildId: string; message: string }) =>
     recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),

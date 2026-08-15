@@ -15,6 +15,7 @@ import {
   selectEaPersona,
   submitEaCode,
   updateEaConnectionSettings,
+  wipeBaselineRoster,
   type EaDataset,
   type EaImportProgressEvent,
 } from "./ea-connections.service.js";
@@ -201,6 +202,19 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       await disconnectEaConnection(body.connection_id, body.league_id);
       return reply.send({ ok: true });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Retroactive wipe: clears all baseline/seeded players for a league so the next EA
+  // import becomes the sole source of truth. Custom player builds are preserved.
+  app.post("/v1/import/madden/ea/wipe-roster", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      const wiped = await wipeBaselineRoster(body.league_id);
+      return reply.send({ ok: true, wiped });
     } catch (error) {
       return sendError(reply, error);
     }
