@@ -4,8 +4,12 @@
 // different field names than EA's Blaze exports. Instead of mapping EA fields → companion
 // fields → adapter → canonical → database, this writes EA data directly to rec_games and
 // rec_players using EA's own field names.
+//
+// Hash-based write optimization: before writing, we hash the incoming row and compare with
+// the existing row's stored hash. Only rows that have actually changed get written, which
+// cuts import time significantly for large rosters (most players don't change between imports).
 
-import { PoolClient } from "pg";
+import { createHash } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 
 type Json = Record<string, unknown>;
@@ -26,6 +30,10 @@ function str(row: Json, keys: string[]): string | null {
     if (typeof val === "string" && val.trim()) return val.trim();
   }
   return null;
+}
+
+function rowHash(row: Json): string {
+  return createHash("sha1").update(JSON.stringify(row)).digest("hex").slice(0, 16);
 }
 
 /** Extract rows from EA's export envelope (e.g. { gameScheduleInfoList: [...] }). */
@@ -112,10 +120,28 @@ export async function directWriteRoster(
   const rawRows = extractRows(rawEaData, "rosterInfoList");
   const pool = getPgPool();
   let written = 0;
+  let skipped = 0;
+
+  // Pre-fetch existing player hashes so we can skip unchanged rows
+  const existingHashes = new Map<string, string>();
+  const existing = await pool.query<{ madden_player_id: string; raw_hash: string }>(
+    `select madden_player_id, raw_hash from rec_players where league_id=$1 and madden_player_id is not null`,
+    [leagueId],
+  );
+  for (const row of existing.rows) {
+    if (row.raw_hash) existingHashes.set(row.madden_player_id, row.raw_hash);
+  }
 
   for (const row of rawRows) {
     const rosterId = num(row, ["rosterId", "roster_id", "playerId", "player_id"]);
     if (rosterId == null) continue;
+
+    // Hash-based skip: if the raw data hasn't changed, don't write
+    const hash = rowHash(row);
+    if (existingHashes.get(String(rosterId)) === hash) {
+      skipped += 1;
+      continue;
+    }
 
     const firstName = str(row, ["firstName", "first_name"]);
     const lastName = str(row, ["lastName", "last_name"]);
@@ -131,7 +157,6 @@ export async function directWriteRoster(
     const age = num(row, ["age", "playerAge"]);
     const contractYearsLeft = num(row, ["contractYearsLeft", "contract_years_left"]);
 
-    // Collect individual rating fields into an attributes object
     const attrs: Record<string, number> = {};
     for (const [key, val] of Object.entries(row)) {
       if ((key.endsWith("Rating") || key.endsWith("rating")) && typeof val === "number") {
@@ -139,16 +164,14 @@ export async function directWriteRoster(
       }
     }
     const attributes = Object.keys(attrs).length > 0 ? attrs : null;
-
-    // Abilities from signatureSlotList
     const abilities = Array.isArray(row.signatureSlotList) ? row.signatureSlotList : null;
 
     await pool.query(
       `insert into rec_players
          (league_id, madden_player_id, first_name, last_name, full_name, position, team_id,
           overall_rating, dev_trait, jersey_number, years_pro, age, contract_years_left,
-          attributes, abilities, raw_payload, player_source, roster_status, is_free_agent, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,'madden_companion','active',$17,now())
+          attributes, abilities, raw_payload, raw_hash, player_source, roster_status, is_free_agent, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$18,'madden_companion','active',$17,now())
        on conflict (league_id, madden_player_id) do update set
          first_name=coalesce(excluded.first_name, rec_players.first_name),
          last_name=coalesce(excluded.last_name, rec_players.last_name),
@@ -164,6 +187,7 @@ export async function directWriteRoster(
          attributes=case when excluded.attributes is null then rec_players.attributes else excluded.attributes end,
          abilities=case when excluded.abilities is null then rec_players.abilities else excluded.abilities end,
          raw_payload=excluded.raw_payload,
+         raw_hash=excluded.raw_hash,
          roster_status='active',
          is_free_agent=excluded.is_free_agent,
          updated_at=now()`,
@@ -174,10 +198,12 @@ export async function directWriteRoster(
         abilities ? JSON.stringify(abilities) : null,
         JSON.stringify(row),
         isFreeAgent,
+        hash,
       ],
     );
     written += 1;
   }
+  if (skipped > 0) console.log(`[EA] Roster: ${written} written, ${skipped} skipped (unchanged)`);
   return written;
 }
 
