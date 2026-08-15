@@ -121,7 +121,9 @@ export async function maddenEaRoutes(app: FastifyInstance) {
     }
   });
 
-  // Pull the enabled datasets from EA and run them through the ingest pipeline.
+  // Pull the enabled datasets from EA and run them through the ingest pipeline. Weekly
+  // datasets default to the franchise's current week; pass week_refs to import a specific
+  // week or a span (each entry validated; snapshots import once regardless).
   app.post("/v1/import/madden/ea/import", async (request, reply) => {
     try {
       const body = z.object({
@@ -129,10 +131,12 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         datasets: z.array(datasetSchema).min(1).optional(),
         stage: z.union([z.literal(0), z.literal(1)]).optional(),
         week_index: z.number().int().min(0).max(22).optional(),
+        week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
       }).parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
-      return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index }) });
+      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+      return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }) });
     } catch (error) {
       return sendError(reply, error);
     }

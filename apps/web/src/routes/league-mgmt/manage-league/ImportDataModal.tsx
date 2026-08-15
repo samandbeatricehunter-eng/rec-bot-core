@@ -21,6 +21,22 @@ const EA_DATASET_LABELS: Record<EaDataset, string> = {
   team_stats: "Team stats",
 };
 
+// Mirrors the server's ea-weeks.ts so the picker offers exactly what the import route will
+// accept: preseason weeks 1-4, season displays 1-23 with the Pro Bowl (display 21) skipped.
+const PLAYOFF_LABELS: Record<number, string> = {
+  19: "Wild Card Round",
+  20: "Divisional Round",
+  21: "Conference Championship",
+  23: "Super Bowl",
+};
+function seasonWeekLabel(displayWeek: number): string {
+  if (displayWeek >= 1 && displayWeek <= 18) return `Week ${displayWeek}`;
+  return PLAYOFF_LABELS[displayWeek] ?? `Week ${displayWeek}`;
+}
+const PRESEASON_DISPLAY_WEEKS = [1, 2, 3, 4];
+const SEASON_DISPLAY_WEEKS = Array.from({ length: 23 }, (_, i) => i + 1).filter((w) => w !== 21);
+type WeekMode = "current" | "week" | "span";
+
 // Two-phase EA link: the commissioner opens EA's login page, pastes the redirect URL back,
 // picks the gamertag (persona) that owns the franchise, and finally selects which of their
 // franchises maps to this REC league. After that the connection is live and they can pull
@@ -101,6 +117,11 @@ export function ImportDataModal({
 
   const [selectedDatasets, setSelectedDatasets] = useState<EaDataset[]>([]);
   const [autoImport, setAutoImport] = useState(false);
+  const [weekMode, setWeekMode] = useState<WeekMode>("current");
+  const [weekStage, setWeekStage] = useState<0 | 1>(1);
+  const [singleWeek, setSingleWeek] = useState(1);
+  const [spanFrom, setSpanFrom] = useState(1);
+  const [spanTo, setSpanTo] = useState(18);
   useEffect(() => {
     if (connection) {
       setSelectedDatasets(connection.enabledDatasets);
@@ -180,7 +201,16 @@ export function ImportDataModal({
     if (!connection) return;
     setBusy(true); setBusyLabel("Pulling data from EA…"); setError(null); setImportResults(null);
     try {
-      const result = await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets });
+      const weekRefs =
+        weekMode === "current" ? undefined
+        : weekMode === "week"
+          ? [{ stage: weekStage, weekIndex: singleWeek - 1 }]
+          : weekStage === 1
+            ? SEASON_DISPLAY_WEEKS.filter((w) => w >= Math.min(spanFrom, spanTo) && w <= Math.max(spanFrom, spanTo))
+                .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }))
+            : PRESEASON_DISPLAY_WEEKS.filter((w) => w >= Math.min(spanFrom, spanTo) && w <= Math.max(spanFrom, spanTo))
+                .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }));
+      const result = await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs });
       setImportResults(result.imports);
       setNotice(result.imports.length ? "Import finished." : "Nothing to import with the selected datasets.");
       const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
@@ -321,7 +351,56 @@ export function ImportDataModal({
                 <>
                   <Card>
                     <h3 style={{ marginTop: 0 }}>Datasets</h3>
-                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) sync to the current week; rosters, free agents, teams, and standings are league-wide snapshots.</p>
+                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below; rosters, free agents, teams, and standings are league-wide snapshots.</p>
+                    <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
+                      <div className="form-field" style={{ margin: 0, minWidth: 170 }}>
+                        <label className="form-label" htmlFor="ea-week-mode">Import for</label>
+                        <select id="ea-week-mode" className="form-select" value={weekMode} onChange={(e) => setWeekMode(e.target.value as WeekMode)}>
+                          <option value="current">Current week</option>
+                          <option value="week">A specific week</option>
+                          <option value="span">A range of weeks</option>
+                        </select>
+                      </div>
+                      {weekMode !== "current" && (
+                        <div className="form-field" style={{ margin: 0, minWidth: 150 }}>
+                          <label className="form-label" htmlFor="ea-week-stage">Season part</label>
+                          <select id="ea-week-stage" className="form-select" value={weekStage} onChange={(e) => { setWeekStage(Number(e.target.value) as 0 | 1); setSingleWeek(1); setSpanFrom(1); setSpanTo(Number(e.target.value) === 0 ? 4 : 18); }}>
+                            <option value={1}>Regular season &amp; playoffs</option>
+                            <option value={0}>Preseason</option>
+                          </select>
+                        </div>
+                      )}
+                      {weekMode === "week" && (
+                        <div className="form-field" style={{ margin: 0, minWidth: 190 }}>
+                          <label className="form-label" htmlFor="ea-week-single">Week</label>
+                          <select id="ea-week-single" className="form-select" value={singleWeek} onChange={(e) => setSingleWeek(Number(e.target.value))}>
+                            {(weekStage === 1 ? SEASON_DISPLAY_WEEKS : PRESEASON_DISPLAY_WEEKS).map((w) => (
+                              <option key={w} value={w}>{weekStage === 1 ? seasonWeekLabel(w) : `Preseason Week ${w}`}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {weekMode === "span" && (
+                        <>
+                          <div className="form-field" style={{ margin: 0, minWidth: 190 }}>
+                            <label className="form-label" htmlFor="ea-week-from">From</label>
+                            <select id="ea-week-from" className="form-select" value={spanFrom} onChange={(e) => setSpanFrom(Number(e.target.value))}>
+                              {(weekStage === 1 ? SEASON_DISPLAY_WEEKS : PRESEASON_DISPLAY_WEEKS).map((w) => (
+                                <option key={w} value={w}>{weekStage === 1 ? seasonWeekLabel(w) : `Preseason Week ${w}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-field" style={{ margin: 0, minWidth: 190 }}>
+                            <label className="form-label" htmlFor="ea-week-to">Through</label>
+                            <select id="ea-week-to" className="form-select" value={spanTo} onChange={(e) => setSpanTo(Number(e.target.value))}>
+                              {(weekStage === 1 ? SEASON_DISPLAY_WEEKS : PRESEASON_DISPLAY_WEEKS).map((w) => (
+                                <option key={w} value={w}>{weekStage === 1 ? seasonWeekLabel(w) : `Preseason Week ${w}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "var(--space-2)" }}>
                       {datasets.map((dataset) => (
                         <label key={dataset} className="manual-checkbox" style={{ marginTop: 0 }}>

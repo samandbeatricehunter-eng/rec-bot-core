@@ -36,6 +36,7 @@ import {
   endpointKeyForDataset,
   parseDatasets,
   toIngestEnvelope,
+  WEEKLY_DATASETS,
   type EaDataset,
 } from "./ea-datasets.js";
 import {
@@ -45,7 +46,7 @@ import {
   type EaSessionCache,
   type EaTokenRecord,
 } from "./ea-token-vault.js";
-import { currentWeekFromSeasonInfo, type EaStage, type EaWeekRef } from "./ea-weeks.js";
+import { currentWeekFromSeasonInfo, describeEaWeek, type EaStage, type EaWeekRef } from "./ea-weeks.js";
 
 export type { EaDataset };
 
@@ -473,6 +474,9 @@ export type EaImportOptions = {
   datasets?: EaDataset[];
   stage?: EaStage;
   weekIndex?: number;
+  /** Explicit week list (specific week or a span expanded by the caller). When present it
+   *  replaces the single stage/weekIndex for weekly datasets; snapshots import once. */
+  weekRefs?: EaWeekRef[];
 };
 
 export async function importEaDatasets(connectionId: string, leagueId: string, options: EaImportOptions = {}): Promise<EaImportResult[]> {
@@ -508,29 +512,57 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
   const seasonInfo = info.careerHubInfo?.seasonInfo;
   const teamIdInfoList = info.teamIdInfoList ?? [];
 
-  const weekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
+  const defaultWeekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
     ? { stageIndex: options.stage, weekIndex: options.weekIndex }
     : seasonInfo
       ? currentWeekFromSeasonInfo({ seasonWeek: seasonInfo.seasonWeek, seasonWeekType: seasonInfo.seasonWeekType })
       : { stageIndex: 1, weekIndex: 0 };
+  // An explicit week list drives weekly datasets; without one everything imports at the
+  // franchise's current (or explicitly chosen single) week. Deduplicated so a range that
+  // repeats a week never fetches it twice.
+  const weeklyRefs = [...(options.weekRefs ?? [defaultWeekRef])].reduce<EaWeekRef[]>((unique, ref) => {
+    const key = `${ref.stageIndex}:${ref.weekIndex}`;
+    if (!unique.some((existing) => `${existing.stageIndex}:${existing.weekIndex}` === key)) unique.push(ref);
+    return unique;
+  }, []);
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
 
+  const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
+    const raw = await runWithFreshSession(() => fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList));
+    const envelope = toIngestEnvelope({
+      dataset,
+      raw,
+      eaLeagueId,
+      seasonYear,
+      stage: week.stageIndex,
+      weekIndex: week.weekIndex,
+    });
+    const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
+    const label = weeklyRefs.length > 1
+      ? `${EA_DATASET_LABELS[dataset]} — ${describeEaWeek(week.stageIndex, week.weekIndex).label}`
+      : EA_DATASET_LABELS[dataset];
+    const existing = results.find((result) => result.dataset === dataset && result.label === label);
+    if (existing) {
+      existing.recordsStored += ingested.records_stored;
+      existing.duplicate = existing.duplicate && ingested.duplicate;
+      existing.importJobId = ingested.import_job_id;
+    } else {
+      results.push({ dataset, label, importJobId: ingested.import_job_id, duplicate: ingested.duplicate, recordsStored: ingested.records_stored });
+    }
+    if (dataset === "schedule") scheduleImported = true;
+  };
+
   for (const dataset of datasets) {
     try {
-      const raw = await runWithFreshSession(() => fetchDataset(client, dataset, eaLeagueId, weekRef, teamIdInfoList));
-      const envelope = toIngestEnvelope({
-        dataset,
-        raw,
-        eaLeagueId,
-        seasonYear,
-        stage: weekRef.stageIndex,
-        weekIndex: weekRef.weekIndex,
-      });
-      const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
-      results.push({ dataset, label: EA_DATASET_LABELS[dataset], importJobId: ingested.import_job_id, duplicate: ingested.duplicate, recordsStored: ingested.records_stored });
-      if (dataset === "schedule") scheduleImported = true;
+      if (WEEKLY_DATASETS.has(dataset)) {
+        for (const week of weeklyRefs) {
+          await importDatasetAtWeek(dataset, week);
+        }
+      } else {
+        await importDatasetAtWeek(dataset, defaultWeekRef);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await getPgPool().query(
