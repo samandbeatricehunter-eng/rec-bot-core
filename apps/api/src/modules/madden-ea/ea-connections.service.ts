@@ -738,21 +738,21 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
 }
 
 /**
- * Wipe ALL players for a league so the EA import becomes the sole source of truth.
- * Every player exists in-game and will be re-imported from EA. No exceptions.
+ * Wipe baseline/seeded players that were NOT imported from EA (no madden_player_id).
+ * EA-imported players, custom builds, and legends are preserved.
  */
 export async function wipeBaselineRoster(leagueId: string): Promise<number> {
   const count = await getPgPool().query<{ id: string }>(
-    `select id from rec_players where league_id=$1`,
+    `select id from rec_players where league_id=$1 and madden_player_id is null`,
     [leagueId],
   );
   if (!count.rows.length) return 0;
   try {
-    await getPgPool().query(`delete from rec_players where league_id=$1`, [leagueId]);
+    await getPgPool().query(`delete from rec_players where league_id=$1 and madden_player_id is null`, [leagueId]);
     return count.rows.length;
   } catch {
     await getPgPool().query(
-      `update rec_players set roster_status='removed', updated_at=now() where league_id=$1`,
+      `update rec_players set roster_status='removed', updated_at=now() where league_id=$1 and madden_player_id is null`,
       [leagueId],
     );
     return count.rows.length;
