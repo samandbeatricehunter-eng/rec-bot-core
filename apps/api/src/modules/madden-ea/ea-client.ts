@@ -44,6 +44,7 @@ import {
   type Persona,
   type Personas,
   type SystemConsole,
+  type TokenInfo,
 } from "./ea-constants.js";
 import type { EaStage } from "./ea-weeks.js";
 import type { EaSessionCache, EaTokenPair } from "./ea-token-vault.js";
@@ -147,25 +148,46 @@ export async function exchangeCodeForToken(code: string): Promise<AccountToken> 
 
 // ── Steps 3-5: entitlements -> pidId -> personas ──
 //
-// snallabot does NOT call /connect/tokeninfo. Instead it fetches entitlements using the
-// access_token as a query param (matching EA's companion-app traffic pattern), then
-// extracts pidId from the entitlement's pidUri. We follow the same approach.
+// Mirrors snallabot's retrievePersonas exactly: /connect/tokeninfo (with
+// X-Include-Deviceid) yields the pid, then entitlements are fetched with a Bearer header
+// and entitlementTag ONLINE_ACCESS + a MADDEN_XX groupName filter gates the account.
 
 export type MaddenPersona = Persona & { maddenEntitlement: string; console: SystemConsole };
 
-/** Fetch entitlements for the given pidId, matching snallabot's headers exactly. */
-async function fetchEntitlements(accessToken: string, pidId: string): Promise<Entitlements> {
-  const response = await undiciFetch(
-    `${EA_GATEWAY_BASE}/proxy/identity/pids/${pidId}/entitlements/?status=ACTIVE&access_token=${encodeURIComponent(accessToken)}`,
-    {
-      headers: {
-        "Accept-Charset": "UTF-8",
-        "User-Agent": ANDROID_USER_AGENT,
-        "X-Expand-Results": "true",
-        "Accept-Encoding": "gzip",
-      },
+/** Step 3: access token -> pidId. */
+async function fetchPidId(accessToken: string): Promise<string> {
+  const response = await undiciFetch(`${EA_ACCOUNTS_BASE}/connect/tokeninfo?access_token=${encodeURIComponent(accessToken)}`, {
+    headers: {
+      "Accept-Charset": "UTF-8",
+      "User-Agent": ANDROID_USER_AGENT,
+      "X-Include-Deviceid": "true",
+      "Accept-Encoding": "gzip",
     },
-  );
+  });
+  const text = await response.text();
+  let info: TokenInfo;
+  try {
+    info = JSON.parse(text) as TokenInfo;
+  } catch {
+    throw new EaAuthError(`EA returned an unreadable token info response: ${text.slice(0, 300)}`, "Try connecting again.");
+  }
+  if (!response.ok || !info.pid_id) {
+    throw new EaAuthError(`EA would not identify this login: ${text.slice(0, 300)}`, "Try connecting again with a fresh login URL.");
+  }
+  return info.pid_id;
+}
+
+/** Step 4: entitlements for pid -> which Madden platforms the account owns (Bearer header). */
+async function fetchEntitlements(accessToken: string, pidId: string): Promise<Entitlements> {
+  const response = await undiciFetch(`${EA_GATEWAY_BASE}/proxy/identity/pids/${pidId}/entitlements/?status=ACTIVE`, {
+    headers: {
+      "Accept-Charset": "UTF-8",
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": ANDROID_USER_AGENT,
+      "X-Expand-Results": "true",
+      "Accept-Encoding": "gzip",
+    },
+  });
   const text = await response.text();
   if (!response.ok) {
     throw new EaAuthError(`EA would not list this account's games: ${text.slice(0, 300)}`, "Try connecting again.");
@@ -174,26 +196,12 @@ async function fetchEntitlements(accessToken: string, pidId: string): Promise<En
 }
 
 /**
- * Extract the EA account pid from an entitlement's pidUri (e.g. "/pids/12345" -> "12345").
- * snallabot gets the pidId this way rather than calling /connect/tokeninfo.
- */
-function pidFromEntitlementUri(pidUri: string): string {
-  const match = pidUri.match(/\/pids\/(\d+)/);
-  if (!match) throw new EaAuthError("EA returned an unrecognised account reference.", "Try connecting again.");
-  return match[1];
-}
-
-/**
  * Combined steps 3-5: given a temporary access token, discover Madden entitlements and
- * return the matching personas. Returns both the personas and the pidId (needed for the
- * persona-scoped re-auth in step 6).
+ * return the matching personas.
  */
 export async function getMaddenPersonas(accessToken: string): Promise<{ pidId: string; personas: MaddenPersona[] }> {
-  // snallabot fetches entitlements first using a "probe" pidId of 0 — EA's gateway ignores
-  // the pidId when an access_token query param is present and returns the caller's entitlements.
-  // We do the same to avoid the /connect/tokeninfo endpoint that crashes on some accounts.
-  const probe = await fetchEntitlements(accessToken, "0");
-  const allEntitlements = probe.entitlements?.entitlement ?? [];
+  const pidId = await fetchPidId(accessToken);
+  const allEntitlements = (await fetchEntitlements(accessToken, pidId)).entitlements?.entitlement ?? [];
 
   const validGroups = new Set(Object.values(VALID_ENTITLEMENTS));
   const maddenEntitlements = allEntitlements.filter(
@@ -205,9 +213,6 @@ export async function getMaddenPersonas(accessToken: string): Promise<{ pidId: s
       "Make sure you signed in with the EA account that owns Madden and plays in your league.",
     );
   }
-
-  // Extract the real pidId from the first entitlement's pidUri.
-  const pidId = pidFromEntitlementUri(maddenEntitlements[0].pidUri);
 
   const personaLists = await Promise.all(
     maddenEntitlements.map(async (entitlement) => {
@@ -256,11 +261,24 @@ export async function getPersonaScopedToken(
     `&persona_id=${personaId}&persona_namespace=${namespaceName}`;
 
   // EA answers with a redirect to the localhost URL; we only want its `code`, so we must not
-  // let the client follow it.
+  // let the client follow it. Snallabot sends this step from an Android WebView (browser UA +
+  // X-Requested-With), not the Dalvik app UA — the accounts server renders its interstitial
+  // page for browser clients and only then 302s to the redirect URI.
   const authResponse = await undiciFetch(authUrl, {
     method: "GET",
     redirect: "manual",
-    headers: { "Accept-Charset": "UTF-8", "User-Agent": ANDROID_USER_AGENT, "Accept-Encoding": "gzip" },
+    headers: {
+      "Upgrade-Insecure-Requests": "1",
+      "User-Agent":
+        "Mozilla/5.0 (Linux; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.71 Mobile Safari/537.36",
+      "X-Requested-With": "com.ea.gp.madden19companionapp",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Encoding": "gzip",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+    },
   });
   const location = authResponse.headers.get("location");
   if (!location) {
@@ -396,45 +414,68 @@ export function stripControlCharacters(text: string): string {
 
 type BlazeRpc = { commandName: string; commandId: number; requestPayload: Record<string, unknown> };
 
+// EA renamed the Blaze component from "careermode" to "franchisemode" for Madden 27, but
+// Madden 26 leagues are still addressed as "careermode" (even though M26 responses were
+// already labelled Blaze::FranchiseMode:: internally). Rather than guess the league's year,
+// remember whichever name EA last accepted and fall back to the other one on error.
+const COMPONENT_NAME_FALLBACK = BLAZE_COMPONENT_NAME === "careermode" ? "franchisemode" : "careermode";
+let workingComponentName: string | null = null;
+
 async function sendBlazeRpc<T>(
   token: { accessToken: string; console: SystemConsole },
   session: EaSessionCache,
   rpc: BlazeRpc,
 ): Promise<T> {
-  const auth = calculateMessageAuthData(session.blazeId, session.requestId);
-  const body = {
-    apiVersion: 2,
-    clientDevice: 3,
-    requestInfo: JSON.stringify({
-      commandName: rpc.commandName,
-      componentId: 2060,
-      commandId: rpc.commandId,
-      componentName: BLAZE_COMPONENT_NAME,
-      messageAuthData: auth,
-      messageExpirationTime: Math.floor(Date.now() / 1000),
-      deviceId: MACHINE_KEY,
-      ipAddress: "127.0.0.1",
-      requestPayload: JSON.stringify(rpc.requestPayload),
-    }),
+  const componentName = workingComponentName ?? BLAZE_COMPONENT_NAME;
+  const attempt = async (name: string): Promise<T> => {
+    const auth = calculateMessageAuthData(session.blazeId, session.requestId);
+    const body = {
+      apiVersion: 2,
+      clientDevice: 3,
+      requestInfo: JSON.stringify({
+        commandName: rpc.commandName,
+        componentId: 2060,
+        commandId: rpc.commandId,
+        componentName: name,
+        messageAuthData: auth,
+        messageExpirationTime: Math.floor(Date.now() / 1000),
+        deviceId: MACHINE_KEY,
+        ipAddress: "127.0.0.1",
+        requestPayload: JSON.stringify(rpc.requestPayload),
+      }),
+    };
+    const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/Process/${session.sessionKey}`, {
+      dispatcher: legacySslAgent,
+      method: "POST",
+      headers: blazeHeaders(token.console),
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stripControlCharacters(text));
+    } catch {
+      throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
+    }
+    if (parsed && typeof parsed === "object" && "error" in parsed) {
+      // A stale sessionKey surfaces as a Blaze error; callers re-authenticate and retry.
+      throw new BlazeSessionError(JSON.stringify((parsed as Record<string, unknown>).error).slice(0, 400));
+    }
+    return parsed as T;
   };
-  const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/Process/${session.sessionKey}`, {
-    dispatcher: legacySslAgent,
-    method: "POST",
-    headers: blazeHeaders(token.console),
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  let parsed: unknown;
+
   try {
-    parsed = JSON.parse(stripControlCharacters(text));
-  } catch {
-    throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
+    const result = await attempt(componentName);
+    workingComponentName = componentName;
+    return result;
+  } catch (error) {
+    if (!(error instanceof BlazeSessionError)) throw error;
+    // Wrong component name for this league's Madden year also surfaces as a Blaze error —
+    // try the other name before giving the session-retry machinery a chance to run.
+    const result = await attempt(componentName === "careermode" ? "franchisemode" : "careermode");
+    workingComponentName = componentName === "careermode" ? "franchisemode" : "careermode";
+    return result;
   }
-  if (parsed && typeof parsed === "object" && "error" in parsed) {
-    // A stale sessionKey surfaces as a Blaze error; callers re-authenticate and retry.
-    throw new BlazeSessionError(JSON.stringify((parsed as Record<string, unknown>).error).slice(0, 400));
-  }
-  return parsed as T;
 }
 
 // ── Step 10: exports ──
