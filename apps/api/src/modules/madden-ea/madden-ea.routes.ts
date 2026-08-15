@@ -231,7 +231,27 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       const { syncCompanionScheduleResultsIntoGameResults } = await import("../madden-companion/madden-companion.service.js");
       await syncCompanionScheduleResultsIntoGameResults(body.league_id);
-      return reply.send({ ok: true });
+      // Diagnostic: count games at each filter stage
+      const { getPgPool } = await import("../../db/client.js");
+      const counts = await getPgPool().query(
+        `select
+           count(*) filter (where source='madden_companion_export') as companion_games,
+           count(*) filter (where source='madden_companion_export' and status='completed') as completed,
+           count(*) filter (where source='madden_companion_export' and status='completed' and home_score is not null) as with_scores,
+           count(*) filter (where source='madden_companion_export' and status='completed' and home_score is not null and home_team_id is not null) as ready,
+           count(*) filter (where source='madden_companion_export' and status='scheduled') as scheduled,
+           count(*) filter (where home_score is not null and home_score > 0) as any_with_scores,
+           count(*) as total_games
+         from rec_games where league_id=$1`,
+        [body.league_id],
+      );
+      // Also check rec_game_results
+      const resultsCount = await getPgPool().query(
+        `select count(*) as total, count(*) filter (where source='madden_companion_import') as companion_import
+         from rec_game_results where league_id=$1`,
+        [body.league_id],
+      );
+      return reply.send({ ok: true, games: counts.rows[0], results: resultsCount.rows[0] });
     } catch (error) {
       return sendError(reply, error);
     }

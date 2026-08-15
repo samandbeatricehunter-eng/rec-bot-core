@@ -542,8 +542,14 @@ export function ImportDataModal({
                     </Button>
                     <Button variant="secondary" disabled={busy} onClick={() => {
                       setBusy(true); setBusyLabel("Backfilling scores…");
-                      recApi.backfillEaScores({ guildId, leagueId }).then(() => {
-                        setNotice("Scores backfilled. Refresh the page to see them in Advance Readiness.");
+                      recApi.backfillEaScores({ guildId, leagueId }).then((r) => {
+                        const g = (r as any).games;
+                        const res = (r as any).results;
+                        if (g) {
+                          setNotice(`Backfill complete. Games: ${g.total_games} total, ${g.companion_games} from EA, ${g.completed} completed, ${g.with_scores} with scores, ${g.ready} ready to sync. Results table: ${res?.total ?? 0} total, ${res?.companion_import ?? 0} from EA import.`);
+                        } else {
+                          setNotice("Scores backfilled. Refresh the page to see them in Advance Readiness.");
+                        }
                       }).catch((e) => setError(e instanceof Error ? e.message : "Failed to backfill scores.")).finally(() => { setBusy(false); setBusyLabel(null); });
                     }}>
                       Backfill Scores
