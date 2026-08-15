@@ -910,12 +910,14 @@ export async function listEaImportJobs(leagueId: string) {
   try {
     const result = await getPgPool().query<{
       id: string; task_key: string; status: string; completed_at: string | null; record_count: number;
-      rolled_back_at: string | null;
+      rolled_back_at: string | null; duplicate_of_job_id: string | null;
     }>(
-      `select id, task_key, status, completed_at, record_count, rolled_back_at
+      `select id, task_key, status, completed_at, record_count, rolled_back_at, duplicate_of_job_id
          from rec_import_jobs
-        where league_id=$1 and source_type='madden_direct_sync' and status='completed'
-        order by completed_at desc limit 25`,
+        where league_id=$1 and source_type='madden_direct_sync'
+          and (status='completed' or status='processing')
+          and rolled_back_at is null
+        order by created_at desc limit 25`,
       [leagueId],
     );
     return result.rows;

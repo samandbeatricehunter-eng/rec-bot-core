@@ -201,7 +201,7 @@ export function ImportDataModal({
   }
 
   async function runImport() {
-    if (!connection) return;
+    if (!connection || busy) return; // Prevent duplicate submissions
     setBusy(true); setBusyLabel("Connecting to EA…"); setError(null); setImportResults(null); setImportProgress([]);
     try {
       const weekRefs =
@@ -235,7 +235,7 @@ export function ImportDataModal({
         if (completed) {
           setNotice("Import completed. The connection timed out but the data was imported successfully.");
         } else {
-          setError("Import is still running. Check the Recent Imports section below for results, or wait a moment and refresh.");
+          setError("Import is still running in the background. Results will appear in Recent Imports below once complete. Do not start another import until this one finishes.");
         }
       } else {
         setError(message);
@@ -488,7 +488,7 @@ export function ImportDataModal({
                         {busy && busyLabel === "Saving settings…" ? "Saving…" : "Save Settings"}
                       </Button>
                       <Button disabled={busy || !selectedDatasets.length} onClick={() => void runImport()}>
-                        {busy ? (busyLabel ?? "Importing…") : "Import Now"}
+                        {busy ? (busyLabel ?? "Import in progress…") : "Import Now"}
                       </Button>
                     </div>
                   </Card>
