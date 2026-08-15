@@ -234,6 +234,8 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: false, approveLabel: "Log Scores", denyLabel: "Cancel" };
     case "wager":
       return { kind: "single", actionLabel: "Settle Wager" };
+    case "trade":
+      return { kind: "approve_deny", reasonField: false, approveLabel: "Approve Trade", denyLabel: "Reject Trade" };
     case "active_check":
       return { kind: "info", message: "This active check is missing its event reference — resolve it from Discord instead." };
     case "eos_award":
@@ -286,6 +288,8 @@ async function resolveAction(
         : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
       return recApi.settleWager({ guildId, leagueId, wagerId: sourceId });
+    case "trade":
+      return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
     case "autopilot_request":
     case "matchup_issue_report":
