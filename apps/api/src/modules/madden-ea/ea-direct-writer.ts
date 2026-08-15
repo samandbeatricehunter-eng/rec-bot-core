@@ -97,6 +97,32 @@ export async function directWriteSchedule(
       [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
        completed ? "completed" : "scheduled", externalId],
     );
+
+    // For completed games with valid team IDs, also write directly to rec_game_results
+    // so wagers and advance readiness pick up the scores immediately.
+    if (completed && homeUuid && awayUuid && homeScore != null && awayScore != null) {
+      const isTie = homeScore === awayScore;
+      const homeWon = homeScore > awayScore;
+      const applyKey = `${leagueId}:ea-${externalId ?? displayWeek}:${homeUuid}:${awayUuid}`;
+      await pool.query(
+        `insert into rec_game_results
+           (league_id, game_id, season_number, week_number, game_type, home_team_id, away_team_id,
+            home_score, away_score, winning_team_id, losing_team_id, is_tie, is_playoff, source,
+            records_apply_key, created_at, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'madden_companion_import',$14,now(),now())
+         on conflict (records_apply_key) do update set
+           home_score=excluded.home_score, away_score=excluded.away_score,
+           winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
+           is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()`,
+        [
+          leagueId, null, null, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
+          homeUuid, awayUuid, homeScore, awayScore,
+          isTie ? null : homeWon ? homeUuid : awayUuid,
+          isTie ? null : homeWon ? awayUuid : homeUuid,
+          isTie, phase === "playoffs", applyKey,
+        ],
+      );
+    }
     written += 1;
   }
   return written;
