@@ -217,15 +217,14 @@ export function ImportDataModal({
       // Start the import (runs in background)
       await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs });
 
-      // Poll for progress every 2 seconds
-      let done = false;
-      while (!done && busy) {
+      // Poll for progress every 2 seconds until done
+      let finished = false;
+      while (!finished) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         try {
           const progress = await recApi.getImportProgress({ guildId, leagueId });
           setImportProgress(progress.events);
 
-          // Update busy label from latest event
           const latest = progress.events[progress.events.length - 1];
           if (latest) {
             if (latest.type === "dataset_start") setBusyLabel(`Importing ${latest.label}…`);
@@ -235,7 +234,7 @@ export function ImportDataModal({
           }
 
           if (!progress.running) {
-            done = true;
+            finished = true;
             const doneEvent = progress.events.find((e) => e.type === "done") as any;
             const errorEvent = progress.events.find((e) => e.type === "error") as any;
             if (doneEvent?.results) {
