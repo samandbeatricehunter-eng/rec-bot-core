@@ -428,10 +428,14 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
     const now = new Date().toISOString();
     await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, reviewed_by_discord_id: input.reviewerDiscordId, review_note: input.note ?? null }).eq("id", trade.data.id);
     await supabase.from("rec_trade_audit_log").insert({ trade_id: trade.data.id, action: "rejected", actor_discord_id: input.reviewerDiscordId, previous_status: "pending_review", next_status: "rejected", details: { note: input.note ?? null } });
+    // Remove the commissioner inbox notification for this trade
+    await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", trade.data.id);
     return { status: "rejected" };
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: trade.data.id, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: input.note ?? null });
   if (applied.error) throw new ApiError(500, "We couldn't apply that trade. Please try again.", applied.error);
+  // Remove the commissioner inbox notification for this trade
+  await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", trade.data.id);
   void announceAppliedTrade(input.guildId, context.leagueId, trade.data.id);
   return { status: "applied" };
 }

@@ -745,10 +745,19 @@ export async function importEaDatasetsWithProgress(
     }
   }
 
+  // Sync schedule results and trigger wager settlement checks
   if (scheduleImported) {
     pushProgress(leagueId, { type: "reconciling", step: "Syncing game results…" });
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
+    // Trigger wager inbox notifications for any wagers that now have results
+    try {
+      const { listConfirmableWagers } = await import("../wagers/wagers.service.js");
+      const confirmable = await listConfirmableWagers(leagueId);
+      if (confirmable.wagers.length > 0) console.log(`[EA] ${confirmable.wagers.length} wager(s) now confirmable after import.`);
+    } catch (error) {
+      console.error("[WARN] Failed to check confirmable wagers after import (non-fatal):", error);
+    }
   }
   // Process badges/stories for games that now have team_stats from the import.
   if (datasets.includes("team_stats") || datasets.includes("schedule")) {

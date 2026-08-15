@@ -1172,16 +1172,15 @@ export async function listConfirmableWagers(leagueId: string) {
     .from("rec_wagers")
     .select("id,league_id,season_number,week_number,placed_by_discord_id,placed_by_user_id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind,is_parlay,stake")
     .eq("league_id", leagueId)
-    .eq("status", "pending")
-    .not("pending_message_id", "is", null);
-  const wagers: Array<{ id: string; channelId: string; messageId: string }> = [];
+    .eq("status", "pending");
+  const wagers: Array<{ id: string; channelId: string | null; messageId: string | null }> = [];
   for (const w of data ?? []) {
     const resolvable = w.is_parlay
       ? (await resolveParlay(leagueId, w.id, Number(w.stake ?? 0))) != null
       : (await resolveOutcome(leagueId, w)) != null;
-    if (resolvable && w.pending_channel_id && w.pending_message_id) {
+    if (resolvable) {
       await recordWagerInbox(w);
-      wagers.push({ id: w.id, channelId: w.pending_channel_id, messageId: w.pending_message_id });
+      wagers.push({ id: w.id, channelId: w.pending_channel_id ?? null, messageId: w.pending_message_id ?? null });
     }
   }
   return { wagers };
