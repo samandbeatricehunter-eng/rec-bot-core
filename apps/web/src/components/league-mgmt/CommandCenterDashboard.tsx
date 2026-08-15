@@ -274,6 +274,11 @@ function AdvanceReadinessSection() {
             <div key={g.gameId} className="advance-game-row">
               <div className="advance-game-title">
                 <strong>{g.awayTeamName} @ {g.homeTeamName}</strong>
+                {!g.needsInput && g.homeScore != null && g.awayScore != null && (
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", marginLeft: "var(--space-2)" }}>
+                    {g.awayScore}-{g.homeScore} {g.homeScore > g.awayScore ? g.homeTeamName : g.awayScore > g.homeScore ? g.awayTeamName : "Tie"}{g.homeScore > g.awayScore ? " wins" : g.awayScore > g.homeScore ? " wins" : ""}
+                  </span>
+                )}
                 {!g.needsInput && <Badge status="approved">{g.existingResultSource ?? "Has result"}</Badge>}
                 {g.needsInput && <Badge status="pending">Needs input</Badge>}
                 {pollByGameId.has(g.gameId) && <Badge status="info">GOTW</Badge>}

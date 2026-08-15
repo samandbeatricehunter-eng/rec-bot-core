@@ -103,11 +103,19 @@ export async function directWriteSchedule(
 }
 
 async function resolveTeamId(pool: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<{ id: string }> }> }, leagueId: string, maddenTeamId: string): Promise<string | null> {
+  // Try exact madden_team_id match first
   const result = await pool.query(
     `select id from rec_teams where league_id=$1 and madden_team_id=$2 limit 1`,
     [leagueId, maddenTeamId],
   );
-  return result.rows[0]?.id ?? null;
+  if (result.rows[0]) return result.rows[0].id;
+
+  // Fallback: try matching by the numeric ID cast to text (in case madden_team_id is stored differently)
+  const fallback = await pool.query(
+    `select id from rec_teams where league_id=$1 and (madden_team_id::text = $2 or madden_team_id::text = $2::int::text) limit 1`,
+    [leagueId, maddenTeamId],
+  );
+  return fallback.rows[0]?.id ?? null;
 }
 
 // ── Roster ──

@@ -318,7 +318,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   const [results, boxScores] = await Promise.all([
     supabase
       .from("rec_game_results")
-      .select("id,external_game_id,home_team_id,away_team_id,source")
+      .select("id,external_game_id,home_team_id,away_team_id,source,home_score,away_score")
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
       .eq("week_number", weekNumber),
@@ -347,13 +347,14 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
 
   const boxScoreGameIds = new Set((boxScores.data ?? []).map((row) => String(row.game_id)).filter(Boolean));
-  const resultByMatchup = new Map(
-    (results.data ?? []).map((row) => [`${row.home_team_id}:${row.away_team_id}`, row.source ?? null]),
+  const resultByMatchup = new Map<string, { source: string | null; home_score: number | null; away_score: number | null }>(
+    (results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, { source: row.source ?? null, home_score: row.home_score ?? null, away_score: row.away_score ?? null }]),
   );
 
   const mapped = (games ?? []).map((game: any) => {
     const hasBoxScore = boxScoreGameIds.has(String(game.id));
-    const existingSource = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
+    const resultRow = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
+    const existingSource = resultRow?.source ?? null;
     const hasOfficialResult = existingSource != null && RESOLVED_RESULT_SOURCES.includes(String(existingSource));
     const needsInput = !hasBoxScore && !hasOfficialResult;
     const homeUserId = userByTeam.get(game.home_team_id) ?? game.home_user_id ?? null;
@@ -375,6 +376,8 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       isH2h,
       isBowlGame: Boolean(game.is_bowl_game),
       isNationalChampionship: Boolean(game.is_national_championship),
+      homeScore: resultRow?.home_score ?? null,
+      awayScore: resultRow?.away_score ?? null,
     };
   });
 
