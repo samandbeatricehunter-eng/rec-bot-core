@@ -711,14 +711,14 @@ export async function importEaDatasetsWithProgress(
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
   }
-  // Match preserved legend-assigned players to the new imported players by name.
+  // Match pending custom-player/legend purchases to the new imported players by name.
   if (datasets.includes("rosters")) {
-    onProgress({ type: "reconciling", step: "Linking legends to imported players…" });
-    const matched = await reconcileLegendsToImport(leagueId).catch((error) => {
-      console.error("[WARN] Failed to reconcile legends to import (non-fatal):", error);
+    onProgress({ type: "reconciling", step: "Linking pending purchases to imported players…" });
+    const matched = await reconcilePendingPurchasesToImport(leagueId).catch((error) => {
+      console.error("[WARN] Failed to reconcile pending purchases to import (non-fatal):", error);
       return 0;
     });
-    if (matched > 0) console.log(`[EA] Matched ${matched} legend(s) to imported players.`);
+    if (matched > 0) console.log(`[EA] Matched ${matched} pending purchase(s) to imported players.`);
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
@@ -734,36 +734,21 @@ export async function importEaDatasets(connectionId: string, leagueId: string, o
 }
 
 /**
- * Wipe all baseline/seeded players for a league so the EA import becomes the sole source
- * of truth. Custom player builds are preserved as-is (they're not in EA). Legend-assigned
- * players are preserved temporarily — after the EA import lands, call
- * reconcileLegendsToImport() to match them to the new imported players by name and
- * transfer team assignments.
+ * Wipe ALL players for a league so the EA import becomes the sole source of truth.
+ * Every player exists in-game and will be re-imported from EA. No exceptions.
  */
 export async function wipeBaselineRoster(leagueId: string): Promise<number> {
-  const preserveFilter = `
-    league_id=$1
-    and not exists (
-      select 1 from rec_custom_player_builds b
-       where b.league_id=$1 and b.created_player_id = rec_players.id
-    )
-    and not exists (
-      select 1 from rec_purchases p
-       where p.league_id=$1 and p.status='approved'
-         and p.purchase_type='legend'
-         and (p.details->'replaceTarget'->>'playerId')::uuid = rec_players.id
-    )`;
   const count = await getPgPool().query<{ id: string }>(
-    `select id from rec_players where ${preserveFilter}`,
+    `select id from rec_players where league_id=$1`,
     [leagueId],
   );
   if (!count.rows.length) return 0;
   try {
-    await getPgPool().query(`delete from rec_players where ${preserveFilter}`, [leagueId]);
+    await getPgPool().query(`delete from rec_players where league_id=$1`, [leagueId]);
     return count.rows.length;
   } catch {
     await getPgPool().query(
-      `update rec_players set roster_status='removed', updated_at=now() where ${preserveFilter}`,
+      `update rec_players set roster_status='removed', updated_at=now() where league_id=$1`,
       [leagueId],
     );
     return count.rows.length;
@@ -771,69 +756,44 @@ export async function wipeBaselineRoster(leagueId: string): Promise<number> {
 }
 
 /**
- * After the EA import creates new players, match preserved legend-assigned players to
- * the imported players by name and position. Transfers the legend's team assignment to
- * the imported player, then deletes the old preserved row.
+ * After the EA import creates all players, re-map pending custom-player and legend
+ * purchases to the imported players. Approved/applied purchases don't need handling —
+ * those players already exist in-game and were imported as regular EA players.
+ * Pending purchases reference a (now-deleted) baseline player; match by name to the
+ * imported player so the commissioner can apply them.
  */
-export async function reconcileLegendsToImport(leagueId: string): Promise<number> {
-  // Find legend purchase records that reference a player still in rec_players
-  const legends = await getPgPool().query<{
-    purchase_id: string; player_id: string; legend_name: string; legend_position: string; team_id: string;
+export async function reconcilePendingPurchasesToImport(leagueId: string): Promise<number> {
+  const pending = await getPgPool().query<{
+    id: string; purchase_type: string; player_name: string; player_position: string;
   }>(
-    `select p.id as purchase_id,
-            (p.details->'replaceTarget'->>'playerId')::uuid as player_id,
-            p.details->>'name' as legend_name,
-            p.details->>'position' as legend_position,
-            (p.details->>'purchasingTeamId')::uuid as team_id
-       from rec_purchases p
-      where p.league_id=$1 and p.status='approved' and p.purchase_type='legend'
-        and (p.details->'replaceTarget'->>'playerId') is not null`,
+    `select id, purchase_type,
+            coalesce(details->>'name', details->'build'->>'fullName', details->'replaceTarget'->>'firstName') as player_name,
+            coalesce(details->>'position', details->'build'->>'position', details->'replaceTarget'->>'position') as player_position
+       from rec_purchases
+      where league_id=$1 and status='pending'
+        and purchase_type in ('legend', 'custom_player')`,
     [leagueId],
   );
-  if (!legends.rows.length) return 0;
+  if (!pending.rows.length) return 0;
 
   let matched = 0;
-  for (const legend of legends.rows) {
-    // Find the imported player with the same name (case-insensitive)
+  for (const purchase of pending.rows) {
+    if (!purchase.player_name) continue;
     const imported = await getPgPool().query<{ id: string }>(
       `select id from rec_players
-        where league_id=$1
-          and lower(full_name) = lower($2)
-          and madden_player_id is not null
-          and id != $3
+        where league_id=$1 and lower(full_name) = lower($2) and madden_player_id is not null
         limit 1`,
-      [leagueId, legend.legend_name, legend.player_id],
+      [leagueId, purchase.player_name],
     );
     if (!imported.rows[0]) continue;
-
-    const importedId = imported.rows[0].id;
-
-    // Transfer the legend's team assignment to the imported player
+    // Update the purchase's replaceTarget to point to the imported player
     await getPgPool().query(
-      `update rec_players set team_id=$3, roster_status='active', updated_at=now()
-        where id=$1 and league_id=$2`,
-      [importedId, leagueId, legend.team_id],
+      `update rec_purchases
+         set details = jsonb_set(details, '{replaceTarget}', jsonb_build_object('playerId', $3::text), true),
+             updated_at=now()
+         where id=$1 and league_id=$2`,
+      [purchase.id, leagueId, imported.rows[0].id],
     );
-
-    // Update the purchase record to point to the imported player
-    const newDetails = JSON.stringify({
-      ...JSON.parse(JSON.stringify(legend)),
-      replaceTarget: { playerId: importedId },
-    });
-    await getPgPool().query(
-      `update rec_purchases set details = details || $3::jsonb, updated_at=now() where id=$1 and league_id=$2`,
-      [legend.purchase_id, leagueId, JSON.stringify({ replaceTarget: { playerId: importedId } })],
-    );
-
-    // Delete the old preserved row (it was a baseline player modified in-game)
-    await getPgPool().query(
-      `delete from rec_players where id=$1 and league_id=$2`,
-      [legend.player_id, leagueId],
-    ).catch(() =>
-      // FK-blocked: mark removed
-      getPgPool().query(`update rec_players set roster_status='removed' where id=$1 and league_id=$2`, [legend.player_id, leagueId]),
-    );
-
     matched += 1;
   }
   return matched;

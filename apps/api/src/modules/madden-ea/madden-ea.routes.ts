@@ -16,6 +16,7 @@ import {
   submitEaCode,
   updateEaConnectionSettings,
   wipeBaselineRoster,
+  reconcilePendingPurchasesToImport,
   type EaDataset,
   type EaImportProgressEvent,
 } from "./ea-connections.service.js";
