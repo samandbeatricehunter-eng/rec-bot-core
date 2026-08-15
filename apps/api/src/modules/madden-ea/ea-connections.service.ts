@@ -535,25 +535,29 @@ export async function importEaDatasetsWithProgress(
   }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
-  // Retry wrapper: catches both BlazeSessionError (stale session) and EaAuthError (ERR_SYSTEM
-  // from stale session). Refreshes the Blaze session and retries the operation. If session
-  // creation itself fails, forces a token refresh first.
+  // Keep the Blaze session alive before each request. If the session dies, recreate it
+  // (with token refresh if needed) and retry. Single retry — if it still fails, let it throw.
+  let activeSession = session;
   const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
+    // Send a keepalive ping to prevent EA from killing the session between requests
+    const keepAliveClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
     try {
-      return await operation(client);
+      await keepAliveClient.keepAlive();
+    } catch {
+      // Session already dead — recreate below before the real request
+    }
+    try {
+      return await operation(keepAliveClient);
     } catch (error) {
       const isSessionError = error instanceof BlazeSessionError;
       const isAuthError = error instanceof EaAuthError;
       if (!isSessionError && !isAuthError) throw error;
-      console.warn("[EA] Blaze session error, refreshing:", error instanceof Error ? error.message : error);
+      console.warn("[EA] Blaze session stale, recreating:", error instanceof Error ? error.message.slice(0, 200) : error);
       await clearSession(row.id);
-      let fresh: EaSessionCache;
       try {
-        fresh = await createBlazeSession(token.accessToken, token.console);
-      } catch (sessionErr) {
-        // Session creation failed — force a token refresh and retry once
-        const sessionMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr);
-        console.warn("[EA] Session creation failed, refreshing token:", sessionMsg);
+        activeSession = await createBlazeSession(token.accessToken, token.console);
+      } catch {
+        // Token might be stale too — refresh first
         const { refreshEaToken } = await import("./ea-client.js");
         const refreshed = await refreshEaToken(token.refreshToken);
         const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
@@ -561,10 +565,10 @@ export async function importEaDatasetsWithProgress(
         token.accessToken = refreshed.accessToken;
         token.refreshToken = refreshed.refreshToken;
         token.expiresAt = refreshed.expiresAt;
-        fresh = await createBlazeSession(refreshed.accessToken, token.console);
+        activeSession = await createBlazeSession(refreshed.accessToken, token.console);
       }
-      await persistSession(row.id, fresh);
-      const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, fresh);
+      await persistSession(row.id, activeSession);
+      const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
       return await operation(freshClient);
     }
   };

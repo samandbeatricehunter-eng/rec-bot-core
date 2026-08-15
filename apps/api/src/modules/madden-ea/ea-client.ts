@@ -529,6 +529,8 @@ async function sendExport<T>(
 export type EaClient = {
   console: SystemConsole;
   session: EaSessionCache;
+  /** Keepalive: sends a lightweight request to prevent EA from killing the session. */
+  keepAlive(): Promise<void>;
   getLeagues(): Promise<EaLeagueSummary[]>;
   getLeagueInfo(leagueId: number): Promise<EaLeagueResponse>;
   getTeams(leagueId: number): Promise<unknown>;
@@ -557,6 +559,16 @@ export function createEaClient(
   return {
     console: token.console,
     session,
+    async keepAlive() {
+      // Lightweight request to keep the Blaze session alive — snallabot uses
+      // Mobile_GetMyLeagues for this purpose. If it fails, callers should
+      // recreate the session before continuing.
+      await sendBlazeRpc<GetMyLeaguesResponse>(token, session, {
+        commandName: "Mobile_GetMyLeagues",
+        commandId: 801,
+        requestPayload: {},
+      });
+    },
     async getLeagues() {
       const response = await sendBlazeRpc<GetMyLeaguesResponse>(token, session, {
         commandName: "Mobile_GetMyLeagues",
