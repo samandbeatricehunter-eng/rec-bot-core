@@ -499,14 +499,27 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
   // Capture teams this user (or the prior coach of this slot) is leaving so schedule
   // home_user_id/away_user_id can be cleared/rewritten for those matchups too.
-  const priorAssignments = await supabase
-    .from("rec_team_assignments")
-    .select("team_id")
-    .eq("league_id", league.id)
-    .is("ended_at", null)
-    .or(`user_id.eq.${userId},and(team_id.eq.${input.teamId},assignment_status.eq.active)`);
-  if (priorAssignments.error) throw new ApiError(500, "We couldn't check existing team assignments. Please try again.", priorAssignments.error);
-  const scheduleTeamIds = [...new Set([...(priorAssignments.data ?? []).map((row) => row.team_id), input.teamId].filter(Boolean))];
+  let scheduleTeamIds: string[];
+  try {
+    const priorAssignments = await supabase
+      .from("rec_team_assignments")
+      .select("team_id")
+      .eq("league_id", league.id)
+      .is("ended_at", null)
+      .or(`user_id.eq.${userId},and(team_id.eq.${input.teamId},assignment_status.eq.active)`);
+    if (priorAssignments.error) throw priorAssignments.error;
+    scheduleTeamIds = [...new Set([...(priorAssignments.data ?? []).map((row) => row.team_id), input.teamId].filter(Boolean))];
+  } catch (queryErr) {
+    console.error("[TEAM-LINK] priorAssignments .or() query failed, retrying without user filter:", queryErr);
+    const fallback = await supabase
+      .from("rec_team_assignments")
+      .select("team_id")
+      .eq("league_id", league.id)
+      .eq("team_id", input.teamId)
+      .is("ended_at", null);
+    if (fallback.error) throw new ApiError(500, "We couldn't check existing team assignments. Please try again.", fallback.error);
+    scheduleTeamIds = [...new Set([...(fallback.data ?? []).map((row) => row.team_id), input.teamId].filter(Boolean))];
+  }
 
   await supabase
     .from("rec_team_assignments")
