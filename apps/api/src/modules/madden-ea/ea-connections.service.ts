@@ -41,6 +41,7 @@ import {
   WEEKLY_DATASETS,
   type EaDataset,
 } from "./ea-datasets.js";
+import { directWriteSchedule, directWriteRoster } from "./ea-direct-writer.js";
 import {
   isTokenExpired,
   openToken,
@@ -53,6 +54,17 @@ import { currentWeekFromSeasonInfo, describeEaWeek, type EaStage, type EaWeekRef
 export type { EaDataset };
 
 const PENDING_AUTH_TTL_MS = 10 * 60 * 1000;
+
+/** Extract rows from EA's export envelope (e.g. { gameScheduleInfoList: [...] }). */
+function extractEaRows(raw: unknown, envelopeKey: string): Array<Record<string, unknown>> {
+  if (!raw || typeof raw !== "object") return [];
+  const container = raw as Record<string, unknown>;
+  const direct = container[envelopeKey];
+  if (Array.isArray(direct)) return direct.filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object");
+  const arrays = Object.values(container).filter((v): v is unknown[] => Array.isArray(v));
+  if (arrays.length === 1) return arrays[0].filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object");
+  return [];
+}
 
 type EaConnectionRow = {
   id: string;
@@ -633,35 +645,43 @@ export async function importEaDatasetsWithProgress(
     console.log(`[EA] Fetching ${dataset} week ${week.weekIndex}...`);
     const raw = await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
     console.log(`[EA] Fetched ${dataset} week ${week.weekIndex} in ${Date.now() - t0}ms`);
-    const envelope = toIngestEnvelope({
-      dataset,
-      raw,
-      eaLeagueId,
-      seasonYear,
-      stage: week.stageIndex,
-      weekIndex: week.weekIndex,
-    });
-    if (dataset === "rosters" || dataset === "free_agents") {
-      const rows = (envelope.payload as { rosterInfoList?: Array<Record<string, unknown>> }).rosterInfoList ?? [];
+
+    const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
+    const label = weeklyRefs.length > 1
+      ? `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`
+      : EA_DATASET_LABELS[dataset];
+
+    let records = 0;
+
+    // Schedule and rosters: write directly to rec_games/rec_players, bypassing the
+    // companion adapter pipeline that was losing field names in translation.
+    if (dataset === "schedule") {
+      records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
+      scheduleImported = true;
+    } else if (dataset === "rosters") {
+      records = await directWriteRoster(leagueId, raw, false);
+      // Collect player IDs for reconciliation
+      const rows = extractEaRows(raw, "rosterInfoList");
       for (const row of rows) {
-        const id = row.playerId ?? row.player_id ?? row.rosterId ?? row.roster_id;
+        const id = (row as any).rosterId ?? (row as any).roster_id ?? (row as any).playerId ?? (row as any).player_id;
         if (id != null) importedPlayerIds.add(String(id));
       }
+    } else if (dataset === "free_agents") {
+      records = await directWriteRoster(leagueId, raw, true);
+    } else {
+      // Stats datasets: still go through companion adapter (they have correct field names)
+      const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
+      const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
+      records = ingested.records_stored;
     }
-    const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
-    const label = weeklyRefs.length > 1
-      ? `${EA_DATASET_LABELS[dataset]} — ${describeEaWeek(week.stageIndex, week.weekIndex).label}`
-      : EA_DATASET_LABELS[dataset];
+
     const existing = results.find((result) => result.dataset === dataset && result.label === label);
     if (existing) {
-      existing.recordsStored += ingested.records_stored;
-      existing.duplicate = existing.duplicate && ingested.duplicate;
-      existing.importJobId = ingested.import_job_id;
+      existing.recordsStored += records;
     } else {
-      results.push({ dataset, label, importJobId: ingested.import_job_id, duplicate: ingested.duplicate, recordsStored: ingested.records_stored });
+      results.push({ dataset, label, importJobId: null, duplicate: false, recordsStored: records });
     }
-    if (dataset === "schedule") scheduleImported = true;
-    return { label, records: ingested.records_stored, duplicate: ingested.duplicate };
+    return { label, records, duplicate: false };
   };
 
   for (const dataset of datasets) {
