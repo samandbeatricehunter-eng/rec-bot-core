@@ -201,6 +201,38 @@ function HighlightReviewPreview({ guildId, reviewId }: { guildId: string; review
   );
 }
 
+// The stream-payout card only ever said "Stream submitted by @coach" — no way to tell which
+// game it was for before approving. Mirrors HighlightReviewPreview's shape/pattern above.
+function StreamReviewPreview({ guildId, reviewId }: { guildId: string; reviewId: string }) {
+  const [detail, setDetail] = useState<Awaited<ReturnType<typeof recApi.getStreamReviewDetail>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    recApi.getStreamReviewDetail(guildId, reviewId)
+      .then((result) => { if (!cancelled) setDetail(result); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load the stream details."); });
+    return () => { cancelled = true; };
+  }, [guildId, reviewId]);
+
+  if (error) return <p className="form-hint">{error}</p>;
+  if (!detail) return <p className="form-hint">Loading stream details…</p>;
+
+  return (
+    <div style={{ marginTop: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+      {detail.matchup ? (
+        <p style={{ fontWeight: 600, margin: 0 }}>
+          Week {detail.matchup.weekNumber ?? "?"} — {detail.matchup.awayTeamName} at {detail.matchup.homeTeamName} ({detail.matchup.matchupLabel})
+        </p>
+      ) : (
+        <p className="form-hint">No matchup on record for this stream (Week {detail.weekNumber ?? "?"}).</p>
+      )}
+      {detail.submittedByName && <p className="form-hint" style={{ margin: "2px 0 0" }}>Submitted by {detail.submittedByName}</p>}
+      {detail.messageUrl && <p style={{ margin: "2px 0 0" }}><a href={detail.messageUrl} target="_blank" rel="noreferrer">Open stream link</a></p>}
+    </div>
+  );
+}
+
 type WagerResolvability = Awaited<ReturnType<typeof recApi.getWagerResolvability>>;
 
 const WAGER_OUTCOME_LABEL: Record<string, string> = { won: "Bettor won", lost: "Bettor lost", push: "Push (refund)" };
@@ -487,6 +519,9 @@ export function ResolveNotificationModal({
       )}
       {notification.type === "wager" && notification.sourceId && (
         <WagerReviewPreview guildId={guildId} wagerId={notification.sourceId} />
+      )}
+      {notification.type === "stream" && notification.sourceId && (
+        <StreamReviewPreview guildId={guildId} reviewId={notification.sourceId} />
       )}
       {notification.type === "media" && notification.payload && (
         <div className="media-review-preview">

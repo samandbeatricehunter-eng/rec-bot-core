@@ -332,6 +332,35 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   };
 }
 
+// The stream commissioner-inbox card only ever showed "Stream submitted by @coach" with no
+// way to see which game it was for before approving/denying the payout — mirrors
+// getHighlightReviewDetail's shape (highlights.service.ts) so the frontend can reuse the
+// same matchup-preview pattern.
+export async function getStreamReviewDetail(input: { guildId: string; reviewId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const review = await supabase
+    .from("rec_stream_payout_reviews")
+    .select("id,week_number,user_id,stream_log:rec_stream_compliance_logs(game_id,message_url)")
+    .eq("id", input.reviewId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (review.error) throw new ApiError(500, "Failed to load stream review.", review.error);
+  if (!review.data) throw new ApiError(404, "Stream review not found.");
+
+  const streamLog: any = Array.isArray(review.data.stream_log) ? review.data.stream_log[0] : review.data.stream_log;
+  const [submitter, matchup] = await Promise.all([
+    review.data.user_id ? supabase.from("rec_users").select("display_name,username").eq("id", review.data.user_id).maybeSingle() : Promise.resolve({ data: null }),
+    streamLog?.game_id ? deriveStreamMatchupContext(context.leagueId, streamLog.game_id) : Promise.resolve(null),
+  ]);
+
+  return {
+    weekNumber: review.data.week_number,
+    messageUrl: streamLog?.message_url ?? null,
+    submittedByName: submitter.data?.display_name ?? submitter.data?.username ?? null,
+    matchup: matchup ? { weekNumber: review.data.week_number, homeTeamName: matchup.homeTeamName, awayTeamName: matchup.awayTeamName, matchupLabel: matchup.matchupLabel } : null,
+  };
+}
+
 export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
   let reviewQuery = supabase
     .from("rec_stream_payout_reviews")

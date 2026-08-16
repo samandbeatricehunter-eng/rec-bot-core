@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { recordStreamPost, reviewStreamPayout } from "./streams.service.js";
+import { getStreamReviewDetail, recordStreamPost, reviewStreamPayout } from "./streams.service.js";
 
 const RecordStreamPostSchema = z.object({
   guildId: z.string().min(1),
@@ -32,6 +32,16 @@ export async function streamRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await recordStreamPost(RecordStreamPostSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/streams/review-detail", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), reviewId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await getStreamReviewDetail(body));
     } catch (error) {
       return sendError(reply, error);
     }

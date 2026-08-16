@@ -802,6 +802,13 @@ export const recApi = {
     recApiFetch<unknown>("/v1/highlights/game-of-the-year/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewStream: (input: { guildId: string; leagueId?: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/streams/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  getStreamReviewDetail: (guildId: string, reviewId: string) =>
+    recApiFetch<{
+      weekNumber: number | null;
+      messageUrl: string | null;
+      submittedByName: string | null;
+      matchup: { weekNumber: number | null; homeTeamName: string; awayTeamName: string; matchupLabel: "H2H" | "CPU" } | null;
+    }>("/v1/streams/review-detail", { method: "POST", body: JSON.stringify({ guildId, reviewId }) }),
   approveTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
     recApiFetch<unknown>("/v1/team-requests/approve", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
   rejectTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
