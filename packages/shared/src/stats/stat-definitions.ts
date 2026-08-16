@@ -347,6 +347,37 @@ export function statCategoriesForPosition(position: string | null | undefined): 
   return POSITION_STAT_CATEGORIES[position.toUpperCase()] ?? [];
 }
 
+// Every raw EA/companion field name (case-insensitive) that maps to a canonical key, built
+// once from STAT_DEFINITIONS[].aliases. The aliases list existed for exactly this purpose but
+// had no consumer — raw EA keys (puntAtt, passYds, defSacks, …) were being stored verbatim in
+// rec_player_weekly_stats.stats, so anything reading by canonical key (League Records,
+// League Stats, season/career totals, badges) silently matched nothing.
+const STAT_ALIAS_TO_CANONICAL = new Map<string, string>();
+for (const def of STAT_DEFINITIONS) {
+  STAT_ALIAS_TO_CANONICAL.set(def.canonicalKey.toLowerCase(), def.canonicalKey);
+  for (const alias of def.aliases) STAT_ALIAS_TO_CANONICAL.set(alias.toLowerCase(), def.canonicalKey);
+}
+
+/** Resolves a raw stat field name to its canonical key, or returns it unchanged if unknown. */
+export function canonicalizeStatKey(rawKey: string): string {
+  return STAT_ALIAS_TO_CANONICAL.get(rawKey.toLowerCase()) ?? rawKey;
+}
+
+/**
+ * Re-keys a raw stats object from EA/companion field names to canonical keys. Two raw keys
+ * that alias the same canonical key (shouldn't happen within one category's export, but stats
+ * payloads sometimes combine categories) are summed rather than one silently overwriting the
+ * other.
+ */
+export function canonicalizeStatPayload(raw: Record<string, number>): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const canonical = canonicalizeStatKey(key);
+    result[canonical] = (result[canonical] ?? 0) + value;
+  }
+  return result;
+}
+
 export function statKeysForCategories(categories: StatCategory[]): string[] {
   const set = new Set(categories);
   return STAT_DEFINITIONS.filter((def) => def.scope === "player" && set.has(def.category as StatCategory) && !def.derived).map((def) => def.canonicalKey);

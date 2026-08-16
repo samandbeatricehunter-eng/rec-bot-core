@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { normalizeMaddenDevTrait } from "@rec/shared";
+import { canonicalizeStatPayload, normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
 
@@ -36,13 +36,16 @@ const STAT_METADATA_KEYS = new Set([
 ]);
 
 function statPayload(row: Json): Json {
-  const stats: Json = {};
-  for (const [key, raw] of Object.entries(row)) {
+  const raw: Record<string, number> = {};
+  for (const [key, value] of Object.entries(row)) {
     if (STAT_METADATA_KEYS.has(key.toLowerCase())) continue;
-    const number = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : Number.NaN;
-    if (Number.isFinite(number)) stats[key] = number;
+    const number = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+    if (Number.isFinite(number)) raw[key] = number;
   }
-  return stats;
+  // Every downstream reader (League Stats, League Records, season/career totals, badges)
+  // looks up by canonical key — store canonical, not EA's raw field names, or those reads
+  // silently find nothing.
+  return canonicalizeStatPayload(raw);
 }
 
 async function teamId(client: PoolClient, leagueId: string, sourceTeamId: string | null) {
