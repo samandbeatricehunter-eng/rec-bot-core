@@ -732,22 +732,35 @@ export async function importEaDatasetsWithProgress(
   const snapshotDatasets = datasets.filter((d) => !WEEKLY_DATASETS.has(d));
   const weeklyDatasets = datasets.filter((d) => WEEKLY_DATASETS.has(d));
 
-  // Snapshot datasets: fetch all in parallel
+  // Snapshot datasets: fetch in parallel, EXCEPT rosters and free_agents which both write
+  // rec_players keyed on (league_id, madden_player_id) — a player who straddles both exports
+  // (just released, still lingering in one list) let two concurrent upserts for the same key
+  // race each other and crashed with "duplicate key value violates unique constraint
+  // rec_players_league_id_madden_player_id_key". Those two run sequentially against each
+  // other; teams/standings don't touch rec_players and stay parallel with everything.
+  const rosterLikeDatasets = snapshotDatasets.filter((d) => d === "rosters" || d === "free_agents");
+  const otherSnapshotDatasets = snapshotDatasets.filter((d) => d !== "rosters" && d !== "free_agents");
   if (snapshotDatasets.length > 0) {
     pushProgress(leagueId, { type: "dataset_start", dataset: "snapshots", label: `Fetching ${snapshotDatasets.map((d) => EA_DATASET_LABELS[d]).join(", ")}…` });
-    const snapshotResults = await Promise.allSettled(
-      snapshotDatasets.map(async (dataset) => {
-        const result = await importDatasetAtWeek(dataset, defaultWeekRef);
-        results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
-        pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
-        return result;
-      }),
-    );
-    for (const r of snapshotResults) {
-      if (r.status === "rejected") {
-        pushProgress(leagueId, { type: "dataset_error", dataset: "snapshots", label: "Snapshots", error: r.reason?.message ?? String(r.reason) });
+    const runOne = async (dataset: EaDataset) => {
+      const result = await importDatasetAtWeek(dataset, defaultWeekRef);
+      results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
+      pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
+    };
+    const runSequentially = async (list: EaDataset[]) => {
+      for (const dataset of list) {
+        try {
+          await runOne(dataset);
+        } catch (error) {
+          pushProgress(leagueId, { type: "dataset_error", dataset: String(dataset), label: EA_DATASET_LABELS[dataset], error: error instanceof Error ? error.message : String(error) });
+        }
       }
-    }
+    };
+    await Promise.all([
+      ...otherSnapshotDatasets.map((dataset) => runOne(dataset).catch((error) =>
+        pushProgress(leagueId, { type: "dataset_error", dataset: String(dataset), label: EA_DATASET_LABELS[dataset], error: error instanceof Error ? error.message : String(error) }))),
+      runSequentially(rosterLikeDatasets),
+    ]);
   }
 
   // Weekly datasets: process in batches of 2 weeks, all stat types within a batch in parallel
