@@ -14,7 +14,17 @@ const EnvSchema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // Main app pool — points at Supabase's transaction-mode pooler (port 6543). Transaction
+  // mode multiplexes many app clients onto a small shared set of backend connections instead
+  // of holding one dedicated backend connection per client, so this pool no longer competes
+  // for the session-mode pooler's low client cap (EMAXCONNSESSION under import + deploy load).
   REC_DATABASE_URL: z.string().url().optional(),
+  // A LISTEN/NOTIFY connection (chat-database-listener.ts) needs a real session-mode
+  // connection — transaction-mode pooling reclaims the backend connection between
+  // transactions, so notifications sent later never reach a listener held on it. This single
+  // dedicated connection uses only one of the session pooler's client slots. Falls back to
+  // REC_DATABASE_URL if unset (dev, or before this var is configured in Railway).
+  REC_DATABASE_URL_SESSION: z.string().url().optional(),
   REC_INTERNAL_API_KEY: z.string().min(1).optional(),
   // Web dashboard (apps/web) auth — session signing, and server-side guild role/permission
   // lookups for requests coming from the browser. Optional so the API still boots without

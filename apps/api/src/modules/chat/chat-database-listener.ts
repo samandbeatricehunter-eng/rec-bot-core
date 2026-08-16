@@ -1,9 +1,9 @@
-import type { PoolClient } from "pg";
-import { getPgPool } from "../../db/client.js";
+import { Client } from "pg";
+import { env } from "../../config/env.js";
 import { broadcastChatEvent } from "./chat-realtime.js";
 
 const CHANNEL = "rec_chat_changes";
-let client: PoolClient | null = null;
+let client: Client | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 type ChatNotification = {
@@ -21,7 +21,12 @@ function scheduleReconnect() {
 
 async function connect() {
   try {
-    const next = await getPgPool().connect();
+    // LISTEN/NOTIFY needs a genuine session-mode connection held open indefinitely — the
+    // shared pool now points at the transaction-mode pooler, which reclaims the backend
+    // connection between transactions and would silently stop delivering notifications.
+    // This standalone Client uses its own connection, separate from getPgPool()'s budget.
+    const next = new Client({ connectionString: env.REC_DATABASE_URL_SESSION ?? env.REC_DATABASE_URL });
+    await next.connect();
     client = next;
     next.on("notification", (notification) => {
       if (notification.channel !== CHANNEL || !notification.payload) return;
@@ -36,7 +41,7 @@ async function connect() {
     });
     const disconnected = () => {
       if (client === next) client = null;
-      next.release(true);
+      next.end().catch(() => {});
       scheduleReconnect();
     };
     next.once("error", disconnected);
