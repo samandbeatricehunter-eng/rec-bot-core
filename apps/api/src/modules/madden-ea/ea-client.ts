@@ -484,6 +484,20 @@ async function sendBlazeRpc<T>(
 
 // ── Step 10: exports ──
 
+// sendBlazeRpc (above) already tries both "careermode" and "franchisemode" for the RPC
+// component name — EA renamed it for M27 but a league on a different Madden year still
+// answers to the old one. The export commands (EA_EXPORTS.*) went through the same rename
+// once already (docs/... PR #150 notes upstream still uses CareerMode_* as of that PR, but
+// it's explicitly called out as unsettled) and had no equivalent fallback at all: a fixed
+// "CareerMode_" prefix with zero retry on anything but ERR_TIMEOUT, so if EA ever renames
+// these the same way, every export call for that league fails immediately with no self-heal.
+const workingExportPrefixByBlazeId = new Map<number, string>();
+function swapExportPrefix(name: string): string | null {
+  if (name.startsWith("CareerMode_")) return name.replace(/^CareerMode_/, "FranchiseMode_");
+  if (name.startsWith("FranchiseMode_")) return name.replace(/^FranchiseMode_/, "CareerMode_");
+  return null;
+}
+
 async function sendExport<T>(
   token: { accessToken: string; console: SystemConsole },
   session: EaSessionCache,
@@ -492,42 +506,61 @@ async function sendExport<T>(
   retries = 8,
   baseDelayMs = 2000,
 ): Promise<T> {
-  for (let attempt = 0; attempt < retries; attempt += 1) {
-    const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${exportName}/${session.sessionKey}`, {
-      dispatcher: legacySslAgent,
-      method: "POST",
-      headers: blazeHeaders(token.console),
-      body: JSON.stringify(payload),
-    });
-    const text = await response.text();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(stripControlCharacters(text));
-    } catch {
-      throw new EaAuthError(`EA returned unreadable export data: ${text.slice(0, 300)}`, "Try the import again.");
-    }
-    const errorName =
-      parsed && typeof parsed === "object" && "error" in parsed
-        ? (parsed as { error?: { errorname?: string } }).error?.errorname
-        : undefined;
-    // EA times out under load far more often than it fails outright; back off and retry.
-    // After 4 timeouts the session may be stale — throw BlazeSessionError so the caller
-    // re-creates the session and retries.
-    if (errorName === "ERR_TIMEOUT") {
-      if (attempt >= 4) throw new BlazeSessionError(`${exportName}: persistent ERR_TIMEOUT — session may be stale`);
-      if (attempt < retries - 1) {
-        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** attempt));
-        continue;
+  const remembered = workingExportPrefixByBlazeId.get(session.blazeId);
+  const effectiveName = remembered ? exportName.replace(/^(CareerMode_|FranchiseMode_)/, remembered) : exportName;
+
+  const attempt = async (name: string): Promise<T> => {
+    for (let i = 0; i < retries; i += 1) {
+      const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${name}/${session.sessionKey}`, {
+        dispatcher: legacySslAgent,
+        method: "POST",
+        headers: blazeHeaders(token.console),
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(stripControlCharacters(text));
+      } catch {
+        throw new EaAuthError(`EA returned unreadable export data: ${text.slice(0, 300)}`, "Try the import again.");
       }
-      throw new EaAuthError(
-        `EA timed out after ${retries} attempts fetching ${exportName}.`,
-        "EA's servers are busy. Wait a few minutes and import again.",
-      );
+      const errorName =
+        parsed && typeof parsed === "object" && "error" in parsed
+          ? (parsed as { error?: { errorname?: string } }).error?.errorname
+          : undefined;
+      // EA times out under load far more often than it fails outright; back off and retry.
+      // After 4 timeouts the session may be stale — throw BlazeSessionError so the caller
+      // re-creates the session and retries.
+      if (errorName === "ERR_TIMEOUT") {
+        if (i >= 4) throw new BlazeSessionError(`${name}: persistent ERR_TIMEOUT — session may be stale`);
+        if (i < retries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** i));
+          continue;
+        }
+        throw new EaAuthError(
+          `EA timed out after ${retries} attempts fetching ${name}.`,
+          "EA's servers are busy. Wait a few minutes and import again.",
+        );
+      }
+      if (errorName) throw new BlazeSessionError(`${name}: ${errorName}`);
+      return parsed as T;
     }
-    if (errorName) throw new BlazeSessionError(`${exportName}: ${errorName}`);
-    return parsed as T;
+    throw new EaAuthError(`EA request for ${name} failed.`, "Try the import again.");
+  };
+
+  try {
+    const result = await attempt(effectiveName);
+    workingExportPrefixByBlazeId.set(session.blazeId, effectiveName.match(/^(CareerMode_|FranchiseMode_)/)?.[0] ?? "CareerMode_");
+    return result;
+  } catch (error) {
+    // Only worth trying the other prefix on a real Blaze error, not a timeout (that already
+    // exhausted its own retries/backoff above, and the prefix isn't the problem there).
+    const fallbackName = error instanceof BlazeSessionError ? swapExportPrefix(effectiveName) : null;
+    if (!fallbackName) throw error;
+    const result = await attempt(fallbackName);
+    workingExportPrefixByBlazeId.set(session.blazeId, fallbackName.match(/^(CareerMode_|FranchiseMode_)/)?.[0] ?? "CareerMode_");
+    return result;
   }
-  throw new EaAuthError(`EA request for ${exportName} failed.`, "Try the import again.");
 }
 
 export type EaClient = {
