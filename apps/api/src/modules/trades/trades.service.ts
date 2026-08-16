@@ -419,7 +419,14 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
   const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
   if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
   if (!trade.data) throw new ApiError(404, "Trade not found.");
-  if (trade.data.status !== "pending_review") throw new ApiError(409, `Trade is not pending review (status: ${trade.data.status}).`);
+  if (trade.data.status !== "pending_review") {
+    // Already resolved (applied/rejected/declined/withdrawn) — most likely a stale inbox row
+    // left behind by an earlier review that updated the trade but didn't clean up
+    // rec_commissioners_inbox. Clear it instead of throwing so a stuck pending-item card
+    // isn't a dead end for the commissioner.
+    await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", trade.data.id);
+    return { status: trade.data.status, alreadyResolved: true };
+  }
   if (trade.data.approval_policy_snapshot === "competition_committee_review") {
     throw new ApiError(400, "This league uses committee voting for trades — cast a vote instead of a direct approve/reject.");
   }
@@ -479,12 +486,14 @@ async function resolveTradeVoteOutcome(tradeId: string, leagueId: string, guildI
   if (tally.approve > tally.reject) {
     const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: `Committee vote: ${tally.approve}-${tally.reject}` });
     if (applied.error) throw new ApiError(500, "The trade passed the committee vote, but we couldn't apply it. Please try again.", applied.error);
+    await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", tradeId);
     void announceAppliedTrade(guildId, leagueId, tradeId);
     return { status: "applied", tally };
   }
   const now = new Date().toISOString();
   await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, review_note: `Committee vote: ${tally.approve}-${tally.reject}` }).eq("id", tradeId);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "rejected", previous_status: "pending_review", next_status: "rejected", details: { committeeVote: tally } });
+  await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", tradeId);
   return { status: "rejected", tally };
 }
 
@@ -531,10 +540,12 @@ export async function forceCloseTradeVote(input: { guildId: string; reviewerDisc
   if (input.action === "reject") {
     const now = new Date().toISOString();
     await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, reviewed_by_discord_id: input.reviewerDiscordId, review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): reject` }).eq("id", input.tradeId);
+    await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", input.tradeId);
     return { status: "rejected", tally };
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: input.tradeId, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): approve` });
   if (applied.error) throw new ApiError(500, "We couldn't apply that trade. Please try again.", applied.error);
+  await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", input.tradeId);
   void announceAppliedTrade(input.guildId, context.leagueId, input.tradeId);
   return { status: "applied", tally };
 }

@@ -78,8 +78,8 @@ function MaddenReplacementPicker({
         </p>
       ) : (
         <p className="form-hint" style={{ marginTop: 0 }}>
-          Buyer left the replaced player up to you. Choose one of their roster players (lowest OVR first).
-          That player is permanently swapped out when the legend is installed.
+          Buyer left the replaced player up to you. Optional — recreate this legend on any roster slot in
+          Madden and the next import will match it by name regardless of what's picked here.
         </p>
       )}
       {loadError && <p className="form-hint">{loadError}</p>}
@@ -398,20 +398,15 @@ export function ResolveNotificationModal({
     setBusy(true);
     setError(null);
     try {
-      const needsCommissionerPick =
-        notification.type === "legend" &&
-        notification.payload?.isCfb !== true &&
-        !buyerReplaceTarget?.playerId;
-      if (action === "approve" && needsCommissionerPick && !selectedReplacementPlayerId) {
-        throw new Error("Choose which roster player this legend permanently replaces.");
-      }
+      // Madden's replacement pick is now purely informational (the real roster swap
+      // happens by name match at the next EA import), so it's optional — only send it
+      // along if the commissioner actually picked something. CFB still applies the swap
+      // immediately, so a CFB legend always carries the buyer's designation.
+      const selectedTarget = selectedReplacementPlayerId || buyerReplaceTarget?.playerId || "";
       const finalReplaceTarget =
-        action === "approve" && notification.type === "legend" && notification.payload?.isCfb !== true
-          ? { playerId: selectedReplacementPlayerId || buyerReplaceTarget?.playerId || "" }
+        action === "approve" && notification.type === "legend" && notification.payload?.isCfb !== true && selectedTarget
+          ? { playerId: selectedTarget }
           : undefined;
-      if (finalReplaceTarget && !finalReplaceTarget.playerId) {
-        throw new Error("Choose which roster player this legend permanently replaces.");
-      }
       await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
       onResolved();
       onClose();

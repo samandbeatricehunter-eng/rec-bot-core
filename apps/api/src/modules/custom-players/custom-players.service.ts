@@ -461,10 +461,13 @@ export async function submitCustomPlayer(input: {
   // their own season-cap/CP/wallet logic), so unlike every other purchase type they never got
   // a rec_commissioners_inbox row — meaning they never showed up in League Mgmt's Pending
   // Items list or counted toward the notification bell. Insert one directly.
+  // Every editable attribute starts at REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR (35) — only list the
+  // ones the buyer actually raised above that floor, or this dumps 30-40 "Attribute: 35" lines
+  // into the pending-item card for every build (unreadable, and enormous on mobile).
   const attrLines = sortRecAttributeCodes(Object.keys(input.attributes))
-    .filter((code) => input.attributes[code]! > 0)
+    .filter((code) => input.attributes[code]! > REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)
     .map((code) => `${getRecAttributeDisplayName(code)}: ${input.attributes[code]}`)
-    .join("\n");
+    .join("\n") || "No attributes raised above the floor.";
   const purchasingTeam = await supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("id", teamId).maybeSingle();
   const teamName = (purchasingTeam.data as any)?.name ?? (purchasingTeam.data as any)?.display_abbr ?? (purchasingTeam.data as any)?.abbreviation ?? null;
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
@@ -534,6 +537,7 @@ export async function reviewCustomPlayer(input: {
   }
 
   const game = String(build.game_family ?? "");
+  const isMadden = game === "MADDEN";
   let replacementPlayerId: string | null = build.replacement_player_id ?? null;
   if (input.replacementPlayerId) {
     const found = await supabase.from("rec_players").select("*")
@@ -543,29 +547,37 @@ export async function reviewCustomPlayer(input: {
       .in("roster_status", ["active", "transferred_in"])
       .maybeSingle();
     if (found.error || !found.data) {
-      throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+      // CFB applies the swap immediately at approval, so it needs a roster row that
+      // actually resolves right now. Madden only records this as informational — the
+      // real swap happens by name match at the next EA import — so a stale/deleted
+      // roster reference (e.g. after a baseline roster cleanup) shouldn't block approval.
+      if (!isMadden) throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+    } else {
+      replacementPlayerId = found.data.id;
+      const snapshot = {
+        id: found.data.id,
+        full_name: found.data.full_name,
+        first_name: found.data.first_name,
+        last_name: found.data.last_name,
+        position: found.data.position,
+        overall_rating: found.data.overall_rating,
+        madden_player_id: found.data.madden_player_id,
+      };
+      const updated = await supabase.from("rec_custom_player_builds").update({
+        replacement_player_id: replacementPlayerId,
+        replacement_player_snapshot: snapshot,
+        updated_at: new Date().toISOString(),
+      }).eq("id", build.id);
+      if (updated.error) throw new ApiError(500, "We couldn't save the replacement player. Please try again.", updated.error);
     }
-    replacementPlayerId = found.data.id;
-    const snapshot = {
-      id: found.data.id,
-      full_name: found.data.full_name,
-      first_name: found.data.first_name,
-      last_name: found.data.last_name,
-      position: found.data.position,
-      overall_rating: found.data.overall_rating,
-      madden_player_id: found.data.madden_player_id,
-    };
-    const updated = await supabase.from("rec_custom_player_builds").update({
-      replacement_player_id: replacementPlayerId,
-      replacement_player_snapshot: snapshot,
-      updated_at: new Date().toISOString(),
-    }).eq("id", build.id);
-    if (updated.error) throw new ApiError(500, "We couldn't save the replacement player. Please try again.", updated.error);
   }
 
-  if (game === "MADDEN" && !replacementPlayerId) {
-    throw new ApiError(400, "Choose which of the buyer's roster players this custom player permanently replaces before approving.");
-  }
+  // Madden used to hard-require a resolved replacementPlayerId here (buyer pick or
+  // commissioner pick from the review dropdown) before approving. That's now purely
+  // informational — the real roster swap happens by name match at the next EA import —
+  // so a missing/unresolvable pick (e.g. after a baseline roster cleanup) no longer
+  // blocks approval. CFB never had this requirement at review time (a build's
+  // replacement, if any, is locked in at creation).
 
   const requested = input.adjustments ?? { identity: build.identity, attributes: build.attributes };
   // Legacy pending builds can be sparse. Every omitted rating represents the universal

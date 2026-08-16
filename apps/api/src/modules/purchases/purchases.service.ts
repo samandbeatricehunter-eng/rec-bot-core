@@ -812,43 +812,46 @@ export async function reviewPurchase(input: {
   const existingDetails = (existing.data.details ?? {}) as Record<string, any>;
   let nextDetails: Record<string, unknown> | undefined;
 
-  if (existing.data.purchase_type === "legend" && input.finalReplaceTarget?.playerId) {
-    const teamId = existingDetails.purchasingTeamId as string | null;
-    if (!teamId) throw new ApiError(400, "This legend purchase has no purchasing team to swap a player on.");
-    const found = await supabase.from("rec_players").select("id,first_name,last_name,position,overall_rating,madden_player_id")
-      .eq("id", input.finalReplaceTarget.playerId)
-      .eq("league_id", existing.data.league_id)
-      .eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"])
-      .maybeSingle();
-    if (found.error || !found.data) {
-      throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
-    }
-    const replaceTarget = {
-      playerId: found.data.id,
-      position: found.data.position,
-      firstName: found.data.first_name,
-      lastName: found.data.last_name,
-      overallRating: found.data.overall_rating,
-    };
-    nextDetails = {
-      ...existingDetails,
-      replaceTarget,
-      finalReplaceTarget: replaceTarget,
-    };
-  } else if (input.finalReplaceTarget !== undefined) {
-    nextDetails = { ...existingDetails, finalReplaceTarget: input.finalReplaceTarget };
-  }
-
-  // Madden legends always need a concrete roster playerId before apply — buyer pick or
-  // commissioner pick from the review dropdown.
+  let isMaddenLegend = false;
   if (existing.data.purchase_type === "legend") {
     const league = await supabase.from("rec_leagues").select("game").eq("id", existing.data.league_id).maybeSingle();
-    const isMadden = String(league.data?.game ?? "").startsWith("madden");
-    const effectiveReplace = (nextDetails ?? existingDetails) as Record<string, any>;
-    if (isMadden && !effectiveReplace.replaceTarget?.playerId && !effectiveReplace.finalReplaceTarget?.playerId) {
-      throw new ApiError(400, "Choose which of the buyer's roster players this legend permanently replaces before approving.");
+    isMaddenLegend = String(league.data?.game ?? "").startsWith("madden");
+  }
+
+  if (existing.data.purchase_type === "legend" && input.finalReplaceTarget?.playerId) {
+    const teamId = existingDetails.purchasingTeamId as string | null;
+    if (!teamId && !isMaddenLegend) throw new ApiError(400, "This legend purchase has no purchasing team to swap a player on.");
+    const found = teamId
+      ? await supabase.from("rec_players").select("id,first_name,last_name,position,overall_rating,madden_player_id")
+          .eq("id", input.finalReplaceTarget.playerId)
+          .eq("league_id", existing.data.league_id)
+          .eq("team_id", teamId)
+          .in("roster_status", ["active", "transferred_in"])
+          .maybeSingle()
+      : { data: null, error: null };
+    if (!found.data) {
+      // CFB applies the swap immediately at approval, so it needs a roster row that
+      // actually resolves right now. Madden only records this as informational — the
+      // real swap happens by name match at the next EA import — so a stale/deleted
+      // roster reference (e.g. after a baseline roster cleanup) shouldn't block approval.
+      if (!isMaddenLegend) throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+      nextDetails = { ...existingDetails, finalReplaceTarget: input.finalReplaceTarget };
+    } else {
+      const replaceTarget = {
+        playerId: found.data.id,
+        position: found.data.position,
+        firstName: found.data.first_name,
+        lastName: found.data.last_name,
+        overallRating: found.data.overall_rating,
+      };
+      nextDetails = {
+        ...existingDetails,
+        replaceTarget,
+        finalReplaceTarget: replaceTarget,
+      };
     }
+  } else if (input.finalReplaceTarget !== undefined) {
+    nextDetails = { ...existingDetails, finalReplaceTarget: input.finalReplaceTarget };
   }
 
   const approved = await supabase

@@ -93,7 +93,7 @@ function CustomPlayerBuildRow({
           {" "}(permanently removed on approve &amp; apply)
         </p>
       ) : isMadden ? (
-        <p className="form-hint">Buyer left the replaced player up to you — choose one below (lowest OVR first). That player is permanently swapped out on approve &amp; apply.</p>
+        <p className="form-hint">Buyer left the replaced player up to you — optionally choose one below (lowest OVR first). Recreate this player on any roster slot in Madden and the next import matches it by name regardless of what's picked here.</p>
       ) : (
         <p className="form-hint">No replacement player designated (new roster add).</p>
       )}
@@ -136,8 +136,8 @@ function CustomPlayerBuildRow({
     <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
       <Button
         variant="primary"
-        disabled={busy || (isMadden && !buyerChose && !selectedReplacementId)}
-        onClick={() => onReview("approve", isMadden && !buyerChose ? selectedReplacementId : build.replacement_player_id ?? null)}
+        disabled={busy}
+        onClick={() => onReview("approve", isMadden && !buyerChose ? selectedReplacementId || null : build.replacement_player_id ?? null)}
       >
         Approve &amp; Apply
       </Button>

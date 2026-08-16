@@ -2,12 +2,15 @@ import { isChampionshipWeek, isCfb, regularSeasonWeeks, type LeagueGame } from "
 import { supabase } from "../../lib/supabase.js";
 
 // Every source a game result can legitimately be logged from — box-score OCR,
-// schedule-screenshot import (weekly scores), manual commissioner entry, and the
-// week-advance score entry are all equally final results and must count toward
-// records/W-L the same way. (commissioner_advance used to be excluded here and only fed
-// the display-records table — but leagues that advance weeks without ever uploading a box
-// score had the *majority* of their games silently missing from official/global records.)
-export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot", "schedule_screenshot", "manual", "commissioner_advance"] as const;
+// schedule-screenshot import (weekly scores), manual commissioner entry, the
+// week-advance score entry, and the Madden EA companion-app import are all equally
+// final results and must count toward records/W-L the same way. (commissioner_advance
+// used to be excluded here and only fed the display-records table — but leagues that
+// advance weeks without ever uploading a box score had the *majority* of their games
+// silently missing from official/global records. madden_companion_import had the same
+// gap for every Madden league: EA-imported games never appeared in season/career/global
+// records at all, only in the display-records table.)
+export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot", "schedule_screenshot", "manual", "commissioner_advance", "madden_companion_import"] as const;
 export const DISPLAY_ADVANCE_SOURCE = "commissioner_advance";
 
 // A single canonical key per REAL game, shared across every source that can log a result
