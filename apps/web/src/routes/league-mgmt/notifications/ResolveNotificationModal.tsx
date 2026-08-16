@@ -201,6 +201,61 @@ function HighlightReviewPreview({ guildId, reviewId }: { guildId: string; review
   );
 }
 
+type WagerResolvability = Awaited<ReturnType<typeof recApi.getWagerResolvability>>;
+
+const WAGER_OUTCOME_LABEL: Record<string, string> = { won: "Bettor won", lost: "Bettor lost", push: "Push (refund)" };
+
+// The commissioner-inbox card only ever showed the stake and who placed the wager, with no
+// way to check the computed outcome against the actual game before clicking Settle. This
+// shows what was bet, on which side, the final score, and what the system has already
+// computed as the outcome — so a bad settle can be caught before it pays out.
+function WagerReviewPreview({ guildId, wagerId }: { guildId: string; wagerId: string }) {
+  const [detail, setDetail] = useState<WagerResolvability | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    recApi.getWagerResolvability({ guildId, wagerId })
+      .then((result) => { if (!cancelled) setDetail(result); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load the wager details."); });
+    return () => { cancelled = true; };
+  }, [guildId, wagerId]);
+
+  if (error) return <p className="form-hint">{error}</p>;
+  if (!detail) return <p className="form-hint">Loading wager details…</p>;
+
+  return (
+    <div style={{ marginTop: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+      <p style={{ fontWeight: 600, margin: 0 }}>{detail.gameLabel ?? "House line"}</p>
+      <p className="form-hint" style={{ margin: "2px 0 0" }}>
+        {detail.marketLabel ?? "Market"}: took <strong>{detail.pickLabel ?? "—"}</strong>
+        {detail.placedByName ? ` — ${detail.placedByName}` : ""}
+        {detail.acceptedByName ? ` vs. ${detail.acceptedByName}` : ""}
+      </p>
+      {detail.wager && (
+        <p className="form-hint" style={{ margin: "2px 0 0" }}>
+          Stake {formatCoins(detail.wager.stake)} · potential payout {formatCoins(detail.wager.potential_payout)}
+        </p>
+      )}
+      {detail.finalScore && (
+        <p className="form-hint" style={{ margin: "2px 0 0" }}>
+          Final: {detail.finalScore.away} {detail.finalScore.awayScore} — {detail.finalScore.home} {detail.finalScore.homeScore}
+          {detail.finalScore.isTie ? " (tie)" : ""}
+        </p>
+      )}
+      <p style={{ margin: "var(--space-2) 0 0", fontWeight: 700 }}>
+        {detail.resolvable
+          ? (WAGER_OUTCOME_LABEL[detail.outcome ?? ""] ?? "Outcome unknown")
+          : "Not resolvable yet — the game result needed to settle this isn't logged."}
+      </p>
+    </div>
+  );
+}
+
+function formatCoins(amount: number): string {
+  return `🪙 ${Number(amount ?? 0).toLocaleString()}`;
+}
+
 // One shared resolve panel for the notification types that don't get their own dedicated
 // modal. Box Scores reuse ReviewBoxScoreModal, Active Checks reuse ActiveCheckReviewModal,
 // and EOS Awards reuse EosAwardResolveModal (all opened directly from NotificationsHome
@@ -235,7 +290,7 @@ function resolveModeFor(type: string): ResolveMode {
     case "weekly_score_review":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Log Scores", denyLabel: "Cancel" };
     case "wager":
-      return { kind: "single", actionLabel: "Settle Wager" };
+      return { kind: "approve_deny", reasonField: false, approveLabel: "Settle Wager", denyLabel: "Reject Wager" };
     case "trade":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Approve Trade", denyLabel: "Reject Trade" };
     case "active_check":
@@ -289,7 +344,9 @@ async function resolveAction(
         ? recApi.approveWeeklyScoreReview({ guildId, reviewId: sourceId })
         : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
-      return recApi.settleWager({ guildId, leagueId, wagerId: sourceId });
+      return action === "approve"
+        ? recApi.settleWager({ guildId, leagueId, wagerId: sourceId })
+        : recApi.commissionerCancelWager({ guildId, wagerId: sourceId });
     case "trade":
       return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
@@ -427,6 +484,9 @@ export function ResolveNotificationModal({
       )}
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
+      )}
+      {notification.type === "wager" && notification.sourceId && (
+        <WagerReviewPreview guildId={guildId} wagerId={notification.sourceId} />
       )}
       {notification.type === "media" && notification.payload && (
         <div className="media-review-preview">

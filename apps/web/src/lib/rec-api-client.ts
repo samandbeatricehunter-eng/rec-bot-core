@@ -488,6 +488,18 @@ export const recApi = {
     recApiFetch<ChallengeableCoachesResponse>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId }) }),
   listOpenWagersForCommissioner: (guildId: string) =>
     recApiFetch<OpenWagersForCommissionerResponse>("/v1/wagers/open", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getWagerResolvability: (input: { guildId: string; wagerId: string }) =>
+    recApiFetch<{
+      resolvable: boolean;
+      outcome: "won" | "lost" | "push" | null;
+      wager: { stake: number; potential_payout: number; wager_kind: string } | null;
+      gameLabel?: string;
+      marketLabel?: string;
+      pickLabel?: string;
+      placedByName?: string | null;
+      acceptedByName?: string | null;
+      finalScore?: { home: string; homeScore: number; away: string; awayScore: number; isTie: boolean } | null;
+    }>("/v1/wagers/resolvability", { method: "POST", body: JSON.stringify(input) }),
   commissionerCancelWager: (input: { guildId: string; wagerId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/wagers/commissioner-cancel", { method: "POST", body: JSON.stringify(input) }),
   listReversibleTransactions: (input: { guildId: string; discordId: string }) =>

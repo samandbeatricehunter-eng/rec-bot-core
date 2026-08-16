@@ -306,8 +306,15 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/resolvability", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
+      // Called both by the bot's internal settle flow (internal API key) and the web
+      // dashboard's commissioner-inbox card, where a commissioner needs to review the
+      // computed outcome against the actual game before settling — so accept either.
+      try {
+        requireInternalApiKey(request);
+      } catch {
+        await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      }
       const context = await getCurrentLeagueContext(body.guildId);
       return reply.send(await getWagerResolvability(context.leagueId, body.wagerId));
     } catch (error) {

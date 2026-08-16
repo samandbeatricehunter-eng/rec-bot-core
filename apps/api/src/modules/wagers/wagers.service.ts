@@ -997,11 +997,41 @@ async function resolveOutcome(leagueId: string, wager: { game_id: string | null;
   return (wager.pick === "over" && isOver) || (wager.pick === "under" && !isOver) ? "won" : "lost";
 }
 
+// Everything a commissioner needs to sanity-check a wager against the actual game outcome
+// before clicking Settle: what was bet, on which side, and what the game actually did —
+// the commissioner-inbox card only showed the stake and who placed it, with no way to verify
+// the computed outcome is right before approving.
 export async function getWagerResolvability(leagueId: string, wagerId: string) {
   const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", wagerId).maybeSingle();
   if (!wager) return { resolvable: false, outcome: null as null };
   const outcome = await resolveOutcome(leagueId, wager);
-  return { resolvable: outcome != null, outcome, wager };
+
+  const game = wager.game_id
+    ? (await supabase.from("rec_games")
+        .select("id,home_team_id,away_team_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
+        .eq("id", wager.game_id).maybeSingle()).data
+    : null;
+  const gameById = game ? new Map([[game.id, game]]) : new Map();
+  const result = wager.game_id ? await loadGameResult(leagueId, wager.game_id) : null;
+
+  const [placedBy, acceptedBy] = await Promise.all([
+    wager.placed_by_user_id ? supabase.from("rec_users").select("username,display_name").eq("id", wager.placed_by_user_id).maybeSingle() : null,
+    wager.accepted_by_user_id ? supabase.from("rec_users").select("username,display_name").eq("id", wager.accepted_by_user_id).maybeSingle() : null,
+  ]);
+
+  return {
+    resolvable: outcome != null,
+    outcome,
+    wager,
+    gameLabel: game ? `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}` : "House line",
+    marketLabel: WAGER_MARKET_BY_KEY.get(wager.market)?.label ?? wager.market,
+    pickLabel: pickLabelFor(wager, gameById),
+    placedByName: placedBy?.data?.display_name ?? placedBy?.data?.username ?? null,
+    acceptedByName: acceptedBy?.data?.display_name ?? acceptedBy?.data?.username ?? null,
+    finalScore: result && game
+      ? { home: teamAbbr(game.home_team), homeScore: Number(result.home_score), away: teamAbbr(game.away_team), awayScore: Number(result.away_score), isTie: Boolean(result.is_tie) }
+      : null,
+  };
 }
 
 // Credit the bettor (and peer counterparty) for a resolved outcome and close the row.
