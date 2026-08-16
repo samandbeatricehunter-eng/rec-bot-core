@@ -763,30 +763,23 @@ export async function importEaDatasetsWithProgress(
     ]);
   }
 
-  // Weekly datasets: process in batches of 2 weeks, all stat types within a batch in parallel
+  // Weekly datasets: EA's Blaze API times out and throws server errors (ERR_TIMEOUT,
+  // MCA_ERR_SERVER_ERROR) far more under concurrent load on the same session than it fails
+  // outright — firing every stat type for 2 weeks at once (up to 14 simultaneous requests)
+  // was very likely the direct cause of both. Fetch one dataset at a time; slower, but every
+  // request actually gets EA's full attention instead of contending with 13 others.
   if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
-    const BATCH_SIZE = 2;
-    for (let i = 0; i < weeklyRefs.length; i += BATCH_SIZE) {
-      const batch = weeklyRefs.slice(i, i + BATCH_SIZE);
-      const batchLabel = batch.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).label).join(", ");
-      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel}…` });
+    for (const week of weeklyRefs) {
+      const weekLabel = describeEaWeek(week.stageIndex, week.weekIndex).label;
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${weekLabel}…` });
 
-      const weekPromises = batch.map(async (week) => {
-        const datasetPromises = weeklyDatasets.map(async (dataset) => {
+      for (const dataset of weeklyDatasets) {
+        try {
           const result = await importDatasetAtWeek(dataset, week);
           results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
           pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
-          return result;
-        });
-        return Promise.allSettled(datasetPromises);
-      });
-
-      const batchResults = await Promise.all(weekPromises);
-      for (const weekResults of batchResults) {
-        for (const r of weekResults) {
-          if (r.status === "rejected") {
-            pushProgress(leagueId, { type: "dataset_error", dataset: "weekly", label: batchLabel, error: r.reason?.message ?? String(r.reason) });
-          }
+        } catch (error) {
+          pushProgress(leagueId, { type: "dataset_error", dataset: String(dataset), label: `${EA_DATASET_LABELS[dataset]} — ${weekLabel}`, error: error instanceof Error ? error.message : String(error) });
         }
       }
     }
