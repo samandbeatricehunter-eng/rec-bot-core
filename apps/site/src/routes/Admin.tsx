@@ -712,7 +712,7 @@ const ECONOMY_LABELS: Record<string, string> = {
   boxScoreLoss: "Box score — loss", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
   highlightSeasonAward: "Season highlight award", gameOfYear: "Game of the Year",
   highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article", interview: "Interview",
-  gotwCorrectVote: "Correct GOTW vote", potw: "Player of the Week", houseWeeklyMaximum: "House wager weekly maximum",
+  gotwCorrectVote: "Correct GOTW vote", gotwSeasonTopGuesserBonus: "Season top-3 GOTW guesser bonus", potw: "Player of the Week", houseWeeklyMaximum: "House wager weekly maximum",
   peerWeeklyMaximum: "User wager weekly maximum", bestPassing: "Best Passing Game", bestRushing: "Best Rushing Game",
   bestDefense: "Best Defense", mvp: "MVP / Heisman", mostSkilled: "Best User Skills", mostHeart: "Most Heart",
 };

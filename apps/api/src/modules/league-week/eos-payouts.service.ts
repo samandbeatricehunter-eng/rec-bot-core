@@ -323,6 +323,12 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
   await payLeagueRecordHoldingBonuses(leagueId, seasonNumber).catch((error) =>
     console.error("[ERROR] Failed to pay league record holding bonuses (non-fatal):", error));
 
+  // Top-3 season-end GOTW guessing bonus — same idempotent-insert pattern as the record-holding
+  // bonus above (rec_gotw_guessing_bonus_payouts' unique constraint guards re-runs).
+  const { payGotwGuessingBonuses } = await import("../gotw/gotw.service.js");
+  await payGotwGuessingBonuses(leagueId, seasonNumber).catch((error) =>
+    console.error("[ERROR] Failed to pay GOTW guessing bonuses (non-fatal):", error));
+
   const items = [...await buildPowerRankItems(leagueId, seasonNumber), ...await buildTeamStatItems(leagueId, seasonNumber, game)];
   if (!(existingIssued.data ?? []).length) {
     await supabase.from("rec_eos_payout_items").delete().eq("batch_id", batch.id).eq("status", "pending");

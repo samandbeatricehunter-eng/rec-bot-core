@@ -239,9 +239,10 @@ export async function settleGotwPoll(input: {
   const voteRows: any[] = [];
   const correctVotePayout = (await getGlobalEconomyConfig()).submissions.gotwCorrectVote;
 
+  const isTieGame = input.winningTeamId == null;
   for (const voter of voters) {
     const userId = voter.userId ?? resolvedUsers.get(voter.discordId) ?? null;
-    const isCorrect = input.winningTeamId != null ? voter.selectedTeamId === input.winningTeamId : null;
+    const isCorrect = isTieGame ? null : voter.selectedTeamId === input.winningTeamId;
     const payout = isCorrect && userId ? correctVotePayout : 0;
     const voteRow = {
       poll_id: input.pollId,
@@ -253,6 +254,7 @@ export async function settleGotwPoll(input: {
       selected_team_id: voter.selectedTeamId,
       selected_team_name: voter.selectedTeamId === poll.away_team_id ? poll.away_team_name : poll.home_team_name,
       is_correct: isCorrect,
+      is_tie: isTieGame,
       payout_amount: payout,
       paid_ledger_id: null as string | null,
       voted_at: now,
@@ -288,7 +290,33 @@ export async function settleGotwPoll(input: {
   if (upsertErr) console.error("[ERROR] Failed to update GOTW vote rows (non-fatal):", upsertErr);
 
   for (const row of voteRows) {
-    if (!row.user_id || row.is_correct === null) continue;
+    if (!row.user_id) continue;
+    if (row.is_tie) {
+      const { data: existingLeague } = await supabase
+        .from("rec_league_gotw_guessing_records")
+        .select("wins,losses,ties,current_streak,best_streak")
+        .eq("league_id", context.leagueId).eq("season_number", row.season_number).eq("user_id", row.user_id)
+        .maybeSingle();
+      await supabase
+        .from("rec_league_gotw_guessing_records")
+        .upsert({
+          league_id: context.leagueId,
+          season_number: row.season_number,
+          user_id: row.user_id,
+          wins: existingLeague?.wins ?? 0,
+          losses: existingLeague?.losses ?? 0,
+          ties: (existingLeague?.ties ?? 0) + 1,
+          current_streak: existingLeague?.current_streak ?? 0,
+          best_streak: existingLeague?.best_streak ?? 0,
+          last_result_at: now,
+          updated_at: now,
+        }, { onConflict: "league_id,season_number,user_id" })
+        .then(({ error }) => {
+          if (error) console.error("[ERROR] Failed to update GOTW league guessing record (non-fatal):", error);
+        });
+      continue;
+    }
+    if (row.is_correct === null) continue;
     const { data: existing } = await supabase
       .from("rec_global_gotw_guessing_records")
       .select("correct_guesses,wrong_guesses")
@@ -305,6 +333,30 @@ export async function settleGotwPoll(input: {
       }, { onConflict: "user_id" })
       .then(({ error }) => {
         if (error) console.error("[ERROR] Failed to update GOTW guessing record (non-fatal):", error);
+      });
+
+    const { data: existingLeague } = await supabase
+      .from("rec_league_gotw_guessing_records")
+      .select("wins,losses,ties,current_streak,best_streak")
+      .eq("league_id", context.leagueId).eq("season_number", row.season_number).eq("user_id", row.user_id)
+      .maybeSingle();
+    const nextStreak = row.is_correct ? (existingLeague?.current_streak ?? 0) + 1 : 0;
+    await supabase
+      .from("rec_league_gotw_guessing_records")
+      .upsert({
+        league_id: context.leagueId,
+        season_number: row.season_number,
+        user_id: row.user_id,
+        wins: (existingLeague?.wins ?? 0) + (row.is_correct ? 1 : 0),
+        losses: (existingLeague?.losses ?? 0) + (row.is_correct ? 0 : 1),
+        ties: existingLeague?.ties ?? 0,
+        current_streak: nextStreak,
+        best_streak: Math.max(existingLeague?.best_streak ?? 0, nextStreak),
+        last_result_at: now,
+        updated_at: now,
+      }, { onConflict: "league_id,season_number,user_id" })
+      .then(({ error }) => {
+        if (error) console.error("[ERROR] Failed to update GOTW league guessing record (non-fatal):", error);
       });
   }
 
@@ -326,6 +378,95 @@ export async function settleGotwPollsForGame(input: { guildId: string; gameId: s
     settled.push(await settleGotwPoll({ guildId: input.guildId, pollId: poll.id, winningTeamId: input.winningTeamId, voters: [] }));
   }
   return { settledCount: settled.length, settled };
+}
+
+export async function getGotwGuessingRecordsForHub(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const records = await getLeagueGotwGuessingRecords(context.leagueId, seasonNumber);
+  const userIds = records.map((r) => r.user_id).filter(Boolean);
+  const { data: users } = userIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds)
+    : { data: [] as any[] };
+  const nameById = new Map((users ?? []).map((u: any) => [u.id, u.display_name || u.username]));
+  return records
+    .map((r) => ({ ...r, displayName: nameById.get(r.user_id) ?? "Unknown" }))
+    .sort((a, b) => (b.wins - a.wins) || (b.current_streak - a.current_streak));
+}
+
+export async function getMyGotwGuessingRecord(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  if (!account.data?.user_id) return { wins: 0, losses: 0, ties: 0, current_streak: 0, best_streak: 0, last_result_at: null };
+  return getUserGotwGuessingRecord(context.leagueId, seasonNumber, account.data.user_id);
+}
+
+export async function getLeagueGotwGuessingRecords(leagueId: string, seasonNumber: number) {
+  const { data, error } = await supabase
+    .from("rec_league_gotw_guessing_records")
+    .select("user_id,wins,losses,ties,current_streak,best_streak,last_result_at")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber);
+  if (error) throw new ApiError(500, "We couldn't load GOTW guessing records. Please try again.", error);
+  return data ?? [];
+}
+
+export async function getUserGotwGuessingRecord(leagueId: string, seasonNumber: number, userId: string) {
+  const { data, error } = await supabase
+    .from("rec_league_gotw_guessing_records")
+    .select("wins,losses,ties,current_streak,best_streak,last_result_at")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "We couldn't load your GOTW guessing record. Please try again.", error);
+  return data ?? { wins: 0, losses: 0, ties: 0, current_streak: 0, best_streak: 0, last_result_at: null };
+}
+
+// Ranks by wins desc, then win% desc (ties/losses as denominator) — matches how a "best guessing
+// record" reads intuitively: someone who went 10-2 outranks someone who went 3-0.
+export async function payGotwGuessingBonuses(leagueId: string, seasonNumber: number) {
+  const records = await getLeagueGotwGuessingRecords(leagueId, seasonNumber);
+  const ranked = records
+    .filter((r) => r.wins + r.losses + r.ties > 0)
+    .map((r) => ({ ...r, winPct: r.wins / Math.max(1, r.wins + r.losses + r.ties) }))
+    .sort((a, b) => (b.wins - a.wins) || (b.winPct - a.winPct));
+  const top3 = ranked.slice(0, 3);
+  if (!top3.length) return { paid: 0 };
+
+  const bonus = (await getGlobalEconomyConfig()).submissions.gotwSeasonTopGuesserBonus;
+  const now = new Date().toISOString();
+  let paid = 0;
+  for (let i = 0; i < top3.length; i += 1) {
+    const rank = i + 1;
+    const { data: inserted, error } = await supabase
+      .from("rec_gotw_guessing_bonus_payouts")
+      .insert({ league_id: leagueId, season_number: seasonNumber, user_id: top3[i].user_id, rank, amount: bonus, paid_at: now })
+      .select("id")
+      .single();
+    if (error) {
+      if ((error as any).code !== "23505") console.error("[ERROR] Failed to record GOTW guessing bonus payout (non-fatal):", error);
+      continue;
+    }
+    if (!inserted) continue;
+    try {
+      await creditOrBacklog({
+        leagueId,
+        seasonNumber,
+        userId: top3[i].user_id,
+        amount: bonus,
+        description: `GOTW top-${rank} guesser bonus — Season ${seasonNumber}`,
+        transactionType: "gotw_guessing_bonus",
+        source: "gotw",
+        sourceReference: { rank, season_number: seasonNumber },
+      });
+      paid += 1;
+    } catch (creditError) {
+      console.error("[ERROR] GOTW guessing bonus credit failed (non-fatal):", creditError);
+    }
+  }
+  return { paid };
 }
 
 export async function getGotwGameResult(input: {

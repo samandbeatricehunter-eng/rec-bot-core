@@ -87,6 +87,7 @@ import type {
   FantasyDraftState,
   FantasyDraftSession,
   FantasyDraftOrderMode,
+  GotwGuessingRecordsResponse,
 } from "../types/api.js";
 
 const REC_API_TIMEOUT_MS = 30_000;
@@ -427,6 +428,8 @@ export const recApi = {
     recApiFetch<{ reopened: true }>("/v1/hub/gotw/reopen", { method: "POST", body: JSON.stringify(input) }),
   cancelGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
     recApiFetch<{ cancelled: true }>("/v1/hub/gotw/cancel", { method: "POST", body: JSON.stringify(input) }),
+  getGotwGuessingRecords: (guildId: string) =>
+    recApiFetch<GotwGuessingRecordsResponse>("/v1/hub/gotw/guessing-records", { method: "POST", body: JSON.stringify({ guildId }) }),
   getWagerOptions: (input: { guildId: string; gameId: string }) =>
     recApiFetch<WagerOptionsResponse>("/v1/wagers/options", { method: "POST", body: JSON.stringify(input) }),
   getWeekWagerLines: (input: { guildId: string; weekNumber: number }) =>

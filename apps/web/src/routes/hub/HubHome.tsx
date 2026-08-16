@@ -13,7 +13,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
@@ -565,6 +565,7 @@ export function HubHome() {
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
+  const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
   const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
@@ -766,6 +767,7 @@ export function HubHome() {
   }
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
   useEffect(() => { if (auth.status === "ready") recApi.getGlobalEconomyValues().then(setEconomyValues).catch(() => undefined); }, [auth.status]);
+  useEffect(() => { if (auth.status === "ready") recApi.getGotwGuessingRecords(auth.guildId).then(setGotwGuessing).catch(() => undefined); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
   useEffect(() => {
     if (section === "store") void loadStoreContext(true);
   }, [section, auth.status, auth.status === "ready" ? auth.guildId : null]);
@@ -1372,6 +1374,17 @@ export function HubHome() {
             <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
           </article>}
         /> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
+        {gotwGuessing?.records?.length ? (
+          <div className="hub-gotw-guessing-section">
+            <h3>GOTW Guessing Records</h3>
+            {gotwGuessing.records.map((record) => (
+              <article key={record.user_id} className="hub-gotw-guessing-row">
+                <span>{record.displayName}</span>
+                <small>{record.wins}-{record.losses}{record.ties ? `-${record.ties}` : ""}{record.current_streak > 1 ? ` · ${record.current_streak}-game streak` : ""}</small>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </Modal>}
       {hub.league.game !== "cfb_27" && sosModalOpen && <Modal title="Strength of Schedule" onClose={() => setSosModalOpen(false)}>
         {hub.sos?.teams?.length ? <RankingListSearch
@@ -1624,6 +1637,7 @@ export function HubHome() {
             <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.awayTeamId)}><div><strong>{matchupSchedule.gotw.awayTeamName}</strong><span>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</span></div></button>
             <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.homeTeamId)}><div><strong>{matchupSchedule.gotw.homeTeamName}</strong><span>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</span></div></button>
           </div>
+          {gotwGuessing?.mine && <p className="hub-gotw-record">Your record: {gotwGuessing.mine.wins}-{gotwGuessing.mine.losses}{gotwGuessing.mine.ties ? `-${gotwGuessing.mine.ties}` : ""}{gotwGuessing.mine.current_streak > 1 ? ` · ${gotwGuessing.mine.current_streak}-game streak` : ""}</p>}
         </div>}
 
         <div className="hub-gameday-card hub-quick-actions-card">
@@ -1789,6 +1803,7 @@ export function HubHome() {
                     <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
                   </div>
                 ) : null}
+                {gotwGuessing?.mine && <p className="hub-gotw-record">Your record: {gotwGuessing.mine.wins}-{gotwGuessing.mine.losses}{gotwGuessing.mine.ties ? `-${gotwGuessing.mine.ties}` : ""}{gotwGuessing.mine.current_streak > 1 ? ` · ${gotwGuessing.mine.current_streak}-game streak` : ""}</p>}
                 {(() => {
                   const total = matchupSchedule.gotw.awayVotes + matchupSchedule.gotw.homeVotes;
                   const away = total ? Math.round((matchupSchedule.gotw.awayVotes / total) * 100) : 50;

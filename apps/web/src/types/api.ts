@@ -1019,6 +1019,20 @@ export type LegendReplacementConfig = {
   isCfb: boolean;
 };
 
+export type GotwGuessingRecord = {
+  user_id: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  current_streak: number;
+  best_streak: number;
+  last_result_at: string | null;
+};
+export type GotwGuessingRecordsResponse = {
+  records: (GotwGuessingRecord & { displayName: string })[];
+  mine: GotwGuessingRecord | null;
+};
+
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
 export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };

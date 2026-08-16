@@ -44,6 +44,7 @@ import {
   voteGameOfWeek,
 } from "./hub.service.js";
 import { backfillDiscordHeadlines } from "./story-publishing.js";
+import { getGotwGuessingRecordsForHub, getMyGotwGuessingRecord } from "../gotw/gotw.service.js";
 
 const ImageUrl = z.string().url().optional().nullable();
 
@@ -428,6 +429,20 @@ export async function hubRoutes(app: FastifyInstance) {
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await cancelGameOfWeekVoting(body));
     } catch (error) { return sendError(reply, error); }
+  });
+
+  // Hub display: all users' per-league guessing records (Power Rankings modal) and the
+  // current viewer's own record (GOTW voting cards on the league home + matchups pages).
+  app.post("/v1/hub/gotw/guessing-records", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      const records = await getGotwGuessingRecordsForHub(body.guildId);
+      const mine = auth.mode === "user" ? await getMyGotwGuessingRecord(body.guildId, auth.discordId) : null;
+      return reply.send({ records, mine });
+    } catch (error) {
+      return sendError(reply, error);
+    }
   });
 
   // Member self-service: end active team assignment for this Discord user in the guild's league.
