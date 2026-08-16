@@ -669,9 +669,22 @@ export async function importEaDatasetsWithProgress(
     console.log(`[EA] Saved ${photoByEaId.size} photos by EA ID, ${photoByName.size} by name for photo restore.`);
   }
 
-  // First EA import for this league: wipe all baseline/seeded players so the EA data
-  // becomes the sole source of truth. Custom player builds are preserved.
+  // First EA import for this league: wipe all baseline/seeded players so the EA data becomes
+  // the sole source of truth. Custom player builds are preserved. Fetch the roster from EA
+  // FIRST and confirm it actually returned players before wiping anything — a flaky session or
+  // an auth hiccup that comes back empty must never delete a league's entire roster with
+  // nothing to replace it.
+  let preloadedRosterRaw: unknown | null = null;
   if (!row.last_import_at && datasets.includes("rosters")) {
+    pushProgress(leagueId, { type: "reconciling", step: "Checking EA roster before first import…" });
+    preloadedRosterRaw = await runWithFreshSession((c) => fetchDataset(c, "rosters", eaLeagueId, defaultWeekRef, teamIdInfoList));
+    const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
+    if (preloadedCount === 0) {
+      throw new Error(
+        "EA returned an empty roster for this franchise. Nothing was wiped. This usually means the EA " +
+          "session needs to be reconnected — try again, and reconnect from the Import Data window if it keeps failing.",
+      );
+    }
     pushProgress(leagueId, { type: "reconciling", step: "First import — clearing baseline roster…" });
     const wiped = await wipeBaselineRoster(leagueId);
     console.log(`[EA] First import: wiped ${wiped} baseline player(s) for league ${leagueId}`);
@@ -682,7 +695,9 @@ export async function importEaDatasetsWithProgress(
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
     const t0 = Date.now();
     console.log(`[EA] Fetching ${dataset} week ${week.weekIndex}...`);
-    const raw = await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
+    const raw = dataset === "rosters" && preloadedRosterRaw && week.stageIndex === defaultWeekRef.stageIndex && week.weekIndex === defaultWeekRef.weekIndex
+      ? preloadedRosterRaw
+      : await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
     console.log(`[EA] Fetched ${dataset} week ${week.weekIndex} in ${Date.now() - t0}ms`);
 
     const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
@@ -802,7 +817,7 @@ export async function importEaDatasetsWithProgress(
   }
   // Process badges/stories for games that now have team_stats from the import.
   if (datasets.includes("team_stats") || datasets.includes("schedule")) {
-    pushProgress(leagueId, { type: "reconciling", step: "Processing badges & headlines…" });
+    pushProgress(leagueId, { type: "reconciling", step: "Processing headlines…" });
     const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
     const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
     for (const weekNumber of affectedWeeks) {
@@ -863,6 +878,43 @@ export async function importEaDatasetsWithProgress(
   );
   pushProgress(leagueId, { type: "done", results });
   return results;
+}
+
+/**
+ * Periodic auto-import sweep — the reason snallabot-style tools never see EA's ten-day-inactivity
+ * refresh_token expiry is that they touch every connected league's session on a schedule instead
+ * of waiting for a commissioner to click "Import Now." Wired into apps/api/src/index.ts on an
+ * interval; each connection with auto_import enabled gets refreshed and re-imported in turn. Runs
+ * connections sequentially (not in parallel) to stay gentle on both EA's API and this DB.
+ */
+export async function runAutoImportSweep(): Promise<{ attempted: number; succeeded: number; failed: number }> {
+  if (!isEaImportConfigured()) return { attempted: 0, succeeded: 0, failed: 0 };
+  const rows = await getPgPool().query<EaConnectionRow>(
+    `select * from rec_ea_connections where auto_import=true and status='active' and ea_league_id is not null`,
+  );
+  let succeeded = 0;
+  let failed = 0;
+  for (const row of rows.rows) {
+    if (getImportProgress(row.league_id).running) {
+      console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — an import is already running.`);
+      continue;
+    }
+    clearImportProgress(row.league_id);
+    try {
+      await importEaDatasetsWithProgress(row.id, row.league_id, {});
+      succeeded += 1;
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[EA] Auto-import sweep failed for league ${row.league_id}:`, message);
+      pushProgress(row.league_id, { type: "error", error: message });
+      await getPgPool().query(
+        `update rec_ea_connections set last_error=$2, updated_at=now() where id=$1`,
+        [row.id, message.slice(0, 500)],
+      ).catch(() => undefined);
+    }
+  }
+  return { attempted: rows.rows.length, succeeded, failed };
 }
 
 /** Backward-compatible wrapper — callers that don't need progress events. */

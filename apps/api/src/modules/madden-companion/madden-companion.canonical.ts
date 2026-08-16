@@ -180,16 +180,22 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
   // query (League Records, season/career stat totals — all of it silently reads back empty).
   const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
   const category = statCategory(record.rawData, record);
+  // Conflict target is the actual business-identity constraint (added in
+  // 202606130001_award_stat_identity_and_rpc.sql), not source_companion_record_id — that column
+  // dedups against a specific rec_madden_companion_records row, but the EA-direct pipeline mints
+  // a fresh canonical record on every import run, so re-importing the same player/week/category
+  // never matches it and instead crashed straight into the identity constraint below with a raw
+  // "duplicate key value violates unique constraint" instead of upserting.
   await client.query(
     `insert into rec_player_weekly_stats
        (league_id,season_number,season_stage,week_number,player_id,team_id,madden_player_id,madden_team_id,
         player_name,team_name,position,stat_category,stats,raw_payload,source_stat_id,source_schedule_id,
         source_week_index,source_team_id,source_roster_id,source_type,source_companion_record_id,updated_at)
      values ($1,$2,$17,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$3,$7,$6,'madden_companion',$16,now())
-     on conflict (source_companion_record_id) where source_companion_record_id is not null do update set
-       season_number=excluded.season_number,season_stage=excluded.season_stage,week_number=excluded.week_number,player_id=excluded.player_id,team_id=excluded.team_id,
-       player_name=excluded.player_name,team_name=excluded.team_name,position=excluded.position,stat_category=excluded.stat_category,
-       stats=excluded.stats,raw_payload=excluded.raw_payload,updated_at=now()`,
+     on conflict (league_id,season_number,team_id,player_id,madden_player_id,stat_category,source_stat_id,source_schedule_id) do update set
+       season_stage=excluded.season_stage,week_number=excluded.week_number,
+       player_name=excluded.player_name,team_name=excluded.team_name,position=excluded.position,
+       stats=excluded.stats,raw_payload=excluded.raw_payload,source_companion_record_id=excluded.source_companion_record_id,updated_at=now()`,
     [leagueId, season, record.weekNumber ?? 0, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
       player.full_name, team?.name ?? null, player.position, category, JSON.stringify(statPayload(record.rawData)), JSON.stringify(record.rawData),
       record.recordKey, record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`, canonicalRecordId,
