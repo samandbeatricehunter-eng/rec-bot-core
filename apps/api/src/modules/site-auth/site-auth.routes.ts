@@ -5,6 +5,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import { listInstallableDiscordGuilds } from "../../lib/discord-oauth.js";
 import {
   checkSiteUsername,
+  ensureAccountForSession,
   getSiteLinkProfile,
   linkDiscordFromOAuth,
   listLinkCandidates,
@@ -45,6 +46,17 @@ export async function siteAuthRoutes(app: FastifyInstance) {
           email: session.email,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Registration flow: guarantees a rec_users row exists for the current session's email
+  // signup right after account confirmation, instead of deferring it to first checkout.
+  app.post("/v1/site-auth/ensure-account", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      return reply.send(await ensureAccountForSession({ authUserId: session.authUserId, email: session.email }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -29,6 +29,7 @@ function LegacyCommissionerInboxRedirect() {
   return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
 }
 const AuthCallback = lazy(() => import("./routes/AuthCallback.js").then((m) => ({ default: m.AuthCallback })));
+const OnboardingPromo = lazy(() => import("./routes/OnboardingPromo.js").then((m) => ({ default: m.OnboardingPromo })));
 const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default: m.OpenApp })));
 const AdminPage = lazy(() => import("./routes/Admin.js").then((m) => ({ default: m.AdminPage })));
 const PublicLeague = lazy(() => import("./routes/PublicLeague.js").then((m) => ({ default: m.PublicLeague })));
@@ -217,6 +218,7 @@ function Routed() {
       <Route path="/login" element={<LogIn />} />
       <Route path="/open-app" element={<OpenApp />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/onboarding/promo" element={<OnboardingPromo />} />
       <Route path="/discord-guild-token" element={<DiscordGuildTokenPopup />} />
       {/* import.meta.env.DEV is statically replaced at build time — this branch (and the
           DevBypass import above) is dead code in any production build, not just hidden. */}

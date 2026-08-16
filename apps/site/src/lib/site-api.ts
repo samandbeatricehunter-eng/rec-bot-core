@@ -366,6 +366,9 @@ export const siteApi = {
       LinkProfileResponse & { lifetimePlatinum: boolean; discordLinked: boolean; isNewDiscordLink: boolean }
     >("/v1/site-auth/link/discord-oauth", {});
   },
+  ensureAccount() {
+    return request<{ userId: string; isNew: boolean }>("/v1/site-auth/ensure-account", {});
+  },
   listLinkCandidates(input: { query?: string; limit?: number; offset?: number }) {
     return request<LinkCandidatesResponse>("/v1/site-auth/link/candidates", input);
   },

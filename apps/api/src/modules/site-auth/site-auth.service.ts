@@ -292,6 +292,20 @@ export async function linkDiscordFromOAuth(input: {
   return { ...profile, lifetimePlatinum, discordLinked: true, isNewDiscordLink };
 }
 
+// Registration-flow entry point for the non-Discord path: an email/password signup must get a
+// real rec_users row the moment the account is confirmed, not deferred until Stripe checkout
+// (the old behavior — see resolveCheckoutRecUserId) — deferring it left a signed-in-but-no-profile
+// window where promo redemption, /account, and other linked-user endpoints all 404'd.
+export async function ensureAccountForSession(input: {
+  authUserId: string;
+  email: string | null;
+}): Promise<{ userId: string; isNew: boolean }> {
+  const existing = await resolveRecUserIdByAuthUserId(input.authUserId);
+  if (existing) return { userId: existing, isNew: false };
+  const userId = await ensureRecUserForAuthUser(input.authUserId, input.email);
+  return { userId, isNew: true };
+}
+
 export type SiteLinkProfile = {
   linked: boolean;
   recUserId: string | null;

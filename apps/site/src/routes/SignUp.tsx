@@ -11,7 +11,6 @@ export function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [promoCode, setPromoCode] = useState("");
   const [keepLoggedIn, setKeepLoggedInChecked] = useState(() => getKeepLoggedIn());
   const [busy, setBusy] = useState(false);
   const [discordBusy, setDiscordBusy] = useState(false);
@@ -24,21 +23,12 @@ export function SignUp() {
   // confirmation-link path goes through AuthCallback, which has its own version of this check.
   if (auth.status === "signed-in") return <Navigate to="/pricing" replace />;
 
-  // Read by AuthCallback once the session actually exists (email confirmation and Discord
-  // OAuth both leave this page before a session is available to redeem against).
-  function stashPromoCode() {
-    const trimmed = promoCode.trim();
-    if (trimmed) sessionStorage.setItem("rec_pending_promo_code", trimmed);
-    else sessionStorage.removeItem("rec_pending_promo_code");
-  }
-
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (password !== confirmPassword) { setError("Passwords don't match."); return; }
     setBusy(true);
-    stashPromoCode();
     const result = await auth.signUp(email, password);
     setBusy(false);
     if (result.error) { setError(result.error); return; }
@@ -48,7 +38,6 @@ export function SignUp() {
   async function handleDiscord() {
     setError(null);
     setDiscordBusy(true);
-    stashPromoCode();
     const result = await auth.signInWithDiscord(next, keepLoggedIn);
     setDiscordBusy(false);
     if (result.error) setError(result.error);
@@ -71,10 +60,6 @@ export function SignUp() {
       <form className="site-auth-card" onSubmit={handleSubmit}>
         <h1>Create your account</h1>
         {error && <p className="site-auth-error">{error}</p>}
-        <label className="site-field">
-          <span>Promo code (optional)</span>
-          <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Have a code? Enter it here" />
-        </label>
         <label className="site-field site-field-checkbox">
           <input
             type="checkbox"
@@ -94,8 +79,8 @@ export function SignUp() {
         </button>
         <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>
           Played REC before through Discord? Use "Continue with Discord" above — it finds your
-          existing leagues, badges, and stats. Signing up with email instead creates a brand-new,
-          empty account.
+          existing leagues and stats. Signing up with email instead creates a brand-new, empty
+          account.
         </p>
         <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>or use email</p>
         <label className="site-field">
