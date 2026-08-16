@@ -314,6 +314,15 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
     .limit(1);
   if (existingIssued.error) throw new ApiError(500, "We couldn't check existing end-of-season payout items. Please try again.", existingIssued.error);
 
+  // League record holding bonus: a flat, deterministic 500 coins per game/season record the
+  // coach currently holds — not a tiered/competitive category like the items below, so it pays
+  // directly rather than going through commissioner review. Idempotent per season (see
+  // rec_league_record_bonus_payouts' unique constraint), so re-running this on every
+  // subsequent postseason advance never double-pays.
+  const { payLeagueRecordHoldingBonuses } = await import("../league-records/league-records.service.js");
+  await payLeagueRecordHoldingBonuses(leagueId, seasonNumber).catch((error) =>
+    console.error("[ERROR] Failed to pay league record holding bonuses (non-fatal):", error));
+
   const items = [...await buildPowerRankItems(leagueId, seasonNumber), ...await buildTeamStatItems(leagueId, seasonNumber, game)];
   if (!(existingIssued.data ?? []).length) {
     await supabase.from("rec_eos_payout_items").delete().eq("batch_id", batch.id).eq("status", "pending");

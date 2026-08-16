@@ -173,7 +173,12 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
   if (!player) return;
   const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
   const team = resolvedTeamId ? (await client.query<{ name: string }>("select name from rec_teams where id=$1", [resolvedTeamId])).rows[0] : null;
-  const season = /^\d+$/.test(seasonKey) ? Number(seasonKey) : (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
+  // seasonKey is EA's own companion-API season identifier (0-indexed, and unrelated to our
+  // season numbering) — it's fine as the external dedup key for rec_madden_companion_records,
+  // but rec_player_weekly_stats.season_number must always be OUR league's actual season
+  // number, or every stat row lands in "season 0" and never matches any real season/career
+  // query (League Records, season/career stat totals — all of it silently reads back empty).
+  const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
   const category = statCategory(record.rawData, record);
   await client.query(
     `insert into rec_player_weekly_stats
@@ -208,9 +213,9 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
     ?? (game ? (isHome ? game.home_score : game.away_score) : null);
   const pointsAgainst = integer(row, ["pointsAgainst", "points_against", "opponentScore", "opponent_score"])
     ?? (game ? (isHome ? game.away_score : game.home_score) : null);
-  const season = /^\d+$/.test(seasonKey)
-    ? Number(seasonKey)
-    : (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0]?.season_number ?? 1;
+  // See applyPlayerStats above — always use the league's real season number, never EA's own
+  // 0-indexed seasonKey.
+  const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0]?.season_number ?? 1;
   const userId = (await client.query<{ user_id: string }>(
     "select user_id from rec_team_assignments where league_id=$1 and team_id=$2 and assignment_status='active' and ended_at is null limit 1",
     [leagueId, resolvedTeamId],

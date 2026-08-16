@@ -131,8 +131,8 @@ function leagueTimelineLabel(league: HubResponse["league"]) {
   return `Season ${league.seasonNumber} · ${weekLabel}`;
 }
 
-function ProfileStats({ values }: { values: Record<string, unknown> | null | undefined }) {
-  const hidden = new Set(["userId", "leagueId", "seasonNumber"]);
+function ProfileStats({ values, hideBoxScoresUploaded }: { values: Record<string, unknown> | null | undefined; hideBoxScoresUploaded?: boolean }) {
+  const hidden = new Set(["userId", "leagueId", "seasonNumber", ...(hideBoxScoresUploaded ? ["boxScoresUploaded"] : [])]);
   const rows = Object.entries(values ?? {}).filter(([key, value]) => !hidden.has(key) && value != null && typeof value !== "object");
   return rows.length ? <div className="hub-profile-stat-list">{rows.map(([key, value]) => <div key={key}><span>{displayLabel(key)}</span><strong>{typeof value === "number" ? value.toLocaleString() : String(value)}</strong></div>)}</div> : <p className="hub-empty">No stats recorded yet.</p>;
 }
@@ -1360,8 +1360,8 @@ export function HubHome() {
         leagueId={hub.league.id}
       />}
       {hub.league.game !== "cfb_27" && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
-        <ProfileStats values={profile.careerStats} />
-        <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet; Season Stats has a per-player breakdown.</p>
+        <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
+        <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet — League Stats has a per-player season breakdown.</p>
       </Modal>}
       {hub.league.game !== "cfb_27" && powerRankingsModalOpen && <Modal title="Power Rankings" onClose={() => setPowerRankingsModalOpen(false)}>
         {hub.powerRankings?.teams?.length ? <RankingListSearch

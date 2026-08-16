@@ -637,7 +637,7 @@ const TRADE_TARGET_POSITIONS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "
  * hands the pick straight to the Trade Builder instead of making the user rebuild it by hand. */
 function TradeTargetsPanel({ guildId, onProposeSuggested }: {
   guildId: string;
-  onProposeSuggested: (opponentTeamId: string, offeredLegs: TradeLegInput[], requestedLegs: TradeLegInput[]) => void;
+  onProposeSuggested: (opponentTeamId: string, offeredLegs: TradeLegInput[], requestedLegs: TradeLegInput[], offeredCoins: number) => void;
 }) {
   const [position, setPosition] = useState("QB");
   const [filters, setFilters] = useState<Array<{ id: string; code: string; min: number }>>([]);
@@ -742,7 +742,7 @@ function TradeTargetsPanel({ guildId, onProposeSuggested }: {
                             </span>
                           </div>
                           <p className="hub-trade-targets-offer-legs">
-                            You send: {offer.legs.map((leg) => leg.type === "player" ? "a player" : "a pick").join(" + ")} ({offer.iGive} pts) for {player.fullName} ({offer.iGet} pts)
+                            You send: {[...offer.legs.map((leg) => leg.label), offer.offeredCoins > 0 ? `${offer.offeredCoins.toLocaleString()} coins` : null].filter(Boolean).join(" + ")} ({offer.iGive} pts) for {player.fullName} ({offer.iGet} pts)
                           </p>
                           <Button
                             variant="primary" size="compact"
@@ -750,6 +750,7 @@ function TradeTargetsPanel({ guildId, onProposeSuggested }: {
                               offers.otherTeamId,
                               offer.legs,
                               [{ type: "player", playerId: player.id }],
+                              offer.offeredCoins,
                             )}
                           >
                             Propose This Trade
@@ -925,10 +926,11 @@ export function TradeCenterHome() {
       {viewMode === "targets" && (
         <TradeTargetsPanel
           guildId={guildId}
-          onProposeSuggested={(nextOpponentTeamId, nextOffered, nextRequested) => {
+          onProposeSuggested={(nextOpponentTeamId, nextOffered, nextRequested, nextOfferedCoins) => {
             setOpponentTeamId(nextOpponentTeamId);
             setOfferedLegs(nextOffered);
             setRequestedLegs(nextRequested);
+            setOfferedCoins(nextOfferedCoins);
             setViewMode("builder");
           }}
         />

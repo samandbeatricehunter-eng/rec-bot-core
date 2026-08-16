@@ -907,13 +907,25 @@ export async function attachWagerPendingMessage(input: { wagerId: string; channe
 type GameResult = { home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; winning_team_id: string | null; is_tie: boolean | null };
 
 async function loadGameResult(leagueId: string, gameId: string): Promise<GameResult | null> {
-  const { data } = await supabase
+  // .maybeSingle() errors out (and silently returns data: undefined here, since only `data`
+  // is destructured) when more than one row matches — and a duplicate rec_game_results row
+  // for the same game_id/league_id is a real, observed data-integrity bug (two writers can
+  // both insert a result for the same game). Use a plain select + take the newest row instead
+  // of failing closed and making a scored game look unscored, which stranded wagers at
+  // "pending" forever with no path to settlement.
+  const { data, error } = await supabase
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,is_tie")
     .eq("league_id", leagueId)
     .eq("game_id", gameId)
-    .maybeSingle();
-  if (data && data.home_score != null && data.away_score != null) return data as GameResult;
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error("[ERROR] Failed to load game result for wager resolution:", error);
+    return null;
+  }
+  const row = data?.[0];
+  if (row && row.home_score != null && row.away_score != null) return row as GameResult;
   return null;
 }
 

@@ -1425,6 +1425,11 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       console.error("[ERROR] Failed to rebuild display records after box score approval:", error);
       warnings.push("Failed to rebuild display records after approval.");
     });
+    const { refreshLeagueRecordHolders } = await import("../league-records/league-records.service.js");
+    await refreshLeagueRecordHolders(sub.league_id).catch((error) => {
+      console.error("[ERROR] Failed to refresh league record holders after box score approval:", error);
+      warnings.push("Failed to refresh league records after approval.");
+    });
   }
 
   const [submissionUpdate, inboxUpdate] = await Promise.all([

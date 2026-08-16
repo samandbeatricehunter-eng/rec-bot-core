@@ -15,7 +15,8 @@ export type TradeTargetPlayer = {
 };
 export type TradeTargetOffer = {
   label: string;
-  legs: Array<{ type: "player"; playerId: string } | { type: "pick"; draftPickId: string }>;
+  legs: Array<{ type: "player"; playerId: string; label: string } | { type: "pick"; draftPickId: string; label: string }>;
+  offeredCoins: number;
   verdict: "balanced" | "favors_proposing" | "favors_receiving";
   deltaPct: number; iGive: number; iGet: number;
 };

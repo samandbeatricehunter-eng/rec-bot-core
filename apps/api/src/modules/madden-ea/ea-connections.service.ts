@@ -784,6 +784,12 @@ export async function importEaDatasetsWithProgress(
       } catch (error) {
         console.error("[WARN] Failed to rebuild official records after EA import (non-fatal):", error);
       }
+      try {
+        const { refreshLeagueRecordHolders } = await import("../league-records/league-records.service.js");
+        await refreshLeagueRecordHolders(leagueId);
+      } catch (error) {
+        console.error("[WARN] Failed to refresh league record holders after EA import (non-fatal):", error);
+      }
     })();
     // Trigger wager inbox notifications for any wagers that now have results
     try {

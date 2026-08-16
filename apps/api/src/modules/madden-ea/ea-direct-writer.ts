@@ -206,10 +206,19 @@ export async function directWriteRoster(
     const rosterId = num(row, ["rosterId", "roster_id", "playerId", "player_id"]);
     if (rosterId == null) continue;
 
-    // Hash-based skip: if the raw data hasn't changed, don't write
+    // Hash-based skip: if the raw data hasn't changed, don't rewrite the whole row — but
+    // wipeBaselineRoster() marks every existing player 'removed' before this import runs, so
+    // skipping the row entirely left every unchanged player (the vast majority, since most
+    // players' EA data doesn't move week to week) stuck at roster_status='removed' forever,
+    // never reactivated. Still touch roster_status/is_free_agent/updated_at on a hash match.
     const hash = rowHash(row);
     if (existingHashes.get(String(rosterId)) === hash) {
       skipped += 1;
+      await pool.query(
+        `update rec_players set roster_status='active', is_free_agent=$3, updated_at=now()
+         where league_id=$1 and madden_player_id=$2`,
+        [leagueId, String(rosterId), isFreeAgent],
+      );
       continue;
     }
 
@@ -262,6 +271,28 @@ export async function directWriteRoster(
     }
     const attributes = Object.keys(attrs).length > 0 ? attrs : null;
     const abilities = Array.isArray(row.signatureSlotList) ? row.signatureSlotList : null;
+
+    // Match to a pre-existing baseline-seeded or legend/custom-player placeholder row before
+    // falling through to insert: those rows carry a synthetic madden_player_id ("madden27:...",
+    // or none at all for a not-yet-installed legend) that never conflicts with EA's real
+    // numeric roster id, so without this the row would silently insert as a brand-new
+    // duplicate player instead of adopting the real identity of the player it's supposed to
+    // represent — exactly what happened to every baseline-seeded player and every approved
+    // legend purchase once real EA data arrived. Match narrowly (same team, same full name)
+    // and only against rows that don't already have a real numeric EA id.
+    if (teamUuid) {
+      const placeholder = await pool.query<{ id: string }>(
+        `select id from rec_players
+         where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
+           and (madden_player_id is null or madden_player_id !~ '^[0-9]+$')
+         order by (player_source='legend') desc, created_at asc
+         limit 1`,
+        [leagueId, teamUuid, fullName],
+      );
+      if (placeholder.rows[0]) {
+        await pool.query(`update rec_players set madden_player_id=$2, updated_at=now() where id=$1`, [placeholder.rows[0].id, String(rosterId)]);
+      }
+    }
 
     await pool.query(
       `insert into rec_players

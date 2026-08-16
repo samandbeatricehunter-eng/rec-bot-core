@@ -78,12 +78,21 @@ type Chip = {
 
 export type TradeOfferSuggestion = {
   label: string;
-  legs: Array<{ type: "player"; playerId: string } | { type: "pick"; draftPickId: string }>;
+  legs: Array<
+    | { type: "player"; playerId: string; label: string }
+    | { type: "pick"; draftPickId: string; label: string }
+  >;
+  offeredCoins: number;
   verdict: RecTradeFairnessReport["verdict"];
   deltaPct: number;
   iGive: number;
   iGet: number;
 };
+
+// Trade-value points aren't coins — this is a rough, documented conversion used only to size a
+// coin top-up on a suggested offer, never to price anything authoritative. Coarse on purpose:
+// nudging a near-fair offer the last few points toward balanced, not replacing an asset.
+const COINS_PER_TRADE_VALUE_POINT = 40;
 
 export async function suggestTradeOffers(guildId: string, discordId: string, targetPlayerId: string) {
   const context = await assertMaddenLeague(guildId);
@@ -99,17 +108,21 @@ export async function suggestTradeOffers(guildId: string, discordId: string, tar
   if (!otherTeamId) throw new ApiError(400, "That player isn't currently on a team roster.");
   if (otherTeamId === myTeamId) throw new ApiError(400, "Pick a player from another team.");
 
-  const [myRoster, myPicks, teamsCount, myTeamNeeds, otherTeamNeeds] = await Promise.all([
+  const [myRoster, myPicks, teamsCount, myTeamNeeds, otherTeamNeeds, myWallet] = await Promise.all([
     supabase.from("rec_players").select("id,full_name,position,overall_rating,dev_trait,years_pro,contract_years_left,cap_hit")
       .eq("league_id", context.leagueId).eq("team_id", myTeamId).eq("roster_status", "active"),
     supabase.from("rec_draft_picks").select("id,season_number,round,pick_number").eq("league_id", context.leagueId).eq("current_team_id", myTeamId),
     supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", context.leagueId),
     teamPositionNeeds(context.leagueId, myTeamId),
     teamPositionNeeds(context.leagueId, otherTeamId),
+    supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", userId).maybeSingle(),
   ]);
   if (myRoster.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", myRoster.error);
   if (myPicks.error) throw new ApiError(500, "We couldn't load your draft picks. Please try again.", myPicks.error);
   const teamsInLeague = teamsCount.count ?? 32;
+  // Available coins caps any suggested coin top-up so a "realistic" offer can never propose
+  // spending more than the user actually has between wallet and savings.
+  const availableCoins = Number(myWallet.data?.wallet_balance ?? 0) + Number(myWallet.data?.savings_balance ?? 0);
 
   const targetInput: RecTradePlayerInput = {
     id: target.data.id, position: target.data.position, overallRating: target.data.overall_rating,
@@ -147,19 +160,21 @@ export async function suggestTradeOffers(guildId: string, discordId: string, tar
     return report.deltaPct >= 0 ? report.deltaPct * 1.5 : Math.abs(report.deltaPct) * 0.5;
   }
 
-  const candidates: Array<{ label: string; chips: Chip[]; report: RecTradeFairnessReport }> = [];
-  function tryCandidate(chips: Chip[], label: string) {
+  const candidates: Array<{ label: string; chips: Chip[]; coins: number; report: RecTradeFairnessReport }> = [];
+  function tryCandidate(chips: Chip[], label: string, coins = 0) {
     if (!chips.length || candidates.some((c) => c.label === label)) return;
     const players = chips.filter((c) => c.kind === "player").map((c) => c.playerInput!);
     const picks = chips.filter((c) => c.kind === "pick").map((c) => c.pickInput!);
     const report = evaluateRecTradeFairness({
-      proposingPlayers: players, proposingPicks: picks, proposingCoins: 0,
+      proposingPlayers: players, proposingPicks: picks, proposingCoins: coins,
       receivingPlayers: [targetInput], receivingPicks: [], receivingCoins: 0,
       proposingTeamNeeds: otherTeamNeeds, receivingTeamNeeds: myTeamNeeds,
     });
-    // Skip asks so lopsided in my favor the other team would obviously reject them.
-    if (report.deltaPct > 25) return;
-    candidates.push({ label, chips, report });
+    // Skip offers lopsided either direction — too generous to me (the other team would
+    // obviously reject it) or too generous to them (giving away far more than the target is
+    // worth isn't a "suggestion," it's just a bad trade nobody should be nudged toward).
+    if (report.deltaPct > 25 || report.deltaPct < -25) return;
+    candidates.push({ label, chips, coins, report });
   }
 
   if (rankedPlayerChips[0]) tryCandidate([rankedPlayerChips[0]], "Headliner swap");
@@ -170,12 +185,31 @@ export async function suggestTradeOffers(guildId: string, discordId: string, tar
   if (rankedPlayerChips[1] && rankedPlayerChips[2]) tryCandidate([rankedPlayerChips[1], rankedPlayerChips[2]], "Two-for-one");
   if (rankedPickChips[0]) tryCandidate([rankedPickChips[0]], "Picks only");
 
+  // Coin-sweetened variant: if the single best headliner offer alone falls short (favors the
+  // other team, deltaPct meaningfully negative), see whether topping it up with coins the user
+  // can actually afford — capped at wallet + savings — pulls it into a realistic range instead
+  // of needing a second full asset.
+  if (rankedPlayerChips[0] && availableCoins > 0) {
+    const bare = evaluateRecTradeFairness({
+      proposingPlayers: [rankedPlayerChips[0].playerInput!], proposingPicks: [], proposingCoins: 0,
+      receivingPlayers: [targetInput], receivingPicks: [], receivingCoins: 0,
+      proposingTeamNeeds: otherTeamNeeds, receivingTeamNeeds: myTeamNeeds,
+    });
+    if (bare.deltaPct < -5) {
+      const shortfallPoints = Math.min(Math.abs(bare.deltaPct) / 100 * bare.receiving.needAdjustedTotal, bare.receiving.needAdjustedTotal);
+      const coinsNeeded = Math.round(shortfallPoints * COINS_PER_TRADE_VALUE_POINT);
+      const coinsOffered = Math.min(coinsNeeded, availableCoins);
+      if (coinsOffered > 0) tryCandidate([rankedPlayerChips[0]], "Headliner + coins", coinsOffered);
+    }
+  }
+
   const offers: TradeOfferSuggestion[] = candidates
     .sort((a, b) => scoreVerdict(a.report) - scoreVerdict(b.report))
     .slice(0, 3)
     .map((c) => ({
       label: c.label,
-      legs: c.chips.map((chip) => chip.kind === "player" ? { type: "player" as const, playerId: chip.id } : { type: "pick" as const, draftPickId: chip.id }),
+      legs: c.chips.map((chip) => chip.kind === "player" ? { type: "player" as const, playerId: chip.id, label: chip.label } : { type: "pick" as const, draftPickId: chip.id, label: chip.label }),
+      offeredCoins: c.coins,
       verdict: c.report.verdict, deltaPct: c.report.deltaPct,
       iGive: c.report.proposing.needAdjustedTotal, iGet: c.report.receiving.needAdjustedTotal,
     }));

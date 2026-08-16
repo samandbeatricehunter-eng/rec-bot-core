@@ -10,6 +10,7 @@
 // there's no separate "is this week postseason" column to duplicate in SQL.
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
+import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
   getStatLabel,
@@ -145,4 +146,128 @@ export async function getLeagueRecordsForLeagueId(
 export async function getLeagueRecords(guildId: string, input: { scope: LeagueRecordsScope; postseason: boolean; category: StatPageCategoryKey }) {
   const context = await getCurrentLeagueContext(guildId);
   return getLeagueRecordsForLeagueId(context.leagueId, input);
+}
+
+const ALL_STAT_KEYS = [...new Set(STAT_PAGE_CATEGORIES.flatMap((c) => statKeysForPageCategory(c.key)))];
+
+/**
+ * Recomputes the #1 leader for every stat key, at game+season+career scope and both
+ * regular-season/postseason, and upserts rec_league_record_holders — but only replaces an
+ * existing holder when the new value is strictly greater (a real broken record), never on a
+ * tie or a lower value. Call this after anything that can change the underlying weekly stats:
+ * a Madden EA import, or a CFB box-score approval.
+ */
+export async function refreshLeagueRecordHolders(leagueId: string): Promise<void> {
+  const leagueResult = await getPgPool().query<{ id: string; game: string; season_number: number }>(
+    "select id,game,season_number from rec_leagues where id=$1", [leagueId],
+  );
+  const league = leagueResult.rows[0];
+  if (!league || !ALL_STAT_KEYS.length) return;
+
+  for (const scope of ["game", "season", "career"] as LeagueRecordsScope[]) {
+    for (const postseason of [false, true]) {
+      const weeks = qualifyingWeeks(league.game as LeagueGame, postseason);
+      if (!weeks.length) continue;
+
+      const params: unknown[] = [leagueId, weeks, ALL_STAT_KEYS];
+      let seasonFilter = "";
+      if (scope !== "career") {
+        params.push(league.season_number);
+        seasonFilter = ` and s.season_number = $${params.length}`;
+      }
+      const query = scope === "game"
+        ? `
+          with weekly as (
+            select s.player_id, s.week_number, s.season_number, e.key, e.value::numeric as value
+            from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
+            where s.league_id = $1 and s.week_number = any($2::int[]) and e.key = any($3)
+              and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'${seasonFilter}
+          ), top as (
+            select distinct on (key) key, player_id, week_number, season_number, value
+            from weekly order by key, value desc
+          )
+          select t.key, t.value, t.week_number, t.season_number, t.player_id, p.team_id,
+                 (select ta.user_id from rec_team_assignments ta where ta.team_id = p.team_id and ta.assignment_status = 'active' and ta.ended_at is null limit 1) as user_id
+          from top t join rec_players p on p.id = t.player_id
+        `
+        : `
+          with weekly as (
+            select s.player_id, e.key, e.value::numeric as value
+            from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
+            where s.league_id = $1 and s.week_number = any($2::int[]) and e.key = any($3)
+              and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'${seasonFilter}
+          ), totals as (
+            select key, player_id, sum(value) as value from weekly group by key, player_id
+          ), top as (
+            select distinct on (key) key, player_id, value from totals order by key, value desc
+          )
+          select t.key, t.value, null::int as week_number, null::int as season_number, t.player_id, p.team_id,
+                 (select ta.user_id from rec_team_assignments ta where ta.team_id = p.team_id and ta.assignment_status = 'active' and ta.ended_at is null limit 1) as user_id
+          from top t join rec_players p on p.id = t.player_id
+        `;
+      const result = await getPgPool().query(query, params);
+      for (const row of result.rows as any[]) {
+        await getPgPool().query(
+          `insert into rec_league_record_holders
+             (league_id, scope, postseason, stat_key, player_id, user_id, team_id, value, season_number, week_number, set_at, updated_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now(),now())
+           on conflict (league_id, scope, postseason, stat_key) do update
+             set player_id = excluded.player_id, user_id = excluded.user_id, team_id = excluded.team_id,
+                 value = excluded.value, season_number = excluded.season_number, week_number = excluded.week_number,
+                 set_at = now(), updated_at = now()
+           where excluded.value > rec_league_record_holders.value`,
+          [leagueId, scope, postseason, row.key, row.player_id, row.user_id, row.team_id, row.value, row.season_number, row.week_number],
+        );
+      }
+    }
+  }
+}
+
+const RECORD_HOLDING_BONUS_COINS = 500;
+
+/**
+ * Season-end: pays RECORD_HOLDING_BONUS_COINS to whoever currently holds each game/season
+ * record (career records aren't season-bound, so they're excluded from the recurring bonus —
+ * they only ever get set once, not "held" across seasons). Re-paid every season the same
+ * coach still holds a given record, per the confirmed spec: set it in Season 1, still hold it
+ * at the end of Season 2, get paid again. Idempotent via rec_league_record_bonus_payouts'
+ * unique constraint — safe to call more than once for the same season.
+ */
+export async function payLeagueRecordHoldingBonuses(leagueId: string, seasonNumber: number): Promise<{ paid: number; totalCoins: number }> {
+  const holders = await getPgPool().query<{
+    scope: "game" | "season"; postseason: boolean; stat_key: string; user_id: string | null;
+  }>(
+    `select scope, postseason, stat_key, user_id from rec_league_record_holders
+     where league_id = $1 and scope in ('game','season') and user_id is not null`,
+    [leagueId],
+  );
+
+  let paid = 0;
+  let totalCoins = 0;
+  for (const holder of holders.rows) {
+    const inserted = await getPgPool().query(
+      `insert into rec_league_record_bonus_payouts (league_id, season_number, scope, postseason, stat_key, user_id, amount)
+       values ($1,$2,$3,$4,$5,$6,$7)
+       on conflict (league_id, season_number, scope, postseason, stat_key) do nothing
+       returning id`,
+      [leagueId, seasonNumber, holder.scope, holder.postseason, holder.stat_key, holder.user_id, RECORD_HOLDING_BONUS_COINS],
+    );
+    if (!inserted.rowCount) continue;
+    const credit = await supabase.rpc("add_to_wallet", {
+      p_user_id: holder.user_id,
+      p_amount: RECORD_HOLDING_BONUS_COINS,
+      p_league_id: leagueId,
+      p_description: `League record bonus: ${getStatLabel(holder.stat_key)} (${holder.postseason ? "postseason " : ""}${holder.scope})`,
+      p_transaction_type: "record_holding_bonus",
+      p_source: "league_record",
+      p_source_reference: { leagueId, seasonNumber, statKey: holder.stat_key, scope: holder.scope, postseason: holder.postseason },
+    });
+    if (credit.error) {
+      console.error("[ERROR] Failed to credit league record holding bonus:", credit.error);
+      continue;
+    }
+    paid += 1;
+    totalCoins += RECORD_HOLDING_BONUS_COINS;
+  }
+  return { paid, totalCoins };
 }
