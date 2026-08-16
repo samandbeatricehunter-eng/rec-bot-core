@@ -165,7 +165,14 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
               <div className="pending-item-card-layout">
                 <div className="pending-item-card-copy">
                   <div className="pending-item-card-heading"><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span className="pending-item-card-title">{notification.title}</span></div>
-                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
+                  {/* Legend and custom-player purchases carry a full detail dump (attributes,
+                      replacement target, package) in their subtitle — that belongs only in the
+                      dedicated review modal (LegendPurchaseDetail / CustomPlayerBuildRow) opened
+                      on tap, not in this scannable list. Every other type's subtitle stays short
+                      enough to keep here. */}
+                  {notification.type !== "legend" && notification.type !== "custom_player" && (
+                    <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
+                  )}
                   {notification.type === "trade" && (
                     <TradeDetail
                       payload={notification.payload}
