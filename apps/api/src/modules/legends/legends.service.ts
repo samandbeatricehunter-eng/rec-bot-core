@@ -262,7 +262,9 @@ export async function createLegendPurchaseRequest(input: {
     .map((key) => `${key}: ${attributeMap[key]}`)
     .join("\n");
   const summaryLines = [
-    "DO NOT mark Approved & Applied In-Game until you have actually created this player.",
+    isCfb
+      ? "Approving creates this player on the roster immediately — make sure the replacement below is correct first."
+      : "Approving does NOT touch the roster yet. Recreate this player in Madden on the designated slot below, then re-import — REC detects the match and marks this fulfilled automatically.",
     `Team: ${teamName ?? "unassigned"}`,
     details.replaceTarget
       ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`

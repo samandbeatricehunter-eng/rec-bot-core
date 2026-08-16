@@ -876,6 +876,8 @@ export async function withdrawTradeBlockListing(input: { guildId: string; discor
 export async function acceptTradeBlockListing(input: { guildId: string; discordId: string; listingId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);
+  if (!userId) throw new ApiError(403, "Link your REC account before accepting a trade-block listing.");
+  const teamId = await teamForUser(context.leagueId, userId);
   const listing = await supabase.from("rec_trade_block_listings").select("*").eq("id", input.listingId).eq("league_id", context.leagueId).maybeSingle();
   if (listing.error) throw new ApiError(500, "We couldn't load that listing. Please try again.", listing.error);
   if (!listing.data) throw new ApiError(404, "Listing not found.");
@@ -892,32 +894,38 @@ export async function acceptTradeBlockListing(input: { guildId: string; discordI
   // Move players to the receiving team
   if (allPlayerIds.size > 0) {
     const { error: playerMoveError } = await supabase.from("rec_players")
-      .update({ team_id: userId, updated_at: new Date().toISOString() })
+      .update({ team_id: teamId, updated_at: new Date().toISOString() })
       .in("id", Array.from(allPlayerIds));
     if (playerMoveError) throw new ApiError(500, "Failed to move players to your team.", playerMoveError);
   }
-  // Move coins from offering team's wallet to receiving team's wallet
-  // First, get the offering team's user ID and check their wallet/savings
-  const offeringUser = await supabase.from("rec_users").select("id, wallet, savings").eq("id", listing.data.user_id).maybeSingle();
-  if (offeringUser.error) throw new ApiError(500, "Failed to check offering team's wallet.", offeringUser.error);
-  const offeringWallet = offeringUser.data?.wallet ?? 0;
-  const offeringSavings = offeringUser.data?.savings ?? 0;
+  // Move coins from the offering user's wallet to the accepting user's wallet. Coin balances
+  // live on rec_wallets (wallet_balance/savings_balance) — this used to read/write
+  // rec_users.wallet/rec_users.savings, columns that don't exist on that table at all, so
+  // every listing with an offered-coins component silently failed or corrupted nothing (the
+  // update just matched zero columns).
+  const offeringWalletRow = await supabase.from("rec_wallets").select("user_id, wallet_balance, savings_balance").eq("user_id", listing.data.user_id).maybeSingle();
+  if (offeringWalletRow.error) throw new ApiError(500, "Failed to check the offering coach's wallet.", offeringWalletRow.error);
+  const offeringWallet = offeringWalletRow.data?.wallet_balance ?? 0;
+  const offeringSavings = offeringWalletRow.data?.savings_balance ?? 0;
   const coinsToMove = listing.data.offered_coins;
   if (coinsToMove > offeringSavings + offeringWallet) {
-    throw new ApiError(400, "The offering team doesn't have enough coins in wallet/savings to complete this listing.");
+    throw new ApiError(400, "The offering coach doesn't have enough coins in wallet/savings to complete this listing.");
   }
-  // Deduct from savings first, then wallet
+  // Deduct from savings first, then wallet.
   let remaining = coinsToMove;
   const newSavings = offeringSavings - Math.min(offeringSavings, remaining);
   remaining -= Math.min(offeringSavings, coinsToMove);
   const newWallet = offeringWallet - remaining;
-  // Add coins to receiving team's wallet
-  const receivingUser = await supabase.from("rec_users").select("id, wallet, savings").eq("id", userId).maybeSingle();
-  if (receivingUser.error) throw new ApiError(500, "Failed to check receiving team's wallet.", receivingUser.error);
-  const newReceivingWallet = (receivingUser.data?.wallet ?? 0) + coinsToMove;
-  // Update both users' wallets/savings
-  await supabase.from("rec_users").update({ savings: newSavings, wallet: newWallet }).eq("id", listing.data.user_id);
-  await supabase.from("rec_users").update({ wallet: newReceivingWallet }).eq("id", userId);
+  await supabase.from("rec_wallets").update({ wallet_balance: newWallet, savings_balance: newSavings, updated_at: new Date().toISOString() }).eq("user_id", listing.data.user_id);
+  if (coinsToMove > 0) {
+    const credited = await supabase.rpc("add_to_wallet", {
+      p_user_id: userId, p_amount: coinsToMove, p_league_id: context.leagueId,
+      p_description: `Trade block listing accepted (${input.listingId})`,
+      p_transaction_type: "trade_block_accept", p_source: "purchase",
+      p_source_reference: { listingId: input.listingId },
+    });
+    if (credited.error) throw new ApiError(500, "Failed to credit coins to your wallet.", credited.error);
+  }
   // Mark listing as completed
   const now = new Date().toISOString();
   const { error: listError } = await supabase.from("rec_trade_block_listings").update({ status: "completed", updated_at: now }).eq("id", input.listingId);

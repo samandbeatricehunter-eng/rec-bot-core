@@ -612,11 +612,16 @@ export async function reviewCustomPlayer(input: {
   }
   await supabase.from("rec_commissioners_inbox").update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
     .eq("source_table", "rec_custom_player_builds").eq("source_id", build.id);
+  // Madden defers the actual roster write to the next EA import (see apply_custom_player_build);
+  // the RPC's returned status distinguishes "approved, waiting on the commissioner to recreate
+  // this player in-game" from CFB's immediate "applied".
+  const deferred = (applied.data as { status?: string } | null)?.status === "approved";
+  const deferredBody = "Approved. Recreate them in Madden on the designated roster slot, then re-import — they'll go live on your roster automatically.";
   if (changes.length) {
     const summary = changes.map((change) => `${change.field}: ${String(change.from ?? "blank")} → ${String(change.to ?? "blank")}`).join("; ");
-    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_adjusted", title: "Your custom player was applied with commissioner edits", body: summary, href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
+    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_adjusted", title: deferred ? "Your custom player was approved with commissioner edits" : "Your custom player was applied with commissioner edits", body: deferred ? `${deferredBody} Edits: ${summary}` : summary, href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
   } else {
-    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_approved", title: "Your custom player was approved & applied", body: "It has been added to your roster.", href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
+    await createSiteNotification({ userId: build.user_id, leagueId: build.league_id, kind: "custom_player_approved", title: deferred ? "Your custom player was approved" : "Your custom player was approved & applied", body: deferred ? deferredBody : "It has been added to your roster.", href: "/app" }).catch((error) => console.error("[WARN] Failed to notify custom-player purchaser:", error));
   }
   const playerId = (applied.data as { playerId?: string } | null)?.playerId;
   if (playerId) {

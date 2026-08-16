@@ -163,52 +163,31 @@ function mapLegendAttributes(raw: Record<string, number> | null | undefined): Re
   return mapped;
 }
 
-/** Fires once a legend purchase is approved ("Approved & Applied In-Game") — creates the
- * actual rec_players row with the legend's full mapped attributes and photo, and removes
- * whichever roster player it replaces. Mirrors apply_custom_player_build's shape, just from
- * JS instead of a DB function since there's no atomic-CP-refund step to protect here.
- *
- * When there's a replacement, this UPDATEs that player's row in place rather than inserting
- * a new row and deleting the old one. The old insert-then-delete order used to race
- * rec_players' (league_id, madden_player_id) unique constraint: any new row that needed to
- * carry the replaced player's real EA/madden id (so future stat imports keep matching that
- * roster slot) collided with the still-present old row, since the delete hadn't happened yet.
- * Updating in place sidesteps the whole class of bug — one statement, same row id, same
- * madden_player_id, nothing to race. */
+/** Fires once a CFB legend purchase is approved — creates the actual rec_players row with
+ * the legend's full mapped attributes and photo, and updates the designated replacement
+ * player's row in place. CFB-only: CFB has no live franchise-import cycle to defer to, so
+ * approval is the only moment the swap can happen. Madden legends are deferred instead — see
+ * reconcileApprovedMaddenPurchases — because the commissioner recreates the legend inside the
+ * actual Madden save, and the next EA import naturally pulls that identity in under the
+ * replaced player's real EA id; applying it here too would just get overwritten (or fight)
+ * with that import. */
 async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
   const details = (purchase.details ?? {}) as Record<string, any>;
   const leagueId = purchase.league_id as string;
   const teamId = details.purchasingTeamId as string | null;
   if (!teamId) return; // buyer had no team at purchase time — nothing to attach the player to
 
-  const league = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
-  const game = String(league.data?.game ?? "cfb_27");
-  const isCfbLeague = game === "cfb_27";
-
   const legend = await supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle();
   const photoUrl = legend.data?.photo_url ?? null;
 
-  // Prefer the commissioner's final pick when present (Madden "commissioner's choice" path),
-  // otherwise the buyer's designated replaceTarget. Either way the outgoing roster row is
-  // updated in place so the installed legend occupies that slot and keeps its real EA/madden
-  // id (no insert/delete race on the (league_id, madden_player_id) unique constraint).
-  let replacementPlayerId: string | null =
+  const replacementPlayerId: string | null =
     details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
+  if (!replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
 
-  let replacement: { id: string; position: string } | null = null;
-  if (replacementPlayerId) {
-    let query = supabase.from("rec_players").select("id,position")
-      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"]);
-    if (isCfbLeague) query = query.eq("is_default_player", false);
-    const found = await query.maybeSingle();
-    replacement = found.data ?? null;
-    if (!replacement) {
-      if (isCfbLeague) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
-      replacementPlayerId = null; // Madden: fall back to a brand-new roster slot below.
-    }
-  }
-  if (isCfbLeague && !replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
+  const found = await supabase.from("rec_players").select("id,position")
+    .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
+    .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
+  if (!found.data) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
 
   const nameParts = String(details.name ?? "").trim().split(/\s+/);
   const firstName = nameParts[0] ?? details.name;
@@ -218,19 +197,19 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     first_name: firstName,
     last_name: lastName,
     full_name: details.name,
-    position: isCfbLeague ? replacement!.position : details.position,
+    position: found.data.position,
     height_inches: parseLegendHeightInches(details.height),
     weight_lbs: details.weight ?? null,
     handedness: details.hand ?? null,
     jersey_number: details.jerseyNumber ?? null,
-    college: !isCfbLeague ? (details.college ?? null) : null,
-    dev_trait: isCfbLeague ? null : (details.devTrait ?? null),
+    college: null,
+    dev_trait: null,
     // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
     // is an integer column — round it, or the write fails outright with a Postgres type error.
     overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,
     archetype: details.archetype ?? null,
     attributes: mapLegendAttributes(details.attributes),
-    abilities: isCfbLeague ? [] : (Array.isArray(details.abilities) ? details.abilities : []),
+    abilities: [],
     photo_url: photoUrl,
     is_free_agent: false,
     is_default_player: false,
@@ -239,22 +218,75 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     raw_payload: { legend: true, legendId: details.legendId, purchaseId: purchase.id },
   };
 
-  if (replacementPlayerId) {
-    const updated = await supabase.from("rec_players").update(playerRow)
-      .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId).select("id").maybeSingle();
-    if (updated.error || !updated.data) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", updated.error);
-    return;
+  const updated = await supabase.from("rec_players").update(playerRow)
+    .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId).select("id").maybeSingle();
+  if (updated.error || !updated.data) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", updated.error);
+}
+
+/** Madden-only. Approved legend purchases and approved (not-yet-applied) custom-player builds
+ * sit waiting for the commissioner to actually recreate the player inside the Madden save on
+ * the designated roster slot. Runs after every EA roster import: if the designated player's
+ * row (or, failing that, any freshly-imported row on the buying team) now carries a name
+ * matching the purchase, the purchase/build is marked fulfilled — informational only, since
+ * the import itself already wrote the real data. Never mutates rec_players. */
+export async function reconcileApprovedMaddenPurchases(leagueId: string): Promise<{ legendsFulfilled: number; customPlayersApplied: number }> {
+  const now = new Date().toISOString();
+
+  async function findMatch(teamId: string, name: string, targetId: string | null): Promise<string | null> {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized) return null;
+    if (targetId) {
+      const row = await supabase.from("rec_players").select("id,full_name").eq("id", targetId).eq("league_id", leagueId).eq("team_id", teamId).maybeSingle();
+      if (row.data && String(row.data.full_name ?? "").trim().toLowerCase() === normalized) return row.data.id;
+    }
+    // No exact-slot match — the query builder has no case-insensitive LIKE, so pull the
+    // team's non-REC-created players and compare in JS. Team rosters are small (~50-70), so
+    // this stays cheap.
+    const roster = await supabase.from("rec_players").select("id,full_name,player_source").eq("league_id", leagueId).eq("team_id", teamId);
+    const match = (roster.data ?? []).find((p: any) =>
+      p.player_source !== "legend" && p.player_source !== "custom_player" && String(p.full_name ?? "").trim().toLowerCase() === normalized);
+    return match?.id ?? null;
   }
 
-  // No replacement (Madden-only — e.g. an unseeded league with no roster yet) — a genuinely
-  // new roster slot, so it needs its own synthetic identity.
-  const inserted = await supabase.from("rec_players").insert({
-    league_id: leagueId,
-    team_id: teamId,
-    madden_player_id: `legend:${details.legendId}:${purchase.id}`,
-    ...playerRow,
-  });
-  if (inserted.error) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", inserted.error);
+  const pendingLegends = await supabase.from("rec_purchases").select("id,user_id,details")
+    .eq("league_id", leagueId).eq("purchase_type", "legend").eq("status", "approved");
+  if (pendingLegends.error) throw new ApiError(500, "We couldn't load approved legend purchases to reconcile.", pendingLegends.error);
+  let legendsFulfilled = 0;
+  for (const purchase of pendingLegends.data ?? []) {
+    const details = (purchase.details ?? {}) as Record<string, any>;
+    const teamId = details.purchasingTeamId as string | null;
+    if (!teamId) continue;
+    const targetId = details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
+    const matchedId = await findMatch(teamId, String(details.name ?? ""), targetId);
+    if (!matchedId) continue;
+    await supabase.from("rec_purchases").update({ status: "fulfilled", fulfilled_at: now, updated_at: now }).eq("id", purchase.id);
+    await createSiteNotification({
+      userId: purchase.user_id, leagueId, kind: "legend_fulfilled",
+      title: `${details.name} is live on your roster`, body: `${details.name} was detected in your latest EA import and is now officially part of your team.`, href: "/app",
+    }).catch((err) => console.error("[WARN] Failed to notify purchaser of legend fulfillment:", err));
+    legendsFulfilled++;
+  }
+
+  const pendingBuilds = await supabase.from("rec_custom_player_builds").select("id,user_id,league_id,team_id,identity,replacement_player_id,purchase_id")
+    .eq("league_id", leagueId).eq("game_family", "MADDEN").eq("status", "approved");
+  if (pendingBuilds.error) throw new ApiError(500, "We couldn't load approved custom-player builds to reconcile.", pendingBuilds.error);
+  let customPlayersApplied = 0;
+  for (const build of pendingBuilds.data ?? []) {
+    const identity = (build.identity ?? {}) as Record<string, any>;
+    const fullName = `${identity.firstName ?? ""} ${identity.lastName ?? ""}`.trim();
+    if (!build.team_id) continue;
+    const matchedId = await findMatch(build.team_id, fullName, build.replacement_player_id ?? null);
+    if (!matchedId) continue;
+    await supabase.from("rec_custom_player_builds").update({ status: "applied", applied_at: now, created_player_id: matchedId, updated_at: now }).eq("id", build.id);
+    if (build.purchase_id) await supabase.from("rec_purchases").update({ status: "fulfilled", fulfilled_at: now, updated_at: now }).eq("id", build.purchase_id);
+    await createSiteNotification({
+      userId: build.user_id, leagueId, kind: "custom_player_fulfilled",
+      title: `${fullName} is live on your roster`, body: `${fullName} was detected in your latest EA import and is now officially part of your team.`, href: "/app",
+    }).catch((err) => console.error("[WARN] Failed to notify purchaser of custom-player fulfillment:", err));
+    customPlayersApplied++;
+  }
+
+  return { legendsFulfilled, customPlayersApplied };
 }
 
 type AttributeAllocation = { code: string; points: number; core: boolean };
@@ -838,24 +870,30 @@ export async function reviewPurchase(input: {
     .eq("source_table", "rec_purchases")
     .eq("source_id", input.purchaseId);
 
-  // "Approved & Applied In-Game" is the actual trigger for legends — this is the one moment
-  // the commissioner has confirmed the player really exists in the save, so it's also the
-  // one moment we can safely create the roster row (full attributes + photo) automatically.
-  // If that insert fails, revert the approval instead of leaving an unrecoverable state
-  // (purchase marked approved, inbox item resolved, but no roster player ever created and
-  // no way to retry) — put the purchase and inbox item back to pending so the commissioner
-  // can simply approve again once the underlying issue is fixed.
+  // CFB has no live franchise-import cycle to defer to, so approval is the only moment the
+  // swap can happen — apply immediately, same as before. If that write fails, revert the
+  // approval instead of leaving an unrecoverable state (purchase marked approved, inbox item
+  // resolved, but no roster player ever created and no way to retry) — put the purchase and
+  // inbox item back to pending so the commissioner can simply approve again once fixed.
+  // Madden legends are NOT applied here — the commissioner recreates the legend inside the
+  // Madden save on the designated slot, and reconcileApprovedMaddenPurchases (run after every
+  // EA import) marks the purchase fulfilled once that identity shows up in imported data.
+  let isCfbLegend = false;
   if (existing.data.purchase_type === "legend") {
-    try {
-      await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
-    } catch (err) {
-      await supabase.from("rec_purchases").update({
-        status: "pending", reviewed_by_discord_id: null, approved_at: null, updated_at: new Date().toISOString(),
-      }).eq("id", input.purchaseId);
-      await supabase.from("rec_commissioners_inbox").update({
-        status: "pending", reviewed_by_discord_id: null, reviewed_at: null,
-      }).eq("source_table", "rec_purchases").eq("source_id", input.purchaseId);
-      throw err;
+    const league = await supabase.from("rec_leagues").select("game").eq("id", existing.data.league_id).maybeSingle();
+    isCfbLegend = String(league.data?.game ?? "") === "cfb_27";
+    if (isCfbLegend) {
+      try {
+        await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
+      } catch (err) {
+        await supabase.from("rec_purchases").update({
+          status: "pending", reviewed_by_discord_id: null, approved_at: null, updated_at: new Date().toISOString(),
+        }).eq("id", input.purchaseId);
+        await supabase.from("rec_commissioners_inbox").update({
+          status: "pending", reviewed_by_discord_id: null, reviewed_at: null,
+        }).eq("source_table", "rec_purchases").eq("source_id", input.purchaseId);
+        throw err;
+      }
     }
   }
 
@@ -863,8 +901,12 @@ export async function reviewPurchase(input: {
   // the DB and the buyer had no way to know short of refreshing their roster on a hunch.
   const purchaseDetails = existing.data.details as Record<string, unknown>;
   const legendName = existing.data.purchase_type === "legend" ? String(purchaseDetails?.name ?? "Legend") : null;
-  const approveTitle = legendName ? `${legendName} approved & applied` : `${label} approved`;
-  const approveBody = legendName ? `${legendName} has been added to your roster.` : `Your ${label.toLowerCase()} purchase was approved.`;
+  const approveTitle = legendName ? (isCfbLegend ? `${legendName} approved & applied` : `${legendName} approved`) : `${label} approved`;
+  const approveBody = legendName
+    ? (isCfbLegend
+      ? `${legendName} has been added to your roster.`
+      : `${legendName} is approved. Recreate them in Madden on the designated roster slot, then re-import — they'll go live on your roster automatically.`)
+    : `Your ${label.toLowerCase()} purchase was approved.`;
   await createSiteNotification({
     userId: existing.data.user_id,
     leagueId: existing.data.league_id,

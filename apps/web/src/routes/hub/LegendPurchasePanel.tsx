@@ -325,9 +325,10 @@ function LegendDetailModal({
         ))}
 
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
-        Purchasing this player is applied to your roster once a commissioner approves it, and will replace an active
-        roster player — a one-time permanent addition for this league. They come on a 7-year contract at the lowest
-        possible value, renewed perpetually so you never lose the purchase to negotiations.
+        {isCfb
+          ? "Purchasing this player is applied to your roster once a commissioner approves it, and will replace an active roster player — a one-time permanent addition for this league."
+          : "Purchasing this player designates which of your roster players it replaces. Once a commissioner approves it, your commissioner recreates the player in Madden on that roster slot — it goes live on your next data import, a one-time permanent addition for this league."}
+        {" "}They come on a 7-year contract at the lowest possible value, renewed perpetually so you never lose the purchase to negotiations.
       </p>
 
       {!isTaken && !isMine && blockedNoEligibleReplacement && (

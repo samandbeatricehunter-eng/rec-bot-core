@@ -163,6 +163,7 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
     if (action === "reject" && !notes[buildId]?.trim()) { setMessage("A rejection reason is required."); return; }
     setBusy(buildId); setMessage(null);
     try {
+      const isMadden = String(builds.find((b: any) => b.id === buildId)?.game_family) === "MADDEN";
       await recApi.reviewCustomPlayer({
         guildId,
         buildId,
@@ -170,7 +171,11 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
         note: notes[buildId]?.trim() || undefined,
         replacementPlayerId: action === "approve" ? replacementPlayerId : undefined,
       });
-      setMessage(action === "approve" ? "Custom player approved and applied. Any earned unspent CP reward was credited." : "Custom player rejected and the package price refunded.");
+      setMessage(action === "approve"
+        ? (isMadden
+          ? "Custom player approved. It goes live once the buyer's commissioner recreates them in Madden and re-imports."
+          : "Custom player approved and applied. Any earned unspent CP reward was credited.")
+        : "Custom player rejected and the package price refunded.");
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(null); }
@@ -178,7 +183,7 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
 
   return <Card>
     <h3>Custom Player Review</h3>
-    <p className="form-hint">Approval immediately replaces the selected roster player. The transaction rolls back completely if any roster, wallet, purchase, or audit update fails.</p>
+    <p className="form-hint">CFB approval immediately replaces the selected roster player. Madden approval only locks in the designated replacement — the swap goes live once the commissioner recreates the player in-game and re-imports. Either way, the transaction rolls back completely if any roster, wallet, purchase, or audit update fails.</p>
     {message && <p>{message}</p>}
     {!builds.length ? <p className="form-hint">No custom-player builds are awaiting review.</p> : builds.map((build) => {
       return (

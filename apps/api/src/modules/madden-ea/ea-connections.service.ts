@@ -16,6 +16,7 @@ import { ApiError } from "../../lib/errors.js";
 import type { CompanionConnection } from "../madden-companion/madden-companion.service.js";
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { reconcileApprovedMaddenPurchases } from "../purchases/purchases.service.js";
 import {
   BLAZE_COMPONENT_NAME,
   EA_LOGIN_URL,
@@ -395,8 +396,9 @@ export async function listEaLeagues(connectionId: string, leagueId: string): Pro
   requireEaImportConfigured();
   const row = await loadEaConnection(connectionId, leagueId);
   const token = await refreshedToken(row);
-  const session = await cachedSession(row) ?? await createBlazeSession(token.accessToken, token.console);
-  if (!cachedSession(row)) await persistSession(row.id, session);
+  const existingSession = await cachedSession(row);
+  const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
+  if (!existingSession) await persistSession(row.id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
   try {
     const leagues = await client.getLeagues();
@@ -430,8 +432,9 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
   requireEaImportConfigured();
   const row = await loadEaConnection(connectionId, leagueId);
   const token = await refreshedToken(row);
-  const session = await cachedSession(row) ?? await createBlazeSession(token.accessToken, token.console);
-  if (!cachedSession(row)) await persistSession(row.id, session);
+  const existingSession = await cachedSession(row);
+  const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
+  if (!existingSession) await persistSession(row.id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
   let info: Awaited<ReturnType<typeof client.getLeagueInfo>>;
@@ -766,6 +769,22 @@ export async function importEaDatasetsWithProgress(
     pushProgress(leagueId, { type: "reconciling", step: "Syncing game results…" });
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
+    // rec_season_user_records (win/loss record, point differential) is a maintained table,
+    // not a live view — nothing recomputed it after an EA import populated rec_game_results,
+    // so "my record" stayed stuck at 0-0-0 no matter how many games came in. CFB gets this
+    // via rebuildOfficialRecordsAfterBoxScore when a box score is approved; Madden needs the
+    // same rebuild triggered here since it has no box-score approval step at all.
+    pushProgress(leagueId, { type: "reconciling", step: "Recalculating records…" });
+    await (async () => {
+      try {
+        const leagueRow = await getPgPool().query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId]);
+        const seasonNum = leagueRow.rows[0]?.season_number ?? 1;
+        const { rebuildOfficialRecordsAfterBoxScore } = await import("../official-records/official-records.service.js");
+        await rebuildOfficialRecordsAfterBoxScore({ leagueId, seasonNumber: seasonNum });
+      } catch (error) {
+        console.error("[WARN] Failed to rebuild official records after EA import (non-fatal):", error);
+      }
+    })();
     // Trigger wager inbox notifications for any wagers that now have results
     try {
       const { listConfirmableWagers } = await import("../wagers/wagers.service.js");
@@ -812,6 +831,18 @@ export async function importEaDatasetsWithProgress(
       return 0;
     });
     if (matched > 0) console.log(`[EA] Matched ${matched} pending purchase(s) to imported players.`);
+
+    // Legend/custom-player purchases are approved but deferred for Madden — the commissioner
+    // recreates the player in the actual save, and this import is what makes it real. Detect
+    // that and mark the purchase fulfilled.
+    pushProgress(leagueId, { type: "reconciling", step: "Checking approved legends & custom players…" });
+    const fulfilled = await reconcileApprovedMaddenPurchases(leagueId).catch((error) => {
+      console.error("[WARN] Failed to reconcile approved Madden purchases (non-fatal):", error);
+      return { legendsFulfilled: 0, customPlayersApplied: 0 };
+    });
+    if (fulfilled.legendsFulfilled > 0 || fulfilled.customPlayersApplied > 0) {
+      console.log(`[EA] Fulfilled ${fulfilled.legendsFulfilled} legend(s), applied ${fulfilled.customPlayersApplied} custom player(s) from this import.`);
+    }
 
     // Restore player photos from the saved mapping (by EA ID first, then by name)
     if (photoByEaId.size > 0 || photoByName.size > 0) {

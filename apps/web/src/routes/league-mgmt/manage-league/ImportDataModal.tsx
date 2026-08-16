@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../lib/rec-api-client.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -77,6 +77,12 @@ export function ImportDataModal({
   const [importProgress, setImportProgress] = useState<EaImportProgressEvent[]>([]);
   const [leagueName, setLeagueName] = useState<string | null>(null);
 
+  // Closing the modal mid-import used to leave the poll loop running forever in the
+  // background — it kept hitting getImportProgress every 2s and calling setState on an
+  // unmounted component. This flips once on unmount so the loop below can bail out.
+  const unmountedRef = useRef(false);
+  useEffect(() => () => { unmountedRef.current = true; }, []);
+
   async function loadStatus() {
     if (!guildId || !leagueId) {
       setLoading(false);
@@ -105,6 +111,15 @@ export function ImportDataModal({
       if (statusResult.connection) {
         const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] as NonNullable<typeof jobs> }));
         setJobs(jobsResult.jobs);
+        // An import kicked off before this modal instance existed (a prior mount that got
+        // closed mid-import, another tab, or a direct API call) still runs server-side and
+        // clears its own progress on the next start — resume watching it instead of leaving
+        // "Import Now" enabled, which would fire a second concurrent import of this league.
+        const inFlight = await recApi.getImportProgress({ guildId, leagueId }).catch(() => null);
+        if (inFlight?.running) {
+          setBusy(true); setBusyLabel("Import already in progress…"); setImportProgress(inFlight.events);
+          void pollImportProgress();
+        }
       } else {
         setJobs(null);
       }
@@ -114,6 +129,56 @@ export function ImportDataModal({
     } finally {
       setLoading(false);
     }
+  }
+
+  // Shared by runImport (just kicked off a new one) and loadStatus (resuming one already in
+  // flight from before this modal mounted). Bails out on unmount instead of polling forever,
+  // and gives up after repeated consecutive failures instead of leaving the UI stuck on a
+  // permanently disabled button with no error shown.
+  async function pollImportProgress() {
+    let finished = false;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 10; // ~20s of a dead connection before giving up
+    while (!finished && !unmountedRef.current) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (unmountedRef.current) return;
+      try {
+        const progress = await recApi.getImportProgress({ guildId, leagueId });
+        consecutiveErrors = 0;
+        setImportProgress(progress.events);
+
+        const latest = progress.events[progress.events.length - 1];
+        if (latest) {
+          if (latest.type === "dataset_start") setBusyLabel(`Importing ${latest.label}…`);
+          if (latest.type === "reconciling") setBusyLabel(latest.step);
+          if (latest.type === "done") setBusyLabel("Complete!");
+          if (latest.type === "error") setBusyLabel("Failed");
+        }
+
+        if (!progress.running) {
+          finished = true;
+          const doneEvent = progress.events.find((e) => e.type === "done") as any;
+          const errorEvent = progress.events.find((e) => e.type === "error") as any;
+          if (doneEvent?.results) {
+            setImportResults(doneEvent.results);
+            setNotice("Import finished.");
+            showImportNotification(doneEvent.results);
+          } else if (errorEvent) {
+            setError(errorEvent.error);
+          }
+        }
+      } catch {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          finished = true;
+          if (!unmountedRef.current) setError("Lost connection while watching the import's progress. It may still be running — reopen this window to check.");
+        }
+      }
+    }
+    if (unmountedRef.current) return;
+    const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
+    setJobs(jobsResult.jobs);
+    setBusy(false); setBusyLabel(null);
   }
 
   useEffect(() => { void loadStatus(); }, [guildId, leagueId]);
@@ -214,46 +279,13 @@ export function ImportDataModal({
             : PRESEASON_DISPLAY_WEEKS.filter((w) => w >= Math.min(spanFrom, spanTo) && w <= Math.max(spanFrom, spanTo))
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }));
 
-      // Start the import (runs in background)
+      // Start the import (runs in background), then hand off to the shared poller.
       await recApi.importMaddenEaDatasets({ guildId, leagueId, connectionId: connection.id, datasets: selectedDatasets, weekRefs });
-
-      // Poll for progress every 2 seconds until done
-      let finished = false;
-      while (!finished) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        try {
-          const progress = await recApi.getImportProgress({ guildId, leagueId });
-          setImportProgress(progress.events);
-
-          const latest = progress.events[progress.events.length - 1];
-          if (latest) {
-            if (latest.type === "dataset_start") setBusyLabel(`Importing ${latest.label}…`);
-            if (latest.type === "reconciling") setBusyLabel(latest.step);
-            if (latest.type === "done") setBusyLabel("Complete!");
-            if (latest.type === "error") setBusyLabel("Failed");
-          }
-
-          if (!progress.running) {
-            finished = true;
-            const doneEvent = progress.events.find((e) => e.type === "done") as any;
-            const errorEvent = progress.events.find((e) => e.type === "error") as any;
-            if (doneEvent?.results) {
-              setImportResults(doneEvent.results);
-              setNotice("Import finished.");
-              showImportNotification(doneEvent.results);
-            } else if (errorEvent) {
-              setError(errorEvent.error);
-            }
-          }
-        } catch { /* poll error, retry */ }
-      }
-
-      const jobsResult = await recApi.listMaddenEaImportJobs({ guildId, leagueId }).catch(() => ({ jobs: [] }));
-      setJobs(jobsResult.jobs);
+      await pollImportProgress();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to start import.");
+      setBusy(false); setBusyLabel(null);
     }
-    finally { setBusy(false); setBusyLabel(null); }
   }
 
   function showImportNotification(results: EaImportResult[]) {

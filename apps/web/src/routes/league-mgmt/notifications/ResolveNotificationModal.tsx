@@ -219,7 +219,9 @@ function resolveModeFor(type: string): ResolveMode {
     case "purchase":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "legend":
-      return { kind: "approve_deny", reasonField: true, approveLabel: "Approved & Applied In-Game", denyLabel: "Deny" };
+      // Madden defers the actual roster write to the next EA import; CFB applies immediately.
+      // The notification's own summary text (legends.service.ts) explains which applies here.
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "highlight":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "game_of_the_year":

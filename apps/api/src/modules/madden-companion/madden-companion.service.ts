@@ -6,6 +6,7 @@ import { ApiError } from "../../lib/errors.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { companionChecksum, normalizeCompanionPayload, splitCompanionPayload } from "./madden-companion.adapters.js";
 import { applyCompanionRecordToCanonical } from "./madden-companion.canonical.js";
+import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 
 export type MaddenEndpointKey =
   | "league_metadata"
@@ -343,7 +344,12 @@ export async function syncCompanionScheduleResultsIntoGameResults(leagueId: stri
     const awayUserId = userByTeam.get(g.away_team_id) ?? null;
     const isTie = g.home_score === g.away_score;
     const homeWon = g.home_score > g.away_score;
-    const applyKey = `${leagueId}:${g.id}:${g.home_team_id}:${g.away_team_id}`;
+    // Shared dedup key (also used by box score, manual entry, week-advance, and the EA direct
+    // writer) so the same game never gets double-counted in official records — this used to be
+    // its own ad hoc format, disjoint from every other source's key for the same rec_games.id.
+    const applyKey = gameResultsApplyKey({
+      gameId: g.id, leagueId, seasonNumber, weekNumber: g.week_number, homeTeamId: g.home_team_id, awayTeamId: g.away_team_id,
+    });
     await pool.query(
       `insert into rec_game_results
          (league_id, game_id, season_number, week_number, game_type, external_game_id, home_team_id, away_team_id,

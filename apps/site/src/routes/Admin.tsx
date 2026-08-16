@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { Navigate } from "react-router-dom";
+import { useAuth } from "../lib/auth-context.js";
 import { startImpersonation } from "../lib/impersonation.js";
 import {
   siteApi,
@@ -1292,10 +1293,18 @@ function IncidentsPanel() {
 }
 
 export function AdminPage() {
+  const auth = useAuth();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
   const [tab, setTab] = useState<AdminTab>("stats");
 
   useEffect(() => {
+    // The Supabase session takes a beat to restore from storage on mount (auth.status stays
+    // "loading" until then) — that restore is slower and more variable on mobile. Firing the
+    // admin-status check before it resolves sends the request with no session yet, the API
+    // correctly says "not admin", and this page silently bounces a real admin to /account
+    // before they ever see it load. Wait for a definite signed-in/signed-out answer first.
+    if (auth.status === "loading") return;
+    if (auth.status === "signed-out") { setStatus("denied"); return; }
     let active = true;
     siteApi
       .getAdminStatus()
@@ -1308,7 +1317,7 @@ export function AdminPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [auth.status]);
 
   if (status === "loading") {
     return <div className="site-page site-loading">Loading…</div>;
@@ -1317,10 +1326,22 @@ export function AdminPage() {
     return <Navigate to="/account" replace />;
   }
 
+  const tabIndex = TABS.findIndex((item) => item.id === tab);
+  function shiftTab(delta: number) {
+    const next = (tabIndex + delta + TABS.length) % TABS.length;
+    setTab(TABS[next]!.id);
+  }
+
   return (
     <div className="site-page-card">
       <h1>Admin Management</h1>
+      {/* .site-account-tabs is a 3-column grid (arrow / track / arrow) — AccountHub.tsx is the
+          other consumer of this CSS and includes both arrow buttons. Without them this
+          collapses unpredictably below the 900px breakpoint where the desktop
+          overflow:visible/flex-wrap override doesn't apply, which is exactly what made this
+          tab bar look broken on mobile. */}
       <div className="site-account-tabs" role="tablist" aria-label="Admin sections">
+        <button type="button" className="site-account-tab-arrow" aria-label="Previous tab" onClick={() => shiftTab(-1)}>‹</button>
         <div className="site-account-tab-track">
           {TABS.map((item) => (
             <button
@@ -1335,6 +1356,7 @@ export function AdminPage() {
             </button>
           ))}
         </div>
+        <button type="button" className="site-account-tab-arrow" aria-label="Next tab" onClick={() => shiftTab(1)}>›</button>
       </div>
 
       {tab === "stats" ? <StatsPanel /> : null}

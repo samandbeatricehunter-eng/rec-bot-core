@@ -14,7 +14,8 @@ import { computeUserRatings } from "../league-week/ratings.service.js";
 // strictly need caching, but sharing the cache key format costs nothing.
 const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 
-// PR = 0.45·winPct + 0.20·normPD + 0.20·engagement + 0.15·closeClutch
+// PR = W_WIN·winPct + W_PD·normPD + W_SOS·normalizedSos + W_STATS·normalizedStats
+//      + W_ENGAGE·engagement + W_CLUTCH·closeClutch  (see weights below, sum to 1.0)
 //   winPct      — official win% (ties = ½)
 //   normPD      — avg point differential / 14, mapped to 0..1
 //   engagement  — share of games reported via an approved box score (rewards
@@ -24,13 +25,17 @@ const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 // For Madden leagues, an additional OVR component blends team average OVR and QB OVR
 // to give lines more pre-season/early-season differentiation before enough games
 // have been played for win% to diverge meaningfully.
-const W_WIN = 0.30;
-const W_PD = 0.15;
-const W_SOS = 0.12;
-const W_STATS = 0.08;
-const W_ENGAGE = 0.12;
-const W_CLUTCH = 0.08;
-const W_OVR_MADDEN = 0.15;  // Madden-only: team OVR + QB OVR signal
+// These 6 base weights must sum to 1.0 — that's the full score for CFB, which has no OVR
+// bonus term. Values below are the original 0.30/0.15/0.12/0.08/0.12/0.08 renormalized by
+// 1/0.85 after W_OVR_MADDEN was carved out of the total without rebalancing the rest, which
+// had silently left CFB scoring out of a 0.85 ceiling instead of 1.0.
+const W_WIN = 0.3529;
+const W_PD = 0.1765;
+const W_SOS = 0.1412;
+const W_STATS = 0.0941;
+const W_ENGAGE = 0.1412;
+const W_CLUTCH = 0.0941;
+const W_OVR_MADDEN = 0.15;  // Madden-only: team OVR + QB OVR signal, added on top of the 1.0 base
 const PD_SCALE = 14;
 const CLOSE_MARGIN = 7;
 const BOX_SCORE_SOURCES = new Set(["box_score", "box_score_screenshot"]);

@@ -11,6 +11,7 @@
 
 import { createHash } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
+import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 
 type Json = Record<string, unknown>;
 
@@ -78,32 +79,67 @@ export async function directWriteSchedule(
 
     const externalId = scheduleId != null ? String(scheduleId) : null;
 
-    await pool.query(
-      `insert into rec_games
-         (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
-          status, source, import_verified, manual_entered, result_payout_eligible,
-          eos_payout_eligible, external_game_id, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
-       on conflict (league_id, external_game_id) where external_game_id is not null do update set
-         week_number=excluded.week_number,
-         home_team_id=coalesce(excluded.home_team_id, rec_games.home_team_id),
-         away_team_id=coalesce(excluded.away_team_id, rec_games.away_team_id),
-         home_score=excluded.home_score,
-         away_score=excluded.away_score,
-         status=excluded.status,
-         source='madden_companion_export',
-         import_verified=true,
-         updated_at=now()`,
-      [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
-       completed ? "completed" : "scheduled", externalId],
-    );
+    // A league's default/manually-seeded schedule (source != 'madden_companion_export', its own
+    // synthetic external_game_id) never matches the EA scheduleId on (league_id,
+    // external_game_id) — the upsert below would just create a second, permanently-orphaned
+    // row for the same real matchup, its own external_game_id colliding with nothing. Every
+    // wager, GOTW entry, game channel, etc. from before the first EA import points at that
+    // original row, so adopt it (repoint its external_game_id onto the EA one) instead of
+    // leaving the two to drift as parallel, un-scored duplicates of the same game.
+    let gameId: string | null = null;
+    if (homeUuid && awayUuid) {
+      const existing = await pool.query<{ id: string }>(
+        `select id from rec_games
+           where league_id=$1 and week_number=$2 and home_team_id=$3 and away_team_id=$4
+             and source <> 'madden_companion_export'
+           limit 1`,
+        [leagueId, displayWeek, homeUuid, awayUuid],
+      );
+      if (existing.rows[0]) {
+        gameId = existing.rows[0].id;
+        await pool.query(
+          `update rec_games set home_score=$2, away_score=$3, status=$4, source='madden_companion_export',
+             import_verified=true, external_game_id=$5, updated_at=now()
+           where id=$1`,
+          [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+        );
+      }
+    }
+    if (!gameId) {
+      const gameRow = await pool.query<{ id: string }>(
+        `insert into rec_games
+           (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
+            status, source, import_verified, manual_entered, result_payout_eligible,
+            eos_payout_eligible, external_game_id, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
+         on conflict (league_id, external_game_id) where external_game_id is not null do update set
+           week_number=excluded.week_number,
+           home_team_id=coalesce(excluded.home_team_id, rec_games.home_team_id),
+           away_team_id=coalesce(excluded.away_team_id, rec_games.away_team_id),
+           home_score=excluded.home_score,
+           away_score=excluded.away_score,
+           status=excluded.status,
+           source='madden_companion_export',
+           import_verified=true,
+           updated_at=now()
+         returning id`,
+        [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
+         completed ? "completed" : "scheduled", externalId],
+      );
+      gameId = gameRow.rows[0]?.id ?? null;
+    }
 
     // For completed games with valid team IDs, also write directly to rec_game_results
     // so wagers and advance readiness pick up the scores immediately.
     if (completed && homeUuid && awayUuid && homeScore != null && awayScore != null) {
       const isTie = homeScore === awayScore;
       const homeWon = homeScore > awayScore;
-      const applyKey = `${leagueId}:ea-${externalId ?? displayWeek}:${homeUuid}:${awayUuid}`;
+      // Shared dedup key (also used by box score, manual entry, and week-advance) so this
+      // same game never gets double-counted in official records if it's later re-confirmed
+      // through a different source — an EA-only ad hoc key here used to let that happen.
+      const applyKey = gameResultsApplyKey({
+        gameId, leagueId, seasonNumber: 0, weekNumber: displayWeek, homeTeamId: homeUuid, awayTeamId: awayUuid,
+      });
       await pool.query(
         `insert into rec_game_results
            (league_id, game_id, season_number, week_number, game_type, home_team_id, away_team_id,
@@ -115,7 +151,7 @@ export async function directWriteSchedule(
            winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
            is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()`,
         [
-          leagueId, null, null, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
+          leagueId, gameId, null, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
           homeUuid, awayUuid, homeScore, awayScore,
           isTie ? null : homeWon ? homeUuid : awayUuid,
           isTie ? null : homeWon ? awayUuid : homeUuid,
@@ -183,7 +219,9 @@ export async function directWriteRoster(
       ?? ([firstName, lastName].filter(Boolean).join(" ") || `Player ${rosterId}`);
     const position = str(row, ["position", "positionName", "positionAbbr"]);
     const teamIdNum = num(row, ["teamId", "team_id"]);
-    const teamUuid = teamIdNum != null ? await resolveTeamId(pool, leagueId, String(teamIdNum)) : null;
+    // A free_agents-dataset row has no team by definition, even if EA's payload carries a
+    // stale teamId from before the player was cut — never resolve one for a free agent.
+    const teamUuid = !isFreeAgent && teamIdNum != null ? await resolveTeamId(pool, leagueId, String(teamIdNum)) : null;
     const overall = num(row, ["playerBestOvr", "overallRating", "overall", "ovrRating", "ovr"]);
     const devTrait = normalizeDevTrait(row.devTrait ?? row.developmentTrait ?? row.dev_trait);
     const jerseyNum = num(row, ["jerseyNum", "jerseyNumber", "jersey_number"]);
@@ -236,7 +274,10 @@ export async function directWriteRoster(
          last_name=coalesce(excluded.last_name, rec_players.last_name),
          full_name=excluded.full_name,
          position=coalesce(excluded.position, rec_players.position),
-         team_id=coalesce(excluded.team_id, rec_players.team_id),
+         -- A free_agents-dataset row has no team by definition — force team_id to null
+         -- instead of coalescing onto the old value, or a cut player keeps showing on their
+         -- former team's roster (team_id stale) while also flagged is_free_agent=true.
+         team_id=case when excluded.is_free_agent then null else coalesce(excluded.team_id, rec_players.team_id) end,
          overall_rating=coalesce(excluded.overall_rating, rec_players.overall_rating),
          dev_trait=coalesce(excluded.dev_trait, rec_players.dev_trait),
          jersey_number=coalesce(excluded.jersey_number, rec_players.jersey_number),

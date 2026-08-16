@@ -161,7 +161,14 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
       const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
 
-      // Clear any stale progress for this league
+      // The in-memory progress store used to get wiped unconditionally here, so two calls in
+      // close succession (a stuck request retried by the client, two open tabs, or the modal
+      // reopening after being closed mid-import — see ImportDataModal.tsx) could both pass
+      // this point and run importEaDatasetsWithProgress concurrently against the same league.
+      // A running import for this league blocks a new one instead.
+      if (getImportProgress(body.league_id).running) {
+        throw new ApiError(409, "An import is already running for this league. Wait for it to finish, or reopen Import Data to watch its progress.");
+      }
       clearImportProgress(body.league_id);
 
       // Fire and forget — the import runs in the background

@@ -417,16 +417,19 @@ type BlazeRpc = { commandName: string; commandId: number; requestPayload: Record
 // EA renamed the Blaze component from "careermode" to "franchisemode" for Madden 27, but
 // Madden 26 leagues are still addressed as "careermode" (even though M26 responses were
 // already labelled Blaze::FranchiseMode:: internally). Rather than guess the league's year,
-// remember whichever name EA last accepted and fall back to the other one on error.
+// remember whichever name EA last accepted and fall back to the other one on error — keyed
+// per Blaze session (effectively per league's import), not a single process-wide variable.
+// A shared global here let two leagues on different Madden years importing concurrently
+// stomp on each other's working component name mid-request.
 const COMPONENT_NAME_FALLBACK = BLAZE_COMPONENT_NAME === "careermode" ? "franchisemode" : "careermode";
-let workingComponentName: string | null = null;
+const workingComponentNameByBlazeId = new Map<number, string>();
 
 async function sendBlazeRpc<T>(
   token: { accessToken: string; console: SystemConsole },
   session: EaSessionCache,
   rpc: BlazeRpc,
 ): Promise<T> {
-  const componentName = workingComponentName ?? BLAZE_COMPONENT_NAME;
+  const componentName = workingComponentNameByBlazeId.get(session.blazeId) ?? BLAZE_COMPONENT_NAME;
   const attempt = async (name: string): Promise<T> => {
     const auth = calculateMessageAuthData(session.blazeId, session.requestId);
     const body = {
@@ -466,14 +469,15 @@ async function sendBlazeRpc<T>(
 
   try {
     const result = await attempt(componentName);
-    workingComponentName = componentName;
+    workingComponentNameByBlazeId.set(session.blazeId, componentName);
     return result;
   } catch (error) {
     if (!(error instanceof BlazeSessionError)) throw error;
     // Wrong component name for this league's Madden year also surfaces as a Blaze error —
     // try the other name before giving the session-retry machinery a chance to run.
-    const result = await attempt(componentName === "careermode" ? "franchisemode" : "careermode");
-    workingComponentName = componentName === "careermode" ? "franchisemode" : "careermode";
+    const fallback = componentName === "careermode" ? "franchisemode" : "careermode";
+    const result = await attempt(fallback);
+    workingComponentNameByBlazeId.set(session.blazeId, fallback);
     return result;
   }
 }
