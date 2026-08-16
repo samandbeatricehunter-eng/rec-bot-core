@@ -237,16 +237,29 @@ export async function directWriteRoster(
     const yearsPro = num(row, ["yearsPro", "experience"]);
     const age = num(row, ["age", "playerAge"]);
     const contractYearsLeft = num(row, ["contractYearsLeft", "contract_years_left"]);
+    // EA's export does carry these — the roster page just never read them off the row.
+    // homeState is a numeric US-state code with no confirmed lookup table yet, so it's
+    // left unmapped rather than storing a cryptic number in a text column.
+    const heightInches = num(row, ["height", "heightInches", "height_inches"]);
+    const weightLbs = num(row, ["weight", "weightLbs", "weight_lbs"]);
+    const college = str(row, ["college", "collegeName"]);
+    const hometownCity = str(row, ["homeTown", "hometownCity", "hometown_city"]);
+    const birthYear = num(row, ["birthYear", "birth_year"]);
 
-    // Map EA's camelCase rating fields to the snake_case keys the roster page expects
+    // Map EA's camelCase rating fields to the snake_case keys the roster page expects.
+    // Five of these are shorter than the "obvious" guess — accelRating/awareRating/
+    // jumpRating/toughRating/catchRating, not accelerationRating/awarenessRating/
+    // jumpingRating/toughnessRating/catchingRating — confirmed against a live raw_payload
+    // export, where the guessed names simply don't exist so those five attributes were
+    // silently missing from every imported player's attributes JSONB.
     const EA_RATING_TO_SNAKE: Record<string, string> = {
-      speedRating: "speed", accelerationRating: "acceleration", strengthRating: "strength",
-      agilityRating: "agility", awarenessRating: "awareness", jumpingRating: "jumping",
-      injuryRating: "injury", staminaRating: "stamina", toughnessRating: "toughness",
+      speedRating: "speed", accelRating: "acceleration", strengthRating: "strength",
+      agilityRating: "agility", awareRating: "awareness", jumpRating: "jumping",
+      injuryRating: "injury", staminaRating: "stamina", toughRating: "toughness",
       throwPowerRating: "throw_power", throwUnderPressureRating: "throw_under_pressure",
       throwAccShortRating: "throw_accuracy_short", throwAccMidRating: "throw_accuracy_mid",
       throwAccDeepRating: "throw_accuracy_deep", throwOnRunRating: "throw_on_the_run",
-      playActionRating: "play_action", catchingRating: "catching", specCatchRating: "spectacular_catch",
+      playActionRating: "play_action", catchRating: "catching", specCatchRating: "spectacular_catch",
       cITRating: "catch_in_traffic", routeRunShortRating: "route_running_short",
       routeRunMedRating: "route_running_medium", routeRunDeepRating: "route_running_deep",
       releaseRating: "release", carryRating: "carrying", breakTackleRating: "break_tackle",
@@ -298,8 +311,9 @@ export async function directWriteRoster(
       `insert into rec_players
          (league_id, madden_player_id, first_name, last_name, full_name, position, team_id,
           overall_rating, dev_trait, jersey_number, years_pro, age, contract_years_left,
-          attributes, abilities, raw_payload, raw_hash, player_source, roster_status, is_free_agent, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$18,'madden_companion','active',$17,now())
+          attributes, abilities, raw_payload, raw_hash, player_source, roster_status, is_free_agent,
+          height_inches, weight_lbs, college, hometown_city, birth_year, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$18,'madden_companion','active',$17,$19,$20,$21,$22,$23,now())
        on conflict (league_id, madden_player_id) do update set
          first_name=coalesce(excluded.first_name, rec_players.first_name),
          last_name=coalesce(excluded.last_name, rec_players.last_name),
@@ -321,6 +335,11 @@ export async function directWriteRoster(
          raw_hash=excluded.raw_hash,
          roster_status='active',
          is_free_agent=excluded.is_free_agent,
+         height_inches=coalesce(excluded.height_inches, rec_players.height_inches),
+         weight_lbs=coalesce(excluded.weight_lbs, rec_players.weight_lbs),
+         college=coalesce(excluded.college, rec_players.college),
+         hometown_city=coalesce(excluded.hometown_city, rec_players.hometown_city),
+         birth_year=coalesce(excluded.birth_year, rec_players.birth_year),
          updated_at=now()`,
       [
         leagueId, String(rosterId), firstName, lastName, fullName, position, teamUuid,
@@ -330,6 +349,7 @@ export async function directWriteRoster(
         JSON.stringify(row),
         isFreeAgent,
         hash,
+        heightInches, weightLbs, college, hometownCity, birthYear,
       ],
     );
     written += 1;

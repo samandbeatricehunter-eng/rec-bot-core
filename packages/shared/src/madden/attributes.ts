@@ -85,6 +85,35 @@ export const MADDEN_ATTRIBUTE_BY_CODE = new Map(
   MADDEN_ATTRIBUTE_DEFINITIONS.map((def) => [def.code, def])
 );
 
+// rec_players.attributes is keyed by the snake_case names ea-direct-writer.ts's
+// EA_RATING_TO_SNAKE map writes at import time (e.g. "throw_power"), not these 3-letter
+// codes — this is the other half of that same mapping, so any UI that already has a
+// player's live attributes can look up "what is this code's current value on this player."
+export const MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY: Record<MaddenAttributeCode, string> = {
+  SPD: "speed", ACC: "acceleration", AGI: "agility", COD: "change_of_direction", STR: "strength",
+  JMP: "jumping", STA: "stamina", INJ: "injury", AWR: "awareness", TOU: "toughness",
+  THP: "throw_power", SAC: "throw_accuracy_short", MAC: "throw_accuracy_mid", DAC: "throw_accuracy_deep",
+  RUN: "throw_on_the_run", TUP: "throw_under_pressure", BSK: "break_sack", PAC: "play_action",
+  TRK: "trucking", BCV: "bc_vision", SFA: "stiff_arm", SPM: "spin_move", JKM: "juke_move",
+  CAR: "carrying", BTK: "break_tackle",
+  CTH: "catching", CIT: "catch_in_traffic", SPC: "spectacular_catch", RLS: "release",
+  SRR: "route_running_short", MRR: "route_running_medium", DRR: "route_running_deep", RET: "kick_return",
+  PBK: "pass_block", PBP: "pass_block_power", PBF: "pass_block_finesse",
+  RBK: "run_block", RBP: "run_block_power", RBF: "run_block_finesse",
+  LBK: "lead_block", IBL: "impact_blocking",
+  TAK: "tackle", POW: "hit_power", PMV: "power_moves", FMV: "finesse_moves", BSH: "block_shedding",
+  PUR: "pursuit", PRC: "play_recognition", MCV: "man_coverage", ZCV: "zone_coverage", PRS: "press",
+  KPW: "kick_power", KAC: "kick_accuracy",
+};
+
+/** Current value of a code (SPD, THP, …) on a player's rec_players.attributes map, if logged. */
+export function rosterAttributeValueForCode(attributes: Record<string, number | null> | null | undefined, code: string): number | null {
+  const key = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[code as MaddenAttributeCode];
+  if (!key || !attributes) return null;
+  const value = attributes[key];
+  return typeof value === "number" ? value : null;
+}
+
 export const MADDEN_ATTRIBUTE_SELECTION_GROUPS: Record<MaddenAttributeGroupKey, {
   label: string;
   codes: MaddenAttributeCode[];

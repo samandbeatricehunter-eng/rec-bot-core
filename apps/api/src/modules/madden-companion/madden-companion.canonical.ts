@@ -77,6 +77,28 @@ async function applyRosterPlayer(client: PoolClient, leagueId: string, record: N
   const last = text(row, ["lastName", "last_name", "last"]);
   const full = text(row, ["fullName", "full_name", "displayName", "playerName"]) ?? ([first, last].filter(Boolean).join(" ") || `Player ${playerId}`);
   const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
+
+  // Same placeholder-adoption ea-direct-writer.ts's directWriteRoster does: a baseline-seeded
+  // or legend/custom-player row carries a synthetic madden_player_id ("madden27:...", or a
+  // "legend:<catalogId>:<buildId>" style id) that never conflicts with EA's real numeric roster
+  // id below, so without this a companion-app import (or the applyPlayerStats fallback that
+  // calls this function) silently inserts a brand-new duplicate row instead of adopting the
+  // identity of the player it's actually supposed to represent — leaving the real legend row
+  // stuck roster_status='removed' with the height/weight/attributes only the duplicate has.
+  if (resolvedTeamId) {
+    const placeholder = await client.query<{ id: string }>(
+      `select id from rec_players
+       where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
+         and (madden_player_id is null or madden_player_id !~ '^[0-9]+$')
+       order by (player_source in ('legend','custom_player')) desc, created_at asc
+       limit 1`,
+      [leagueId, resolvedTeamId, full],
+    );
+    if (placeholder.rows[0]) {
+      await client.query(`update rec_players set madden_player_id=$2, updated_at=now() where id=$1`, [placeholder.rows[0].id, playerId]);
+    }
+  }
+
   await client.query(
     `insert into rec_players
        (league_id,madden_player_id,first_name,last_name,full_name,position,team_id,overall_rating,dev_trait,

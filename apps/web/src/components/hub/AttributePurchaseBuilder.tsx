@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE, formatCoins } from "@rec/shared";
+import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE, formatCoins, rosterAttributeValueForCode } from "@rec/shared";
+
+const MADDEN_ATTRIBUTE_MAX = 99;
 import type { RosterPlayer, StorePurchaseContext } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -83,6 +85,10 @@ export function AttributePurchaseBuilder({
     return Math.min(individualRemaining, groupRemaining);
   }
 
+  function currentValueFor(code: string): number | null {
+    return rosterAttributeValueForCode(player?.attributes ?? null, code);
+  }
+
   function increment(code: string) {
     setWarning(null);
     if (totalPrice + unitPrice(code) > wallet) {
@@ -92,6 +98,11 @@ export function AttributePurchaseBuilder({
     const remaining = remainingForCode(code);
     if (remaining != null && remaining <= 0) {
       setWarning(`${code} is capped for the rest of this season.`);
+      return;
+    }
+    const current = currentValueFor(code);
+    if (current != null && current + (points[code] ?? 0) >= MADDEN_ATTRIBUTE_MAX) {
+      setWarning(`${code} is already at the ${MADDEN_ATTRIBUTE_MAX} rating cap.`);
       return;
     }
     setPoints((prev) => ({ ...prev, [code]: (prev[code] ?? 0) + 1 }));
