@@ -103,6 +103,13 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   // CFB recruits inherit the replaced player's position — no free position pick, and a
   // replacement must be chosen before continuing past Step 3. Madden isn't locked this way.
   const positionLocked = game === "CFB" && Boolean(config?.replacementRequired);
+  // Madden picks position first, then player details — height/weight caps are per-position
+  // (MADDEN_POSITION_HEIGHT), so choosing position afterward left the details step validating
+  // against whatever position was still selected before the user got there (the "QB" default,
+  // in practice). CFB keeps its existing order: position is inherited from the replaced player
+  // (or freely chosen when unseeded), and was never the source of that staleness.
+  const detailsStep = game === "CFB" ? 2 : 3;
+  const positionStep = game === "CFB" ? 3 : 2;
   const effectiveArchetypeKey = useMemo(
     () => config ? detectBestArchetypeKey(config.archetypes[position] ?? [], attributes) : "",
     [config, position, attributes],
@@ -207,9 +214,9 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     : "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team first."}</p>;
   return <div className="custom-player-wizard"><p className="hub-eyebrow">Step {step} of {WIZARD_STEPS}</p>
     {config.devTraitInherited && <p className="form-hint">CFB recruits don't get a purchased development trait — whichever trait the player you replace already has carries over to this one. With no replacement (an unseeded roster), the new player starts at Normal.</p>}
-    {config.appearanceNotice && (step === 2 || step === 4 || (game === "CFB" && step === 3)) && <p className="form-hint">{config.appearanceNotice}</p>}
+    {config.appearanceNotice && (step === detailsStep || step === 4) && <p className="form-hint">{config.appearanceNotice}</p>}
     {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>{entry.description}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
-    {step === 2 && (() => {
+    {step === detailsStep && (() => {
       const heightRule = game === "CFB"
         ? (CFB_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84, avg: 72 })
         : (MADDEN_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84 });
@@ -233,7 +240,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
         {overageInches > 0 && <p className="form-hint">Height is {overageInches}" over the {position} average — costs {overageInches * 100} creation points.</p>}
         <p className="form-hint">{config.contractNotice}</p></>;
     })()}
-    {step === 3 && (() => {
+    {step === positionStep && (() => {
       const selectedReplacement = positionLocked ? config.replacementPlayers.find((player: any) => player.id === replacementPlayerId) : null;
       const showBuildOptions = !positionLocked || Boolean(selectedReplacement);
       return <><h4>{positionLocked ? "Replacement &amp; Development" : "Position &amp; Development"}</h4>
@@ -306,7 +313,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       .sort((a: any, b: any) => Number(a.overall_rating ?? 999) - Number(b.overall_rating ?? 999) || String(a.full_name ?? "").localeCompare(String(b.full_name ?? "")))
       .filter((player: any) => game !== "CFB" || canonicalReplacementPosition(player.position) === position)
       .map((player: any) => <option key={player.id} value={player.id}>{player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR</option>)}</select></label> : <p className="form-hint">Your team has no active players yet (unseeded league) — this custom player will be added to the roster as a brand-new player instead of replacing anyone.</p>}</>}
-    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < WIZARD_STEPS ? <Button variant="primary" onClick={() => { if (step === 2) { const problem = validatePlayerDetails(); if (problem) { setNotice(problem); return; } } if (step === 3 && positionLocked && !replacementPlayerId) { setNotice("Select the active player this recruit replaces before continuing."); return; } if (step === 4) { if (!bodyBuildAllowed) { setNotice(`The ${identity.bodyType} build isn't available for ${position}.`); return; } if (!identity.cardRenderId) { setNotice("Select a card appearance before continuing."); return; } } setNotice(null); setStep(step + 1); }}>Continue</Button> :<Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId) || !identity.cardRenderId} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
+    <div className="custom-player-sticky"><span>OVR <b>{evaluation?.displayOverall ?? 0}</b> · CP <b>{evaluation?.pointsRemaining ?? pkg.creationPoints}</b></span><div>{step > 1 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}{step < WIZARD_STEPS ? <Button variant="primary" onClick={() => { if (step === detailsStep) { const problem = validatePlayerDetails(); if (problem) { setNotice(problem); return; } } if (step === positionStep && positionLocked && !replacementPlayerId) { setNotice("Select the active player this recruit replaces before continuing."); return; } if (step === 4) { if (!bodyBuildAllowed) { setNotice(`The ${identity.bodyType} build isn't available for ${position}.`); return; } if (!identity.cardRenderId) { setNotice("Select a card appearance before continuing."); return; } } setNotice(null); setStep(step + 1); }}>Continue</Button> :<Button variant="primary" disabled={busy || !evaluation?.valid || (config.replacementRequired && !replacementPlayerId) || !identity.cardRenderId} onClick={() => void submit()}>{busy ? "Submitting…" : `Purchase · ${pkg.coinPrice}`}</Button>}</div></div>{notice && <p>{notice}</p>}
     {ceilingBlock && (
       <Modal title={`${getRecAttributeDisplayName(ceilingBlock.attribute)} Ceiling Reached`} onClose={() => setCeilingBlock(null)}>
         <p>{ceilingBlock.message}</p>
