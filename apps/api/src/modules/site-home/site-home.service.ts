@@ -1,4 +1,3 @@
-import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 import { bestEffort } from "../../lib/best-effort.js";
@@ -69,7 +68,7 @@ async function resolveGuildForLeague(leagueId: string): Promise<string | null> {
 export async function getSiteHomeCard(input: { authUserId: string }) {
   const user = await requireLinkedRecUser(input.authUserId);
 
-  const [globalRecordRow, discordRow, assignmentRow, extras, recentBadgeRow, streak] = await Promise.all([
+  const [globalRecordRow, discordRow, assignmentRow, extras, streak] = await Promise.all([
     supabase.from("rec_global_user_records").select("*").eq("user_id", user.recUserId).maybeSingle(),
     supabase.from("rec_discord_accounts").select("discord_id,first_seen_at").eq("user_id", user.recUserId).order("first_seen_at", { ascending: true }).limit(1).maybeSingle(),
     supabase
@@ -84,9 +83,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
       `
         select
           u.created_at as user_created_at,
-          (
-            select count(distinct badge_key)::int from rec_badge_ownership where user_id = $1
-          ) as badge_count,
           (
             select count(distinct league_id)::int from rec_league_memberships
             where user_id = $1 and status = 'active'
@@ -107,13 +103,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
       `,
       [user.recUserId],
     ),
-    supabase
-      .from("rec_badge_ownership")
-      .select("badge_key,badge_scope,tier,updated_at")
-      .eq("user_id", user.recUserId)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     loadCareerBoxScoreStats(user.recUserId).then(
       (stats) => stats.activeStreak,
       () => "—",
@@ -123,7 +112,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
   if (globalRecordRow.error) throw new ApiError(500, "We couldn't load your global record. Please try again.", globalRecordRow.error);
   if (discordRow.error) throw new ApiError(500, "We couldn't load your Discord link. Please try again.", discordRow.error);
   if (assignmentRow.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignmentRow.error);
-  if (recentBadgeRow.error) throw new ApiError(500, "We couldn't load your most recent badge. Please try again.", recentBadgeRow.error);
 
   const globalRecord = globalRecordRow.data ?? {
     wins: 0, losses: 0, ties: 0, playoff_wins: 0, playoff_losses: 0,
@@ -177,22 +165,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     };
   }
 
-  const descByKey = new Map<string, string>();
-  const labelByKey = new Map<string, string>();
-  for (const badge of [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES]) {
-    descByKey.set(badge.key, badge.description);
-    labelByKey.set(badge.key, badge.label);
-  }
-  const recentBadge = recentBadgeRow.data
-    ? {
-        key: String(recentBadgeRow.data.badge_key),
-        label: labelByKey.get(String(recentBadgeRow.data.badge_key)) ?? String(recentBadgeRow.data.badge_key).replaceAll("_", " "),
-        scope: String(recentBadgeRow.data.badge_scope ?? "game"),
-        tier: recentBadgeRow.data.tier ?? null,
-        earnedAt: recentBadgeRow.data.updated_at,
-      }
-    : null;
-
   // "Member since" reflects REC league tenure (first seen by the Discord bot), not the
   // site-registration date — nearly everyone registered the site account this week, so that
   // date isn't meaningful, while first_seen_at traces back to actual league history.
@@ -222,8 +194,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     currentGame,
     dynastyPowerRank,
     compPowerRank,
-    badgeCount: Number(extrasRow.badge_count ?? 0),
-    recentBadge,
     careerAwardsWon: Number(extrasRow.career_awards_won ?? 0),
     leaguesActivity: {
       activeLeagues: Number(extrasRow.active_leagues ?? 0),
@@ -754,66 +724,6 @@ export async function addHighlightComment(input: {
       },
     },
   };
-}
-
-export async function listUserBadges(input: { authUserId: string }) {
-  const user = await requireLinkedRecUser(input.authUserId);
-  return badgesForUser(user.recUserId);
-}
-
-export async function badgesForUser(recUserId: string) {
-  const rows = await supabase
-    .from("rec_badge_ownership")
-    .select(
-      "badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week,league:rec_leagues(game)",
-    )
-    .eq("user_id", recUserId)
-    .order("updated_at", { ascending: false })
-    .limit(200);
-  if (rows.error) throw new ApiError(500, "We couldn't load badges right now. Please try again.", rows.error);
-
-  const descByKey = new Map<string, string>();
-  const labelByKey = new Map<string, string>();
-  for (const badge of [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES]) {
-    descByKey.set(badge.key, badge.description);
-    labelByKey.set(badge.key, badge.label);
-  }
-
-  const grouped = new Map<string, {
-    badge_key: string;
-    badge_label: string;
-    badge_scope: string;
-    polarity: string | null;
-    tier: string | null;
-    earned_count: number;
-    description: string;
-    earnedByGame: Record<string, number>;
-  }>();
-
-  for (const row of rows.data ?? []) {
-    const key = String(row.badge_key);
-    const game = String((row as any).league?.game ?? "global");
-    const count = Number(row.earned_count ?? 1);
-    const existing = grouped.get(key);
-    if (!existing) {
-      grouped.set(key, {
-        badge_key: key,
-        badge_label: labelByKey.get(key) ?? key.replaceAll("_", " "),
-        badge_scope: String(row.badge_scope ?? "game"),
-        polarity: row.polarity ?? null,
-        tier: row.tier ?? null,
-        earned_count: count,
-        description: descByKey.get(key) ?? key.replaceAll("_", " "),
-        earnedByGame: { [game]: count },
-      });
-    } else {
-      existing.earned_count += count;
-      existing.earnedByGame[game] = (existing.earnedByGame[game] ?? 0) + count;
-    }
-  }
-
-  const badges = [...grouped.values()];
-  return { badges, count: badges.length };
 }
 
 const GAME_LABELS_FOR_STATS: Record<string, string> = {

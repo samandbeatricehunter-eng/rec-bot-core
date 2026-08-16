@@ -323,7 +323,7 @@ export function buildDeleteLeagueWarningPayload(leagueName: string) {
         .setDescription([
           `This will **permanently erase** the league **${leagueName}** from REC. This cannot be undone.`,
           "",
-          "**Deleted:** all teams, rosters, records, standings, payouts/economy ledger for this league, badges, awards, GOTW polls, game channels data, imports, settings/rules, and every user-to-team link in this league.",
+          "**Deleted:** all teams, rosters, records, standings, payouts/economy ledger for this league, awards, GOTW polls, game channels data, imports, settings/rules, and every user-to-team link in this league.",
           "**Kept:** each member's Discord account, global career record, wallet balance, legacy history, and the Discord server itself.",
           "",
           "Use this to wipe a league that needs to start over before it goes inactive. After deletion, create its replacement from the REC website.",

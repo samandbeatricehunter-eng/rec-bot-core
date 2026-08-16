@@ -702,7 +702,7 @@ const ECONOMY_LABELS: Record<string, string> = {
   devUpgradeTopStep: "Top development-tier step", contractReduction: "Contract reduction", contractExtension: "Contract extension",
   coreAttributePoint: "Core attribute point", nonCoreAttributePoint: "Non-core attribute point", boxScoreWin: "Box score — win",
   customPlayerTier1: "Custom player — Tier 1", customPlayerTier2: "Custom player — Tier 2", customPlayerTier3: "Custom player — Tier 3", customPlayerTier4: "Custom player — Tier 4", customPlayerTier5: "Custom player — Tier 5",
-  boxScoreLoss: "Box score — loss", badgeBonus: "Badge bonus", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
+  boxScoreLoss: "Box score — loss", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
   highlightSeasonAward: "Season highlight award", gameOfYear: "Game of the Year",
   highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article", interview: "Interview",
   gotwCorrectVote: "Correct GOTW vote", potw: "Player of the Week", houseWeeklyMaximum: "House wager weekly maximum",

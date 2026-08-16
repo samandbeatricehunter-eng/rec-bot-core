@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { sitePublicUrl, supabase } from "../lib/supabase-client.js";
 import { MobileAppSetup } from "../components/MobileAppSetup.js";
-import { badgeAsset, badgeTooltip } from "../lib/badge-display.js";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -79,19 +78,6 @@ export function AccountHub({
       turnoverDifferential: number;
     }>
   >([]);
-  const [badges, setBadges] = useState<
-    Array<{
-      badge_key: string;
-      badge_label?: string;
-      badge_scope: string;
-      polarity: string | null;
-      tier: string | null;
-      earned_count: number | null;
-      description?: string;
-      earnedByGame?: Record<string, number>;
-      league_id?: string | null;
-    }>
-  >([]);
   const [friends, setFriends] = useState<{
     accepted: SiteFriendship[];
     pendingIncoming: SiteFriendship[];
@@ -141,7 +127,6 @@ export function AccountHub({
     let cancelled = false;
     Promise.all([
       siteApi.getHomeCard().catch(() => null),
-      siteApi.listMyBadges().catch(() => ({ badges: [], count: 0 })),
       siteApi.listCareerStatsByGame().catch(() => ({ games: [] })),
       siteApi.listFriends().catch(() => ({
         accepted: [],
@@ -154,10 +139,9 @@ export function AccountHub({
         commissioner: [],
         unreadCount: 0,
       })),
-    ]).then(([card, badgePayload, careerPayload, friendPayload, suggestionPayload, notifPayload]) => {
+    ]).then(([card, careerPayload, friendPayload, suggestionPayload, notifPayload]) => {
       if (cancelled) return;
       setHomeCard(card);
-      setBadges(badgePayload.badges ?? []);
       setCareerGames(careerPayload.games ?? []);
       setFriends(friendPayload);
       setSuggestions(suggestionPayload.suggestions ?? []);
@@ -553,10 +537,6 @@ export function AccountHub({
                   : homeCard?.userRating?.rating ?? "-"}
               </strong>
             </article>
-            <article>
-              <span>Badges earned</span>
-              <strong>{homeCard?.badgeCount ?? badges.length}</strong>
-            </article>
           </div>
 
           <h3>Stats by game</h3>
@@ -582,29 +562,8 @@ export function AccountHub({
             <p className="site-muted">No box-score career stats logged yet.</p>
           )}
 
-          <h3>All-time badges</h3>
-          {badges.length ? (
-            <ul className="site-account-badge-list">
-              {badges.map((badge) => {
-                const label = badge.badge_label ?? badge.badge_key.replaceAll("_", " ");
-                const tip = badgeTooltip(badge);
-                return (
-                  <li
-                    key={badge.badge_key + "-" + badge.badge_scope}
-                    title={tip}
-                    className="site-account-badge-render"
-                    style={{ backgroundImage: `url("${badgeAsset(badge.badge_key, label, badge.tier)}")` }}
-                  >
-                    <span className="sr-only">{label}. {tip}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="site-muted">No badges yet.</p>
-          )}
           <p className="site-muted">
-            Hover a badge for its qualifier and per-game earn counts. League awards also live on each league&apos;s My Team page.
+            League awards live on each league&apos;s My Team page.
           </p>
         </section>
       ) : null}

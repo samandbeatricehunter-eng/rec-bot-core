@@ -28,11 +28,11 @@ function TeamColumn({
   side: "away" | "home";
 }) {
   const ratingLabel =
-    team.coachRating == null
+    team.userRating == null
       ? null
       : displayAsGrade
-        ? team.coachGrade ?? "-"
-        : String(team.coachRating);
+        ? team.userGrade ?? "-"
+        : String(team.userRating);
 
   return (
     <div
@@ -75,10 +75,10 @@ function TeamColumn({
         </div>
         {ratingLabel != null && (
           <div>
-            <dt>{displayAsGrade ? "Coach grade" : "Coach rating"}</dt>
+            <dt>{displayAsGrade ? "User grade" : "User rating"}</dt>
             <dd>
               {ratingLabel}
-              {team.powerRank ? " · #" + team.powerRank : ""}
+              {team.userRank ? " · #" + team.userRank : ""}
             </dd>
           </div>
         )}

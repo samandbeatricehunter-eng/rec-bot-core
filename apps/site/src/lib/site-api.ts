@@ -1,4 +1,3 @@
-import type { SiteBadge } from "./badge-display.js";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
@@ -750,25 +749,6 @@ export const siteApi = {
       };
     }>("/v1/site-home/spotlight/comment", input);
   },
-  listMyBadges() {
-    return request<{
-      badges: Array<{
-        badge_key: string;
-        badge_label?: string;
-        badge_scope: string;
-        polarity: string | null;
-        tier: string | null;
-        earned_count: number | null;
-        description?: string;
-        earnedByGame?: Record<string, number>;
-        league_id?: string | null;
-        season?: number | null;
-        week?: number | null;
-        updated_at?: string | null;
-      }>;
-      count: number;
-    }>("/v1/site-home/badges", {});
-  },
   listCareerStatsByGame() {
     return request<{
       games: Array<{
@@ -1205,7 +1185,6 @@ export type CompUserDetail = {
     turnoversCommitted: number;
     turnoverDifferential: number;
   }>;
-  badges: SiteBadge[];
 };
 
 export type PowerRankPosition = { rank: number; of: number; previousRank: number | null };
@@ -1383,8 +1362,6 @@ export type SiteHomeCard = {
   currentGame: string | null;
   dynastyPowerRank: PowerRankPosition | null;
   compPowerRank: PowerRankPosition | null;
-  badgeCount: number;
-  recentBadge: { key: string; label: string; scope: string; tier: string | null; earnedAt: string } | null;
   careerAwardsWon: number;
   leaguesActivity: { activeLeagues: number; commissionerOf: number };
 };

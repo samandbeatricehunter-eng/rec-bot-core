@@ -8,7 +8,6 @@ import {
   getSiteHomeCard,
   getSpotlightReel,
   listSiteAnnouncements,
-  listUserBadges,
   listUserCareerStatsByGame,
   pruneDeadHighlightsOnceDaily,
   toggleSpotlightReaction,
@@ -89,14 +88,6 @@ export async function siteHomeRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/v1/site-home/badges", async (request, reply) => {
-    try {
-      const session = await requireSiteUserSession(request);
-      return reply.send(await listUserBadges({ authUserId: session.authUserId }));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
   app.post("/v1/site-home/career-stats", async (request, reply) => {
     try {
       const session = await requireSiteUserSession(request);

@@ -12,7 +12,6 @@ const Inbox = lazy(() => import("./routes/Inbox.js").then((m) => ({ default: m.I
 const Landing = lazy(() => import("./routes/Landing.js").then((m) => ({ default: m.Landing })));
 const LogIn = lazy(() => import("./routes/LogIn.js").then((m) => ({ default: m.LogIn })));
 const CompPage = lazy(() => import("./routes/Comp.js").then((m) => ({ default: m.CompPage })));
-const BadgesPage = lazy(() => import("./routes/Badges.js").then((m) => ({ default: m.BadgesPage })));
 const HomePage = lazy(() => import("./routes/Home.js").then((m) => ({ default: m.HomePage })));
 const LeaguesPage = lazy(() => import("./routes/Leagues.js").then((m) => ({ default: m.LeaguesPage })));
 const LeagueHubPage = lazy(() => import("./routes/LeagueHub.js").then((m) => ({ default: m.LeagueHubPage })));
@@ -232,7 +231,6 @@ function Routed() {
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />
-        <Route path="/badges" element={<BadgesPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/discord-guild-picker" element={<DiscordGuildPicker />} />
         <Route path="/comp" element={<CompPage />} />

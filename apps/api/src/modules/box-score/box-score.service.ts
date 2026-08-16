@@ -15,7 +15,6 @@ import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../off
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
-import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
@@ -26,28 +25,11 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
-const BADGE_LABELS = new Map(
-  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label] as const),
-);
-const BADGE_DESCRIPTIONS = new Map(
-  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.description] as const),
-);
-// First match wins — a badge_key shared between a Madden and a CFB variant (e.g.
-// turnover_trouble) never has conflicting polarity between the two, so this is safe.
-const BADGE_POLARITY = new Map(GAME_BADGES.map((badge) => [badge.key, badge.polarity] as const));
-
 type BoxScorePaidPlayer = {
   userId: string;
   amount: number;
   discordId: string | null;
   displayName: string | null;
-};
-
-type BadgeBonusPaid = {
-  userId: string;
-  badgeKey: string;
-  badgeLabel: string;
-  amount: number;
 };
 
 // ─── Learned OCR label aliases (#2) ────────────────────────────────────────────
@@ -1223,119 +1205,6 @@ export async function markBoxScoreDiscordCleanupDone(submissionId: string) {
 
 // ─── Commissioner review ──────────────────────────────────────────────────────
 
-function badgeBonusIdempotencyKey(event: {
-  league_id: string;
-  season: number;
-  week: number;
-  game_id: string | null;
-  user_id: string;
-  badge_key: string;
-}, submissionId: string) {
-  const gameRef = event.game_id ?? `submission:${submissionId}`;
-  return `badge_bonus:${event.league_id}:${event.season}:${event.week}:${gameRef}:${event.user_id}:${event.badge_key}`;
-}
-
-async function issueBadgeBonusesForSubmission(sub: {
-  id: string;
-  league_id: string;
-  season_number: number;
-  week_number: number;
-  game_id: string | null;
-}): Promise<BadgeBonusPaid[]> {
-  const query = supabase
-    .from("rec_badge_events")
-    .select("id,league_id,user_id,badge_key,badge_scope,tier,season,week,game_id")
-    .eq("league_id", sub.league_id)
-    .eq("season", sub.season_number)
-    .eq("week", sub.week_number)
-    .not("user_id", "is", null);
-
-  if (sub.game_id) query.eq("game_id", sub.game_id);
-  else query.is("game_id", null);
-
-  const { data, error } = await query;
-  if (error) throw new ApiError(500, "We couldn't load earned badge bonuses. Please try again.", error);
-
-  const paid: BadgeBonusPaid[] = [];
-  const badgeBonus = (await getGlobalEconomyConfig()).submissions.badgeBonus;
-  for (const event of data ?? []) {
-    if (!event.user_id) continue;
-    const badgeLabel = BADGE_LABELS.get(event.badge_key) ?? event.badge_key;
-    const isNegative = BADGE_POLARITY.get(event.badge_key) === "negative";
-    const amount = isNegative ? -badgeBonus : badgeBonus;
-    await creditOrBacklog({
-      leagueId: sub.league_id,
-      seasonNumber: sub.season_number,
-      userId: event.user_id,
-      amount,
-      description: `${isNegative ? "Badge penalty" : "Badge bonus"}: ${badgeLabel} - Wk ${sub.week_number}`,
-      transactionType: isNegative ? "badge_penalty" : "badge_bonus",
-      source: "box_score",
-      sourceReference: {
-        idempotencyKey: badgeBonusIdempotencyKey(
-          {
-            league_id: event.league_id,
-            season: event.season,
-            week: event.week,
-            game_id: event.game_id,
-            user_id: event.user_id,
-            badge_key: event.badge_key,
-          },
-          sub.id,
-        ),
-      },
-    });
-    paid.push({ userId: event.user_id, badgeKey: event.badge_key, badgeLabel, amount });
-  }
-
-  return paid;
-}
-
-async function loadXfSeasonBadgeEventsForSubmission(sub: {
-  league_id: string;
-  season_number: number;
-  week_number: number;
-  game_id: string | null;
-}) {
-  // "XF": the old streak-tiering system's top special tier, repurposed to mean a
-  // game-scope badge event logged at gold tier (10+ occurrences this season) —
-  // same "call out an exceptional performance right now" intent.
-  let query = supabase
-    .from("rec_badge_events")
-    .select("id,user_id,team_id,badge_key,badge_scope,tier,season,week,game_id,reason,stats_snapshot,created_at")
-    .eq("league_id", sub.league_id)
-    .eq("season", sub.season_number)
-    .eq("badge_scope", "game")
-    .eq("tier", "gold");
-
-  if (sub.game_id) query = query.eq("game_id", sub.game_id);
-  else query = query.eq("week", sub.week_number).is("game_id", null);
-
-  const { data, error } = await query.order("created_at", { ascending: true });
-  if (error) {
-    console.error("[ERROR] Failed to load XF badge events after approval:", error);
-    return [];
-  }
-
-  const userIds = [...new Set((data ?? []).map((event) => event.user_id).filter(Boolean))];
-  const accounts = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name,user:rec_users(username)").in("user_id", userIds)
-    : { data: [], error: null };
-  const accountByUser = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
-
-  return (data ?? []).map((event) => {
-    const account = accountByUser.get(event.user_id) as any;
-    const recUser = Array.isArray(account?.user) ? account.user[0] : account?.user;
-    return {
-      ...event,
-      userDiscordId: account?.discord_id ?? null,
-      userDisplayName: recUser?.username ?? account?.global_name ?? account?.username ?? null,
-      badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
-      badgeDescription: BADGE_DESCRIPTIONS.get(event.badge_key) ?? null,
-    };
-  });
-}
-
 export type ReviewBoxScoreInput = {
   submissionId: string;
   action: "approve" | "deny";
@@ -1404,12 +1273,12 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   }
 
   // Approve: record game result + issue payouts.
-  // Correction contract: payouts and badges are computed HERE, at approval, from
-  // the freshly-loaded `sub` — never at submission time. A commissioner's pending
-  // corrections (score/matchup → winner & routing; stats → badges) are already
-  // patched into this row, so the payout and badge computation below reflect them.
-  // Do not move payout/badge issuance earlier (e.g. into createBoxScoreSubmission)
-  // or corrections would stop affecting them.
+  // Correction contract: payouts are computed HERE, at approval, from the
+  // freshly-loaded `sub` — never at submission time. A commissioner's pending
+  // corrections (score/matchup → winner & routing) are already patched into
+  // this row, so the payout computation below reflects them. Do not move
+  // payout issuance earlier (e.g. into createBoxScoreSubmission) or
+  // corrections would stop affecting it.
   const now = new Date().toISOString();
   if (sub.game_id) await assertNoExistingBoxScorePayout(sub.game_id, sub.id);
 
@@ -1482,7 +1351,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   // Non-fatal post-processing: a failure here must never block the payout/approval,
   // but should still be visible to the reviewing commissioner (not just server logs),
-  // since a silent failure here leaves records/badges/CPU stats stale with no signal.
+  // since a silent failure here leaves records/CPU stats stale with no signal.
   // Record flat per-team-per-game stats (two rows, offense + generated/allowed)
   // before rebuilding stat rollups.
   await recordTeamGameStats(sub);
@@ -1498,21 +1367,18 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       homeUserId: sub.home_user_id,
       awayUserId: sub.away_user_id,
     }).catch((error) => {
-      console.error("[ERROR] Failed to rebuild official user records before badge computation:", error);
-      warnings.push("Failed to rebuild official user records before badge computation.");
+      console.error("[ERROR] Failed to rebuild official user records before game intelligence:", error);
+      warnings.push("Failed to rebuild official user records before game intelligence.");
     });
   }
   if (sub.discord_guild_id) invalidateLeagueComputeCaches(sub.discord_guild_id);
 
-  // Import-time badge + story computation (blueprint): qualify badges, recompute
-  // streak/season/global progress, and generate the game story. Non-fatal — a
-  // failure here must never block the payout/approval. Advance only reads these.
+  // Import-time game story computation. Non-fatal — a failure here must never
+  // block the payout/approval. Advance only reads these.
   await processGameIntelligence(sub).catch((error) => {
-    console.error("[ERROR] Failed to compute box score intelligence (badges/story):", error);
-    warnings.push("Failed to compute badge/story intelligence for this game.");
+    console.error("[ERROR] Failed to compute box score intelligence (story):", error);
+    warnings.push("Failed to compute story intelligence for this game.");
   });
-  const badgeBonuses = await issueBadgeBonusesForSubmission(sub);
-  const xfSeasonBadgeEvents = await loadXfSeasonBadgeEventsForSubmission(sub);
 
   // Issue payouts only to linked-user participants (winner 100 coins, loser 50). A
   // Fair Sim / Force Win still records the result + intelligence but pays nothing.
@@ -1542,7 +1408,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     });
     totalPaid += p.amount;
   }
-  for (const bonus of badgeBonuses) totalPaid += bonus.amount;
 
   if (sub.league_id && sub.season_number) {
     await rebuildOfficialRecordsAfterBoxScore({
@@ -1607,10 +1472,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     action: "approved" as const,
     totalPaid,
     paidPlayers,
-    badgeBonuses,
-    xfSeasonBadgeEvents,
-    badgeBonusPaid: badgeBonuses.reduce((sum, bonus) => sum + bonus.amount, 0),
-    badgeBonusCount: badgeBonuses.length,
     playersPaid: payouts.length,
     playersPayd: payouts.length,
     sourceChannelId: sub.discord_channel_id ?? null,

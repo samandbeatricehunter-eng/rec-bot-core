@@ -160,15 +160,10 @@ function gcCoachIdentityBlock(side: any) {
   const allTimeLine = allTime
     ? `**All-Time (${allTime.label}):** ${allTime.text}${allTime.playoffText !== "0-0" ? ` • Playoffs ${allTime.playoffText}` : ""}${allTime.superbowlWins ? ` • ${allTime.superbowlWins}× SB` : ""}`
     : null;
-  const fmtBadges = (badges: any[]) => badges.map((b) => (b.tier ? `${b.tier} ${b.label}` : b.label) + (b.earnedCount > 1 ? ` ×${b.earnedCount}` : "")).join(", ");
-  const weekly = side.weeklyBadges?.length ? `**Active badges:** ${fmtBadges(side.weeklyBadges)}` : "**Active badges:** none yet";
-  const season = side.seasonBadges?.length ? `**Season badges:** ${fmtBadges(side.seasonBadges)}` : null;
   return [
     `**${who} — ${label}${conf}**`,
     summary,
     allTimeLine,
-    weekly,
-    season,
     evidence,
   ].filter(Boolean).join("\n");
 }

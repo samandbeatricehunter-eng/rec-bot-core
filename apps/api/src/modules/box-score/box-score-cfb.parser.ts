@@ -19,11 +19,11 @@
 // semantically identical (off_yards_gained, off_rush_yards, off_pass_yards,
 // off_first_down, punt_return_yards, kick_return_yards, total_yards_gained,
 // turnovers, red_zone_off_percentage, third/fourth_down/two_point conversions) so
-// the same REQUIRED_STAT_KEYS gate, badge engine, and EOS payout stat lookups work
-// unmodified. CFB-only stats (total plays, yards/play, rush attempts/TDs, comp/att/
-// pass TDs, yards/rush, yards/pass, fumbles lost, interceptions thrown, red zone
-// TD/FG counts, punts, punt avg, penalties, penalty yards, time of possession) get
-// new keys and are captured best-effort but aren't required or read by badges yet.
+// the same REQUIRED_STAT_KEYS gate and EOS payout stat lookups work unmodified.
+// CFB-only stats (total plays, yards/play, rush attempts/TDs, comp/att/pass TDs,
+// yards/rush, yards/pass, fumbles lost, interceptions thrown, red zone TD/FG
+// counts, punts, punt avg, penalties, penalty yards, time of possession) get
+// new keys and are captured best-effort but aren't required elsewhere yet.
 import sharp from "sharp";
 import {
   dedupeWords,

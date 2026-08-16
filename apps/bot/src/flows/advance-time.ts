@@ -11,13 +11,12 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { maxSeasonWeek, regularSeasonWeeks } from "@rec/shared";
+import { maxSeasonWeek } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
-import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
 // Three dropdowns — date (next 7 days), timezone, and time (remaining hours) — plus
@@ -306,51 +305,6 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   }
 }
 
-async function publishSeasonXfSummary(guild: Guild, session: AdvanceTimeSession): Promise<number> {
-  if (session.completedWeekNumber !== regularSeasonWeeks(session.game)) return 0;
-  try {
-    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
-    const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
-    if (!channel || !("send" in channel) || !channel.isTextBased()) return 0;
-
-    const result = await recApi.getSeasonXfBadges(session.guildId, session.completedSeasonNumber).catch(() => null);
-    const badges: any[] = result?.badges ?? [];
-    if (!badges.length) return 0;
-
-    const byUser = new Map<string, any[]>();
-    for (const badge of badges) {
-      const key = badge.user_id ?? badge.discordId ?? badge.displayName ?? "coach";
-      const rows = byUser.get(key) ?? [];
-      rows.push(badge);
-      byUser.set(key, rows);
-    }
-
-    const lines = [...byUser.values()].map((rows) => {
-      const first = rows[0];
-      const user = first.discordId ? `<@${first.discordId}>` : first.displayName ?? "Coach";
-      const team = first.teamName ? ` (${first.teamName})` : "";
-      const badgeLines = rows.map((badge) => {
-        const earns = badge.earned_count ? `${badge.earned_count} earns` : "XF season performance";
-        return `- **${badge.badgeLabel ?? badge.badge_key}**: ${badge.badgeDescription ?? "Season badge"} (${earns})`;
-      });
-      return [`**${user}${team}**`, ...badgeLines].join("\n");
-    });
-
-    await channel.send({
-      content: "@everyone",
-      embeds: [new EmbedBuilder()
-        .setTitle(`Season ${session.completedSeasonNumber} XF Badge Class`)
-        .setColor(COLORS.gold)
-        .setDescription(lines.join("\n\n").slice(0, 4096))],
-      allowedMentions: { parse: ["everyone", "users"] },
-    });
-    return badges.length;
-  } catch (error) {
-    console.error("[ERROR] Failed to publish season XF summary (non-fatal):", error);
-    return 0;
-  }
-}
-
 export const HEADLINES_CUSTOM_IDS = {
   prevPrefix: "rec:headlines:prev:",
   nextPrefix: "rec:headlines:next:",
@@ -363,12 +317,6 @@ function buildHeadlinesNavId(dir: "prev" | "next", guildId: string, season: numb
 
 function buildStoryEmbed(story: any, page: number, total: number, season: number, week: number) {
   const notes = Array.isArray(story.notes) ? story.notes.filter(Boolean) : [];
-  const badgeLines = (Array.isArray(story.badges) ? story.badges : [])
-    .slice(0, 8)
-    .map((badge: any) => {
-      const team = badge.teamName ? `${badge.teamName}: ` : "";
-      return `${team}${formatTierEmojiPrefix(badge.tier)}${badge.badgeLabel ?? badge.badgeKey ?? "Badge"}`;
-    });
 
   const embed = new EmbedBuilder()
     .setTitle(`📰 Season ${season}, Week ${week} Headlines`)
@@ -376,7 +324,6 @@ function buildStoryEmbed(story: any, page: number, total: number, season: number
     .addFields({ name: story.headline ?? "Game Story", value: String(story.body ?? "Game story generated from the approved box score.").slice(0, 1024) });
 
   if (notes.length) embed.addFields({ name: "Key Notes", value: notes.slice(0, 3).join("\n").slice(0, 1024) });
-  if (badgeLines.length) embed.addFields({ name: "Badges Earned", value: badgeLines.join("\n").slice(0, 1024) });
   embed.setFooter({ text: `Story ${page + 1} of ${total}` });
   return embed;
 }

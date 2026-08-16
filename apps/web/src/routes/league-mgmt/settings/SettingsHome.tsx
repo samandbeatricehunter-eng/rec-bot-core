@@ -11,7 +11,6 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
-import { BadgeMaintenance } from "./BadgeMaintenance.js";
 import { WagerMaintenance } from "./WagerMaintenance.js";
 import { TransactionMaintenance } from "./TransactionMaintenance.js";
 import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
@@ -172,7 +171,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>

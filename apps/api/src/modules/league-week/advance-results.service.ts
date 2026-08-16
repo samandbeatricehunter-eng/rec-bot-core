@@ -1,5 +1,4 @@
-import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
-import { bestEffort } from "../../lib/best-effort.js";
+import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -17,8 +16,6 @@ import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
-import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
@@ -299,9 +296,6 @@ const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 // manual = scores/outcomes entered via the Manual Scores tool.
 // madden_companion_import = scores pre-logged from a Madden Companion App schedule export.
 const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual", "madden_companion_import"];
-const BADGE_LABELS = new Map(
-  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label]),
-);
 
 // Extracted so the multi-week Advance Jump preview can walk several future weeks'
 // worth of "games needing input" without mutating any league state (getAdvanceWeekGames
@@ -799,25 +793,6 @@ export async function completeAdvanceWeek(input: {
     rebuildOfficialRecordsAfterBoxScore({ leagueId: context.leagueId, seasonNumber }).catch((err) => {
       console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after advance (non-fatal):", err);
     }),
-    recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch(async (err) => {
-      console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance, retrying once:", err);
-      try {
-        await recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber);
-      } catch (retryErr) {
-        // Recompute is a pure read-and-overwrite (no incremental state), so retrying is safe.
-        // A second failure means badges are genuinely stale for this league until someone
-        // notices — write it to the audit log so it's discoverable instead of only ever
-        // existing as a line in Railway logs nobody is watching.
-        console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed again after retry:", retryErr);
-        await bestEffort("audit.badge_baselines_recompute_failed", () => writeAuditLog({
-          action: "badge_baselines.recompute_failed",
-          entityType: "rec_leagues",
-          entityId: context.leagueId,
-          reason: retryErr instanceof Error ? retryErr.message : String(retryErr),
-          newValue: { seasonNumber },
-        }), { leagueId: context.leagueId });
-      }
-    }),
     // Snapshot power rankings for the week that just completed, so next week can show movement.
     snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek, context.rec_leagues.game).catch((err) => {
       console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
@@ -880,16 +855,6 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] publishPowerRankingsToDiscord failed after advance (non-fatal):", err);
   });
-
-  // When the regular season ends (next stage is a playoff stage), issue the
-  // season-total badges (Winning Season, Ball Control Season, etc.) for every
-  // active user. These are only valid once the full season is in the books.
-  const playoffStages = postseasonPayoutStages(context.rec_leagues.game);
-  if (playoffStages.has(nextTarget.seasonStage)) {
-    await issueSeasonTotalBadges(context.leagueId, seasonNumber).catch((err) => {
-      console.error("[ERROR] issueSeasonTotalBadges failed after advance to playoffs (non-fatal):", err);
-    });
-  }
 
   // Mark the advance run last, after badges/baselines settle, so its badge snapshot
   // reflects end-of-week state and `advanced_at` anchors the next Advance DM window.
@@ -1115,46 +1080,14 @@ export async function listAdvanceGameStories(input: {
   const { data: stories, error } = await query;
   if (error) throw new ApiError(500, "We couldn't load game stories for publishing. Please try again.", error);
 
-  const gameIds = [...new Set((stories ?? []).map((story) => story.game_id).filter(Boolean))];
   const teamIds = [...new Set((stories ?? []).flatMap((story) => [story.winner_team_id, story.loser_team_id]).filter(Boolean))];
 
-  const [eventsResult, teamsResult] = await Promise.all([
-    gameIds.length
-      ? supabase
-          .from("rec_badge_events")
-          .select("game_id,user_id,team_id,badge_key,badge_scope,tier,season,week")
-          .eq("league_id", context.leagueId)
-          .eq("season", input.seasonNumber)
-          .eq("week", input.weekNumber)
-          .in("game_id", gameIds)
-      : Promise.resolve({ data: [], error: null }),
-    teamIds.length
-      ? supabase
-          .from("rec_teams")
-          .select("id,name,abbreviation,display_city,display_nick,is_relocated")
-          .in("id", teamIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (eventsResult.error) throw new ApiError(500, "We couldn't load badge events for publishing. Please try again.", eventsResult.error);
+  const teamsResult = teamIds.length
+    ? await supabase.from("rec_teams").select("id,name,abbreviation,display_city,display_nick,is_relocated").in("id", teamIds)
+    : { data: [] as any[], error: null };
   if (teamsResult.error) throw new ApiError(500, "We couldn't load story teams for publishing. Please try again.", teamsResult.error);
 
   const teamById = new Map((teamsResult.data ?? []).map((team: any) => [team.id, formatTeamDisplayName(team) ?? team.name ?? team.abbreviation ?? "Team"]));
-  const badgesByGame = new Map<string, any[]>();
-  for (const event of eventsResult.data ?? []) {
-    const key = String(event.game_id ?? "");
-    if (!key) continue;
-    const rows = badgesByGame.get(key) ?? [];
-    rows.push({
-      userId: event.user_id,
-      teamId: event.team_id,
-      teamName: teamById.get(event.team_id) ?? null,
-      badgeKey: event.badge_key,
-      badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
-      scope: event.badge_scope,
-      tier: event.tier ?? "normal",
-    });
-    badgesByGame.set(key, rows);
-  }
 
   return {
     league: { id: context.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber },
@@ -1171,7 +1104,6 @@ export async function listAdvanceGameStories(input: {
       headline: story.headline,
       body: story.body,
       notes: Array.isArray(story.notes) ? story.notes : [],
-      badges: story.game_id ? badgesByGame.get(story.game_id) ?? [] : [],
     })),
   };
 }

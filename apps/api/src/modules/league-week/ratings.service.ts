@@ -1,20 +1,15 @@
-// Coach Rating (team performance: win%, point differential, strength of schedule,
-// playoff/bowl success) and User Rating (individual skill: per-game stat efficiency
-// + badge quality mix) — two independent 0-100 scores. Coach Rating answers "is this
-// team winning, against what schedule"; User Rating answers "is this coach playing
-// well," on purpose decoupled from the team's win/loss record. Madden displays the
-// raw number; CFB converts the same 0-100 scale to a letter grade (this feature's
-// original ask was "numeric for Madden, letter grade for CFB").
-// Both ratings are CUMULATIVE across every season the league has played — the numbers
-// carry forward over season turnover instead of resetting to baseline, so a coach's
-// body of work in Season 1 still shows up when Season 2 starts.
+// User Rating (0-100): individual skill, blending win/performance signals, per-game
+// production efficiency, and consistency of that production. Madden displays the raw
+// number; CFB converts the same 0-100 scale to a letter grade (this feature's original
+// ask was "numeric for Madden, letter grade for CFB"). Cumulative across every season
+// the league has played — the number carries forward over season turnover instead of
+// resetting to baseline, so a coach's body of work in Season 1 still shows up when
+// Season 2 starts.
 import { isCfb } from "@rec/shared";
-import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { computeLeagueSos } from "../schedule/sos.service.js";
 
 const RATINGS_CACHE_TTL_MS = 60_000;
 
@@ -48,133 +43,6 @@ function teamDisplayName(t: any): string {
   return name || nick || "Team";
 }
 
-type TeamAgg = {
-  wins: number; losses: number; ties: number; pf: number; pa: number; scored: number;
-  madePlayoffs: boolean; playoffWins: number; wonBowlOrRing: boolean;
-};
-const emptyAgg = (): TeamAgg => ({ wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, scored: 0, madePlayoffs: false, playoffWins: 0, wonBowlOrRing: false });
-
-// Career scope, not per-season: every stored result across all seasons the league has
-// played. Coach Rating is deliberately cumulative so it never resets to baseline when a
-// season turns over — the rating carries the team's full body of work forward.
-async function aggregateTeamResults(leagueId: string): Promise<Map<string, TeamAgg>> {
-  const { data, error } = await supabase
-    .from("rec_game_results")
-    .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,is_playoff,is_super_bowl")
-    .eq("league_id", leagueId);
-  if (error) throw new ApiError(500, "We couldn't load results for coach rating. Please try again.", error);
-
-  const map = new Map<string, TeamAgg>();
-  const get = (id: string) => { let a = map.get(id); if (!a) { a = emptyAgg(); map.set(id, a); } return a; };
-  for (const g of data ?? []) {
-    const { home_team_id: h, away_team_id: a, home_score: hs, away_score: as_, winning_team_id: w, losing_team_id: l, is_tie, is_playoff, is_super_bowl } = g as any;
-    for (const teamId of [h, a] as (string | null)[]) {
-      if (!teamId) continue;
-      const t = get(teamId);
-      if (is_tie) t.ties++;
-      else if (w === teamId) { t.wins++; if (is_playoff) t.playoffWins++; if (is_super_bowl) t.wonBowlOrRing = true; }
-      else if (l === teamId) t.losses++;
-      if (is_playoff) t.madePlayoffs = true;
-      if (hs != null && as_ != null) {
-        const pf = teamId === h ? hs : as_;
-        const pa = teamId === h ? as_ : hs;
-        t.pf += pf; t.pa += pa; t.scored++;
-      }
-    }
-  }
-  return map;
-}
-
-export type CoachRatingRow = {
-  teamId: string;
-  teamName: string;
-  abbr: string | null;
-  isHuman: boolean;
-  userId: string | null;
-  rank: number;
-  rating: number;
-  grade: string;
-  record: string;
-  sos: number;
-  madePlayoffs: boolean;
-};
-
-/**
- * rating = 50 (baseline .500 team) + up to ±30 for win%, ±15 for point differential,
- * ±20 for strength of schedule (rewards a tough slate, penalizes a soft one — this is
- * intentionally separate credit from win%, not a multiplier on it), + up to 25 for
- * playoff success (made playoffs, each playoff win, winning the title game).
- */
-async function computeCoachRatingsBase(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const leagueId = context.leagueId;
-  const game = context.rec_leagues.game;
-
-  const [aggs, sos, teamsRes, assignmentsRes] = await Promise.all([
-    aggregateTeamResults(leagueId),
-    bestEffort("ratings.league_sos", () => computeLeagueSos(guildId), { guildId }).then((v) => v ?? null),
-    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
-    supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
-  ]);
-  if (teamsRes.error) throw new ApiError(500, "We couldn't load teams for coach rating. Please try again.", teamsRes.error);
-  if (assignmentsRes.error) throw new ApiError(500, "We couldn't load assignments for coach rating. Please try again.", assignmentsRes.error);
-
-  const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r: any) => r.team_id).filter(Boolean));
-  const userIdByTeam = new Map<string, string>((assignmentsRes.data ?? []).map((r: any): [string, string] => [r.team_id, r.user_id]));
-  const sosByTeam = new Map((sos?.teams ?? []).map((t) => [t.teamId, t.sosFull]));
-
-  const rows: CoachRatingRow[] = (teamsRes.data ?? [])
-    .filter((t: any) => humanTeamIds.has(t.id))
-    .map((t: any) => {
-      const a = aggs.get(t.id) ?? emptyAgg();
-      const gp = a.wins + a.losses + a.ties;
-      const winPct = gp > 0 ? (a.wins + 0.5 * a.ties) / gp : 0.5;
-      const avgPd = a.scored > 0 ? (a.pf - a.pa) / a.scored : 0;
-      const normPd = clamp(avgPd / 14, -1, 1);
-      const sosFull = sosByTeam.get(t.id) ?? 1;
-      const sosAdj = clamp(sosFull - 1, -0.5, 0.5);
-      let bonus = a.playoffWins * 5 + (a.madePlayoffs ? 5 : 0) + (a.wonBowlOrRing ? 10 : 0);
-      bonus = clamp(bonus, 0, 25);
-      const rating = clamp(50 + 30 * (winPct - 0.5) * 2 + 15 * normPd + 20 * sosAdj * 2 + bonus, 0, 100);
-      return {
-        teamId: t.id,
-        teamName: teamDisplayName(t),
-        abbr: t.display_abbr ?? t.abbreviation ?? null,
-        isHuman: true,
-        userId: userIdByTeam.get(t.id) ?? null,
-        rank: 0,
-        rating: round(rating, 1),
-        grade: letterGradeForRating(rating),
-        record: a.ties > 0 ? `${a.wins}-${a.losses}-${a.ties}` : `${a.wins}-${a.losses}`,
-        sos: round(sosFull, 2),
-        madePlayoffs: a.madePlayoffs,
-      };
-    });
-
-  rows.sort((x, y) => y.rating - x.rating || x.teamName.localeCompare(y.teamName));
-  rows.forEach((r, i) => { r.rank = i + 1; });
-
-  return { displayAsGrade: isCfb(game), teams: rows, userIdByTeam };
-}
-
-export async function computeCoachRatings(guildId: string, viewerDiscordId?: string | null) {
-  const base = await withComputeCache(`coach-ratings:${guildId}`, RATINGS_CACHE_TTL_MS, () => computeCoachRatingsBase(guildId));
-
-  let viewerTeamId: string | null = null;
-  if (viewerDiscordId) {
-    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
-    const userId = acct.data?.user_id ?? null;
-    if (userId) {
-      for (const [teamId, uId] of base.userIdByTeam.entries()) {
-        if (uId === userId) { viewerTeamId = teamId; break; }
-      }
-    }
-  }
-
-  const { userIdByTeam: _userIdByTeam, ...rest } = base;
-  return { ...rest, viewerTeamId };
-}
-
 export type UserRatingRow = {
   userId: string;
   displayName: string;
@@ -183,22 +51,21 @@ export type UserRatingRow = {
   rank: number;
   rating: number;
   grade: string;
+  winScore: number;
   statScore: number;
-  badgeScore: number;
-};
-
-const BADGE_TIER_WEIGHT: Record<string, number> = {
-  normal: 2, bronze: 4, silver: 7, gold: 12,
-  needs_work: 2, warning: 4, serious_problem: 7, shit_show: 12,
+  consistencyScore: number;
 };
 
 /**
  * statScore rewards production (yards/game), finishing drives (red-zone %), ball
- * security (turnovers/game), opportunism (takeaways/game), and moving the chains
- * (first downs/game) — the fields both Madden and CFB track identically, same
- * cross-game-compatible approach as the Most Heart EOS award formula. badgeScore
- * folds in the coach's career game+season badge mix (tier-weighted, negative badges
- * subtract), averaged per season played. Final rating blends 65% stats / 35% badges.
+ * security (turnovers/game), opportunism (takeaways/game — includes interceptions
+ * generated by the user's defense), and moving the chains (first downs/game) — the
+ * fields both Madden and CFB track identically, same cross-game-compatible approach
+ * as the Most Heart EOS award formula.
+ * winScore is the user's career win percentage (win/performance signal).
+ * consistencyScore rewards steady per-game production: the lower the game-to-game
+ * variance in total yards relative to the mean, the higher the score.
+ * Final rating blends 30% win / 50% production / 20% consistency.
  */
 async function computeUserRatingsBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -216,53 +83,38 @@ async function computeUserRatingsBase(guildId: string) {
   const userIds = [...new Set((assignmentsRes.data ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[];
   if (!userIds.length) return { displayAsGrade: isCfb(game), users: [] };
 
-  const [statTotalsRes, badgesRes] = await Promise.all([
-    // Aggregated server-side (rec_user_rating_stat_totals, see supabase/migrations) instead
-    // of pulling every rec_team_game_stats row for the league over the wire — this returns
-    // one row per user with the exact totals computeUserRatings needs, computed by
-    // replicating rowToGameStats' quarantine checks + seasonTotalsFromGames' sums/averages
-    // directly in SQL. Cuts a hundreds-of-wide-rows fetch down to ~10-30 small rows.
-    // Career scope: the RPC aggregates ALL seasons (p_season_number <= 0), so the rating
-    // carries every season's production forward instead of resetting on season turnover.
-    supabase.rpc("rec_user_rating_stat_totals", {
-      p_league_id: leagueId,
-      p_season_number: 0,
-      p_user_ids: userIds,
-      p_is_cfb: isCfb(game),
-    }),
-    // All seasons' game+season badges (career-scope badges are excluded by the scope filter
-    // above) — the mix a coach has built up over their whole tenure in the league, not just
-    // the current season. Averaged per season below so a long career doesn't saturate it.
-    supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count,season").eq("league_id", leagueId).in("badge_scope", ["game", "season"]).in("user_id", userIds),
-  ]);
+  // Aggregated server-side (rec_user_rating_stat_totals, see supabase/migrations) instead
+  // of pulling every rec_team_game_stats row for the league over the wire — this returns
+  // one row per user with the exact totals computeUserRatings needs, computed by
+  // replicating rowToGameStats' quarantine checks directly in SQL. Cuts a
+  // hundreds-of-wide-rows fetch down to ~10-30 small rows.
+  // Career scope: the RPC aggregates ALL seasons (p_season_number <= 0), so the rating
+  // carries every season's production forward instead of resetting on season turnover.
+  const statTotalsRes = await supabase.rpc("rec_user_rating_stat_totals", {
+    p_league_id: leagueId,
+    p_season_number: 0,
+    p_user_ids: userIds,
+    p_is_cfb: isCfb(game),
+  });
   if (statTotalsRes.error) throw new ApiError(500, "We couldn't load stats for user rating. Please try again.", statTotalsRes.error);
-  if (badgesRes.error) throw new ApiError(500, "We couldn't load badges for user rating. Please try again.", badgesRes.error);
 
   type StatTotalsRow = {
     user_id: string;
     games_played: number;
+    wins: number;
+    losses: number;
+    ties: number;
     passing_yards: number;
     rushing_yards: number;
     first_downs: number;
     turnovers_committed: number;
     opponent_turnovers: number;
     red_zone_off_pct_avg: number;
+    total_yards_stddev: number;
   };
   const statTotalsByUser = new Map<string, StatTotalsRow>(
     ((statTotalsRes.data ?? []) as StatTotalsRow[]).map((row) => [row.user_id, row]),
   );
-
-  const badgeScoreByUser = new Map<string, number>();
-  const badgeSeasonsByUser = new Map<string, Set<number | null>>();
-  for (const row of badgesRes.data ?? []) {
-    const weight = BADGE_TIER_WEIGHT[row.tier as string] ?? 2;
-    const sign = row.polarity === "negative" ? -1 : 1;
-    const multiplier = Math.max(1, Math.min(Number(row.earned_count ?? 1), 3));
-    badgeScoreByUser.set(row.user_id, (badgeScoreByUser.get(row.user_id) ?? 0) + sign * weight * multiplier);
-    const seasons = badgeSeasonsByUser.get(row.user_id) ?? new Set<number | null>();
-    seasons.add(row.season ?? null);
-    badgeSeasonsByUser.set(row.user_id, seasons);
-  }
 
   const rows: UserRatingRow[] = (assignmentsRes.data ?? []).map((a: any) => {
     const team = Array.isArray(a.team) ? a.team[0] : a.team;
@@ -270,6 +122,14 @@ async function computeUserRatingsBase(guildId: string) {
     const totals = statTotalsByUser.get(a.user_id);
     const gamesPlayed = Number(totals?.games_played ?? 0);
     const gp = gamesPlayed || 1;
+
+    const wins = Number(totals?.wins ?? 0);
+    const losses = Number(totals?.losses ?? 0);
+    const ties = Number(totals?.ties ?? 0);
+    const played = wins + losses + ties;
+    const winPct = played > 0 ? (wins + 0.5 * ties) / played : 0.5;
+    const winScore = clamp(winPct * 100, 0, 100);
+
     const passingYards = Number(totals?.passing_yards ?? 0);
     const rushingYards = Number(totals?.rushing_yards ?? 0);
     const yardsPerGame = (passingYards + rushingYards) / gp;
@@ -279,13 +139,16 @@ async function computeUserRatingsBase(guildId: string) {
     const normTakeaways = clamp((Number(totals?.opponent_turnovers ?? 0) / gp) / 2, 0, 1);
     const normFirstDowns = clamp((Number(totals?.first_downs ?? 0) / gp) / 22, 0, 1);
     const statScore = clamp(30 * normYards + 20 * normRedZone + 20 * normTurnovers + 15 * normTakeaways + 15 * normFirstDowns, 0, 100);
-    // Cumulative badge mix, averaged per season played so a multi-season career stays on the
-    // same 0-100 scale as the per-game stat component instead of saturating over time.
-    const totalBadgeScore = badgeScoreByUser.get(a.user_id) ?? 0;
-    const seasonsPlayed = Math.max(1, badgeSeasonsByUser.get(a.user_id)?.size ?? 1);
-    const badgeScore = totalBadgeScore / seasonsPlayed;
-    const badgeComponent = clamp(50 + badgeScore * 2, 0, 100);
-    const rating = clamp(0.65 * statScore + 0.35 * badgeComponent, 0, 100);
+
+    // Consistency: coefficient of variation of total yards/game (stddev / mean). A
+    // single game (or no production) can't demonstrate consistency, so it lands at a
+    // neutral midpoint rather than a false "perfectly consistent" 100.
+    const yardsStddev = Number(totals?.total_yards_stddev ?? 0);
+    const consistencyScore = gamesPlayed >= 2 && yardsPerGame > 0
+      ? clamp(100 * (1 - clamp(yardsStddev / yardsPerGame, 0, 1)), 0, 100)
+      : 50;
+
+    const rating = clamp(0.30 * winScore + 0.50 * statScore + 0.20 * consistencyScore, 0, 100);
     return {
       userId: a.user_id,
       displayName: user?.display_name ?? "REC Member",
@@ -294,8 +157,9 @@ async function computeUserRatingsBase(guildId: string) {
       rank: 0,
       rating: round(rating, 1),
       grade: letterGradeForRating(rating),
+      winScore: round(winScore, 1),
       statScore: round(statScore, 1),
-      badgeScore: round(badgeScore, 1),
+      consistencyScore: round(consistencyScore, 1),
     };
   });
 

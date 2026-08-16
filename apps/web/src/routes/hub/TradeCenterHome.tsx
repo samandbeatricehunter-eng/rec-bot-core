@@ -628,6 +628,146 @@ function TradeVotePanel({ guildId, tradeId, isHeadCommissioner, busy, onChanged 
   );
 }
 
+const TRADE_TARGET_POSITIONS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "LOLB", "MLB", "ROLB", "CB", "FS", "SS", "K", "P"];
+
+/** Third Trade Center tab, between Trade Block and Trade Builder. Set a position + attribute
+ * floors, search the league's other rosters for matches, then ask the trade evaluator to
+ * generate a few realistic offer packages (need-aware in both directions — see
+ * trade-targets.service.ts) built from the user's own roster/picks. "Propose This Trade"
+ * hands the pick straight to the Trade Builder instead of making the user rebuild it by hand. */
+function TradeTargetsPanel({ guildId, onProposeSuggested }: {
+  guildId: string;
+  onProposeSuggested: (opponentTeamId: string, offeredLegs: TradeLegInput[], requestedLegs: TradeLegInput[]) => void;
+}) {
+  const [position, setPosition] = useState("QB");
+  const [filters, setFilters] = useState<Array<{ id: string; code: string; min: number }>>([]);
+  const [draftKey, setDraftKey] = useState(ATTRIBUTE_ALL_KEYS[0]!);
+  const [draftMin, setDraftMin] = useState(80);
+  const [results, setResults] = useState<import("../../types/api.js").TradeTargetPlayer[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [openTargetId, setOpenTargetId] = useState<string | null>(null);
+  const [offers, setOffers] = useState<import("../../types/api.js").TradeTargetOffersResponse | null>(null);
+  const [offersLoading, setOffersLoading] = useState(false);
+
+  function addFilter() {
+    if (filters.some((f) => f.code === draftKey)) return;
+    setFilters((current) => [...current, { id: crypto.randomUUID(), code: draftKey, min: draftMin }]);
+  }
+
+  async function search() {
+    setSearching(true); setError(null); setResults(null); setOpenTargetId(null); setOffers(null);
+    try {
+      const res = await recApi.searchTradeTargets({ guildId, position, filters: filters.map((f) => ({ code: f.code, min: f.min })) });
+      setResults(res.players);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to search Trade Targets.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function findOffers(playerId: string) {
+    setOpenTargetId(playerId); setOffers(null); setOffersLoading(true); setError(null);
+    try {
+      const res = await recApi.suggestTradeOffers({ guildId, targetPlayerId: playerId });
+      setOffers(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate offers.");
+    } finally {
+      setOffersLoading(false);
+    }
+  }
+
+  return (
+    <section className="hub-trade-targets">
+      <p className="form-hint">Set a position and attribute floors to scout the league's rosters, then get a few realistic offer packages built from your own team.</p>
+
+      <div className="hub-trade-targets-filters">
+        <label className="form-field">
+          <span className="form-label">Position</span>
+          <select className="form-input" value={position} onChange={(event) => setPosition(event.target.value)}>
+            {TRADE_TARGET_POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+          </select>
+        </label>
+        <div className="hub-trade-targets-attr-picker">
+          <select className="form-input" value={draftKey} onChange={(event) => setDraftKey(event.target.value)}>
+            {ATTRIBUTE_ALL_KEYS.map((key) => <option key={key} value={key}>{attributeLabel(key)} — {attributeFullName(key)}</option>)}
+          </select>
+          <input className="form-input" type="number" min={0} max={99} value={draftMin} onChange={(event) => setDraftMin(Math.max(0, Math.min(99, Number(event.target.value) || 0)))} />
+          <Button variant="secondary" size="compact" onClick={addFilter}>Add Filter</Button>
+        </div>
+        {filters.length > 0 && (
+          <div className="hub-trade-targets-attr-chips">
+            {filters.map((f) => (
+              <span key={f.id} className="hub-trade-targets-attr-chip">
+                {attributeLabel(f.code)} ≥ {f.min}
+                <button type="button" aria-label={`Remove ${attributeLabel(f.code)} filter`} onClick={() => setFilters((current) => current.filter((x) => x.id !== f.id))}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+        <Button variant="primary" disabled={searching} onClick={() => void search()}>{searching ? "Searching…" : "Search"}</Button>
+      </div>
+
+      {error && <p className="hub-error">{error}</p>}
+
+      {results && (
+        results.length === 0 ? <p className="hub-empty">No players at this position clear those filters.</p> : (
+          <div className="hub-trade-targets-results">
+            {results.map((player) => (
+              <div key={player.id} className="hub-trade-targets-result">
+                <div className="hub-trade-targets-result-info">
+                  <strong>{player.fullName}</strong>
+                  <span>{player.position} · {player.teamName}{player.overallRating != null ? ` · ${player.overallRating} OVR` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</span>
+                  {player.attributes.length > 0 && (
+                    <span className="hub-trade-targets-result-attrs">{player.attributes.map((a) => `${attributeLabel(a.code)} ${a.value}`).join(" · ")}</span>
+                  )}
+                </div>
+                <Button variant="secondary" size="compact" disabled={offersLoading && openTargetId === player.id} onClick={() => void findOffers(player.id)}>
+                  {offersLoading && openTargetId === player.id ? "Thinking…" : "Find Offers"}
+                </Button>
+
+                {openTargetId === player.id && offers && (
+                  offers.noRealisticOffer ? (
+                    <p className="hub-empty">Nothing on your roster makes a realistic offer for this player right now.</p>
+                  ) : (
+                    <div className="hub-trade-targets-offers">
+                      {offers.offers.map((offer) => (
+                        <div key={offer.label} className="hub-trade-targets-offer">
+                          <div className="hub-trade-targets-offer-header">
+                            <strong>{offer.label}</strong>
+                            <span className={`hub-trade-evaluator-badge hub-trade-evaluator-badge-${offer.verdict === "balanced" ? "fair" : "lean"}`}>
+                              {offer.verdict === "balanced" ? "Fair" : offer.verdict === "favors_receiving" ? "Generous" : "Favors You"}
+                            </span>
+                          </div>
+                          <p className="hub-trade-targets-offer-legs">
+                            You send: {offer.legs.map((leg) => leg.type === "player" ? "a player" : "a pick").join(" + ")} ({offer.iGive} pts) for {player.fullName} ({offer.iGet} pts)
+                          </p>
+                          <Button
+                            variant="primary" size="compact"
+                            onClick={() => onProposeSuggested(
+                              offers.otherTeamId,
+                              offer.legs,
+                              [{ type: "player", playerId: player.id }],
+                            )}
+                          >
+                            Propose This Trade
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </section>
+  );
+}
+
 export function TradeCenterHome() {
   const { guildId } = useReadyAuth();
   const hub = useHubChrome();
@@ -648,7 +788,7 @@ export function TradeCenterHome() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"block" | "builder">("block");
+  const [viewMode, setViewMode] = useState<"block" | "targets" | "builder">("block");
 
   function loadCore() {
     recApi.getTeamRoster({ guildId }).then(setMyRoster).catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
@@ -778,8 +918,21 @@ export function TradeCenterHome() {
 
       <div className="hub-trade-view-switch">
         <button type="button" className={viewMode === "block" ? "active" : ""} onClick={() => setViewMode("block")}>Trade Block</button>
+        <button type="button" className={viewMode === "targets" ? "active" : ""} onClick={() => setViewMode("targets")}>Trade Targets</button>
         <button type="button" className={viewMode === "builder" ? "active" : ""} onClick={() => setViewMode("builder")}>Trade Builder</button>
       </div>
+
+      {viewMode === "targets" && (
+        <TradeTargetsPanel
+          guildId={guildId}
+          onProposeSuggested={(nextOpponentTeamId, nextOffered, nextRequested) => {
+            setOpponentTeamId(nextOpponentTeamId);
+            setOfferedLegs(nextOffered);
+            setRequestedLegs(nextRequested);
+            setViewMode("builder");
+          }}
+        />
+      )}
 
       {viewMode === "block" && (<>
         <CollapsibleSection title="Pending Offers" count={pendingReceived.length + pendingSent.length} flash={pendingReceived.length > 0}>

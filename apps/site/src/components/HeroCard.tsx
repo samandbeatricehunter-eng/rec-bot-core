@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { badgeAsset, badgeTooltip, type SiteBadge } from "../lib/badge-display.js";
 import { siteApi, type PowerRankPosition, type SiteHomeCard } from "../lib/site-api.js";
 
-type HeroTab = "profile" | "stats" | "badges";
+type HeroTab = "profile" | "stats";
 
 type CareerGame = {
   game: string;
@@ -44,8 +43,6 @@ export function HeroCard({
   const [tab, setTab] = useState<HeroTab>("profile");
   const [careerGames, setCareerGames] = useState<CareerGame[] | null>(null);
   const [gamesLoading, setGamesLoading] = useState(false);
-  const [badges, setBadges] = useState<SiteBadge[] | null>(null);
-  const [badgesLoading, setBadgesLoading] = useState(false);
 
   function openTab(next: HeroTab) {
     setTab(next);
@@ -56,14 +53,6 @@ export function HeroCard({
         .then((res) => setCareerGames(res.games))
         .catch(() => setCareerGames([]))
         .finally(() => setGamesLoading(false));
-    }
-    if (next === "badges" && badges === null && !badgesLoading) {
-      setBadgesLoading(true);
-      siteApi
-        .listMyBadges()
-        .then((res) => setBadges(res.badges))
-        .catch(() => setBadges([]))
-        .finally(() => setBadgesLoading(false));
     }
   }
 
@@ -77,9 +66,6 @@ export function HeroCard({
         </button>
         <button type="button" role="tab" aria-selected={tab === "stats"} className={tab === "stats" ? "is-active" : ""} onClick={() => openTab("stats")}>
           My Stats
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "badges"} className={tab === "badges" ? "is-active" : ""} onClick={() => openTab("badges")}>
-          My Badges
         </button>
       </div>
 
@@ -131,10 +117,6 @@ export function HeroCard({
               <strong>{perf ? (perf.pointDifferential > 0 ? `+${perf.pointDifferential}` : perf.pointDifferential) : "0"}</strong>
             </article>
             <article>
-              <span>Badges earned</span>
-              <strong>{card?.badgeCount ?? 0}</strong>
-            </article>
-            <article>
               <span>Career awards won</span>
               <strong>{card?.careerAwardsWon ?? 0}</strong>
             </article>
@@ -150,12 +132,6 @@ export function HeroCard({
               <strong>{formatMemberSince(card?.memberSince ?? null)}</strong>
             </article>
           </div>
-          {card?.recentBadge ? (
-            <p className="site-muted site-hero-recent-badge">
-              Most recent badge: <strong>{card.recentBadge.label}</strong>
-              {card.recentBadge.tier ? ` (${card.recentBadge.tier})` : ""}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -183,33 +159,6 @@ export function HeroCard({
             </div>
           ) : (
             <p className="site-muted">No box-score career stats logged yet.</p>
-          )}
-        </div>
-      ) : null}
-
-      {tab === "badges" ? (
-        <div className="site-home-hero-copy">
-          {badgesLoading ? (
-            <p className="site-muted">Loading badges…</p>
-          ) : badges && badges.length ? (
-            <ul className="site-account-badge-list">
-              {badges.map((badge) => {
-                const label = badge.badge_label ?? badge.badge_key.replaceAll("_", " ");
-                const tip = badgeTooltip(badge);
-                return (
-                  <li
-                    key={badge.badge_key + "-" + badge.badge_scope}
-                    title={tip}
-                    className="site-account-badge-render"
-                    style={{ backgroundImage: `url("${badgeAsset(badge.badge_key, label, badge.tier)}")` }}
-                  >
-                    <span className="sr-only">{label}. {tip}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="site-muted">No badges yet.</p>
           )}
         </div>
       ) : null}

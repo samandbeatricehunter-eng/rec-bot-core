@@ -35,11 +35,11 @@ export function listRankedGames(): Array<{ game: string; label: string; dynastyL
 }
 
 /**
- * v1 composite score, loosely following the 35/20/15/15/10/5 weighting (winning+championships /
- * playoffs / offense / defense / badges / reliability) — built from what's already reliably
- * aggregated globally (rec_global_user_game_records + career badge counts) rather than a full
- * per-stat breakdown. Expect this to get more precise once finer-grained global stat aggregates
- * exist; documented here so the next pass has a clear place to extend rather than guess.
+ * v1 composite score, weighting winning+championships / playoffs / offense / defense /
+ * reliability — built from what's already reliably aggregated globally
+ * (rec_global_user_game_records) rather than a full per-stat breakdown. Expect this to
+ * get more precise once finer-grained global stat aggregates exist; documented here so
+ * the next pass has a clear place to extend rather than guess.
  */
 async function computeDynastyScoresForGame(game: string): Promise<
   Array<{ userId: string; score: number }>
@@ -102,21 +102,12 @@ async function computeDynastyScoresForGame(game: string): Promise<
         join records o on o.user_id = p.opponent_user_id
         group by p.user_id
       ),
-      badge_counts as (
-        select b.user_id, count(distinct b.badge_key)::int as badge_count
-        from rec_badge_ownership b
-        where coalesce(b.game, $1) = $1 and coalesce(b.mode, 'dynasty') = 'dynasty'
-          and b.badge_scope = 'career' and coalesce(b.is_active, true)
-        group by b.user_id
-      )
       select
         r.user_id,
         r.wins, r.losses, r.ties, r.playoff_wins, r.playoff_losses, r.superbowl_wins,
         r.points_for, r.points_against, r.games_played,
-        coalesce(bc.badge_count, 0) as badge_count,
         coalesce(oq.opponent_win_pct, 0) as opponent_win_pct
       from records r
-      left join badge_counts bc on bc.user_id = r.user_id
       left join opponent_quality oq on oq.user_id = r.user_id
     `,
     [game],
@@ -139,18 +130,19 @@ async function computeDynastyScoresForGame(game: string): Promise<
     const offenseComponent = Math.min(pointsForPerGame / 35, 1);
     const defenseComponent = 1 - Math.min(pointsAgainstPerGame / 35, 1);
 
-    const badgeComponent = Math.min(Number(row.badge_count) / 20, 1);
     const reliabilityComponent = Math.min(gamesPlayed / 50, 1);
 
+    // Weights renormalized to sum to 100 after removing the badge component
+    // (was 20/10/5/20/15/15/10/5 with badges; badges' 10 points redistributed
+    // proportionally across the remaining seven).
     const score =
-      20 * winPct +
-      10 * Number(row.opponent_win_pct ?? 0) +
-      Math.min(5 * superbowlWins, 5) +
-      20 * playoffWinPct +
-      15 * offenseComponent +
-      15 * defenseComponent +
-      10 * badgeComponent +
-      5 * reliabilityComponent;
+      22.2222 * winPct +
+      11.1111 * Number(row.opponent_win_pct ?? 0) +
+      Math.min(5.5556 * superbowlWins, 5.5556) +
+      22.2222 * playoffWinPct +
+      16.6667 * offenseComponent +
+      16.6667 * defenseComponent +
+      5.5556 * reliabilityComponent;
 
     return { userId: String(row.user_id), score: Math.round(score * 100) / 100 };
   });
@@ -174,28 +166,23 @@ async function computeCompScoresForGame(game: string): Promise<Array<{ userId: s
         from rec_comp_game_stats s join records opp on opp.user_id = s.opponent_user_id
         where s.game = $1 group by s.user_id
       ),
-      badges as (
-        select user_id, count(*)::int as badge_count
-        from rec_badge_ownership
-        where game = $1 and mode = 'comp' and is_active = true
-        group by user_id
-      )
-      select r.*, coalesce(o.oq, 0) as oq, coalesce(b.badge_count, 0) as badge_count
+      select r.*, coalesce(o.oq, 0) as oq
       from records r
       left join opponent_quality o on o.user_id = r.user_id
-      left join badges b on b.user_id = r.user_id
     `,
     [game],
   );
   return result.rows.map((row: any) => {
     const games = Number(row.games) || 1;
     const pd = Math.max(-1, Math.min(1, Number(row.avg_pd ?? 0) / 21));
+    // Weights renormalized to sum to 100 after removing the badge component
+    // (was 40/15/20/15/10 with badges; badges' 10 points redistributed
+    // proportionally across the remaining four).
     const score =
-      40 * (Number(row.wins) / games) +
-      15 * Number(row.oq ?? 0) +
-      20 * ((pd + 1) / 2) +
-      15 * Math.min(games / 25, 1) +
-      10 * Math.min(Number(row.badge_count ?? 0) / 20, 1);
+      44.4444 * (Number(row.wins) / games) +
+      16.6667 * Number(row.oq ?? 0) +
+      22.2222 * ((pd + 1) / 2) +
+      16.6667 * Math.min(games / 25, 1);
     return { userId: String(row.user_id), score: Math.round(score * 100) / 100 };
   });
 }

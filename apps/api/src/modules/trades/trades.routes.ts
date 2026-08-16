@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing, acceptTradeBlockListing } from "./trades.service.js";
+import { searchTradeTargets, suggestTradeOffers } from "./trade-targets.service.js";
 
 const LegSchema = z.union([
   z.object({ type: z.literal("player"), playerId: z.string().uuid() }),
@@ -169,6 +170,27 @@ export async function tradesRoutes(app: FastifyInstance) {
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await getTradeFairnessPreview(body.guildId, body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/targets/search", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), position: z.string().min(1),
+        filters: z.array(z.object({ code: z.string().min(1), min: z.number().int().min(0).max(99) })).max(10).default([]),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Trade Targets is website-only.");
+      return reply.send(await searchTradeTargets(body.guildId, auth.discordId, { position: body.position, filters: body.filters }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/trades/targets/suggest-offers", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), targetPlayerId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Trade Targets is website-only.");
+      return reply.send(await suggestTradeOffers(body.guildId, auth.discordId, body.targetPlayerId));
     } catch (error) { return sendError(reply, error); }
   });
 

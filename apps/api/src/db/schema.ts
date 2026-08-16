@@ -2268,7 +2268,6 @@ export const recGameProfiles = pgTable("rec_game_profiles", {
   won: boolean("won"),
   margin: integer("margin"),
   storyAngles: jsonb("story_angles").$type<Record<string, unknown> | null>(),
-  qualifiedBadges: jsonb("qualified_badges").$type<Record<string, unknown> | null>(),
   profile: jsonb("profile").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
@@ -2357,39 +2356,6 @@ export const recGameReactions = pgTable("rec_game_reactions", {
     .where(sql`${table.reactionKey} in ('love', 'like', 'dislike', 'poop')`),
 }));
 
-export const recBadgeOwnership = pgTable("rec_badge_ownership", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  userId: uuid("user_id").notNull(),
-  teamId: uuid("team_id"),
-  badgeKey: text("badge_key").notNull(),
-  badgeScope: text("badge_scope").notNull(), // "game" | "season" | "career"
-  polarity: text("polarity").notNull().default("positive"), // "positive" | "negative"
-  tier: text("tier").notNull().default("normal"),
-  season: integer("season"),
-  week: integer("week"),
-  earnedCount: integer("earned_count").notNull().default(1),
-  lastEarnedWeek: integer("last_earned_week"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recBadgeEvents = pgTable("rec_badge_events", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  userId: uuid("user_id").notNull(),
-  teamId: uuid("team_id"),
-  badgeKey: text("badge_key").notNull(),
-  badgeScope: text("badge_scope").notNull(),
-  tier: text("tier"),
-  season: integer("season"),
-  week: integer("week"),
-  gameId: uuid("game_id"),
-  reason: text("reason"),
-  statsSnapshot: jsonb("stats_snapshot").$type<Record<string, unknown> | null>(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 // ============================================================================
 // Weekly score reviews / advance DM runs / trophies / championship credits
 // ============================================================================
@@ -2416,7 +2382,6 @@ export const recAdvanceDmRuns = pgTable("rec_advance_dm_runs", {
   toWeek: integer("to_week").notNull(),
   advancedByDiscordId: text("advanced_by_discord_id"),
   advancedAt: timestamp("advanced_at", { withTimezone: true, mode: "string" }).notNull(),
-  badgeState: jsonb("badge_state").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
@@ -2508,8 +2473,6 @@ export type RecHighlightPayoutReview = typeof recHighlightPayoutReviews.$inferSe
 export type RecPowerRankingSnapshot = typeof recPowerRankingSnapshots.$inferSelect;
 export type RecGameProfile = typeof recGameProfiles.$inferSelect;
 export type RecGameStory = typeof recGameStories.$inferSelect;
-export type RecBadgeOwnership = typeof recBadgeOwnership.$inferSelect;
-export type RecBadgeEvent = typeof recBadgeEvents.$inferSelect;
 export type RecWeeklyScoreReview = typeof recWeeklyScoreReviews.$inferSelect;
 export type RecAdvanceDmRun = typeof recAdvanceDmRuns.$inferSelect;
 export type RecManualChampionshipCredit = typeof recManualChampionshipCredits.$inferSelect;

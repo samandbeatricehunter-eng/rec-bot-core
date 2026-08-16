@@ -14,7 +14,7 @@ import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
-import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
+import { computeUserRatings } from "../league-week/ratings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
@@ -493,7 +493,7 @@ export async function getHub(guildId: string, discordId: string) {
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
 
-  const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, coachRatings, userRatings, storeConfig] = await Promise.all([
+  const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, userRatings, storeConfig] = await Promise.all([
     // 60 covers a full season's worth of weekly announcements (even with several posts some
     // weeks) so the hub carousel's week-by-week paging has real history to page back through.
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("published_at", { ascending: false }).limit(60),
@@ -506,7 +506,6 @@ export async function getHub(guildId: string, discordId: string) {
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
     bestEffort("hub.power_rankings", () => computePowerRankings(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.league_sos", () => computeLeagueSos(guildId, discordId), { guildId }).then((v) => v ?? null),
-    bestEffort("hub.coach_ratings", () => computeCoachRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.user_ratings", () => computeUserRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
     // Independent of every other item in this batch — used only after everything below, but
     // has zero dependency on any of it, so it belongs here instead of a separate round trip.
@@ -684,7 +683,6 @@ export async function getHub(guildId: string, discordId: string) {
     }) },
     powerRankings,
     sos,
-    coachRatings,
     userRatings,
     liveStreams: (currentStreamLogs.data ?? []).map((stream: any) => {
       const streamRows = (streamReactions.data ?? []).filter((reaction: any) => reaction.stream_log_id === stream.id);

@@ -89,7 +89,7 @@ export async function handleManualScoresOpen(interaction: ButtonInteraction) {
         "",
         "Pick the winner (or Tie). If you know the final score, the follow-up prompt lets you enter it for full accuracy — leave it blank to record just the W/L/T.",
         "",
-        "These results update **display records only** (power rankings / standings). They won't count toward stat-based EOS awards or badges — only full box scores populate those. Games that already have a box score submission can't be overridden here.",
+        "These results update **display records only** (power rankings / standings). They won't count toward stat-based EOS awards — only full box scores populate those. Games that already have a box score submission can't be overridden here.",
       ].join("\n"))],
     components: buildWeekRows(currentWeek, game),
   });

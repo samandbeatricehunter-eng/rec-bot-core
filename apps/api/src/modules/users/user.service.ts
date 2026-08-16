@@ -1,4 +1,4 @@
-import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
+﻿import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
@@ -10,8 +10,6 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
-import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
-import { CAREER_BADGES, GAME_BADGES, ladderLabelForTier, SEASON_BADGES, tierForOccurrenceCount, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -22,101 +20,88 @@ import {
   resolveTeamSubtitle,
 } from "./user-profile-stats.service.js";
 
-const ALL_BADGE_DEFS = [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES];
-const BADGE_LABELS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.label]));
-const BADGE_DESCRIPTIONS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.description]));
 const CFB_27_ONLY = ["cfb_27"];
 
+// Badges were removed app-wide; the identity inference below now scores purely on tracked
+// stats (each group's old `badges` set â€” used to match earned badge keys â€” is gone, since
+// there's nothing left to match against).
 const IDENTITY_GROUPS = [
   {
     key: "ground_game",
     label: "Ground-and-Pound Operator",
     summary: "Leans on the run game and repeated rushing-control achievements.",
-    badges: new Set(["ground_and_pound", "run_heavy", "ground_commander", "ground_and_pound_veteran", "option_identity", "option_program"]),
     statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 110, 190, 26) + scoreAbove(rushShare(s), 0.38, 0.55, 16) + scoreAbove(s?.firstDownsAvg, 20, 27, 10),
   },
   {
     key: "air_game",
     label: "Air Raid Merchant",
     summary: "Creates identity through passing volume, explosive air production, and pass-heavy badge history.",
-    badges: new Set(["air_raid", "pass_heavy", "air_commander", "air_raid_veteran", "air_raid_program"]),
     statScore: (s: any) => scoreAbove(s?.passingYardsAvg, 260, 380, 28) + scoreAbove(passShare(s), 0.62, 0.78, 18),
   },
   {
     key: "shootout",
     label: "Shootout Specialist",
     summary: "Regularly plays in high-scoring games and wins with offensive pressure.",
-    badges: new Set(["shootout_winner", "offensive_explosion", "offensive_standard", "shootout_veteran", "shootout_legend", "track_meet"]),
     statScore: (s: any) => scoreAbove(s?.pointsForAvg, 31, 44, 25) + scoreAbove(s?.highScoringRate, 35, 75, 18) + scoreAbove(s?.offensiveYardsAvg, 390, 500, 12),
   },
   {
     key: "balanced",
     label: "Balanced Problem",
     summary: "Builds production through a balanced passing and rushing profile.",
-    badges: new Set(["balanced_attack", "balanced_season", "balanced_identity"]),
     statScore: (s: any) => scoreAbove(Math.min(s?.passingYardsAvg ?? 0, (s?.rushingYardsAvg ?? 0) * 1.9), 210, 310, 18) + scoreBetween(passShare(s), 0.5, 0.68, 18),
   },
   {
     key: "efficiency",
     label: "Efficiency Manager",
     summary: "Protects possessions, finishes drives, and wins through clean execution.",
-    badges: new Set(["ball_security", "perfect_red_zone", "red_zone_efficient", "red_zone_master", "ball_control_season", "ball_security_veteran", "ball_security_legend"]),
     statScore: (s: any) => scoreBelow(s?.turnoversCommittedAvg, 1.2, 0.2, 22) + scoreAbove(s?.redZoneOffPct, 72, 92, 16) + scoreAbove(s?.turnoverDifferentialAvg, 0.4, 1.8, 12),
   },
   {
     key: "defense",
     label: "Defensive Closer",
     summary: "Wins with defensive pressure, red-zone resistance, and low points allowed.",
-    badges: new Set(["defensive_grind", "red_zone_wall", "red_zone_defense", "defensive_standard", "opportunistic", "takeaway_season", "red_zone_wall_career", "opportunist", "student_section_stand", "turnover_chain", "campus_fortress"]),
     statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 22, 12, 24) + scoreBelow(s?.redZoneDefPct, 55, 35, 14) + scoreAbove(s?.turnoversGeneratedAvg, 1.2, 3, 14),
   },
   {
     key: "situational",
     label: "Situational Gambler",
     summary: "Shows up in fourth-down, close-game, and volatile matchup achievements.",
-    badges: new Set(["fourth_down_gambler", "fourth_down_menace", "two_point_specialist", "two_point_identity", "close_escape", "turnover_survivor", "bend_dont_break"]),
     statScore: (s: any) => scoreAbove(s?.fourthDownConversionsAvg, 1.1, 3, 20) + scoreAbove(s?.closeGameRate, 35, 75, 12) + scoreAbove(s?.twoPointConversionsAvg, 0.2, 0.8, 4),
   },
   {
     key: "clock_control",
     label: "Clock Controller",
     summary: "Controls games through rushing volume, chains, and low-mistake possession football.",
-    badges: new Set(["chain_mover", "drive_extender", "nickel_and_dime", "ball_security", "ground_and_pound", "chain_king", "drive_sustainer"]),
     statScore: (s: any) => scoreAbove(s?.firstDownsAvg, 21, 29, 24) + scoreAbove(s?.rushingYardsAvg, 100, 175, 14) + scoreBelow(s?.turnoversCommittedAvg, 1.4, 0.4, 10),
   },
   {
     key: "chaos",
     label: "Chaos Coach",
     summary: "Creates noisy, swing-heavy games through turnovers, explosive scoring, and volatile results.",
-    badges: new Set(["turnover_trouble", "turnover_survivor", "opportunistic", "empty_yards", "heartbreaker", "shootout_winner", "campus_chaos", "track_meet"]),
     statScore: (s: any) => scoreAbove((s?.turnoversCommittedAvg ?? 0) + (s?.turnoversGeneratedAvg ?? 0), 3, 5.5, 22) + scoreAbove(s?.highScoringRate, 35, 75, 12) + scoreAbove(s?.closeGameRate, 35, 75, 8),
   },
   {
     key: "red_zone",
     label: "Red Zone Technician",
     summary: "Turns drives into points through red-zone execution and efficient finishing.",
-    badges: new Set(["perfect_red_zone", "red_zone_efficient", "red_zone_master", "offensive_standard"]),
     statScore: (s: any) => scoreAbove(s?.redZoneOffPct, 76, 96, 24) + scoreAbove(s?.pointsForAvg, 27, 39, 12),
   },
   {
     key: "field_position",
     label: "Field Position Thief",
     summary: "Steals hidden yards through return production and short-field pressure.",
-    badges: new Set(["return_game_edge", "hidden_yardage", "return_threat", "special_teams_spark"]),
     statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 90, 170, 24),
   },
   {
     key: "bend_dont_break",
     label: "Bend-Don't-Break Defender",
     summary: "Can allow movement between the 20s but tightens up in scoring situations.",
-    badges: new Set(["bend_dont_break", "red_zone_wall", "defensive_grind", "red_zone_defense"]),
     statScore: (s: any) => scoreAbove(s?.yardsAllowedAvg, 340, 450, 8) + scoreBelow(s?.pointsAgainstAvg, 24, 16, 16) + scoreBelow(s?.redZoneDefPct, 52, 34, 14),
   },
   {
     key: "grinder",
     label: "Grinder",
     summary: "Lives in lower-scoring, close-margin games where every possession matters.",
-    badges: new Set(["close_escape", "heartbreaker", "defensive_grind", "ground_and_pound", "ball_security"]),
     statScore: (s: any) => scoreAbove(s?.closeGameRate, 40, 80, 18) + scoreBelow(s?.pointsForAvg, 30, 18, 7) + scoreBelow(s?.pointsAgainstAvg, 24, 15, 10),
   },
   {
@@ -124,7 +109,6 @@ const IDENTITY_GROUPS = [
     label: "Option Program Builder",
     summary: "Builds the offense through heavy rushing volume, option-style yardage splits, and drive control.",
     games: CFB_27_ONLY,
-    badges: new Set(["option_identity", "option_program", "ground_and_pound", "run_heavy", "ground_commander"]),
     statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 150, 260, 30) + scoreAbove(rushShare(s), 0.46, 0.66, 22) + scoreAbove(s?.firstDownsAvg, 19, 28, 8),
   },
   {
@@ -132,7 +116,6 @@ const IDENTITY_GROUPS = [
     label: "Campus Power",
     summary: "Looks like a weekly favorite: big margins, bowl-level wins, and enough season consistency to separate from the pack.",
     games: CFB_27_ONLY,
-    badges: new Set(["bowl_statement", "statement_win", "bowl_eligible", "conference_contender", "perfect_regular_season", "ten_win_club"]),
     statScore: (s: any) => scoreAbove(s?.pointsForAvg - s?.pointsAgainstAvg, 10, 28, 26) + scoreAbove(s?.pointsForAvg, 30, 45, 10) + scoreBelow(s?.pointsAgainstAvg, 24, 14, 10),
   },
   {
@@ -140,7 +123,6 @@ const IDENTITY_GROUPS = [
     label: "Home-Field Hammer",
     summary: "Turns home games into pressure spots, pairing home wins with defensive stands and low-scoring control.",
     games: CFB_27_ONLY,
-    badges: new Set(["home_fortress", "home_fortress_career", "student_section_stand", "campus_fortress"]),
     statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 21, 13, 18) + scoreBelow(s?.redZoneDefPct, 55, 36, 10),
   },
   {
@@ -148,60 +130,9 @@ const IDENTITY_GROUPS = [
     label: "Special Teams Catalyst",
     summary: "Changes field position with return production and forces opponents to defend more than the normal offensive script.",
     games: CFB_27_ONLY,
-    badges: new Set(["special_teams_spark", "return_game_edge", "hidden_yardage", "return_threat"]),
     statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 100, 190, 28),
   },
 ];
-
-const TIER_WEIGHT: Record<string, number> = { normal: 1, bronze: 2, silver: 3, gold: 4, needs_work: 1, warning: 2, serious_problem: 3, shit_show: 4 };
-
-function mapOwnedBadge(row: any) {
-  const badgeKey = row.badge_key ?? row.badge_name ?? "badge";
-  return {
-    ...row,
-    badge_name: badgeKey,
-    badge_label: ladderLabelForTier(badgeKey, row.tier) ?? BADGE_LABELS.get(badgeKey) ?? badgeKey,
-    badge_description: BADGE_DESCRIPTIONS.get(badgeKey) ?? null,
-    earned_value: row.earned_count ?? 1,
-    earned_at: row.updated_at ?? row.created_at ?? null,
-    league_id: row.league_id ?? null,
-    season_number: row.season ?? null,
-  };
-}
-
-function aggregateOwnedBadges(rows: any[], currentLeagueId: string | null, currentSeason: number) {
-  const byKey = new Map<string, any>();
-  for (const source of rows) {
-    const row = mapOwnedBadge(source);
-    const key = String(row.badge_key ?? row.badge_name);
-    const count = Number(row.earned_count ?? row.earned_value ?? 1);
-    const current = byKey.get(key);
-    if (!current) {
-      byKey.set(key, {
-        ...row,
-        earned_count: count,
-        earned_value: count,
-        league_earned_count: row.league_id === currentLeagueId ? count : 0,
-        season_earned_count: row.league_id === currentLeagueId && Number(row.season) === currentSeason ? count : 0,
-        scopes: [row.badge_scope],
-      });
-      continue;
-    }
-    current.earned_count += count;
-    current.earned_value = current.earned_count;
-    if (row.league_id === currentLeagueId) current.league_earned_count += count;
-    if (row.league_id === currentLeagueId && Number(row.season) === currentSeason) current.season_earned_count += count;
-    if (!current.scopes.includes(row.badge_scope)) current.scopes.push(row.badge_scope);
-    if ((TIER_WEIGHT[row.tier] ?? 0) > (TIER_WEIGHT[current.tier] ?? 0)) current.tier = row.tier;
-    if (Number(row.last_earned_week ?? 0) > Number(current.last_earned_week ?? 0)) current.last_earned_week = row.last_earned_week;
-  }
-  return [...byKey.values()].map((badge) => ({
-    ...badge,
-    tier: badge.scopes.includes("game")
-      ? tierForOccurrenceCount(badge.earned_count, badge.polarity === "negative" ? "negative" : "positive")
-      : badge.tier,
-  })).sort((a, b) => String(a.badge_label).localeCompare(String(b.badge_label)));
-}
 
 export async function getUserBaselineByDiscordId(discordId: string) {
   const account = await supabase
@@ -258,8 +189,8 @@ export async function getWalletByDiscordId(discordId: string, guildId?: string) 
 }
 
 // Transfer funds between a user's wallet and savings.
-// direction "to_savings": moves money from wallet → savings.
-// direction "from_savings": moves money from savings → wallet.
+// direction "to_savings": moves money from wallet â†’ savings.
+// direction "from_savings": moves money from savings â†’ wallet.
 export async function transferSavings(discordId: string, amount: number, direction: "to_savings" | "from_savings") {
   if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, "Amount must be a positive number.");
 
@@ -267,7 +198,7 @@ export async function transferSavings(discordId: string, amount: number, directi
   await assertSiteAccountForEconomy(baseline.user.id);
   const amountInt = Math.floor(amount);
 
-  // A single atomic UPDATE with the balance floor baked into the WHERE clause — replaces a
+  // A single atomic UPDATE with the balance floor baked into the WHERE clause â€” replaces a
   // former read-then-absolute-overwrite that could silently erase a concurrent debit landing
   // on the same wallet row (the transfer would "restore" a stale balance, canceling the debit
   // while the user kept whatever it paid for).
@@ -305,10 +236,6 @@ export async function getRecentTransactionsByUserId(userId: string, limit = 25, 
   }
 
   return ledger.data ?? [];
-}
-
-function badgeScore(row: any) {
-  return Math.max(1, Number(row.earned_count ?? 1)) * (TIER_WEIGHT[String(row.tier ?? "normal")] ?? 1);
 }
 
 function clamp01(value: number) {
@@ -451,52 +378,39 @@ function styleSummary(parts: Array<{ key: string; label: string; summary: string
   return `${lead}${detail}`;
 }
 
-function buildIdentityFromSignals(badges: any[], seasonStats: any, game?: string | null) {
-  if (!badges.length && (!seasonStats || seasonStats.gamesLogged === 0)) {
+function buildIdentityFromSignals(seasonStats: any, game?: string | null) {
+  if (!seasonStats || seasonStats.gamesLogged === 0) {
     return {
       identityKey: "unscouted",
       identityLabel: "Unscouted Coach",
-      summary: "Not enough approved box-score badge history has been logged yet.",
+      summary: "Not enough approved box-score history has been logged yet.",
       primary: null,
       secondary: null,
       accent: null,
       confidence: 0,
       scores: {},
-      topBadges: [],
-      evidence: ["No badge history yet."],
+      evidence: ["No game history yet."],
     };
   }
 
   const availableGroups = IDENTITY_GROUPS.filter((group) => !group.games?.length || group.games.includes(String(game ?? "madden_26")));
   const groupScores = availableGroups.map((group) => {
-    const matching = badges.filter((badge) => group.badges.has(String(badge.badge_key)));
-    const badgePoints = matching.reduce((sum, badge) => sum + badgeScore(badge), 0);
-    const statPoints = seasonStats ? group.statScore(seasonStats) : 0;
-    const score = badgePoints + statPoints;
-    return { group, matching, score, badgePoints, statPoints };
+    const score = group.statScore(seasonStats);
+    return { group, score };
   }).sort((a, b) => b.score - a.score);
 
   const best = groupScores[0];
   const fallback = best && best.score > 0 ? null : {
-    key: "badge_collector",
-    label: "Badge Collector",
-    summary: "Has a broad achievement profile without one dominant tendency yet.",
+    key: "developing_style",
+    label: "Developing Style",
+    summary: "Hasn't settled into one dominant tendency yet.",
   };
   const primary = fallback ? fallback : best.group;
   const meaningful = groupScores.filter((entry) => entry.score >= 12);
   const secondary = meaningful[1] && meaningful[1].score >= Math.max(12, meaningful[0].score * 0.7) ? meaningful[1].group : null;
   const accent = meaningful[2] && meaningful[2].score >= Math.max(10, meaningful[0].score * 0.5) ? meaningful[2].group : null;
   const parts = [primary, secondary, accent].filter(Boolean) as Array<{ key: string; label: string; summary: string }>;
-  const evidenceBadges = (best?.matching?.length ? best.matching : badges)
-    .sort((a, b) => badgeScore(b) - badgeScore(a))
-    .slice(0, 3)
-    .map(mapOwnedBadge);
-  const statLines = seasonStats?.gamesLogged ? statEvidence(seasonStats, parts.map((part) => part.key)).slice(0, 4) : [];
-  const badgeLines = evidenceBadges.map((badge) => {
-    const earns = Number(badge.earned_count ?? badge.earned_value ?? 1);
-    const tier = badge.tier && badge.tier !== "normal" ? `${String(badge.tier).toUpperCase()} ` : "";
-    return `${tier}${badge.badge_label}: ${earns} earn${earns === 1 ? "" : "s"}${badge.badge_description ? ` - ${badge.badge_description}` : ""}`;
-  });
+  const statLines = seasonStats?.gamesLogged ? statEvidence(seasonStats, parts.map((part) => part.key)).slice(0, 6) : [];
 
   return {
     identityKey: parts.map((part) => part.key).join("+"),
@@ -506,9 +420,8 @@ function buildIdentityFromSignals(badges: any[], seasonStats: any, game?: string
     secondary: secondary?.key ?? null,
     accent: accent?.key ?? null,
     confidence: Math.min(99, Math.round((meaningful[0]?.score ?? 0) + (secondary ? 8 : 0) + (accent ? 4 : 0))),
-    scores: Object.fromEntries(groupScores.map((entry) => [entry.group.key, { total: entry.score, badges: entry.badgePoints, stats: entry.statPoints }])),
-    topBadges: evidenceBadges,
-    evidence: [...statLines, ...badgeLines].slice(0, 6),
+    scores: Object.fromEntries(groupScores.map((entry) => [entry.group.key, { total: entry.score, stats: entry.score }])),
+    evidence: statLines,
   };
 }
 
@@ -519,21 +432,13 @@ export async function getLeagueUserIdentities(guildId: string) {
   if (!leagueId) return { league: null, identities: [] };
 
   const seasonNumber = Number(league?.season_number ?? league?.display_season_number ?? 1);
-  const [{ data: assignments, error: assignmentError }, { data: badges, error: badgeError }] = await Promise.all([
-    supabase
-      .from("rec_team_assignments")
-      .select("user_id,team_id,user:rec_users(username,display_name,supabase_auth_user_id),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
-      .eq("league_id", leagueId)
-      .eq("assignment_status", "active")
-      .is("ended_at", null),
-    supabase
-      .from("rec_badge_ownership")
-      .select("badge_key,badge_scope,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week,user_id")
-      .eq("league_id", leagueId)
-      .or(`season.eq.${seasonNumber},season.is.null`),
-  ]);
+  const { data: assignments, error: assignmentError } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team_id,user:rec_users(username,display_name,supabase_auth_user_id),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
   if (assignmentError) throw new ApiError(500, "We couldn't load active users. Please try again.", assignmentError);
-  if (badgeError) throw new ApiError(500, "We couldn't load badge identities. Please try again.", badgeError);
 
   const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
   const discordResult = userIds.length
@@ -542,24 +447,12 @@ export async function getLeagueUserIdentities(guildId: string) {
   if (discordResult.error) throw new ApiError(500, "We couldn't load Discord identities. Please try again.", discordResult.error);
   const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
 
-  const badgesByUser = new Map<string, any[]>();
-  for (const badge of badges ?? []) {
-    if (!badge.user_id) continue;
-    const rows = badgesByUser.get(badge.user_id) ?? [];
-    rows.push(badge);
-    badgesByUser.set(badge.user_id, rows);
-  }
-
   const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
     const discordAcc = discordByUser.get(assignment.user_id) ?? null;
     const seasonStats = assignment.user_id
       ? await bestEffort("users.season_box_score_stats", () => loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber), { leagueId, userId: assignment.user_id }) ?? null
       : null;
-    const userBadges = badgesByUser.get(assignment.user_id) ?? [];
-    const identity = buildIdentityFromSignals(userBadges, seasonStats, league?.game);
-    const careerBadges = userBadges
-      .filter((b: any) => b.badge_scope === "career")
-      .map((b: any) => ({ ...b, badgeLabel: BADGE_LABELS.get(b.badge_key) ?? b.badge_key }));
+    const identity = buildIdentityFromSignals(seasonStats, league?.game);
     const isDiscordOnly = !assignment.user?.supabase_auth_user_id;
     return {
       userId: assignment.user_id,
@@ -568,7 +461,6 @@ export async function getLeagueUserIdentities(guildId: string) {
       displayName: assignment.user?.username ?? assignment.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment.team) ?? assignment.team?.name ?? null,
       seasonStats,
-      careerTrophies: careerBadges,
       isDiscordOnly,
       accountKind: isDiscordOnly ? "discord_only" : "site",
       ...identity,
@@ -587,86 +479,9 @@ export async function getLeagueUserIdentities(guildId: string) {
   };
 }
 
-export async function refreshActiveLeagueBadgeBaselines(guildId: string) {
-  const context = await findCurrentLeagueContext(guildId);
-  const leagueId = context?.leagueId ?? null;
-  const league: any = context?.rec_leagues ?? null;
-  if (!leagueId) throw new ApiError(404, "No active league found for this guild.");
-
-  const { data: assignments, error } = await supabase
-    .from("rec_team_assignments")
-    .select("user_id")
-    .eq("league_id", leagueId)
-    .eq("assignment_status", "active")
-    .is("ended_at", null);
-  if (error) throw new ApiError(500, "We couldn't load active users for badge refresh. Please try again.", error);
-
-  const userIds = [...new Set<string>((assignments ?? []).map((row: any) => String(row.user_id)).filter(Boolean))];
-  if (userIds.length) await rebuildOfficialGlobalRecords(userIds);
-  const seasonNumber = Number(league?.season_number ?? league?.display_season_number ?? 1);
-  const badgeResult = await recomputeActiveLeagueBadgeBaselines(leagueId, seasonNumber);
-  return { ok: true, usersUpdated: badgeResult.usersUpdated, leagueId, seasonNumber };
-}
-
-export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: number | null) {
-  const context = await findCurrentLeagueContext(guildId);
-  const leagueId = context?.leagueId ?? null;
-  const league: any = context?.rec_leagues ?? null;
-  if (!leagueId) return { league: null, badges: [] };
-
-  const season = Number(seasonNumber ?? league?.season_number ?? league?.display_season_number ?? 1);
-  // "XF" badges: the old streak-tiering system's top special tier. Repurposed to mean
-  // gold-tier positive game-scope badges (10+ occurrences this season) under the
-  // occurrence-count tiering model — same "call out an exceptional season" intent.
-  const [{ data: rows, error }, { data: assignments }] = await Promise.all([
-    supabase
-      .from("rec_badge_ownership")
-      .select("user_id,team_id,badge_key,tier,earned_count,last_earned_week,updated_at")
-      .eq("league_id", leagueId)
-      .eq("season", season)
-      .eq("badge_scope", "game")
-      .eq("polarity", "positive")
-      .eq("tier", "gold")
-      .order("updated_at", { ascending: false }),
-    supabase
-      .from("rec_team_assignments")
-      .select("user_id,team_id,user:rec_users(username,display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
-      .eq("league_id", leagueId)
-      .eq("assignment_status", "active")
-      .is("ended_at", null),
-  ]);
-  if (error) throw new ApiError(500, "We couldn't load season badges. Please try again.", error);
-
-  const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
-  const discordResult = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
-    : { data: [], error: null };
-  if (discordResult.error) throw new ApiError(500, "We couldn't load Discord identities. Please try again.", discordResult.error);
-  const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
-
-  const activeByUser = new Map<string, any>((assignments ?? []).map((assignment: any) => [assignment.user_id, assignment]));
-  const badges = (rows ?? []).map((row: any) => {
-    const assignment = activeByUser.get(row.user_id);
-    const discordAcc = discordByUser.get(row.user_id) ?? null;
-    return {
-      ...row,
-      badgeLabel: BADGE_LABELS.get(row.badge_key) ?? row.badge_key,
-      badgeDescription: BADGE_DESCRIPTIONS.get(row.badge_key) ?? null,
-      discordId: discordAcc?.discord_id ?? null,
-      displayName: assignment?.user?.username ?? assignment?.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
-      teamName: formatTeamDisplayName(assignment?.team) ?? null,
-    };
-  });
-
-  return {
-    league: { id: leagueId, name: league?.name ?? null, seasonNumber: season },
-    badges,
-  };
-}
-
 // Returns all data needed for the User Snapshots paginated viewer in /menu > Rosters.
-// Aggregates season records, global records, badges, power ranking, SOS, GOTW records,
-// GOTW competition history, and awards won in the given guild.
+// Aggregates season records, global records, power ranking, SOS, GOTW records, GOTW
+// competition history, and awards won in the given guild.
 export async function getUserSnapshot(targetDiscordId: string, guildId: string) {
   const baseline = await getUserBaselineByDiscordId(targetDiscordId);
   const userId = baseline.user.id;
@@ -696,7 +511,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
 
   const [
     seasonRecord,
-    leagueBadges,
     gotwGuessRecord,
     gotwCompetition,
     globalAwardWinners,
@@ -717,15 +531,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
           .eq("user_id", userId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    leagueId
-      ? supabase
-          .from("rec_badge_ownership")
-          .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-          .eq("league_id", leagueId)
-          .eq("user_id", userId)
-          .in("badge_scope", ["game", "season"])
-          .order("updated_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
     leagueId
       ? supabase
@@ -819,8 +624,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     },
     { wins: 0, losses: 0, ties: 0, pointDifferential: 0 },
   );
-  const leagueOwnedBadgeRows = ((leagueBadges as any)?.data ?? []) as any[];
-
   return {
     user: baseline.user,
     discord: baseline.discord,
@@ -839,7 +642,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       pointsAgainst: seasonRecordData.points_against ?? 0,
       text: recordText(seasonRecordData),
       boxScoresUploaded: seasonStats?.boxScoresUploaded ?? 0,
-      activeStreak: seasonStats?.activeStreak ?? "—",
+      activeStreak: seasonStats?.activeStreak ?? "â€”",
     },
     leagueCareerRecord: {
       wins: leagueCareerTotals.wins,
@@ -847,7 +650,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       ties: leagueCareerTotals.ties,
       pointDifferential: leagueCareerTotals.pointDifferential,
       text: recordText(leagueCareerTotals),
-      activeStreak: careerStats?.activeStreak ?? "—",
+      activeStreak: careerStats?.activeStreak ?? "â€”",
     },
     globalRecord: {
       wins: globalRecord.wins ?? 0,
@@ -861,7 +664,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       text: recordText(globalRecord),
       playoffText: playoffText(globalRecord),
       superbowlText: superbowlText(globalRecord),
-      activeStreak: careerStats?.activeStreak ?? "—",
+      activeStreak: careerStats?.activeStreak ?? "â€”",
     },
     gameGlobalRecord: leagueId ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame) : null,
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: sosRow?.sosFullPerGame ?? sosRow?.sosFull ?? null } : null,
@@ -869,10 +672,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
     careerStats,
-    badges: aggregateOwnedBadges(leagueOwnedBadgeRows, leagueId, Number(seasonNumber)),
-    seasonBadges: leagueOwnedBadgeRows.filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
-    weeklyBadges: leagueOwnedBadgeRows.filter((r: any) => r.badge_scope === "game").map(mapOwnedBadge),
-    globalBadges: [],
     globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     leagueAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     financialSummary,
@@ -994,7 +793,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const gamesByWeek = new Map<number, any>();
   for (const game of scheduledGames ?? []) {
     const weekNumber = Number(game.week_number ?? 0);
-    // Include Week 0 (CFB preseason/Game of the Week) and playoff weeks (19–22) too, so the
+    // Include Week 0 (CFB preseason/Game of the Week) and playoff weeks (19â€“22) too, so the
     // current-week matchup resolves outside the regular season. The `games` array below
     // stays regular-season only.
     if (weekNumber >= 0 && weekNumber <= 22) gamesByWeek.set(weekNumber, game);
@@ -1073,7 +872,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   // Current-week matchup, resolved from any week INCLUDING the playoffs (the
   // `games` array above is regular-season only). Consumers like the stream
-  // header need the active matchup even in weeks 19–22.
+  // header need the active matchup even in weeks 19â€“22.
   const currentWeekNum = Number(league.current_week ?? 0);
   const currentGame = gamesByWeek.get(currentWeekNum) ?? null;
   let currentMatchup: any = null;
@@ -1189,23 +988,6 @@ function stageDisplay(stage?: string | null) {
   return String(stage ?? "regular_season").replaceAll("_", " ");
 }
 
-async function loadUserBadges(userId: string, leagueId: string) {
-  try {
-    const result = await supabase
-      .from("rec_badge_ownership")
-      .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-      .eq("league_id", leagueId)
-      .eq("user_id", userId)
-      .order("updated_at", { ascending: false });
-
-    if (result.error) return [];
-    return (result.data ?? []).map(mapOwnedBadge);
-  } catch {
-    // Some environments may not have the badge table yet. Do not break /menu.
-    return [];
-  }
-}
-
 // Current win/loss/tie streak for a user, derived from completed game results (most recent first).
 function streakFromGames(games: any[], userId: string): string {
   const completed = games
@@ -1223,7 +1005,7 @@ function streakFromGames(games: any[], userId: string): string {
     else if (res === type) streak += 1;
     else break;
   }
-  return type && streak > 0 ? `${type}${streak}` : "—";
+  return type && streak > 0 ? `${type}${streak}` : "â€”";
 }
 
 // Projected savings interest on the next advance (matches advance-time SAVINGS_INTEREST_RATE of 3.5%, floored).
@@ -1244,7 +1026,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let currentMatchup = "None";
   let currentGame: any = null;
   let gotwStatus = "No";
-  let badges: any[] = [];
   let youAre = "BYE WEEK";
   let matchupType = "NONE";
   let opponentUserId: string | null = null;
@@ -1297,23 +1078,22 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     membership = membershipResult.data;
     seasonRecord = seasonRecordResult.data;
     displayRecord = displayRecordResult.data ?? null;
-    badges = await loadUserBadges(userId, league.id);
 
     if (assignment?.team_id) {
-      // Preseason has no scheduled slate for anyone — never surface a matchup here even if
+      // Preseason has no scheduled slate for anyone â€” never surface a matchup here even if
       // one was already entered into the schedule builder ahead of time.
       if (isPreseason) {
         currentMatchup = "Preseason (No Games)";
       } else if (!isGameplayStage) {
         // Offseason stages (end of season recap, transfer portal, signing day, etc.) have no
-        // real slate for anyone — never run the games query, since a stale row left over from
+        // real slate for anyone â€” never run the games query, since a stale row left over from
         // the last real gameplay week at this same week_number would otherwise surface as a
         // live-looking opponent.
         currentMatchup = stageDisplay(stage);
       } else {
         // Every season restarts at week_number=1, so without a season_id filter this can match
         // last season's game at the same week number instead of the current one once a league
-        // is on its second (or later) season — the exact bug behind the hero card showing a
+        // is on its second (or later) season â€” the exact bug behind the hero card showing a
         // stale opponent from a prior season.
         const seasonId = await resolveSeasonId(league.id, seasonNumber);
         const games = await leagueWeekGamesQuery(supabase, { leagueId: league.id, seasonId, weekNumber: currentWeek },
@@ -1346,15 +1126,15 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .maybeSingle();
 
           // Drive the label off this specific game's own flags, not the league's overall
-          // stage — during a CFP round, teams not in the bracket are simultaneously playing
+          // stage â€” during a CFP round, teams not in the bracket are simultaneously playing
           // a separately-scheduled bowl game, and a bracket game can itself also carry a bowl
           // name (e.g. a CFP quarterfinal hosted at the Fiesta Bowl). Show whichever apply.
           const postseasonRoundLabel = game.postseason_round ? stageLabel(String(game.postseason_round), currentWeek, league.game) : null;
           const bowlLabel = game.is_bowl_game ? (String(game.bowl_name ?? "").trim() || "Bowl Game") : null;
           if (postseasonRoundLabel || bowlLabel) {
-            gotwStatus = postseasonRoundLabel && bowlLabel ? `${postseasonRoundLabel} · ${bowlLabel}` : (postseasonRoundLabel ?? bowlLabel)!;
+            gotwStatus = postseasonRoundLabel && bowlLabel ? `${postseasonRoundLabel} Â· ${bowlLabel}` : (postseasonRoundLabel ?? bowlLabel)!;
           } else if (isPostseason) {
-            // Postseason week, but this game isn't flagged as a bracket or bowl game —
+            // Postseason week, but this game isn't flagged as a bracket or bowl game â€”
             // fall back to the league's overall stage name rather than showing nothing.
             gotwStatus = stageLabel(stage, currentWeek, league.game);
           } else if (!gotw.error && gotw.data) {
@@ -1362,7 +1142,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           }
         } else if (isGameplayStage) {
           // A real gameplay week (regular season or postseason) with no rec_games row for
-          // this team — distinguish a deliberately-scheduled bye from a matchup the
+          // this team â€” distinguish a deliberately-scheduled bye from a matchup the
           // commissioner just hasn't entered yet.
           const byeCheck = await supabase
             .from("rec_team_byes")
@@ -1397,9 +1177,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     baseline.legacyBaseline?.global_record as Record<string, unknown> | null | undefined,
   );
 
-  // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
+  // GOTW voting record â€” read from the settled aggregate table (populated by settleGotwVotes
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
-  // Discord→user lookup fails at vote-cast time, so the aggregate is more reliable.
+  // Discordâ†’user lookup fails at vote-cast time, so the aggregate is more reliable.
   let gotwVotingRecord: { correct: number; total: number; accuracy: number } | null = null;
   const { data: gotwRecord } = await supabase
     .from("rec_global_gotw_guessing_records")
@@ -1420,10 +1200,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   const projectedInterest = Math.floor(savingsBalance * SAVINGS_INTEREST_RATE);
 
   // User/opponent current streaks and opponent season record.
-  let userStreakText = "—";
-  let opponentRecordText = "—";
+  let userStreakText = "â€”";
+  let opponentRecordText = "â€”";
   let opponentPointDifferential = 0;
-  let opponentStreakText = "—";
+  let opponentStreakText = "â€”";
   if (league?.id) {
     const profileSeason = league.season_number ?? league.display_season_number ?? 1;
     const { data: userGames } = await supabase
@@ -1471,7 +1251,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     currentGame,
     globalRecord,
     gameGlobalRecord,
-    badges,
     gotwVotingRecord,
     display: {
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
@@ -1514,7 +1293,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       opponentStreakText,
       userStreakText,
       gotwH2hRecordText,
-      badges,
       // True when this Discord identity is claimed/linked to a REC Leagues site auth account.
       hasSiteAccount: Boolean(baseline.user?.supabase_auth_user_id),
       isDiscordOnly: !baseline.user?.supabase_auth_user_id,

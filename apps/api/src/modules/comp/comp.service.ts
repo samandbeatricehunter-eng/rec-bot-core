@@ -1,7 +1,7 @@
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { badgesForUser, careerStatsByGameForUser } from "../site-home/site-home.service.js";
+import { careerStatsByGameForUser } from "../site-home/site-home.service.js";
 
 export type CompUserSummary = {
   id: string;
@@ -65,10 +65,7 @@ export async function getUserCompDetail(recUserId: string) {
   if (!profile) throw new ApiError(404, "User not found.");
   if (globalRecordRow.error) throw new ApiError(500, "Failed to load global record.", globalRecordRow.error);
 
-  const [careerStats, badges] = await Promise.all([
-    careerStatsByGameForUser(recUserId),
-    badgesForUser(recUserId),
-  ]);
+  const careerStats = await careerStatsByGameForUser(recUserId);
 
   const globalRecord = globalRecordRow.data ?? {
     wins: 0, losses: 0, ties: 0, playoff_wins: 0, playoff_losses: 0,
@@ -91,6 +88,5 @@ export async function getUserCompDetail(recUserId: string) {
       pointDifferential: Number((globalRecord as any).point_differential ?? 0),
     },
     careerStats: careerStats.games,
-    badges: badges.badges,
   };
 }

@@ -324,8 +324,6 @@ function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
   const seasonRecord = snapshot?.seasonRecord ?? {};
   const seasonStats = snapshot?.seasonStats ?? {};
   const identity = snapshot?.identity ?? snapshot?.currentIdentity ?? display?.identity ?? null;
-  const seasonBadges: any[] = snapshot?.seasonBadges ?? [];
-  const weeklyBadges: any[] = snapshot?.weeklyBadges ?? [];
   const lines = [
     `Coach: <@${requestedDiscordId}>`,
     `Team: **${display.teamName ?? team.name ?? "Unlinked"}**`,
@@ -338,10 +336,6 @@ function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
     `Active streak: **${seasonRecord.activeStreak ?? seasonStats.activeStreak ?? "None"}**`,
     `GOTW voting: **${snapshot?.gotwGuessing ? `${snapshot.gotwGuessing.correct}/${snapshot.gotwGuessing.total} (${snapshot.gotwGuessing.accuracy}%)` : "No votes yet"}**`,
     `GOTW H2H: **${snapshot?.gotwCompetition ? `${snapshot.gotwCompetition.wins}-${snapshot.gotwCompetition.losses}` : "No GOTW games yet"}**`,
-    "",
-    "**Active Badges**",
-    `Weekly: ${weeklyBadges.length ? weeklyBadges.map((badge) => badge.badgeName ?? badge.name ?? "Badge").slice(0, 8).join(", ") : "None"}`,
-    `Season: ${seasonBadges.length ? seasonBadges.map((badge) => badge.badgeName ?? badge.name ?? "Badge").slice(0, 8).join(", ") : "None"}`,
   ];
   return new EmbedBuilder()
     .setTitle(`${display.teamName ?? team.name ?? "Team"} Stats`)

@@ -11,7 +11,8 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
+import { computeUserRatings } from "../league-week/ratings.service.js";
+import { computeLeagueSos } from "../schedule/sos.service.js";
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round = (n: number, p = 1) => { const f = 10 ** p; return Math.round(n * f) / f; };
@@ -32,7 +33,6 @@ export type GotwCandidate = {
 export type ScoreGotwInput = {
   isRivalry: boolean;
   awayUserRating: number | null; homeUserRating: number | null;   // 0-100 (skill)
-  awayCoachRating: number | null; homeCoachRating: number | null; // 0-100 (team strength)
   awaySos: number | null; homeSos: number | null;                 // ~1.0 baseline
   awayRecentForm: number; homeRecentForm: number;                 // 0..1
   repeatCount: number;                                            // 0..2 recent GOTW appearances
@@ -57,15 +57,15 @@ export function scoreGotwMatchup(input: ScoreGotwInput): GotwBreakdown {
     parity = 35 * clamp(1 - Math.abs(input.awayUserRating - input.homeUserRating) / 50, 0, 1);
   }
 
-  // Matchup quality — average COACH (team-strength) rating plus schedule strength faced.
-  // NOTE(v1): strength-of-schedule stands in for "competitiveness vs higher-ranked
-  // opponents this season"; replace the SOS term with explicit quality-wins-vs-higher-rank
-  // once power-ranking history is persisted.
-  const coachAvg = (input.awayCoachRating != null && input.homeCoachRating != null)
-    ? (input.awayCoachRating + input.homeCoachRating) / 2
+  // Matchup quality — average USER rating plus schedule strength faced. NOTE(v1):
+  // strength-of-schedule stands in for "competitiveness vs higher-ranked opponents this
+  // season"; replace the SOS term with explicit quality-wins-vs-higher-rank once
+  // power-ranking history is persisted.
+  const userAvg = (input.awayUserRating != null && input.homeUserRating != null)
+    ? (input.awayUserRating + input.homeUserRating) / 2
     : 50;
   const sosAvg = ((input.awaySos ?? 1) + (input.homeSos ?? 1)) / 2;
-  const quality = clamp(14 * (coachAvg / 100) + 6 * clamp((sosAvg - 1) / 0.5, 0, 1), 0, 20);
+  const quality = clamp(14 * (userAvg / 100) + 6 * clamp((sosAvg - 1) / 0.5, 0, 1), 0, 20);
 
   // Recent form — blend of both teams' recent W/L and scoring margin (0..1 each). NOTE(v1):
   // power-ranking momentum folds in once ranking snapshots are persisted; today the recent
@@ -184,20 +184,18 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   }));
   if (!eligible.length) return [];
 
-  const [coach, users, recentForm, recentTeams] = await Promise.all([
-    bestEffort("gotw.coach_ratings", () => computeCoachRatings(guildId), { guildId }).then((v) => v ?? null),
+  const [sos, users, recentForm, recentTeams] = await Promise.all([
+    bestEffort("gotw.league_sos", () => computeLeagueSos(guildId), { guildId }).then((v) => v ?? null),
     bestEffort("gotw.user_ratings", () => computeUserRatings(guildId), { guildId }).then((v) => v ?? null),
     computeRecentForm(leagueId, seasonNumber, weekNumber),
     recentGotwTeamIds(leagueId, seasonNumber, weekNumber),
   ]);
-  const coachByTeam = new Map((coach?.teams ?? []).map((t: any) => [t.teamId, t]));
+  const sosByTeam = new Map((sos?.teams ?? []).map((t: any) => [t.teamId, t.sosFull]));
   const userRatingById = new Map((users?.users ?? []).map((u: any) => [u.userId, u.rating]));
 
   const candidates: GotwCandidate[] = eligible.map((g) => {
     const rivalry = Array.isArray(g.rivalry) ? g.rivalry[0] : g.rivalry;
     const isRivalry = Boolean(g.rivalry_id) && !g.rivalry_opt_out && (rivalry?.is_active ?? true);
-    const homeCoach: any = coachByTeam.get(g.home_team_id);
-    const awayCoach: any = coachByTeam.get(g.away_team_id);
     let repeatCount = 0;
     if (recentTeams.has(g.home_team_id)) repeatCount++;
     if (recentTeams.has(g.away_team_id)) repeatCount++;
@@ -206,10 +204,8 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
       isRivalry,
       awayUserRating: userRatingById.get(g.away_user_id) ?? null,
       homeUserRating: userRatingById.get(g.home_user_id) ?? null,
-      awayCoachRating: awayCoach?.rating ?? null,
-      homeCoachRating: homeCoach?.rating ?? null,
-      awaySos: awayCoach?.sos ?? null,
-      homeSos: homeCoach?.sos ?? null,
+      awaySos: sosByTeam.get(g.away_team_id) ?? null,
+      homeSos: sosByTeam.get(g.home_team_id) ?? null,
       awayRecentForm: recentForm.get(g.away_team_id) ?? 0.5,
       homeRecentForm: recentForm.get(g.home_team_id) ?? 0.5,
       repeatCount,

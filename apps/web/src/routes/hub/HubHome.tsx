@@ -169,10 +169,10 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
 }
 
-// Shared search + pagination for the four ranking-style lists (Power Rankings, Coach Ratings,
-// User Ratings, SOS) — all four used to hard-truncate to the first 16 entries with no way to
-// reach the rest on a league bigger than that. Self-contained per call site (own query/page
-// state), so four independent instances on the same page don't share state.
+// Shared search + pagination for the ranking-style lists (Power Rankings, User Ratings,
+// SOS) — all three used to hard-truncate to the first 16 entries with no way to reach the
+// rest on a league bigger than that. Self-contained per call site (own query/page state),
+// so multiple independent instances on the same page don't share state.
 function RankingListSearch<T>({
   items,
   getSearchText,
@@ -1238,19 +1238,12 @@ export function HubHome() {
   const heroGotw = my.gotwStatus && !["No", "Not GOTW"].includes(String(my.gotwStatus)) ? String(my.gotwStatus) : "";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
   const heroSchool = my.schoolName ?? profile.schoolName ?? null;
-  const viewerCoach = hub.coachRatings?.teams?.find((team) => team.teamId === hub.coachRatings?.viewerTeamId);
   const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
-  const heroCoachScore = viewerCoach
-    ? (hub.coachRatings?.displayAsGrade
-      ? (viewerCoach.grade ?? "—")
-      : (typeof viewerCoach.rating === "number" ? viewerCoach.rating.toFixed(1) : "—"))
-    : "—";
   const heroUserScore = viewerUser
     ? (hub.userRatings?.displayAsGrade
       ? (viewerUser.grade ?? "—")
       : (typeof viewerUser.rating === "number" ? viewerUser.rating.toFixed(1) : "—"))
     : "—";
-  const heroCoachMeta = viewerCoach ? `#${viewerCoach.rank} · ${viewerCoach.record}` : "Pending";
   const heroUserMeta = viewerUser
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
@@ -1496,11 +1489,6 @@ export function HubHome() {
                     <span>Power Rank</span>
                     <strong>{heroRank}</strong>
                     <small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small>
-                  </div>
-                  <div>
-                    <span>Coach Score</span>
-                    <strong>{heroCoachScore}</strong>
-                    <small>{heroCoachMeta}</small>
                   </div>
                   <div>
                     <span>User Score</span>
@@ -1772,24 +1760,7 @@ export function HubHome() {
                 ) : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
               </SectionFrame>
 
-              <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">
-                {hub.coachRatings?.teams?.length ? (
-                  <div className="hub-coach-ratings">
-                    <RankingListSearch
-                      items={hub.coachRatings.teams}
-                      getSearchText={(team) => team.teamName}
-                      emptyLabel="Coach ratings will appear after the first completed slate."
-                      renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
-                        <strong>#{team.rank}</strong>
-                        <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
-                        <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
-                      </article>}
-                    />
-                  </div>
-                ) : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
-              </SectionFrame>
-
-              <SectionFrame eyebrow="Individual skill, separate from win/loss record" title="User Ratings">
+              <SectionFrame eyebrow="Win/performance signals, production, consistency" title="User Ratings">
                 {hub.userRatings?.users?.length ? (
                   <div className="hub-coach-ratings">
                     <RankingListSearch
@@ -1798,7 +1769,7 @@ export function HubHome() {
                       emptyLabel="User ratings will appear after the first completed slate."
                       renderItem={(user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
                         <strong>#{user.rank}</strong>
-                        <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
+                        <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Win {user.winScore.toFixed(1)} · Stat {user.statScore.toFixed(1)} · Consistency {user.consistencyScore.toFixed(1)}</small></div>
                         <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
                       </article>}
                     />

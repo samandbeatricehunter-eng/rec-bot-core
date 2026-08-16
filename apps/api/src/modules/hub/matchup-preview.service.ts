@@ -2,13 +2,14 @@
 // and a projected score line) for a single game's matchup page. Works for both H2H and
 // human-vs-CPU games: the season aggregation reads rec_game_results directly (every team,
 // human or CPU, has result rows), and human teams are additionally enriched with their
-// Coach Rating / power-rank for display flavor.
+// User Rating for display flavor.
 //
 // Prediction model: each side's standalone strength is a Pythagorean win expectation from
-// season points-for / points-against (blended 50/50 with Coach Rating when the team is a
-// rated human), combined head-to-head with the log5 formula and a small home-field edge.
-// The projected score blends each offense's scoring rate against the other defense's
-// concession rate, then tilts toward the favored side so the line agrees with the odds.
+// season points-for / points-against (blended 50/50 with User Rating when the team is
+// linked to a rated user), combined head-to-head with the log5 formula and a small
+// home-field edge. The projected score blends each offense's scoring rate against the
+// other defense's concession rate, then tilts toward the favored side so the line agrees
+// with the odds.
 import { isCfb } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
@@ -16,7 +17,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { computeCoachRatings } from "../league-week/ratings.service.js";
+import { computeUserRatings } from "../league-week/ratings.service.js";
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round = (n: number, p = 0) => {
@@ -48,9 +49,9 @@ export type MatchupTeamBreakdown = {
   last5: ("W" | "L" | "T")[];
   streak: string;
   winPct: number;
-  coachRating: number | null;
-  coachGrade: string | null;
-  powerRank: number | null;
+  userRating: number | null;
+  userGrade: string | null;
+  userRank: number | null;
 };
 
 export type MatchupPrediction = {
@@ -184,7 +185,7 @@ function buildBreakdown(
   team: any,
   agg: TeamSeasonAgg,
   isHuman: boolean,
-  coach: { rating: number; grade: string; rank: number } | null,
+  user: { rating: number; grade: string; rank: number } | null,
 ): MatchupTeamBreakdown {
   const gamesPlayed = agg.wins + agg.losses + agg.ties;
   const winPct = gamesPlayed > 0 ? (agg.wins + 0.5 * agg.ties) / gamesPlayed : 0;
@@ -213,9 +214,9 @@ function buildBreakdown(
     last5: agg.history.slice(-5).map((h) => h.outcome),
     streak: streakLabel(agg.history),
     winPct: round(winPct, 3),
-    coachRating: coach ? round(coach.rating, 1) : null,
-    coachGrade: coach ? coach.grade : null,
-    powerRank: coach ? coach.rank : null,
+    userRating: user ? round(user.rating, 1) : null,
+    userGrade: user ? user.grade : null,
+    userRank: user ? user.rank : null,
   };
 }
 
@@ -256,32 +257,32 @@ export async function getMatchupPreview(input: {
         ? "human_cpu"
         : "cpu";
 
-  const [aggs, coach] = await Promise.all([
+  const [aggs, userRatings] = await Promise.all([
     aggregateForTeams(leagueId, seasonNumber, [homeTeam.id, awayTeam.id]),
-    bestEffort("matchup_preview.coach_ratings", () => computeCoachRatings(input.guildId), { guildId: input.guildId }).then((v) => v ?? null),
+    bestEffort("matchup_preview.user_ratings", () => computeUserRatings(input.guildId), { guildId: input.guildId }).then((v) => v ?? null),
   ]);
-  const coachByTeam = new Map((coach?.teams ?? []).map((t: any) => [t.teamId, t]));
+  const ratingByUser = new Map((userRatings?.users ?? []).map((u: any) => [u.userId, u]));
   const homeAgg = aggs.get(homeTeam.id) ?? emptyAgg();
   const awayAgg = aggs.get(awayTeam.id) ?? emptyAgg();
 
-  const homeCoach = isHomeHuman ? (coachByTeam.get(homeTeam.id) ?? null) : null;
-  const awayCoach = isAwayHuman ? (coachByTeam.get(awayTeam.id) ?? null) : null;
-  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeCoach);
-  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayCoach);
+  const homeUser = isHomeHuman ? (ratingByUser.get(game.home_user_id) ?? null) : null;
+  const awayUser = isAwayHuman ? (ratingByUser.get(game.away_user_id) ?? null) : null;
+  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeUser);
+  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayUser);
 
   const hasSeasonData = home.gamesPlayed > 0 || away.gamesPlayed > 0;
 
-  // Standalone strength: Pythagorean expectation, blended with Coach Rating for rated humans.
-  const homeStrength = homeCoach
+  // Standalone strength: Pythagorean expectation, blended with User Rating for rated humans.
+  const homeStrength = homeUser
     ? clamp(
-        0.5 * expectedWinRate(homeAgg) + 0.5 * (homeCoach.rating / 100),
+        0.5 * expectedWinRate(homeAgg) + 0.5 * (homeUser.rating / 100),
         0.02,
         0.98,
       )
     : expectedWinRate(homeAgg);
-  const awayStrength = awayCoach
+  const awayStrength = awayUser
     ? clamp(
-        0.5 * expectedWinRate(awayAgg) + 0.5 * (awayCoach.rating / 100),
+        0.5 * expectedWinRate(awayAgg) + 0.5 * (awayUser.rating / 100),
         0.02,
         0.98,
       )

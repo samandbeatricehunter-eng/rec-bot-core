@@ -681,6 +681,27 @@ button.poty:disabled {
 .hub-notice { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); border-radius: var(--radius-md); color: var(--success, #3fbf6f); font-size: var(--text-sm); }
 .hub-error { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, #ff6b6b 40%, var(--border)); border-radius: var(--radius-md); color: #ff8a8a; font-size: var(--text-sm); }
 
+/* ── Trade Targets ───────────────────────────────────────────────────────── */
+.hub-trade-targets { display: flex; flex-direction: column; gap: var(--space-3); }
+.hub-trade-targets-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
+.hub-trade-targets-attr-picker { display: flex; gap: var(--space-2); align-items: center; }
+.hub-trade-targets-attr-picker select { min-width: 220px; }
+.hub-trade-targets-attr-picker input { width: 70px; }
+.hub-trade-targets-attr-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.hub-trade-targets-attr-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid var(--border); font-size: var(--text-xs); color: var(--text-secondary); }
+.hub-trade-targets-attr-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: var(--text-sm); line-height: 1; padding: 0; }
+.hub-trade-targets-attr-chip button:hover { color: #ff8a8a; }
+.hub-trade-targets-results { display: flex; flex-direction: column; gap: var(--space-3); }
+.hub-trade-targets-result { padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: var(--space-2); }
+.hub-trade-targets-result-info { display: flex; flex-direction: column; gap: 2px; }
+.hub-trade-targets-result-info strong { font-size: var(--text-md); }
+.hub-trade-targets-result-info span { font-size: var(--text-sm); color: var(--text-secondary); }
+.hub-trade-targets-result-attrs { color: var(--text-muted) !important; font-size: var(--text-xs) !important; }
+.hub-trade-targets-offers { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.hub-trade-targets-offer { padding: var(--space-3); border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius-md); background: #0b0f14; display: flex; flex-direction: column; gap: var(--space-2); }
+.hub-trade-targets-offer-header { display: flex; align-items: center; justify-content: space-between; }
+.hub-trade-targets-offer-legs { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
+
 /* ── Collapsible trade sections ─────────────────────────────────────────── */
 .hub-trade-collapsible { margin-bottom: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); overflow: hidden; }
 .hub-trade-collapsible-header { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: var(--space-3) var(--space-4); border: none; background: rgba(255,255,255,.04); color: var(--text-primary); font-size: var(--text-md); font-weight: 700; cursor: pointer; text-align: left; }

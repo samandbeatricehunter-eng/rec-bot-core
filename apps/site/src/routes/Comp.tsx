@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { badgeAsset, badgeTooltip } from "../lib/badge-display.js";
 import {
   siteApi,
   type CompUserDetail,
@@ -477,27 +476,6 @@ function UserDetailModal({ userId, onClose }: { userId: string; onClose: () => v
               </div>
             ) : (
               <p className="site-muted">No box-score stats logged yet.</p>
-            )}
-
-            <h3>Badges ({detail.badges.length})</h3>
-            {detail.badges.length ? (
-              <ul className="site-account-badge-list">
-                {detail.badges.map((badge) => {
-                  const label = badge.badge_label ?? badge.badge_key.replaceAll("_", " ");
-                  return (
-                    <li
-                      key={badge.badge_key + "-" + badge.badge_scope}
-                      title={badgeTooltip(badge)}
-                      className="site-account-badge-render"
-                      style={{ backgroundImage: `url("${badgeAsset(badge.badge_key, label, badge.tier)}")` }}
-                    >
-                      <span className="sr-only">{label}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="site-muted">No badges yet.</p>
             )}
           </>
         )}

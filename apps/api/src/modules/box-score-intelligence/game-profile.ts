@@ -6,7 +6,6 @@
 // columns — only the "made" half was read before 2026-07-16.
 
 import { isCfb, isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
-import { qualifyGameBadges, type QualifiedBadge } from "./badge-rules.js";
 import { type GameStats, returnYards } from "./types.js";
 
 /** Subset of rec_team_game_stats consumed by the intelligence engine. */
@@ -214,11 +213,10 @@ export interface GameProfile {
   stoutDefense: boolean; // <=14 points allowed
   redZoneSharp: boolean; // 75%+ red zone offense
   specialTeamsEdge: boolean; // 150+ return yards
-  qualifiedBadges: QualifiedBadge[];
 }
 
 /** Compact tactical labels for rec_game_profiles.profile (tracked stats only). */
-export function computeGameProfile(g: GameStats, game?: string | null): GameProfile {
+export function computeGameProfile(g: GameStats): GameProfile {
   const offensiveIdentity: OffensiveIdentity =
     g.rushingYards - g.passingYards >= 75
       ? "run_heavy"
@@ -236,6 +234,5 @@ export function computeGameProfile(g: GameStats, game?: string | null): GameProf
     stoutDefense: g.pointsAgainst <= 14,
     redZoneSharp: g.redZoneOffensivePct >= 75,
     specialTeamsEdge: returnYards(g) >= 150,
-    qualifiedBadges: qualifyGameBadges(g, game),
   };
 }

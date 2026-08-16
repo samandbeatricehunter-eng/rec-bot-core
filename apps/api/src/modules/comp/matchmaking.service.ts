@@ -467,61 +467,6 @@ async function awardCompCoins(userId: string, amount: number, matchId: string, d
   if (payout.error) throw new ApiError(500, "Failed to issue Comp payout.", payout.error);
 }
 
-async function awardCompMilestoneBadges(userId: string, game: string, matchId: string) {
-  const totals = await getPgPool().query(
-    `select count(*)::int as games, count(*) filter (where won)::int as wins
-     from rec_comp_game_stats where user_id=$1 and game=$2`,
-    [userId, game],
-  );
-  const allGames = await getPgPool().query(
-    `select
-       (select count(*) from rec_comp_game_stats where user_id=$1) +
-       coalesce((select sum(games_played) from rec_global_user_game_records where user_id=$1),0) as games`,
-    [userId],
-  );
-  const games = Number(totals.rows[0]?.games ?? 0);
-  const wins = Number(totals.rows[0]?.wins ?? 0);
-  const lifetimeGames = Number(allGames.rows[0]?.games ?? 0);
-  const candidates = [
-    games >= 1 && ["comp_first_snap", "First Snap", "Complete the first H2H Comp game."],
-    wins >= 1 && ["comp_first_victory", "First Victory", "Earn the first H2H Comp win."],
-    wins >= 10 && ["comp_ten_win_club", "Ten-Win Club", "Reach 10 H2H Comp wins."],
-    wins >= 25 && ["comp_quarter_century", "Quarter Century", "Reach 25 H2H Comp wins."],
-    wins >= 50 && ["comp_fifty_win_club", "Fifty-Win Club", "Reach 50 H2H Comp wins."],
-    wins >= 100 && ["comp_century_club", "Century Club", "Reach 100 H2H Comp wins."],
-    wins >= 200 && ["comp_two_hundred_club", "Two-Hundred Club", "Reach 200 H2H Comp wins."],
-    wins >= 300 && ["comp_three_hundred_club", "Three-Hundred Club", "Reach 300 H2H Comp wins."],
-    wins >= 500 && ["comp_iron_veteran", "Iron Veteran", "Reach 500 H2H Comp wins."],
-    lifetimeGames >= 1000 && ["gridiron_lifer", "Gridiron Lifer", "Complete 1,000 league and Comp games."],
-  ].filter(Boolean) as string[][];
-  let earned = 0;
-  for (const [key, label, description] of candidates) {
-    const inserted = await getPgPool().query(
-      `insert into rec_badge_ownership
-        (league_id,user_id,badge_key,badge_scope,polarity,tier,earned_count,game,mode,
-         is_active,earned_at,definition_version,created_at,updated_at)
-       select null,$1,$2,'career','positive','normal',1,$3,'comp',true,now(),2,now(),now()
-       where not exists (
-         select 1 from rec_badge_ownership
-         where user_id=$1 and badge_key=$2 and game=$3 and mode='comp'
-       )
-       returning id`,
-      [userId, key, game],
-    );
-    if (!inserted.rowCount) continue;
-    earned += 1;
-    await getPgPool().query(
-      `insert into rec_badge_catalog
-        (badge_key,game,mode,scope,category,label,description,sort_order)
-       values($1,$2,'comp','career','competitive milestones',$3,$4,0)
-       on conflict(badge_key,game,mode) do update set label=excluded.label,description=excluded.description`,
-      [key, game, label, description],
-    );
-  }
-  if (earned) await awardCompCoins(userId, earned * 10, matchId, `${earned} H2H Comp badge bonus`);
-  return earned;
-}
-
 async function finishSimpleResult(match: any, winnerUserId: string, loserUserId: string, source: string) {
   await getPgPool().query(
     `insert into rec_comp_game_stats(match_id,user_id,opponent_user_id,game,won,lost,points_for,points_against,stats)
@@ -535,10 +480,6 @@ async function finishSimpleResult(match: any, winnerUserId: string, loserUserId:
     [match.id],
   );
   await awardCompCoins(winnerUserId, 150, match.id, "H2H Comp victory");
-  await Promise.all([
-    awardCompMilestoneBadges(winnerUserId, match.game, match.id),
-    awardCompMilestoneBadges(loserUserId, match.game, match.id),
-  ]);
 }
 
 export async function concedeCompMatch(input: { userId: string; matchId: string }) {
@@ -685,10 +626,6 @@ export async function reviewCompBoxScore(input: {
     if (homeScore !== awayScore) {
       await awardCompCoins(homeScore > awayScore ? homeUser : awayUser, 150, row.match_id, "H2H Comp victory");
     }
-    await Promise.all([
-      awardCompMilestoneBadges(homeUser, row.game, row.match_id),
-      awardCompMilestoneBadges(awayUser, row.game, row.match_id),
-    ]);
     return { approved: true };
   }
   if (input.action === "correct") {

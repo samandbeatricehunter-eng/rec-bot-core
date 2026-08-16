@@ -267,22 +267,16 @@ function pickPrimaryAngle(scores: Record<string, number>): StoryAngle {
   return best;
 }
 
-function buildNotes(ctx: StoryContext, earnedBadgeLabels: string[]): string[] {
+function buildNotes(ctx: StoryContext): string[] {
   const { winner, loser, winnerName, loserName } = ctx;
-  const notes = [
+  return [
     `${winnerName} finished with ${winner.passingYards} passing yards and ${winner.rushingYards} rushing yards.`,
     `${winnerName} converted ${winner.thirdDownConversions} third downs.`,
     `${loserName} committed ${loser.turnoversCommitted} turnovers.`,
   ];
-  if (earnedBadgeLabels.length) notes.push(`${winnerName} earned: ${earnedBadgeLabels.join(", ")}.`);
-  return notes;
 }
 
-/**
- * Build the game story. Pass the winner's earned weekly badge labels to include
- * them in the Key Notes (badge qualification itself lives in badge-rules.ts).
- */
-export function generateGameStory(ctx: StoryContext, earnedBadgeLabels: string[] = []): GameStory {
+export function generateGameStory(ctx: StoryContext): GameStory {
   const angleScores = scoreAngles(ctx.winner, ctx.loser);
   const primaryAngle = pickPrimaryAngle(angleScores);
   const { headline, body } = TEMPLATES[primaryAngle](ctx);
@@ -290,7 +284,7 @@ export function generateGameStory(ctx: StoryContext, earnedBadgeLabels: string[]
     primaryAngle,
     headline,
     body,
-    notes: buildNotes(ctx, earnedBadgeLabels),
+    notes: buildNotes(ctx),
     angleScores,
   };
 }

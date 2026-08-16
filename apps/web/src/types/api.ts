@@ -9,6 +9,21 @@ export type TradeAssetDisplay = {
 };
 export type TradeEvaluatorReport = RecTradeFairnessReport & { proposingAssets: TradeAssetDisplay[]; receivingAssets: TradeAssetDisplay[] };
 
+export type TradeTargetPlayer = {
+  id: string; fullName: string; position: string; overallRating: number | null; devTrait: string | null;
+  teamId: string; teamName: string; attributes: Array<{ code: string; value: number }>;
+};
+export type TradeTargetOffer = {
+  label: string;
+  legs: Array<{ type: "player"; playerId: string } | { type: "pick"; draftPickId: string }>;
+  verdict: "balanced" | "favors_proposing" | "favors_receiving";
+  deltaPct: number; iGive: number; iGet: number;
+};
+export type TradeTargetOffersResponse = {
+  target: { id: string; fullName: string; position: string; overallRating: number | null; teamId: string };
+  myTeamId: string; otherTeamId: string; offers: TradeTargetOffer[]; noRealisticOffer: boolean;
+};
+
 export type ScheduleTeam = {
   id: string;
   name: string;
@@ -523,8 +538,7 @@ export type HubResponse = {
   myTeam: any;
   powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; conference: string | null; isHuman: boolean; rank: number; score: number; prevRank: number | null; change: number | null }> };
   sos: null | { totalTeams: number; viewerTeamId: string | null; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; sosFull: number; sosRemaining: number; humanCount: number; cpuCount: number; oppRecord: number }> };
-  coachRatings: null | { displayAsGrade: boolean; viewerTeamId: string | null; teams: Array<{ teamId: string; teamName: string; abbr: string | null; userId: string | null; rank: number; rating: number; grade: string; record: string; sos: number; madePlayoffs: boolean }> };
-  userRatings: null | { displayAsGrade: boolean; viewerUserId: string | null; users: Array<{ userId: string; displayName: string; teamId: string | null; teamName: string | null; rank: number; rating: number; grade: string; statScore: number; badgeScore: number }> };
+  userRatings: null | { displayAsGrade: boolean; viewerUserId: string | null; users: Array<{ userId: string; displayName: string; teamId: string | null; teamName: string | null; rank: number; rating: number; grade: string; winScore: number; statScore: number; consistencyScore: number }> };
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null; username?: string | null } | null; team: { name: string; abbreviation: string | null } | null; awayTeamName: string | null; homeTeamName: string | null; matchupLabel: "H2H" | "CPU" | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
     id: string; user_id?: string | null; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
@@ -703,9 +717,9 @@ export type MatchupTeamBreakdown = {
   last5: Array<"W" | "L" | "T">;
   streak: string;
   winPct: number;
-  coachRating: number | null;
-  coachGrade: string | null;
-  powerRank: number | null;
+  userRating: number | null;
+  userGrade: string | null;
+  userRank: number | null;
 };
 export type MatchupPreview = {
   gameId: string;

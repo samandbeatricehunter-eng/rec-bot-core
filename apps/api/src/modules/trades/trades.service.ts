@@ -19,13 +19,13 @@ const MAX_LEGS_PER_SIDE = 7;
 
 type LegInput = { type: "player"; playerId: string } | { type: "pick"; draftPickId: string };
 
-async function userIdFromDiscord(discordId: string) {
+export async function userIdFromDiscord(discordId: string) {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
   if (account.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", account.error);
   return account.data?.user_id ?? null;
 }
 
-async function teamForUser(leagueId: string, userId: string) {
+export async function teamForUser(leagueId: string, userId: string) {
   const assignment = await supabase.from("rec_team_assignments").select("team_id")
     .eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).limit(1).maybeSingle();
   if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
@@ -96,7 +96,7 @@ async function validateLegs(leagueId: string, teamId: string, legs: LegInput[]) 
 // (position multipliers and contract/cap fields don't apply to CFB rosters).
 // ---------------------------------------------------------------------------
 
-async function teamPositionNeeds(leagueId: string, teamId: string): Promise<RecTeamPositionNeeds> {
+export async function teamPositionNeeds(leagueId: string, teamId: string): Promise<RecTeamPositionNeeds> {
   const roster = await supabase.from("rec_players").select("position,overall_rating").eq("league_id", leagueId).eq("team_id", teamId).eq("roster_status", "active");
   if (roster.error) throw new ApiError(500, "We couldn't load the roster for trade evaluation. Please try again.", roster.error);
   return computeRecTeamPositionNeeds((roster.data ?? []).map((row: any) => ({ position: row.position, overallRating: row.overall_rating })));

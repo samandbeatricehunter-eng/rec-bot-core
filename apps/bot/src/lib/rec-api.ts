@@ -84,10 +84,6 @@ export const recApi = {
     recFetch<any>(`/v1/guilds/${guildId}/identities`),
   getLeagueCoaches: (guildId: string) =>
     recFetch<any>(`/v1/guilds/${guildId}/coaches`),
-  refreshBadgeBaselines: (guildId: string) =>
-    recFetch<any>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
-  getSeasonXfBadges: (guildId: string, seasonNumber?: number | null) =>
-    recFetch<any>(`/v1/guilds/${guildId}/badges/xf-season${seasonNumber ? `?seasonNumber=${seasonNumber}` : ""}`),
 
   createLeague: (input: LeagueSetupDraft & {
     guildId: string;

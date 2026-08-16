@@ -3,7 +3,6 @@ import { formatCoins } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
-import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 import {
   buildTeamsMenuEmbed,
   buildTeamsMenuRows,
@@ -138,50 +137,6 @@ function buildIdentityNavRows(currentPage: number, totalPages: number) {
   return [row];
 }
 
-function formatBadgeLines(badges: any[]) {
-  if (!badges.length) return "No badges earned yet.";
-  return badges.map((badge) => {
-    const name = badge.badge_label ?? badge.badge_name ?? "Badge";
-    const tier = formatTierEmojiPrefix(badge.tier);
-    const earned = badge.earned_at ? ` - ${new Date(badge.earned_at).toLocaleDateString("en-US")}` : "";
-    const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
-    return `- ${tier}${name}${earned}${desc}`;
-  }).join("\n");
-}
-
-function formatWeeklyBadgeLines(badges: any[]) {
-  if (!badges.length) return "No game badges earned this season.";
-
-  const positive = badges.filter((b) => b.polarity !== "negative").sort((a, b) => (b.earned_count ?? 0) - (a.earned_count ?? 0));
-  const negative = badges.filter((b) => b.polarity === "negative").sort((a, b) => (b.earned_count ?? 0) - (a.earned_count ?? 0));
-
-  const lines: string[] = [];
-
-  if (positive.length) {
-    lines.push("**Game Badges**");
-    for (const badge of positive) {
-      const name = badge.badge_label ?? badge.badge_name ?? "Badge";
-      const tier = formatTierEmojiPrefix(badge.tier);
-      const count = badge.earned_count ?? 1;
-      const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
-      lines.push(`- ${tier}${name} — ${count}x this season${desc}`);
-    }
-  }
-
-  if (negative.length) {
-    if (lines.length) lines.push("");
-    lines.push("**Negative Badges**");
-    for (const badge of negative) {
-      const name = badge.badge_label ?? badge.badge_name ?? "Badge";
-      const count = badge.earned_count ?? 1;
-      const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
-      lines.push(`- ${name} — ${count}x this season${desc}`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
 function formatStatBlock(stats: any, prefix: "Season" | "Career") {
   if (!stats || stats.gamesLogged === 0) {
     return "No box score stats logged yet.";
@@ -241,18 +196,6 @@ function buildIdentityEmbed(payload: any, page: number) {
       ].join(" | ")
     : "No approved season box-score stats logged yet.";
 
-  const trophies: any[] = Array.isArray(identity.careerTrophies) ? identity.careerTrophies : [];
-  const trophyLines = trophies.slice(0, 12).map((t) => {
-    const count = Number(t.seasonsEarned ?? 1);
-    const suffix = count > 1 ? ` ×${count}` : "";
-    const desc = t.description ? ` — ${t.description}` : "";
-    return `${formatTierEmojiPrefix(t.tier)}**${t.label}**${desc}${suffix}`;
-  });
-  if (trophies.length > 12) trophyLines.push(`…and ${trophies.length - 12} more`);
-  const trophyBlock = trophyLines.length
-    ? ["", "**Career Trophies**", trophyLines.join("\n")].join("\n")
-    : null;
-
   const parts = [
     `Coach: **${coach}**`,
     `Team: **${identity.teamName ?? "Unassigned"}**`,
@@ -263,7 +206,6 @@ function buildIdentityEmbed(payload: any, page: number) {
     "**Season Snapshot**",
     statLine,
     evidence ? ["", "**Why This Identity**", evidence].join("\n") : null,
-    trophyBlock,
   ].filter(Boolean).join("\n");
 
   return {
@@ -278,7 +220,7 @@ function buildIdentityEmbed(payload: any, page: number) {
 
 export async function handlePlayerIdentities(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Player Identities...").setDescription("Reading active badge profiles and building scouting identities.")], components: [] });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Player Identities...").setDescription("Reading season performance and building scouting identities.")], components: [] });
   if (!interaction.guildId) return;
 
   const payload = await recApi.getLeagueIdentities(interaction.guildId).catch(() => null);
@@ -361,20 +303,8 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
     .setDescription(formatStatBlock(snapshot.seasonStats, "Season").slice(0, 4096)));
 
   pages.push(new EmbedBuilder()
-    .setTitle(`${coachName} - Weekly Badges`)
-    .setDescription(formatWeeklyBadgeLines(snapshot.weeklyBadges ?? []).slice(0, 4096)));
-
-  pages.push(new EmbedBuilder()
-    .setTitle(`${coachName} - Season Badges`)
-    .setDescription(formatBadgeLines(snapshot.seasonBadges ?? []).slice(0, 4096)));
-
-  pages.push(new EmbedBuilder()
     .setTitle(`${coachName} - Career Stats`)
     .setDescription(formatStatBlock(snapshot.careerStats, "Career").slice(0, 4096)));
-
-  pages.push(new EmbedBuilder()
-    .setTitle(`${coachName} - Global Badges`)
-    .setDescription(formatBadgeLines(snapshot.globalBadges ?? []).slice(0, 4096)));
 
   const awards: any[] = snapshot.globalAwards ?? [];
   pages.push(new EmbedBuilder()
@@ -403,7 +333,7 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
 
 export async function handleSnapshotUserSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Profile...").setDescription("Fetching this coach's record, wallet context, badges, awards, and matchup history.")], components: [] });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Profile...").setDescription("Fetching this coach's record, wallet context, awards, and matchup history.")], components: [] });
   if (!interaction.guildId) return;
   const targetDiscordId = interaction.values[0];
   const snapshot = await recApi.getUserSnapshot(targetDiscordId, interaction.guildId).catch(() => null);

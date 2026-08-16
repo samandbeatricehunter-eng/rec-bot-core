@@ -21,7 +21,6 @@ export type RecGlobalEconomyConfig = {
   submissions: {
     boxScoreWin: number;
     boxScoreLoss: number;
-    badgeBonus: number;
     highlight: number;
     highlightSeasonAward: number;
     gameOfYear: number;
@@ -66,7 +65,6 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
   submissions: {
     boxScoreWin: 100,
     boxScoreLoss: 50,
-    badgeBonus: 10,
     highlight: 25,
     highlightSeasonAward: 500,
     gameOfYear: 250,

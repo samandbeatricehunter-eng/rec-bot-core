@@ -507,6 +507,10 @@ export const recApi = {
     recApiFetch<{ trade: Trade; legs: TradeLeg[] }>("/v1/trades/detail", { method: "POST", body: JSON.stringify(input) }),
   getTradeFairnessPreview: (input: { guildId: string; proposingTeamId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
     recApiFetch<TradeEvaluatorReport>("/v1/trades/fairness-preview", { method: "POST", body: JSON.stringify(input) }),
+  searchTradeTargets: (input: { guildId: string; position: string; filters: Array<{ code: string; min: number }> }) =>
+    recApiFetch<{ players: import("../types/api.js").TradeTargetPlayer[] }>("/v1/trades/targets/search", { method: "POST", body: JSON.stringify(input) }),
+  suggestTradeOffers: (input: { guildId: string; targetPlayerId: string }) =>
+    recApiFetch<import("../types/api.js").TradeTargetOffersResponse>("/v1/trades/targets/suggest-offers", { method: "POST", body: JSON.stringify(input) }),
   getTradeVoteStatus: (input: { guildId: string; tradeId: string }) =>
     recApiFetch<{ status: string; electorCount: number; votedCount: number; approve: number; reject: number; allVoted: boolean }>("/v1/trades/vote-status", { method: "POST", body: JSON.stringify(input) }),
   castTradeVote: (input: { guildId: string; tradeId: string; vote: "approve" | "reject" }) =>
@@ -581,7 +585,6 @@ export const recApi = {
   getTeamLinkMatrix: (guildId: string) => recApiFetch<TeamLinkMatrix>(`/v1/team-ownership/${guildId}/matrix`),
   listOpenTeams: (guildId: string) => recApiFetch<OpenTeamsResponse>(REC_API_ROUTES.openTeams(guildId)),
   listLeagueIdentities: (guildId: string) => recApiFetch<LeagueIdentitiesResponse>(`/v1/guilds/${guildId}/identities`),
-  refreshBadgeBaselines: (guildId: string) => recApiFetch<{ ok: boolean; usersUpdated: number }>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
   getDefenseNicknameStatus: (input: { guildId: string; discordId: string }) =>
     recApiFetch<{ teamId: string; nickname: string | null; needsName: boolean } | null>("/v1/league-week/defense-nickname/status", { method: "POST", body: JSON.stringify(input) }),
   setDefenseNickname: (input: { guildId: string; discordId: string; teamId: string; nickname: string }) =>

@@ -5,11 +5,9 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import {
   getLeagueUserIdentities,
-  getLeagueSeasonXfBadges,
   getUserBaselineByDiscordId,
   getUserMenuProfileByDiscordId,
   getWalletByDiscordId,
-  refreshActiveLeagueBadgeBaselines,
   transferSavings,
   getUserSnapshot,
   getUserScheduleByDiscordId,
@@ -38,8 +36,6 @@ export async function userRoutes(app: FastifyInstance) {
   app.get("/v1/users/:discordId/menu-profile", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = request.query as { guildId: string }; return reply.send(await getUserMenuProfileByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/schedule", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = request.query as { guildId: string }; return reply.send(await getUserScheduleByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/guilds/:guildId/identities", async (request, reply) => { try { await requireBotOrUserSession(request, { resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId, permission: "member" }); const { guildId } = request.params as { guildId: string }; return reply.send(await getLeagueUserIdentities(guildId)); } catch (error) { return sendError(reply, error); }});
-  app.get("/v1/guilds/:guildId/badges/xf-season", async (request, reply) => { try { requireInternalApiKey(request); const { guildId } = request.params as { guildId: string }; const { seasonNumber } = request.query as { seasonNumber?: string }; return reply.send(await getLeagueSeasonXfBadges(guildId, seasonNumber ? Number(seasonNumber) : null)); } catch (error) { return sendError(reply, error); }});
-  app.post("/v1/guilds/:guildId/badges/refresh-baselines", async (request, reply) => { try { requireInternalApiKey(request); const { guildId } = request.params as { guildId: string }; return reply.send(await refreshActiveLeagueBadgeBaselines(guildId)); } catch (error) { return sendError(reply, error); }});
   // Transfer between wallet and savings. direction: "to_savings" | "from_savings", amount: number (positive).
   app.post("/v1/users/:discordId/wallet/transfer", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { amount, direction } = request.body as { amount: number; direction: "to_savings" | "from_savings" }; return reply.send(await transferSavings(discordId, amount, direction)); } catch (error) { return sendError(reply, error); }});
   // Full user snapshot for the Rosters > User Snapshots paginated viewer.

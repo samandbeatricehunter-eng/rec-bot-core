@@ -25,7 +25,7 @@ const PILLARS = [
 
 const GAMES = ["CFB 27", "Madden 26", "Madden 27"];
 
-function PreviewMock({ kind }: { kind: "matchups" | "store" | "badges" }) {
+function PreviewMock({ kind }: { kind: "matchups" | "store" | "rankings" }) {
   if (kind === "matchups") {
     return (
       <div className="site-preview-card" aria-hidden="true">
@@ -48,16 +48,10 @@ function PreviewMock({ kind }: { kind: "matchups" | "store" | "badges" }) {
   }
   return (
     <div className="site-preview-card" aria-hidden="true">
-      <div className="site-preview-card-title">Season Badges</div>
-      <div className="site-preview-badge-row">
-        <span className="site-preview-badge">Winning Season</span>
-        <span className="site-preview-badge">Ball Control</span>
-        <span className="site-preview-badge">Ball Hawk 18+</span>
-      </div>
-      <div className="site-preview-badge-row">
-        <span className="site-preview-badge">Iron Man</span>
-        <span className="site-preview-badge">Comeback Kid</span>
-      </div>
+      <div className="site-preview-card-title">Power Rankings · Week 9</div>
+      <div className="site-preview-row"><span>1. Iron State</span><strong>98.4</strong></div>
+      <div className="site-preview-row"><span>2. Redline A&amp;M</span><strong>95.1</strong></div>
+      <div className="site-preview-row"><span>3. Coastal U</span><strong>91.7</strong></div>
     </div>
   );
 }
@@ -145,12 +139,12 @@ export function Landing() {
       <section className="site-landing-section">
         <h2 className="site-landing-section-title">A look inside a league</h2>
         <p className="site-muted site-landing-preview-note">
-          Illustrative previews of the in-league hub — matchups, the store, and season badges.
+          Illustrative previews of the in-league hub — matchups, the store, and power rankings.
         </p>
         <div className="site-landing-preview-grid">
           <PreviewMock kind="matchups" />
           <PreviewMock kind="store" />
-          <PreviewMock kind="badges" />
+          <PreviewMock kind="rankings" />
         </div>
       </section>
 
