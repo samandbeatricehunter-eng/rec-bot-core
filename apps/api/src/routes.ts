@@ -46,6 +46,7 @@ import { cfbBaselineRoutes } from "./modules/cfb-baseline/cfb-baseline.routes.js
 import { maddenCompanionRoutes } from "./modules/madden-companion/madden-companion.routes.js";
 import { maddenEaRoutes } from "./modules/madden-ea/madden-ea.routes.js";
 import { leagueStatsRoutes } from "./modules/league-stats/league-stats.routes.js";
+import { leagueRecordsRoutes } from "./modules/league-records/league-records.routes.js";
 import { submissionStateRoutes } from "./modules/submission-state/submission-state.routes.js";
 import { siteAuthRoutes } from "./modules/site-auth/site-auth.routes.js";
 import { subscriptionRoutes } from "./modules/subscriptions/subscriptions.routes.js";
@@ -110,6 +111,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await maddenCompanionRoutes(app);
   await maddenEaRoutes(app);
   await leagueStatsRoutes(app);
+  await leagueRecordsRoutes(app);
   await submissionStateRoutes(app);
   await siteAuthRoutes(app);
   await subscriptionRoutes(app);

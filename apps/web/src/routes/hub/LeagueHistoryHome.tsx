@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LeagueHistoryResponse, LeagueHistorySeason } from "../../types/api.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Card } from "../../components/ui/Card.js";
+import { Button } from "../../components/ui/Button.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 function isCfbGame(game: string | null) {
   return (game ?? "").startsWith("cfb");
@@ -169,6 +172,7 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
 
 export function LeagueHistoryHome() {
   const { guildId } = useReadyAuth();
+  const { currentLeague } = useHubChrome();
   const [history, setHistory] = useState<LeagueHistoryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
@@ -179,10 +183,16 @@ export function LeagueHistoryHome() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load league history."));
   }, [guildId]);
 
+  // Madden reaches this page only through My Team's League card (no top-nav link there
+  // anymore, see LeagueTopNav.tsx), so a back button matters here in a way it didn't when
+  // League History always had its own nav entry. CFB still has the nav entry too, but going
+  // back to My Team is a reasonable affordance either way.
+  const backAction = currentLeague?.id ? <Link to={`/l/${currentLeague.id}/team`}><Button variant="ghost" size="compact">← Back to My Team</Button></Link> : undefined;
+
   if (error && !history) {
     return (
       <div className="hub-page">
-        <PageHeader title="League History" subtitle="Every completed season, one tab each." />
+        <PageHeader title="League History" subtitle="Every completed season, one tab each." actions={backAction} />
         <ErrorState message={error} />
       </div>
     );
@@ -193,7 +203,7 @@ export function LeagueHistoryHome() {
 
   return (
     <div className="hub-page">
-      <PageHeader title="League History" subtitle={history.league.name} />
+      <PageHeader title="League History" subtitle={history.league.name} actions={backAction} />
       {history.seasons.length === 0 ? (
         <p className="hub-empty">No completed seasons yet — check back after Season {history.currentSeason} wraps up.</p>
       ) : (

@@ -25,6 +25,7 @@ import {
   PublishingHome,
   RecruitingHome,
   LeagueHistoryHome,
+  LeagueRecordsHome,
   LeagueStatsHome,
   RolesHome,
   RulesHome,
@@ -47,7 +48,7 @@ import "../../../web/src/styles/hub.css";
 import "../../../web/src/styles/league-management.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "mgmt";
+type HubView = "buzz" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "records" | "mgmt";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
@@ -61,6 +62,7 @@ function viewFromPath(pathname: string): HubView {
   if (pathname.includes("/roster")) return "roster";
   if (pathname.includes("/trades")) return "trades";
   if (pathname.includes("/stats")) return "stats";
+  if (pathname.includes("/records")) return "records";
   if (pathname.includes("/history")) return "history";
   if (pathname.includes("/rules")) return "rules";
   return "buzz";
@@ -138,11 +140,11 @@ class HubErrorBoundary extends Component<
   }
 }
 
-const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "history">, string> = {
+const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records">, string> = {
   buzz: "buzz", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
 };
 
-function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "history"> | null {
+function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records"> | null {
   if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
   if (section === "team") return "team";
   if (section === "store") return "store";
@@ -373,6 +375,8 @@ export function LeagueHubPage() {
                     <RulesHome />
                   ) : view === "history" ? (
                     <LeagueHistoryHome />
+                  ) : view === "records" ? (
+                    <LeagueRecordsHome />
                   ) : view === "stats" ? (
                     <LeagueStatsHome />
                   ) : (

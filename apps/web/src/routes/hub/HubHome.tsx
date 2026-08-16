@@ -98,29 +98,6 @@ function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-const BAKED_BADGE_KEYS = new Set([
-  "prolific_passer", "prolific_rusher", "balanced_season", "fourth_down_menace", "dawgin_em", "two_point_identity", "clock_bleeder",
-  "perfect_regular_season", "winning_season", "return_threat", "veteran_coach", "fourth_down_legend", "red_zone_legend", "ground_and_pound_veteran",
-  "air_raid_veteran", "playoff_winner", "dynasty_builder", "super_bowl_champion", "conf_champion", "div_champion", "national_champion", "bowl_winner",
-]);
-const BAKED_LADDER_KEYS = new Set(["wins_milestone", "games_milestone", "air_milestone", "ground_milestone", "earner", "spender", "saver", "attribute_purchase", "dev_upgrade_purchase"]);
-const BAKED_NEGATIVE_KEYS = new Set([
-  "turnover_trouble", "heartbreaker", "offensive_stall", "ground_game_missing", "chain_stalled", "third_down_drought_m", "red_zone_woes", "defensive_collapse",
-  "yardage_flood", "blowout_victim_m", "pick_parade", "butterfingers", "completion_crisis", "failed_attempts", "third_down_drought", "fourth_down_futility",
-  "ground_game_grounded", "passing_in_mud", "inefficient_attack", "flag_factory", "punt_party", "red_zone_waste", "touchdown_drought", "wasted_volume", "blowout_victim",
-]);
-
-function badgeSlug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function bakedBadgeAsset(key: string, label: string, tier: string) {
-  if (BAKED_BADGE_KEYS.has(key)) return `/assets/badges/baked/${badgeSlug(key)}.png`;
-  if (BAKED_LADDER_KEYS.has(key)) return `/assets/badges/baked/label-${badgeSlug(label)}-${tier === "gold" || tier === "silver" ? tier : "bronze"}.png`;
-  if (BAKED_NEGATIVE_KEYS.has(key)) return `/assets/badges/baked/label-${badgeSlug(label)}-negative.png`;
-  return `/assets/badges/baked/label-${badgeSlug(label)}-positive.png`;
-}
-
 function matchupWordmarkSize(name: string) {
   const length = name.replace(/\s+/g, "").length;
   return `clamp(${length > 16 ? 11 : length > 12 ? 13 : length > 9 ? 15 : 17}px, ${length > 16 ? 3.1 : length > 12 ? 3.8 : length > 9 ? 4.6 : 5.8}vw, ${length > 16 ? 28 : length > 12 ? 34 : length > 9 ? 42 : 56}px)`;
@@ -217,6 +194,79 @@ function RankingListSearch<T>({
         <button type="button" disabled={clampedPage >= totalPages - 1} onClick={() => setPage(clampedPage + 1)}>Next ›</button>
       </div>
     )}
+  </>;
+}
+
+// Madden's My Team page: a 2x2 grid of cards, each holding four buttons that either jump to
+// an existing section (Trade Center/Roster/Store/Wagers), open a modal (Schedule/Power
+// Rankings/SOS/Bank/Financial Profile/Season+Career Stats), or navigate to a dedicated page
+// (League Records/League History). Trade Center/Roster/League History dropped out of the top
+// nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
+function MaddenMyTeamGrid({
+  coachName, my, profile, heroRank, powerRankSos, selectSection, jumpToMyMatchup, viewMySchedule,
+  setMediaModal, mediaPortal, setPowerRankingsModalOpen, setSosModalOpen, setBankModalOpen,
+  setFinancialModalOpen, setSeasonStatsModal, setCareerStatsModalOpen, leagueId,
+}: {
+  coachName: string;
+  my: any;
+  profile: any;
+  heroRank: string;
+  powerRankSos: string;
+  selectSection: (next: HubSection) => void;
+  jumpToMyMatchup: () => void;
+  viewMySchedule: () => void | Promise<void>;
+  setMediaModal: (value: "interview" | "article" | null) => void;
+  mediaPortal: MediaPortalResponse | null;
+  setPowerRankingsModalOpen: (value: boolean) => void;
+  setSosModalOpen: (value: boolean) => void;
+  setBankModalOpen: (value: boolean) => void;
+  setFinancialModalOpen: (value: boolean) => void;
+  setSeasonStatsModal: (value: "team" | "player" | null) => void;
+  setCareerStatsModalOpen: (value: boolean) => void;
+  leagueId: string;
+}) {
+  return <>
+    <div className="hub-stat-grid">
+      <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Power rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
+    </div>
+    <div className="hub-my-team-grid">
+      <div className="hub-my-team-card">
+        <p className="hub-eyebrow">Matchup Center</p>
+        <div className="hub-my-team-card-buttons">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+        </div>
+      </div>
+      <div className="hub-my-team-card">
+        <p className="hub-eyebrow">Team</p>
+        <div className="hub-my-team-card-buttons">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Roster</strong><span>Manage players</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setSeasonStatsModal("team")}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Season Stats</strong><span>Team &amp; players</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setCareerStatsModalOpen(true)}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Career Stats</strong><span>League career</span></div></button>
+        </div>
+      </div>
+      <div className="hub-my-team-card">
+        <p className="hub-eyebrow">League</p>
+        <div className="hub-my-team-card-buttons">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setPowerRankingsModalOpen(true)}><IconWell size="sm" icon={<TrendingUp size={16} />} /><div><strong>Power Rankings</strong><span>Full league</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setSosModalOpen(true)}><IconWell size="sm" icon={<SlidersHorizontal size={16} />} /><div><strong>Strength of Schedule</strong><span>Full league</span></div></button>
+          <Link className="hub-shortcut-card hub-quick-action" to={`/l/${leagueId}/records`}><IconWell size="sm" icon={<Award size={16} />} /><div><strong>League Records</strong><span>Statistical bests</span></div></Link>
+          <Link className="hub-shortcut-card hub-quick-action" to={`/l/${leagueId}/history`}><IconWell size="sm" icon={<ScrollText size={16} />} /><div><strong>League History</strong><span>Past seasons</span></div></Link>
+        </div>
+      </div>
+      <div className="hub-my-team-card">
+        <p className="hub-eyebrow">Finance</p>
+        <div className="hub-my-team-card-buttons">
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("store")}><IconWell size="sm" icon={<ShoppingBag size={16} />} /><div><strong>Store</strong><span>Franchise marketplace</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setBankModalOpen(true)}><IconWell size="sm" icon={<WalletCards size={16} />} /><div><strong>Bank</strong><span>Wallet &amp; transfers</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Wagers</strong><span>Sportsbook</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setFinancialModalOpen(true)}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Financial Profile</strong><span>Earnings &amp; ledger</span></div></button>
+        </div>
+      </div>
+    </div>
   </>;
 }
 
@@ -361,50 +411,6 @@ function FinancialLedger({ summary }: { summary: any }) {
   </div>;
 }
 
-// Badge tiles are decorative/informational (hover reveals a tooltip via CSS), not individually
-// interactive — giving every one of them tabIndex={0} forced keyboard users to tab through
-// potentially 100+ stops just to get past a badge shelf. Tiles are no longer focusable
-// themselves (role="img" + aria-label instead, so screen readers still get each one during
-// linear reading); a single "List details" toggle per shelf gives keyboard users one tab stop
-// that expands the same tooltip text as a real, readable list instead.
-function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
-  const [listOpen, setListOpen] = useState(false);
-  if (!badges?.length) return <div className="hub-badge-group"><h4>{title}</h4><p className="hub-empty">None earned yet.</p></div>;
-
-  const entries = badges.map((badge) => {
-    const key = String(badge.badge_key ?? "badge");
-    const label = String(badge.badge_label ?? displayLabel(key));
-    const tier = String(badge.tier ?? "normal").replace(/_/g, "-");
-    const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0);
-    const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`];
-    if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`);
-    return { key, label, tier, tooltip: tooltipParts.join(" · ") };
-  });
-
-  return <div className="hub-badge-group">
-    <div className="hub-badge-group-head">
-      <h4>{title}</h4>
-      <button type="button" className="hub-badge-list-toggle" aria-expanded={listOpen} onClick={() => setListOpen((open) => !open)}>
-        {listOpen ? "Hide details" : "List details"}
-      </button>
-    </div>
-    <div className="hub-badge-shelf">{entries.map((entry) => (
-      <article
-        key={`${entry.key}-${entry.tier}`}
-        className={`badge-key-${entry.key.replace(/_/g, "-")} badge-tier-${entry.tier}`}
-        style={{ backgroundImage: `url("${bakedBadgeAsset(entry.key, entry.label, entry.tier)}")` }}
-        data-badge-label={entry.label}
-        data-tooltip={entry.tooltip}
-        role="img"
-        aria-label={`${entry.label}: ${entry.tooltip}`}
-      />
-    ))}</div>
-    {listOpen && <ul className="hub-badge-list">{entries.map((entry) => (
-      <li key={`${entry.key}-${entry.tier}-list`}><strong>{entry.label}</strong><span>{entry.tooltip}</span></li>
-    ))}</ul>}
-  </div>;
-}
-
 function ScheduleWeekList({
   weeks,
   currentWeek,
@@ -544,6 +550,15 @@ export function HubHome() {
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
   const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
+  const [scheduleModalTab, setScheduleModalTab] = useState<"my" | "league">("my");
+  const [powerRankingsModalOpen, setPowerRankingsModalOpen] = useState(false);
+  const [sosModalOpen, setSosModalOpen] = useState(false);
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [financialModalOpen, setFinancialModalOpen] = useState(false);
+  const [seasonStatsModal, setSeasonStatsModal] = useState<"team" | "player" | null>(null);
+  const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
+  const [myTeamStats, setMyTeamStats] = useState<Awaited<ReturnType<typeof recApi.getLeagueStats>> | null>(null);
+  const [myTeamStatsError, setMyTeamStatsError] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
   const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
@@ -1282,6 +1297,7 @@ export function HubHome() {
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
       {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
+      {hub.league.game === "cfb_27" ? <>
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
@@ -1290,8 +1306,7 @@ export function HubHome() {
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
-          {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
-          {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
         </div>
       </div>
@@ -1303,9 +1318,69 @@ export function HubHome() {
       <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /><p className="hub-muted">League career only — global totals live on My Account.</p></div></details>
-      <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="League badges" badges={profile.badges ?? [...(profile.weeklyBadges ?? []), ...(profile.seasonBadges ?? [])]} />{(profile.leagueAwards ?? profile.globalAwards)?.length ? <div className="hub-badge-group"><h4>League awards</h4><div className="hub-badge-shelf">{(profile.leagueAwards ?? profile.globalAwards).map((award: any) => <article key={award.awardName} className="hub-badge-award"><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : <p className="hub-muted">No league awards yet.</p>}</div></details>
+      <details><summary><Award size={18} /> League Awards</summary><div className="hub-profile-panel">{(profile.leagueAwards ?? profile.globalAwards)?.length ? <div className="hub-badge-group"><div className="hub-badge-shelf">{(profile.leagueAwards ?? profile.globalAwards).map((award: any) => <article key={award.awardName} className="hub-badge-award"><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : <p className="hub-muted">No league awards yet.</p>}</div></details>
       <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><FinancialLedger summary={profile.financialSummary} /></div></details>
-    </div>{!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
+    </div></> : <MaddenMyTeamGrid
+        coachName={coachName}
+        my={my}
+        profile={profile}
+        heroRank={heroRank}
+        powerRankSos={powerRankSos}
+        selectSection={selectSection}
+        jumpToMyMatchup={jumpToMyMatchup}
+        viewMySchedule={viewMySchedule}
+        setMediaModal={setMediaModal}
+        mediaPortal={mediaPortal}
+        setPowerRankingsModalOpen={setPowerRankingsModalOpen}
+        setSosModalOpen={setSosModalOpen}
+        setBankModalOpen={setBankModalOpen}
+        setFinancialModalOpen={setFinancialModalOpen}
+        setSeasonStatsModal={setSeasonStatsModal}
+        setCareerStatsModalOpen={setCareerStatsModalOpen}
+        leagueId={hub.league.id}
+      />}
+      {hub.league.game !== "cfb_27" && seasonStatsModal && <Modal title={seasonStatsModal === "team" ? "Season Stats" : "Season Stats — My Players"} onClose={() => setSeasonStatsModal(null)}>
+        <div className="hub-modal-pill-row">
+          <button type="button" className={seasonStatsModal === "team" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setSeasonStatsModal("team")}>Team</button>
+          <button type="button" className={seasonStatsModal === "player" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => { setSeasonStatsModal("player"); if (!myTeamStats && !myTeamStatsError && auth.status === "ready") { recApi.getLeagueStats({ guildId: auth.guildId, teamId: my.team?.id ?? null }).then(setMyTeamStats).catch((err) => setMyTeamStatsError(err instanceof Error ? err.message : "Could not load player stats.")); } }}>Player</button>
+        </div>
+        {seasonStatsModal === "team" ? <ProfileStats values={profile.seasonStats} /> : (
+          myTeamStatsError ? <p className="hub-empty">{myTeamStatsError}</p> : !myTeamStats ? <p className="hub-empty">Loading…</p> : !myTeamStats.players.length ? <p className="hub-empty">No player stats logged yet.</p> : <div className="hub-profile-sections">{myTeamStats.players.map((player) => <div key={player.id} className="hub-profile-panel"><strong>{player.fullName} · {player.position ?? "—"}</strong><ProfileStats values={player.stats} /></div>)}</div>
+        )}
+      </Modal>}
+      {hub.league.game !== "cfb_27" && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
+        <ProfileStats values={profile.careerStats} />
+        <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet; Season Stats has a per-player breakdown.</p>
+      </Modal>}
+      {hub.league.game !== "cfb_27" && powerRankingsModalOpen && <Modal title="Power Rankings" onClose={() => setPowerRankingsModalOpen(false)}>
+        {hub.powerRankings?.teams?.length ? <RankingListSearch
+          items={hub.powerRankings.teams}
+          getSearchText={(team) => team.teamName}
+          emptyLabel="Power rankings will appear after the first completed slate."
+          renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
+            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+          </article>}
+        /> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
+      </Modal>}
+      {hub.league.game !== "cfb_27" && sosModalOpen && <Modal title="Strength of Schedule" onClose={() => setSosModalOpen(false)}>
+        {hub.sos?.teams?.length ? <RankingListSearch
+          items={hub.sos.teams}
+          getSearchText={(team) => team.teamName}
+          emptyLabel="Strength of schedule will appear once the season's slate is logged."
+          renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
+            <strong>#{team.rank}</strong>
+            <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
+            <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
+          </article>}
+        /> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
+      </Modal>}
+      {hub.league.game !== "cfb_27" && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
+        <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
+      </Modal>}
+      {hub.league.game !== "cfb_27" && financialModalOpen && <Modal title="Financial Profile" onClose={() => setFinancialModalOpen(false)}>
+        <FinancialLedger summary={profile.financialSummary} />
+      </Modal>}
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1470,7 +1545,7 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
-    </section> : section === "roster" ? <RosterHome /> : section === "trades" ? <TradeCenterHome /> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">

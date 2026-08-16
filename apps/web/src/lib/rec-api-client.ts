@@ -318,6 +318,16 @@ export const recApi = {
       league: { id: string; name: string; game: string; season_number: number };
       teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null; stats: Record<string, number> }>;
     }>("/v1/hub/league-team-stats", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getLeagueRecords: (input: { guildId: string; scope: "game" | "season" | "career"; postseason: boolean; category: string }) =>
+    recApiFetch<{
+      league: { id: string; name: string; game: string; season_number: number };
+      categories: Array<{ key: string; label: string }>;
+      records: Array<{
+        statKey: string;
+        label: string;
+        leaders: Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; weekNumber: number | null; seasonNumber: number | null; rank: number }>;
+      }>;
+    }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input) }),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>

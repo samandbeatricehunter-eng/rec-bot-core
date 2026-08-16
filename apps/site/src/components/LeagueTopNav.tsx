@@ -13,7 +13,6 @@ import {
   IconStats,
   IconStore,
   IconTeam,
-  IconTrade,
   IconWager,
 } from "./icons.js";
 
@@ -41,19 +40,26 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
   const game = hub.selectedLeague?.game;
   const isMadden = game?.startsWith("madden") ?? false;
 
-  const items = [
-    { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
-    { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
-    { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
-    // Madden leagues trade players/picks between rosters, so Trade Center takes Store's
-    // nav slot there; Store moves into the League menu instead. CFB has no trade concept
-    // (recruiting/transfer portal fill that role), so it keeps Store in the main bar.
-    isMadden
-      ? { key: "trades", label: "Trade Center", to: `/l/${leagueId}/trades`, icon: <IconTrade /> }
-      : { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
-    { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
-    { key: "roster", label: "Roster", to: `/l/${leagueId}/roster`, icon: <IconRoster /> },
-  ];
+  // Madden's My Team page (see HubHome.tsx) is a 2x2 button grid that's now the only path to
+  // Trade Center, Roster, and League History — those three drop out of the main bar/menu
+  // entirely for Madden so there's exactly one way to reach them, not two. CFB is unchanged:
+  // it keeps Store in the main bar (no trade concept — recruiting/transfer portal fill that
+  // role) and Roster/League History stay in their existing spots.
+  const items = isMadden
+    ? [
+        { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
+        { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
+        { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
+        { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
+      ]
+    : [
+        { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
+        { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
+        { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
+        { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
+        { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
+        { key: "roster", label: "Roster", to: `/l/${leagueId}/roster`, icon: <IconRoster /> },
+      ];
 
   async function confirmRetire() {
     setRetireBusy(true);
@@ -126,14 +132,16 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
                 <IconStore /> Store
               </NavLink>
             ) : null}
-            <NavLink
-              to={`/l/${leagueId}/history`}
-              role="menuitem"
-              className="site-account-menu-item"
-              onClick={() => setMenuOpen(false)}
-            >
-              <IconHistory /> League History
-            </NavLink>
+            {!isMadden ? (
+              <NavLink
+                to={`/l/${leagueId}/history`}
+                role="menuitem"
+                className="site-account-menu-item"
+                onClick={() => setMenuOpen(false)}
+              >
+                <IconHistory /> League History
+              </NavLink>
+            ) : null}
             <NavLink
               to={`/l/${leagueId}/rules`}
               role="menuitem"
