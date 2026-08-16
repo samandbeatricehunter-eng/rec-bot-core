@@ -1018,10 +1018,22 @@ button.poty:disabled {
 .hub-my-team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-4); }
 .hub-my-team-card { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-my-team-card-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: var(--space-2); }
-.hub-my-team-card-buttons .hub-shortcut-card.hub-quick-action { min-height: 58px; }
 @media (max-width: 720px) {
   .hub-my-team-grid { grid-template-columns: 1fr; }
 }
+/* Text-only quick-action button — no icon well. Used by the My Team grid and the Buzz page's
+   Quick Actions row, both of which used to pair a Lucide icon with an IconWell housing at a
+   size too small for the glyph to render legibly (looked like a stray smudge, misaligned
+   against the two-line label next to it). */
+.hub-my-team-btn {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  min-height: 58px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-raised); text-align: left; text-decoration: none; cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.hub-my-team-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
+.hub-my-team-btn strong { font-family: var(--font-display); font-size: var(--text-sm); letter-spacing: .01em; color: var(--text-primary); }
+.hub-my-team-btn span { font-size: var(--text-xs); color: var(--text-muted); }
 .hub-subpage-back { margin-bottom: var(--space-3); }
 .hub-modal-pill-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
 .hub-modal-pill { padding: 6px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-raised); color: var(--text-muted); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }

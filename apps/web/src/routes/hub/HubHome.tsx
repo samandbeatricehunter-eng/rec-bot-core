@@ -203,15 +203,16 @@ function RankingListSearch<T>({
 // (League Records/League History). Trade Center/Roster/League History dropped out of the top
 // nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
 function MaddenMyTeamGrid({
-  coachName, my, profile, heroRank, powerRankSos, selectSection, jumpToMyMatchup, viewMySchedule,
+  coachName, my, profile, heroRank, powerRankSos, heroUserScore, selectSection, jumpToMyMatchup, viewMySchedule,
   setMediaModal, mediaPortal, setPowerRankingsModalOpen, setSosModalOpen, setBankModalOpen,
-  setFinancialModalOpen, setSeasonStatsModal, setCareerStatsModalOpen, leagueId,
+  setFinancialModalOpen, setCareerStatsModalOpen, leagueId,
 }: {
   coachName: string;
   my: any;
   profile: any;
   heroRank: string;
   powerRankSos: string;
+  heroUserScore: string;
   selectSection: (next: HubSection) => void;
   jumpToMyMatchup: () => void;
   viewMySchedule: () => void | Promise<void>;
@@ -221,49 +222,53 @@ function MaddenMyTeamGrid({
   setSosModalOpen: (value: boolean) => void;
   setBankModalOpen: (value: boolean) => void;
   setFinancialModalOpen: (value: boolean) => void;
-  setSeasonStatsModal: (value: "team" | "player" | null) => void;
   setCareerStatsModalOpen: (value: boolean) => void;
   leagueId: string;
 }) {
   return <>
     <div className="hub-stat-grid">
-      <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Power rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
+      <article><span>Coach</span><strong>{coachName}</strong></article>
+      <article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article>
+      <article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article>
+      <article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article>
+      <article><span>Power rank / SOS / User score</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"} · Score {heroUserScore}</small></article>
+      <article><span>Wallet / Savings</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
     </div>
     <div className="hub-my-team-grid">
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+          <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
         </div>
       </div>
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Team</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Roster</strong><span>Manage players</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setSeasonStatsModal("team")}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Season Stats</strong><span>Team &amp; players</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setCareerStatsModalOpen(true)}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Career Stats</strong><span>League career</span></div></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Roster</strong><span>Manage players</span></button>
+          <Link className="hub-my-team-btn" to={`/l/${leagueId}/stats`}><strong>League Stats</strong><span>By category &amp; leaders</span></Link>
+          <button type="button" className="hub-my-team-btn" onClick={() => setCareerStatsModalOpen(true)}><strong>Career Stats</strong><span>League career</span></button>
         </div>
       </div>
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">League</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setPowerRankingsModalOpen(true)}><IconWell size="sm" icon={<TrendingUp size={16} />} /><div><strong>Power Rankings</strong><span>Full league</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setSosModalOpen(true)}><IconWell size="sm" icon={<SlidersHorizontal size={16} />} /><div><strong>Strength of Schedule</strong><span>Full league</span></div></button>
-          <Link className="hub-shortcut-card hub-quick-action" to={`/l/${leagueId}/records`}><IconWell size="sm" icon={<Award size={16} />} /><div><strong>League Records</strong><span>Statistical bests</span></div></Link>
-          <Link className="hub-shortcut-card hub-quick-action" to={`/l/${leagueId}/history`}><IconWell size="sm" icon={<ScrollText size={16} />} /><div><strong>League History</strong><span>Past seasons</span></div></Link>
+          <button type="button" className="hub-my-team-btn" onClick={() => setPowerRankingsModalOpen(true)}><strong>Power Rankings</strong><span>Full league</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setSosModalOpen(true)}><strong>Strength of Schedule</strong><span>Full league</span></button>
+          <Link className="hub-my-team-btn" to={`/l/${leagueId}/records`}><strong>League Records</strong><span>Statistical bests</span></Link>
+          <Link className="hub-my-team-btn" to={`/l/${leagueId}/history`}><strong>League History</strong><span>Past seasons</span></Link>
         </div>
       </div>
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Finance</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("store")}><IconWell size="sm" icon={<ShoppingBag size={16} />} /><div><strong>Store</strong><span>Franchise marketplace</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setBankModalOpen(true)}><IconWell size="sm" icon={<WalletCards size={16} />} /><div><strong>Bank</strong><span>Wallet &amp; transfers</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Wagers</strong><span>Sportsbook</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setFinancialModalOpen(true)}><IconWell size="sm" icon={<Landmark size={16} />} /><div><strong>Financial Profile</strong><span>Earnings &amp; ledger</span></div></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setBankModalOpen(true)}><strong>Bank</strong><span>Wallet &amp; transfers</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("wagers")}><strong>Wagers</strong><span>Sportsbook</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setFinancialModalOpen(true)}><strong>Financial Profile</strong><span>Earnings &amp; ledger</span></button>
         </div>
       </div>
     </div>
@@ -551,14 +556,15 @@ export function HubHome() {
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
   const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
   const [scheduleModalTab, setScheduleModalTab] = useState<"my" | "league">("my");
+  const [scheduleLeagueWeek, setScheduleLeagueWeek] = useState<number | null>(null);
+  const [scheduleLeagueData, setScheduleLeagueData] = useState<HubMatchupSchedule | null>(null);
+  const [scheduleLeagueError, setScheduleLeagueError] = useState<string | null>(null);
+  const [scheduleLeagueLoading, setScheduleLeagueLoading] = useState(false);
   const [powerRankingsModalOpen, setPowerRankingsModalOpen] = useState(false);
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
-  const [seasonStatsModal, setSeasonStatsModal] = useState<"team" | "player" | null>(null);
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
-  const [myTeamStats, setMyTeamStats] = useState<Awaited<ReturnType<typeof recApi.getLeagueStats>> | null>(null);
-  const [myTeamStatsError, setMyTeamStatsError] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
   const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
@@ -984,6 +990,20 @@ export function HubHome() {
     }
   }
 
+  async function loadScheduleLeagueWeek(weekNumber?: number) {
+    if (auth.status !== "ready") return;
+    setScheduleLeagueLoading(true); setScheduleLeagueError(null);
+    try {
+      const schedule = await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber });
+      setScheduleLeagueData(schedule);
+      setScheduleLeagueWeek(schedule.selectedWeek);
+    } catch (cause) {
+      setScheduleLeagueError(cause instanceof Error ? cause.message : "The league schedule could not be loaded.");
+    } finally {
+      setScheduleLeagueLoading(false);
+    }
+  }
+
   function selectSection(next: HubSection) {
     setSection(next);
     writeHubParams(next, next === "league" ? subTab : undefined);
@@ -1326,6 +1346,7 @@ export function HubHome() {
         profile={profile}
         heroRank={heroRank}
         powerRankSos={powerRankSos}
+        heroUserScore={heroUserScore}
         selectSection={selectSection}
         jumpToMyMatchup={jumpToMyMatchup}
         viewMySchedule={viewMySchedule}
@@ -1335,19 +1356,9 @@ export function HubHome() {
         setSosModalOpen={setSosModalOpen}
         setBankModalOpen={setBankModalOpen}
         setFinancialModalOpen={setFinancialModalOpen}
-        setSeasonStatsModal={setSeasonStatsModal}
         setCareerStatsModalOpen={setCareerStatsModalOpen}
         leagueId={hub.league.id}
       />}
-      {hub.league.game !== "cfb_27" && seasonStatsModal && <Modal title={seasonStatsModal === "team" ? "Season Stats" : "Season Stats — My Players"} onClose={() => setSeasonStatsModal(null)}>
-        <div className="hub-modal-pill-row">
-          <button type="button" className={seasonStatsModal === "team" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setSeasonStatsModal("team")}>Team</button>
-          <button type="button" className={seasonStatsModal === "player" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => { setSeasonStatsModal("player"); if (!myTeamStats && !myTeamStatsError && auth.status === "ready") { recApi.getLeagueStats({ guildId: auth.guildId, teamId: my.team?.id ?? null }).then(setMyTeamStats).catch((err) => setMyTeamStatsError(err instanceof Error ? err.message : "Could not load player stats.")); } }}>Player</button>
-        </div>
-        {seasonStatsModal === "team" ? <ProfileStats values={profile.seasonStats} /> : (
-          myTeamStatsError ? <p className="hub-empty">{myTeamStatsError}</p> : !myTeamStats ? <p className="hub-empty">Loading…</p> : !myTeamStats.players.length ? <p className="hub-empty">No player stats logged yet.</p> : <div className="hub-profile-sections">{myTeamStats.players.map((player) => <div key={player.id} className="hub-profile-panel"><strong>{player.fullName} · {player.position ?? "—"}</strong><ProfileStats values={player.stats} /></div>)}</div>
-        )}
-      </Modal>}
       {hub.league.game !== "cfb_27" && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} />
         <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet; Season Stats has a per-player breakdown.</p>
@@ -1618,14 +1629,14 @@ export function HubHome() {
         <div className="hub-gameday-card hub-quick-actions-card">
           <p className="hub-eyebrow">Quick actions</p>
           <div className="hub-gameday-actions hub-quick-actions-row">
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("wagers")}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
-            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
-            {hub.league.game !== "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("trades")}><IconWell size="sm" icon={<ArrowLeftRight size={16} />} /><div><strong>Trade Center</strong><span>Propose &amp; review</span></div></button>}
-            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+            <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
+            <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
+            <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
+            <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
+            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("wagers")}><strong>Place a Wager</strong><span>Sportsbook</span></button>
+            {hub.league.game === "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => setRecruitingBoardOpen(true)}><strong>Recruiting</strong><span>Board &amp; commits</span></button>}
+            {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
+            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
           </div>
         </div>
 
@@ -1796,10 +1807,13 @@ export function HubHome() {
           <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
             <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
             <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
-            <button type="button" role="tab" aria-selected={matchupView === "rankings"} className={matchupView === "rankings" ? "active" : ""} onClick={() => setMatchupView("rankings")}>Rankings</button>
+            {/* Madden has this same Power Rankings/User Ratings/SOS content available from My
+                Team's League card now (modals), so the Rankings pill only makes sense for CFB,
+                which has no My Team grid to relocate it to. */}
+            {isCfbLeague && <button type="button" role="tab" aria-selected={matchupView === "rankings"} className={matchupView === "rankings" ? "active" : ""} onClick={() => setMatchupView("rankings")}>Rankings</button>}
           </div>
 
-          {matchupView === "rankings" ? (
+          {matchupView === "rankings" && isCfbLeague ? (
             <>
               <SectionFrame
                 eyebrow="Updated on advance"
@@ -2018,7 +2032,43 @@ export function HubHome() {
     </div></Modal>}
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)}><div className="hub-my-schedule">
-      {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} currentWeek={hub.league.weekNumber} highlightCounts={myHighlightCounts ?? undefined} onUploadBoxScore={setScheduleBoxScoreWeek} onUploadHighlight={setScheduleHighlightWeek} />}
+      <div className="hub-modal-pill-row">
+        <button type="button" className={scheduleModalTab === "my" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setScheduleModalTab("my")}>My Schedule</button>
+        <button type="button" className={scheduleModalTab === "league" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => { setScheduleModalTab("league"); if (!scheduleLeagueData) void loadScheduleLeagueWeek(); }}>League Schedule</button>
+      </div>
+      {scheduleModalTab === "my" ? (
+        myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
+        : !mySchedule ? <p className="hub-empty">Loading your schedule...</p>
+        // Box score / highlight upload is CFB-only (Madden results come from the EA import,
+        // not a manual box-score screenshot) — only wire those callbacks for CFB leagues.
+        : <ScheduleWeekList
+            weeks={mySchedule.weeks}
+            currentWeek={hub.league.weekNumber}
+            highlightCounts={myHighlightCounts ?? undefined}
+            onUploadBoxScore={isCfbLeague ? setScheduleBoxScoreWeek : undefined}
+            onUploadHighlight={isCfbLeague ? setScheduleHighlightWeek : undefined}
+          />
+      ) : (
+        <div className="hub-schedule-league-week">
+          <label className="form-field">
+            <span className="form-label">Week</span>
+            <select className="form-input" value={scheduleLeagueWeek ?? ""} onChange={(event) => void loadScheduleLeagueWeek(Number(event.target.value))} disabled={scheduleLeagueLoading || !scheduleLeagueData}>
+              {(scheduleLeagueData?.weekNumbers ?? (scheduleLeagueWeek ? [scheduleLeagueWeek] : [])).map((week) => <option key={week} value={week}>Week {week}</option>)}
+            </select>
+          </label>
+          {scheduleLeagueError ? <div className="hub-empty"><p>{scheduleLeagueError}</p><Button variant="secondary" onClick={() => void loadScheduleLeagueWeek(scheduleLeagueWeek ?? undefined)}>Try again</Button></div>
+            : scheduleLeagueLoading || !scheduleLeagueData ? <p className="hub-empty">Loading league schedule...</p>
+            : scheduleLeagueData.isOffseason ? <p className="hub-empty">No games this week — the league is in the offseason ({scheduleLeagueData.offseasonStageLabel ?? "Offseason"}).</p>
+            : !scheduleLeagueData.games.length ? <p className="hub-empty">No games scheduled for Week {scheduleLeagueData.selectedWeek}.</p>
+            : <div className="hub-schedule-week-list">{scheduleLeagueData.games.map((game) => (
+                <article key={game.gameId} className={`hub-schedule-week ${game.isFinal ? "cpu" : "missing"}`}>
+                  <span className="hub-schedule-week-label">{game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "Human vs CPU" : "CPU"}</span>
+                  <strong>{game.awayTeamName} at {game.homeTeamName}</strong>
+                  {game.isFinal ? <b className="hub-final-score">{game.awayScore}-{game.homeScore}</b> : <span className="hub-muted">Not yet played</span>}
+                </article>
+              ))}</div>}
+        </div>
+      )}
     </div></Modal>}
     {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
       <p>Are you sure you want to retire from this league? Your team will become open, this league will be removed from your available leagues, and you will lose access to it.</p>
