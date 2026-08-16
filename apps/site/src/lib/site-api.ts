@@ -1273,6 +1273,7 @@ export type AdminStats = {
   linkedGold: number;
   unlinkedPlatinum: number;
   unlinkedGold: number;
+  orphanedPaid: number;
   goldSubscribers: number;
   platinumSubscribers: number;
   usersLast7d: number;

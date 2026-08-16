@@ -630,8 +630,15 @@ export async function getAdminStats() {
       count(*) filter (where supabase_auth_user_id is not null)::int as site_linked_users,
       count(*) filter (where supabase_auth_user_id is not null and subscription_tier = 'platinum')::int as linked_platinum,
       count(*) filter (where supabase_auth_user_id is not null and subscription_tier = 'gold')::int as linked_gold,
-      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'platinum')::int as unlinked_platinum,
-      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'gold')::int as unlinked_gold,
+      -- "Unclaimed (Discord-only)" means exactly that: a Discord-provisioned profile with no
+      -- site login yet. A row with neither a site login NOR any rec_discord_accounts row at
+      -- all isn't a Discord-only claim candidate — it's an orphan (e.g. a signup that paid
+      -- before ever linking Discord, then had its auth link reassigned elsewhere — see
+      -- mergeOrphanedBillingIntoCanonicalUser in subscriptions/stripe.service.ts) and would
+      -- otherwise get mislabeled as part of the claim campaign's remaining pool.
+      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'platinum' and exists (select 1 from rec_discord_accounts da where da.user_id = rec_users.id))::int as unlinked_platinum,
+      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'gold' and exists (select 1 from rec_discord_accounts da where da.user_id = rec_users.id))::int as unlinked_gold,
+      count(*) filter (where supabase_auth_user_id is null and subscription_tier in ('platinum','gold') and not exists (select 1 from rec_discord_accounts da where da.user_id = rec_users.id))::int as orphaned_paid,
       count(*) filter (where subscription_tier = 'gold')::int as gold_subscribers,
       count(*) filter (where subscription_tier = 'platinum')::int as platinum_subscribers,
       count(*) filter (where created_at >= now() - interval '7 days')::int as users_last_7d
@@ -660,6 +667,7 @@ export async function getAdminStats() {
     linkedGold: Number(row.linked_gold ?? 0),
     unlinkedPlatinum: Number(row.unlinked_platinum ?? 0),
     unlinkedGold: Number(row.unlinked_gold ?? 0),
+    orphanedPaid: Number(row.orphaned_paid ?? 0),
     goldSubscribers: Number(row.gold_subscribers ?? 0),
     platinumSubscribers: Number(row.platinum_subscribers ?? 0),
     usersLast7d: Number(row.users_last_7d ?? 0),

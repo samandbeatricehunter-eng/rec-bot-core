@@ -16,6 +16,7 @@ import {
   resolveRecUserIdByAuthUserId,
   syncLifetimePlatinumForUser,
 } from "../subscriptions/entitlements.service.js";
+import { mergeOrphanedBillingIntoCanonicalUser } from "../subscriptions/stripe.service.js";
 
 const supabaseAuthAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -187,6 +188,12 @@ export async function linkDiscordFromOAuth(input: {
       // before the new one lands). Any pending identity claim for this auth user or this
       // profile is replaced so both uniqueness keys stay satisfied.
       if (currentProfile && currentProfile !== existing.user_id) {
+        // Migrate any real billing state off the row about to lose its auth link BEFORE
+        // unbinding it — otherwise a paying account (e.g. mid-checkout when this Discord link
+        // happened) goes unreachable and the user ends up paying again on the adopted profile.
+        await mergeOrphanedBillingIntoCanonicalUser(currentProfile, recUserId).catch((error) =>
+          console.error("[ERROR] Failed to merge orphaned billing state during Discord adopt (non-fatal):", error),
+        );
         await getPgPool().query(
           `
             update rec_users
@@ -240,6 +247,10 @@ export async function linkDiscordFromOAuth(input: {
       // recUserId was just ensured for this auth user; it's an empty orphan now that the
       // snowflake's owner profile took over — unbind it FIRST (the partial unique index on
       // supabase_auth_user_id admits only one row) so the adopted profile can be bound next.
+      // Migrate any billing state that landed on this row first (see mergeOrphanedBillingIntoCanonicalUser).
+      await mergeOrphanedBillingIntoCanonicalUser(recUserId, linkedUserId).catch((error) =>
+        console.error("[ERROR] Failed to merge orphaned billing state during concurrent Discord link (non-fatal):", error),
+      );
       await getPgPool().query(`update rec_users set supabase_auth_user_id = null, updated_at = now() where id = $1`, [
         recUserId,
       ]);

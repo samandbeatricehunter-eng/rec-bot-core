@@ -130,6 +130,13 @@ function StatsPanel() {
           )}
         </ExpandableStatTile>
       </div>
+      {stats.orphanedPaid > 0 && (
+        <p className="site-auth-error">
+          ⚠ {stats.orphanedPaid} paid account{stats.orphanedPaid === 1 ? "" : "s"} with no site login and no Discord link at
+          all — not a claim-campaign candidate, this is an orphaned row (usually a duplicate signup/checkout). Check
+          for a real second Stripe subscription before assuming it's safe to ignore.
+        </p>
+      )}
       <p className="site-muted">
         Subscription tier and site registration are independent — a user can hold free
         lifetime Platinum without ever creating a site login (that's who the free-claim DM

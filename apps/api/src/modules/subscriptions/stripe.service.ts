@@ -316,6 +316,69 @@ async function applyActiveSubscription(userId: string, subscription: Stripe.Subs
   }
 }
 
+const BILLING_COLUMNS = [
+  "subscription_tier", "billing_status", "stripe_customer_id", "stripe_subscription_id",
+  "subscription_current_period_end", "subscription_grace_until", "trial_used_at",
+  "trial_ends_at", "promo_trial_ends_at", "subscription_source",
+] as const;
+
+/**
+ * site-auth.service.ts's Discord-link "adopt" flow reassigns supabase_auth_user_id from the
+ * signed-in auth user's current rec_users row onto the Discord-rooted row it's adopting as
+ * canonical, orphaning whatever row loses the auth link. If that orphaned row was mid-checkout
+ * or already paying (a fresh signup that hadn't linked Discord yet), its billing state used to
+ * just sit there unreachable — no login route resolves to an auth-less row — while the user,
+ * now landed on the adopted profile with no entitlements, would go pay again. Call this BEFORE
+ * nulling the orphan's supabase_auth_user_id so real billing state always migrates onto the
+ * canonical profile instead of being stranded. No-op if the orphan has no billing state of its
+ * own, or if the canonical row is already the more-entitled one.
+ */
+export async function mergeOrphanedBillingIntoCanonicalUser(orphanUserId: string, canonicalUserId: string): Promise<void> {
+  if (orphanUserId === canonicalUserId) return;
+  const cols = BILLING_COLUMNS.join(",");
+  const [orphanRow, canonicalRow] = await Promise.all([
+    supabase.from("rec_users").select(cols).eq("id", orphanUserId).maybeSingle(),
+    supabase.from("rec_users").select(cols).eq("id", canonicalUserId).maybeSingle(),
+  ]);
+  if (orphanRow.error || canonicalRow.error || !orphanRow.data || !canonicalRow.data) return;
+  const orphan = orphanRow.data as Record<string, unknown>;
+  const canonical = canonicalRow.data as Record<string, unknown>;
+
+  // Only migrate when the orphan actually has billing state the canonical row lacks — a real
+  // Stripe subscription or an active/trialing/promo status. Don't clobber a canonical row that
+  // already has its own (possibly different) subscription.
+  const orphanHasBilling = Boolean(orphan.stripe_subscription_id) || ["active", "trialing", "promo_trial", "past_due"].includes(String(orphan.billing_status ?? ""));
+  const canonicalHasBilling = Boolean(canonical.stripe_subscription_id) || ["active", "trialing", "promo_trial", "past_due"].includes(String(canonical.billing_status ?? ""));
+  if (!orphanHasBilling || canonicalHasBilling) return;
+
+  const update: Record<string, unknown> = {};
+  for (const col of BILLING_COLUMNS) update[col] = orphan[col] ?? null;
+  update.updated_at = new Date().toISOString();
+  const applied = await supabase.from("rec_users").update(update).eq("id", canonicalUserId);
+  if (applied.error) {
+    console.error("[ERROR] Failed to migrate orphaned billing state onto canonical user (non-fatal):", applied.error);
+    return;
+  }
+  // Clear the orphan's now-duplicated billing fields so it reads as unpaid instead of a
+  // second live subscription record, and repoint the Stripe customer's metadata so future
+  // webhooks resolve to the canonical row instead of the now-billing-less orphan.
+  // subscription_tier is NOT NULL (defaults to 'none') — every other billing column is
+  // nullable, so only that one needs an explicit non-null reset.
+  const clearOrphan: Record<string, unknown> = Object.fromEntries(BILLING_COLUMNS.map((col) => [col, null]));
+  clearOrphan.subscription_tier = "none";
+  clearOrphan.billing_status = "canceled";
+  clearOrphan.updated_at = new Date().toISOString();
+  await supabase.from("rec_users").update(clearOrphan).eq("id", orphanUserId);
+  const customerId = orphan.stripe_customer_id ? String(orphan.stripe_customer_id) : null;
+  if (customerId && env.STRIPE_SECRET_KEY) {
+    try {
+      await getStripe().customers.update(customerId, { metadata: { rec_user_id: canonicalUserId } });
+    } catch (error) {
+      console.error("[ERROR] Failed to repoint Stripe customer metadata after billing merge (non-fatal):", error);
+    }
+  }
+}
+
 async function applySubscriptionDeleted(userId: string, subscription: Stripe.Subscription) {
   // Guard against a stale/delayed webhook (including the one fired by our own promo-code
   // redemption canceling a still-trialing Stripe subscription — see promo-codes.service.ts)
