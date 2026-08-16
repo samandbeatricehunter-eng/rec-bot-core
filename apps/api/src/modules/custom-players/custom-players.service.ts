@@ -71,6 +71,23 @@ const CFB_POSITION_HEIGHT: Record<string, { max: number; avg: number }> = {
 const CFB_HEIGHT_FLOOR = 65;
 const CFB_HEIGHT_OVERAGE_COST_PER_INCH = 100;
 
+// Madden equivalent — same position set (REC_CUSTOM_PLAYER_POSITIONS), same reasoning as
+// CFB_POSITION_HEIGHT above (85th-90th percentile of each position's real-world height
+// distribution), so a custom player can't be built taller than the position has ever
+// realistically run (e.g. a 7'0" linebacker) regardless of game.
+const MADDEN_POSITION_HEIGHT: Record<string, { max: number }> = {
+  QB: { max: 77 },
+  HB: { max: 73 }, FB: { max: 75 },
+  WR: { max: 76 },
+  TE: { max: 79 },
+  LT: { max: 80 }, LG: { max: 80 }, C: { max: 80 }, RG: { max: 80 }, RT: { max: 80 },
+  LE: { max: 79 }, RE: { max: 79 }, DT: { max: 79 },
+  LOLB: { max: 76 }, MLB: { max: 76 }, ROLB: { max: 76 },
+  CB: { max: 75 },
+  FS: { max: 76 }, SS: { max: 76 },
+};
+const MADDEN_HEIGHT_FLOOR = 65;
+
 const CFB_BODY_TYPE_WEIGHT: Record<string, { min: number; max: number }> = {
   standard: { min: 175, max: 230 },
   thin: { min: 180, max: 236 },
@@ -119,7 +136,10 @@ function validateIdentity(game: RecGameFamily, identity: Identity, position: str
       throw new ApiError(400, `Weight for the ${identity.bodyType} body type must be between ${weightRule.min} and ${weightRule.max} pounds.`);
     }
   } else {
-    if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) throw new ApiError(400, "Height must be 60-84 inches.");
+    const heightMax = MADDEN_POSITION_HEIGHT[position.toUpperCase()]?.max ?? 84;
+    if (!Number.isInteger(identity.heightInches) || identity.heightInches < MADDEN_HEIGHT_FLOOR || identity.heightInches > heightMax) {
+      throw new ApiError(400, `Height for this position must be between 5'5" and ${Math.floor(heightMax / 12)}'${heightMax % 12}".`);
+    }
     if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
     // Body build is card-appearance only for Madden (weight stays free-range).
     if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body type is required for the player card appearance.");

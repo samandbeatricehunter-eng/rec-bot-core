@@ -225,7 +225,7 @@ export function PlayerCard({
             </div>
           </button>
 
-          <div className="rec-player-card-face rec-player-card-back" aria-hidden={!flipped}>
+          <div className="rec-player-card-face rec-player-card-back" aria-hidden={!flipped} onClick={flip}>
             <div className="rec-player-card-frame" aria-hidden="true" />
             <div className="rec-player-card-chrome" aria-hidden="true" />
 

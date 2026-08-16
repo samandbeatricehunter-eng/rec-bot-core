@@ -55,6 +55,15 @@ const CFB_POSITION_HEIGHT: Record<string, { max: number; avg: number }> = {
   LOLB: { max: 76, avg: 74 }, MLB: { max: 76, avg: 74 }, ROLB: { max: 76, avg: 74 },
   CB: { max: 74, avg: 71 }, FS: { max: 75, avg: 72 }, SS: { max: 75, avg: 72 },
 };
+// Mirrors apps/api/src/modules/custom-players/custom-players.service.ts's
+// MADDEN_POSITION_HEIGHT — server is authoritative, this is the client-side hint/limit.
+const MADDEN_POSITION_HEIGHT: Record<string, { max: number }> = {
+  QB: { max: 77 }, HB: { max: 73 }, FB: { max: 75 }, WR: { max: 76 }, TE: { max: 79 },
+  LT: { max: 80 }, LG: { max: 80 }, C: { max: 80 }, RG: { max: 80 }, RT: { max: 80 },
+  LE: { max: 79 }, RE: { max: 79 }, DT: { max: 79 },
+  LOLB: { max: 76 }, MLB: { max: 76 }, ROLB: { max: 76 },
+  CB: { max: 75 }, FS: { max: 76 }, SS: { max: 76 },
+};
 const CFB_BODY_TYPE_WEIGHT: Record<string, { min: number; max: number }> = {
   standard: { min: 175, max: 230 }, thin: { min: 180, max: 236 }, heavy: { min: 280, max: 400 }, lean: { min: 160, max: 215 }, muscular: { min: 210, max: 285 },
 };
@@ -108,7 +117,16 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
   function setPositionAndReset(value: string) {
     setPosition(value);
     setAttributes(baselineAttributes(game, value));
-    setIdentity((current: any) => ({ ...current, cardRenderId: "" }));
+    // Height is picked at step 2, before position is chosen at step 3 — a height valid for
+    // the position selected when step 2 was filled out (or the "QB" default) can be over
+    // the new position's cap (e.g. a QB-height pick that becomes a 6'5" LB). Re-clamp here
+    // so an over-cap height can't silently ride through to submission unnoticed.
+    const heightMax = (game === "CFB" ? CFB_POSITION_HEIGHT[value.toUpperCase()] : MADDEN_POSITION_HEIGHT[value.toUpperCase()])?.max ?? 84;
+    setIdentity((current: any) => ({
+      ...current,
+      cardRenderId: "",
+      heightInches: Math.min(current.heightInches, heightMax),
+    }));
   }
   function setBodyType(value: string) {
     setIdentity((current: any) => ({ ...current, bodyType: value, cardRenderId: "" }));
@@ -174,7 +192,8 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       if (!identity.hometownState?.trim()) return "State is required.";
       if (!identity.college?.trim()) return "College is required.";
       if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) return "Body type is required.";
-      if (!Number.isInteger(identity.heightInches) || identity.heightInches < 60 || identity.heightInches > 84) return "Height must be between 5'0\" and 7'0\".";
+      const heightMax = MADDEN_POSITION_HEIGHT[position.toUpperCase()]?.max ?? 84;
+      if (!Number.isInteger(identity.heightInches) || identity.heightInches < 65 || identity.heightInches > heightMax) return `Height for ${position} must be between 5'5" and ${formatFeetInches(heightMax)}.`;
       if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) return "Weight must be between 140 and 400 pounds.";
     }
     return null;
@@ -191,9 +210,12 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     {config.appearanceNotice && (step === 2 || step === 4 || (game === "CFB" && step === 3)) && <p className="form-hint">{config.appearanceNotice}</p>}
     {step === 1 && <><h4>Select Package</h4><div className="custom-player-package-grid">{config.packages.map((entry: any) => <button type="button" key={entry.key} className={tier === entry.tier ? "active" : ""} onClick={() => { setTier(entry.tier); setDevTrait(entry.tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"); }}><strong>{entry.displayName}</strong><span><CoinAmount amount={entry.coinPrice}/> · {entry.creationPoints.toLocaleString()} CP</span><small>{entry.description}</small></button>)}</div><p>Wallet: <CoinAmount amount={config.walletBalance}/> · Used {config.seasonUsed}{config.seasonCap ? `/${config.seasonCap}` : ""}</p></>}
     {step === 2 && (() => {
-      const heightRule = game === "CFB" ? (CFB_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84, avg: 72 }) : null;
+      const heightRule = game === "CFB"
+        ? (CFB_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84, avg: 72 })
+        : (MADDEN_POSITION_HEIGHT[position.toUpperCase()] ?? { max: 84 });
       const weightRule = game === "CFB" ? (CFB_BODY_TYPE_WEIGHT[identity.bodyType] ?? CFB_BODY_TYPE_WEIGHT.standard) : null;
-      const overageInches = heightRule ? Math.max(0, identity.heightInches - heightRule.avg) : 0;
+      // Madden's height rule has no "avg" (no per-inch overage surcharge for Madden), only a cap.
+      const overageInches = game === "CFB" && heightRule && "avg" in heightRule ? Math.max(0, identity.heightInches - (heightRule as { avg: number }).avg) : 0;
       return <><h4>Player Details</h4><div className="custom-player-fields"><label>First name<input className="form-input" value={identity.firstName} onChange={(e) => setIdentity({ ...identity, firstName: e.target.value })}/></label><label>Last name<input className="form-input" value={identity.lastName} onChange={(e) => setIdentity({ ...identity, lastName: e.target.value })}/></label><Button variant="secondary" onClick={() => void generateName()}><Dices size={16}/> Generate</Button><label>Jersey #<input className="form-input" type="number" min="0" max="99" value={identity.jerseyNumber} onChange={(e) => setIdentity({ ...identity, jerseyNumber: Number(e.target.value) })}/></label><label>Hand<select className="form-input" value={identity.handedness} onChange={(e) => setIdentity({ ...identity, handedness: e.target.value })}><option value="right">Right</option><option value="left">Left</option></select></label>
         <label>Height{heightRule ? ` — 5'5" to ${formatFeetInches(heightRule.max)}` : ""}
           <span className="custom-player-height-picker">

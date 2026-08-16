@@ -743,7 +743,7 @@ export async function listMyWagers(guildId: string, discordId: string) {
 // showing the raw id. Total markets already store a human-readable "over"/"under".
 function pickLabelFor(w: any, gameById: Map<string, any>): string {
   const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
-  if (kind === "total") {
+  if (kind === "total" || kind === "team_total") {
     const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
     return w.line != null ? `${side} ${w.line}` : side;
   }
@@ -985,7 +985,11 @@ async function resolveOutcome(leagueId: string, wager: { game_id: string | null;
   const line = Number(wager.line ?? 0);
   let actual: number | null = null;
   if (def.statKey === "points") {
-    actual = homeScore + awayScore;
+    // team_total_points_home/away settle against just that team's score, not the combined
+    // total — this was using homeScore + awayScore for every points market regardless of
+    // def.team, so a "Home Team Total Points" bet was silently graded against the whole
+    // game's combined score instead of the home team's own score.
+    actual = def.team === "home" ? homeScore : def.team === "away" ? awayScore : homeScore + awayScore;
   } else {
     const stat = await loadTeamGameStat(leagueId, wager.game_id, def.statKey ?? "");
     if (!stat) return null; // box-score stat not logged yet

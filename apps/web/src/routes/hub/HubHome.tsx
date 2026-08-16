@@ -76,7 +76,7 @@ function parseLeagueSubTab(value: string | null): LeagueSubTab | null {
   return null;
 }
 type WagerMode = "single" | "parlay" | "peer";
-type WagerLeg = { gameId: string; label: string; options: WagerOptionsResponse; market: string; pick: string };
+type WagerLeg = { gameId: string; label: string; options: WagerOptionsResponse; market: string; pick: string; customLine: string };
 type WagerPanel = {
   gameId: string;
   label: string;
@@ -84,6 +84,8 @@ type WagerPanel = {
   mode: WagerMode;
   market: string;
   pick: string;
+  /** Overrides the market's system-generated line — empty string means use the default line. */
+  customLine: string;
   stake: string;
   parlay: WagerLeg[];
   challengeType: "open" | "direct";
@@ -1129,7 +1131,7 @@ export function HubHome() {
   async function openWager(game: HubMatchupSchedule["games"][number]) {
     if (auth.status !== "ready") return;
     const label = `${game.awayTeamName} at ${game.homeTeamName}`;
-    setWagerPanel({ gameId: game.gameId, label, options: null, mode: "single", market: "", pick: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: [], board: [], notice: null, busy: true });
+    setWagerPanel({ gameId: game.gameId, label, options: null, mode: "single", market: "", pick: "", customLine: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: [], board: [], notice: null, busy: true });
     try {
       const [options, board, coaches] = await Promise.all([
         recApi.getWagerOptions({ guildId: auth.guildId, gameId: game.gameId }),
@@ -1137,7 +1139,7 @@ export function HubHome() {
         recApi.listChallengeableCoaches(auth.guildId),
       ]);
       const firstMarket = options.markets[0];
-      setWagerPanel({ gameId: game.gameId, label, options, mode: "single", market: firstMarket?.market ?? "", pick: firstMarket?.sides[0]?.pick ?? "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: coaches.coaches, board: board.wagers, notice: null, busy: false });
+      setWagerPanel({ gameId: game.gameId, label, options, mode: "single", market: firstMarket?.market ?? "", pick: firstMarket?.sides[0]?.pick ?? "", customLine: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: coaches.coaches, board: board.wagers, notice: null, busy: false });
     } catch (cause) {
       setWagerPanel((current) => current ? { ...current, notice: cause instanceof Error ? cause.message : "Lines unavailable.", busy: false } : current);
     }
@@ -1145,7 +1147,7 @@ export function HubHome() {
 
   function addParlayLeg() {
     if (!wagerPanel?.options || wagerPanel.parlay.length >= 3) return;
-    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.market !== wagerPanel.market), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick }].slice(0, 3) });
+    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.market !== wagerPanel.market), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick, customLine: wagerPanel.customLine }].slice(0, 3) });
   }
 
   async function placeWager() {
@@ -1157,16 +1159,17 @@ export function HubHome() {
     }
     setWagerPanel({ ...wagerPanel, busy: true, notice: null });
     try {
+      const customLine = wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : null;
       let message = "Wager placed.";
       if (wagerPanel.mode === "parlay") {
-        const legs = wagerPanel.parlay.length ? wagerPanel.parlay : [{ gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options!, market: wagerPanel.market, pick: wagerPanel.pick }];
-        const result = await recApi.placeParlay({ guildId: auth.guildId, stake: Math.floor(stake), legs: legs.map((leg) => ({ gameId: leg.gameId, market: leg.market, pick: leg.pick })) });
+        const legs = wagerPanel.parlay.length ? wagerPanel.parlay : [{ gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options!, market: wagerPanel.market, pick: wagerPanel.pick, customLine: wagerPanel.customLine }];
+        const result = await recApi.placeParlay({ guildId: auth.guildId, stake: Math.floor(stake), legs: legs.map((leg) => ({ gameId: leg.gameId, market: leg.market, pick: leg.pick, customLine: leg.customLine.trim() ? Number(leg.customLine) : null })) });
         message = `Parlay placed. Potential payout ${coinsNumber(result.payout)}.`;
       } else if (wagerPanel.mode === "peer") {
-        const result = await recApi.placePeerWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), challengeType: wagerPanel.challengeType, targetUserId: wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null });
+        const result = await recApi.placePeerWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), challengeType: wagerPanel.challengeType, targetUserId: wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null, customLine });
         message = `Peer wager posted. Pot payout ${coinsNumber(result.payout)}.`;
       } else {
-        const result = await recApi.placeHouseWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake) });
+        const result = await recApi.placeHouseWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), customLine });
         message = `House wager placed. Potential payout ${coinsNumber(result.payout)}.`;
       }
       const board = await recApi.getPeerWagerBoard(auth.guildId).catch(() => ({ wagers: wagerPanel.board }));
@@ -2006,8 +2009,18 @@ export function HubHome() {
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
         {wagerPanel.mode === "parlay" && <p className="hub-muted">Choose exactly three different stat-line Over/Under picks from this game. Each side is a separate selection.</p>}
-        <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => <article key={market.market} className={wagerPanel.market === market.market ? "active" : ""}><button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button><div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={wagerPanel.market === market.market && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${market.line ?? ""}` : side.pick === "under" ? `UNDER ${market.line ?? ""}` : side.label}</b><small>{side.label} · odds {americanFromDecimal(side.odds)}</small></button>)}</div></article>)}</div>
-        {wagerPanel.mode === "parlay" && <div className="hub-parlay-slip"><div><strong>Parlay slip</strong><span>{wagerPanel.parlay.length}/3 picks</span></div><Button variant="secondary" size="compact" disabled={wagerPanel.parlay.length >= 3} onClick={addParlayLeg}>Add Pick</Button>{wagerPanel.parlay.map((leg) => <p key={`${leg.gameId}-${leg.market}`}>{leg.label}: {leg.market}</p>)}</div>}
+        <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => {
+          const isSelectedMarket = wagerPanel.market === market.market;
+          const effectiveLine = isSelectedMarket && wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : market.line;
+          return <article key={market.market} className={isSelectedMarket ? "active" : ""}>
+            <button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "", customLine: "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button>
+            <div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={isSelectedMarket && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${effectiveLine ?? ""}` : side.pick === "under" ? `UNDER ${effectiveLine ?? ""}` : side.label}</b><small>{side.label} · odds {americanFromDecimal(side.odds)}</small></button>)}</div>
+            {isSelectedMarket && market.line != null && (
+              <label className="form-field hub-wager-custom-line"><span className="form-label">Custom line (optional — defaults to {market.line})</span><input className="form-input" type="number" step="0.5" placeholder={String(market.line)} value={wagerPanel.customLine} onChange={(event) => setWagerPanel({ ...wagerPanel, customLine: event.target.value })} /></label>
+            )}
+          </article>;
+        })}</div>
+        {wagerPanel.mode === "parlay" && <div className="hub-parlay-slip"><div><strong>Parlay slip</strong><span>{wagerPanel.parlay.length}/3 picks</span></div><Button variant="secondary" size="compact" disabled={wagerPanel.parlay.length >= 3} onClick={addParlayLeg}>Add Pick</Button>{wagerPanel.parlay.map((leg) => <p key={`${leg.gameId}-${leg.market}`}>{leg.label}: {leg.market}{leg.customLine.trim() ? ` @ ${leg.customLine}` : ""}</p>)}</div>}
         {wagerPanel.mode === "peer" && <div className="hub-peer-controls"><select className="form-input" value={wagerPanel.challengeType} onChange={(event) => setWagerPanel({ ...wagerPanel, challengeType: event.target.value as "open" | "direct" })}><option value="open">Post to board</option><option value="direct">Direct challenge</option></select>{wagerPanel.challengeType === "direct" && <select className="form-input" value={wagerPanel.targetUserId} onChange={(event) => setWagerPanel({ ...wagerPanel, targetUserId: event.target.value })}><option value="">Select coach</option>{wagerPanel.coaches.map((coach) => <option key={coach.userId} value={coach.userId}>{coach.teamAbbr} · {coach.conference}</option>)}</select>}</div>}
         <div className="hub-wager-submit"><label className="form-field"><span className="form-label">Stake</span><input className="form-input" type="number" min="1" value={wagerPanel.stake} onChange={(event) => setWagerPanel({ ...wagerPanel, stake: event.target.value })} /></label><Button variant="primary" disabled={wagerPanel.busy || !wagerPanel.market || !wagerPanel.pick || (wagerPanel.mode === "peer" && wagerPanel.challengeType === "direct" && !wagerPanel.targetUserId) || (wagerPanel.mode === "parlay" && wagerPanel.parlay.length !== 3)} onClick={() => void placeWager()}>{wagerPanel.busy ? "Submitting..." : wagerPanel.mode === "peer" ? "Post User Wager" : wagerPanel.mode === "parlay" ? "Place 3-Pick Parlay" : "Bet House"}</Button></div>
         {wagerPanel.notice && <p className="hub-transfer-status">{wagerPanel.notice}</p>}
