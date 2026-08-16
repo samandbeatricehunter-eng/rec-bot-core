@@ -77,7 +77,7 @@ setInterval(() => {
   runAutoImportSweep()
     .then((result) => { if (result.attempted) app.log.info(result, "EA auto-import sweep completed"); })
     .catch((error) => app.log.error({ err: error }, "EA auto-import sweep failed"));
-}, 60 * 60_000).unref();
+}, 12 * 60 * 60_000).unref();
 
 // One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
 // were written directly in Supabase), backfill open-league embeds once on boot.
