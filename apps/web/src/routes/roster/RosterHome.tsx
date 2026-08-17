@@ -9,6 +9,7 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { RosterMovesPanel } from "./RosterMovesPanel.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
+import { ProposeRosterEditModal } from "../../components/hub/ProposeRosterEditModal.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerCard, toPlayerCardData } from "../../components/hub/PlayerCard.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -142,6 +143,8 @@ export function RosterHome() {
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [statsPlayer, setStatsPlayer] = useState<RosterPlayer | null>(null);
   const [cardPlayer, setCardPlayer] = useState<RosterPlayer | null>(null);
+  const [proposeEditPlayer, setProposeEditPlayer] = useState<RosterPlayer | null>(null);
+  const [dataMode, setDataMode] = useState<"import" | "box_scores" | "manual" | null>(null);
   const [sortKey, setSortKey] = useState<string>("overallRating");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs"]);
@@ -154,6 +157,9 @@ export function RosterHome() {
   }
 
   useEffect(load, [guildId]);
+  useEffect(() => {
+    recApi.getLeagueDataMode(guildId).then((res) => setDataMode(res.dataMode)).catch(() => undefined);
+  }, [guildId]);
 
   const rosteredPlayers = useMemo(
     () => (data?.players ?? []).filter((p) => ROSTER_ACTIVE_STATUSES.has(p.rosterStatus)),
@@ -338,6 +344,11 @@ export function RosterHome() {
                         <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
                           Add Stats
                         </button>
+                        {dataMode === "manual" && (
+                          <button type="button" className="btn btn-secondary btn-compact" style={{ marginLeft: "var(--space-2)" }} onClick={() => setProposeEditPlayer(player)}>
+                            Propose Edit
+                          </button>
+                        )}
                       </td>
                       {data.canEditRosterStatus && <td><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
                     </tr>
@@ -369,6 +380,16 @@ export function RosterHome() {
           initialPlayerName={statsPlayer.fullName}
           onClose={() => setStatsPlayer(null)}
           onSubmitted={() => setStatsPlayer(null)}
+        />
+      )}
+
+      {proposeEditPlayer && (
+        <ProposeRosterEditModal
+          guildId={guildId}
+          player={proposeEditPlayer}
+          isMadden={isMadden}
+          onClose={() => setProposeEditPlayer(null)}
+          onSubmitted={() => undefined}
         />
       )}
     </div>

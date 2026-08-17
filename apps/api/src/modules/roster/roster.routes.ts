@@ -5,6 +5,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { addRosterPlayer, addTransferInPlayer, assignRosterPlayer, deleteRosterPlayer, getTeamRoster, listRosterPool, reinstatePlayer, releaseRosterPlayer, ROSTER_DEPARTURE_STATUSES, setPlayerDeparture, updateRosterPlayer, uploadPlayerPhoto } from "./roster.service.js";
 import { approveRosterAddRequest, denyRosterAddRequest, listRosterAddRequests, submitRosterAddRequest } from "./roster-add-requests.service.js";
+import { listRosterEditProposals, reviewRosterEditProposal, submitRosterEditProposal } from "./roster-edit-proposals.service.js";
 
 export async function teamRosterRoutes(app: FastifyInstance) {
   app.post("/v1/roster/team", async (request, reply) => {
@@ -299,6 +300,62 @@ export async function teamRosterRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.discordId = auth.discordId;
       if (!body.discordId) throw new Error("Missing Discord id.");
       return reply.send(await denyRosterAddRequest({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Manual Entry mode's self-service roster editing: a coach proposes a change to a player on
+  // their own team, a co-commissioner approves (applies it) or rejects it. Submit-side gating
+  // (data_mode === "manual", team ownership) lives in the service.
+  app.post("/v1/roster/edit-proposals/submit", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        playerId: z.string().uuid(),
+        position: z.string().optional(),
+        jerseyNumber: z.number().int().min(0).max(99).optional().nullable(),
+        devTrait: z.string().optional().nullable(),
+        archetype: z.string().optional().nullable(),
+        attributes: z.record(z.string(), z.number().int().min(0).max(99)).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      const { guildId, discordId, playerId, ...changes } = body;
+      return reply.send(await submitRosterEditProposal({ guildId, discordId, playerId, changes }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/roster/edit-proposals/list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), manage: z.boolean().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: body.manage ? "co_commissioner" : "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await listRosterEditProposals(body.guildId, body.discordId, body.manage ?? false));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/roster/edit-proposals/review", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        proposalId: z.string().uuid(),
+        action: z.enum(["approve", "reject"]),
+        note: z.string().max(500).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await reviewRosterEditProposal({ guildId: body.guildId, proposalId: body.proposalId, action: body.action, reviewerDiscordId: body.discordId, note: body.note }));
     } catch (error) {
       return sendError(reply, error);
     }

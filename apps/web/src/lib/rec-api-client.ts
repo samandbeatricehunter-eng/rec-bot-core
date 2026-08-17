@@ -66,6 +66,7 @@ import type {
   RosterPoolResponse,
   RosterPlayerUpdateInput,
   RosterAssignResponse,
+  RosterEditProposal,
   RosterReleaseResponse,
   PeerWagerBoardResponse,
   MyWagersResponse,
@@ -464,6 +465,14 @@ export const recApi = {
     recApiFetch<{ player: RosterLifecycleResult }>("/v1/roster/add-requests/approve", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   denyRosterAddRequest: (input: { guildId: string; requestId: string; reason: string }) =>
     recApiFetch<{ ok: true }>("/v1/roster/add-requests/deny", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  submitRosterEditProposal: (input: { guildId: string; playerId: string; position?: string; jerseyNumber?: number | null; devTrait?: string | null; archetype?: string | null; attributes?: Record<string, number> }) =>
+    recApiFetch<{ proposal: RosterEditProposal }>("/v1/roster/edit-proposals/submit", { method: "POST", body: JSON.stringify(input) }),
+  listRosterEditProposals: (input: { guildId: string; manage?: boolean }) =>
+    recApiFetch<{ proposals: RosterEditProposal[] }>("/v1/roster/edit-proposals/list", { method: "POST", body: JSON.stringify(input) }),
+  reviewRosterEditProposal: (input: { guildId: string; proposalId: string; action: "approve" | "reject"; note?: string }) =>
+    recApiFetch<{ approved?: true; rejected?: true }>("/v1/roster/edit-proposals/review", { method: "POST", body: JSON.stringify(input) }),
+  getLeagueDataMode: (guildId: string) =>
+    recApiFetch<{ dataMode: "import" | "box_scores" | "manual" }>("/v1/league-context/data-mode", { method: "POST", body: JSON.stringify({ guildId }) }),
   placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
     recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
   placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>

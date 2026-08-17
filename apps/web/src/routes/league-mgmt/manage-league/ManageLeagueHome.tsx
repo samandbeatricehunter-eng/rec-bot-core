@@ -14,6 +14,7 @@ import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
+import { RosterEditProposalQueue } from "./RosterEditProposalQueue.js";
 import { ImportDataModal } from "./ImportDataModal.js";
 import { ManualEntryPage } from "./ManualEntryPage.js";
 import { TroubleshootModal } from "./TroubleshootModal.js";
@@ -160,6 +161,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         }
       />
       {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
+      {mode === "roster" && dataMode === "manual" && <RosterEditProposalQueue guildId={guildId} />}
       {error && <ErrorState message={error} />}
       {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}

@@ -797,6 +797,22 @@ export type RosterPoolResponse = {
   players: RosterPoolPlayer[];
   positionGroups: RosterPositionGroup[];
 };
+export type RosterEditProposal = {
+  id: string;
+  league_id: string;
+  team_id: string;
+  player_id: string;
+  proposed_by_user_id: string;
+  proposed_changes: { position?: string; jerseyNumber?: number | null; devTrait?: string | null; archetype?: string | null; attributes?: Record<string, number> };
+  status: "pending_review" | "approved" | "rejected";
+  commissioner_note: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  player: { full_name: string | null; position: string | null } | null;
+  team: { name: string | null; abbreviation: string | null } | null;
+};
 export type RosterPlayerUpdateInput = {
   guildId: string;
   playerId: string;
