@@ -66,6 +66,30 @@ export class EaAuthError extends Error {
   }
 }
 
+/**
+ * EA rejecting a specific service (observed: League Hub / getLeagueInfo) with
+ * errortdf.errorString "Restricted" while login, session creation, and getLeagues() all keep
+ * succeeding on the same token. Deliberately NOT a BlazeSessionError/EaAuthError — both of
+ * those trigger session-clear-and-retry in the callers below, which is pointless (and just
+ * hammers an endpoint EA is already gating) when the session itself is fine and the block is
+ * per-service on EA's end.
+ */
+export class BlazeRestrictedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BlazeRestrictedError";
+  }
+}
+
+/** Pulls EA's nested errortdf.errorString out of a Blaze error envelope, if present. */
+function blazeErrorString(errorPayload: unknown): string | undefined {
+  if (!errorPayload || typeof errorPayload !== "object") return undefined;
+  const errortdf = (errorPayload as Record<string, unknown>).errortdf;
+  if (!errortdf || typeof errortdf !== "object") return undefined;
+  const errorString = (errortdf as Record<string, unknown>).errorString;
+  return typeof errorString === "string" ? errorString : undefined;
+}
+
 export class BlazeSessionError extends Error {
   constructor(message: string) {
     super(message);
@@ -461,8 +485,14 @@ async function sendBlazeRpc<T>(
       throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
     }
     if (parsed && typeof parsed === "object" && "error" in parsed) {
+      const errorPayload = (parsed as Record<string, unknown>).error;
+      if (blazeErrorString(errorPayload)?.trim().toLowerCase() === "restricted") {
+        throw new BlazeRestrictedError(
+          "EA is currently restricting access to this franchise's League Hub data. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.",
+        );
+      }
       // A stale sessionKey surfaces as a Blaze error; callers re-authenticate and retry.
-      throw new BlazeSessionError(JSON.stringify((parsed as Record<string, unknown>).error).slice(0, 400));
+      throw new BlazeSessionError(JSON.stringify(errorPayload).slice(0, 400));
     }
     return parsed as T;
   };
@@ -524,10 +554,17 @@ async function sendExport<T>(
       } catch {
         throw new EaAuthError(`EA returned unreadable export data: ${text.slice(0, 300)}`, "Try the import again.");
       }
-      const errorName =
+      const errorPayload =
         parsed && typeof parsed === "object" && "error" in parsed
-          ? (parsed as { error?: { errorname?: string } }).error?.errorname
+          ? (parsed as { error?: unknown }).error
           : undefined;
+      const errorName =
+        errorPayload && typeof errorPayload === "object" ? (errorPayload as { errorname?: string }).errorname : undefined;
+      if (blazeErrorString(errorPayload)?.trim().toLowerCase() === "restricted") {
+        throw new BlazeRestrictedError(
+          `EA is currently restricting access to ${name}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
+        );
+      }
       // EA times out under load far more often than it fails outright; back off and retry.
       // After 4 timeouts the session may be stale — throw BlazeSessionError so the caller
       // re-creates the session and retries.
