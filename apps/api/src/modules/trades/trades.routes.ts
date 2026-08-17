@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing, acceptTradeBlockListing } from "./trades.service.js";
+import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
 import { searchTradeTargets, suggestTradeOffers } from "./trade-targets.service.js";
 
 const LegSchema = z.union([
@@ -141,15 +141,6 @@ export async function tradesRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Withdrawing a trade block listing is website-only.");
       return reply.send(await withdrawTradeBlockListing({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/trades/block-listings/accept", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), listingId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode !== "user") throw new ApiError(400, "Accepting a trade block listing is website-only.");
-      return reply.send(await acceptTradeBlockListing({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

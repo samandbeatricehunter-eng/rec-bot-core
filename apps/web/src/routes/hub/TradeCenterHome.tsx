@@ -302,11 +302,12 @@ function describeListingOffer(listing: TradeBlockListing, myRoster: TeamRosterRe
 /** Open "package offer" board: post up to 7 players/picks + coins with a free-text "looking
  * for", visible league-wide and announced to Discord's trade-block channel — distinct from
  * the simple single-player TradeBlockSection below, which just flags one player as available. */
-function TradeBlockPanel({ guildId, myRoster, game, onChanged }: {
+function TradeBlockPanel({ guildId, myRoster, game, onChanged, onPropose }: {
   guildId: string;
   myRoster: TeamRosterResponse;
   game: string;
   onChanged: () => void;
+  onPropose: (listing: TradeBlockListing) => void;
 }) {
   const [listings, setListings] = useState<TradeBlockListing[] | null>(null);
   const [legs, setLegs] = useState<TradeLegInput[]>([]);
@@ -357,19 +358,6 @@ function TradeBlockPanel({ guildId, myRoster, game, onChanged }: {
     }
   }
 
-  async function accept(listingId: string) {
-    setBusy(true); setError(null);
-    try {
-      await recApi.acceptTradeBlockListing({ guildId, listingId });
-      load();
-      onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept the listing.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <section className="hub-trade-block-panel">
       <h3>Open Trade Block Offers</h3>
@@ -385,8 +373,8 @@ function TradeBlockPanel({ guildId, myRoster, game, onChanged }: {
             {listing.teamId === myRoster.team.id && (
               <button type="button" className="btn btn-secondary btn-compact" disabled={busy} onClick={() => void withdraw(listing.id)}>Withdraw</button>
             )}
-            {listing.teamId !== myRoster.team.id && !busy && (
-              <button type="button" className="btn btn-success btn-compact" onClick={() => void accept(listing.id)}>Accept</button>
+            {listing.teamId !== myRoster.team.id && (
+              <button type="button" className="btn btn-success btn-compact" onClick={() => onPropose(listing)}>Propose Offer</button>
             )}
           </div>
         ))
@@ -790,6 +778,7 @@ export function TradeCenterHome() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"block" | "targets" | "builder">("block");
+  const [builderReminder, setBuilderReminder] = useState<string | null>(null);
 
   function loadCore() {
     recApi.getTeamRoster({ guildId }).then(setMyRoster).catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
@@ -842,12 +831,26 @@ export function TradeCenterHome() {
       });
       setNotice("status" in result && result.status === "applied" ? "Trade applied immediately." : "Trade proposed.");
       setOfferedLegs([]); setRequestedLegs([]); setOfferedCoins(0); setRequestedCoins(0); setOpponentTeamId("");
+      setBuilderReminder(null);
       loadCore();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to propose trade.");
     } finally {
       setBusy(false);
     }
+  }
+
+  // From a trade-block listing's "Propose Offer" button: jump to the builder with the
+  // listing's offered assets pre-loaded as what we'd request, and their "looking for" text
+  // surfaced as a reminder of what to actually offer in return.
+  function proposeForListing(listing: TradeBlockListing) {
+    setOpponentTeamId(listing.teamId);
+    setOfferedLegs([]);
+    setOfferedCoins(0);
+    setRequestedLegs(listing.offeredLegs);
+    setRequestedCoins(listing.offeredCoins);
+    setBuilderReminder(`${listing.teamName} is looking for: ${listing.lookingFor}`);
+    setViewMode("builder");
   }
 
   async function respond(tradeId: string, action: "accept" | "decline") {
@@ -1025,7 +1028,7 @@ export function TradeCenterHome() {
         </CollapsibleSection>
 
         <CollapsibleSection title="Open Trade Block Offers">
-          <TradeBlockPanel guildId={guildId} myRoster={myRoster} game={hub.currentLeague?.game ?? ""} onChanged={loadCore} />
+          <TradeBlockPanel guildId={guildId} myRoster={myRoster} game={hub.currentLeague?.game ?? ""} onChanged={loadCore} onPropose={proposeForListing} />
         </CollapsibleSection>
 
         <CollapsibleSection title="Trade Block" defaultOpen={false}>
@@ -1036,6 +1039,7 @@ export function TradeCenterHome() {
       {viewMode === "builder" && (<>
         <section className="hub-trade-propose">
           <h3>Propose a Trade</h3>
+          {builderReminder && <p className="hub-notice">{builderReminder}</p>}
           <label className="form-field">
             <span className="form-label">Trade with</span>
             <select className="form-input" value={opponentTeamId} onChange={(event) => {
@@ -1043,6 +1047,7 @@ export function TradeCenterHome() {
               const nextTeam = teams.find((team) => team.id === nextTeamId);
               setOpponentTeamId(nextTeamId);
               setRequestedLegs([]);
+              setBuilderReminder(null);
               if (!nextTeam?.hasSiteAccount) { setOfferedCoins(0); setRequestedCoins(0); }
             }}>
               <option value="">Select a team\u2026</option>
