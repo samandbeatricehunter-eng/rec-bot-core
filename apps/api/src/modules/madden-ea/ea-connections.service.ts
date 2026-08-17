@@ -418,12 +418,18 @@ export async function listEaLeagues(connectionId: string, leagueId: string): Pro
       const fresh = await createBlazeSession(token.accessToken, token.console);
       await persistSession(row.id, fresh);
       const retry = createEaClient({ accessToken: token.accessToken, console: token.console }, fresh);
-      return (await retry.getLeagues()).map((league) => ({
-        leagueId: league.leagueId, leagueName: league.leagueName, calendarYear: league.calendarYear,
-        numMembers: league.numMembers, userTeamId: league.userTeamId, userTeamName: league.userTeamName,
-        seasonText: league.seasonText, currentWeekCompleted: league.currentWeekCompleted,
-      }));
+      try {
+        return (await retry.getLeagues()).map((league) => ({
+          leagueId: league.leagueId, leagueName: league.leagueName, calendarYear: league.calendarYear,
+          numMembers: league.numMembers, userTeamId: league.userTeamId, userTeamName: league.userTeamName,
+          seasonText: league.seasonText, currentWeekCompleted: league.currentWeekCompleted,
+        }));
+      } catch (retryError) {
+        await recordEaImportError(row.id, retryError);
+        throw retryError;
+      }
     }
+    await recordEaImportError(row.id, error);
     throw error;
   }
 }
@@ -439,16 +445,21 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
 
   let info: Awaited<ReturnType<typeof client.getLeagueInfo>>;
   try {
-    info = await client.getLeagueInfo(eaLeagueId);
-  } catch (error) {
-    if (error instanceof BlazeSessionError) {
-      await clearSession(row.id);
-      const fresh = await createBlazeSession(token.accessToken, token.console);
-      await persistSession(row.id, fresh);
-      info = await createEaClient({ accessToken: token.accessToken, console: token.console }, fresh).getLeagueInfo(eaLeagueId);
-    } else {
-      throw error;
+    try {
+      info = await client.getLeagueInfo(eaLeagueId);
+    } catch (error) {
+      if (error instanceof BlazeSessionError) {
+        await clearSession(row.id);
+        const fresh = await createBlazeSession(token.accessToken, token.console);
+        await persistSession(row.id, fresh);
+        info = await createEaClient({ accessToken: token.accessToken, console: token.console }, fresh).getLeagueInfo(eaLeagueId);
+      } else {
+        throw error;
+      }
     }
+  } catch (error) {
+    await recordEaImportError(row.id, error);
+    throw error;
   }
   if (!info.success) throw new ApiError(422, `EA rejected that franchise: ${info.message ?? "unknown error"}`);
 
@@ -893,6 +904,15 @@ export async function importEaDatasetsWithProgress(
  * interval; each connection with auto_import enabled gets refreshed and re-imported in turn. Runs
  * connections sequentially (not in parallel) to stay gentle on both EA's API and this DB.
  */
+/** Persists a failed import's error onto the connection row so it's visible outside the live progress stream (e.g. after the commissioner's modal is closed). */
+export async function recordEaImportError(connectionId: string, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  await getPgPool().query(
+    `update rec_ea_connections set last_error=$2, updated_at=now() where id=$1`,
+    [connectionId, message.slice(0, 500)],
+  ).catch(() => undefined);
+}
+
 export async function runAutoImportSweep(): Promise<{ attempted: number; succeeded: number; failed: number }> {
   if (!isEaImportConfigured()) return { attempted: 0, succeeded: 0, failed: 0 };
   const rows = await getPgPool().query<EaConnectionRow>(
@@ -914,10 +934,7 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[EA] Auto-import sweep failed for league ${row.league_id}:`, message);
       pushProgress(row.league_id, { type: "error", error: message });
-      await getPgPool().query(
-        `update rec_ea_connections set last_error=$2, updated_at=now() where id=$1`,
-        [row.id, message.slice(0, 500)],
-      ).catch(() => undefined);
+      await recordEaImportError(row.id, error);
     }
   }
   return { attempted: rows.rows.length, succeeded, failed };

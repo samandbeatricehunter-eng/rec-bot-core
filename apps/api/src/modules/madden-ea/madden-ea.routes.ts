@@ -15,6 +15,7 @@ import {
   pushProgress,
   listEaImportJobs,
   listEaLeagues,
+  recordEaImportError,
   selectEaPersona,
   submitEaCode,
   updateEaConnectionSettings,
@@ -141,7 +142,12 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
       const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
-      return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }) });
+      try {
+        return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }) });
+      } catch (importError) {
+        await recordEaImportError(body.connection_id, importError);
+        throw importError;
+      }
     } catch (error) {
       return sendError(reply, error);
     }
@@ -177,6 +183,7 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       }).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });
+        void recordEaImportError(body.connection_id, error);
       });
 
       return reply.send({ ok: true, message: "Import started. Poll /v1/import/madden/ea/import-progress for status." });
