@@ -33,10 +33,10 @@ importers:
         version: 13.1.0
       '@fastify/multipart':
         specifier: ^10.1.0
-        version: 10.1.0
+        version: 10.1.1
       '@fastify/rate-limit':
-        specifier: ^11.1.0
-        version: 11.1.0
+        specifier: ^11.2.0
+        version: 11.2.0
       '@fastify/websocket':
         specifier: ^11.3.0
         version: 11.3.0
@@ -45,28 +45,28 @@ importers:
         version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.111.0
-        version: 2.111.0
+        version: 2.112.3
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
+        version: 0.45.2(@types/pg@8.21.0)(pg@8.23.0)
       fastify:
         specifier: ^5.10.0
-        version: 5.10.0
+        version: 5.12.0
       jose:
         specifier: ^6.2.4
-        version: 6.2.4
+        version: 6.2.9
       pg:
         specifier: ^8.22.0
-        version: 8.22.0
+        version: 8.23.0
       sharp:
         specifier: ^0.35.2
         version: 0.35.3(@types/node@22.20.1)
       stripe:
         specifier: ^22.3.2
-        version: 22.3.2(@types/node@22.20.1)
+        version: 22.5.0(@types/node@22.20.1)
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
@@ -78,14 +78,14 @@ importers:
         version: 3.6.7
       ws:
         specifier: ^8.21.1
-        version: 8.21.1
+        version: 8.21.3
       zod:
         specifier: ^3.24.2
         version: 3.25.76
     devDependencies:
       '@types/pg':
         specifier: ^8.20.0
-        version: 8.20.0
+        version: 8.21.0
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
@@ -97,7 +97,7 @@ importers:
         version: 0.31.10
       tsx:
         specifier: ^4.19.3
-        version: 4.23.1
+        version: 4.23.12
 
   apps/bot:
     dependencies:
@@ -116,7 +116,7 @@ importers:
     devDependencies:
       tsx:
         specifier: ^4.19.3
-        version: 4.23.1
+        version: 4.23.12
 
   apps/site:
     dependencies:
@@ -128,10 +128,10 @@ importers:
         version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.111.0
-        version: 2.111.0
+        version: 2.112.3
       lucide-react:
         specifier: ^1.24.0
-        version: 1.27.0(react@18.3.1)
+        version: 1.31.0(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -140,7 +140,7 @@ importers:
         version: 18.3.1(react@18.3.1)
       react-router-dom:
         specifier: ^7.18.1
-        version: 7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       sirv:
         specifier: ^2.0.4
         version: 2.0.4
@@ -153,10 +153,10 @@ importers:
         version: 18.3.7(@types/react@18.3.31)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(vite@7.3.6(@types/node@22.20.1)(tsx@4.23.1))
+        version: 5.2.0(vite@7.3.6(@types/node@22.20.1)(tsx@4.23.12))
       vite:
         specifier: ^7.3.6
-        version: 7.3.6(@types/node@22.20.1)(tsx@4.23.1)
+        version: 7.3.6(@types/node@22.20.1)(tsx@4.23.12)
 
   apps/web:
     dependencies:
@@ -165,7 +165,7 @@ importers:
         version: link:../../packages/shared
       lucide-react:
         specifier: ^1.24.0
-        version: 1.27.0(react@18.3.1)
+        version: 1.31.0(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -174,7 +174,7 @@ importers:
         version: 18.3.1(react@18.3.1)
       react-router-dom:
         specifier: ^7.18.1
-        version: 7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@types/react':
         specifier: ^18.3.12
@@ -190,7 +190,7 @@ importers:
         version: link:../shared
       lucide-react:
         specifier: ^1.24.0
-        version: 1.27.0(react@18.3.1)
+        version: 1.31.0(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -199,13 +199,13 @@ importers:
         version: 18.3.1(react@18.3.1)
       react-router-dom:
         specifier: ^7.18.1
-        version: 7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
   packages/shared:
     devDependencies:
       tsx:
         specifier: ^4.19.3
-        version: 4.23.1
+        version: 4.23.12
 
 packages:
 
@@ -328,11 +328,11 @@ packages:
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild-kit/esm-loader@2.6.5':
     resolution: {integrity: sha512-FxEMIkJKnodyA1OaCUoEvbYRkoZlLZ4d/eXFu9Fh8CbBBgP5EmZxrfTRyN0qpXZ4vOvqnE5YdRdcrmUUXuU+dA==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -673,14 +673,14 @@ packages:
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
 
-  '@fastify/multipart@10.1.0':
-    resolution: {integrity: sha512-b2r6CovmLQvLFJ5HJDtxVigZjcO9TwkRGslhiNQxsGJwilm5B3eqvXPOVLudC44zXMXJITpQ/iEATIE7zoXqcQ==}
+  '@fastify/multipart@10.1.1':
+    resolution: {integrity: sha512-jyRHgnFVdchZRKjJRf6kGPEiDp3Bg4MLo4d6/krt8Z4RutLrqL5IYWihx8a4tnv7Tu7JfuHcyC+dU9zPzTxiSg==}
 
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
 
-  '@fastify/rate-limit@11.1.0':
-    resolution: {integrity: sha512-BeJ9tizLvmTXGD7deYU5G04OtHhwk5uHxbpEPVp09gKvUBIXmau/4Bshxhu9ci54MvVWfGjCEx4RzvsTntojwA==}
+  '@fastify/rate-limit@11.2.0':
+    resolution: {integrity: sha512-X7osJd4XSvMoejYrnJkSZYYjY1eNYoBqhjlzf1RakC2204qExFqZFTKj5+T7VuzA/iUI9Z3UoSqQRkB2HpG0oQ==}
 
   '@fastify/websocket@11.3.0':
     resolution: {integrity: sha512-g89ag4BCcD9YP5wBZXixzoLnuf5j89p/sXFcfpCiv2pdEkYYukBEoK3heVzqsp0EAtszVDc2BBZG0KZqeAShIA==}
@@ -997,32 +997,37 @@ packages:
     resolution: {integrity: sha512-xzvBr1Q1c4lCe7i6sRnrofxeO1QTP/LKQ6A6qy0iB4x5yfiSfARMEQEghojzTNALDTcv8En04qYNIco9/K9eZQ==}
     engines: {node: '>=v14.0.0', npm: '>=7.0.0'}
 
-  '@supabase/auth-js@2.111.0':
-    resolution: {integrity: sha512-hbRLgyQZEX0SDyF4LYXpv94qOIQyFATfpT5SIs2V0SisHnisVRkYgiPQWzv80l4S2mO3qof78rmoH9j5zoFsYQ==}
+  '@supabase/auth-js@2.112.3':
+    resolution: {integrity: sha512-NA0rsgAlWZPvbhw8aUdmgfpHVgUAcd8zK5ov43l++o1bLIPXZhRiAlRobhwF5AatQuovpqxsMH50F4oyyV4XZw==}
     engines: {node: '>=22.0.0'}
 
-  '@supabase/functions-js@2.111.0':
-    resolution: {integrity: sha512-RW/OCsd6MO592zU8ifzP8/f8XzxxIdpb+Up5XaOtE26Fw+3zTp475WX7+GuuktiD1WF8pFUDe6khUPbMp77RCw==}
+  '@supabase/functions-js@2.112.3':
+    resolution: {integrity: sha512-gfv481mTOVWtZIJgXupxZpni2V2UWPf6jeF/jOK7HdMHdH+mt6sU0sHHwf0POsPip8ltlulu9OUHgwVzl5ddRw==}
     engines: {node: '>=22.0.0'}
 
   '@supabase/phoenix@0.4.5':
     resolution: {integrity: sha512-aAn9H9ovVyeApKy11OWOrrOGq8DV68yWeH4ud2lN9fzn4aO8Zb5GLL9m1pUg9nLqIcT+ZDfAcsZe0E/nqdv2lw==}
 
-  '@supabase/postgrest-js@2.111.0':
-    resolution: {integrity: sha512-pcqeDsnWP0lx9GawduYxNZJHeuTm53O7L0SC8RF8tniV3GWIPY6me6OTdnwzdwNUmNy1dzUVtSyIfE6+OflzPQ==}
+  '@supabase/postgrest-js@2.112.3':
+    resolution: {integrity: sha512-+Mf6uCpzr00bqxwX8hTK2X2L9eAL/1vuOjdEjx6upz9ulb0RmQT16XeU/JkMUlVHw/B46ZnPa2busY4Kd9YCzw==}
     engines: {node: '>=22.0.0'}
 
-  '@supabase/realtime-js@2.111.0':
-    resolution: {integrity: sha512-6oRf/vZyRwg8f8GbFSJkrD2w4HAu/yTvyMViHXHS+H5hNJzdXCrUR7cP5oW7daT3YlRnzRPY9LcGSJKZAmfMSg==}
+  '@supabase/realtime-js@2.112.3':
+    resolution: {integrity: sha512-E6wljXWs7DUOloyIB69i3YFInWE6IyCvgTAbQ0KYxOHv26FdA1KzEXTuzxrYEdf70t406Z9BRwUlGyclGF2FXA==}
     engines: {node: '>=22.0.0'}
 
-  '@supabase/storage-js@2.111.0':
-    resolution: {integrity: sha512-UEViNmTzVOxE8dqUA81wls+n9xgmlvSFfhfwo6QxrO4kQOytCYyw3ciYFoi4XoD4Jl95NJ3jnndHN5iIudWzqw==}
+  '@supabase/storage-js@2.112.3':
+    resolution: {integrity: sha512-oSK61tzlUvg+BWPqpKQCu9qqonsO26btaoAR9D6Gest2aj7xUqToj9rKyaoYOJczkhg9BjqA1REbYy9tPI4bDA==}
     engines: {node: '>=22.0.0'}
 
-  '@supabase/supabase-js@2.111.0':
-    resolution: {integrity: sha512-9q0/AULthQnWeiDh1vGyjoJZbSY04bu6qHcWit70pqEYn5Kv/dkCPY62Ja1123jEnJbB9Vd2pjY7Kvk/lK3peA==}
+  '@supabase/supabase-js@2.112.3':
+    resolution: {integrity: sha512-Jv1bxVQmEJNkjvPEhFaKjPzsh+Ozyew6lWGD+SoYcsclDEP1z7yEvKvfUQfzy0DkxRIQnZNxmmWtAzw5XLTQoA==}
     engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0'
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -1045,8 +1050,8 @@ packages:
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
-  '@types/pg@8.20.0':
-    resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
+  '@types/pg@8.21.0':
+    resolution: {integrity: sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q==}
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -1312,8 +1317,8 @@ packages:
   fastify-plugin@6.0.0:
     resolution: {integrity: sha512-fZOty7z3O7vOliF6d8bHE3wiEh1KcNnKEQensSgTk9C1DvN6nRLS++XVd86v33Hw/8u9Un8A1zDrQ8ujcQDHEg==}
 
-  fastify@5.10.0:
-    resolution: {integrity: sha512-A9L0ziuWGQHgEEVgF3davQ9vbD93IuX+lo2IsxapQmu5b/Y/ynn9m9K5JHt9dvyJXOFc5iN0Zk5GHEOqnzhWjg==}
+  fastify@5.12.0:
+    resolution: {integrity: sha512-A3RNEaDIHWaxFW8n8rNJaW1wQ+XAXuoU71llfUQJjuh5WaYLmKfRhhanaJBOx8m2EBPQkR6sDBovYdHNe9F6rA==}
 
   fastq@1.20.1:
     resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
@@ -1365,6 +1370,10 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
+  ip-address@10.5.0:
+    resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
+    engines: {node: '>= 12'}
+
   ipaddr.js@2.4.0:
     resolution: {integrity: sha512-9VGk3HGanVE6JoZXHiCpnGy5X0jYDnN4EA4lntFPj+1vIWlFhIylq2CrrCOJH9EAhc5CYhq18F2Av2tgoAPsYQ==}
     engines: {node: '>= 10'}
@@ -1372,8 +1381,8 @@ packages:
   is-url@1.2.4:
     resolution: {integrity: sha512-ITvGim8FhRiYe4IQ5uHSkj7pVaPDrCTkNd3yq3cV7iZAcJdHTUMPMEHcqSOy9xZ9qFenQCvi+2wjH9a1nXqHww==}
 
-  jose@6.2.4:
-    resolution: {integrity: sha512-N8acGzVsQy6M/fjFcxtysNc4Q379TcM5dM/qKkNtsHFji88yANnXTr7BLeP75iPnFwBfQzM/jg2BZ9+HZrHCZA==}
+  jose@6.2.9:
+    resolution: {integrity: sha512-XrchZOFZUl/T3vTwRe8XK+cJrGtMF4th1ARnDfwbBXFKThGhlsxEE4Zu03AD/bjJSt/9jT/mxrOCkJWOg77aPA==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -1416,8 +1425,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.27.0:
-    resolution: {integrity: sha512-rJicGl/3Fly/E0rOH1YmPZ6e49JCnKknh1ox1vpHnkfjujAkKA6sqUZvH3MTAaXXjgexyUwgNwTJzTtYuAFYJw==}
+  lucide-react@1.31.0:
+    resolution: {integrity: sha512-G8u2eEtoHUnUa9f8lbvqDhCiORMnYLdUEo06EEG9MQvHQrInKcX3Pa2TH39MM5qyzRcWETxB0+aOwAPI1g1kEg==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -1490,15 +1499,15 @@ packages:
   pg-protocol@1.14.0:
     resolution: {integrity: sha512-n5taZ1kO3s9ngDTVxsEznOqCyToTgz0FLuPq0B33COy5pPpuWJpY3/2oRBVETuOgzdqRXfWpM9HIhp2LBBT1BA==}
 
-  pg-protocol@1.15.0:
-    resolution: {integrity: sha512-cq9sECI5s0+uPUXjbz8ioyPJni6RzsRib0US67i5IoTZKw8fNeYlVE7u8F4dG7vEJJtc5wdD1K189lCCUwqWTQ==}
+  pg-protocol@1.16.0:
+    resolution: {integrity: sha512-sILXutLVjCLjcDuOmvhX5e2Z4cS5qG/6Bu3VkpFwdf/633ElGLpEh9bgmuI5I4sqKqkifQiGyiCcx1HdtrK7tg==}
 
   pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
     engines: {node: '>=4'}
 
-  pg@8.22.0:
-    resolution: {integrity: sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==}
+  pg@8.23.0:
+    resolution: {integrity: sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==}
     engines: {node: '>= 16.0.0'}
     peerDependencies:
       pg-native: '>=3.0.1'
@@ -1549,8 +1558,8 @@ packages:
   process-warning@4.0.1:
     resolution: {integrity: sha512-3c2LzQ3rY9d0hc1emcsHhfT9Jwz0cChib/QN89oME2R451w5fy3f0afAhERFZAwrbDU43wk12d0ORBpDVME50Q==}
 
-  process-warning@5.0.0:
-    resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
+  process-warning@5.1.0:
+    resolution: {integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==}
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -1564,8 +1573,8 @@ packages:
     resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
 
-  react-router-dom@7.18.1:
-    resolution: {integrity: sha512-KaZh+X/6UtEp28x51AUYZDMg9NGoz2ja3dNHa+ta/tk40vCzKhQ/RypCWBMLbmDr6//E24Vv5uPsrqXFozdkAg==}
+  react-router-dom@7.18.2:
+    resolution: {integrity: sha512-AIKJ/jgGlFb3EbfCXk5Gzshiwt+l3mqbCrNjmEWMMjqQxNJ3svBa6bgzFyCC2Sw3RA0VWF1kg3uQf2OFhxb8hw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -1691,8 +1700,8 @@ packages:
   string_decoder@1.3.0:
     resolution: {integrity: sha512-hkRX8U1WjJFd8LsDJ2yQ/wWWxaopEsABU1XfkM8A+j0+85JAGppt16cr1Whg6KIbb4okU6Mql6BOj+uup/wKeA==}
 
-  stripe@22.3.2:
-    resolution: {integrity: sha512-O13QOvgEIQvDlTy6Ubb5kB980wpbhmoZNsgCXKILjCMZS67f+bW+6w99k3gnSi/N1lkryoj1WYdpGT5Wc5edjg==}
+  stripe@22.5.0:
+    resolution: {integrity: sha512-QVwMwriC0bbySx6R4dpsvJ0W//GojC1kwWVS6rPSoVqDUIZX4Hy3TaUrd2AZeXEAaKbfWIjQjvo3vKAReHZ0vQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
@@ -1731,8 +1740,8 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
-  tsx@4.23.1:
-    resolution: {integrity: sha512-GQHnkIfxyx1wYCOS/wonik5MVRZU9hi1TEZmzGZSCJB1y9YgoZ8H6itNE/u4suE+yLmOzuE4E5S4TZ/ZX2wcWQ==}
+  tsx@4.23.12:
+    resolution: {integrity: sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -1814,8 +1823,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.21.1:
-    resolution: {integrity: sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==}
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -1997,7 +2006,7 @@ snapshots:
       '@vladfrangu/async_event_emitter': 2.4.7
       discord-api-types: 0.38.52
       tslib: 2.8.1
-      ws: 8.21.1
+      ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2207,7 +2216,7 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  '@fastify/multipart@10.1.0':
+  '@fastify/multipart@10.1.1':
     dependencies:
       '@fastify/busboy': 3.2.0
       '@fastify/deepmerge': 3.2.1
@@ -2220,17 +2229,18 @@ snapshots:
       '@fastify/forwarded': 3.0.1
       ipaddr.js: 2.4.0
 
-  '@fastify/rate-limit@11.1.0':
+  '@fastify/rate-limit@11.2.0':
     dependencies:
       '@lukeed/ms': 2.0.2
       fastify-plugin: 6.0.0
+      ip-address: 10.5.0
       toad-cache: 3.7.4
 
   '@fastify/websocket@11.3.0':
     dependencies:
       duplexify: 4.1.3
       fastify-plugin: 6.0.0
-      ws: 8.21.1
+      ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2452,37 +2462,37 @@ snapshots:
 
   '@sapphire/snowflake@3.5.5': {}
 
-  '@supabase/auth-js@2.111.0':
+  '@supabase/auth-js@2.112.3':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/functions-js@2.111.0':
+  '@supabase/functions-js@2.112.3':
     dependencies:
       tslib: 2.8.1
 
   '@supabase/phoenix@0.4.5': {}
 
-  '@supabase/postgrest-js@2.111.0':
+  '@supabase/postgrest-js@2.112.3':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/realtime-js@2.111.0':
+  '@supabase/realtime-js@2.112.3':
     dependencies:
       '@supabase/phoenix': 0.4.5
       tslib: 2.8.1
 
-  '@supabase/storage-js@2.111.0':
+  '@supabase/storage-js@2.112.3':
     dependencies:
       iceberg-js: 0.8.1
       tslib: 2.8.1
 
-  '@supabase/supabase-js@2.111.0':
+  '@supabase/supabase-js@2.112.3':
     dependencies:
-      '@supabase/auth-js': 2.111.0
-      '@supabase/functions-js': 2.111.0
-      '@supabase/postgrest-js': 2.111.0
-      '@supabase/realtime-js': 2.111.0
-      '@supabase/storage-js': 2.111.0
+      '@supabase/auth-js': 2.112.3
+      '@supabase/functions-js': 2.112.3
+      '@supabase/postgrest-js': 2.112.3
+      '@supabase/realtime-js': 2.112.3
+      '@supabase/storage-js': 2.112.3
 
   '@types/babel__core@7.20.5':
     dependencies:
@@ -2515,7 +2525,7 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/pg@8.20.0':
+  '@types/pg@8.21.0':
     dependencies:
       '@types/node': 22.19.19
       pg-protocol: 1.14.0
@@ -2540,7 +2550,7 @@ snapshots:
     dependencies:
       '@types/node': 22.19.19
 
-  '@vitejs/plugin-react@5.2.0(vite@7.3.6(@types/node@22.20.1)(tsx@4.23.1))':
+  '@vitejs/plugin-react@5.2.0(vite@7.3.6(@types/node@22.20.1)(tsx@4.23.12))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.7)
@@ -2548,7 +2558,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.3
       '@types/babel__core': 7.20.5
       react-refresh: 0.18.0
-      vite: 7.3.6(@types/node@22.20.1)(tsx@4.23.1)
+      vite: 7.3.6(@types/node@22.20.1)(tsx@4.23.12)
     transitivePeerDependencies:
       - supports-color
 
@@ -2645,12 +2655,12 @@ snapshots:
       '@drizzle-team/brocli': 0.10.2
       '@esbuild-kit/esm-loader': 2.6.5
       esbuild: 0.25.12
-      tsx: 4.23.1
+      tsx: 4.23.12
 
-  drizzle-orm@0.45.2(@types/pg@8.20.0)(pg@8.22.0):
+  drizzle-orm@0.45.2(@types/pg@8.21.0)(pg@8.23.0):
     optionalDependencies:
-      '@types/pg': 8.20.0
-      pg: 8.22.0
+      '@types/pg': 8.21.0
+      pg: 8.23.0
 
   duplexify@4.1.3:
     dependencies:
@@ -2754,7 +2764,7 @@ snapshots:
 
   fastify-plugin@6.0.0: {}
 
-  fastify@5.10.0:
+  fastify@5.12.0:
     dependencies:
       '@fastify/ajv-compiler': 4.0.5
       '@fastify/error': 4.2.0
@@ -2766,7 +2776,7 @@ snapshots:
       find-my-way: 9.7.0
       light-my-request: 6.6.0
       pino: 10.3.1
-      process-warning: 5.0.0
+      process-warning: 5.1.0
       rfdc: 1.4.1
       secure-json-parse: 4.1.0
       semver: 7.8.5
@@ -2812,11 +2822,13 @@ snapshots:
 
   inherits@2.0.4: {}
 
+  ip-address@10.5.0: {}
+
   ipaddr.js@2.4.0: {}
 
   is-url@1.2.4: {}
 
-  jose@6.2.4: {}
+  jose@6.2.9: {}
 
   js-tokens@4.0.0: {}
 
@@ -2859,7 +2871,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.27.0(react@18.3.1):
+  lucide-react@1.31.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 
@@ -2902,13 +2914,13 @@ snapshots:
 
   pg-int8@1.0.1: {}
 
-  pg-pool@3.14.0(pg@8.22.0):
+  pg-pool@3.14.0(pg@8.23.0):
     dependencies:
-      pg: 8.22.0
+      pg: 8.23.0
 
   pg-protocol@1.14.0: {}
 
-  pg-protocol@1.15.0: {}
+  pg-protocol@1.16.0: {}
 
   pg-types@2.2.0:
     dependencies:
@@ -2918,11 +2930,11 @@ snapshots:
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
 
-  pg@8.22.0:
+  pg@8.23.0:
     dependencies:
       pg-connection-string: 2.14.0
-      pg-pool: 3.14.0(pg@8.22.0)
-      pg-protocol: 1.15.0
+      pg-pool: 3.14.0(pg@8.23.0)
+      pg-protocol: 1.16.0
       pg-types: 2.2.0
       pgpass: 1.0.5
     optionalDependencies:
@@ -2949,7 +2961,7 @@ snapshots:
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 3.0.0
       pino-std-serializers: 7.1.0
-      process-warning: 5.0.0
+      process-warning: 5.1.0
       quick-format-unescaped: 4.0.4
       real-require: 0.2.0
       safe-stable-stringify: 2.5.0
@@ -2974,7 +2986,7 @@ snapshots:
 
   process-warning@4.0.1: {}
 
-  process-warning@5.0.0: {}
+  process-warning@5.1.0: {}
 
   quick-format-unescaped@4.0.4: {}
 
@@ -2986,7 +2998,7 @@ snapshots:
 
   react-refresh@0.18.0: {}
 
-  react-router-dom@7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -3139,7 +3151,7 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  stripe@22.3.2(@types/node@22.20.1):
+  stripe@22.5.0(@types/node@22.20.1):
     optionalDependencies:
       '@types/node': 22.20.1
 
@@ -3178,7 +3190,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsx@4.23.1:
+  tsx@4.23.12:
     dependencies:
       esbuild: 0.28.1
     optionalDependencies:
@@ -3198,7 +3210,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite@7.3.6(@types/node@22.20.1)(tsx@4.23.1):
+  vite@7.3.6(@types/node@22.20.1)(tsx@4.23.12):
     dependencies:
       esbuild: 0.28.1
       fdir: 6.5.0(picomatch@4.0.5)
@@ -3209,7 +3221,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.1
       fsevents: 2.3.3
-      tsx: 4.23.1
+      tsx: 4.23.12
 
   wasm-feature-detect@1.8.0: {}
 
@@ -3232,7 +3244,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.21.1: {}
+  ws@8.21.3: {}
 
   xtend@4.0.2: {}
 
