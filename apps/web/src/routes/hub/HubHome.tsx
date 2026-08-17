@@ -549,6 +549,7 @@ export function HubHome() {
   const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
   const [scheduleBoxScoreWeek, setScheduleBoxScoreWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
+  const [highlightWeekPickerOpen, setHighlightWeekPickerOpen] = useState(false);
   const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
   const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
   const [editRosterOpen, setEditRosterOpen] = useState(false);
@@ -1726,7 +1727,12 @@ export function HubHome() {
             );
           })()}
         </SectionFrame>
-        <SectionFrame eyebrow="Community clips" title="Highlight Reel" className="hub-highlight-section">
+        <SectionFrame
+          eyebrow="Community clips"
+          title="Highlight Reel"
+          className="hub-highlight-section"
+          action={<Button variant="secondary" size="compact" onClick={() => { setHighlightWeekPickerOpen(true); void viewMySchedule(); }}>Post Highlight(s)</Button>}
+        >
           {activeHighlight ? <div className="hub-highlight-carousel">
             {highlightCount > 1 && <button className="hub-highlight-arrow previous" aria-label="Previous highlight" title="Previous highlight" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
             <article
@@ -1993,6 +1999,37 @@ export function HubHome() {
     {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={(submissionId) => { setScheduleBoxScoreWeek(null); setAssignStatsSubmissionId(submissionId); setMySchedule(null); void viewMySchedule(); }} />}
     {assignStatsSubmissionId && auth.status === "ready" && <AssignBoxScoreStatsModal guildId={auth.guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
+    {highlightWeekPickerOpen && (
+      <Modal title="Post Highlight(s)" onClose={() => setHighlightWeekPickerOpen(false)}>
+        {myScheduleError ? (
+          <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
+        ) : !mySchedule ? (
+          <p className="hub-empty">Loading your schedule…</p>
+        ) : (() => {
+          // Any played, non-bye week with a game on record — including past weeks a coach
+          // never got around to posting for, which is the whole point of this shortcut.
+          const eligibleWeeks = mySchedule.weeks.filter((week) => week.alreadyConfirmed && !week.isBye && Boolean(week.gameId));
+          if (!eligibleWeeks.length) return <p className="hub-empty">No games on your schedule yet to post a highlight for.</p>;
+          return <div className="hub-schedule-week-list">
+            {eligibleWeeks.map((week) => {
+              const posted = myHighlightCounts?.[week.weekNumber] ?? 0;
+              return (
+                <button
+                  type="button"
+                  key={week.weekNumber}
+                  className="hub-schedule-week"
+                  onClick={() => { setHighlightWeekPickerOpen(false); setScheduleHighlightWeek(week); }}
+                >
+                  <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
+                  <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
+                  <span className="hub-muted">{scheduleResultLabel(week) ?? "Not yet played"} · {posted}/2 posted</span>
+                </button>
+              );
+            })}
+          </div>;
+        })()}
+      </Modal>
+    )}
     {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} viewerUserId={hub.userRatings?.viewerUserId ?? null} canManageLeague={hub.canManageLeague} onClose={() => setRecruitingBoardOpen(false)} />}
     {editRosterOpen && auth.status === "ready" && <EditRosterRequestModal guildId={auth.guildId} onClose={() => setEditRosterOpen(false)} onDone={() => setEditRosterOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
@@ -2067,14 +2104,15 @@ export function HubHome() {
       {scheduleModalTab === "my" ? (
         myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
         : !mySchedule ? <p className="hub-empty">Loading your schedule...</p>
-        // Box score / highlight upload is CFB-only (Madden results come from the EA import,
-        // not a manual box-score screenshot) — only wire those callbacks for CFB leagues.
+        // Box score upload is CFB-only (Madden results come from the EA import, not a manual
+        // box-score screenshot) — but highlight posting is just video clips, unrelated to how
+        // results get recorded, so it's available for both games.
         : <ScheduleWeekList
             weeks={mySchedule.weeks}
             currentWeek={hub.league.weekNumber}
             highlightCounts={myHighlightCounts ?? undefined}
             onUploadBoxScore={isCfbLeague ? setScheduleBoxScoreWeek : undefined}
-            onUploadHighlight={isCfbLeague ? setScheduleHighlightWeek : undefined}
+            onUploadHighlight={setScheduleHighlightWeek}
           />
       ) : (
         <div className="hub-schedule-league-week">
