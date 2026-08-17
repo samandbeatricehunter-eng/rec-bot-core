@@ -417,6 +417,12 @@ export function ImportDataModal({
                 </p>
               </Card>
 
+              <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                <Button variant="danger" disabled={busy} onClick={() => void disconnect()}>
+                  {busy && busyLabel === "Disconnecting…" ? "Disconnecting…" : "Disconnect from EA"}
+                </Button>
+              </div>
+
               {!connection.eaLeagueId && (
                 <Card>
                   <h3 style={{ marginTop: 0 }}>Which EA franchise is this league?</h3>
@@ -551,12 +557,6 @@ export function ImportDataModal({
                       ))}
                     </Card>
                   )}
-
-                  <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)", flexWrap: "wrap" }}>
-                    <Button variant="danger" disabled={busy} onClick={() => void disconnect()}>
-                      {busy && busyLabel === "Disconnecting…" ? "Disconnecting…" : "Disconnect from EA"}
-                    </Button>
-                  </div>
                 </>
               )}
             </div>
