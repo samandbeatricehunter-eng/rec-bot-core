@@ -301,7 +301,11 @@ function AdvanceReadinessSection() {
                 </div>
               )}
               <div className="advance-game-actions">
-                {g.needsInput && g.isH2h && (
+                {/* This league gets its scores from EA import, not box-score submissions — nudging a
+                    coach to submit one doesn't apply here (they can't stop a game "missing" a score
+                    until the next import runs). The score-entry fields above stay available either way
+                    as the commissioner's manual override. */}
+                {g.needsInput && g.isH2h && data.dataMode !== "import" && (
                   <>
                     <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "home" })}>Notify Home</Button>
                     <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "away" })}>Notify Away</Button>

@@ -210,6 +210,12 @@ export const recApi = {
       body: JSON.stringify({ guildId })
     }),
 
+  getLeagueDataMode: (guildId: string) =>
+    recFetch<{ dataMode: "import" | "box_scores" | "manual" }>("/v1/league-context/data-mode", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
   viewLeagueWeek: (guildId: string) =>
     recFetch<any>("/v1/league-week/view", {
       method: "POST",

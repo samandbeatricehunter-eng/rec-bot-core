@@ -916,6 +916,7 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
   rosterType: text("roster_type").notNull().default("regular_rosters"),
+  dataMode: text("data_mode").notNull().default("box_scores"),
   coinEconomyEnabled: boolean("coin_economy_enabled").notNull().default(false),
   coinEconomyMinimumLinkedUsers: integer("coin_economy_minimum_linked_users").notNull().default(8),
   customPlayersEnabled: boolean("custom_players_enabled").notNull().default(false),

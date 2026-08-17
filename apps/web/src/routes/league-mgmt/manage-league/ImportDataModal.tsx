@@ -46,12 +46,10 @@ export function ImportDataModal({
   guildId,
   leagueId,
   onClose,
-  onManualEntry,
 }: {
   guildId: string;
   leagueId: string;
   onClose: () => void;
-  onManualEntry: () => void;
 }) {
   const [mode, setMode] = useState<"choose" | "ea" | "companion">("choose");
   const [companion, setCompanion] = useState<{ url: string; connectionId: string } | null>(null);
@@ -344,8 +342,6 @@ export function ImportDataModal({
           <p className="form-hint" style={{ margin: "-6px 0 0" }}>Link your EA account and pull rosters, scores, and stats straight from the game.</p>
           <Button variant="secondary" onClick={() => { setMode("companion"); void generateCompanionUrl(); }}>Import via Companion App</Button>
           <p className="form-hint" style={{ margin: "-6px 0 0" }}>Generate this league's unique URL to enter in the Madden Companion App for exports.</p>
-          <Button variant="secondary" onClick={onManualEntry}>Input Data Manually</Button>
-          <p className="form-hint" style={{ margin: "-6px 0 0" }}>Type in box scores, results, and player stat lines yourself — opens the manual entry page.</p>
         </div>
       </Modal>
     );

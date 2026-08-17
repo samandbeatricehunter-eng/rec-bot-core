@@ -25,6 +25,11 @@ import type {
   UpdateServerRoutesInput
 } from "./setup.schemas.js";
 
+/** CFB has no EA import pipeline — only Madden leagues default to "import"; everything else starts on box scores. */
+function defaultDataModeForGame(game: string | undefined): "import" | "box_scores" {
+  return game?.startsWith("madden_") ? "import" : "box_scores";
+}
+
 function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput {
   const sliderSettings = resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings);
   const sliderCatalogVersion = LEAGUE_SLIDER_CATALOG_VERSION[input.game];
@@ -198,6 +203,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     league_id: league.data.id,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
+    data_mode: input.dataMode ?? defaultDataModeForGame(input.game),
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
     active_rosters_enabled: input.game === "cfb_27" ? true : null,
@@ -467,6 +473,7 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     league_id: leagueId,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm"),
+    data_mode: (input.dataMode as string | undefined) ?? defaultDataModeForGame(input.game as string | undefined),
     dynasty_type: isCfbGame ? (input.dynastyType ?? "real") : null,
     recruiting_difficulty: isCfbGame ? (input.recruitingDifficulty ?? "normal") : null,
     active_rosters_enabled: isCfbGame ? true : null,
@@ -1141,6 +1148,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     league_id: context.leagueId,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
+    data_mode: input.dataMode ?? defaultDataModeForGame(input.game),
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
     active_rosters_enabled: input.game === "cfb_27" ? true : null,
@@ -1315,6 +1323,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
+    dataMode: c.data_mode ?? defaultDataModeForGame(league.data.game),
     activeRostersEnabled: c.active_rosters_enabled ?? true,
     trackRostersEnabled: c.track_rosters_enabled ?? false,
     dynastyType: c.dynasty_type ?? "real",

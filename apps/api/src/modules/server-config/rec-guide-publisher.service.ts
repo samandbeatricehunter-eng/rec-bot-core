@@ -11,6 +11,7 @@ const mention = (id?: string | null, fallback = "not assigned yet") => id ? `<#$
 function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, any>; configuration: Record<string, any> }) {
   const { league, routes, configuration: settings } = cfg;
   const cfb = league.game === "cfb_27";
+  const dataMode = settings.data_mode === "import" || settings.data_mode === "manual" ? settings.data_mode : "box_scores";
   const economy = settings.coin_economy_enabled !== false;
   const media = settings.media_features_enabled !== false;
   const attributes = economy && settings.attribute_purchases_enabled === true;
@@ -19,6 +20,20 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   const boxScoreSubmission = routes.box_scores_channel_id
     ? `Submit the two required current-week box-score images in ${mention(routes.box_scores_channel_id)} or upload them through the REC website.`
     : "Upload the two required current-week box-score images through the REC website.";
+  const weeklyWorkflow =
+    dataMode === "import"
+      ? [
+          "This league's scores, stats, and rosters are pulled directly from EA — no box score submission is needed. If a game hasn't updated yet, the commissioner can enter it manually under League Mgmt while waiting on the next import.",
+        ]
+      : dataMode === "manual"
+        ? [
+            "This league's scores and player stats are entered manually by the commissioner through the Manual Entry page. If you'd like a roster edit made, ask your commissioner — they review and approve roster changes.",
+          ]
+        : [
+            `${boxScoreSubmission} Only scheduled H2H or human-vs-CPU coaches are eligible. Discord submissions are parsed and sent to commissioner review and correction before approval.`,
+            cfb ? "For CFB, use the postgame box score shown from the game statistics display, or reopen the completed game's box score from the Dynasty main page. Capture the first required screen, then the second screen in the order shown by the reference images below. Console screenshots only; do not use phone-camera photos." : "For Madden, capture the two in-game box-score screens available when the game ends.",
+            "Player statistics can be assigned after the box score is pending or approved. One shared H2H box score is enough for both coaches.",
+          ];
   const highlightSubmission = "Submit highlights through the REC website (league quick-action **Submit Highlights** or the public league page's **Submit Highlight(s)** button) — Discord highlight submissions were retired.";
   const footer = { text: `${league.name ?? "REC League"} - REC Guide` };
   const base = (number: number, title: string, parts: Array<string | false | null | undefined>) => ({
@@ -39,19 +54,17 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       "Discord-only users may participate where allowed but do not receive registered-user payouts or permanent hosted media. Registering and linking while the league is active reconciles eligible activity already associated with that Discord ID; future activity uses the linked account automatically.",
     ]),
     base(3, "Weekly Discord + Site Workflow", [
-      `${boxScoreSubmission} Only scheduled H2H or human-vs-CPU coaches are eligible. Discord submissions are parsed and sent to commissioner review and correction before approval.`,
-      cfb ? "For CFB, use the postgame box score shown from the game statistics display, or reopen the completed game's box score from the Dynasty main page. Capture the first required screen, then the second screen in the order shown by the reference images below. Console screenshots only; do not use phone-camera photos." : "For Madden, capture the two in-game box-score screens available when the game ends.",
-      "Player statistics can be assigned after the box score is pending or approved. One shared H2H box score is enough for both coaches.",
+      ...weeklyWorkflow,
       cfb ? "Recruiting, roster management, redshirts, transfers, development traits, Heisman tracking, bowls/CFP, and class advancement appear according to the current phase and league settings." : null,
     ]),
-    cfb ? {
+    cfb && dataMode === "box_scores" ? {
       title: "Box Score Reference 1 of 2",
       color: REC_GOLD,
       description: "Submit this screen first.",
       image: { url: `${SITE_URL}/guides/cfb-box-score-example-1.jpg` },
       footer,
     } : null,
-    cfb ? {
+    cfb && dataMode === "box_scores" ? {
       title: "Box Score Reference 2 of 2",
       color: REC_GOLD,
       description: "Submit this screen second.",
@@ -81,7 +94,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
     ]),
     base(economy ? 8 : 7, "FAQ & Support", [
       "**No team?** Run /openteams, switch to the desired conference, choose Request Team, and wait for commissioner approval. Discord-only users may submit requests. **Need the public page?** Run /viewleague.",
-      "**Submission blocked?** Confirm that this is your scheduled week/stage, the feature is enabled, and no shared submission already exists. Box scores require both images within 60 seconds in Discord.",
+      `**Submission blocked?** Confirm that this is your scheduled week/stage, the feature is enabled, and no shared submission already exists.${dataMode === "box_scores" ? " Box scores require both images within 60 seconds in Discord." : ""}`,
       economy ? "**Purchase or wager blocked?** Check balance, league/season availability, caps, restrictions, and whether the game has already locked." : null,
       `Announcements: ${mention(routes.announcements_channel_id, "not assigned")}. Headlines: ${mention(routes.headlines_channel_id, "not assigned")}. League-specific Rules & Policies on the site are authoritative.`,
     ]),

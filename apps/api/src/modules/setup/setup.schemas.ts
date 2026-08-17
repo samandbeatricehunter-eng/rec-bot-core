@@ -42,6 +42,10 @@ export const CreateLeagueSchema = z.object({
   requiredConsole: z.enum(["ps5", "xbox", "pc"]).optional().nullable(),
 
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
+  // How this league's game results/stats/rosters get entered. No zod default keyed on `game`
+  // here — league creation picks the game-aware default (see defaultDataModeForGame in
+  // setup.service.ts) when this is omitted; settings saves always send it explicitly.
+  dataMode: z.enum(["import", "box_scores", "manual"]).optional(),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   // Madden only, custom_rosters only: a wizard-step confirmation asked right after picking
   // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false

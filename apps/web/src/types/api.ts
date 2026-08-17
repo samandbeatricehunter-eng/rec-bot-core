@@ -103,7 +103,7 @@ export type TeamManagementSummaryRow = {
 };
 
 export type TeamManagementSummary = {
-  league: { id: string; name: string | null; game: string | null; seasonNumber: number; currentWeek: number; gamesExpectedPerTeam: number };
+  league: { id: string; name: string | null; game: string | null; seasonNumber: number; currentWeek: number; gamesExpectedPerTeam: number; dataMode: "import" | "box_scores" | "manual" };
   teams: TeamManagementSummaryRow[];
 };
 
@@ -365,7 +365,7 @@ export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
 // ~90 fields; typed loosely here rather than fully enumerated (matches the bot's own
 // LeagueSetupDraft, which is similarly broad). Every field must round-trip on save — see
 // SettingsHome.tsx's comment on why partial updates are unsafe.
-export type LeagueSettingsDraft = Record<string, unknown> & { game?: string };
+export type LeagueSettingsDraft = Record<string, unknown> & { game?: string; dataMode?: "import" | "box_scores" | "manual" };
 
 // Advance (Phase 2)
 export type AdvanceGame = {
@@ -389,6 +389,7 @@ export type AdvanceGame = {
 };
 export type AdvanceWeekGames = {
   league: { id: string; name: string };
+  dataMode: "import" | "box_scores" | "manual";
   seasonNumber: number;
   currentWeek: number;
   currentStage: string;

@@ -3,9 +3,22 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getPgPool } from "../../db/client.js";
-import { getLeagueHeaderSummary } from "./league-context.service.js";
+import { getLeagueHeaderSummary, getCurrentLeagueContext } from "./league-context.service.js";
+import { getLeagueDataMode } from "../league-week/data-mode.service.js";
 
 export async function leagueContextRoutes(app: FastifyInstance) {
+  // How this league's game data gets entered (import / box_scores / manual) — the bot's box
+  // score flow and the web Manage League page both gate on this.
+  app.post("/v1/league-context/data-mode", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      const context = await getCurrentLeagueContext(guildId);
+      return reply.send({ dataMode: await getLeagueDataMode(context.leagueId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   // Web dashboard's header bar — league name/password/season/week/team-count, plus whether
   // the caller is the guild owner (gates the floating Delete League button). Browser-only:
   // the bot has no need for this, and isGuildOwner needs a real discordId.

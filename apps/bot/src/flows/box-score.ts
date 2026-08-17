@@ -257,6 +257,19 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   if (!message.channel.isTextBased() || message.channel.isDMBased()) return;
   const channel = message.channel as TextChannel;
 
+  // This league isn't on box-score submissions right now — fail open (treat as box_scores)
+  // on a lookup error rather than silently swallowing a real submission over a network hiccup.
+  const dataMode = (await recApi.getLeagueDataMode(message.guildId).catch(() => null))?.dataMode ?? "box_scores";
+  if (dataMode !== "box_scores") {
+    await message.delete().catch(() => undefined);
+    const notice = await channel.send({
+      content: `<@${message.author.id}> This league isn't using box score submissions right now — it's set to **${dataMode === "import" ? "Import" : "Manual Entry"}** mode in League Settings.`,
+      allowedMentions: { users: [message.author.id] },
+    }).catch(() => null);
+    if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 10_000);
+    return;
+  }
+
   const attachments = [...message.attachments.values()];
   const imageAttachments = attachments.filter(
     (a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""),
@@ -441,6 +454,17 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   if (!session || session.channelId !== message.channelId) return false;
   if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
   const channel = message.channel as TextChannel;
+
+  // The league switched off box_scores mode after this session was started (or the lookup
+  // failed transiently, in which case fail open) — bail before spending an OCR call on it.
+  const dataMode = (await recApi.getLeagueDataMode(message.guildId).catch(() => null))?.dataMode ?? "box_scores";
+  if (dataMode !== "box_scores") {
+    commissionerSubmissionSessions.delete(key);
+    await channel.send({
+      content: `<@${message.author.id}> This league is no longer set to Box Scores mode — the submission was cancelled.`,
+    }).catch(() => undefined);
+    return true;
+  }
 
   const images = [...message.attachments.values()]
     .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
@@ -892,6 +916,14 @@ export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) 
     return interaction.reply({ content: "Only commissioners can submit prior box scores.", flags: MessageFlags.Ephemeral });
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+
+  const dataMode = (await recApi.getLeagueDataMode(interaction.guildId).catch(() => null))?.dataMode ?? "box_scores";
+  if (dataMode !== "box_scores") {
+    return interaction.reply({
+      content: `This league is set to **${dataMode === "import" ? "Import" : "Manual Entry"}** mode — box score submissions aren't active. Change it in League Settings if you want to accept them.`,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const game = week?.league?.game ?? null;

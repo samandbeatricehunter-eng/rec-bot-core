@@ -57,6 +57,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [missing, setMissing] = useState<MissingFilter>("all");
   const [conferenceFilter, setConferenceFilter] = useState<string>("all");
   const isMadden = Boolean(game?.startsWith("madden_"));
+  const dataMode = summary?.league.dataMode ?? null;
 
   useEffect(() => {
     recApi
@@ -129,9 +130,14 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         actions={
           mode === "roster" ? undefined : (
             <div className="manage-league-header-actions">
-              {isMadden && summary && (
+              {isMadden && dataMode === "import" && summary && (
                 <Button variant="secondary" onClick={() => setImportDataOpen(true)}>
                   <Database size={16} /> Import Data
+                </Button>
+              )}
+              {dataMode === "manual" && summary && (
+                <Button variant="secondary" onClick={() => setManualEntry(true)}>
+                  <Database size={16} /> Manual Entry
                 </Button>
               )}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/notifications")}>
@@ -310,10 +316,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
           guildId={guildId}
           leagueId={summary.league.id}
           onClose={() => setImportDataOpen(false)}
-          onManualEntry={() => {
-            setImportDataOpen(false);
-            setManualEntry(true);
-          }}
         />
       )}
       {troubleshootOpen && (

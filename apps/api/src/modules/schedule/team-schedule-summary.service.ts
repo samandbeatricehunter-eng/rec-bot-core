@@ -4,6 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { getLeagueDataMode } from "../league-week/data-mode.service.js";
 import { isSchedulePlaceholderTeam, listScheduleSeason, listScheduleTeams } from "./schedule.service.js";
 import { loadResultsAndPendingSubmissions } from "./team-schedule.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
@@ -39,7 +40,7 @@ export type TeamManagementSummaryRow = {
 };
 
 export type TeamManagementSummary = {
-  league: { id: string; name: string | null; game: string | null; seasonNumber: number; currentWeek: number; gamesExpectedPerTeam: number };
+  league: { id: string; name: string | null; game: string | null; seasonNumber: number; currentWeek: number; gamesExpectedPerTeam: number; dataMode: "import" | "box_scores" | "manual" };
   teams: TeamManagementSummaryRow[];
 };
 
@@ -222,6 +223,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
       seasonNumber: resolvedSeasonNumber,
       currentWeek,
       gamesExpectedPerTeam: gamesExpected,
+      dataMode: await getLeagueDataMode(leagueId),
     },
     teams,
   };

@@ -20,6 +20,7 @@ import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
 import { SliderSettingsPanel } from "./SliderSettingsPanel.js";
 import { MaddenCompanionSettings } from "./MaddenCompanionSettings.js";
+import { DataModeSettings } from "./DataModeSettings.js";
 
 const EOS_PAYOUTS_KEY = "eos-payouts";
 const DELETE_LEAGUE_KEY = "delete-league";
@@ -171,7 +172,17 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? (
+        <>
+          <DataModeSettings game={game} dataMode={String(draft.dataMode ?? "box_scores")} onChange={(next) => setField("dataMode", next)} />
+          <div style={{ margin: "var(--space-3) 0 var(--space-4)" }}>
+            <Button variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save Settings"}
+            </Button>
+          </div>
+          <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} />
+        </>
+      ) : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>

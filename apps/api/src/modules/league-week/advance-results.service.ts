@@ -13,6 +13,7 @@ import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../li
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
+import { getLeagueDataMode } from "./data-mode.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
@@ -193,10 +194,13 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   if (!WEEKLY_SUBMISSIONS_PLAYABLE_STAGES.has(input.seasonStage)) return;
   const channelId = String(input.routes?.box_scores_channel_id ?? "");
   if (!channelId) return;
+  const context = await getCurrentLeagueContext(input.guildId);
+  // This "BOX SCORE SUBMISSIONS" panel only makes sense when the league is actually on box
+  // scores — an import/manual-mode league doesn't expect coaches to post screenshots here.
+  if ((await getLeagueDataMode(context.leagueId)) !== "box_scores") return;
   await purgeDiscordChannelMessages(channelId);
   const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
-  const context = await getCurrentLeagueContext(input.guildId);
   // rec_games is scoped by season_id, not season_number (the column doesn't exist on rec_games) —
   // filtering by season_number errored on every call, so this panel load always threw.
   const seasonId = await resolveSeasonId(context.leagueId, input.seasonNumber);
@@ -390,6 +394,7 @@ export async function getAdvanceWeekGames(guildId: string) {
 
   return {
     league: context.rec_leagues,
+    dataMode: await getLeagueDataMode(context.leagueId),
     seasonNumber,
     currentWeek,
     currentStage,
