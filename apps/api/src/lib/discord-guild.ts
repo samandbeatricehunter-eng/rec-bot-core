@@ -72,7 +72,7 @@ function auditReason(reason: string): string {
   return encodeURIComponent(reason.slice(0, 480));
 }
 
-async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
   if (!env.DISCORD_TOKEN) throw new ApiError(500, "DISCORD_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
     ...init,
