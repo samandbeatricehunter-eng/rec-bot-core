@@ -364,6 +364,35 @@ export async function autoResetSchedulingAfterMissedKickoff(gameId: string) {
   );
 }
 
+// Posted once per game channel right after the intro embed -- raw Discord REST JSON (this is
+// apps/api, not the bot's discord.js instance) using the exact custom_id scheme the bot's
+// apps/bot/src/flows/game-scheduling-panel.ts listens for.
+export async function postSchedulingPanel(channelId: string, gameId: string) {
+  await postDiscordChannelMessage(channelId, {
+    embeds: [{
+      title: "Scheduling",
+      color: 0xd9a521,
+      description: "🟡 Not Scheduled — use the buttons below to line up a kickoff time before advance.",
+    }],
+    components: [
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 2, custom_id: `rec:gamesched:panel:availability:${gameId}`, label: "Adjust Availability" },
+          { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: "Propose Time" },
+          { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
+        ],
+      },
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 2, custom_id: `rec:gamesched:panel:reset:${gameId}`, label: "Reset (Commissioner)" },
+        ],
+      },
+    ],
+  }).catch((error) => console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error));
+}
+
 export async function computeUserFacingStatus(gameId: string): Promise<UserFacingStatus> {
   const row = await supabase.from("rec_game_scheduling").select("*").eq("game_id", gameId).maybeSingle();
   if (row.error || !row.data) return "not_scheduled";

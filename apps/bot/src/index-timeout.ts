@@ -149,6 +149,13 @@ import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
 import { handleSetTimezoneSlash, handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
 import { handleSetAvailabilitySlash, handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
 import { handleRulesSlash, handleRulesPage, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
+import {
+  GAME_SCHEDULING_CUSTOM_IDS,
+  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelReset,
+  handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
+  handleProposeCustomModal, handleCounterCustomModal,
+  handleCantMakeResponse, handleCheckin, handleFwRequest, handleAutopilotRequest,
+} from "./flows/game-scheduling-panel.js";
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
@@ -664,6 +671,21 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.pagePrefix)) return handleRulesPage(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
+
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelPropose)) return handleProposePanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelCantMake)) return handleCantMakePanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReset)) return handlePanelReset(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter)) return handleProposalCounterButton(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept)) return handleProposalAcceptButton(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeSelect)) return handleProposeOrCounterSelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeModal)) return handleProposeCustomModal(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.counterModal)) return handleCounterCustomModal(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAcceptFs)) return handleCantMakeResponse(interaction, "accept_fs");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAutopilot)) return handleCantMakeResponse(interaction, "request_autopilot");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);

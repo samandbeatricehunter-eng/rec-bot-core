@@ -6,7 +6,7 @@ import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage } fro
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
-import { startResponseClock } from "../scheduling/matchup-scheduling.service.js";
+import { postSchedulingPanel, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
 
 export async function getGameChannelByDiscordId(discordChannelId: string) {
   const { data, error } = await supabase
@@ -250,6 +250,7 @@ async function createChannelsForGames(context: GameChannelContext, guildId: stri
     const intro = await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser, isGotw: gotwGameIds.has(game.gameId) });
     if (game.awayUserId && game.homeUserId) {
       await startResponseClock(game.gameId).catch((error) => console.error("[ERROR] Failed to start scheduling response clock (non-fatal):", error));
+      await postSchedulingPanel(channel.id, game.gameId);
     }
     if (gameChannelRow?.id) {
       await supabase
