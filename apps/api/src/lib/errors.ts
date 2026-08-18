@@ -49,13 +49,22 @@ async function captureIncident(error: unknown, request?: FastifyRequest) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack ?? null : null;
     const title = error instanceof ApiError ? error.message : errorMessage;
+    // ApiError.details is almost always the raw Supabase/Postgres error (constraint name,
+    // column, error code) — the actual root cause, per the module comment above. It was being
+    // logged to the console but never persisted, so every incident whose title is a generic
+    // wrapper message ("We couldn't add that wager to the commissioner inbox...") was
+    // undiagnosable after the fact — no way to tell a duplicate-key from a foreign-key
+    // violation from a timeout. Fold it into detail so it survives into the admin incident log.
+    const rawDetails = error instanceof ApiError && error.details !== undefined
+      ? (() => { try { return JSON.stringify(error.details, null, 2); } catch { return String(error.details); } })()
+      : null;
     await recordIncident({
       leagueId,
       guildId,
       process: `api:${route}`,
       severity: "high",
       title: title.slice(0, 200),
-      detail: `${errorName}: ${errorMessage}${errorStack ? `\n${errorStack}` : ""}`,
+      detail: `${errorName}: ${errorMessage}${rawDetails ? `\n\nUnderlying error:\n${rawDetails}` : ""}${errorStack ? `\n\nStack:\n${errorStack}` : ""}`,
       errorName,
       errorMessage,
       errorStack,
