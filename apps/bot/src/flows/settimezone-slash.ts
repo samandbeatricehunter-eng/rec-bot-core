@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder,
+  ActionRowBuilder, ButtonInteraction, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder,
   StringSelectMenuInteraction, TextInputBuilder, TextInputStyle, MessageFlags,
   type ChatInputCommandInteraction,
 } from "discord.js";
@@ -20,7 +20,7 @@ const ZONE_OPTIONS: Array<{ label: string; value: string; iana: string }> = [
   { label: "Other (enter manually)", value: "other", iana: "" },
 ];
 
-export async function handleSetTimezoneSlash(interaction: ChatInputCommandInteraction) {
+export async function handleSetTimezoneSlash(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   const select = new StringSelectMenuBuilder()
     .setCustomId(SETTIMEZONE_CUSTOM_IDS.select)

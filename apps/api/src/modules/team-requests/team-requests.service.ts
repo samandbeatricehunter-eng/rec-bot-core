@@ -12,6 +12,7 @@ import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
+import { syncAvailabilityBoard } from "../scheduling/availability-board.service.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -472,6 +473,8 @@ export async function completeTeamLinkRequest(input: {
       `Your request for ${request.team?.name ?? "a team"} in ${leagueDetails.data?.name ?? "REC Leagues"} was approved! Join the server: ${serverInviteUrl}${leaguePassword ? `\nLeague password: ${leaguePassword}` : ""}`,
     ).catch((error) => console.error("[WARN] Failed to DM approved team requester their server invite:", error));
   }
+
+  syncAvailabilityBoard(request.guild_id).catch((error) => console.error("[ERROR] Failed to resync availability board after team link (non-fatal):", error));
 
   return { request: updated.data, link };
 }

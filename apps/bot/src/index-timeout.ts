@@ -150,6 +150,11 @@ import { handleSetTimezoneSlash, handleSetTimezoneSelect, handleSetTimezoneOther
 import { handleSetAvailabilitySlash, handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
 import { handleRulesSlash, handleRulesPage, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import {
+  AVAILABILITY_BOARD_CUSTOM_IDS,
+  handleBoardSetAvailability, handleBoardSetTimezone, handleBoardThisWeek,
+  handleBoardThisWeekDaySelect, handleBoardThisWeekModal,
+} from "./flows/availability-board-panel.js";
+import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelReset,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
@@ -686,6 +691,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
+
+    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setAvailability) return handleBoardSetAvailability(interaction);
+    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setTimezone) return handleBoardSetTimezone(interaction);
+    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.thisWeek) return handleBoardThisWeek(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.thisWeekDaySelect) return handleBoardThisWeekDaySelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_BOARD_CUSTOM_IDS.thisWeekModalPrefix)) return handleBoardThisWeekModal(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);

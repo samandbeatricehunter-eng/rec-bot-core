@@ -247,6 +247,48 @@ async function runCheckinFollowUps() {
   }
 }
 
+// -- Missing-availability nag: every linked coach with no timezone set gets pinged in their
+// league's scheduling channel every 4h until they set one (repeating, unlike every other
+// reminder type here, so this checks the LAST send time rather than existence).
+async function runAvailabilityNag() {
+  const { data: leagues, error } = await supabase.from("rec_leagues").select("id");
+  if (error) { console.error("[ERROR] scheduling reminder poller: availability nag league query failed (non-fatal):", error); return; }
+  for (const league of leagues ?? []) {
+    const routes = await findServerRoutesForLeague(String((league as any).id)).catch(() => null);
+    const channelId = String((routes?.routes as any)?.scheduling_channel_id ?? "");
+    if (!channelId) continue;
+
+    const assignments = await supabase.from("rec_team_assignments").select("user_id").eq("league_id", (league as any).id).eq("assignment_status", "active").is("ended_at", null);
+    const userIds: string[] = [...new Set<string>((assignments.data ?? []).map((a: any) => String(a.user_id)))];
+    if (!userIds.length) continue;
+
+    const profiles = await supabase.from("rec_user_availability_profiles").select("user_id,timezone").in("user_id", userIds);
+    const hasTimezone = new Set((profiles.data ?? []).filter((p: any) => p.timezone).map((p: any) => String(p.user_id)));
+    const missing = userIds.filter((id) => !hasTimezone.has(id));
+    if (!missing.length) continue;
+
+    const lastSent = await supabase.from("rec_scheduling_reminders_sent").select("user_id,sent_at").eq("reminder_type", "availability_nag_4h").in("user_id", missing).order("sent_at", { ascending: false });
+    const lastSentByUser = new Map<string, string>();
+    for (const row of lastSent.data ?? []) if (!lastSentByUser.has(String((row as any).user_id))) lastSentByUser.set(String((row as any).user_id), (row as any).sent_at);
+
+    const due = missing.filter((id) => {
+      const last = lastSentByUser.get(id);
+      return !last || Date.now() - new Date(last).getTime() >= 4 * HOUR;
+    });
+    if (!due.length) continue;
+
+    const discordByUser = await discordIdsFor(due);
+    const mentionIds = due.map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
+    if (!mentionIds.length) continue;
+    const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
+    await postDiscordChannelMessage(channelId, {
+      content: `${mentions} — set your availability and timezone through here or the site so the scheduling system can find shared kickoff windows for your games.`,
+      allowed_mentions: { users: mentionIds },
+    }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post availability nag (non-fatal):", error));
+    for (const userId of due) await supabase.from("rec_scheduling_reminders_sent").insert({ user_id: userId, reminder_type: "availability_nag_4h" });
+  }
+}
+
 export async function runSchedulingReminderSweep() {
   await runContactReminders(4, "contact_4h");
   await runContactReminders(8, "contact_8h");
@@ -254,4 +296,5 @@ export async function runSchedulingReminderSweep() {
   await runStaleProposalAutoPilot();
   await runConfirmedGameReminders();
   await runCheckinFollowUps();
+  await runAvailabilityNag();
 }

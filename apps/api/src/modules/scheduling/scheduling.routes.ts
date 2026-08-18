@@ -13,6 +13,11 @@ import {
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
+import { syncAvailabilityBoard } from "./availability-board.service.js";
+
+function resyncBoard(guildId: string) {
+  syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
+}
 
 // Accepts either a raw UTC instant or a local wall-clock time + zone (the Discord custom-time
 // modal, which can't do DST-aware conversion client-side) -- same "8pm"/"8:30pm" format as the
@@ -44,13 +49,31 @@ function actorDiscordId(auth: { mode: "bot" } | { mode: "user"; discordId: strin
   return bodyDiscordId;
 }
 
+// Overrides can arrive as explicit UTC startsAt/endsAt, or as a local calendar date + timezone
+// (the Discord "This Week" flow) with an optional startMinute/endMinute window -- omitted means
+// the whole local day (00:00-24:00), used for a plain "unavailable this day" entry.
+function resolveOverrideRange(input: { startsAt?: string; endsAt?: string; localDate?: string; timezone?: string; startMinute?: number; endMinute?: number }): [string, string] {
+  if (input.startsAt && input.endsAt) return [input.startsAt, input.endsAt];
+  if (!input.localDate || !input.timezone) throw new ApiError(400, "Provide either startsAt/endsAt or localDate/timezone.");
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.localDate.trim());
+  if (!dateMatch) throw new ApiError(400, "Date must be YYYY-MM-DD.");
+  const [, year, month, day] = dateMatch;
+  const startMinute = input.startMinute ?? 0;
+  const endMinute = input.endMinute ?? 1440;
+  const start = zonedWallTimeToUtcIana(Number(year), Number(month), Number(day), Math.floor(startMinute / 60), startMinute % 60, input.timezone);
+  const end = new Date(start.getTime() + (endMinute - startMinute) * 60 * 1000);
+  return [start.toISOString(), end.toISOString()];
+}
+
 export async function schedulingRoutes(app: FastifyInstance) {
   app.post("/v1/scheduling/timezone", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), timezone: z.string().min(1), source: z.enum(["site_detected", "site_manual", "discord_manual"]) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
-      return reply.send(await setTimezone({ userId, timezone: body.timezone, source: body.source }));
+      const result = await setTimezone({ userId, timezone: body.timezone, source: body.source });
+      resyncBoard(body.guildId);
+      return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -86,7 +109,9 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
-      return reply.send(await setRecurringWindowsForDay({ userId, leagueId, weekday: body.weekday, windows: body.windows }));
+      const result = await setRecurringWindowsForDay({ userId, leagueId, weekday: body.weekday, windows: body.windows });
+      resyncBoard(body.guildId);
+      return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -94,15 +119,17 @@ export async function schedulingRoutes(app: FastifyInstance) {
     try {
       const body = z.object({
         guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid().optional().nullable(),
-        scope: z.enum(["week", "day", "matchup"]), startsAt: z.string(), endsAt: z.string(),
+        scope: z.enum(["week", "day", "matchup"]), startsAt: z.string().optional(), endsAt: z.string().optional(),
+        localDate: z.string().optional(), timezone: z.string().optional(), startMinute: z.number().int().min(0).max(1439).optional(), endMinute: z.number().int().min(1).max(1440).optional(),
         unavailable: z.boolean(), timezoneOverride: z.string().optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const context = await getCurrentLeagueContext(body.guildId);
+      const [startsAt, endsAt] = resolveOverrideRange(body);
       return reply.send(await createOverride({
         userId, leagueId: context.leagueId, gameId: body.gameId ?? null, scope: body.scope,
-        startsAt: body.startsAt, endsAt: body.endsAt, unavailable: body.unavailable, timezoneOverride: body.timezoneOverride,
+        startsAt, endsAt, unavailable: body.unavailable, timezoneOverride: body.timezoneOverride,
       }));
     } catch (error) { return sendError(reply, error); }
   });

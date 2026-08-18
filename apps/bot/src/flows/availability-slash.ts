@@ -23,7 +23,7 @@ function dayRows() {
   return rows;
 }
 
-export async function handleSetAvailabilitySlash(interaction: ChatInputCommandInteraction) {
+export async function handleSetAvailabilitySlash(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
