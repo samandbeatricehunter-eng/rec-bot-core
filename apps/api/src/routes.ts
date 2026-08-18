@@ -15,6 +15,7 @@ import { chatRoutes } from "./modules/chat/chat.routes.js";
 import { chatRealtimeRoutes } from "./modules/chat/chat-realtime.routes.js";
 import { devAuthRoutes } from "./modules/dev/dev-auth.routes.js";
 import { matchupHelpRoutes } from "./modules/matchup-help/matchup-help.routes.js";
+import { schedulingRoutes } from "./modules/scheduling/scheduling.routes.js";
 import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.js";
 import { heismanRoutes } from "./modules/heisman/heisman.routes.js";
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
@@ -93,6 +94,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await chatRealtimeRoutes(app);
   await devAuthRoutes(app);
   await matchupHelpRoutes(app);
+  await schedulingRoutes(app);
   await highlightRoutes(app);
   await mediaRoutes(app);
   await gotwRoutes(app);

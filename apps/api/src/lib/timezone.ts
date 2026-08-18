@@ -10,12 +10,21 @@ const TZ_LABEL_TO_IANA: Record<string, string> = {
 
 export const SUPPORTED_TZ_LABELS = Object.keys(TZ_LABEL_TO_IANA);
 
+export function isValidIanaTimeZone(timeZone: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function tzLabelToIana(label: string): string {
   return TZ_LABEL_TO_IANA[label.toUpperCase()] ?? "America/Chicago";
 }
 
 // Offset (ms) of `timeZone` at the given instant: (wall time the zone shows) - (UTC).
-function tzOffsetMs(instant: Date, timeZone: string): number {
+export function tzOffsetMs(instant: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
@@ -45,8 +54,32 @@ export function zonedWallTimeToUtc(
   minute: number,
   tzLabel: string,
 ): Date {
-  const timeZone = tzLabelToIana(tzLabel);
+  return zonedWallTimeToUtcIana(year, month, day, hour, minute, tzLabelToIana(tzLabel));
+}
+
+// Same conversion, but for an arbitrary IANA zone (used by the scheduling system, where a user
+// can pick "Other" and enter any IANA zone rather than one of the five US labels above).
+export function zonedWallTimeToUtcIana(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): Date {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
   const offset = tzOffsetMs(new Date(utcGuess), timeZone);
   return new Date(utcGuess - offset);
+}
+
+// Inverse: what wall-clock date/time does `instant` show in `timeZone`? Used to walk
+// calendar days in a user's own timezone when generating recurring-availability instants.
+export function instantToZonedParts(instant: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short",
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(instant)) if (p.type !== "literal") map[p.type] = p.value;
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return { year: +map.year, month: +map.month, day: +map.day, hour: +map.hour, minute: +map.minute, weekday: weekdayMap[map.weekday] ?? 0 };
 }
