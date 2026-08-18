@@ -731,6 +731,7 @@ export function MatchupDetailPage() {
   const matchup = detail.matchup;
   const canUploadBoxScore = Boolean(
     seasonNumber != null &&
+      currentLeague?.dataMode === "box_scores" &&
       !matchup.isFinal &&
       matchup.boxScoreStatus !== "pending" &&
       matchup.boxScoreStatus !== "approved" &&
@@ -918,6 +919,7 @@ export function MatchupDetailPage() {
         </div>
       )}
       </div>
+      {currentLeague?.dataMode === "box_scores" && (
       <section className={`matchup-boxscore-status matchup-boxscore-status--${matchup.boxScoreStatus ?? "none"}`}>
         {matchup.boxScoreStatus === "pending" ? (
           <>
@@ -941,6 +943,7 @@ export function MatchupDetailPage() {
           </>
         )}
       </section>
+      )}
       <div className="matchup-detail-grid">
         <section className="matchup-detail-panel" ref={streamsSectionRef}>
           <h2>

@@ -13,6 +13,7 @@ import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
+import { postDashingNoticeToActiveGameChannels } from "./modules/game-channels/game-channels.service.js";
 import { supabase } from "./lib/supabase.js";
 
 const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
@@ -63,6 +64,12 @@ await registerRoutes(app);
 await startChatDatabaseListener();
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
+
+// One-time backfill for current channels created before this warning was added. A game-chat
+// receipt makes this safe to run on every deploy without duplicating the Discord embed.
+void postDashingNoticeToActiveGameChannels()
+  .then(({ posted }) => app.log.info({ posted }, "Dashing notice game-channel backfill completed"))
+  .catch((error) => app.log.error({ err: error }, "Dashing notice game-channel backfill failed"));
 
 // Scheduled fantasy-draft T-1hr/30min/10min reminders — polled rather than one-shot
 // setTimeout'd, so a deploy/restart between scheduling and any threshold just means the next

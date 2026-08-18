@@ -117,7 +117,7 @@ export type LinkedRosterEntry = {
 };
 
 export type LeagueHeaderSummary = {
-  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string; dataMode: "import" | "box_scores" | "manual" };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
   canManageLeague: boolean;

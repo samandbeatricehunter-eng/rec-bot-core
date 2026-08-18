@@ -139,7 +139,7 @@ export async function findServerRoutesForLeague(leagueId: string): Promise<{ gui
 const MAX_LINKED_USERS = 32;
 
 export type LeagueHeaderSummary = {
-  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { id: string; name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string; dataMode: "import" | "box_scores" | "manual" };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
   canManageLeague: boolean;
@@ -165,7 +165,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   const membershipPromise = identityUserId
     ? supabase.from("rec_league_memberships").select("role").eq("league_id", leagueId).eq("user_id", identityUserId).eq("status", "active").maybeSingle()
     : Promise.resolve({ data: null, error: null });
-  const [totalRes, linkedRes, isOwner, membershipRes] = await Promise.all([
+  const [totalRes, linkedRes, isOwner, membershipRes, configRes] = await Promise.all([
     supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
     supabase
       .from("rec_team_assignments")
@@ -175,6 +175,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       .is("ended_at", null),
     ownerCheck,
     membershipPromise,
+    supabase.from("rec_league_configuration").select("data_mode").eq("league_id", leagueId).maybeSingle(),
   ]);
   if (membershipRes.error) throw new ApiError(500, "Failed to resolve league permission.", membershipRes.error);
   const membershipRole = String(membershipRes.data?.role ?? "");
@@ -200,6 +201,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       // "Week N" only makes sense once games are actually being played — preseason/draft/
       // free agency/etc. show their own stage name instead (stageLabel already knows this).
       weekLabel: stageLabel(seasonStage, currentWeek ?? 1, context.rec_leagues.game ?? null),
+      dataMode: (configRes.data?.data_mode as "import" | "box_scores" | "manual" | undefined) ?? "box_scores",
     },
     teams: {
       linked: linkedRes.count ?? 0,

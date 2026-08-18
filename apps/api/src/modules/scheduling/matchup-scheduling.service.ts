@@ -102,10 +102,20 @@ export async function proposeTime(input: { gameId: string; discordId: string; pr
   if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can propose a time.");
   await ensureScheduling(input.gameId);
 
+  // A new offer supersedes any earlier pending offer, including one from the other coach.
+  // This keeps old Discord buttons from confirming a stale time after either coach has
+  // proposed a replacement.
+  const now = new Date().toISOString();
+  const withdrawn = await supabase.from("rec_game_time_proposals")
+    .update({ status: "withdrawn", responded_at: now })
+    .eq("game_id", input.gameId)
+    .eq("status", "pending");
+  if (withdrawn.error) throw new ApiError(500, "Failed to replace the pending proposed time.", withdrawn.error);
+
   const insert = await supabase.from("rec_game_time_proposals").insert({ game_id: input.gameId, proposed_by_user_id: userId, proposed_for: input.proposedForUtc, status: "pending" }).select("*").single();
   if (insert.error) throw new ApiError(500, "Failed to save your proposed time.", insert.error);
 
-  await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
+  await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: now }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_created", payload: { proposedForUtc: input.proposedForUtc } });
   await notifyOpponent(input.gameId, game, userId, (tz) => `proposed **${formatInstantInZone(input.proposedForUtc, tz)}**`, insert.data.id);
@@ -272,8 +282,11 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
     components: proposalId ? [{
       type: 1,
       components: [
-        { type: 2, style: 3, custom_id: `rec:sc:pa:${gameId}:${proposalId}`, label: "Accept" },
-        { type: 2, style: 2, custom_id: `rec:sc:pc:${gameId}:${proposalId}`, label: "Counter" },
+        // Discord exposes components to everyone who can see a message. Include the invited
+        // coach's snowflake so the bot can reject clicks by anybody else while staying under
+        // Discord's 100-character custom_id limit.
+        { type: 2, style: 3, custom_id: `r:s:a:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Accept" },
+        { type: 2, style: 2, custom_id: `r:s:c:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Counter" },
       ],
     }] : undefined,
     allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
@@ -509,7 +522,7 @@ export async function computeUserFacingStatus(gameId: string): Promise<UserFacin
 
 // Site matchup-page snapshot: status plus the confirmed time and/or the current pending
 // proposal (if any), so the UI can render Accept/Counter without a separate lookup.
-export async function getMatchupSchedulingSnapshot(gameId: string) {
+export async function getMatchupSchedulingSnapshot(gameId: string, viewerUserId?: string | null) {
   const [status, scheduling, proposal] = await Promise.all([
     computeUserFacingStatus(gameId),
     supabase.from("rec_game_scheduling").select("scheduled_for,fw_flagged").eq("game_id", gameId).maybeSingle(),
@@ -519,6 +532,8 @@ export async function getMatchupSchedulingSnapshot(gameId: string) {
     status,
     scheduledFor: scheduling.data?.scheduled_for ?? null,
     fwFlagged: Boolean(scheduling.data?.fw_flagged),
-    pendingProposal: proposal.data ? { id: proposal.data.id, proposedByUserId: proposal.data.proposed_by_user_id, proposedFor: proposal.data.proposed_for } : null,
+    pendingProposal: proposal.data
+      ? { id: proposal.data.id, proposedByUserId: proposal.data.proposed_by_user_id, proposedFor: proposal.data.proposed_for, proposedByMe: viewerUserId != null && proposal.data.proposed_by_user_id === viewerUserId }
+      : null,
   };
 }

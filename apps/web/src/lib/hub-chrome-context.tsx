@@ -22,6 +22,7 @@ export type HubLeagueMeta = {
   gameLabel: string;
   isCommissioner: boolean;
   commissionerTier: "commissioner" | "co_commissioner" | null;
+  dataMode: "import" | "box_scores" | "manual";
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -115,6 +116,7 @@ export function HubChromeProvider({
         gameLabel: gameLabelFor(game),
         isCommissioner: header.canManageLeague,
         commissionerTier: header.commissionerTier,
+        dataMode: header.league.dataMode,
       };
       setCurrentLeague(meta);
       return meta;

@@ -18,8 +18,8 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   // Kept short deliberately -- prefix + 2 UUIDs (73 chars) must stay under Discord's 100-char
   // custom_id limit, or postDiscordChannelMessage gets silently rejected (code 50035) and the
   // opponent never sees the tag/buttons at all.
-  proposalAccept: "rec:sc:pa:",
-  proposalCounter: "rec:sc:pc:",
+  proposalAccept: "r:s:a:",
+  proposalCounter: "r:s:c:",
   checkin: "rec:gamesched:checkin:",
   fwRequest: "rec:gamesched:fwrequest:",
   autopilot: "rec:gamesched:autopilot:",
@@ -31,6 +31,21 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
 
 function idAfter(prefix: string, customId: string): string {
   return customId.slice(prefix.length);
+}
+
+function proposalButtonParts(customId: string, prefix: string, legacyPrefix: string) {
+  const rest = customId.startsWith(prefix) ? idAfter(prefix, customId) : idAfter(legacyPrefix, customId);
+  const [gameId, proposalId, targetDiscordId] = rest.split(":");
+  return { gameId, proposalId, targetDiscordId };
+}
+
+async function rejectNonRecipient(interaction: ButtonInteraction, targetDiscordId?: string) {
+  if (!targetDiscordId || targetDiscordId === interaction.user.id) return false;
+  await interaction.reply({
+    content: "This scheduling offer is for the other coach in this matchup.",
+    flags: MessageFlags.Ephemeral,
+  }).catch(() => undefined);
+  return true;
 }
 
 // Builds a persistent panel; posted once per game channel right after the intro embed. Callers
@@ -113,8 +128,12 @@ export async function handleProposePanel(interaction: ButtonInteraction) {
 
 export async function handleProposalCounterButton(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
-  const rest = idAfter(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter, interaction.customId);
-  const [gameId, proposalId] = rest.split(":");
+  const { gameId, proposalId, targetDiscordId } = proposalButtonParts(
+    interaction.customId,
+    GAME_SCHEDULING_CUSTOM_IDS.proposalCounter,
+    "rec:sc:pc:",
+  );
+  if (await rejectNonRecipient(interaction, targetDiscordId)) return;
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await postProposeOptions(interaction, gameId!, true, proposalId);
@@ -125,8 +144,12 @@ export async function handleProposalCounterButton(interaction: ButtonInteraction
 
 export async function handleProposalAcceptButton(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
-  const rest = idAfter(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept, interaction.customId);
-  const [gameId, proposalId] = rest.split(":");
+  const { gameId, proposalId, targetDiscordId } = proposalButtonParts(
+    interaction.customId,
+    GAME_SCHEDULING_CUSTOM_IDS.proposalAccept,
+    "rec:sc:pa:",
+  );
+  if (await rejectNonRecipient(interaction, targetDiscordId)) return;
   try {
     await interaction.deferReply();
     const result = await recApi.respondToSchedulingProposal({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: gameId!, proposalId: proposalId!, action: "accept" });

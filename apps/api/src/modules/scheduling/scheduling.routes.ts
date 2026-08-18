@@ -162,9 +162,11 @@ export async function schedulingRoutes(app: FastifyInstance) {
 
   app.post("/v1/scheduling/matchup/status", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await getMatchupSchedulingSnapshot(body.gameId));
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), discordId: z.string().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      const viewerUserId = discordId ? await userIdFromDiscordId(discordId).catch(() => null) : null;
+      return reply.send(await getMatchupSchedulingSnapshot(body.gameId, viewerUserId));
     } catch (error) { return sendError(reply, error); }
   });
 

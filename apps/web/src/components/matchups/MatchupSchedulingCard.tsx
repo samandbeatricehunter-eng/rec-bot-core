@@ -5,7 +5,7 @@ import { ErrorState } from "../ui/ErrorState.js";
 import { AvailabilityModal } from "../hub/AvailabilityModal.js";
 import { StatusChip } from "../design-system/StatusChip.js";
 
-type Snapshot = { status: string; scheduledFor: string | null; fwFlagged: boolean; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string } | null };
+type Snapshot = { status: string; scheduledFor: string | null; fwFlagged: boolean; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string; proposedByMe: boolean } | null };
 type Suggestions = {
   deadlineUtc: string; sharedWindows: Array<{ startUtc: string; endUtc: string }>;
   bestWindow: { kickoffUtc: string; windowEndUtc: string; score: number } | null; bestKickoffOptions: string[];
@@ -76,9 +76,18 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
         <>
           <p>Proposed: <strong>{fmt(snapshot.pendingProposal.proposedFor)}</strong></p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "accept" }), "Confirmed.")}>Accept</Button>
-            {suggestions?.bestWindow && (
-              <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "counter", counterForUtc: suggestions.bestWindow!.kickoffUtc }), "Countered.")}>Counter with best overlap</Button>
+            {snapshot.pendingProposal.proposedByMe ? (
+              <>
+                <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" }), "Proposal withdrawn — propose a new time below.")}>Edit</Button>
+                <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" }), "Proposal deleted.")}>Delete</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "accept" }), "Confirmed.")}>Accept</Button>
+                {suggestions?.bestWindow && (
+                  <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "counter", counterForUtc: suggestions.bestWindow!.kickoffUtc }), "Countered.")}>Counter with best overlap</Button>
+                )}
+              </>
             )}
           </div>
         </>
