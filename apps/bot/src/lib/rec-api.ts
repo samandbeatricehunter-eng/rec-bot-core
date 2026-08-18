@@ -245,6 +245,7 @@ export const recApi = {
     mainChatChannelId?: string;
     commissionerRoleId?: string;
     compCommitteeRoleId?: string;
+    schedulingChannelId?: string;
   }) =>
     recFetch<any>("/v1/economy/config/set", {
       method: "POST",

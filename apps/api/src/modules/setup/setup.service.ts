@@ -1136,7 +1136,7 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
 
   if (input.schedulingChannelId && input.schedulingChannelId !== existing.scheduling_channel_id) {
     const { syncAvailabilityBoard } = await import("../scheduling/availability-board.service.js");
-    syncAvailabilityBoard(input.guildId).catch((error) => console.error("[ERROR] Failed to post availability board after channel assignment (non-fatal):", error));
+    syncAvailabilityBoard(input.guildId, { announceLinked: true }).catch((error) => console.error("[ERROR] Failed to post availability board after channel assignment (non-fatal):", error));
   }
 
   return routes.data;

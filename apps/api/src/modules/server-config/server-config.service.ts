@@ -18,6 +18,7 @@ type SetServerConfigInput = {
   compCommitteeRoleId?: string | null;
   tradeBlockChannelId?: string | null;
   votingPollsChannelId?: string | null;
+  schedulingChannelId?: string | null;
 };
 
 function compactDefined(input: Record<string, unknown>) {
@@ -110,6 +111,11 @@ export async function setServerConfig(input: SetServerConfigInput) {
         .single();
 
   if (result.error) throw new ApiError(500, "Failed to update server route configuration.", result.error);
+
+  if (input.schedulingChannelId && input.schedulingChannelId !== (existing.data as any)?.scheduling_channel_id) {
+    const { syncAvailabilityBoard } = await import("../scheduling/availability-board.service.js");
+    syncAvailabilityBoard(input.guildId, { announceLinked: true }).catch((error) => console.error("[ERROR] Failed to post availability board after channel assignment (non-fatal):", error));
+  }
 
   return {
     server: context.rec_discord_servers,

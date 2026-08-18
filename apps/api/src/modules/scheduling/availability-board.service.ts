@@ -84,11 +84,18 @@ function divisionEmbed(conference: string, division: string, teams: DivisionTeam
   };
 }
 
-export async function syncAvailabilityBoard(guildId: string) {
+export async function syncAvailabilityBoard(guildId: string, opts: { announceLinked?: boolean } = {}) {
   const context = await getCurrentLeagueContext(guildId);
   const channelId = String((context.routes as any)?.scheduling_channel_id ?? "");
   if (!channelId) return { synced: false, reason: "no_channel" as const };
   const leagueId = context.leagueId;
+
+  if (opts.announceLinked) {
+    await postDiscordChannelMessage(channelId, {
+      content: "@everyone This channel now tracks league availability. Set your availability and timezone through here or the site so the scheduling system can find shared kickoff windows for your games.",
+      allowed_mentions: { parse: ["everyone"] },
+    }).catch((error) => console.error("[ERROR] Failed to post availability-channel-linked announcement (non-fatal):", error));
+  }
 
   const [teamsResult, assignmentsResult] = await Promise.all([
     supabase.from("rec_teams").select("id,name,display_abbr,display_nick,display_city,is_relocated,conference,division").eq("league_id", leagueId),
