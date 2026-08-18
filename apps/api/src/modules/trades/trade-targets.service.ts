@@ -144,7 +144,13 @@ export async function suggestTradeOffers(guildId: string, discordId: string, tar
       return { kind: "player" as const, id: p.id, label: `${p.position} ${p.full_name}`, chipScore: valueToThem * (1.15 - myOwnNeed * 0.6), playerInput };
     });
   const pickChips: Chip[] = (myPicks.data ?? []).map((pk: any) => {
-    const pickInput: RecTradePickInput = { id: pk.id, round: pk.round, pickNumber: pk.pick_number, teamsInLeague };
+    // rec_draft_picks.pick_number is round-relative (1..teamsInLeague, reset every round by
+    // generateDraftPicks) — estimateRecPickTradeValue's pickNumber is the ABSOLUTE overall
+    // draft slot. Passing the raw column straight through scored "Round 3 Pick 19" as if it
+    // were the 19th pick of the entire draft (a 1st/2nd-round-caliber value) instead of the
+    // 83rd overall in a 32-team league, wildly inflating every pick past round 1.
+    const overallPickNumber = pk.pick_number != null ? (pk.round - 1) * teamsInLeague + pk.pick_number : null;
+    const pickInput: RecTradePickInput = { id: pk.id, round: pk.round, pickNumber: overallPickNumber, teamsInLeague };
     const value = estimateRecPickTradeValue(pickInput);
     return { kind: "pick" as const, id: pk.id, label: `Round ${pk.round} Pick (S${pk.season_number})`, chipScore: value * 0.9, pickInput };
   });

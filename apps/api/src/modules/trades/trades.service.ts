@@ -144,7 +144,15 @@ async function resolveLegAssets(leagueId: string, legs: LegInput[]): Promise<{ p
       id: row.id, position: row.position, overallRating: row.overall_rating, devTrait: row.dev_trait,
       yearsPro: row.years_pro, contractYearsLeft: row.contract_years_left, capHit: row.cap_hit,
     })),
-    picks: (picks.data ?? []).map((row: any) => ({ id: row.id, round: row.round, pickNumber: row.pick_number, teamsInLeague })),
+    // rec_draft_picks.pick_number is round-relative (1..teamsInLeague, reset every round) —
+    // estimateRecPickTradeValue's pickNumber is the ABSOLUTE overall draft slot. See the
+    // matching comment in trade-targets.service.ts for the exact bug this fixes (a late-round
+    // pick scoring as if it were an early-round one).
+    picks: (picks.data ?? []).map((row: any) => ({
+      id: row.id, round: row.round,
+      pickNumber: row.pick_number != null ? (row.round - 1) * teamsInLeague + row.pick_number : null,
+      teamsInLeague,
+    })),
     displays,
   };
 }
