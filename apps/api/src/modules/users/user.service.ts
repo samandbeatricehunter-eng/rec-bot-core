@@ -1,4 +1,4 @@
-﻿import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
+﻿import { firstNonEmpty, gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
@@ -1253,9 +1253,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     gameGlobalRecord,
     gotwVotingRecord,
     display: {
-      discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
+      discordUsername: firstNonEmpty(baseline.discord.global_name, baseline.discord.username, baseline.user.display_name),
       siteUsername: baseline.user.username ?? null,
-      displayName: baseline.user.username ?? baseline.user.display_name ?? baseline.discord.global_name ?? baseline.discord.username ?? "REC Member",
+      displayName: firstNonEmpty(baseline.user.username, baseline.user.display_name, baseline.discord.global_name, baseline.discord.username) ?? "REC Member",
       teamName: resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
       schoolName: league?.game === "cfb_27" ? null : resolveTeamSubtitle(assignment?.team, league?.game),
       highestRole: membership?.role ?? null,

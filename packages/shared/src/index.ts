@@ -9,6 +9,7 @@ export * from "./cfb-rivalries.generated.js";
 export * from "./conferences.js";
 export * from "./league-stage.js";
 export * from "./discord-roles.js";
+export * from "./discord-identity.js";
 export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
 export * from "./roundtable-personalities.js";

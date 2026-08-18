@@ -1,6 +1,7 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import type { PoolClient } from "pg";
+import { firstNonEmpty } from "@rec/shared";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import {
@@ -46,12 +47,21 @@ function discordIdentityFromAuthUser(user: {
       typeof (data.custom_claims as { global_name?: string }).global_name === "string" &&
       (data.custom_claims as { global_name: string }).global_name) ||
     discordId;
+  // Discord omits global_name for accounts that never set a display name — custom_claims still
+  // carries the key, just as an empty string, which a typeof/ternary check alone treats as
+  // present. Every downstream `discordGlobalName ?? discordUsername` fallback chain (site-auth,
+  // admin, schedules, drafts, ...) only falls through on null/undefined, not "", so storing ""
+  // here permanently breaks those fallbacks for that account (this is exactly what caused the
+  // "Discord not linked" bug — an empty global_name made discordUsername resolve to "", which is
+  // falsy, even though the identity was correctly linked in Supabase and rec_discord_accounts).
+  const claimsGlobalName =
+    typeof data.custom_claims === "object" && data.custom_claims
+      ? (data.custom_claims as { global_name?: string }).global_name
+      : undefined;
   const globalName =
-    typeof data.custom_claims === "object" &&
-    data.custom_claims &&
-    typeof (data.custom_claims as { global_name?: string }).global_name === "string"
-      ? (data.custom_claims as { global_name: string }).global_name
-      : typeof data.full_name === "string"
+    typeof claimsGlobalName === "string" && claimsGlobalName.trim()
+      ? claimsGlobalName
+      : typeof data.full_name === "string" && data.full_name.trim()
         ? data.full_name
         : null;
   return { discordId, username: String(username), globalName };
@@ -365,7 +375,7 @@ export async function getSiteLinkProfile(input: {
     recUserId: row.id,
     displayName: row.display_name ?? null,
     username: row.username ?? null,
-    discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+    discordUsername: firstNonEmpty(row.discord_global_name, row.discord_username),
     avatarUrl: row.discord_avatar_url ?? null,
     entitlements,
     claimDropdownOpen,

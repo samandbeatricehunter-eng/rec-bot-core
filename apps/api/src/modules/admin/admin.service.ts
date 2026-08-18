@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { firstNonEmpty } from "@rec/shared";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { bestEffort } from "../../lib/best-effort.js";
@@ -247,7 +248,7 @@ export async function listAdminLeagueMembers(leagueId: string): Promise<{ member
       userId: row.user_id,
       username: row.username,
       displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
-      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+      discordUsername: firstNonEmpty(row.discord_global_name, row.discord_username),
       teamName: row.team_name,
       membershipRole: row.membership_role,
     })),
@@ -358,7 +359,7 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
       id: row.id,
       username: row.username,
       displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
-      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+      discordUsername: firstNonEmpty(row.discord_global_name, row.discord_username),
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
@@ -402,7 +403,7 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
       id: row.id,
       username: row.username,
       displayName: formatUserIdentity({ siteUsername: row.username, displayName: row.display_name, discordGlobalName: row.discord_global_name, discordUsername: row.discord_username }),
-      discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+      discordUsername: firstNonEmpty(row.discord_global_name, row.discord_username),
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
