@@ -405,6 +405,8 @@ export async function getAdvanceWeekGames(guildId: string) {
   return {
     league: context.rec_leagues,
     dataMode: await getLeagueDataMode(context.leagueId),
+    lastAdvanceAt: context.rec_leagues.last_advance_at ?? null,
+    lastAdvanceTimezone: context.rec_leagues.last_advance_timezone ?? null,
     seasonNumber,
     currentWeek,
     currentStage,
@@ -798,11 +800,16 @@ export async function completeAdvanceWeek(input: {
   // Independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.
   await Promise.all([
-    // The previously-scheduled advance just happened, so clear it. A fresh time is
-    // set by the next-advance step (or left null if the commissioner skips).
+    // The previously-scheduled advance just happened, so clear it -- but keep its timestamp as
+    // last_advance_at first, so the next Advance modal can default to "same time, next day"
+    // instead of requiring the commissioner to re-enter it from scratch every week.
     supabase
       .from("rec_leagues")
-      .update({ next_advance_at: null, next_advance_timezone: null })
+      .update({
+        next_advance_at: null, next_advance_timezone: null,
+        last_advance_at: context.rec_leagues.next_advance_at ?? new Date().toISOString(),
+        last_advance_timezone: context.rec_leagues.next_advance_timezone ?? context.rec_leagues.last_advance_timezone ?? null,
+      })
       .eq("id", context.leagueId)
       .then(({ error }) => {
         if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);

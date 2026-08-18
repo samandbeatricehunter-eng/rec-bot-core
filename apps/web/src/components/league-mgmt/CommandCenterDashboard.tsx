@@ -49,6 +49,26 @@ function toTwentyFourHour(hour: string, meridiem: "AM" | "PM"): number {
   return numericHour === 12 ? 12 : numericHour + 12;
 }
 
+const TZ_LABEL_TO_IANA: Record<string, string> = {
+  EST: "America/New_York", CST: "America/Chicago", MST: "America/Denver", PST: "America/Los_Angeles", AKST: "America/Anchorage",
+};
+
+// Default the next-advance picker to "same time, next day" from the league's last advance --
+// converts lastAdvanceAt (UTC) + 24h into wall-clock date/hour/minute/meridiem in the given
+// (or the browser's local) timezone label.
+function advanceDateFromLastAdvance(lastAdvanceAt: string, tzLabel: string | null): AdvanceTimeDraft {
+  const resolvedLabel = tzLabel && TZ_LABEL_TO_IANA[tzLabel] ? tzLabel : localTzLabel();
+  const timeZone = TZ_LABEL_TO_IANA[resolvedLabel] ?? "America/Chicago";
+  const nextInstant = new Date(new Date(lastAdvanceAt).getTime() + 24 * 60 * 60 * 1000);
+  const fmt = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  const parts: Record<string, string> = {};
+  for (const p of fmt.formatToParts(nextInstant)) if (p.type !== "literal") parts[p.type] = p.value;
+  const hour24 = Number(parts.hour) % 24;
+  const meridiem: "AM" | "PM" = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: String(hour12), minute: parts.minute, meridiem, tzLabel: resolvedLabel };
+}
+
 function SectionHeading({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <h2 className={`section-heading ${className}`} style={{ margin: "0 0 var(--space-3)", fontSize: "var(--text-lg)" }}>{children}</h2>;
 }
@@ -164,17 +184,14 @@ function AdvanceReadinessSection() {
     }
   }
 
-  function hasAdvanceTimeDraft() {
-    return Boolean(advanceDate.date || advanceDate.hour);
-  }
   function completeAdvanceTimeDraft() {
     return Boolean(advanceDate.date && advanceDate.hour);
   }
 
   async function handleAdvance() {
     if (!data) return;
-    if (hasAdvanceTimeDraft() && !completeAdvanceTimeDraft()) {
-      setError("Fill in the full next advance time, or leave it blank to skip.");
+    if (!completeAdvanceTimeDraft()) {
+      setError("Set the next advance date and time before advancing.");
       return;
     }
     if (data.nextSeasonStage === "regular_season" && (nextGotwCandidates?.length ?? 0) > 0 && !nextGotwGameId) {
@@ -236,6 +253,7 @@ function AdvanceReadinessSection() {
     setError(null);
     setShowAdvanceModal(true);
     setRolloverHighlightCount(null);
+    setAdvanceDate(data.lastAdvanceAt ? advanceDateFromLastAdvance(data.lastAdvanceAt, data.lastAdvanceTimezone) : blankAdvanceDate());
     const crossesIntoOffseason =
       isTerminalSeasonStage(data.currentStage, game as LeagueGame) &&
       data.nextSeasonStage === firstOffseasonStage(game as LeagueGame);
@@ -419,7 +437,7 @@ function AdvanceReadinessSection() {
             </div>
             <div className="advance-modal-copy">
               <h3>Next advance time</h3>
-              <p className="form-hint">Set the next advance deadline now, or leave date and time blank to skip.</p>
+              <p className="form-hint">Required — defaults to the same time as the last advance, one day later.</p>
             </div>
             <div className="advance-time-grid">
               <div className="form-field">
@@ -451,7 +469,7 @@ function AdvanceReadinessSection() {
             </div>
             <div className="advance-modal-actions">
               <Button variant="ghost" onClick={() => setShowAdvanceModal(false)} disabled={advancing}>Cancel</Button>
-              <Button variant="tactical" onClick={handleAdvance} disabled={advancing}>{advancing ? "Advancing..." : completeAdvanceTimeDraft() ? "Submit with Time" : "Submit and Skip Time"}</Button>
+              <Button variant="tactical" onClick={handleAdvance} disabled={advancing || !completeAdvanceTimeDraft()}>{advancing ? "Advancing..." : "Submit"}</Button>
             </div>
           </div>
         </Modal>

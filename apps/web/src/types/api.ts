@@ -391,6 +391,8 @@ export type AdvanceGame = {
 export type AdvanceWeekGames = {
   league: { id: string; name: string };
   dataMode: "import" | "box_scores" | "manual";
+  lastAdvanceAt: string | null;
+  lastAdvanceTimezone: string | null;
   seasonNumber: number;
   currentWeek: number;
   currentStage: string;

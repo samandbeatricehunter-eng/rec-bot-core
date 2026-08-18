@@ -121,6 +121,8 @@ export const recLeagues = pgTable("rec_leagues", {
   seasonStage: text("season_stage").notNull().default("regular_season"),
   nextAdvanceAt: timestamp("next_advance_at", { withTimezone: true, mode: "string" }),
   nextAdvanceTimezone: text("next_advance_timezone"),
+  lastAdvanceAt: timestamp("last_advance_at", { withTimezone: true, mode: "string" }),
+  lastAdvanceTimezone: text("last_advance_timezone"),
   interestDisabledUntil: timestamp("interest_disabled_until", { withTimezone: true, mode: "string" }),
   advanceRateWindowStart: timestamp("advance_rate_window_start", { withTimezone: true, mode: "string" }),
   advanceRateCount: integer("advance_rate_count").notNull().default(0),

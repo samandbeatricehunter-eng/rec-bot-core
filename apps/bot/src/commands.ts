@@ -44,6 +44,14 @@ export const commands = [
     .setName("powerrankings")
     .setDescription("Show current power rankings.")
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("settimezone")
+    .setDescription("Set your timezone for REC game scheduling.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("setavailability")
+    .setDescription("Set your weekly availability for REC game scheduling.")
+    .toJSON(),
 ];
 
 function discordRest() {

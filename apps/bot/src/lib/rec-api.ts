@@ -83,6 +83,12 @@ export const recApi = {
     recFetch<any>(`/v1/users/${discordId}/schedule?guildId=${guildId}`),
   getMenuProfile: (discordId: string, guildId: string) =>
     recFetch<any>(REC_API_ROUTES.menuProfile(discordId, guildId)),
+  setSchedulingTimezone: (input: { guildId: string; discordId: string; timezone: string; source: "discord_manual" }) =>
+    recFetch<any>("/v1/scheduling/timezone", { method: "POST", body: JSON.stringify(input) }),
+  getSchedulingProfile: (input: { guildId: string; discordId: string }) =>
+    recFetch<{ profile: any; windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }>; overrides: any[] }>("/v1/scheduling/profile", { method: "POST", body: JSON.stringify(input) }),
+  setSchedulingWindows: (input: { guildId: string; discordId: string; leagueScoped: boolean; weekday: number; windows: Array<{ startMinute: number; endMinute: number }> }) =>
+    recFetch<any>("/v1/scheduling/windows", { method: "POST", body: JSON.stringify(input) }),
   linkLeagueServerByDiscord: (input: { discordId: string; guildId: string; serverName?: string; leagueId?: string }) =>
     recFetch<
       | { linked: true; server: { id: string; name: string }; leagueName: string }
