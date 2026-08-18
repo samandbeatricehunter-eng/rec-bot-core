@@ -8,6 +8,7 @@ import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
 
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
@@ -139,6 +140,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
     await notifyOpponent(input.gameId, game, userId, `accepted **${formatIsoShort(proposal.data.proposed_for)}** — game confirmed.`);
+    await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };
   }
 
@@ -185,6 +187,7 @@ export async function markStreamStarted(gameId: string) {
   const updated = await supabase.from("rec_game_scheduling").update({ stream_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("game_id", gameId).select("*").single();
   if (updated.error) throw new ApiError(500, "Failed to mark the game started.", updated.error);
   await logSchedulingEvent({ gameId, eventType: "stream_started" });
+  await postOrUpdateGameAnnouncement(gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to update game announcement with stream link (non-fatal):", error));
   return updated.data;
 }
 

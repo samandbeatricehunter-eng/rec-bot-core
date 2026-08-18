@@ -120,6 +120,8 @@ export const recApi = {
     recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; discordId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
     recFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
+  markGameOver: (input: { guildId: string; discordId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
+    recFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
   linkLeagueServerByDiscord: (input: { discordId: string; guildId: string; serverName?: string; leagueId?: string }) =>
     recFetch<
       | { linked: true; server: { id: string; name: string }; leagueName: string }

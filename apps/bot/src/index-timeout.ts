@@ -160,6 +160,7 @@ import {
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
   handleProposeCustomModal, handleCounterCustomModal,
   handleCantMakeResponse, handleCheckin, handleFwRequest, handleAutopilotRequest,
+  handleGameOverButton, handleGameOverModal,
 } from "./flows/game-scheduling-panel.js";
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
@@ -691,6 +692,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOver)) return handleGameOverButton(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal)) return handleGameOverModal(interaction);
 
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setAvailability) return handleBoardSetAvailability(interaction);
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setTimezone) return handleBoardSetTimezone(interaction);

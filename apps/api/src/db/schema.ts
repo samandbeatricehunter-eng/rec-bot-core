@@ -1300,6 +1300,8 @@ export const recGameScheduling = pgTable("rec_game_scheduling", {
   fwFlaggedForUserId: uuid("fw_flagged_for_user_id").references(() => recUsers.id),
   fwFlaggedAt: timestamp("fw_flagged_at", { withTimezone: true, mode: "string" }),
   attentionRequired: boolean("attention_required").notNull().default(false),
+  announcementChannelId: text("announcement_channel_id"),
+  announcementMessageId: text("announcement_message_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });

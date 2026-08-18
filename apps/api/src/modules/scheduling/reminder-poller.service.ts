@@ -247,6 +247,40 @@ async function runCheckinFollowUps() {
   }
 }
 
+// -- 45 minutes after a stream goes up for a confirmed game, ping both coaches with a
+// "Game is Over" button so they can close it out (optionally with a final score), which updates
+// the announcement and stops the stream from showing live on the site.
+async function runGameOverPrompt() {
+  const cutoff = new Date(Date.now() - 45 * MIN).toISOString();
+  const laterCutoff = new Date(Date.now() - 50 * MIN).toISOString();
+  const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,stream_started_at")
+    .not("stream_started_at", "is", null).lte("stream_started_at", cutoff).gt("stream_started_at", laterCutoff).neq("status", "completed");
+  if (error) { console.error("[ERROR] scheduling reminder poller: game-over prompt query failed (non-fatal):", error); return; }
+  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; stream_started_at: string }>;
+  if (!rows.length) return;
+  const sent = await alreadySent(rows.map((r) => r.game_id), "game_over_prompt");
+  const pending = rows.filter((r) => !sent.has(r.game_id));
+  if (!pending.length) return;
+  const games = await loadGamesById(pending.map((r) => r.game_id));
+  const discordByUser = await discordIdsFor([...games.values()].flatMap((g) => [g.home_user_id, g.away_user_id]).filter((v): v is string => Boolean(v)));
+
+  for (const row of pending) {
+    const game = games.get(row.game_id);
+    if (!game) continue;
+    const mentionIds = [game.home_user_id, game.away_user_id].filter((v): v is string => Boolean(v)).map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
+    const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
+    const channel = await getGameChannelByGameId(row.game_id);
+    if (channel?.discord_channel_id) {
+      await postDiscordChannelMessage(channel.discord_channel_id, {
+        content: `${mentions} — done playing? Hit the button below to wrap up this game.`,
+        components: [{ type: 1, components: [{ type: 2, style: 3, custom_id: `rec:gamesched:gameover:${row.game_id}`, label: "Game is Over" }] }],
+        allowed_mentions: { users: mentionIds },
+      }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post Game is Over prompt (non-fatal):", error));
+    }
+    await markSent(row.game_id, "game_over_prompt");
+  }
+}
+
 // -- Missing-availability nag: every linked coach with no timezone set gets pinged in their
 // league's scheduling channel every 4h until they set one (repeating, unlike every other
 // reminder type here, so this checks the LAST send time rather than existence).
@@ -296,5 +330,6 @@ export async function runSchedulingReminderSweep() {
   await runStaleProposalAutoPilot();
   await runConfirmedGameReminders();
   await runCheckinFollowUps();
+  await runGameOverPrompt();
   await runAvailabilityNag();
 }

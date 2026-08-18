@@ -23,6 +23,8 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   autopilot: "rec:gamesched:autopilot:",
   cantMakeAcceptFs: "rec:gamesched:cantmake:accept_fs:",
   cantMakeAutopilot: "rec:gamesched:cantmake:autopilot:",
+  gameOver: "rec:gamesched:gameover:",
+  gameOverModal: "rec:gamesched:gameovermodal:",
 };
 
 function idAfter(prefix: string, customId: string): string {
@@ -265,6 +267,38 @@ export async function handleAutopilotRequest(interaction: ButtonInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await recApi.submitMatchupHelpRequest({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, kind: "autopilot", message: "Requested via the scheduling reminder's Request AutoPilot button." });
     await interaction.editReply({ content: "AutoPilot requested — a commissioner has been notified." });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handleGameOverButton(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.gameOver, interaction.customId);
+  const modal = new ModalBuilder()
+    .setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.gameOverModal}${gameId}`)
+    .setTitle("Game is over")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("home_score").setLabel("Home score (optional)").setStyle(TextInputStyle.Short).setRequired(false)),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("away_score").setLabel("Away score (optional)").setStyle(TextInputStyle.Short).setRequired(false)),
+    );
+  await interaction.showModal(modal);
+}
+
+export async function handleGameOverModal(interaction: ModalSubmitInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal, interaction.customId);
+  const homeRaw = interaction.fields.getTextInputValue("home_score").trim();
+  const awayRaw = interaction.fields.getTextInputValue("away_score").trim();
+  await interaction.deferReply();
+  try {
+    const homeScore = homeRaw ? Number(homeRaw) : undefined;
+    const awayScore = awayRaw ? Number(awayRaw) : undefined;
+    if ((homeRaw && !Number.isFinite(homeScore)) || (awayRaw && !Number.isFinite(awayScore))) {
+      return interaction.editReply({ content: "Scores must be numbers." });
+    }
+    await recApi.markGameOver({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, homeScore, awayScore });
+    await interaction.editReply({ content: "Game marked over. The announcement has been updated." });
   } catch (error) {
     await replyErr(interaction, error);
   }

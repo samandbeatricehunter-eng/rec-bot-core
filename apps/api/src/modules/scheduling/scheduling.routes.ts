@@ -14,6 +14,7 @@ import {
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
 import { syncAvailabilityBoard } from "./availability-board.service.js";
+import { markGameOver } from "./game-announcement.service.js";
 
 function resyncBoard(guildId: string) {
   syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
@@ -239,6 +240,17 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await resetScheduling({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/game-over", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(),
+        homeScore: z.number().int().min(0).optional().nullable(), awayScore: z.number().int().min(0).optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await markGameOver({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), homeScore: body.homeScore, awayScore: body.awayScore }));
     } catch (error) { return sendError(reply, error); }
   });
 
