@@ -27,6 +27,12 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "headlinesChannelId",
     dbField: "headlines_channel_id",
   },
+  highlights: {
+    label: "Highlights",
+    defaultName: "highlights",
+    inputField: "highlightsChannelId",
+    dbField: "highlights_channel_id",
+  },
   box_scores: {
     label: "Box Scores",
     defaultName: "box-scores",

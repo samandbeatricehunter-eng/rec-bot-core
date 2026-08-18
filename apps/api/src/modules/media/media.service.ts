@@ -12,9 +12,60 @@ import {
   verifyStreamWebhookSignature,
 } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+
+// Mirrors a site-submitted highlight (with full game/team/submitter details) to the guild's
+// configured Highlights channel, the same way headlines mirror to their own channel
+// (see hub/story-publishing.ts postGeneratedHeadlineToDiscord). Highlights that originate FROM
+// Discord already carry discord_channel_id/discord_message_id from creation, so this only ever
+// fires for the site-upload path (see handleStreamWebhook's "ready" branch below).
+async function postHighlightToDiscord(input: {
+  highlightId: string;
+  leagueId: string;
+  userId: string;
+  teamId: string | null;
+  seasonNumber: number;
+  weekNumber: number;
+  playbackUrl: string | null;
+  streamUid: string | null;
+}): Promise<void> {
+  try {
+    const linked = await findServerRoutesForLeague(input.leagueId);
+    const channelId = linked?.routes?.highlights_channel_id as string | null | undefined;
+    if (!channelId) return;
+
+    const [team, discordAccount] = await Promise.all([
+      input.teamId
+        ? supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("id", input.teamId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.from("rec_discord_accounts").select("discord_id,username").eq("user_id", input.userId).maybeSingle(),
+    ]);
+    const teamName = (team.data as any)?.name ?? (team.data as any)?.display_abbr ?? (team.data as any)?.abbreviation ?? null;
+    const submitterDiscordId = discordAccount.data?.discord_id ?? null;
+    const submitterLabel = submitterDiscordId ? `<@${submitterDiscordId}>` : (discordAccount.data?.username ?? "A member");
+
+    const watchUrl = input.streamUid ? `https://iframe.videodelivery.net/${input.streamUid}` : input.playbackUrl;
+    const embed: any = {
+      title: `New Highlight — ${teamName ?? "Unassigned"} · Week ${input.weekNumber}`,
+      color: 0x1d9bf0,
+      description: [
+        `Submitted by ${submitterLabel}`,
+        teamName ? `Team: ${teamName}` : null,
+        `Week ${input.weekNumber}, Season ${input.seasonNumber}`,
+        watchUrl ? `[Watch the clip](${watchUrl})` : null,
+      ].filter(Boolean).join("\n"),
+    };
+    const sent = await postDiscordChannelMessage(channelId, { embeds: [embed] });
+    if (sent?.id) {
+      await supabase.from("rec_highlight_posts").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", input.highlightId);
+    }
+  } catch (err) {
+    console.error("[ERROR] Failed to post highlight to Discord (non-fatal):", err);
+  }
+}
 
 
 async function getDiscordAccount(discordId: string) {
@@ -408,6 +459,21 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
       .select("id,payout_review_id")
       .single();
     if (updated.error) throw new ApiError(500, "We couldn't mark that highlight as ready. Please try again.", updated.error);
+
+    // Highlights that originated FROM Discord already have discord_channel_id/discord_message_id
+    // set at creation — only site-submitted highlights (that field null here) need this.
+    if (!row.data.discord_channel_id) {
+      await postHighlightToDiscord({
+        highlightId: row.data.id,
+        leagueId: row.data.league_id,
+        userId: row.data.user_id,
+        teamId: row.data.team_id,
+        seasonNumber: row.data.season_number,
+        weekNumber: row.data.week_number,
+        playbackUrl,
+        streamUid: uid,
+      });
+    }
 
     if (!updated.data.payout_review_id) {
       const league = await supabase.from("rec_leagues").select("game").eq("id", row.data.league_id).maybeSingle();
