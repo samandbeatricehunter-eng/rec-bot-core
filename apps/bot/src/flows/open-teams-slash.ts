@@ -10,6 +10,7 @@ import {
   type ChatInputCommandInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { MADDEN_POSITION_GROUPS, normalizeCfbPosition } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { isCfbGame } from "../lib/league-game.js";
@@ -23,6 +24,8 @@ export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   requestTeam: "rec:openteams:request",
   conferenceSelect: "rec:openteams:req:conference",
   teamSelectPrefix: "rec:openteams:req:team",
+  viewRosters: "rec:openteams:viewrosters",
+  rosterTeamSelectPrefix: "rec:openteams:roster:team",
 } as const;
 
 function formatTeamLine(team: { name: string; linkedDiscordId?: string | null; hasPendingRequest?: boolean | null }) {
@@ -64,6 +67,10 @@ function maddenRows(showing: "AFC" | "NFC") {
         .setCustomId(OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam)
         .setLabel("Request Team")
         .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:${showing}`)
+        .setLabel("View Rosters")
+        .setStyle(ButtonStyle.Secondary),
     ),
   ];
 }
@@ -94,6 +101,10 @@ function cfbRows(conferences: RosterConference[], pageIndex: number) {
         .setCustomId(OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam)
         .setLabel("Request Team")
         .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:${pageIndex}`)
+        .setLabel("View Rosters")
+        .setStyle(ButtonStyle.Secondary),
     ),
   ];
 }
@@ -344,6 +355,76 @@ export async function handleOpenTeamsRequestConference(interaction: StringSelect
     });
   } catch (error) {
     return interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+function buildRosterEmbed(roster: {
+  team: { id: string; name: string; abbreviation: string | null };
+  players: Array<{ id: string; fullName: string; position: string; positionGroup: string; overallRating: number | null; devTrait: string | null }>;
+}) {
+  const byGroup = new Map<string, typeof roster.players>();
+  for (const p of roster.players) {
+    const key = p.positionGroup || normalizeCfbPosition(p.position);
+    byGroup.set(key, [...(byGroup.get(key) ?? []), p]);
+  }
+  const embed = new EmbedBuilder().setTitle(`${roster.team.name} Roster`).setColor(COLORS.gold);
+  const fields = MADDEN_POSITION_GROUPS.flatMap((group) => {
+    const players = [...(byGroup.get(group) ?? [])].sort((a, b) => (b.overallRating ?? -1) - (a.overallRating ?? -1));
+    if (!players.length) return [];
+    const lines = players.map((p) => `${p.fullName} — ${p.overallRating ?? "?"} OVR${p.devTrait ? ` (${p.devTrait})` : ""}`).join("\n").slice(0, 1024);
+    return [{ name: group, value: lines, inline: false }];
+  });
+  if (!fields.length) embed.setDescription("No players logged on this roster yet.");
+  else embed.addFields(fields.slice(0, 25));
+  return embed;
+}
+
+export async function handleOpenTeamsViewRosters(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const raw = interaction.customId.slice(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:`.length);
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const { conferences } = await loadConferences(interaction.guildId);
+    const conference = raw === "AFC" || raw === "NFC"
+      ? findConference(conferences, raw)
+      : conferences[Number(raw)] ?? null;
+    if (!conference) return interaction.editReply({ content: "Couldn't find that conference." });
+
+    const open = openTeamsList(conferences).filter((team) => team.conference === conference.conference);
+    if (!open.length) return interaction.editReply({ content: `No open teams in ${conference.conference} right now.` });
+
+    const options = open.slice(0, 25).map((team) =>
+      new StringSelectMenuOptionBuilder().setLabel(team.name.slice(0, 100)).setValue(team.id).setDescription(team.division.slice(0, 100)),
+    );
+    return interaction.editReply({
+      content: `Select an open team in **${conference.conference}** to view its roster:`,
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(OPEN_TEAMS_SLASH_CUSTOM_IDS.rosterTeamSelectPrefix)
+            .setPlaceholder("Select an open team")
+            .addOptions(options),
+        ),
+      ],
+    });
+  } catch (error) {
+    const content = userFacingError(error);
+    if (interaction.deferred || interaction.replied) return interaction.editReply({ content }).catch(() => undefined);
+    return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+export async function handleOpenTeamsRosterTeamSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  try {
+    await interaction.deferUpdate();
+    const teamId = interaction.values[0]!;
+    const roster = await recApi.getTeamRoster({ guildId: interaction.guildId, discordId: interaction.user.id, teamId });
+    // A separate ephemeral message from the team-select dropdown above, so a user can pick
+    // another open team's roster afterward without losing the dropdown to compare against.
+    await interaction.followUp({ embeds: [buildRosterEmbed(roster)], flags: MessageFlags.Ephemeral });
+  } catch (error) {
+    await interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
 }
 
