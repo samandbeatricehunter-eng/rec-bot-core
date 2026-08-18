@@ -182,6 +182,33 @@ export async function inspectStreamVideo(uid: string): Promise<{
   };
 }
 
+/**
+ * Enables Cloudflare Stream's MP4 download for a video and returns its URL — distinct from
+ * streamPlaybackUrls (HLS manifest/iframe, playback only, no plain file to save). Cloudflare
+ * generates the MP4 on first request rather than up front, so a freshly-requested download comes
+ * back `ready: false` (still encoding) even though the response already includes the eventual
+ * URL; callers that need the file NOW (not just queued) should poll until `ready`. Calling this
+ * again for an already-ready download is safe — Cloudflare returns the existing result instead
+ * of re-encoding.
+ */
+export async function enableStreamDownload(uid: string): Promise<{ url: string; ready: boolean }> {
+  const { accountId, apiToken } = requireStreamConfig();
+  const response = await fetch(
+    `${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}/downloads`,
+    { method: "POST", headers: streamHeaders(apiToken), signal: AbortSignal.timeout(20_000) },
+  );
+  const payload = await bestEffort("cloudflare.stream.parse_downloads", () => response.json(), { entityId: uid }) as {
+    success?: boolean;
+    result?: { default?: { url?: string; status?: string; percentComplete?: string } };
+    errors?: Array<{ message?: string }>;
+  } | null | undefined;
+  if (!response.ok || !payload?.success || !payload.result?.default?.url) {
+    const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
+    throw new ApiError(502, `Failed to enable Stream download for ${uid} (${detail}).`);
+  }
+  return { url: payload.result.default.url, ready: payload.result.default.status === "ready" };
+}
+
 export function verifyStreamWebhookSignature(rawBody: string, signatureHeader: string | undefined): boolean {
   const secret = env.CLOUDFLARE_STREAM_WEBHOOK_SECRET?.trim();
   if (!secret) throw new ApiError(503, "Cloudflare Stream webhook secret is not configured.");

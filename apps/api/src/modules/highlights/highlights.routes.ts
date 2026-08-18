@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { createHighlightAwardReview, getHighlightReviewDetail, listHighlightAwardCandidates, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
+import { createHighlightAwardReview, getHighlightReviewDetail, listHighlightAwardCandidates, listSeasonHighlightsForExport, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
 
 const RecordHighlightSchema = z.object({
   guildId: z.string().min(1),
@@ -83,6 +83,17 @@ export async function highlightRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await createHighlightAwardReview(AwardReviewSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/highlights/season-export", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Season highlight export requires a website session.");
+      return reply.send(await listSeasonHighlightsForExport(body));
     } catch (error) {
       return sendError(reply, error);
     }

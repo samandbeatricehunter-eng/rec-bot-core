@@ -2,6 +2,7 @@ import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWAR
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { enableStreamDownload } from "../../lib/cloudflare-stream.js";
 import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
@@ -286,6 +287,89 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     amount,
     streamerDiscordId: account.data?.discord_id ?? null,
   };
+}
+
+/** Requests Stream download URLs a few at a time instead of all at once — a season can have
+ * dozens to hundreds of highlights, and Cloudflare's API is rate-limited per account. */
+async function withConcurrency<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await task(items[index]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+export type SeasonHighlightExportRow = {
+  id: string;
+  weekNumber: number | null;
+  teamName: string | null;
+  submittedBy: string | null;
+  submittedAt: string;
+  downloadUrl: string | null;
+  downloadReady: boolean;
+};
+
+/**
+ * Lists every ready highlight for a season with a direct MP4 download link, for a commissioner
+ * to save before the season rolls over — cleanupSeasonHighlights (below) hard-deletes
+ * non-Play-of-the-Year highlights the moment a league advances out of its final season stage,
+ * with no grace period, so this is the only chance to keep a copy.
+ */
+export async function listSeasonHighlightsForExport(input: { guildId: string; seasonNumber?: number }): Promise<{
+  seasonNumber: number;
+  highlights: SeasonHighlightExportRow[];
+}> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = input.seasonNumber ?? Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const rows = await supabase
+    .from("rec_highlight_posts")
+    .select("id,week_number,cloudflare_stream_uid,user_id,team_id,created_at")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("media_status", "ready")
+    .order("week_number", { ascending: true });
+  if (rows.error) throw new ApiError(500, "We couldn't load this season's highlights.", rows.error);
+  const posts = (rows.data ?? []) as any[];
+  if (!posts.length) return { seasonNumber, highlights: [] };
+
+  const teamIds = [...new Set(posts.map((post) => post.team_id).filter(Boolean))];
+  const userIds = [...new Set(posts.map((post) => post.user_id).filter(Boolean))];
+  const [teams, users] = await Promise.all([
+    teamIds.length ? supabase.from("rec_teams").select("id,name,display_abbr,abbreviation").in("id", teamIds) : Promise.resolve({ data: [] as any[] }),
+    userIds.length ? supabase.from("rec_users").select("id,username,display_name").in("id", userIds) : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const teamMap = new Map<string, string | null>((teams.data ?? []).map((team: any) => [team.id, team.name ?? team.display_abbr ?? team.abbreviation ?? null]));
+  const userMap = new Map<string, string | null>((users.data ?? []).map((user: any) => [user.id, user.username ?? user.display_name ?? null]));
+
+  const highlights = await withConcurrency(posts, 5, async (post): Promise<SeasonHighlightExportRow> => {
+    let downloadUrl: string | null = null;
+    let downloadReady = false;
+    if (post.cloudflare_stream_uid) {
+      try {
+        const download = await enableStreamDownload(post.cloudflare_stream_uid);
+        downloadUrl = download.url;
+        downloadReady = download.ready;
+      } catch (error) {
+        console.error(`[ERROR] Failed to enable Stream download for highlight ${post.id}:`, error);
+      }
+    }
+    return {
+      id: post.id,
+      weekNumber: post.week_number ?? null,
+      teamName: teamMap.get(post.team_id) ?? null,
+      submittedBy: userMap.get(post.user_id) ?? null,
+      submittedAt: post.created_at,
+      downloadUrl,
+      downloadReady,
+    };
+  });
+
+  return { seasonNumber, highlights };
 }
 
 /**

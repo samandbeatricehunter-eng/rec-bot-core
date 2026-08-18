@@ -302,8 +302,65 @@ export function PublishingHome() {
       <CommissionerPollsCard />
       <DiscordHeadlineRepairCard />
       <DiscordHighlightBackfillCard />
+      <SeasonHighlightsExportCard />
     </div>
   </div>;
+}
+
+function SeasonHighlightsExportCard() {
+  const { guildId } = useReadyAuth();
+  const [rows, setRows] = useState<Array<{ id: string; weekNumber: number | null; teamName: string | null; submittedBy: string | null; downloadUrl: string | null; downloadReady: boolean }> | null>(null);
+  const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setBusy(true); setError(null);
+    try {
+      const result = await recApi.getSeasonHighlightsExport(guildId);
+      setSeasonNumber(result.seasonNumber);
+      setRows(result.highlights);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to load this season's highlights."); }
+    finally { setBusy(false); }
+  }
+
+  return <Card>
+    <h2>Season Highlights Export</h2>
+    <p className="form-hint">
+      Every highlight is permanently deleted (except Play-of-the-Year winners) the moment the league advances
+      out of the season — there is no grace period. Load this list and save anything you want to keep before
+      that happens.
+    </p>
+    {error && <ErrorState message={error} />}
+    <Button variant="secondary" disabled={busy} onClick={() => void load()}>{busy ? "Loading…" : rows ? "Refresh" : "Load Season Highlights"}</Button>
+    {rows && (
+      rows.length === 0 ? (
+        <p className="form-hint" style={{ margin: "var(--space-3) 0 0" }}>No ready highlights found for season {seasonNumber}.</p>
+      ) : (
+        <div style={{ marginTop: "var(--space-3)", overflowX: "auto" }}>
+          <table>
+            <thead><tr><th>Week</th><th>Team</th><th>Submitted by</th><th>Download</th></tr></thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.weekNumber ?? "—"}</td>
+                  <td>{row.teamName ?? "Unassigned"}</td>
+                  <td>{row.submittedBy ?? "—"}</td>
+                  <td>
+                    {row.downloadUrl ? (
+                      row.downloadReady
+                        ? <a href={row.downloadUrl} target="_blank" rel="noreferrer">Download</a>
+                        : <span className="form-hint">Processing — reload in a bit</span>
+                    ) : <span className="form-hint">Unavailable</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    )}
+  </Card>;
 }
 
 function DiscordHighlightBackfillCard() {

@@ -390,6 +390,11 @@ export const recApi = {
     recApiFetch<{ scanned: number; imageAttached: number; reposted: number; skipped: number; posted: number; failures: Array<{ storyId: string; reason: string }> }>("/v1/hub/publishing/backfill-discord-headlines", { method: "POST", body: JSON.stringify({ guildId }) }),
   backfillDiscordHighlights: (guildId: string) =>
     recApiFetch<{ scanned: number; posted: number; skipped: number; failures: Array<{ highlightId: string; reason: string }> }>("/v1/hub/highlights/backfill-discord", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getSeasonHighlightsExport: (guildId: string, seasonNumber?: number) =>
+    recApiFetch<{
+      seasonNumber: number;
+      highlights: Array<{ id: string; weekNumber: number | null; teamName: string | null; submittedBy: string | null; submittedAt: string; downloadUrl: string | null; downloadReady: boolean }>;
+    }>("/v1/highlights/season-export", { method: "POST", body: JSON.stringify({ guildId, seasonNumber }) }),
   uploadHubMediaImage: (guildId: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);
