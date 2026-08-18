@@ -8,7 +8,7 @@ import {
   getRecurringWindows, listOverrides, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
 } from "./availability.service.js";
 import {
-  checkIn, computeUserFacingStatus, getSchedulingSuggestions, markCantMakeGame, markResponded, proposeTime,
+  checkIn, getMatchupSchedulingSnapshot, getSchedulingSuggestions, markCantMakeGame, markResponded, proposeTime,
   requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
@@ -156,7 +156,7 @@ export async function schedulingRoutes(app: FastifyInstance) {
     try {
       const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send({ status: await computeUserFacingStatus(body.gameId) });
+      return reply.send(await getMatchupSchedulingSnapshot(body.gameId));
     } catch (error) { return sendError(reply, error); }
   });
 

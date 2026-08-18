@@ -44,6 +44,7 @@ import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
 import { MatchupStickyHeader } from "../../components/matchups/MatchupStickyHeader.js";
 import { ActiveGamePrompt } from "../../components/matchups/ActiveGamePrompt.js";
+import { MatchupSchedulingCard } from "../../components/matchups/MatchupSchedulingCard.js";
 
 type WagerMode = "single" | "parlay" | "peer";
 type WagerLeg = {
@@ -762,6 +763,9 @@ export function MatchupDetailPage() {
         onVoteGotw={() => scrollTo(gotwSectionRef)}
         onWatchLive={() => scrollTo(streamsSectionRef)}
       />
+      {matchup.matchupType === "h2h" && matchup.involvesMe && !matchup.isFinal && (
+        <MatchupSchedulingCard guildId={guildId} gameId={matchup.gameId} isCommissioner={isCommissioner} />
+      )}
       {matchup.matchupType === "h2h" ? (
         <MatchupReactionBar
           game={matchup}

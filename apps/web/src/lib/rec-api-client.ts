@@ -440,7 +440,7 @@ export const recApi = {
       bestWindow: { kickoffUtc: string; windowEndUtc: string; score: number } | null; bestKickoffOptions: string[];
     }>("/v1/scheduling/matchup/suggestions", { method: "POST", body: JSON.stringify(input) }),
   getSchedulingMatchupStatus: (input: { guildId: string; gameId: string }) =>
-    recApiFetch<{ status: string }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<{ status: string; scheduledFor: string | null; fwFlagged: boolean; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string } | null }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
   proposeSchedulingTime: (input: { guildId: string; gameId: string; proposedForUtc: string }) =>
     recApiFetch<any>("/v1/scheduling/matchup/propose", { method: "POST", body: JSON.stringify(input) }),
   respondToSchedulingProposal: (input: { guildId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw"; counterForUtc?: string }) =>
@@ -457,6 +457,8 @@ export const recApi = {
     recApiFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
   resetScheduling: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
+  markGameOver: (input: { guildId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
+    recApiFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyHighlightWeekCounts: (guildId: string) =>
