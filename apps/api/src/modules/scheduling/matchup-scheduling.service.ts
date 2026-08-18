@@ -300,25 +300,39 @@ export async function resolveCantMakeGame(input: { gameId: string; discordId: st
 // Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed
 // time, FW flag, pending proposals, kickoff check-ins) so both coaches can restart scheduling
 // from scratch -- e.g. a "Can't Make Game" that later turns out to have been premature.
-export async function resetScheduling(input: { gameId: string; discordId: string }) {
-  const userId = await userIdFromDiscordId(input.discordId).catch(() => null);
+async function resetSchedulingInternal(gameId: string, userId: string | null, eventType: string, channelMessage: string) {
   await Promise.all([
     supabase.from("rec_game_scheduling").update({
       status: "not_scheduled", response_started_at: new Date().toISOString(), home_responded_at: null, away_responded_at: null,
       scheduled_for: null, confirmed_at: null, proposed_by_user_id: null, accepted_by_user_id: null,
       reschedule_requested_at: null, stream_started_at: null, fw_flagged: false, fw_flagged_for_user_id: null,
       fw_flagged_at: null, attention_required: false, updated_at: new Date().toISOString(),
-    }).eq("game_id", input.gameId),
-    supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", input.gameId).eq("status", "pending"),
-    supabase.from("rec_game_kickoff_checkins").delete().eq("game_id", input.gameId),
+    }).eq("game_id", gameId),
+    supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", gameId).eq("status", "pending"),
+    supabase.from("rec_game_kickoff_checkins").delete().eq("game_id", gameId),
   ]);
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "commissioner_reset" });
+  await logSchedulingEvent({ gameId, userId, eventType });
 
-  const channel = await getGameChannelByGameId(input.gameId);
+  const channel = await getGameChannelByGameId(gameId);
   if (channel?.discord_channel_id) {
-    await postDiscordChannelMessage(channel.discord_channel_id, { content: "🔄 A commissioner reset scheduling for this game — you can propose a new time." }).catch(() => undefined);
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: channelMessage }).catch(() => undefined);
   }
   return { reset: true };
+}
+
+export async function resetScheduling(input: { gameId: string; discordId: string }) {
+  const userId = await userIdFromDiscordId(input.discordId).catch(() => null);
+  return resetSchedulingInternal(input.gameId, userId, "commissioner_reset", "🔄 A commissioner reset scheduling for this game — you can propose a new time.");
+}
+
+// System-triggered variant: neither coach checked in within 2h of the confirmed kickoff. Falls
+// back to Fair Sim (the unflagged default) and restarts scheduling so they can still play it out
+// before the deadline if they get in touch.
+export async function autoResetSchedulingAfterMissedKickoff(gameId: string) {
+  return resetSchedulingInternal(
+    gameId, null, "auto_reset_missed_kickoff",
+    "⏰ Neither coach checked in within 2 hours of the confirmed kickoff. This game defaults to a **Fair Sim** unless you schedule a new time before the deadline — scheduling has restarted.",
+  );
 }
 
 export async function computeUserFacingStatus(gameId: string): Promise<UserFacingStatus> {

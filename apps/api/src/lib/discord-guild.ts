@@ -127,6 +127,7 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "powerrankings", description: "Show current power rankings." },
   { name: "settimezone", description: "Set your timezone for REC game scheduling." },
   { name: "setavailability", description: "Set your weekly availability for REC game scheduling." },
+  { name: "rules", description: "Browse this league's rules." },
 ];
 const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
 

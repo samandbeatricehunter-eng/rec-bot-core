@@ -83,6 +83,8 @@ export const recApi = {
     recFetch<any>(`/v1/users/${discordId}/schedule?guildId=${guildId}`),
   getMenuProfile: (discordId: string, guildId: string) =>
     recFetch<any>(REC_API_ROUTES.menuProfile(discordId, guildId)),
+  getLeagueRulesDraft: (guildId: string) =>
+    recFetch<{ draft: Record<string, any> }>("/v1/setup/league/rules", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTeamRoster: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<{
       team: { id: string; name: string; abbreviation: string | null };

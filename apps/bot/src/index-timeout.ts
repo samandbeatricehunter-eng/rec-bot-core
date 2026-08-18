@@ -148,6 +148,7 @@ import { handleWalletSlash } from "./flows/wallet-slash.js";
 import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
 import { handleSetTimezoneSlash, handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
 import { handleSetAvailabilitySlash, handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
+import { handleRulesSlash, handleRulesPage, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
@@ -656,6 +657,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
     if (interaction.isButton() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.dayPrefix)) return handleSetAvailabilityDay(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.modalPrefix)) return handleSetAvailabilityModal(interaction);
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "rules") {
+      await handleRulesSlash(interaction);
+      return;
+    }
+    if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.pagePrefix)) return handleRulesPage(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);

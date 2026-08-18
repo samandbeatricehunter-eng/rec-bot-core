@@ -52,6 +52,10 @@ export const commands = [
     .setName("setavailability")
     .setDescription("Set your weekly availability for REC game scheduling.")
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("rules")
+    .setDescription("Browse this league's rules.")
+    .toJSON(),
 ];
 
 function discordRest() {
