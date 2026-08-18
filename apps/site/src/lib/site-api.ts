@@ -1103,6 +1103,18 @@ export const siteApi = {
       body: JSON.stringify({ slug }),
     });
   },
+  getPublicLeagueWeekMatchups(guildId: string, weekNumber?: number) {
+    return publicRequest<PublicLeagueWeekMatchups>("/v1/public-league/week-matchups", {
+      method: "POST",
+      body: JSON.stringify({ guildId, weekNumber }),
+    });
+  },
+  getPublicLeagueWeekMatchupsBySlug(slug: string, weekNumber?: number) {
+    return publicRequest<PublicLeagueWeekMatchups>("/v1/public-league/week-matchups-by-slug", {
+      method: "POST",
+      body: JSON.stringify({ slug, weekNumber }),
+    });
+  },
   getPublicLeagueHistory(guildId: string) {
     return publicRequest<PublicLeagueHistory>("/v1/public-league/history", {
       method: "POST",
@@ -1134,6 +1146,13 @@ export type PublicLeagueSnapshot = {
   linkedTeams: Array<{ teamId: string; teamName: string; coachName: string | null }>;
   standings: Array<{ teamId: string; teamName: string; wins: number; losses: number; ties: number }>;
   openTeams: Array<{ conference: string; teams: Array<{ teamId: string; teamName: string }> }>;
+};
+
+export type PublicLeagueWeekMatchups = {
+  weekNumber: number;
+  currentWeek: number;
+  totalWeeks: number;
+  matchups: Array<{ homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string }>;
 };
 
 export type PublicLeagueHistorySeason = {

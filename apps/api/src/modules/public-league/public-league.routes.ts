@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
-import { getPublicLeagueSnapshot, resolveLeagueGuildIdBySlug } from "./public-league.service.js";
+import { getPublicLeagueSnapshot, getPublicLeagueWeekMatchups, resolveLeagueGuildIdBySlug } from "./public-league.service.js";
 import { getLeagueHistory } from "../league-history/league-history.service.js";
 
 // Intentionally unauthenticated — this is the data source for the public /viewleague page,
@@ -19,6 +19,21 @@ export async function publicLeagueRoutes(app: FastifyInstance) {
       const { slug } = z.object({ slug: z.string().min(1) }).parse(request.body);
       const guildId = await resolveLeagueGuildIdBySlug(slug);
       return reply.send(await getPublicLeagueSnapshot(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/public-league/week-matchups", async (request, reply) => {
+    try {
+      const { guildId, weekNumber } = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(1).optional() }).parse(request.body);
+      return reply.send(await getPublicLeagueWeekMatchups(guildId, weekNumber));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/public-league/week-matchups-by-slug", async (request, reply) => {
+    try {
+      const { slug, weekNumber } = z.object({ slug: z.string().min(1), weekNumber: z.number().int().min(1).optional() }).parse(request.body);
+      const guildId = await resolveLeagueGuildIdBySlug(slug);
+      return reply.send(await getPublicLeagueWeekMatchups(guildId, weekNumber));
     } catch (error) { return sendError(reply, error); }
   });
 

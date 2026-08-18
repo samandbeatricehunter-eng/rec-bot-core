@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { siteApi, type PublicLeagueHistory, type PublicLeagueHistorySeason, type PublicLeagueSnapshot } from "../lib/site-api.js";
+import { siteApi, type PublicLeagueHistory, type PublicLeagueHistorySeason, type PublicLeagueSnapshot, type PublicLeagueWeekMatchups } from "../lib/site-api.js";
 import { SiteFooter } from "../components/SiteFooter.js";
 
 function isCfbGame(game: string | null) {
@@ -92,30 +92,31 @@ function PublicHighlightSubmit({ leagueId, onClose }: { leagueId: string; onClos
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,16,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-      <div style={{ background: "#151923", border: "1px solid #2a3142", borderRadius: 12, padding: 24, width: "min(480px, 92vw)", maxHeight: "90vh", overflow: "auto" }}>
-        <h2 style={{ marginTop: 0 }}>Submit Highlight(s)</h2>
-        {error && <p style={{ color: "#ff6b6b" }}>{error}</p>}
-        {notice && <p style={{ color: "#4ade80" }}>{notice}</p>}
+    <div className="site-modal" role="dialog" aria-modal="true">
+      <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={onClose} disabled={busy} />
+      <div className="site-modal-panel">
+        <h2>Submit Highlight(s)</h2>
+        {error && <p className="site-auth-error">{error}</p>}
+        {notice && <p className="site-auth-success">{notice}</p>}
         {!games && !error && <p className="site-muted">Loading this week's games…</p>}
         {games && games.length === 0 && <p className="site-muted">No games are available to attach highlights to this week.</p>}
         {games && games.length > 0 && (
           <>
-            <label className="form-field" style={{ display: "block", marginBottom: 12 }}>
-              <span className="form-label" style={{ display: "block", marginBottom: 4 }}>Game</span>
-              <select className="form-input" value={gameId} onChange={(event) => setGameId(event.target.value)} style={{ width: "100%", padding: 8 }}>
+            <label className="site-field">
+              <span>Game</span>
+              <select className="site-select" value={gameId} onChange={(event) => setGameId(event.target.value)}>
                 {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.label}</option>)}
               </select>
             </label>
-            <label className="form-field" style={{ display: "block" }}>
-              <span className="form-label" style={{ display: "block", marginBottom: 4 }}>Highlight clips (up to 2 videos, ≤45s each)</span>
+            <label className="site-field">
+              <span>Highlight clips (up to 2 videos, ≤45s each)</span>
               <input type="file" accept="video/*" multiple disabled={busy}
                 onChange={(event) => { void onFilesSelected(event.target.files); event.target.value = ""; }} />
             </label>
             {busy && <p className="site-muted">Working…</p>}
           </>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+        <div className="site-modal-actions">
           <button type="button" className="site-btn site-btn-ghost" onClick={onClose} disabled={busy}>Close</button>
         </div>
       </div>
@@ -263,6 +264,55 @@ function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeas
   );
 }
 
+function PublicWeekMatchups({ slug, isRawGuildId, initialWeek }: { slug: string; isRawGuildId: boolean; initialWeek: number }) {
+  const [weekData, setWeekData] = useState<PublicLeagueWeekMatchups | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState(initialWeek);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const lookup = isRawGuildId
+      ? siteApi.getPublicLeagueWeekMatchups(slug, selectedWeek)
+      : siteApi.getPublicLeagueWeekMatchupsBySlug(slug, selectedWeek);
+    lookup
+      .then((res) => { if (!cancelled) { setWeekData(res); setError(null); } })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load that week's matchups."); });
+    return () => { cancelled = true; };
+  }, [slug, isRawGuildId, selectedWeek]);
+
+  const totalWeeks = weekData?.totalWeeks ?? initialWeek;
+  const weekOptions = Array.from({ length: totalWeeks }, (_, i) => i + 1);
+
+  return (
+    <section className="site-public-league-section">
+      <h2>Weekly Matchups</h2>
+      <div className="site-public-league-week-picker">
+        <label className="site-field">
+          <span>Week</span>
+          <select className="site-select" value={selectedWeek} onChange={(event) => setSelectedWeek(Number(event.target.value))}>
+            {weekOptions.map((w) => (
+              <option key={w} value={w}>Week {w}{weekData && w === weekData.currentWeek ? " (current)" : ""}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {error && <p className="site-muted">{error}</p>}
+      {!error && !weekData && <p className="site-muted">Loading matchups…</p>}
+      {weekData && weekData.matchups.length === 0 && <p className="site-muted">No games scheduled for Week {weekData.weekNumber}.</p>}
+      {weekData && weekData.matchups.length > 0 && (
+        <ul className="site-public-league-list">
+          {weekData.matchups.map((m, i) => (
+            <li key={i}>
+              <span>{m.awayTeam} @ {m.homeTeam}</span>
+              {m.status === "completed" && <strong>{m.awayScore} - {m.homeScore}</strong>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 type PublicLeagueTab = "this-week" | "linked" | "open" | "history";
 
 // Unauthenticated — /viewleague on Discord links here. No REC account or Discord login
@@ -277,11 +327,12 @@ export function PublicLeague() {
   const [activeTab, setActiveTab] = useState<PublicLeagueTab>("this-week");
   const [highlightOpen, setHighlightOpen] = useState(false);
 
+  // Old links shared before the slug URL existed used the raw Discord guild ID (a 17-20
+  // digit snowflake) — keep those working instead of breaking anything already bookmarked.
+  const isRawGuildId = /^\d{17,20}$/.test(slug ?? "");
+
   useEffect(() => {
     if (!slug) return;
-    // Old links shared before the slug URL existed used the raw Discord guild ID (a 17-20
-    // digit snowflake) — keep those working instead of breaking anything already bookmarked.
-    const isRawGuildId = /^\d{17,20}$/.test(slug);
     const lookup = isRawGuildId ? siteApi.getPublicLeagueSnapshot(slug) : siteApi.getPublicLeagueSnapshotBySlug(slug);
     lookup.then(setData).catch((err) => setError(err instanceof Error ? err.message : "Failed to load this league."));
     const historyLookup = isRawGuildId ? siteApi.getPublicLeagueHistory(slug) : siteApi.getPublicLeagueHistoryBySlug(slug);
@@ -327,7 +378,7 @@ export function PublicLeague() {
             <h1>{data.league.name}</h1>
             <p className="site-muted">{data.league.statusLabel}</p>
 
-            <div style={{ display: "flex", gap: 8, margin: "12px 0 4px", flexWrap: "wrap" }}>
+            <div className="site-public-league-actions">
               {auth.status === "signed-in"
                 ? <button type="button" className="site-btn site-btn-primary" onClick={() => setHighlightOpen(true)}>Submit Highlight(s)</button>
                 : <Link className="site-btn site-btn-primary" to="/login">Log In to Submit Highlight(s)</Link>}
@@ -353,21 +404,7 @@ export function PublicLeague() {
 
             {activeTab === "this-week" && (
               <>
-                <section className="site-public-league-section">
-                  <h2>This Week's Matchups</h2>
-                  {data.matchups.length === 0 ? (
-                    <p className="site-muted">No games scheduled this week.</p>
-                  ) : (
-                    <ul className="site-public-league-list">
-                      {data.matchups.map((m, i) => (
-                        <li key={i}>
-                          <span>{m.awayTeam} @ {m.homeTeam}</span>
-                          {m.status === "completed" && <strong>{m.awayScore} - {m.homeScore}</strong>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+                <PublicWeekMatchups slug={slug ?? ""} isRawGuildId={isRawGuildId} initialWeek={data.league.currentWeek} />
 
                 <section className="site-public-league-section">
                   <h2>Season Standings</h2>

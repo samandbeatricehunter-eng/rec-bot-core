@@ -131,3 +131,41 @@ export async function getPublicLeagueSnapshot(guildId: string) {
     openTeams,
   };
 }
+
+/** Matchups for any single week this season — past, current, or future (a future week still
+ * has its matchup pairings once the schedule is generated, just no scores yet). Backs the
+ * /viewleague page's week picker; separate from getPublicLeagueSnapshot so that endpoint's
+ * shape/callers are untouched. */
+export async function getPublicLeagueWeekMatchups(guildId: string, weekNumber?: number) {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+
+  const [teamsResult, seasonGamesResult] = await Promise.all([
+    supabase.from("rec_teams").select("id,name,display_abbr,display_nick,display_city,is_relocated").eq("league_id", leagueId),
+    leagueSeasonGamesQuery(supabase, { leagueId, seasonId }, "week_number,home_team_id,away_team_id,home_score,away_score,status"),
+  ]);
+  if (teamsResult.error) throw new ApiError(500, "Failed to load teams.", teamsResult.error);
+  if (seasonGamesResult.error) throw new ApiError(500, "Failed to load season games.", seasonGamesResult.error);
+
+  const teamById = new Map<string, { id: string; name: string | null; display_city: string | null; display_nick: string | null; is_relocated: boolean | null }>((teamsResult.data ?? []).map((t: any) => [t.id, t]));
+  const teamName = (id: string) => formatTeamDisplayName(teamById.get(id)) ?? teamById.get(id)?.name ?? "Unknown";
+
+  const allWeeks = [...new Set((seasonGamesResult.data ?? []).map((g: any) => Number(g.week_number)))].filter((w): w is number => Number.isFinite(w));
+  const totalWeeks = allWeeks.length ? Math.max(...allWeeks) : currentWeek;
+  const requestedWeek = weekNumber && weekNumber >= 1 && weekNumber <= totalWeeks ? weekNumber : currentWeek;
+
+  const matchups = (seasonGamesResult.data ?? [])
+    .filter((g: any) => Number(g.week_number) === requestedWeek)
+    .map((g: any) => ({
+      homeTeam: teamName(g.home_team_id),
+      awayTeam: teamName(g.away_team_id),
+      homeScore: g.status === "completed" ? g.home_score : null,
+      awayScore: g.status === "completed" ? g.away_score : null,
+      status: g.status,
+    }));
+
+  return { weekNumber: requestedWeek, currentWeek, totalWeeks, matchups };
+}

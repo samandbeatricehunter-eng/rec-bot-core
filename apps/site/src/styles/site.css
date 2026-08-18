@@ -394,6 +394,11 @@ h1, h2, h3, .site-wordmark {
 .site-public-league-season-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .site-public-league-season-tabs button { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-weight: 700; font-size: 13px; }
 .site-public-league-season-tabs button.active { border-color: var(--accent-bright); color: var(--accent-bright); }
+.site-public-league-actions { display: flex; gap: var(--space-2); margin: var(--space-3) 0 var(--space-1); flex-wrap: wrap; }
+.site-public-league-week-picker { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.site-public-league-week-picker .site-select { width: auto; min-width: 220px; }
+.site-public-league-highlight-face { display: flex; flex-direction: column; }
+.site-public-league-highlight-face img { max-width: 100%; border-radius: var(--radius-md); }
 .site-discord-owner-notice { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--gold, #d4a843); border-radius: var(--radius-md); background: color-mix(in srgb, var(--gold, #d4a843) 9%, var(--surface)); }
 .site-discord-owner-notice strong { display: block; margin-bottom: 4px; color: var(--accent-bright); }
 .site-discord-owner-notice p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
