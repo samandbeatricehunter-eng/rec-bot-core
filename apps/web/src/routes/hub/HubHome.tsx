@@ -63,6 +63,12 @@ type LeagueSubTab = "buzz" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
 const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules", "trades"]);
+
+const HERO_SCHEDULING_STATUS_LABELS: Record<string, string> = {
+  not_scheduled: "Not Scheduled", waiting_on_opponent: "Waiting on Opponent", time_proposed: "Time Proposed",
+  confirmed: "Confirmed", reschedule_requested: "Reschedule Requested", no_shared_availability: "No Shared Availability",
+  needs_commissioner_help: "Needs Commissioner Help", completed: "Completed",
+};
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -520,6 +526,7 @@ export function HubHome() {
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
+  const [heroSchedulingStatus, setHeroSchedulingStatus] = useState<string | null>(null);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
@@ -776,6 +783,14 @@ export function HubHome() {
     }, 24_000);
     return () => window.clearInterval(timer);
   }, [subTab, headlineWeekIndex, activeHeadlineGroup?.items.length, mobileStorySwipe.isDragging]);
+
+  const heroCurrentGameId: string | null = (hub?.myTeam?.display as any)?.currentGameId ?? null;
+  useEffect(() => {
+    if (auth.status !== "ready" || !heroCurrentGameId) { setHeroSchedulingStatus(null); return; }
+    recApi.getSchedulingMatchupStatus({ guildId: auth.guildId, gameId: heroCurrentGameId })
+      .then((res) => setHeroSchedulingStatus(res.status))
+      .catch(() => setHeroSchedulingStatus(null));
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, heroCurrentGameId]);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -1612,7 +1627,18 @@ export function HubHome() {
               <Button variant="ghost" size="compact" onClick={() => setAvailabilityModalOpen(true)}>Availability</Button>
             </div>
             <aside className="hub-hero-snapshot">
-              <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
+              <div className="hub-hero-matchup">
+                <span>This week</span>
+                <strong>{my.currentMatchupText ?? "No matchup"}</strong>
+                {heroGotw && <small>{heroGotw}</small>}
+                {heroSchedulingStatus && (
+                  <StatusChip
+                    status={heroSchedulingStatus === "confirmed" ? "approved" : heroSchedulingStatus === "not_scheduled" ? "pending" : "info"}
+                    label={HERO_SCHEDULING_STATUS_LABELS[heroSchedulingStatus] ?? heroSchedulingStatus}
+                    className="hub-hero-scheduling-chip"
+                  />
+                )}
+              </div>
               <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}</div>
               <div className="hub-hero-metrics">
                 <article className="hub-hero-metric-wide">

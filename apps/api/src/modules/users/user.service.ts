@@ -1270,6 +1270,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       leagueSeasonRecordText: recordText(displayRecord ?? seasonRecord),
       leagueSeasonPointDifferential: (displayRecord ?? seasonRecord)?.point_differential ?? 0,
       currentMatchupText: currentMatchup,
+      currentGameId: currentGame?.id ?? null,
       gotwStatus,
       gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",
       globalRecordText: recordText(globalRecord),
