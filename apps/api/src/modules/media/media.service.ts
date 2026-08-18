@@ -27,25 +27,42 @@ async function postHighlightToDiscord(input: {
   leagueId: string;
   userId: string;
   teamId: string | null;
+  gameId: string | null;
   seasonNumber: number;
   weekNumber: number;
   playbackUrl: string | null;
   streamUid: string | null;
-}): Promise<void> {
+}): Promise<{ posted: boolean }> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const channelId = linked?.routes?.highlights_channel_id as string | null | undefined;
-    if (!channelId) return;
+    if (!channelId) return { posted: false };
 
-    const [team, discordAccount] = await Promise.all([
+    const [team, submitterAccount, game] = await Promise.all([
       input.teamId
         ? supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("id", input.teamId).maybeSingle()
         : Promise.resolve({ data: null }),
       supabase.from("rec_discord_accounts").select("discord_id,username").eq("user_id", input.userId).maybeSingle(),
+      input.gameId
+        ? supabase.from("rec_games").select("home_user_id,away_user_id,home_team_id,away_team_id").eq("id", input.gameId).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     const teamName = (team.data as any)?.name ?? (team.data as any)?.display_abbr ?? (team.data as any)?.abbreviation ?? null;
-    const submitterDiscordId = discordAccount.data?.discord_id ?? null;
-    const submitterLabel = submitterDiscordId ? `<@${submitterDiscordId}>` : (discordAccount.data?.username ?? "A member");
+    const submitterDiscordId = submitterAccount.data?.discord_id ?? null;
+    const submitterLabel = submitterDiscordId ? `<@${submitterDiscordId}>` : (submitterAccount.data?.username ?? "A member");
+
+    // Tag both matchup participants (not just the submitter) when this highlight is tied to a
+    // game, so the opponent sees it too — not just whoever gets pinged for uploading it.
+    const matchupUserIds = [(game.data as any)?.home_user_id, (game.data as any)?.away_user_id].filter(
+      (id): id is string => Boolean(id),
+    );
+    const mentionUserIds = new Set<string>(matchupUserIds.length ? matchupUserIds : [input.userId]);
+    const mentionAccounts = await supabase
+      .from("rec_discord_accounts")
+      .select("user_id,discord_id")
+      .in("user_id", [...mentionUserIds]);
+    const mentionIds = (mentionAccounts.data ?? []).map((row: any) => row.discord_id).filter(Boolean);
+    const content = mentionIds.length ? mentionIds.map((id: string) => `<@${id}>`).join(" ") : undefined;
 
     const watchUrl = input.streamUid ? `https://iframe.videodelivery.net/${input.streamUid}` : input.playbackUrl;
     const embed: any = {
@@ -58,13 +75,58 @@ async function postHighlightToDiscord(input: {
         watchUrl ? `[Watch the clip](${watchUrl})` : null,
       ].filter(Boolean).join("\n"),
     };
-    const sent = await postDiscordChannelMessage(channelId, { embeds: [embed] });
+    const sent = await postDiscordChannelMessage(channelId, content ? { content, embeds: [embed] } : { embeds: [embed] });
     if (sent?.id) {
       await supabase.from("rec_highlight_posts").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", input.highlightId);
+      return { posted: true };
     }
+    return { posted: false };
   } catch (err) {
     console.error("[ERROR] Failed to post highlight to Discord (non-fatal):", err);
+    return { posted: false };
   }
+}
+
+export type HighlightBackfillResult = { scanned: number; posted: number; skipped: number; failures: Array<{ highlightId: string; reason: string }> };
+
+/** Posts every ready-but-never-posted highlight for a league to its (now-configured) Highlights
+ * channel — for highlights uploaded before a channel was linked, or from before this feature
+ * existed. Same "scan & repair" shape as backfillDiscordHeadlines in hub/story-publishing.ts. */
+export async function backfillDiscordHighlights(guildId: string): Promise<HighlightBackfillResult> {
+  const result: HighlightBackfillResult = { scanned: 0, posted: 0, skipped: 0, failures: [] };
+  const context = await getCurrentLeagueContext(guildId);
+  const linked = await findServerRoutesForLeague(context.leagueId);
+  if (!linked?.routes?.highlights_channel_id) {
+    throw new ApiError(400, "Link a Highlights channel in Settings > Channels before running a backfill.");
+  }
+
+  const rows = await supabase
+    .from("rec_highlight_posts")
+    .select("id,user_id,team_id,game_id,season_number,week_number,playback_url,cloudflare_stream_uid,discord_channel_id")
+    .eq("league_id", context.leagueId)
+    .eq("media_status", "ready")
+    .is("discord_channel_id", null)
+    .order("created_at", { ascending: true })
+    .limit(500);
+  if (rows.error) throw new ApiError(500, "We couldn't load highlights right now. Please try again.", rows.error);
+
+  for (const row of rows.data ?? []) {
+    result.scanned += 1;
+    const outcome = await postHighlightToDiscord({
+      highlightId: row.id,
+      leagueId: context.leagueId,
+      userId: row.user_id,
+      teamId: row.team_id,
+      gameId: row.game_id,
+      seasonNumber: row.season_number,
+      weekNumber: row.week_number,
+      playbackUrl: row.playback_url,
+      streamUid: row.cloudflare_stream_uid,
+    });
+    if (outcome.posted) result.posted += 1;
+    else { result.skipped += 1; result.failures.push({ highlightId: row.id, reason: "post did not return a message id" }); }
+  }
+  return result;
 }
 
 
@@ -414,7 +476,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
 
   const row = await supabase
     .from("rec_highlight_posts")
-    .select("id,league_id,user_id,team_id,season_number,week_number,season_stage,discord_channel_id,discord_message_id,payout_review_id")
+    .select("id,league_id,user_id,team_id,game_id,season_number,week_number,season_stage,discord_channel_id,discord_message_id,payout_review_id")
     .eq("cloudflare_stream_uid", uid)
     .maybeSingle();
   if (row.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", row.error);
@@ -468,6 +530,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
         leagueId: row.data.league_id,
         userId: row.data.user_id,
         teamId: row.data.team_id,
+        gameId: row.data.game_id,
         seasonNumber: row.data.season_number,
         weekNumber: row.data.week_number,
         playbackUrl,

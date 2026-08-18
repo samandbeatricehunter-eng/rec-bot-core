@@ -4,6 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
+  backfillDiscordHighlights,
   createHighlightDirectUpload,
   getHighlightUploadStatus,
   getMyHighlightWeekCounts,
@@ -75,6 +76,17 @@ export async function mediaRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "This requires a user session.");
       return reply.send(await getMyHighlightWeekCounts({ guildId: body.guildId, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/hub/highlights/backfill-discord", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Discord highlight backfill requires a website session.");
+      return reply.send(await backfillDiscordHighlights(body.guildId));
     } catch (error) {
       return sendError(reply, error);
     }

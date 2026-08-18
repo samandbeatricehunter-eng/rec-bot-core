@@ -301,8 +301,41 @@ export function PublishingHome() {
       <CommissionerTradeBuilderCard />
       <CommissionerPollsCard />
       <DiscordHeadlineRepairCard />
+      <DiscordHighlightBackfillCard />
     </div>
   </div>;
+}
+
+function DiscordHighlightBackfillCard() {
+  const { guildId } = useReadyAuth();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ scanned: number; posted: number; skipped: number; failures: Array<{ highlightId: string; reason: string }> } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runBackfill() {
+    setBusy(true); setError(null); setResult(null);
+    try {
+      setResult(await recApi.backfillDiscordHighlights(guildId));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to backfill Discord highlights."); }
+    finally { setBusy(false); }
+  }
+
+  return <Card>
+    <h2>Backfill Discord Highlights</h2>
+    <p className="form-hint">
+      Posts every ready highlight that never reached the Discord highlights channel — including highlights uploaded
+      before a channel was linked here. Each post tags both matchup participants with week and team details. Link a
+      Highlights channel in Settings &gt; Channels first.
+    </p>
+    {error && <ErrorState message={error} />}
+    <Button variant="secondary" disabled={busy} onClick={() => void runBackfill()}>{busy ? "Posting…" : "Backfill Highlights"}</Button>
+    {result && (
+      <p className="form-hint" style={{ margin: "var(--space-3) 0 0" }}>
+        {result.posted} of {result.scanned} never-posted highlight{result.scanned === 1 ? "" : "s"} now in the channel
+        {result.skipped > 0 ? ` — ${result.skipped} skipped` : ""}.
+      </p>
+    )}
+  </Card>;
 }
 
 function DiscordHeadlineRepairCard() {
