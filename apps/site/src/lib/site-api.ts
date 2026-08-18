@@ -838,6 +838,9 @@ export const siteApi = {
   resolveAdminIncident(incidentId: string) {
     return request<{ id: string; status: string }>("/v1/admin/incidents/resolve", { incidentId });
   },
+  resolveAllAdminIncidents(process?: string) {
+    return request<{ resolvedCount: number }>("/v1/admin/incidents/resolve-all", process ? { process } : {});
+  },
   ignoreAdminIncident(incidentId: string) {
     return request<{ id: string; status: string }>("/v1/admin/incidents/ignore", { incidentId });
   },

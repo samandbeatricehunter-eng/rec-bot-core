@@ -24,6 +24,7 @@ import {
 } from "./admin.service.js";
 import {
   resolveIncident,
+  resolveAllOpenIncidents,
   ignoreIncident,
   startWorkorder,
   closeWorkorder,
@@ -381,6 +382,16 @@ export async function adminRoutes(app: FastifyInstance) {
       const session = await requireSiteAdmin(request);
       const body = z.object({ incidentId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(await resolveIncident({ incidentId: body.incidentId, resolvedByUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/incidents/resolve-all", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z.object({ process: z.string().trim().min(1).optional() }).parse(request.body ?? {});
+      return reply.send(await resolveAllOpenIncidents({ resolvedByUserId: session.authUserId, process: body.process }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -1156,6 +1156,7 @@ function IncidentsPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("open");
   const [filterProcess, setFilterProcess] = useState<string>("");
+  const [clearing, setClearing] = useState(false);
 
   function reload() {
     setError(null);
@@ -1179,6 +1180,24 @@ function IncidentsPanel() {
       setError(err instanceof Error ? err.message : "Action failed.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function clearOpenQueue() {
+    if (!window.confirm(
+      filterProcess
+        ? `Resolve every open incident for process "${filterProcess}"? This can't be undone.`
+        : "Resolve every open incident across all processes? This can't be undone.",
+    )) return;
+    setClearing(true);
+    setError(null);
+    try {
+      await siteApi.resolveAllAdminIncidents(filterProcess || undefined);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not clear the queue.");
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -1265,6 +1284,17 @@ function IncidentsPanel() {
           Process:{" "}
           <input type="text" placeholder="filter…" value={filterProcess} onChange={(e) => setFilterProcess(e.target.value)} style={{ width: 180 }} />
         </label>
+        {patterns.open > 0 && (
+          <button
+            type="button"
+            className="site-account-button"
+            disabled={clearing}
+            onClick={() => void clearOpenQueue()}
+            style={{ marginLeft: "auto" }}
+          >
+            {clearing ? "Clearing…" : filterProcess ? `Resolve all open (${filterProcess})` : "Clear open queue"}
+          </button>
+        )}
       </div>
 
       {/* Incident list */}

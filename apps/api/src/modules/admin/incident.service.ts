@@ -140,6 +140,27 @@ export async function resolveIncident(input: { incidentId: string; resolvedByUse
   return { id: result.data.id, status: result.data.status };
 }
 
+/** Bulk-resolves every currently-open incident (optionally scoped to one process) — the
+ * admin "clear the queue" action. A soft status transition like the single-incident Resolve
+ * button, not a delete, so the underlying rows and their history stay intact for later
+ * lookup/analytics. */
+export async function resolveAllOpenIncidents(input: { resolvedByUserId: string; process?: string }) {
+  const now = new Date().toISOString();
+  let query = supabase
+    .from("rec_admin_incidents")
+    .update({
+      status: "resolved",
+      resolved_at: now,
+      resolved_by_user_id: input.resolvedByUserId,
+      updated_at: now,
+    })
+    .eq("status", "open");
+  if (input.process) query = query.eq("process", input.process);
+  const result = await query.select("id");
+  if (result.error) throw new ApiError(500, "Failed to clear the incident queue.", result.error);
+  return { resolvedCount: result.data?.length ?? 0 };
+}
+
 export async function ignoreIncident(input: { incidentId: string; resolvedByUserId: string }) {
   const now = new Date().toISOString();
   const result = await supabase
