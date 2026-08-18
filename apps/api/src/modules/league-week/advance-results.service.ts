@@ -349,6 +349,15 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     (results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, { source: row.source ?? null, home_score: row.home_score ?? null, away_score: row.away_score ?? null }]),
   );
 
+  // Force Win is a manual-apply label only (see scheduling/matchup-scheduling.service.ts) --
+  // this just surfaces which matchups were flagged so the commissioner knows to apply one
+  // during advance. Fair Sim is the unflagged default and needs no equivalent badge.
+  const gameIds = (games ?? []).map((g: any) => g.id);
+  const fwFlags = gameIds.length
+    ? await supabase.from("rec_game_scheduling").select("game_id,fw_flagged,fw_flagged_for_user_id").in("game_id", gameIds).eq("fw_flagged", true)
+    : { data: [] as any[], error: null };
+  const fwFlagByGameId = new Map((fwFlags.data ?? []).map((row: any) => [String(row.game_id), row.fw_flagged_for_user_id as string | null]));
+
   const mapped = (games ?? []).map((game: any) => {
     const hasBoxScore = boxScoreGameIds.has(String(game.id));
     const resultRow = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
@@ -376,6 +385,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       isNationalChampionship: Boolean(game.is_national_championship),
       homeScore: resultRow?.home_score ?? null,
       awayScore: resultRow?.away_score ?? null,
+      fwFlaggedForUserId: fwFlagByGameId.get(String(game.id)) ?? null,
     };
   });
 

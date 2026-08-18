@@ -386,6 +386,7 @@ export type AdvanceGame = {
   isNationalChampionship: boolean;
   homeScore: number | null;
   awayScore: number | null;
+  fwFlaggedForUserId: string | null;
 };
 export type AdvanceWeekGames = {
   league: { id: string; name: string };

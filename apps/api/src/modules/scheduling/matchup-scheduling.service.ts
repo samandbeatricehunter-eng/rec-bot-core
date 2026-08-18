@@ -242,6 +242,85 @@ function formatIsoShort(iso: string): string {
   return new Date(iso).toUTCString().replace(" GMT", " UTC");
 }
 
+// "Can't Make Game" -- a user who knows ahead of time their availability doesn't cover any
+// window before the deadline flags it. Posts an embed tagging the opponent with two choices
+// (handled by resolveCantMakeIt below); doesn't touch scheduling status itself, since nothing
+// is decided until the opponent responds.
+export async function markCantMakeGame(input: { gameId: string; discordId: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can use Can't Make Game.");
+  const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
+  if (!opponentId) throw new ApiError(400, "This game has no opponent.");
+
+  await ensureScheduling(input.gameId);
+  await supabase.from("rec_game_scheduling").update({ status: "needs_commissioner_help", attention_required: true, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game" });
+
+  const opponentAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle();
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const mention = opponentAccount.data?.discord_id ? `<@${opponentAccount.data.discord_id}> ` : "";
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `${mention}Your opponent can't make this game before the deadline. Choose how to proceed: accept a Fair Sim, or request AutoPilot.`,
+    }).catch(() => undefined);
+  }
+  return { flagged: true, opponentId };
+}
+
+// The opponent's response to markCantMakeGame -- either choice just notifies commissioners and
+// records what was chosen; neither one applies an FS or AutoPilot outcome itself (FS is already
+// the automatic default when nothing gets scheduled, and AutoPilot is commissioner-applied like
+// every other Request Help kind).
+export async function resolveCantMakeGame(input: { gameId: string; discordId: string; choice: "accept_fs" | "request_autopilot" }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can respond.");
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_resolved", payload: { choice: input.choice } });
+
+  if (input.choice === "request_autopilot") {
+    const routes = await findServerRoutesForLeague(game.league_id);
+    await submitMatchupHelpRequest({
+      guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
+      discordId: input.discordId,
+      gameId: input.gameId,
+      kind: "autopilot",
+      message: "Opponent can't make the game before the deadline; requesting AutoPilot instead of a Fair Sim.",
+    }).catch((err) => console.error("[ERROR] Failed to file the AutoPilot Request Help ticket (non-fatal):", err));
+  }
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const text = input.choice === "accept_fs" ? "accepted a Fair Sim for this game." : "requested AutoPilot instead of a Fair Sim — a commissioner has been notified.";
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: `Scheduling: opponent ${text}` }).catch(() => undefined);
+  }
+  return { choice: input.choice };
+}
+
+// Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed
+// time, FW flag, pending proposals, kickoff check-ins) so both coaches can restart scheduling
+// from scratch -- e.g. a "Can't Make Game" that later turns out to have been premature.
+export async function resetScheduling(input: { gameId: string; discordId: string }) {
+  const userId = await userIdFromDiscordId(input.discordId).catch(() => null);
+  await Promise.all([
+    supabase.from("rec_game_scheduling").update({
+      status: "not_scheduled", response_started_at: new Date().toISOString(), home_responded_at: null, away_responded_at: null,
+      scheduled_for: null, confirmed_at: null, proposed_by_user_id: null, accepted_by_user_id: null,
+      reschedule_requested_at: null, stream_started_at: null, fw_flagged: false, fw_flagged_for_user_id: null,
+      fw_flagged_at: null, attention_required: false, updated_at: new Date().toISOString(),
+    }).eq("game_id", input.gameId),
+    supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", input.gameId).eq("status", "pending"),
+    supabase.from("rec_game_kickoff_checkins").delete().eq("game_id", input.gameId),
+  ]);
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "commissioner_reset" });
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: "🔄 A commissioner reset scheduling for this game — you can propose a new time." }).catch(() => undefined);
+  }
+  return { reset: true };
+}
+
 export async function computeUserFacingStatus(gameId: string): Promise<UserFacingStatus> {
   const row = await supabase.from("rec_game_scheduling").select("*").eq("game_id", gameId).maybeSingle();
   if (row.error || !row.data) return "not_scheduled";

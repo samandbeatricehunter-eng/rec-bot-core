@@ -297,6 +297,11 @@ function AdvanceReadinessSection() {
                 )}
                 {!g.needsInput && <Badge status="approved">{g.existingResultSource ?? "Has result"}</Badge>}
                 {g.needsInput && <Badge status="pending">Needs input</Badge>}
+                {g.fwFlaggedForUserId && (
+                  <span title="A coach requested a Force Win after checking in for a confirmed kickoff their opponent missed. Apply it manually if warranted.">
+                    <Badge status="pending">FW Requested</Badge>
+                  </span>
+                )}
                 {pollByGameId.has(g.gameId) && <Badge status="info">GOTW</Badge>}
                 {g.isBowlGame && <Badge status="info">Bowl Game</Badge>}
                 {g.isNationalChampionship && <Badge status="info">National Championship</Badge>}
