@@ -1519,36 +1519,6 @@ export function HubHome() {
         </div>}
       </>}
     </section> : section === "wagers" ? <section className="hub-section hub-wagers-section"><div className="hub-section-heading"><div><p className="hub-eyebrow"><Coins size={14} /> Sportsbook</p><h2>Wagers</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
-      <h3 className="hub-wagers-subhead">This Week's Games</h3>
-      {(() => {
-        const state = renderMatchupLoadState("Loading games...");
-        if (state) return state;
-        const schedule = matchupSchedule;
-        if (!schedule) return null;
-        if (schedule.isOffseason) return <p className="hub-empty">No games this week — the league is in the offseason ({schedule.offseasonStageLabel ?? "Offseason"}).</p>;
-        return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => {
-          const lines = weekWagerLines?.find((l) => l.gameId === game.gameId) ?? null;
-          return (
-          <article key={game.gameId} className="hub-matchup-summary">
-            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong>
-              {lines && (
-                <div className="hub-matchup-lines">
-                  {lines.moneyline && <span>ML {americanFromDecimal(lines.moneyline.awayOdds)}/{americanFromDecimal(lines.moneyline.homeOdds)}</span>}
-                  {lines.spread && <span>Spread {game.homeTeamName} {lines.spread.line > 0 ? "+" : ""}{lines.spread.line} ({americanFromDecimal(lines.spread.odds)})</span>}
-                  {lines.total && <span>O/U {lines.total.line} ({americanFromDecimal(lines.total.odds)})</span>}
-                </div>
-              )}
-            </div>
-            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
-          </article>
-          );
-        })}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
-      })()}
-
-      <h3 className="hub-wagers-subhead">Peer Wager Board</h3>
-      {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
-      <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
-
       <h3 className="hub-wagers-subhead">My Wagers</h3>
       {(() => {
         if (myWagers === null) return <p className="hub-empty">Loading your wagers...</p>;
@@ -1599,6 +1569,37 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
+
+      <h3 className="hub-wagers-subhead">This Week's Games</h3>
+      {(() => {
+        const state = renderMatchupLoadState("Loading games...");
+        if (state) return state;
+        const schedule = matchupSchedule;
+        if (!schedule) return null;
+        if (schedule.isOffseason) return <p className="hub-empty">No games this week — the league is in the offseason ({schedule.offseasonStageLabel ?? "Offseason"}).</p>;
+        return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => {
+          const lines = weekWagerLines?.find((l) => l.gameId === game.gameId) ?? null;
+          return (
+          <article key={game.gameId} className="hub-matchup-summary">
+            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong>
+              {lines && (
+                <div className="hub-matchup-lines">
+                  {lines.moneyline && <span>ML {americanFromDecimal(lines.moneyline.awayOdds)}/{americanFromDecimal(lines.moneyline.homeOdds)}</span>}
+                  {lines.spread && <span>Spread {game.homeTeamName} {lines.spread.line > 0 ? "+" : ""}{lines.spread.line} ({americanFromDecimal(lines.spread.odds)})</span>}
+                  {lines.total && <span>O/U {lines.total.line} ({americanFromDecimal(lines.total.odds)})</span>}
+                </div>
+              )}
+            </div>
+            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
+          </article>
+          );
+        })}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
+      })()}
+
+      <h3 className="hub-wagers-subhead">Peer Wager Board</h3>
+      {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+      <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
+
     </section> : section === "roster" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
