@@ -35,7 +35,17 @@ import {
 // v1.6.0: package CP allowances increased 15% after position-spanning allocator calibration
 // showed the top tier still plateauing around 84-85 OVR for QB/WR builds. OVR and attribute
 // caps remain unchanged, adding flexibility without permitting a stronger final player.
-export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.6.0" as const;
+// v1.7.0: the rawOverallCap gate is retired. estimateRecPlayerOverall (ovr-model.ts) is an
+// empirical REC estimator, not EA's real in-game formula, and offensive line in particular was
+// never recalibrated against real Madden 27 rosters (see ovr-model.ts header) — builds that
+// satisfied REC's stale OL estimate at <=81 were coming out 92-95 in the actual game, higher
+// than most Legends. The estimate is still computed and stored (estimated_ovr_raw/estimated_ovr
+// columns) for internal record-keeping, but it no longer blocks a build and is no longer shown
+// to users anywhere. In its place, REC_POSITION_CREATION_POINTS_MULTIPLIER now directly throttles
+// how much CP power positions (offensive/defensive line) get to spend, since they don't need to
+// buy speed/agility the way skill positions do and were using that leftover budget to stack
+// blocking/strength attributes far past what the old OVR cap was ever able to catch.
+export const REC_BUILD_RULES_VERSION = "rec-custom-player-rules-v1.7.0" as const;
 
 export interface RecPackageRules {
   tier: RecPackageTier;
@@ -67,6 +77,48 @@ export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>
 // this floor comes out of the package's budget before the user allocates anything further
 // (cost is derived from the final value, so pre-filling to this floor already "spends" it).
 export const REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR = 35;
+
+// Power positions live and die on strength/blocking/tackling, not speed/agility/change of
+// direction — the per-attribute position-weight and high-impact multipliers already make those
+// quickness attributes relatively cheap for them, which used to leave a lot of leftover CP to
+// dump into blocking/strength attributes once the (now-retired) OVR cap was the only thing
+// stopping them. Cutting their total budget directly controls that instead. Skill positions get
+// a small bump the other way since they have to pay full price across the board (speed, hands,
+// route running, coverage) to field a complete build.
+const REC_POWER_POSITIONS = new Set<RecOvrPosition>(["LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "FB"]);
+export const REC_POSITION_CREATION_POINTS_MULTIPLIER = { power: 0.85, skill: 1.05 } as const;
+
+export function getRecPositionCreationPointsMultiplier(positionInput: string): number {
+  const position = normalizeRecOvrPosition(positionInput);
+  return REC_POWER_POSITIONS.has(position)
+    ? REC_POSITION_CREATION_POINTS_MULTIPLIER.power
+    : REC_POSITION_CREATION_POINTS_MULTIPLIER.skill;
+}
+
+/** The actual CP budget a build gets once its position's power/skill multiplier is applied —
+ * this is what evaluateRecCustomPlayerBuild enforces and reports, not the flat tier number. */
+export function getRecEffectiveCreationPoints(positionInput: string, packageTier: RecPackageTier): number {
+  return Math.round(REC_PACKAGE_RULES[packageTier].creationPoints * getRecPositionCreationPointsMultiplier(positionInput));
+}
+
+// Every attribute pre-fills to REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR before a user spends a single
+// point, and that floor is charged as CP like any other point — at a neutral 1x multiplier
+// (every point 1-35 sits in the cheapest recBaseMarginalCost band) that's this many CP already
+// spent before the wizard even opens. Position/archetype multipliers push the real number
+// higher or lower once a position is picked, but the store package cards are shown before that
+// — this flat baseline is what they should advertise as the CP a tier actually starts with, so
+// the number a shopper sees already matches what the wizard will show, instead of a bigger
+// number that then visibly shrinks once they pick a position.
+export function getRecCreationPointsSeedCost(): number {
+  return REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR * getRecAllAttributeCodes().length;
+}
+
+/** The CP figure to advertise for a tier — the flat budget minus the baseline seed cost every
+ * build pays before any real allocation, so what's shown already matches what a build can
+ * actually spend (see getRecCreationPointsSeedCost). */
+export function getRecAdvertisedCreationPoints(packageTier: RecPackageTier): number {
+  return Math.max(0, REC_PACKAGE_RULES[packageTier].creationPoints - getRecCreationPointsSeedCost());
+}
 
 export const REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS: Readonly<Record<string, number>> = {
   spd: 2.30,
@@ -176,8 +228,7 @@ export type RecBuildViolationCode =
   | "PACKAGE_ATTRIBUTE_CAP"
   | "ATTRIBUTE_FLOOR_REQUIRED"
   | "QUICK_CLUSTER_GAP"
-  | "ARCHETYPE_IDENTITY"
-  | "OVR_CAP_EXCEEDED";
+  | "ARCHETYPE_IDENTITY";
 
 export interface RecBuildViolation {
   code: RecBuildViolationCode;
@@ -563,14 +614,15 @@ export function evaluateRecCustomPlayerBuild(
     Math.trunc(input.netDevelopmentCost)
   );
   const totalCost = attributeCost + netDevelopmentCost;
-  if (totalCost > packageRules.creationPoints) {
+  const effectiveCreationPoints = getRecEffectiveCreationPoints(position, input.packageTier);
+  if (totalCost > effectiveCreationPoints) {
     violations.push({
       code: "INSUFFICIENT_POINTS",
       current: totalCost,
-      required: packageRules.creationPoints,
+      required: effectiveCreationPoints,
       message:
         `Build costs ${totalCost} CP but the package provides ` +
-        `${packageRules.creationPoints} CP.`,
+        `${effectiveCreationPoints} CP.`,
     });
   }
 
@@ -595,17 +647,11 @@ export function evaluateRecCustomPlayerBuild(
     });
   }
 
+  // Not enforced (v1.7.0, see REC_BUILD_RULES_VERSION comment) — computed only so
+  // estimated_ovr_raw/estimated_ovr/linear_score/model_confidence/raw_ovr_cap keep getting
+  // populated for internal record-keeping. Never surface these to users; the estimate isn't
+  // reliable enough to promise, especially for offensive/defensive line.
   const overall = estimateRecPlayerOverall(position, attributes);
-  if (overall.rawOverall > packageRules.rawOverallCap + 1e-9) {
-    violations.push({
-      code: "OVR_CAP_EXCEEDED",
-      current: overall.rawOverall,
-      required: packageRules.rawOverallCap,
-      message:
-        `Raw OVR ${overall.rawOverall} exceeds the Tier ` +
-        `${input.packageTier} cap of ${packageRules.rawOverallCap}.`,
-    });
-  }
 
   return {
     valid: violations.length === 0,
@@ -614,8 +660,8 @@ export function evaluateRecCustomPlayerBuild(
     attributeCost,
     netDevelopmentCost,
     totalCost,
-    creationPoints: packageRules.creationPoints,
-    pointsRemaining: packageRules.creationPoints - totalCost,
+    creationPoints: effectiveCreationPoints,
+    pointsRemaining: effectiveCreationPoints - totalCost,
     rawOverall: overall.rawOverall,
     displayOverall: overall.displayOverall,
     linearScore: overall.linearScore,

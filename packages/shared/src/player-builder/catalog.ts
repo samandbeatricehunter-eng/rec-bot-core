@@ -1,6 +1,6 @@
 import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
 import type { RecGameFamily, RecPackageTier } from "./archetypes.js";
-import { REC_PACKAGE_RULES } from "./build-validator.js";
+import { getRecAdvertisedCreationPoints, REC_PACKAGE_RULES } from "./build-validator.js";
 
 export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.5.0" as const;
 export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.3.0" as const;
@@ -14,7 +14,6 @@ export type RecCustomPlayerPosition = (typeof REC_CUSTOM_PLAYER_POSITIONS)[numbe
 export type RecCustomPlayerPackageDefinition = {
   game: RecGameFamily; gameYear: number; key: string; tier: RecPackageTier;
   displayName: string; description: string; coinPrice: number; creationPoints: number;
-  targetOvrMin: number; targetOvrMax: number; rawOvrCap: number;
   includedDevCredit: number; maxHighImpactRating: number;
   configurationVersion: typeof REC_CUSTOM_PLAYER_PACKAGE_VERSION;
 };
@@ -27,7 +26,6 @@ const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],
 };
 const COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
-const TARGETS = [[56, 63], [64, 68], [69, 73], [74, 77], [78, 81]] as const;
 
 /** Canonical presentation order. UI aliases map to the actual stored game codes:
  * CAT=CTH, SPN=SPM, JUK=JKM, TOR=RUN, PLA=PAC, IMP=IBL, TKL=TAK, KPR=RET. */
@@ -51,12 +49,15 @@ export function listRecCustomPlayerPackages(game: RecGameFamily, gameYear = 27):
   return ([1, 2, 3, 4, 5] as RecPackageTier[]).map((tier) => {
     const rules = REC_PACKAGE_RULES[tier];
     const name = PACKAGE_NAMES[game][tier - 1]!;
+    // Advertised CP is the tier's budget after the baseline attribute-floor seed cost every
+    // build pays before any real allocation — see getRecAdvertisedCreationPoints. Shows the
+    // number a build can actually spend, not the bigger pre-seed figure.
+    const advertisedCreationPoints = getRecAdvertisedCreationPoints(tier);
     return {
       game, gameYear, key: `tier_${tier}`, tier, displayName: name,
-      description: `${name} custom-player build with ${rules.creationPoints.toLocaleString()} creation points.`,
-      coinPrice: COIN_PRICES[tier - 1]!, creationPoints: rules.creationPoints,
-      targetOvrMin: TARGETS[tier - 1]![0], targetOvrMax: TARGETS[tier - 1]![1],
-      rawOvrCap: rules.rawOverallCap, includedDevCredit: tier >= 3 ? 400 : 0,
+      description: `${name} custom-player build with ${advertisedCreationPoints.toLocaleString()} creation points.`,
+      coinPrice: COIN_PRICES[tier - 1]!, creationPoints: advertisedCreationPoints,
+      includedDevCredit: tier >= 3 ? 400 : 0,
       maxHighImpactRating: rules.highImpactAttributeCap,
       configurationVersion: REC_CUSTOM_PLAYER_PACKAGE_VERSION,
     };

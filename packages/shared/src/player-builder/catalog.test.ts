@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { REC_PACKAGE_RULES } from "./build-validator.js";
+import { getRecAdvertisedCreationPoints } from "./build-validator.js";
 import { getRecNetDevelopmentCost, listRecCustomPlayerPackages } from "./catalog.js";
 
 const EXPECTED_COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
@@ -16,13 +16,13 @@ test("listRecCustomPlayerPackages coin prices are fixed for CFB and MADDEN", () 
   }
 });
 
-test("package tiers 1–5 match REC_PACKAGE_RULES creationPoints", () => {
+test("package tiers 1–5 advertise the post-seed CP figure (real spendable amount)", () => {
   for (const game of ["CFB", "MADDEN"] as const) {
     for (const pkg of listRecCustomPlayerPackages(game)) {
       assert.equal(
         pkg.creationPoints,
-        REC_PACKAGE_RULES[pkg.tier].creationPoints,
-        `${game} tier ${pkg.tier} creationPoints drifted`,
+        getRecAdvertisedCreationPoints(pkg.tier),
+        `${game} tier ${pkg.tier} creationPoints drifted from the advertised (post-seed) figure`,
       );
     }
   }

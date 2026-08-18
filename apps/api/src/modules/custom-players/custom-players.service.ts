@@ -499,7 +499,7 @@ export async function submitCustomPlayer(input: {
     queue_type: "custom_player",
     status: "pending",
     priority: 0,
-    header: `Custom Player: ${input.identity.firstName} ${input.identity.lastName} (${effectivePosition}, ${evaluation.displayOverall} OVR) — ${teamName ?? "Unassigned"}`,
+    header: `Custom Player: ${input.identity.firstName} ${input.identity.lastName} (${effectivePosition}) — ${teamName ?? "Unassigned"}`,
     summary: [
       `Team: ${teamName ?? "Unassigned"}`,
       `Package: ${pkg.displayName} (${formatCoins(pkg.coinPrice)})`,

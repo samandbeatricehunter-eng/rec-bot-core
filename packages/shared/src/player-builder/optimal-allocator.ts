@@ -1,24 +1,18 @@
 /**
- * Test helper: greedily allocate creation points to maximize estimated raw OVR
- * for a given game/position/archetype/package tier, respecting package caps,
- * attribute floors, quick-cluster gaps, and the tier rawOverallCap.
+ * Test helper: greedily spend a build's full CP budget on the cheapest legal attribute
+ * increments available, respecting package caps, attribute floors, and quick-cluster gaps.
+ * No longer targets an OVR estimate (see build-validator.ts REC_BUILD_RULES_VERSION v1.7.0) —
+ * there's no cap to aim for anymore, so this just spends CP as far as it's able to go.
  */
 import {
-  estimateRecPlayerOverall,
-  estimateRecPlayerOverallDelta,
   normalizeRecOvrPosition,
-  REC_POSITION_OVR_MODELS,
   type RecPlayerAttributes,
 } from "./ovr-model.js";
-import {
-  getRecArchetype,
-  type RecGameFamily,
-  type RecPackageTier,
-} from "./archetypes.js";
+import { getRecAllAttributeCodes, type RecGameFamily, type RecPackageTier } from "./archetypes.js";
 import {
   evaluateRecAttributeCeiling,
   getRecEffectiveAttributeMultiplier,
-  REC_ATTRIBUTE_FLOOR_RELATIONS,
+  getRecEffectiveCreationPoints,
   REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS,
   REC_PACKAGE_RULES,
   REC_POSITION_QUICK_CLUSTER_GAP,
@@ -39,9 +33,6 @@ export interface RecOptimalCpAllocationResult {
   attributeCost: number;
   creationPoints: number;
   pointsRemaining: number;
-  rawOverall: number;
-  displayOverall: number;
-  rawOverallCap: number;
 }
 
 function ratingOf(attributes: RecPlayerAttributes, attribute: string): number {
@@ -69,28 +60,12 @@ function quickClusterOk(position: string, attributes: RecPlayerAttributes): bool
   return highest - Math.min(...ratings) <= maxGap;
 }
 
-function candidateAttributes(game: RecGameFamily, position: string, archetypeKey: string): string[] {
-  const normalized = normalizeRecOvrPosition(position);
-  const coeffs = Object.keys(REC_POSITION_OVR_MODELS[normalized].coefficients);
-  const archetype = getRecArchetype(game, position, archetypeKey);
-  const set = new Set<string>([
-    ...coeffs,
-    ...archetype.primaryAttributes,
-    ...archetype.secondaryAttributes,
-  ]);
-  for (const attr of [...set]) {
-    for (const related of REC_ATTRIBUTE_FLOOR_RELATIONS[attr] ?? []) set.add(related);
-  }
-  return [...set];
-}
-
 function raiseIsLegal(
   packageTier: RecPackageTier,
   position: string,
   attribute: string,
   nextRating: number,
   attributes: RecPlayerAttributes,
-  rawOverallCap: number,
 ): boolean {
   const packageRules = REC_PACKAGE_RULES[packageTier];
   if (
@@ -103,26 +78,26 @@ function raiseIsLegal(
   const ceiling = evaluateRecAttributeCeiling(attribute, nextRating, trial);
   if (ceiling.applicable && ceiling.deficientAttributes.length > 0) return false;
   if (!quickClusterOk(position, trial)) return false;
-  if (estimateRecPlayerOverall(position, trial).rawOverall > rawOverallCap + 1e-9) return false;
   return true;
 }
 
 /**
- * Spend CP on the highest OVR-marginal legal attribute increments first.
- * When a high-value attribute is blocked only by relational floors, raise the
- * deficient support attributes next so the build can keep climbing toward the cap.
+ * Spend CP on the cheapest legal attribute increment first, across every editable attribute —
+ * not just the ones relevant to the position/archetype, since there's no OVR target to chase
+ * anymore. When a cheap attribute is blocked only by relational floors, raise the deficient
+ * support attributes next so the build can keep spending toward its full budget.
  */
 export function allocateRecOptimalCpForOvr(
   input: RecOptimalCpAllocationInput
 ): RecOptimalCpAllocationResult {
   const position = normalizeRecOvrPosition(input.position);
-  const packageRules = REC_PACKAGE_RULES[input.packageTier];
-  const pool = candidateAttributes(input.game, position, input.archetypeKey);
+  const effectiveCreationPoints = getRecEffectiveCreationPoints(position, input.packageTier);
+  const pool = getRecAllAttributeCodes();
   const attributes: RecPlayerAttributes = {};
   let spent = 0;
 
   for (let safety = 0; safety < 20_000; safety += 1) {
-    type Candidate = { attribute: string; nextRating: number; cost: number; delta: number; score: number };
+    type Candidate = { attribute: string; nextRating: number; cost: number };
     const candidates: Candidate[] = [];
 
     for (const attribute of pool) {
@@ -130,17 +105,10 @@ export function allocateRecOptimalCpForOvr(
       if (current >= 99) continue;
       const nextRating = current + 1;
       const cost = marginalPointCost(input.game, position, input.archetypeKey, attribute, nextRating);
-      if (spent + cost > packageRules.creationPoints) continue;
+      if (spent + cost > effectiveCreationPoints) continue;
 
-      if (raiseIsLegal(input.packageTier, position, attribute, nextRating, attributes, packageRules.rawOverallCap)) {
-        const delta = estimateRecPlayerOverallDelta(position, attributes, attribute, nextRating).rawDelta;
-        candidates.push({
-          attribute,
-          nextRating,
-          cost,
-          delta,
-          score: delta > 0 ? delta / cost : 0,
-        });
+      if (raiseIsLegal(input.packageTier, position, attribute, nextRating, attributes)) {
+        candidates.push({ attribute, nextRating, cost });
         continue;
       }
 
@@ -148,55 +116,36 @@ export function allocateRecOptimalCpForOvr(
       if (!ceiling.applicable || ceiling.deficientAttributes.length === 0) continue;
       if (
         attribute in REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS &&
-        nextRating > packageRules.highImpactAttributeCap
+        nextRating > REC_PACKAGE_RULES[input.packageTier].highImpactAttributeCap
       ) {
         continue;
       }
 
-      const coeff = REC_POSITION_OVR_MODELS[position].coefficients[attribute] ?? 0.01;
       for (const deficient of ceiling.deficientAttributes) {
         const supportAttr = deficient.attribute;
         const supportCurrent = ratingOf(attributes, supportAttr);
         if (supportCurrent >= 99 || supportCurrent >= deficient.required) continue;
         const supportNext = supportCurrent + 1;
         const supportCost = marginalPointCost(input.game, position, input.archetypeKey, supportAttr, supportNext);
-        if (spent + supportCost > packageRules.creationPoints) continue;
-        if (!raiseIsLegal(input.packageTier, position, supportAttr, supportNext, attributes, packageRules.rawOverallCap)) {
-          continue;
-        }
-        const supportDelta = estimateRecPlayerOverallDelta(position, attributes, supportAttr, supportNext).rawDelta;
-        candidates.push({
-          attribute: supportAttr,
-          nextRating: supportNext,
-          cost: supportCost,
-          delta: supportDelta,
-          score: supportDelta > 0 ? supportDelta / supportCost : Math.max(coeff, 0.01) / supportCost / 1000,
-        });
+        if (spent + supportCost > effectiveCreationPoints) continue;
+        if (!raiseIsLegal(input.packageTier, position, supportAttr, supportNext, attributes)) continue;
+        candidates.push({ attribute: supportAttr, nextRating: supportNext, cost: supportCost });
       }
     }
 
     if (!candidates.length) break;
     candidates.sort(
-      (a, b) =>
-        b.score - a.score ||
-        b.delta - a.delta ||
-        a.cost - b.cost ||
-        a.attribute.localeCompare(b.attribute),
+      (a, b) => a.cost - b.cost || a.attribute.localeCompare(b.attribute),
     );
     const best = candidates[0]!;
-    if (best.delta <= 0 && best.score <= 0) break;
     attributes[best.attribute] = best.nextRating;
     spent += best.cost;
   }
 
-  const overall = estimateRecPlayerOverall(position, attributes);
   return {
     attributes,
     attributeCost: spent,
-    creationPoints: packageRules.creationPoints,
-    pointsRemaining: packageRules.creationPoints - spent,
-    rawOverall: overall.rawOverall,
-    displayOverall: overall.displayOverall,
-    rawOverallCap: packageRules.rawOverallCap,
+    creationPoints: effectiveCreationPoints,
+    pointsRemaining: effectiveCreationPoints - spent,
   };
 }

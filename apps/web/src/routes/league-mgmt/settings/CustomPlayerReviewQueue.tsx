@@ -85,7 +85,7 @@ function CustomPlayerBuildRow({
       </div>
     ) : null}
     <div>
-      <strong>{identity.firstName} {identity.lastName}</strong> · {build.position} · {build.estimated_ovr} OVR
+      <strong>{identity.firstName} {identity.lastName}</strong> · {build.position}
       <p className="form-hint">{String(build.package_key).replaceAll("_", " ")} · {build.coin_price} coins · {build.creation_points_spent}/{build.creation_point_budget} CP · {build.unused_cp_refund_coins > 0 ? "500-coin unspent CP reward" : "no unspent CP reward"}</p>
       {buyerChose ? (
         <p className="form-hint">
