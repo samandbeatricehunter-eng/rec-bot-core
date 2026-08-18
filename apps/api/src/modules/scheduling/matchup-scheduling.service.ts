@@ -9,6 +9,7 @@ import { getGameChannelByGameId } from "../game-channels/game-channels.service.j
 import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
+import { formatInstantInZone } from "../../lib/timezone.js";
 
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
@@ -107,7 +108,7 @@ export async function proposeTime(input: { gameId: string; discordId: string; pr
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_created", payload: { proposedForUtc: input.proposedForUtc } });
-  await notifyOpponent(input.gameId, game, userId, `proposed **${formatIsoShort(input.proposedForUtc)}**`, insert.data.id);
+  await notifyOpponent(input.gameId, game, userId, (tz) => `proposed **${formatInstantInZone(input.proposedForUtc, tz)}**`, insert.data.id);
   return insert.data;
 }
 
@@ -139,7 +140,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     }).eq("game_id", input.gameId);
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
-    await notifyOpponent(input.gameId, game, userId, `accepted **${formatIsoShort(proposal.data.proposed_for)}** — game confirmed.`);
+    await notifyOpponent(input.gameId, game, userId, (tz) => `accepted **${formatInstantInZone(proposal.data.proposed_for, tz)}** — game confirmed.`);
     await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };
   }
@@ -154,7 +155,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_countered", payload: { proposedForUtc: input.counterForUtc } });
-  await notifyOpponent(input.gameId, game, userId, `countered with **${formatIsoShort(input.counterForUtc)}**`, counter.data.id);
+  await notifyOpponent(input.gameId, game, userId, (tz) => `countered with **${formatInstantInZone(input.counterForUtc!, tz)}**`, counter.data.id);
   return counter.data;
 }
 
@@ -215,12 +216,14 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested" });
 
   const routes = await findServerRoutesForLeague(game.league_id);
+  const league = await supabase.from("rec_leagues").select("owner_user_id").eq("id", game.league_id).maybeSingle();
+  const ticketTz = await resolveDisplayTimezone(league.data?.owner_user_id ?? null, scheduling.data?.proposed_by_user_id ?? userId);
   await submitMatchupHelpRequest({
     guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
     discordId: input.discordId,
     gameId: input.gameId,
     kind: "force_win",
-    message: `Opponent missed the confirmed kickoff (${scheduling.data?.scheduled_for ? formatIsoShort(scheduling.data.scheduled_for) : "scheduled time"}). Checked-in coach is requesting a Force Win.`,
+    message: `Opponent missed the confirmed kickoff (${scheduling.data?.scheduled_for ? formatInstantInZone(scheduling.data.scheduled_for, ticketTz) : "scheduled time"}). Checked-in coach is requesting a Force Win.`,
   }).catch((err) => console.error("[ERROR] Failed to file the Force Win Request Help ticket (non-fatal):", err));
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -235,13 +238,28 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   return { flagged: true };
 }
 
-async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string, proposalId?: string) {
+// Resolves which zone to *display* a time in for the opponent: their own set timezone if
+// they've picked one, else the acting user's (the proposer's) timezone, else the system default.
+// Never UTC -- nobody reads UTC.
+async function resolveDisplayTimezone(opponentId: string | null, actingUserId: string): Promise<string> {
+  const [opponentProfile, actingProfile] = await Promise.all([
+    opponentId ? supabase.from("rec_user_availability_profiles").select("timezone").eq("user_id", opponentId).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from("rec_user_availability_profiles").select("timezone").eq("user_id", actingUserId).maybeSingle(),
+  ]);
+  return (opponentProfile as any).data?.timezone ?? (actingProfile as any).data?.timezone ?? "America/Chicago";
+}
+
+async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string | ((tz: string) => string), proposalId?: string) {
   const channel = await getGameChannelByGameId(gameId);
   if (!channel) { console.error(`[ERROR] notifyOpponent: no tracked game channel for game ${gameId} -- opponent not tagged.`); return; }
-  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${text}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
-  if (!channel.discord_channel_id) { console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`); return; }
 
   const opponentId = actingUserId === game.home_user_id ? game.away_user_id : game.home_user_id;
+  const displayTz = await resolveDisplayTimezone(opponentId, actingUserId);
+  const resolvedText = typeof text === "function" ? text(displayTz) : text;
+
+  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${resolvedText}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
+  if (!channel.discord_channel_id) { console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`); return; }
+
   const opponentAccount = opponentId
     ? await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle()
     : { data: null };
@@ -250,12 +268,12 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
   const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
 
   const posted = await postDiscordChannelMessage(channel.discord_channel_id, {
-    content: `${mention}${text}`,
+    content: `${mention}${resolvedText}`,
     components: proposalId ? [{
       type: 1,
       components: [
-        { type: 2, style: 3, custom_id: `rec:gamesched:proposal:accept:${gameId}:${proposalId}`, label: "Accept" },
-        { type: 2, style: 2, custom_id: `rec:gamesched:proposal:counter:${gameId}:${proposalId}`, label: "Counter" },
+        { type: 2, style: 3, custom_id: `rec:sc:pa:${gameId}:${proposalId}`, label: "Accept" },
+        { type: 2, style: 2, custom_id: `rec:sc:pc:${gameId}:${proposalId}`, label: "Counter" },
       ],
     }] : undefined,
     allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },

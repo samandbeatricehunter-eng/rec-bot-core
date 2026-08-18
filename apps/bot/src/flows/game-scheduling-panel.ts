@@ -15,8 +15,11 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelCantMake: "rec:gamesched:panel:cantmake:",
   panelReset: "rec:gamesched:panel:reset:",
   proposeSelect: "rec:gamesched:proposeselect:",
-  proposalAccept: "rec:gamesched:proposal:accept:",
-  proposalCounter: "rec:gamesched:proposal:counter:",
+  // Kept short deliberately -- prefix + 2 UUIDs (73 chars) must stay under Discord's 100-char
+  // custom_id limit, or postDiscordChannelMessage gets silently rejected (code 50035) and the
+  // opponent never sees the tag/buttons at all.
+  proposalAccept: "rec:sc:pa:",
+  proposalCounter: "rec:sc:pc:",
   checkin: "rec:gamesched:checkin:",
   fwRequest: "rec:gamesched:fwrequest:",
   autopilot: "rec:gamesched:autopilot:",

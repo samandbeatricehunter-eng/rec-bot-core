@@ -72,6 +72,16 @@ export function zonedWallTimeToUtcIana(
   return new Date(utcGuess - offset);
 }
 
+// Friendly "Wed, Aug 19, 9:00 PM CDT" rendering of a UTC instant in an arbitrary IANA zone —
+// used anywhere a scheduled/proposed time is shown to a specific person, so it always reads in
+// their zone (or a sensible fallback) rather than the UTC the value is stored in.
+export function formatInstantInZone(iso: string, timeZone: string): string {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  });
+  return dtf.format(new Date(iso));
+}
+
 // Inverse: what wall-clock date/time does `instant` show in `timeZone`? Used to walk
 // calendar days in a user's own timezone when generating recurring-availability instants.
 export function instantToZonedParts(instant: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
