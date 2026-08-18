@@ -13,7 +13,7 @@ const DeleteLeagueSchema = z.object({
 });
 import { createLeagueForServer } from "./setup-season.service.js";
 import { publishRecGuideFromApi } from "../server-config/rec-guide-publisher.service.js";
-import { completeDiscordPostInviteSetup, linkSiteLeagueToServer } from "../subscriptions/bot-invite.service.js";
+import { completeDiscordPostInviteSetup, linkSiteLeagueToServer, linkUnclaimedLeagueByDiscord } from "../subscriptions/bot-invite.service.js";
 import { isAllowedLeagueCreator, requireSiteLeagueCreator, resolveSiteLeagueCreator } from "../../lib/site-league-creator.js";
 import {
   registerServer,
@@ -229,7 +229,7 @@ export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/site-leagues/create/whoami", async (request, reply) => {
     try {
       const resolved = await resolveSiteLeagueCreator(request);
-      return reply.send({ allowed: isAllowedLeagueCreator(resolved?.email) });
+      return reply.send({ allowed: await isAllowedLeagueCreator(resolved?.userId) });
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -398,6 +398,24 @@ export async function setupRoutes(app: FastifyInstance) {
       const resolved = await resolveSiteLeagueCreator(request);
       if (!resolved) throw new ApiError(401, "Sign in to finish Discord setup.");
       return reply.send(await completeDiscordPostInviteSetup({ leagueId: body.leagueId, requestedByUserId: resolved.userId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only: the /linkleague slash command. The bot itself has already verified the invoking
+  // member has Manage Server permission in this guild before calling this — that permission
+  // check IS the guild-ownership verification, replacing link-server's provider-token round trip
+  // entirely for this path. Still narrowly scoped server-side: only ever claims a league the
+  // Discord user's linked REC account actually owns and that has no server yet.
+  app.post("/v1/site-leagues/link-server-by-discord", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        discordId: z.string().min(1),
+        guildId: z.string().min(1),
+        serverName: z.string().optional(),
+        leagueId: z.string().uuid().optional(),
+      }).parse(request.body);
+      return reply.send(await linkUnclaimedLeagueByDiscord(body));
     } catch (error) { return sendError(reply, error); }
   });
 }
