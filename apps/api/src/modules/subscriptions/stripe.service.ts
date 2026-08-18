@@ -278,7 +278,23 @@ function primaryPriceId(subscription: Stripe.Subscription): string | null {
   return typeof price === "string" ? price : price.id;
 }
 
+// A lifetime-comp grant (promo-codes.service.ts) doesn't clear stripe_customer_id/
+// stripe_subscription_id off a user who already had a Stripe customer/subscription before
+// redeeming — a leftover trial that later resolves, an invoice retry, any delayed webhook
+// tied to that old subscription — still resolves back to this user via findUserIdForSubscription
+// and, with no guard, silently overwrites their tier. This is the confirmed cause of a
+// lifetime-platinum account "converting" to gold with no visible user action: applyActiveSubscription
+// defaults an unresolvable price to "gold". promo-codes.service.ts's own applyPromoEffect already
+// treats billing_status === "lifetime_comp" as sticky against every other entitlement path
+// (`if (user.data?.billing_status === "lifetime_comp") return;`); every Stripe webhook handler
+// that writes subscription_tier/billing_status needs that same guard, not just promo redemption.
+async function isLifetimeComp(userId: string): Promise<boolean> {
+  const result = await supabase.from("rec_users").select("billing_status").eq("id", userId).maybeSingle();
+  return result.data?.billing_status === "lifetime_comp";
+}
+
 async function applyActiveSubscription(userId: string, subscription: Stripe.Subscription) {
+  if (await isLifetimeComp(userId)) return;
   const priceId = primaryPriceId(subscription);
   const tier = tierFromPriceId(priceId) ?? (subscription.metadata?.tier as SubscriptionTier | undefined) ?? "gold";
   const periodEnd = subscriptionPeriodEnd(subscription);
@@ -384,6 +400,7 @@ async function applySubscriptionDeleted(userId: string, subscription: Stripe.Sub
   // redemption canceling a still-trialing Stripe subscription — see promo-codes.service.ts)
   // knocking a still-valid free-trial promo down to a 14-day grace period mid-window.
   const current = await supabase.from("rec_users").select("billing_status,promo_trial_ends_at").eq("id", userId).maybeSingle();
+  if (current.data?.billing_status === "lifetime_comp") return;
   if (current.data?.billing_status === "promo_trial") {
     const promoTrialEndsAt = current.data.promo_trial_ends_at ? new Date(current.data.promo_trial_ends_at) : null;
     if (promoTrialEndsAt && promoTrialEndsAt.getTime() > Date.now()) return;
@@ -405,6 +422,7 @@ async function applySubscriptionDeleted(userId: string, subscription: Stripe.Sub
 }
 
 async function applyPaymentFailed(userId: string, subscriptionId: string | null) {
+  if (await isLifetimeComp(userId)) return;
   const graceUntil = addDays(new Date(), GRACE_DAYS).toISOString();
   const now = new Date().toISOString();
   const update: Record<string, unknown> = {
