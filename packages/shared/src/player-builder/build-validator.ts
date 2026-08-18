@@ -17,6 +17,7 @@ import {
   type RecGameFamily,
   type RecPackageTier,
 } from "./archetypes.js";
+import { getRecArchetypeBonusCp, getRecArchetypeTemplate } from "./archetype-templates.js";
 
 // v1.3.0: attribute-cost floor raised 0.75->0.90 (no attribute is "nearly free" to max
 // regardless of position relevance), and relational floor/ceiling gating extended from the
@@ -406,6 +407,44 @@ export function calculateRecBuildAttributeCost(
   }, 0);
 }
 
+/** Cost of the points ABOVE `floorRating` only — the archetype-template floor is already paid
+ * for by the package's coin price, not CP, so a build only spends CP on what it raises past the
+ * template. Uses the same per-point marginal-cost curve as calculateRecAttributeCost so there's
+ * no discount for starting higher; it's just not double-charged for ground the template already
+ * covers. */
+export function calculateRecAttributeCostAboveFloor(
+  game: RecGameFamily,
+  positionInput: string,
+  archetypeKey: string,
+  attributeCode: string,
+  floorRating: number,
+  destinationRating: number
+): number {
+  const rating = clamp(Math.trunc(destinationRating), 0, 99);
+  const floor = clamp(Math.trunc(floorRating), 0, 99);
+  if (rating <= floor) return 0;
+  const multiplier = getRecEffectiveAttributeMultiplier(game, positionInput, archetypeKey, attributeCode);
+  let total = 0;
+  for (let point = floor + 1; point <= rating; point += 1) {
+    total += Math.max(1, Math.round(recBaseMarginalCost(point) * multiplier));
+  }
+  return total;
+}
+
+export function calculateRecBuildAttributeCostAboveFloor(
+  input: Omit<RecBuildEvaluationInput, "netDevelopmentCost">,
+  floorMap: Readonly<Record<string, number>>
+): number {
+  const editable = getRecEditableAttributes(input.game, input.position, input.archetypeKey);
+  const attributes = normalizeRecAttributeMap(input.attributes);
+  return editable.reduce((total, attribute) => {
+    const raw = attributes[attribute];
+    const rating = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+    const floor = floorMap[attribute] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
+    return total + calculateRecAttributeCostAboveFloor(input.game, input.position, input.archetypeKey, attribute, floor, rating);
+  }, 0);
+}
+
 /** Checks whether `targetAttribute` can reach `requestedRating` given its related
  * attributes' current values — logical (Speed needs Agility/COD/Acceleration, Throw Power
  * needs Strength), not archetype-derived, so the requirement is stable and explainable
@@ -445,7 +484,8 @@ export function evaluateRecAttributeCeiling(
 }
 
 function validateHighImpactAttributes(
-  input: RecBuildEvaluationInput
+  input: RecBuildEvaluationInput,
+  floorMap: Readonly<Record<string, number>> | null
 ): RecBuildViolation[] {
   const packageRules = REC_PACKAGE_RULES[input.packageTier];
   const attributes = normalizeRecAttributeMap(input.attributes);
@@ -453,11 +493,17 @@ function validateHighImpactAttributes(
 
   // Package's hard high-impact numeric cap — scoped to the original 9 "obviously game-
   // breaking at 99" attributes (Speed, Throw Power, etc.), not every gated attribute below.
+  // A real player's own template value is exempt even if it exceeds the cap or a relational
+  // ceiling below (real backups can carry elite speed despite a modest overall) — the whole
+  // point of a frozen floor is that it's already "paid for" by the package, not something the
+  // user chose or can lower, so it can't be a violation. Only CP the user actually spent above
+  // that floor is subject to the cap.
   for (const attribute of Object.keys(REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS)) {
     const raw = attributes[attribute];
     const rating =
       typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
-    if (rating <= packageRules.highImpactAttributeCap) continue;
+    const floor = floorMap?.[attribute] ?? 0;
+    if (rating <= packageRules.highImpactAttributeCap || rating <= floor) continue;
 
     const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
     // Distinct from the ATTRIBUTE_FLOOR_REQUIRED message: this one is about the package's
@@ -493,6 +539,8 @@ function validateHighImpactAttributes(
     const raw = attributes[attribute];
     const rating =
       typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
+    const floor = floorMap?.[attribute] ?? 0;
+    if (rating <= floor) continue;
     const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
     if (ceiling.applicable && ceiling.deficientAttributes.length > 0) {
       violations.push({
@@ -583,38 +631,50 @@ export function evaluateRecCustomPlayerBuild(
     }
   }
 
-  // Every editable attribute starts at REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR and can never drop
-  // below it — there's no archetype picker anymore, so this replaces the old per-archetype
-  // primary/secondary baseline as the one universal starting point, charged as CP the same
-  // way any other point is (cost is derived from the final value, not from how you got
-  // there). Only enforced at submit — preview stays lenient while the client is still
+  // Archetype-template path (2026-08): if this position/tier/archetype has a curated real-player
+  // template (Madden only for now — see archetype-templates.ts), its attributes become the
+  // per-attribute floor instead of the flat REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, and the build only
+  // pays CP for points raised past that floor. Games/positions/archetypes without a template
+  // (currently all of CFB) fall back to the legacy flat-35 system unchanged.
+  const template = getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey);
+  const floorMap: Readonly<Record<string, number>> | null = template?.attributes ?? null;
+
+  // Every editable attribute starts at its floor (the template's real value, or the flat
+  // REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR with no template) and can never drop below it, charged as
+  // CP the same way any other point is (cost is derived from the final value, not from how you
+  // got there). Only enforced at submit — preview stays lenient while the client is still
   // hydrating its defaults.
   if ((input.mode ?? "submit") === "submit") {
     for (const attribute of editable) {
       const raw = attributes[attribute];
       const rating = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-      if (rating < REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR) {
+      const floor = floorMap ? (floorMap[attribute] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR) : REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
+      if (rating < floor) {
         violations.push({
           code: "INVALID_RATING",
           attribute,
           requestedRating: rating,
-          required: REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR,
-          message: `${attribute} must be at least ${REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR} — every attribute starts there and can't be lowered.`,
+          required: floor,
+          message: `${attribute} must be at least ${floor} — every attribute starts there and can't be lowered.`,
         });
       }
     }
   }
 
-  violations.push(...validateHighImpactAttributes(normalizedInput));
+  violations.push(...validateHighImpactAttributes(normalizedInput, floorMap));
   violations.push(...validateQuickClusterGap(position, attributes));
 
-  const attributeCost = calculateRecBuildAttributeCost(normalizedInput);
+  const attributeCost = floorMap
+    ? calculateRecBuildAttributeCostAboveFloor(normalizedInput, floorMap)
+    : calculateRecBuildAttributeCost(normalizedInput);
   const netDevelopmentCost = Math.max(
     0,
     Math.trunc(input.netDevelopmentCost)
   );
   const totalCost = attributeCost + netDevelopmentCost;
-  const effectiveCreationPoints = getRecEffectiveCreationPoints(position, input.packageTier);
+  const effectiveCreationPoints = floorMap
+    ? getRecArchetypeBonusCp(position, input.packageTier)
+    : getRecEffectiveCreationPoints(position, input.packageTier);
   if (totalCost > effectiveCreationPoints) {
     violations.push({
       code: "INSUFFICIENT_POINTS",
@@ -626,6 +686,10 @@ export function evaluateRecCustomPlayerBuild(
     });
   }
 
+  // Archetype-identity (primary-attribute-average) gating only applies to the legacy flat-floor
+  // path — a template-driven build's attributes are already archetype-correct by construction
+  // (they're copied from a real player picked FOR that archetype), so re-checking the identity
+  // floor here would be redundant at best and could false-positive against real player quirks.
   const archetypeIdentity = evaluateRecArchetypeIdentity(
     input.game,
     position,
@@ -633,7 +697,7 @@ export function evaluateRecCustomPlayerBuild(
     input.packageTier,
     attributes
   );
-  if ((input.mode ?? "submit") === "submit" && !archetypeIdentity.valid) {
+  if (!floorMap && (input.mode ?? "submit") === "submit" && !archetypeIdentity.valid) {
     violations.push({
       code: "ARCHETYPE_IDENTITY",
       current: archetypeIdentity.primaryAverage,

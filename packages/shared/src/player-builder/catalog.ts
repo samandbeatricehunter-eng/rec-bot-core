@@ -1,8 +1,9 @@
 import { MADDEN_ATTRIBUTE_DEFINITIONS } from "../madden/attributes.js";
 import type { RecGameFamily, RecPackageTier } from "./archetypes.js";
-import { getRecAdvertisedCreationPoints, REC_PACKAGE_RULES } from "./build-validator.js";
+import { REC_PACKAGE_RULES } from "./build-validator.js";
+import { REC_ARCHETYPE_BASE_OVR_TARGET, REC_ARCHETYPE_GROWTH_OVR_TARGET } from "./archetype-templates.js";
 
-export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v1.5.0" as const;
+export const REC_CUSTOM_PLAYER_PACKAGE_VERSION = "rec-custom-player-packages-v2.0.0" as const;
 export const REC_CUSTOM_PLAYER_COST_VERSION = "rec-custom-player-costs-v1.3.0" as const;
 
 export const REC_CUSTOM_PLAYER_POSITIONS = [
@@ -11,9 +12,14 @@ export const REC_CUSTOM_PLAYER_POSITIONS = [
 ] as const;
 export type RecCustomPlayerPosition = (typeof REC_CUSTOM_PLAYER_POSITIONS)[number];
 
+// v2.0.0: package cards no longer advertise a flat CP number — bonus CP is now position-specific
+// (see archetype-templates.ts getRecArchetypeBonusCp), so a single tier-wide figure would either
+// overpromise for expensive positions (LOLB, OL) or wildly overstate cheap ones (K/P). Cards
+// advertise the tier's real-player base OVR and growth target instead, true for every position.
 export type RecCustomPlayerPackageDefinition = {
   game: RecGameFamily; gameYear: number; key: string; tier: RecPackageTier;
-  displayName: string; description: string; coinPrice: number; creationPoints: number;
+  displayName: string; description: string; coinPrice: number;
+  baseOvrTarget: number; growthOvrTarget: number | null;
   includedDevCredit: number; maxHighImpactRating: number;
   configurationVersion: typeof REC_CUSTOM_PLAYER_PACKAGE_VERSION;
 };
@@ -26,6 +32,19 @@ const PACKAGE_NAMES: Record<RecGameFamily, string[]> = {
   MADDEN: ["JAG (Just a Guy)", "Solid Depth Player", "Future Starter", "Instant Starter", "Franchise Player"],
 };
 const COIN_PRICES = [500, 750, 1000, 1500, 2000] as const;
+
+// Dev-trait credit per tier (Samuel, 2026-08) — chosen so the NET cost of upgrading one dev
+// tier above that tier's default (see archetype-templates.ts REC_ARCHETYPE_DEFAULT_DEV_TRAIT_INDEX)
+// comes out to exactly REC_ARCHETYPE_DEV_UPGRADE_CP: credit = defaultTrait.absoluteCost +
+// (nextTrait.absoluteCost - defaultTrait.absoluteCost - desiredUpgradeCost). Same for CFB and
+// Madden since both dev-trait ladders use the same absoluteCost values (0/400/1000/1800).
+const DEV_CREDIT_BY_TIER: Readonly<Record<RecPackageTier, number>> = {
+  1: 0,
+  2: 300,
+  3: 800,
+  4: 600,
+  5: 1100,
+};
 
 /** Canonical presentation order. UI aliases map to the actual stored game codes:
  * CAT=CTH, SPN=SPM, JUK=JKM, TOR=RUN, PLA=PAC, IMP=IBL, TKL=TAK, KPR=RET. */
@@ -49,15 +68,15 @@ export function listRecCustomPlayerPackages(game: RecGameFamily, gameYear = 27):
   return ([1, 2, 3, 4, 5] as RecPackageTier[]).map((tier) => {
     const rules = REC_PACKAGE_RULES[tier];
     const name = PACKAGE_NAMES[game][tier - 1]!;
-    // Advertised CP is the tier's budget after the baseline attribute-floor seed cost every
-    // build pays before any real allocation — see getRecAdvertisedCreationPoints. Shows the
-    // number a build can actually spend, not the bigger pre-seed figure.
-    const advertisedCreationPoints = getRecAdvertisedCreationPoints(tier);
+    const baseOvrTarget = REC_ARCHETYPE_BASE_OVR_TARGET[tier];
+    const growthOvrTarget = REC_ARCHETYPE_GROWTH_OVR_TARGET[tier];
     return {
       game, gameYear, key: `tier_${tier}`, tier, displayName: name,
-      description: `${name} custom-player build with ${advertisedCreationPoints.toLocaleString()} creation points.`,
-      coinPrice: COIN_PRICES[tier - 1]!, creationPoints: advertisedCreationPoints,
-      includedDevCredit: tier >= 3 ? 400 : 0,
+      description: growthOvrTarget
+        ? `${name} custom-player build starting from a real ~${baseOvrTarget} OVR player, with room to build toward ~${growthOvrTarget}.`
+        : `${name} custom-player build starting from a real ~${baseOvrTarget} OVR player.`,
+      coinPrice: COIN_PRICES[tier - 1]!, baseOvrTarget, growthOvrTarget,
+      includedDevCredit: DEV_CREDIT_BY_TIER[tier],
       maxHighImpactRating: rules.highImpactAttributeCap,
       configurationVersion: REC_CUSTOM_PLAYER_PACKAGE_VERSION,
     };

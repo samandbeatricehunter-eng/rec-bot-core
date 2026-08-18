@@ -9,6 +9,7 @@ import {
   type RecPlayerAttributes,
 } from "./ovr-model.js";
 import { getRecAllAttributeCodes, type RecGameFamily, type RecPackageTier } from "./archetypes.js";
+import { getRecArchetypeBonusCp, getRecArchetypeTemplate } from "./archetype-templates.js";
 import {
   evaluateRecAttributeCeiling,
   getRecEffectiveAttributeMultiplier,
@@ -86,14 +87,22 @@ function raiseIsLegal(
  * not just the ones relevant to the position/archetype, since there's no OVR target to chase
  * anymore. When a cheap attribute is blocked only by relational floors, raise the deficient
  * support attributes next so the build can keep spending toward its full budget.
+ *
+ * If this position/tier/archetype has a curated real-player template (Madden only — see
+ * archetype-templates.ts), starts from its attributes (the floor, never lowered) and spends the
+ * tier's bonus CP budget instead of the legacy flat-floor budget — same fallback rule as
+ * build-validator.ts's evaluateRecCustomPlayerBuild.
  */
 export function allocateRecOptimalCpForOvr(
   input: RecOptimalCpAllocationInput
 ): RecOptimalCpAllocationResult {
   const position = normalizeRecOvrPosition(input.position);
-  const effectiveCreationPoints = getRecEffectiveCreationPoints(position, input.packageTier);
+  const template = getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey);
+  const effectiveCreationPoints = template
+    ? getRecArchetypeBonusCp(position, input.packageTier)
+    : getRecEffectiveCreationPoints(position, input.packageTier);
   const pool = getRecAllAttributeCodes();
-  const attributes: RecPlayerAttributes = {};
+  const attributes: RecPlayerAttributes = template ? { ...template.attributes } : {};
   let spent = 0;
 
   for (let safety = 0; safety < 20_000; safety += 1) {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { allocateRecOptimalCpForOvr } from "./optimal-allocator.js";
 import { evaluateRecCustomPlayerBuild, getRecEffectiveCreationPoints } from "./build-validator.js";
+import { getRecArchetypeBonusCp, getRecArchetypeTemplate } from "./archetype-templates.js";
+import { normalizeRecOvrPosition } from "./ovr-model.js";
 import type { RecPackageTier } from "./archetypes.js";
 
 const TIERS = [1, 2, 3, 4, 5] as const satisfies readonly RecPackageTier[];
@@ -18,7 +20,11 @@ for (const fixture of FIXTURES) {
   for (const tier of TIERS) {
     test(`optimal allocator spends CP legally for ${fixture.game} ${fixture.position}/${fixture.archetypeKey} tier ${tier}`, () => {
       const allocation = allocateRecOptimalCpForOvr({ ...fixture, packageTier: tier });
-      const effectiveCreationPoints = getRecEffectiveCreationPoints(fixture.position, tier);
+      const position = normalizeRecOvrPosition(fixture.position);
+      const template = getRecArchetypeTemplate(position, tier, fixture.archetypeKey);
+      const effectiveCreationPoints = template
+        ? getRecArchetypeBonusCp(position, tier)
+        : getRecEffectiveCreationPoints(fixture.position, tier);
       assert.equal(allocation.creationPoints, effectiveCreationPoints);
       assert.ok(
         allocation.attributeCost <= effectiveCreationPoints,
