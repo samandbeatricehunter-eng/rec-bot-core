@@ -422,6 +422,41 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
   shareHubMatchupStream: (input: { guildId: string; gameId: string; url: string }) =>
     recApiFetch<{ posted: true; streamLogId: string; watchPath: string; service: string | null }>("/v1/hub/matchups/stream/share", { method: "POST", body: JSON.stringify(input) }),
+  getSchedulingAvailabilityProfile: (guildId: string) =>
+    recApiFetch<{
+      profile: { timezone: string | null; timezone_source: string; show_detailed_availability: boolean };
+      windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }>;
+      overrides: Array<{ id: string; scope: string; startsAt: string; endsAt: string; unavailable: boolean; timezoneOverride: string | null; gameId: string | null }>;
+    }>("/v1/scheduling/profile", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setSchedulingTimezone: (input: { guildId: string; timezone: string; source: "site_detected" | "site_manual" }) =>
+    recApiFetch<{ timezone: string }>("/v1/scheduling/timezone", { method: "POST", body: JSON.stringify(input) }),
+  setSchedulingWindows: (input: { guildId: string; leagueScoped: boolean; weekday: number; windows: Array<{ startMinute: number; endMinute: number }> }) =>
+    recApiFetch<{ windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }> }>("/v1/scheduling/windows", { method: "POST", body: JSON.stringify(input) }),
+  getSchedulingSuggestions: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{
+      deadlineUtc: string; homeTimezone: string | null; awayTimezone: string | null;
+      homeAvailability: Array<{ startUtc: string; endUtc: string }>; awayAvailability: Array<{ startUtc: string; endUtc: string }>;
+      sharedWindows: Array<{ startUtc: string; endUtc: string }>;
+      bestWindow: { kickoffUtc: string; windowEndUtc: string; score: number } | null; bestKickoffOptions: string[];
+    }>("/v1/scheduling/matchup/suggestions", { method: "POST", body: JSON.stringify(input) }),
+  getSchedulingMatchupStatus: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ status: string }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
+  proposeSchedulingTime: (input: { guildId: string; gameId: string; proposedForUtc: string }) =>
+    recApiFetch<any>("/v1/scheduling/matchup/propose", { method: "POST", body: JSON.stringify(input) }),
+  respondToSchedulingProposal: (input: { guildId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw"; counterForUtc?: string }) =>
+    recApiFetch<any>("/v1/scheduling/matchup/respond-to-proposal", { method: "POST", body: JSON.stringify(input) }),
+  requestSchedulingReschedule: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ status: string }>("/v1/scheduling/matchup/request-reschedule", { method: "POST", body: JSON.stringify(input) }),
+  checkInScheduling: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<any>("/v1/scheduling/matchup/checkin", { method: "POST", body: JSON.stringify(input) }),
+  requestSchedulingForceWin: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
+  markSchedulingCantMakeGame: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ flagged: true; opponentId: string | null }>("/v1/scheduling/matchup/cant-make-game", { method: "POST", body: JSON.stringify(input) }),
+  resolveSchedulingCantMakeGame: (input: { guildId: string; gameId: string; choice: "accept_fs" | "request_autopilot" }) =>
+    recApiFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
+  resetScheduling: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyHighlightWeekCounts: (guildId: string) =>

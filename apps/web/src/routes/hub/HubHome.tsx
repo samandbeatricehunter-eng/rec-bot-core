@@ -17,6 +17,7 @@ import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, H
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
+import { AvailabilityModal } from "../../components/hub/AvailabilityModal.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 import { IconWell } from "../../components/design-system/IconWell.js";
@@ -518,6 +519,7 @@ export function HubHome() {
   const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
+  const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
@@ -1601,7 +1603,13 @@ export function HubHome() {
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
-            <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p><p className="hub-hero-coach">{coachName}</p></div>
+            <div className="hub-hero-main">
+              <p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p>
+              <h1>{hub.league.name}</h1>
+              <p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p>
+              <p className="hub-hero-coach">{coachName}</p>
+              <Button variant="ghost" size="compact" onClick={() => setAvailabilityModalOpen(true)}>Availability</Button>
+            </div>
             <aside className="hub-hero-snapshot">
               <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
               <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}</div>
@@ -1632,6 +1640,9 @@ export function HubHome() {
               </div>
             </aside>
           </section>
+          {availabilityModalOpen && (
+            <AvailabilityModal guildId={auth.status === "ready" ? auth.guildId : ""} onClose={() => setAvailabilityModalOpen(false)} />
+          )}
           <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
             {activeAnnouncementGroup ? (
               <div className="hub-announce-carousel">
