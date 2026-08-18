@@ -10,7 +10,7 @@ export type MaddenSupplementalPick = Readonly<{ draftYear: number; round: number
 
 export const MADDEN_PICK_BASELINE_META = {
   madden_26: { firstDraftYear: 2026, snapshotDate: "2025-08-14", version: "m26_release_v1" },
-  madden_27: { firstDraftYear: 2027, snapshotDate: "2026-08-10", version: "m27_2026-08-10_v1" },
+  madden_27: { firstDraftYear: 2027, snapshotDate: "2026-08-18", version: "m27_2026-08-18_v2" },
 } as const;
 
 export const M26_PICK_TRANSFERS: MaddenPickTransfer[] = [
@@ -35,22 +35,65 @@ export const M26_SUPPLEMENTAL_PICKS: MaddenSupplementalPick[] = [
   { draftYear: 2026, round: 3, original: "DET", assetKey: "DET:2026:R3:COMP" },
 ];
 
+// Sourced from the commissioner's Madden 27 "new franchise" ownership ledger (2026-08-18),
+// derived from in-game screenshots for a brand-new M27 franchise's first three draft classes.
+// Multi-hop chains (e.g. 2027 BAL R7 #206 -> DAL -> PHI) are encoded as two consecutive
+// transfers so seedMaddenDraftPicks's from-team matching resolves them in order.
 export const M27_PICK_TRANSFERS: MaddenPickTransfer[] = [
-  [2027,7,"LAR","BAL",0],[2027,5,"HOU","CLE",0],[2027,5,"DAL","PIT",0],[2027,6,"PIT","DAL",0],
-  [2027,7,"MIA","PIT",0],[2027,5,"PIT","MIA",0],[2027,7,"NYG","MIA",1],[2027,7,"KC","SF",0],
-  [2027,6,"SF","KC",0],[2027,7,"MIN","NYJ",0],[2027,6,"NYJ","MIN",0],[2027,7,"NO","DEN",0],
-  [2027,7,"PHI","MIN",0],[2027,6,"KC","NYJ",1],[2027,7,"NYJ","KC",1],[2027,6,"GB","PHI",0],
-  [2028,7,"CLE","LAR",0],[2027,7,"ATL","SEA",1],[2028,7,"DAL","NO",0],[2028,6,"NO","DAL",0],
-  [2027,7,"LAC","HOU",1],[2027,5,"CAR","MIN",0],[2027,4,"MIN","CAR",0],[2027,1,"GB","DAL",0],
-  [2028,7,"NE","NO",0],[2027,6,"NO","NE",0],[2027,6,"CLE","HOU",0],[2027,7,"HOU","CLE",0],
-  [2027,7,"BAL","LAC",0],[2027,7,"NYJ","PHI",0],[2027,6,"PHI","NYJ",0],[2027,7,"BAL","PHI",0],
-  [2027,1,"IND","NYJ",0],[2027,1,"DAL","NYJ",0],[2027,6,"LAC","NO",0],[2027,7,"HOU","DET",0],
-  [2027,3,"LAR","KC",0],[2027,5,"CHI","NE",0],[2027,4,"DAL","GB",0],[2028,6,"HOU","NO",0],
-  [2028,7,"NO","HOU",0],[2027,6,"KC","NYJ",0],[2027,7,"PHI","CAR",0],[2027,6,"HOU","NE",0],
-  [2027,7,"NE","HOU",0],[2027,6,"PHI","GB",0],
-  // Current 2027 reconciliation entries published after the transaction ledger snapshot.
-  [2027,6,"BAL","SF",0],[2027,7,"LV","BUF",0],[2027,4,"NYG","CLE",0],[2027,4,"SEA","CLE",0],
-  [2027,1,"LAR","CLE",0],[2027,7,"DAL","PHI",0],[2027,7,"PHI","CAR",0],[2027,7,"LAC","HOU",1],
+  // 2027
+  [2027,7,"ATL","SEA",0],
+  [2027,6,"BAL","SF",0],
+  [2027,7,"DAL","PHI",0],[2027,7,"BAL","DAL",0],[2027,7,"DAL","PHI",0],
+  [2027,5,"CAR","MIN",0],
+  [2027,5,"CHI","NE",0],
+  [2027,6,"CLE","HOU",0],
+  [2027,1,"DAL","NYJ",0],
+  [2027,4,"DAL","GB",0],
+  [2027,5,"DAL","PIT",0],
+  [2027,1,"GB","DAL",0],
+  [2027,6,"GB","PHI",0],
+  [2027,5,"HOU","CLE",0],[2027,7,"HOU","CLE",0],
+  [2027,6,"HOU","NE",0],
+  [2027,1,"IND","NYJ",0],
+  [2027,6,"KC","NYJ",0],
+  [2027,7,"KC","SF",0],
+  [2027,6,"LAC","NO",0],
+  [2027,7,"LAC","DET",0],
+  [2027,1,"LAR","CLE",0],
+  [2027,3,"LAR","KC",0],
+  [2027,7,"LAR","LAC",0],
+  [2027,7,"LV","BUF",0],
+  [2027,7,"MIA","PIT",0],
+  [2027,4,"MIN","CAR",0],
+  [2027,6,"MIN","NE",0],
+  [2027,7,"MIN","ATL",0],
+  [2027,5,"NE","PHI",0],
+  [2027,7,"NE","HOU",0],
+  [2027,6,"NO","NE",0],
+  [2027,7,"NO","DEN",0],
+  [2027,4,"NYG","CLE",0],
+  [2027,7,"NYG","MIA",0],
+  [2027,6,"NYJ","MIN",0],
+  [2027,7,"NYJ","CAR",0],
+  [2027,3,"PHI","MIN",0],[2027,7,"PHI","MIN",0],
+  [2027,6,"PHI","NYJ",0],
+  [2027,5,"PIT","MIA",0],
+  [2027,6,"PIT","DAL",0],
+  [2027,4,"SEA","CLE",0],
+  [2027,6,"SF","KC",0],
+  // 2028
+  [2028,7,"CLE","LAR",0],
+  [2028,7,"DAL","NO",0],
+  [2028,6,"HOU","NO",0],
+  [2028,2,"LAR","CLE",0],
+  [2028,1,"NE","PHI",0],
+  [2028,7,"NE","NO",0],
+  [2028,6,"NO","DAL",0],
+  [2028,7,"NO","HOU",0],
+  [2028,7,"NYJ","LAC",0],
+  [2028,7,"SEA","NYJ",0],
+  // 2029
+  [2029,3,"LAR","CLE",0],
 ];
 
 export function transfersForMaddenGame(game: "madden_26" | "madden_27") {
@@ -63,14 +106,14 @@ export function supplementalPicksForMaddenGame(game: "madden_26" | "madden_27") 
 
 // Projected year-1 draft slot by ORIGINAL franchise (1 = first overall). Ownership transfers
 // are applied separately — pick_number follows the original team, so a traded Colts pick
-// keeps IND's slot even when Jets currently own it. Source for M27: nfldraftbook / Tankathon
-// projected 2027 order as of mid-2026 (Super Bowl futures before the 2026 season), with
-// original-team slots inferred from reported via-picks (NYJ via IND/DAL, DAL via GB).
+// keeps IND's slot even when Jets currently own it. Source for M27: the 2026-08-18 commissioner
+// ledger (R1 pick numbers per franchise, cross-checked against each team's "missing own R1"
+// / "R1 from X" notes to recover the original owner of traded slots).
 export const M27_YEAR1_ORIGINAL_PICK_ORDER: readonly string[] = [
-  "MIA", "ARI", "NYJ", "CLE", "LV", "TEN", "NO", "CAR", "ATL", "PIT",
-  "NYG", "WAS", "MIN", "IND", "DAL", "CIN", "JAX", "CHI", "TB", "HOU",
-  "DEN", "NE", "GB", "SF", "DET", "LAC", "KC", "SEA", "PHI", "BAL",
-  "BUF", "LAR",
+  "LV", "NYJ", "ARI", "TEN", "NYG", "CLE", "WAS", "NO", "KC", "CIN",
+  "MIA", "DAL", "ATL", "BAL", "TB", "IND", "DET", "MIN", "CAR", "GB",
+  "PIT", "LAC", "PHI", "JAX", "CHI", "BUF", "SF", "HOU", "LAR", "DEN",
+  "NE", "SEA",
 ];
 
 // M26 year-1 (2026 draft) used the same pre-season futures-style board relative to that
