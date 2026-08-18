@@ -1624,7 +1624,6 @@ export function HubHome() {
               <h1>{hub.league.name}</h1>
               <p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p>
               <p className="hub-hero-coach">{coachName}</p>
-              <Button variant="ghost" size="compact" onClick={() => setAvailabilityModalOpen(true)}>Availability</Button>
             </div>
             <aside className="hub-hero-snapshot">
               <div className="hub-hero-matchup">

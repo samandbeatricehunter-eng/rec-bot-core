@@ -6,7 +6,7 @@ import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
 
@@ -370,30 +370,81 @@ export async function autoResetSchedulingAfterMissedKickoff(gameId: string) {
 // Posted once per game channel right after the intro embed -- raw Discord REST JSON (this is
 // apps/api, not the bot's discord.js instance) using the exact custom_id scheme the bot's
 // apps/bot/src/flows/game-scheduling-panel.ts listens for.
+function schedulingPanelComponents(gameId: string) {
+  return [
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 2, custom_id: `rec:gamesched:panel:availability:${gameId}`, label: "Adjust Availability" },
+        { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: "Propose Time" },
+        { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
+      ],
+    },
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 2, custom_id: `rec:gamesched:panel:reset:${gameId}`, label: "Reset (Commissioner)" },
+      ],
+    },
+  ];
+}
+
+async function schedulingPanelDescription(gameId: string): Promise<string> {
+  const status = await computeUserFacingStatus(gameId);
+  if (status === "confirmed" || status === "completed" || status === "reschedule_requested") {
+    const scheduling = await supabase.from("rec_game_scheduling").select("scheduled_for").eq("game_id", gameId).maybeSingle();
+    if (scheduling.data?.scheduled_for) {
+      const unix = Math.floor(new Date(scheduling.data.scheduled_for).getTime() / 1000);
+      return `✅ Confirmed — <t:${unix}:F> (<t:${unix}:R>)`;
+    }
+  }
+  try {
+    const suggestions = await getSchedulingSuggestions(gameId);
+    if (suggestions.bestWindow) {
+      const unix = Math.floor(new Date(suggestions.bestWindow.kickoffUtc).getTime() / 1000);
+      return `🟡 Not Scheduled — best shared availability: <t:${unix}:F> (<t:${unix}:R>). Use the buttons below to line up a kickoff time before advance.`;
+    }
+  } catch {
+    // Suggestions need both coaches' availability set -- fall through to the generic copy.
+  }
+  return "🟡 Not Scheduled — use the buttons below to line up a kickoff time before advance.";
+}
+
 export async function postSchedulingPanel(channelId: string, gameId: string) {
-  await postDiscordChannelMessage(channelId, {
-    embeds: [{
-      title: "Scheduling",
-      color: 0xd9a521,
-      description: "🟡 Not Scheduled — use the buttons below to line up a kickoff time before advance.",
-    }],
-    components: [
-      {
-        type: 1,
-        components: [
-          { type: 2, style: 2, custom_id: `rec:gamesched:panel:availability:${gameId}`, label: "Adjust Availability" },
-          { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: "Propose Time" },
-          { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
-        ],
-      },
-      {
-        type: 1,
-        components: [
-          { type: 2, style: 2, custom_id: `rec:gamesched:panel:reset:${gameId}`, label: "Reset (Commissioner)" },
-        ],
-      },
-    ],
-  }).catch((error) => console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error));
+  const description = await schedulingPanelDescription(gameId);
+  const posted = await postDiscordChannelMessage(channelId, {
+    embeds: [{ title: "Scheduling", color: 0xd9a521, description }],
+    components: schedulingPanelComponents(gameId),
+  }).catch((error) => { console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error); return null; });
+  if (posted?.id) {
+    await supabase.from("rec_game_scheduling").update({ panel_channel_id: channelId, panel_message_id: posted.id }).eq("game_id", gameId);
+  }
+}
+
+// Refreshes the persistent game-channel panel in place (live status + best-overlap suggestion)
+// -- called whenever either coach's availability changes, so the panel never goes stale between
+// scheduling actions.
+export async function updateSchedulingPanel(gameId: string) {
+  const row = await supabase.from("rec_game_scheduling").select("panel_channel_id,panel_message_id").eq("game_id", gameId).maybeSingle();
+  if (!row.data?.panel_channel_id || !row.data?.panel_message_id) return;
+  const description = await schedulingPanelDescription(gameId);
+  await editDiscordMessage(row.data.panel_channel_id, row.data.panel_message_id, {
+    embeds: [{ title: "Scheduling", color: 0xd9a521, description }],
+    components: schedulingPanelComponents(gameId),
+  }).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+}
+
+// Called after a coach updates their availability/timezone/overrides -- refreshes the panel for
+// every non-completed game they're currently a participant in (in practice at most one, since a
+// coach has one active H2H game per week).
+export async function refreshSchedulingPanelsForUser(userId: string) {
+  const games = await supabase.from("rec_games").select("id").or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
+  if (games.error || !games.data?.length) return;
+  const gameIds = games.data.map((g: any) => String(g.id));
+  const scheduling = await supabase.from("rec_game_scheduling").select("game_id").in("game_id", gameIds).neq("status", "completed").not("panel_message_id", "is", null);
+  for (const row of scheduling.data ?? []) {
+    await updateSchedulingPanel(String((row as any).game_id));
+  }
 }
 
 // Commissioner "Week Scheduling" dashboard: every current-week H2H game's scheduling status

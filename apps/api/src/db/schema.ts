@@ -1302,6 +1302,8 @@ export const recGameScheduling = pgTable("rec_game_scheduling", {
   attentionRequired: boolean("attention_required").notNull().default(false),
   announcementChannelId: text("announcement_channel_id"),
   announcementMessageId: text("announcement_message_id"),
+  panelChannelId: text("panel_channel_id"),
+  panelMessageId: text("panel_message_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });

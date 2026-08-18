@@ -84,7 +84,23 @@ function divisionEmbed(conference: string, division: string, teams: DivisionTeam
   };
 }
 
-export async function syncAvailabilityBoard(guildId: string, opts: { announceLinked?: boolean } = {}) {
+// Concurrent syncs for the SAME guild (e.g. several coaches setting availability within
+// moments of the initial @everyone prompt) would otherwise race: two calls can both SELECT
+// "no tracked message yet" before either finishes INSERTing, producing duplicate posts that
+// never get cleaned up (each subsequent edit only ever updates the one row that won the
+// upsert, leaving the other duplicate stuck in the channel forever -- the exact "flooding"
+// symptom). Chaining onto the previous call for this guild serializes them instead.
+const boardSyncQueue = new Map<string, Promise<unknown>>();
+
+export function syncAvailabilityBoard(guildId: string, opts: { announceLinked?: boolean } = {}) {
+  const previous = boardSyncQueue.get(guildId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(() => syncAvailabilityBoardInternal(guildId, opts));
+  boardSyncQueue.set(guildId, next);
+  next.finally(() => { if (boardSyncQueue.get(guildId) === next) boardSyncQueue.delete(guildId); });
+  return next;
+}
+
+async function syncAvailabilityBoardInternal(guildId: string, opts: { announceLinked?: boolean } = {}) {
   const context = await getCurrentLeagueContext(guildId);
   const channelId = String((context.routes as any)?.scheduling_channel_id ?? "");
   if (!channelId) return { synced: false, reason: "no_channel" as const };
@@ -138,9 +154,18 @@ export async function syncAvailabilityBoard(guildId: string, opts: { announceLin
     groups.set(conference, byConf);
   }
 
+  const conferenceOrder = ["NFC", "AFC"];
+  const divisionOrder = ["East", "West", "North", "South"];
+  const rank = (value: string, order: string[]) => {
+    const index = order.findIndex((entry) => entry.toLowerCase() === value.trim().toLowerCase());
+    return index === -1 ? order.length : index;
+  };
+  const orderedConferences = [...groups.entries()].sort((a, b) => rank(a[0], conferenceOrder) - rank(b[0], conferenceOrder) || a[0].localeCompare(b[0]));
+
   await upsertBoardMessage(leagueId, channelId, "control_panel", controlPanelPayload());
-  for (const [conference, divisions] of groups) {
-    for (const [division, teams] of divisions) {
+  for (const [conference, divisions] of orderedConferences) {
+    const orderedDivisions = [...divisions.entries()].sort((a, b) => rank(a[0], divisionOrder) - rank(b[0], divisionOrder) || a[0].localeCompare(b[0]));
+    for (const [division, teams] of orderedDivisions) {
       const sectionKey = `division:${conference}:${division}`;
       await upsertBoardMessage(leagueId, channelId, sectionKey, divisionEmbed(conference, division, teams.sort((a, b) => a.teamName.localeCompare(b.teamName))));
     }

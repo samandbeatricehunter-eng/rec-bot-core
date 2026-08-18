@@ -9,7 +9,7 @@ import {
 } from "./availability.service.js";
 import {
   checkIn, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markResponded, proposeTime,
-  requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
+  refreshSchedulingPanelsForUser, requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
@@ -18,6 +18,10 @@ import { markGameOver } from "./game-announcement.service.js";
 
 function resyncBoard(guildId: string) {
   syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
+}
+
+function refreshPanels(userId: string) {
+  refreshSchedulingPanelsForUser(userId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panels (non-fatal):", error));
 }
 
 // Accepts either a raw UTC instant or a local wall-clock time + zone (the Discord custom-time
@@ -74,6 +78,7 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const result = await setTimezone({ userId, timezone: body.timezone, source: body.source });
       resyncBoard(body.guildId);
+      refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
@@ -112,6 +117,7 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
       const result = await setRecurringWindowsForDay({ userId, leagueId, weekday: body.weekday, windows: body.windows });
       resyncBoard(body.guildId);
+      refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
@@ -128,10 +134,12 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const context = await getCurrentLeagueContext(body.guildId);
       const [startsAt, endsAt] = resolveOverrideRange(body);
-      return reply.send(await createOverride({
+      const result = await createOverride({
         userId, leagueId: context.leagueId, gameId: body.gameId ?? null, scope: body.scope,
         startsAt, endsAt, unavailable: body.unavailable, timezoneOverride: body.timezoneOverride,
-      }));
+      });
+      refreshPanels(userId);
+      return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
 
