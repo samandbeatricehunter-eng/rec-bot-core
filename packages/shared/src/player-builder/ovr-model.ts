@@ -21,9 +21,20 @@
  * every attribute it covers now uses the real weight instead of the fitted one.
  * CFB 27 and Madden 26/27 may share this version initially, but each game/year must
  * reference its own versioned configuration record so later recalibration is safe.
+ *
+ * v3 (2026-08): every position except FB (too few real players to refit — see its coefficient
+ * comment) is now recalibrated against real Madden 27 rosters (apps/api/scripts/data/madden27/
+ * madden27_all_rosters.csv + madden27_free_agents.csv, ~2,565 real players with real EA ovr and
+ * full attributes) using the same gradient-descent refit against real OVR (light L2
+ * regularization toward the prior weighting) already used for QB/HB/WR/TE in v2. Previously only
+ * those four had gotten that treatment; everyone else was still on v1/v2 weights derived from a
+ * CFB 27 college-roster regression or the years-old EA chart, which is what let offensive-line
+ * builds legal under REC's own (now-unenforced, see build-validator.ts v1.7.0) OVR cap come out
+ * far higher once actually applied in Madden. See recalibrate-ovr-model.ts for the fitting
+ * script and each position's coefficient comment for its specific before/after error.
  */
 
-export const REC_OVR_MODEL_VERSION = "rec-ovr-cfb27-positional-v2.1.0" as const;
+export const REC_OVR_MODEL_VERSION = "rec-ovr-madden27-positional-v3.0.0" as const;
 
 export type RecOvrPosition =
   | "QB"
@@ -149,6 +160,9 @@ export const REC_POSITION_OVR_MODELS: Readonly<
       rSquared: 0.8868,
     },
   },
+  // Not recalibrated 2026-08 (unlike every other position below) — only 14 real Madden 27 FBs
+  // exist across all 32 rosters + free agents, too small a sample to refit reliably (a test run
+  // came back R^2 < 0, worse than the existing model). Left on the old CFB27-derived weights.
   FB: {
     gamma: 0.99,
     coefficients: { acc: 0.06, agi: 0.03, awr: 0.18, bcv: 0.03, car: 0.09, cth: 0.03, ibl: 0.12, lbk: 0.106928, pbf: 0.03, pbk: 0.03, pbp: 0.03, rbk: 0.18, sfa: 0.03, spd: 0.06, str: 0.03, trk: 0.06 },
@@ -190,180 +204,212 @@ export const REC_POSITION_OVR_MODELS: Readonly<
       rSquared: 0.9037,
     },
   },
+  // Recalibrated 2026-08 against 95 real Madden 27 LTs (baseline import + free agents) — this
+  // is the position the launch-day bug report was about: builds legal under the old (CFB
+  // 27-college-roster-derived) weights were coming out 92-95 in-game, well past what an 81 raw
+  // OVR cap should have allowed. Refit the same way as QB/HB/WR/TE (gradient descent against
+  // real OVR with light L2 regularization toward the original weighting); held-out MAE against
+  // the OLD live model was 2.10, refit brings it to 1.31.
   LT: {
     gamma: 1.23,
-    coefficients: { acc: 0.03, agi: 0.03, awr: 0.17, ibl: 0.06, lbk: 0.029672, pbf: 0.114545, pbk: 0.153694, pbp: 0.121761, rbf: 0.051619, rbk: 0.082864, rbp: 0.055516, spd: 0.03, str: 0.11 },
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.746629, ibl: 0.241219, lbk: 0.02, pbf: 0.524096, pbk: 0.727668, pbp: 1.369739, rbf: 0.02, rbk: 1.034422, rbp: 0.02, spd: 0.02, str: 0.02 },
     validation: {
-      trainN: 410,
-      testN: 94,
-      meanAbsoluteError: 1.390,
-      rootMeanSquaredError: 1.784,
-      rSquared: 0.9263,
+      trainN: 76,
+      testN: 19,
+      meanAbsoluteError: 1.314,
+      rootMeanSquaredError: 1.538,
+      rSquared: 0.9758,
     },
   },
+  // Recalibrated 2026-08 against 85 real Madden 27 LGs — the prior weights underrated the
+  // position by a mean -1.20 (MAE 1.61) on real rosters. Refit the same way as LT; MAE now 1.01.
   LG: {
-    gamma: 1.25,
-    coefficients: { acc: 0.06, agi: 0.06, awr: 0.18, ibl: 0.09, lbk: 0.0198, pbf: 0.080088, pbk: 0.119736, pbp: 0.090176, rbf: 0.050013, rbk: 0.075943, rbp: 0.054044, spd: 0.03, str: 0.12 },
+    gamma: 1.24,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.75684, ibl: 0.024841, lbk: 0.02, pbf: 0.329119, pbk: 0.071536, pbp: 1.263548, rbf: 0.544296, rbk: 0.245936, rbp: 0.444796, spd: 0.02, str: 0.492925 },
     validation: {
-      trainN: 381,
-      testN: 97,
-      meanAbsoluteError: 1.416,
-      rootMeanSquaredError: 1.747,
-      rSquared: 0.9392,
+      trainN: 68,
+      testN: 17,
+      meanAbsoluteError: 1.005,
+      rootMeanSquaredError: 1.340,
+      rSquared: 0.9570,
     },
   },
+  // Recalibrated 2026-08 against 89 real Madden 27 Cs — refit the same way as LT; MAE 1.52 -> 1.24.
   C: {
-    gamma: 1.30,
-    coefficients: { acc: 0.03, agi: 0.03, awr: 0.2, ibl: 0.07, lbk: 0.019103, pbf: 0.074345, pbk: 0.118363, pbp: 0.077292, rbf: 0.074193, rbk: 0.120752, rbp: 0.075055, spd: 0.03, str: 0.1 },
+    gamma: 1.24,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 1.185897, ibl: 0.02, lbk: 0.02, pbf: 0.915071, pbk: 0.02, pbp: 0.411873, rbf: 0.02, rbk: 0.917196, rbp: 0.239585, spd: 0.02, str: 0.02 },
     validation: {
-      trainN: 318,
-      testN: 85,
-      meanAbsoluteError: 1.540,
-      rootMeanSquaredError: 1.925,
-      rSquared: 0.9399,
+      trainN: 71,
+      testN: 18,
+      meanAbsoluteError: 1.242,
+      rootMeanSquaredError: 1.391,
+      rSquared: 0.9609,
     },
   },
+  // Recalibrated 2026-08 against 97 real Madden 27 RGs — refit the same way as LT; MAE 1.46 -> 1.00.
   RG: {
-    gamma: 1.25,
-    coefficients: { acc: 0.06, agi: 0.06, awr: 0.18, ibl: 0.09, lbk: 0.019763, pbf: 0.076798, pbk: 0.119897, pbp: 0.093305, rbf: 0.047486, rbk: 0.076554, rbp: 0.05596, spd: 0.03, str: 0.12 },
-    validation: {
-      trainN: 375,
-      testN: 90,
-      meanAbsoluteError: 1.517,
-      rootMeanSquaredError: 1.890,
-      rSquared: 0.8880,
-    },
-  },
-  RT: {
-    gamma: 1.23,
-    coefficients: { acc: 0.03, agi: 0.03, awr: 0.2, ibl: 0.07, lbk: 0.030262, pbf: 0.051586, pbk: 0.080048, pbp: 0.068366, rbf: 0.089691, rbk: 0.146413, rbp: 0.093895, spd: 0.03, str: 0.1 },
-    validation: {
-      trainN: 390,
-      testN: 96,
-      meanAbsoluteError: 1.481,
-      rootMeanSquaredError: 1.786,
-      rSquared: 0.9092,
-    },
-  },
-  LE: {
-    gamma: 1.12,
-    coefficients: { acc: 0.1, agi: 0.05, awr: 0.14, bsh: 0.1, fmv: 0.12, pmv: 0.12, pow: 0.01, prc: 0.07, pur: 0.05, spd: 0.1, str: 0.05, tak: 0.1 },
-    validation: {
-      trainN: 467,
-      testN: 121,
-      meanAbsoluteError: 1.572,
-      rootMeanSquaredError: 1.858,
-      rSquared: 0.8724,
-    },
-  },
-  RE: {
-    gamma: 1.11,
-    coefficients: { acc: 0.1, agi: 0.05, awr: 0.14, bsh: 0.1, fmv: 0.12, pmv: 0.12, pow: 0.01, prc: 0.07, pur: 0.05, spd: 0.1, str: 0.05, tak: 0.1 },
-    validation: {
-      trainN: 453,
-      testN: 112,
-      meanAbsoluteError: 1.776,
-      rootMeanSquaredError: 2.150,
-      rSquared: 0.8718,
-    },
-  },
-  DT: {
-    gamma: 1.15,
-    coefficients: { acc: 0.06, agi: 0.03, awr: 0.17, bsh: 0.11, fmv: 0.11, pmv: 0.11, pow: 0.083187, prc: 0.06, pur: 0.03, spd: 0.06, str: 0.17, tak: 0.09 },
-    validation: {
-      trainN: 708,
-      testN: 184,
-      meanAbsoluteError: 1.530,
-      rootMeanSquaredError: 1.941,
-      rSquared: 0.8882,
-    },
-  },
-  LOLB: {
-    gamma: 1.17,
-    coefficients: { acc: 0.05, agi: 0.03, awr: 0.16, bsh: 0.08, cth: 0.02, fmv: 0.08, mcv: 0.04, pmv: 0.08, pow: 0.03, prc: 0.1, pur: 0.05, spd: 0.08, str: 0.05, tak: 0.1, zcv: 0.05 },
-    validation: {
-      trainN: 167,
-      testN: 34,
-      meanAbsoluteError: 2.249,
-      rootMeanSquaredError: 2.848,
-      rSquared: 0.7162,
-    },
-  },
-  MLB: {
-    gamma: 1.30,
-    coefficients: { acc: 0.04, agi: 0.04, awr: 0.13, bsh: 0.13, cth: 0.038154, fmv: 0.03, mcv: 0.02, pmv: 0.03, pow: 0.04, prc: 0.13, pur: 0.09, spd: 0.06, str: 0.04, tak: 0.17, zcv: 0.03 },
-    validation: {
-      trainN: 470,
-      testN: 124,
-      meanAbsoluteError: 1.277,
-      rootMeanSquaredError: 1.673,
-      rSquared: 0.9375,
-    },
-  },
-  ROLB: {
-    gamma: 1.19,
-    coefficients: { acc: 0.05, agi: 0.03, awr: 0.16, bsh: 0.08, cth: 0.02, fmv: 0.08, mcv: 0.04, pmv: 0.08, pow: 0.03, prc: 0.1, pur: 0.05, spd: 0.08, str: 0.05, tak: 0.1, zcv: 0.05 },
-    validation: {
-      trainN: 420,
-      testN: 99,
-      meanAbsoluteError: 1.780,
-      rootMeanSquaredError: 2.249,
-      rSquared: 0.8585,
-    },
-  },
-  CB: {
-    gamma: 1.16,
-    coefficients: { acc: 0.14, agi: 0.05, awr: 0.14, cod: 0.053554, cth: 0.03, jmp: 0.05, mcv: 0.19, prc: 0.09, prs: 0.05, pur: 0.039975, spd: 0.14, str: 0.02, tak: 0.05, zcv: 0.09 },
-    validation: {
-      trainN: 814,
-      testN: 223,
-      meanAbsoluteError: 1.433,
-      rootMeanSquaredError: 1.729,
-      rSquared: 0.9295,
-    },
-  },
-  FS: {
-    gamma: 1.14,
-    coefficients: { acc: 0.05, agi: 0.05, awr: 0.16, cod: 0.032869, cth: 0.02, jmp: 0.05, mcv: 0.05, pow: 0.03, prc: 0.11, prs: 0.050105, pur: 0.082163, spd: 0.11, str: 0.03, tak: 0.11, zcv: 0.16 },
-    validation: {
-      trainN: 483,
-      testN: 104,
-      meanAbsoluteError: 1.019,
-      rootMeanSquaredError: 1.364,
-      rSquared: 0.9483,
-    },
-  },
-  SS: {
-    gamma: 1.13,
-    coefficients: { acc: 0.03, agi: 0.03, awr: 0.18, cod: 0.030016, cth: 0.03, jmp: 0.03, mcv: 0.06, pow: 0.06, prc: 0.12, prs: 0.049654, pur: 0.095303, spd: 0.09, str: 0.06, tak: 0.12, zcv: 0.12 },
-    validation: {
-      trainN: 447,
-      testN: 110,
-      meanAbsoluteError: 1.050,
-      rootMeanSquaredError: 1.407,
-      rSquared: 0.9492,
-    },
-  },
-  K: {
-    gamma: 1.23,
-    coefficients: { awr: 0.27, kac: 0.45, kpw: 0.27 },
-    validation: {
-      trainN: 216,
-      testN: 53,
-      meanAbsoluteError: 2.510,
-      rootMeanSquaredError: 3.115,
-      rSquared: 0.4713,
-    },
-  },
-  P: {
     gamma: 1.26,
-    coefficients: { awr: 0.3, kac: 0.4, kpw: 0.3 },
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.83912, ibl: 0.279852, lbk: 0.359874, pbf: 0.02, pbk: 0.02, pbp: 0.714807, rbf: 0.237875, rbk: 0.645034, rbp: 0.740394, spd: 0.02, str: 0.250818 },
     validation: {
-      trainN: 165,
-      testN: 39,
-      meanAbsoluteError: 2.803,
-      rootMeanSquaredError: 3.327,
-      rSquared: 0.4213,
+      trainN: 78,
+      testN: 19,
+      meanAbsoluteError: 1.004,
+      rootMeanSquaredError: 1.379,
+      rSquared: 0.9460,
+    },
+  },
+  // Recalibrated 2026-08 against 95 real Madden 27 RTs — refit the same way as LT; MAE 1.81 -> 0.84.
+  RT: {
+    gamma: 1.22,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.799101, ibl: 0.02, lbk: 0.02, pbf: 0.284148, pbk: 0.524875, pbp: 0.656521, rbf: 0.405694, rbk: 0.694767, rbp: 0.641547, spd: 0.02, str: 0.113431 },
+    validation: {
+      trainN: 76,
+      testN: 19,
+      meanAbsoluteError: 0.840,
+      rootMeanSquaredError: 1.157,
+      rSquared: 0.9786,
+    },
+  },
+  // Recalibrated 2026-08 against 123 real Madden 27 LEs — refit the same way as LT; MAE 2.19 -> 1.59.
+  LE: {
+    gamma: 1.18,
+    coefficients: { acc: 0.16352, agi: 0.166471, awr: 0.5441, bsh: 0.023868, fmv: 0.156503, pmv: 0.115446, pow: 0.02, prc: 0.02, pur: 0.107935, spd: 0.02, str: 0.060315, tak: 0.35676 },
+    validation: {
+      trainN: 98,
+      testN: 25,
+      meanAbsoluteError: 1.586,
+      rootMeanSquaredError: 1.946,
+      rSquared: 0.9327,
+    },
+  },
+  // Recalibrated 2026-08 against 115 real Madden 27 REs — refit the same way as LT; MAE 2.08 -> 1.30.
+  RE: {
+    gamma: 1.17,
+    coefficients: { acc: 0.212809, agi: 0.047189, awr: 0.666345, bsh: 0.02, fmv: 0.305234, pmv: 0.126853, pow: 0.02, prc: 0.02, pur: 0.325775, spd: 0.02, str: 0.124832, tak: 0.198516 },
+    validation: {
+      trainN: 92,
+      testN: 23,
+      meanAbsoluteError: 1.300,
+      rootMeanSquaredError: 1.596,
+      rSquared: 0.9446,
+    },
+  },
+  // Recalibrated 2026-08 against 266 real Madden 27 DTs — refit the same way as LT; MAE 2.00 -> 1.02.
+  DT: {
+    gamma: 1.36,
+    coefficients: { acc: 0.162865, agi: 0.02, awr: 0.260816, bsh: 0.405071, fmv: 0.02, pmv: 0.02, pow: 0.02, prc: 0.473976, pur: 0.02, spd: 0.02, str: 0.601259, tak: 0.446434 },
+    validation: {
+      trainN: 213,
+      testN: 53,
+      meanAbsoluteError: 1.024,
+      rootMeanSquaredError: 1.430,
+      rSquared: 0.9549,
+    },
+  },
+  // Recalibrated 2026-08 against 22 real Madden 27 SAM/LOLBs — smallest real sample of any
+  // recalibrated position (few teams run a dedicated SAM in Madden's scheme labels), so trust
+  // this one least of the defensive refits. Still a modest improvement over the old CFB27-derived
+  // weights; MAE 1.07 -> 0.92.
+  LOLB: {
+    gamma: 1.29,
+    coefficients: { acc: 0.02, agi: 0.02, awr: 0.313496, bsh: 0.237051, cth: 0.02, fmv: 0.02, mcv: 0.055841, pmv: 0.02, pow: 0.02, prc: 0.211091, pur: 0.20228, spd: 0.275783, str: 0.127213, tak: 0.550633, zcv: 0.02 },
+    validation: {
+      trainN: 18,
+      testN: 4,
+      meanAbsoluteError: 0.917,
+      rootMeanSquaredError: 1.131,
+      rSquared: 0.9336,
+    },
+  },
+  // Recalibrated 2026-08 against 111 real Madden 27 MIKE/MLBs — the prior weights underrated the
+  // position by a mean -2.81 (MAE 2.94). Refit the same way as LT; MAE now 1.58.
+  MLB: {
+    gamma: 1.36,
+    coefficients: { acc: 0.068215, agi: 0.031337, awr: 0.657316, bsh: 0.02, cth: 0.02, fmv: 0.02, mcv: 0.040353, pmv: 0.02, pow: 0.02, prc: 0.345843, pur: 0.819789, spd: 0.041859, str: 0.02, tak: 0.599303, zcv: 0.10939 },
+    validation: {
+      trainN: 89,
+      testN: 22,
+      meanAbsoluteError: 1.584,
+      rootMeanSquaredError: 1.914,
+      rSquared: 0.9554,
+    },
+  },
+  // Recalibrated 2026-08 against 107 real Madden 27 WILL/ROLBs — the prior weights underrated
+  // the position by a mean -4.06 (MAE 4.07, worst bias of any defensive position). Refit the
+  // same way as LT; MAE now 1.63.
+  ROLB: {
+    gamma: 1.38,
+    coefficients: { acc: 0.123276, agi: 0.044367, awr: 0.34694, bsh: 0.043192, cth: 0.02, fmv: 0.02, mcv: 0.02, pmv: 0.02, pow: 0.042528, prc: 0.196279, pur: 0.503486, spd: 0.02, str: 0.02, tak: 0.512084, zcv: 0.047743 },
+    validation: {
+      trainN: 86,
+      testN: 21,
+      meanAbsoluteError: 1.630,
+      rootMeanSquaredError: 2.002,
+      rSquared: 0.9298,
+    },
+  },
+  // Recalibrated 2026-08 against 281 real Madden 27 CBs — the prior weights overrated the
+  // position by a mean +1.99 (MAE 2.61). Refit the same way as LT; MAE now 0.98.
+  CB: {
+    gamma: 1.26,
+    coefficients: { acc: 0.294979, agi: 0.201798, awr: 0.496992, cod: 0.053954, cth: 0.02, jmp: 0.037742, mcv: 0.586648, prc: 0.376943, prs: 0.15195, pur: 0.02, spd: 0.352227, str: 0.02, tak: 0.02, zcv: 0.291774 },
+    validation: {
+      trainN: 225,
+      testN: 56,
+      meanAbsoluteError: 0.975,
+      rootMeanSquaredError: 1.181,
+      rSquared: 0.9708,
+    },
+  },
+  // Recalibrated 2026-08 against 112 real Madden 27 FSs — refit the same way as LT; MAE 2.23 -> 1.22.
+  FS: {
+    gamma: 1.08,
+    coefficients: { acc: 0.149463, agi: 0.14172, awr: 1.051739, cod: 0.02, cth: 0.02, jmp: 0.040838, mcv: 0.037566, pow: 0.02, prc: 0.172803, prs: 0.02, pur: 0.093023, spd: 0.02, str: 0.02, tak: 0.275175, zcv: 0.567853 },
+    validation: {
+      trainN: 90,
+      testN: 22,
+      meanAbsoluteError: 1.223,
+      rootMeanSquaredError: 1.372,
+      rSquared: 0.9671,
+    },
+  },
+  // Recalibrated 2026-08 against 109 real Madden 27 SSs — refit the same way as LT; MAE 2.12 -> 1.54.
+  SS: {
+    gamma: 1.15,
+    coefficients: { acc: 0.196841, agi: 0.092684, awr: 0.951073, cod: 0.02, cth: 0.02, jmp: 0.238211, mcv: 0.13457, pow: 0.02, prc: 0.503011, prs: 0.02, pur: 0.453574, spd: 0.02, str: 0.02, tak: 0.071893, zcv: 0.048039 },
+    validation: {
+      trainN: 87,
+      testN: 22,
+      meanAbsoluteError: 1.540,
+      rootMeanSquaredError: 1.841,
+      rSquared: 0.9435,
+    },
+  },
+  // Recalibrated 2026-08 against 44 real Madden 27 Ks — the prior weights (never fit against
+  // real kicker OVR, R^2 0.47) were little better than guessing. Refit the same way as LT;
+  // MAE 1.06 -> 0.45, R^2 0.99.
+  K: {
+    gamma: 1.19,
+    coefficients: { awr: 0.298237, kac: 0.225068, kpw: 0.282735 },
+    validation: {
+      trainN: 35,
+      testN: 9,
+      meanAbsoluteError: 0.451,
+      rootMeanSquaredError: 0.687,
+      rSquared: 0.9858,
+    },
+  },
+  // Recalibrated 2026-08 against 39 real Madden 27 Ps — same story as K (prior R^2 0.42). Refit
+  // the same way as LT; MAE 1.73 -> 0.32, R^2 0.98.
+  P: {
+    gamma: 1.15,
+    coefficients: { awr: 0.313113, kac: 0.161137, kpw: 0.336593 },
+    validation: {
+      trainN: 31,
+      testN: 8,
+      meanAbsoluteError: 0.323,
+      rootMeanSquaredError: 0.373,
+      rSquared: 0.9840,
     },
   }
 } as const;
@@ -539,98 +585,98 @@ export const REC_OVR_TEST_VECTORS: readonly RecOvrTestVector[] = [
   {
     position: "LT",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 60.925846,
-    expectedDisplayOverall: 61,
+    expectedRawOverall: 67.443222,
+    expectedDisplayOverall: 67,
   },
   {
     position: "LG",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 56.058944,
-    expectedDisplayOverall: 56,
+    expectedRawOverall: 61.459396,
+    expectedDisplayOverall: 61,
   },
   {
     position: "C",
     attributes: { awr: 65, ibl: 76, lbk: 87, pbf: 65, pbk: 76, pbp: 87, rbf: 65, rbk: 76, rbp: 87, str: 65 },
-    expectedRawOverall: 58.783403,
-    expectedDisplayOverall: 59,
+    expectedRawOverall: 65.084331,
+    expectedDisplayOverall: 65,
   },
   {
     position: "RG",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 56.0081,
-    expectedDisplayOverall: 56,
+    expectedRawOverall: 62.436094,
+    expectedDisplayOverall: 62,
   },
   {
     position: "RT",
     attributes: { awr: 72, ibl: 83, lbk: 61, pbf: 72, pbk: 83, pbp: 61, rbf: 72, rbk: 83, rbp: 61, str: 72 },
-    expectedRawOverall: 60.986453,
-    expectedDisplayOverall: 61,
+    expectedRawOverall: 65.734067,
+    expectedDisplayOverall: 66,
   },
   {
     position: "LE",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, spd: 61, str: 72, tak: 83 },
-    expectedRawOverall: 67.807937,
+    expectedRawOverall: 67.784617,
     expectedDisplayOverall: 68,
   },
   {
     position: "RE",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, spd: 61, str: 72, tak: 83 },
-    expectedRawOverall: 68.037443,
-    expectedDisplayOverall: 68,
+    expectedRawOverall: 73.77797,
+    expectedDisplayOverall: 74,
   },
   {
     position: "DT",
     attributes: { acc: 72, awr: 83, bsh: 61, fmv: 72, pmv: 83, pow: 61, prc: 72, pur: 83, str: 61, tak: 72 },
-    expectedRawOverall: 61.540474,
-    expectedDisplayOverall: 62,
+    expectedRawOverall: 58.929311,
+    expectedDisplayOverall: 59,
   },
   {
     position: "LOLB",
     attributes: { acc: 86, agi: 64, awr: 75, bsh: 86, fmv: 64, mcv: 75, pmv: 86, pow: 64, prc: 75, pur: 86, spd: 64, tak: 75, zcv: 86 },
-    expectedRawOverall: 66.811332,
-    expectedDisplayOverall: 67,
+    expectedRawOverall: 64.03799,
+    expectedDisplayOverall: 64,
   },
   {
     position: "MLB",
     attributes: { acc: 79, agi: 90, awr: 68, bsh: 79, cth: 90, mcv: 68, pow: 79, prc: 90, pur: 68, spd: 79, tak: 90, zcv: 68 },
-    expectedRawOverall: 65.923828,
-    expectedDisplayOverall: 66,
+    expectedRawOverall: 67.718572,
+    expectedDisplayOverall: 68,
   },
   {
     position: "ROLB",
     attributes: { acc: 86, agi: 64, awr: 75, bsh: 86, fmv: 64, mcv: 75, pmv: 86, pow: 64, prc: 75, pur: 86, spd: 64, tak: 75, zcv: 86 },
-    expectedRawOverall: 66.363721,
-    expectedDisplayOverall: 66,
+    expectedRawOverall: 69.834138,
+    expectedDisplayOverall: 70,
   },
   {
     position: "CB",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, prc: 72, prs: 83, pur: 61, spd: 72, tak: 83, zcv: 61 },
-    expectedRawOverall: 60.591427,
-    expectedDisplayOverall: 61,
+    expectedRawOverall: 60.318316,
+    expectedDisplayOverall: 60,
   },
   {
     position: "FS",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, pow: 72, prc: 83, prs: 61, pur: 72, spd: 83, tak: 61, zcv: 72 },
-    expectedRawOverall: 62.288685,
-    expectedDisplayOverall: 62,
+    expectedRawOverall: 63.968934,
+    expectedDisplayOverall: 64,
   },
   {
     position: "SS",
     attributes: { acc: 72, agi: 83, awr: 61, cod: 72, cth: 83, mcv: 61, pow: 72, prc: 83, prs: 61, pur: 72, spd: 83, tak: 61, zcv: 72 },
-    expectedRawOverall: 61.267917,
-    expectedDisplayOverall: 61,
+    expectedRawOverall: 59.152498,
+    expectedDisplayOverall: 59,
   },
   {
     position: "K",
     attributes: { awr: 65, kac: 76, kpw: 87 },
-    expectedRawOverall: 71.516232,
+    expectedRawOverall: 72.037209,
     expectedDisplayOverall: 72,
   },
   {
     position: "P",
     attributes: { awr: 65, kac: 76, kpw: 87 },
-    expectedRawOverall: 70.951238,
-    expectedDisplayOverall: 71,
+    expectedRawOverall: 73.397157,
+    expectedDisplayOverall: 73,
   }
 ] as const;
 
