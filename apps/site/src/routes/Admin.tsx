@@ -942,12 +942,13 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
   onClose: () => void;
   onUserChanged: (user: AdminUserSummary) => void;
 }) {
-  const [busy, setBusy] = useState<"view" | "message" | "tier" | "coins" | null>(null);
+  const [busy, setBusy] = useState<"view" | "message" | "tier" | "coins" | "deactivate" | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
   const [messaging, setMessaging] = useState(false);
   const [messageTitle, setMessageTitle] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [coinAmount, setCoinAmount] = useState("");
+  const [deactivated, setDeactivated] = useState(false);
 
   async function viewAs() {
     setBusy("view");
@@ -994,8 +995,8 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
 
   async function grantCoins() {
     const amount = Number(coinAmount.trim());
-    if (!Number.isInteger(amount) || amount <= 0) {
-      setNotice({ kind: "error", message: "Enter a positive whole number of coins." });
+    if (!Number.isInteger(amount) || amount === 0) {
+      setNotice({ kind: "error", message: "Enter a non-zero whole number of coins (negative to deduct)." });
       return;
     }
     setBusy("coins");
@@ -1003,9 +1004,32 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
     try {
       const result = await siteApi.grantUserCoins({ userId: user.id, amount });
       setCoinAmount("");
-      setNotice({ kind: "ok", message: `Granted ${result.amount.toLocaleString()} coins${result.walletBalance != null ? ` — new balance ${result.walletBalance.toLocaleString()}` : ""}.` });
+      onUserChanged({ ...user, walletBalance: result.walletBalance ?? user.walletBalance });
+      setNotice({
+        kind: "ok",
+        message: `${amount > 0 ? "Granted" : "Deducted"} ${Math.abs(result.amount).toLocaleString()} coins${result.walletBalance != null ? ` — new balance ${result.walletBalance.toLocaleString()}` : ""}.`,
+      });
     } catch (err) {
-      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not grant coins." });
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not adjust coins." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deactivateAccount() {
+    if (!window.confirm(
+      `Deactivate @${user.username || user.displayName}? This revokes their site login and clears any comp/lifetime tier, and ends their active team assignments in every league. ` +
+      "Their purchase, trade, and league-record history stays intact. This does not cancel a real Stripe subscription if they have one — cancel that separately in Stripe. Continue?",
+    )) return;
+    setBusy("deactivate");
+    setNotice(null);
+    try {
+      const result = await siteApi.deactivateUser({ userId: user.id });
+      setDeactivated(true);
+      onUserChanged({ ...user, hasSiteAccount: false, subscriptionTier: "none", billingStatus: "none" });
+      setNotice({ kind: "ok", message: `Account deactivated. Ended ${result.endedAssignments} active team assignment${result.endedAssignments === 1 ? "" : "s"}.` });
+    } catch (err) {
+      setNotice({ kind: "error", message: err instanceof Error ? err.message : "Could not deactivate account." });
     } finally {
       setBusy(null);
     }
@@ -1021,6 +1045,10 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
           {user.subscriptionTier}{user.billingStatus === "lifetime_comp" ? " · comp" : ""}
           {!user.hasSiteAccount ? " · no site account" : " · site account linked"}
         </p>
+        <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", marginTop: 8, marginBottom: 8 }}>
+          <article><span>Wallet</span><strong>🪙 {(user.walletBalance ?? 0).toLocaleString()}</strong></article>
+          <article><span>Savings</span><strong>🪙 {(user.savingsBalance ?? 0).toLocaleString()}</strong></article>
+        </div>
 
         {notice && <p className={notice.kind === "error" ? "site-auth-error" : "site-muted"} style={{ marginTop: 8 }}>{notice.message}</p>}
 
@@ -1047,6 +1075,15 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
               Revoke comp
             </button>
           )}
+          <button
+            className="site-btn site-btn-ghost"
+            type="button"
+            style={{ color: "#dc2626" }}
+            disabled={busy === "deactivate" || deactivated}
+            onClick={() => void deactivateAccount()}
+          >
+            {busy === "deactivate" ? "…" : deactivated ? "Deactivated" : "Deactivate account"}
+          </button>
         </div>
 
         {messaging && (
@@ -1064,19 +1101,18 @@ function AdminPlayerCard({ user, onClose, onUserChanged }: {
         )}
 
         <div className="site-field" style={{ marginTop: 12 }}>
-          <span>Grant coins</span>
+          <span>Adjust coins (negative to deduct)</span>
           <div className="site-profile-actions site-admin-coin-grant-row">
             <input
               type="number"
-              min={1}
               step={1}
-              placeholder="Amount"
+              placeholder="Amount, e.g. -500"
               value={coinAmount}
               onChange={(e) => setCoinAmount(e.target.value)}
               style={{ width: 140 }}
             />
             <button className="site-btn site-btn-primary" type="button" disabled={busy === "coins"} onClick={() => void grantCoins()}>
-              {busy === "coins" ? "Granting…" : "Grant coins"}
+              {busy === "coins" ? "Working…" : "Apply"}
             </button>
           </div>
         </div>

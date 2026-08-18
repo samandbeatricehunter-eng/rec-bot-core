@@ -10,6 +10,7 @@ import {
   sendAdminUserMessage,
   adminRemoveUserFromLeague,
   createAdminAnnouncement,
+  deactivateAdminUser,
   deleteAdminAnnouncement,
   getAdminStats,
   grantAdminUserCoins,
@@ -260,12 +261,24 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post("/v1/admin/users/grant-coins", async (request, reply) => {
     try {
       const session = await requireSiteAdmin(request);
+      // grantAdminUserCoins already supports a negative amount as a deduction/correction
+      // (add_to_wallet with p_allow_negative) — this schema just needs to let one through.
       const body = z
-        .object({ userId: z.string().uuid(), amount: z.number().int().nonnegative("Coin grants use a non-negative amount — use a negative value via the correction input if needed.") })
+        .object({ userId: z.string().uuid(), amount: z.number().int().refine((v) => v !== 0, "Amount must be a non-zero whole number.") })
         .parse(request.body ?? {});
       return reply.send(
         await grantAdminUserCoins({ targetUserId: body.userId, amount: body.amount, adminAuthUserId: session.authUserId }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/admin/users/deactivate", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const body = z.object({ userId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await deactivateAdminUser({ targetUserId: body.userId, adminAuthUserId: session.authUserId }));
     } catch (error) {
       return sendError(reply, error);
     }

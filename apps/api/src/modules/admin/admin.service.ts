@@ -332,6 +332,8 @@ export type AdminUserSummary = {
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;
+  walletBalance: number | null;
+  savingsBalance: number | null;
 };
 
 /** Backs the Stats snapshot's expandable "New accounts (7d)" tile — same 7-day window
@@ -339,12 +341,14 @@ export type AdminUserSummary = {
 export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[] }> {
   const result = await getPgPool().query(`
     select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
-           da.username as discord_username, da.global_name as discord_global_name
+           da.username as discord_username, da.global_name as discord_global_name,
+           w.wallet_balance, w.savings_balance
     from rec_users u
     left join lateral (
       select username, global_name from rec_discord_accounts
       where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
     ) da on true
+    left join rec_wallets w on w.user_id = u.id
     where created_at >= now() - interval '7 days'
     order by created_at desc
     limit 200
@@ -358,6 +362,8 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
+      walletBalance: row.wallet_balance != null ? Number(row.wallet_balance) : null,
+      savingsBalance: row.savings_balance != null ? Number(row.savings_balance) : null,
     })),
   };
 }
@@ -376,12 +382,14 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
   const result = await getPgPool().query(
     `
       select u.id, u.username, u.display_name, u.subscription_tier, u.billing_status, u.supabase_auth_user_id,
-             da.username as discord_username, da.global_name as discord_global_name
+             da.username as discord_username, da.global_name as discord_global_name,
+             w.wallet_balance, w.savings_balance
       from rec_users u
       left join lateral (
         select username, global_name from rec_discord_accounts
         where user_id = u.id order by last_seen_at desc nulls last, created_at desc limit 1
       ) da on true
+      left join rec_wallets w on w.user_id = u.id
       where $1::text is null or u.username ilike $1 or u.display_name ilike $1
          or da.username ilike $1 or da.global_name ilike $1
       order by u.username nulls last, u.display_name
@@ -398,6 +406,8 @@ export async function searchAdminUsers(input: { query?: string; limit?: number }
       subscriptionTier: row.subscription_tier,
       billingStatus: row.billing_status,
       hasSiteAccount: Boolean(row.supabase_auth_user_id),
+      walletBalance: row.wallet_balance != null ? Number(row.wallet_balance) : null,
+      savingsBalance: row.savings_balance != null ? Number(row.savings_balance) : null,
     })),
   };
 }
@@ -537,6 +547,69 @@ export async function grantAdminUserCoins(input: {
     ledgerId: ledger.data,
     walletBalance: balance.data?.wallet_balance ?? null,
   };
+}
+
+/** Deactivate a user's account: revokes site login (unlinks supabase_auth_user_id — the same
+ * mechanism the Discord-link "adopt" flow already uses to orphan a losing profile), clears any
+ * comp/paid tier badge in the app, and ends every active team assignment across every league so
+ * their spot opens back up. Deliberately does NOT touch rec_wallets, rec_purchases, rec_trades,
+ * league records, or any other history — those stay intact so other users' shared records (a
+ * trade partner, a league record they set) don't lose data because of this account. Also does
+ * NOT cancel a real Stripe subscription; that still needs to be canceled in Stripe separately,
+ * this only removes the tier from displaying/functioning inside REC. Reversible in principle
+ * (an admin could re-link supabase_auth_user_id and restore the tier by hand) but not exposed
+ * as a one-click undo, so the confirmation on the frontend should make that clear. */
+export async function deactivateAdminUser(input: {
+  targetUserId: string;
+  adminAuthUserId: string;
+}): Promise<{ userId: string; deactivated: true; endedAssignments: number }> {
+  const user = await supabase
+    .from("rec_users")
+    .select("id,username,display_name,subscription_tier,billing_status,supabase_auth_user_id")
+    .eq("id", input.targetUserId)
+    .maybeSingle();
+  if (user.error) throw new ApiError(500, "Failed to load user.", user.error);
+  if (!user.data) throw new ApiError(404, "User not found.");
+
+  const now = new Date().toISOString();
+  const cleared = await supabase
+    .from("rec_users")
+    .update({
+      supabase_auth_user_id: null,
+      subscription_tier: "none",
+      billing_status: "none",
+      subscription_source: null,
+      promo_trial_ends_at: null,
+      updated_at: now,
+    })
+    .eq("id", input.targetUserId);
+  if (cleared.error) throw new ApiError(500, "Failed to deactivate account.", cleared.error);
+
+  const endedAssignments = await supabase
+    .from("rec_team_assignments")
+    .update({ assignment_status: "unlinked", ended_at: now, updated_at: now })
+    .eq("user_id", input.targetUserId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .select("id");
+  if (endedAssignments.error) console.error("[ERROR] Failed to end team assignments during account deactivation:", endedAssignments.error);
+
+  await bestEffort("audit.admin_user_deactivated", () => writeAuditLog({
+    action: "admin.user_deactivated",
+    entityType: "rec_users",
+    entityId: input.targetUserId,
+    previousValue: {
+      username: user.data.username,
+      subscriptionTier: user.data.subscription_tier,
+      billingStatus: user.data.billing_status,
+      hadSiteAccount: Boolean(user.data.supabase_auth_user_id),
+    },
+    newValue: { deactivated: true, endedAssignments: endedAssignments.data?.length ?? 0 },
+    reason: `Deactivated by admin ${input.adminAuthUserId}`,
+    source: "admin_correction",
+  }), { userId: input.targetUserId });
+
+  return { userId: input.targetUserId, deactivated: true, endedAssignments: endedAssignments.data?.length ?? 0 };
 }
 
 /** Support/admin one-off outreach — DMs the user's linked Discord account if one exists,

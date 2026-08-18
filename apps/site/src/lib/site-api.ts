@@ -903,6 +903,9 @@ export const siteApi = {
       input,
     );
   },
+  deactivateUser(input: { userId: string }) {
+    return request<{ userId: string; deactivated: true; endedAssignments: number }>("/v1/admin/users/deactivate", input);
+  },
   impersonateUser(userId: string) {
     return request<{ accessToken: string; refreshToken: string; targetUsername: string | null }>(
       "/v1/admin/impersonate",
@@ -1263,6 +1266,8 @@ export type AdminUserSummary = {
   subscriptionTier: string;
   billingStatus: string | null;
   hasSiteAccount: boolean;
+  walletBalance: number | null;
+  savingsBalance: number | null;
 };
 
 export type AdminDiscordConfig = {
