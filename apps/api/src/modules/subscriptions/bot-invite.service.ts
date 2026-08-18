@@ -4,6 +4,7 @@ import { listInstallableDiscordGuilds } from "../../lib/discord-oauth.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, isBotInGuild, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { registerServer } from "../setup/setup.service.js";
+import { syncBoxScoreCommandForLeague } from "../league-week/data-mode.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { assertLeagueNotFrozen } from "./entitlements.service.js";
 
@@ -121,11 +122,68 @@ export async function linkSiteLeagueToServer(input: LinkSiteLeagueToServerInput)
       .eq("id", league.data.id);
   }
 
+  await syncBoxScoreCommandForLeague(input.guildId, league.data.id);
+
   return {
     linked: true as const,
     server: { id: serverResult.server.id, name: serverResult.server.name },
     serverLeagueLink: link,
   };
+}
+
+export type LinkUnclaimedLeagueByDiscordInput = {
+  discordId: string;
+  guildId: string;
+  serverName?: string;
+  leagueId?: string;
+};
+
+export type LinkUnclaimedLeagueByDiscordResult =
+  | { linked: true; server: { id: string; name: string }; leagueName: string }
+  | { linked: false; needsSelection: true; leagues: Array<{ id: string; name: string }> };
+
+/**
+ * Simpler alternative to linkSiteLeagueToServer's popup/OAuth-token round-trip: a commissioner
+ * with Manage Server permission runs a slash command inside the target guild. Discord's own
+ * membership/permission check on the interaction IS the guild-ownership verification here — no
+ * provider token, no cross-window postMessage, no session-storage race. Only ever claims a
+ * league the caller actually owns and that has no Discord server yet (discord_bot_enabled false
+ * — see the "unclaimed league" comment on registerServer's caller above), so it can't be used to
+ * hijack someone else's league or re-link an already-claimed one.
+ */
+export async function linkUnclaimedLeagueByDiscord(input: LinkUnclaimedLeagueByDiscordInput): Promise<LinkUnclaimedLeagueByDiscordResult> {
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to resolve your REC account.", account.error);
+  if (!account.data?.user_id) throw new ApiError(404, "Link your Discord account to REC on the site first, then try again.");
+
+  let unclaimedQuery = supabase
+    .from("rec_leagues")
+    .select("id,name")
+    .eq("owner_user_id", account.data.user_id)
+    .eq("discord_bot_enabled", false);
+  if (input.leagueId) unclaimedQuery = unclaimedQuery.eq("id", input.leagueId);
+  const unclaimed = await unclaimedQuery;
+  if (unclaimed.error) throw new ApiError(500, "Failed to look up your leagues.", unclaimed.error);
+
+  const leagues = unclaimed.data ?? [];
+  if (!leagues.length) {
+    throw new ApiError(404, input.leagueId ? "That league isn't yours to link, or it's already linked." : "You don't have any unclaimed leagues to link — create one on the site first.");
+  }
+  if (leagues.length > 1) {
+    return { linked: false, needsSelection: true, leagues };
+  }
+
+  const league = leagues[0]!;
+  const serverResult = await registerServer({
+    guildId: input.guildId,
+    name: input.serverName?.trim() || input.guildId,
+    setupMode: "manual_first",
+  });
+  await ensurePrimaryServerLeagueLink(serverResult.server.id, league.id);
+  await supabase.from("rec_leagues").update({ discord_bot_enabled: true, updated_at: new Date().toISOString() }).eq("id", league.id);
+  await syncBoxScoreCommandForLeague(input.guildId, league.id);
+
+  return { linked: true, server: { id: serverResult.server.id, name: serverResult.server.name }, leagueName: league.name };
 }
 
 function buildCommissionerNickname(teamDisplayName: string): string {

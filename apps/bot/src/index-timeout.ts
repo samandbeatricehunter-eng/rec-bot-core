@@ -140,6 +140,11 @@ import { handleScheduleSlash } from "./flows/schedule-slash.js";
 import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
 import { handleHighlightsSlash } from "./flows/highlights-slash.js";
+import { handleLinkLeagueSlash } from "./flows/linkleague-slash.js";
+import { handleStandingsSlash } from "./flows/standings-slash.js";
+import { handleWalletSlash } from "./flows/wallet-slash.js";
+import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
+import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -611,6 +616,31 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "highlights") {
       await handleHighlightsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "linkleague") {
+      await handleLinkLeagueSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "standings") {
+      await handleStandingsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "wallet") {
+      await handleWalletSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "powerrankings") {
+      await handlePowerRankingsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
+      await handleBoxScoreSlash(interaction);
       return;
     }
 

@@ -68,7 +68,10 @@ export const recApi = {
   getGuildLinkStatus: (guildId: string) =>
     recFetch<{ linked: boolean }>("/v1/discord-servers/link-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   getPublicLeagueSnapshot: (guildId: string) =>
-    recFetch<{ league: { slug: string } }>("/v1/public-league/snapshot", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recFetch<{
+      league: { id: string; name: string; slug: string; game: string | null; seasonNumber: number; currentWeek: number; seasonStage: string; statusLabel: string };
+      standings: Array<{ teamId: string; teamName: string; wins: number; losses: number; ties: number }>;
+    }>("/v1/public-league/snapshot", { method: "POST", body: JSON.stringify({ guildId }) }),
   syncMemberForGuildJoin: (guildId: string, discordId: string) =>
     recFetch<{ synced: boolean }>("/v1/team-ownership/sync-guild-join", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),
@@ -80,6 +83,11 @@ export const recApi = {
     recFetch<any>(`/v1/users/${discordId}/schedule?guildId=${guildId}`),
   getMenuProfile: (discordId: string, guildId: string) =>
     recFetch<any>(REC_API_ROUTES.menuProfile(discordId, guildId)),
+  linkLeagueServerByDiscord: (input: { discordId: string; guildId: string; serverName?: string; leagueId?: string }) =>
+    recFetch<
+      | { linked: true; server: { id: string; name: string }; leagueName: string }
+      | { linked: false; needsSelection: true; leagues: Array<{ id: string; name: string }> }
+    >("/v1/site-leagues/link-server-by-discord", { method: "POST", body: JSON.stringify(input) }),
   getLeagueIdentities: (guildId: string) =>
     recFetch<any>(`/v1/guilds/${guildId}/identities`),
   getLeagueCoaches: (guildId: string) =>
@@ -758,4 +766,6 @@ export const recApi = {
     recFetch<{ teamId: string; teamName: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/status", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
   isDisplayingDraftCommand: (guildId: string) =>
     recFetch<{ includeDraft: boolean }>("/v1/fantasy-draft/guild-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  isDisplayingBoxScoreCommand: (guildId: string) =>
+    recFetch<{ includeBoxScore: boolean }>("/v1/league-week/box-score-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

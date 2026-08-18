@@ -121,6 +121,10 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "schedule", description: "Show your team's full season schedule." },
   { name: "viewleague", description: "Get a link to this league's public status page." },
   { name: "highlights", description: "Get a link to upload a highlight for an eligible week." },
+  { name: "linkleague", description: "Link one of your unclaimed REC leagues to this Discord server." },
+  { name: "standings", description: "Show current season standings." },
+  { name: "wallet", description: "Check your coin balance and savings." },
+  { name: "powerrankings", description: "Show current power rankings." },
 ];
 const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
 
@@ -137,6 +141,32 @@ export async function syncGuildCommands(guildId: string, includeDraft: boolean):
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(502, `Discord rejected the guild command sync (${res.status}).`);
+}
+
+const BOXSCORE_COMMAND_JSON = { name: "boxscore", description: "Get a link to upload a box score for an eligible week." };
+
+/**
+ * Adds or removes /boxscore from this guild's command set without touching anything else
+ * currently registered (including /draft, whose visibility is driven by its own independent
+ * timer-based state in fantasy-draft.service.ts — reusing syncGuildCommands here would require
+ * knowing /draft's current desired state too, which this call site has no reason to track).
+ * Reads the guild's actual current commands first so this stays correct regardless of what
+ * else is/isn't visible right now. Called whenever a league's data mode changes to/from
+ * "box_scores" — see league-week/data-mode.service.ts.
+ */
+export async function syncBoxScoreCommandVisibility(guildId: string, includeBoxScore: boolean): Promise<void> {
+  const appId = await getApplicationId();
+  const current = await discordBotFetch(`/applications/${appId}/guilds/${guildId}/commands`);
+  if (!current.ok) throw new ApiError(502, `Failed to read this guild's current commands (${current.status}).`);
+  const existing = (await current.json()) as Array<{ name: string; description: string }>;
+  const withoutBoxscore = existing.filter((command) => command.name !== "boxscore").map((command) => ({ name: command.name, description: command.description }));
+  const next = includeBoxScore ? [...withoutBoxscore, BOXSCORE_COMMAND_JSON] : withoutBoxscore;
+  const res = await discordBotFetch(`/applications/${appId}/guilds/${guildId}/commands`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(next),
   });
   if (!res.ok) throw new ApiError(502, `Discord rejected the guild command sync (${res.status}).`);
 }

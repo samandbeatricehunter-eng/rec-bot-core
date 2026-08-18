@@ -640,20 +640,24 @@ export function HubHome() {
     }
   }, [searchParams]);
 
-  // Deep link from the /highlights Discord command: ?openHighlights=1[&week=N] opens the same
-  // late-submissions flow the in-app "Upload Highlight(s)" button uses, pre-selecting the week
-  // if one was named (still subject to the modal's own eligibility check — a week that's since
-  // been filled or aged out just falls back to the picker). Consumed once, then stripped from
-  // the URL so it doesn't reopen on back-navigation or a refresh.
+  // Deep link from the /highlights or /boxscore Discord commands: ?openHighlights=1 or
+  // ?openBoxScore=1 (optionally [&week=N]) opens the same late-submissions flow the in-app
+  // "Upload Highlight(s)"/"Upload Box Score" buttons use, pre-selecting the week if one was
+  // named (still subject to the modal's own eligibility check — a week that's since been filled
+  // or aged out just falls back to the picker). Consumed once, then stripped from the URL so it
+  // doesn't reopen on back-navigation or a refresh.
   useEffect(() => {
-    if (searchParams.get("openHighlights") !== "1") return;
+    const openHighlights = searchParams.get("openHighlights") === "1";
+    const openBoxScore = searchParams.get("openBoxScore") === "1";
+    if (!openHighlights && !openBoxScore) return;
     const weekParam = searchParams.get("week");
     const week = weekParam ? Number(weekParam) : undefined;
-    setLateSubmissionsFocus("highlight");
+    setLateSubmissionsFocus(openHighlights ? "highlight" : "boxScore");
     setLateSubmissionsWeek(Number.isFinite(week) ? week : undefined);
     setLateSubmissionsOpen(true);
     const next = new URLSearchParams(searchParams);
     next.delete("openHighlights");
+    next.delete("openBoxScore");
     next.delete("week");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps

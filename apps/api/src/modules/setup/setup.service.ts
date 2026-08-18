@@ -11,6 +11,7 @@ import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-b
 import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
 import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
+import { syncBoxScoreCommandForLeague } from "../league-week/data-mode.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
@@ -444,6 +445,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   }
 
   await upsertConferenceRules(league.data.id, input.conferenceRules);
+
+  await syncBoxScoreCommandForLeague(input.guildId, league.data.id);
 
   return {
     server: serverResult.server,
@@ -1291,6 +1294,8 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
       : "League Setup edited through Discord Admin Panel.",
     source: "manual_admin_entry"
   });
+
+  await syncBoxScoreCommandForLeague(input.guildId, context.leagueId);
 
   return { configuration: data };
 }
