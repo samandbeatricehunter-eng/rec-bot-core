@@ -44,13 +44,20 @@ export function AuthCallback() {
         // A "Link Discord account" round-trip (rec_link=discord) that comes back WITHOUT a
         // Discord identity attached is a failed link, not a fresh sign-in or email confirm —
         // previously it fell through to a silent navigate back to /account ("nothing happens").
-        // Supabase's linkIdentity needs "Manual linking" enabled in Auth settings; when that
-        // (or the OAuth callback) misbehaves the identity is simply never persisted, so the
-        // working alternative is the DM-code identity claim on the account page.
+        // Supabase's linkIdentity needs "Manual linking" enabled in Auth settings, or this
+        // Discord identity is already attached to a different auth user (e.g. one created via
+        // the bot/Activity handoff before this person ever visited the site) — either way the
+        // identity is never persisted onto this session. The DM-code "I already have a Discord
+        // identity" claim flow on the account page is NOT a real fallback here: it's gated to
+        // accounts that haven't finished onboarding yet, and this user already has (that's how
+        // they got here), so pointing them at it is a dead end. Surface a clear message and let
+        // them retry or reach a human instead of promising a self-serve fix that doesn't exist
+        // for this state.
         if (url.searchParams.get("rec_link") === "discord" && !linkResult.discordLinked) {
           throw new Error(
-            "Discord wasn't linked. Identity linking needs to be enabled on the auth provider — use the " +
-              "'I already have a Discord identity' code flow on your account page instead, or contact support.",
+            "Discord wasn't linked — this is a known server-side issue, not something wrong on your end. " +
+              "Retrying won't fix it. Please reach out in the Discord server or to support with your account " +
+              "email so we can link it manually.",
           );
         }
 
@@ -61,28 +68,26 @@ export function AuthCallback() {
         // previously this was deferred all the way to first Stripe checkout, which left a
         // signed-in-but-no-profile window where promo redemption and other linked-user
         // endpoints all 404'd.
-        let isNewAccount = linkResult.isNewDiscordLink;
         if (!linkResult.discordLinked) {
-          const ensured = await siteApi.ensureAccount();
+          await siteApi.ensureAccount();
           if (cancelled) return;
-          isNewAccount = ensured.isNew;
-        }
-
-        // Every brand-new registration — Discord or email — routes through the same promo-code
-        // step next (skip button included), which itself decides whether to send the user into
-        // Stripe checkout for a card on file or straight into the app on a lifetime grant.
-        if (isNewAccount) {
-          navigate(`/onboarding/promo?next=${encodeURIComponent(next)}`, { replace: true });
-          return;
         }
 
         // We don't offer a free tier — every real account needs Gold or Platinum (via the
-        // 7-day trial or a lifetime grant). A returning user landing back here (re-confirming
-        // email, re-linking Discord) should still be checked in case their tier lapsed.
+        // 7-day trial or a lifetime grant). Gate the promo-code step on "does this signed-in
+        // user have an entitlement yet", not on linkResult.isNewDiscordLink — that flag only
+        // means "this Discord snowflake never appeared in rec_discord_accounts before", which
+        // undercounts real first-time site signups: a user can already have a
+        // rec_discord_accounts row from an unrelated bot/Activity handoff (e.g. opening the
+        // in-Discord Activity) despite never creating a site account, and that used to make
+        // their actual first site registration skip the promo prompt and land straight in
+        // Stripe checkout with no chance to redeem a comp code. Anyone without an entitlement —
+        // truly new or not — still needs either a promo code or a subscription, so they all get
+        // the same next step; a returning, already-entitled user lands straight in the app.
         const profile = await siteApi.getLinkProfile().catch(() => null);
         if (cancelled) return;
         if (!profile?.entitlements || profile.entitlements.tier === "none") {
-          navigate("/pricing", { replace: true });
+          navigate(`/onboarding/promo?next=${encodeURIComponent(next)}`, { replace: true });
           return;
         }
 
