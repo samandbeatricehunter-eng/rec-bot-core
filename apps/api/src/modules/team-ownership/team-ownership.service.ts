@@ -597,6 +597,9 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   });
   syncRecruitingAd(league.id);
 
+  const { syncAvailabilityBoard } = await import("../scheduling/availability-board.service.js");
+  syncAvailabilityBoard(input.guildId).catch((error) => console.error("[ERROR] Failed to resync availability board after team link (non-fatal):", error));
+
   const isDiscordOnly = !linkedUser.data?.supabase_auth_user_id;
   return {
     league,
@@ -928,6 +931,9 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
   });
   syncRecruitingAd(league.id);
 
+  const { syncAvailabilityBoard: syncAvailabilityBoard1 } = await import("../scheduling/availability-board.service.js");
+  syncAvailabilityBoard1(input.guildId).catch((error) => console.error("[ERROR] Failed to resync availability board after team unlink (non-fatal):", error));
+
   return { league, unlinkedCount: result.data?.length ?? 0, discordCleanup: cleanup };
 }
 
@@ -953,6 +959,9 @@ export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {
     source: "manual_admin_entry"
   });
   syncRecruitingAd(league.id);
+
+  const { syncAvailabilityBoard: syncAvailabilityBoard2 } = await import("../scheduling/availability-board.service.js");
+  syncAvailabilityBoard2(input.guildId).catch((error) => console.error("[ERROR] Failed to resync availability board after team unlink-all (non-fatal):", error));
 
   return { league, unlinkedCount: result.data?.length ?? 0, discordCleanup: cleanup };
 }
