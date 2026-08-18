@@ -459,6 +459,8 @@ export const recApi = {
     recApiFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   markGameOver: (input: { guildId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
     recApiFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
+  getWeekSchedulingStatus: (guildId: string) =>
+    recApiFetch<{ weekNumber: number; games: Array<{ gameId: string; awayTeamName: string; homeTeamName: string; status: string; scheduledFor: string | null; fwFlagged: boolean }> }>("/v1/scheduling/week-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyHighlightWeekCounts: (guildId: string) =>

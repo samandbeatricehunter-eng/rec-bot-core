@@ -396,6 +396,34 @@ export async function postSchedulingPanel(channelId: string, gameId: string) {
   }).catch((error) => console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error));
 }
 
+// Commissioner "Week Scheduling" dashboard: every current-week H2H game's scheduling status
+// in one call, so a commissioner doesn't have to open each game channel to see who's stuck.
+export async function listWeekSchedulingStatuses(guildId: string) {
+  const { getAdvanceWeekGames } = await import("../league-week/advance-results.service.js");
+  const week = await getAdvanceWeekGames(guildId);
+  const h2hGames = (week.games as any[]).filter((g) => g.isH2h);
+  if (!h2hGames.length) return { weekNumber: week.currentWeek, games: [] as Array<never> };
+
+  const gameIds = h2hGames.map((g) => g.gameId);
+  const rows = await supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,response_started_at,home_responded_at,away_responded_at").in("game_id", gameIds);
+  const byGameId = new Map<string, any>((rows.data ?? []).map((r: any) => [String(r.game_id), r]));
+
+  const games = h2hGames.map((g) => {
+    const s = byGameId.get(g.gameId);
+    let status: UserFacingStatus = "not_scheduled";
+    if (s) {
+      if (["confirmed", "completed", "reschedule_requested", "no_shared_availability", "needs_commissioner_help"].includes(s.status)) status = s.status as UserFacingStatus;
+      else if (s.status === "proposed") status = "time_proposed";
+      else if (s.response_started_at && (!s.home_responded_at || !s.away_responded_at)) status = "waiting_on_opponent";
+    }
+    return {
+      gameId: g.gameId, awayTeamName: g.awayTeamName, homeTeamName: g.homeTeamName,
+      status, scheduledFor: s?.scheduled_for ?? null, fwFlagged: Boolean(s?.fw_flagged),
+    };
+  });
+  return { weekNumber: week.currentWeek, games };
+}
+
 export async function computeUserFacingStatus(gameId: string): Promise<UserFacingStatus> {
   const row = await supabase.from("rec_game_scheduling").select("*").eq("game_id", gameId).maybeSingle();
   if (row.error || !row.data) return "not_scheduled";
