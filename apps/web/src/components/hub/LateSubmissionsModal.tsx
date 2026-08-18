@@ -24,11 +24,15 @@ export function LateSubmissionsModal({
   guildId,
   currentWeek,
   focus,
+  initialWeek,
   onClose,
 }: {
   guildId: string;
   currentWeek: number;
   focus?: "boxScore" | "highlight";
+  // Deep-linked open (e.g. from the /highlights Discord command) already knows which week —
+  // pre-select it instead of making the user pick again, as long as it's still eligible.
+  initialWeek?: number;
   onClose: () => void;
 }) {
   const { discordId } = useReadyAuth();
@@ -65,13 +69,17 @@ export function LateSubmissionsModal({
   }, [schedule, highlightCounts, currentWeek, focus]);
 
   // A GameDay quick-action already knows what it wants — skip the "pick a week" step when
-  // there's exactly one eligible week for that focused concern.
+  // there's exactly one eligible week for that focused concern, or when the caller (a deep
+  // link) already named a specific still-eligible week.
   useEffect(() => {
-    if (focus && eligibleWeeks.length === 1 && selectedWeek === "") {
+    if (selectedWeek !== "") return;
+    if (initialWeek !== undefined && eligibleWeeks.some((week) => week.weekNumber === initialWeek)) {
+      setSelectedWeek(initialWeek);
+    } else if (focus && eligibleWeeks.length === 1) {
       setSelectedWeek(eligibleWeeks[0].weekNumber);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus, eligibleWeeks]);
+  }, [focus, initialWeek, eligibleWeeks]);
 
   useEffect(() => {
     if (selectedWeek !== "" && !eligibleWeeks.some((week) => week.weekNumber === selectedWeek)) {

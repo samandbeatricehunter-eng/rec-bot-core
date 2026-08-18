@@ -551,6 +551,7 @@ export function HubHome() {
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [highlightWeekPickerOpen, setHighlightWeekPickerOpen] = useState(false);
   const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
+  const [lateSubmissionsWeek, setLateSubmissionsWeek] = useState<number | undefined>(undefined);
   const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
   const [editRosterOpen, setEditRosterOpen] = useState(false);
   const [assignStatsSubmissionId, setAssignStatsSubmissionId] = useState<string | null>(null);
@@ -637,6 +638,25 @@ export function HubHome() {
     } else if (nextSection === "league" || nextSubTab) {
       setSection("league");
     }
+  }, [searchParams]);
+
+  // Deep link from the /highlights Discord command: ?openHighlights=1[&week=N] opens the same
+  // late-submissions flow the in-app "Upload Highlight(s)" button uses, pre-selecting the week
+  // if one was named (still subject to the modal's own eligibility check — a week that's since
+  // been filled or aged out just falls back to the picker). Consumed once, then stripped from
+  // the URL so it doesn't reopen on back-navigation or a refresh.
+  useEffect(() => {
+    if (searchParams.get("openHighlights") !== "1") return;
+    const weekParam = searchParams.get("week");
+    const week = weekParam ? Number(weekParam) : undefined;
+    setLateSubmissionsFocus("highlight");
+    setLateSubmissionsWeek(Number.isFinite(week) ? week : undefined);
+    setLateSubmissionsOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("openHighlights");
+    next.delete("week");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   function writeHubParams(nextSection: HubSection, nextSubTab?: LeagueSubTab) {
@@ -2141,6 +2161,6 @@ export function HubHome() {
       {retireError && <p className="hub-transfer-status">{retireError}</p>}
       <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
-    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} focus={lateSubmissionsFocus ?? undefined} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); }} />}
+    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} focus={lateSubmissionsFocus ?? undefined} initialWeek={lateSubmissionsWeek} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); setLateSubmissionsWeek(undefined); }} />}
   </div>;
 }

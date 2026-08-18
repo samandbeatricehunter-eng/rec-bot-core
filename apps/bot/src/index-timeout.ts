@@ -139,6 +139,7 @@ import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
 import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
+import { handleHighlightsSlash } from "./flows/highlights-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -605,6 +606,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "viewleague") {
       await handleViewLeagueSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "highlights") {
+      await handleHighlightsSlash(interaction);
       return;
     }
 

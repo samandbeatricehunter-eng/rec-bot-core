@@ -24,6 +24,10 @@ export const commands = [
     .setName("viewleague")
     .setDescription("Get a link to this league's public status page.")
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("highlights")
+    .setDescription("Get a link to upload a highlight for an eligible week.")
+    .toJSON(),
 ];
 
 function discordRest() {

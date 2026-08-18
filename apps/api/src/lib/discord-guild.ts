@@ -120,6 +120,7 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "matchup", description: "Show your current-week matchup." },
   { name: "schedule", description: "Show your team's full season schedule." },
   { name: "viewleague", description: "Get a link to this league's public status page." },
+  { name: "highlights", description: "Get a link to upload a highlight for an eligible week." },
 ];
 const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
 
