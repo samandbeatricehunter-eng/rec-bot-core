@@ -106,7 +106,7 @@ export async function proposeTime(input: { gameId: string; discordId: string; pr
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_created", payload: { proposedForUtc: input.proposedForUtc } });
-  await notifyOpponent(input.gameId, game, userId, `proposed **${formatIsoShort(input.proposedForUtc)}**`);
+  await notifyOpponent(input.gameId, game, userId, `proposed **${formatIsoShort(input.proposedForUtc)}**`, insert.data.id);
   return insert.data;
 }
 
@@ -152,7 +152,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_countered", payload: { proposedForUtc: input.counterForUtc } });
-  await notifyOpponent(input.gameId, game, userId, `countered with **${formatIsoShort(input.counterForUtc)}**`);
+  await notifyOpponent(input.gameId, game, userId, `countered with **${formatIsoShort(input.counterForUtc)}**`, counter.data.id);
   return counter.data;
 }
 
@@ -232,10 +232,30 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   return { flagged: true };
 }
 
-async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string) {
+async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string, proposalId?: string) {
   const channel = await getGameChannelByGameId(gameId);
   if (!channel) return;
   await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${text}` }).catch(() => undefined);
+  if (!channel.discord_channel_id) return;
+
+  const opponentId = actingUserId === game.home_user_id ? game.away_user_id : game.home_user_id;
+  const opponentAccount = opponentId
+    ? await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle()
+    : { data: null };
+  const opponentDiscordId = opponentAccount.data?.discord_id ? String(opponentAccount.data.discord_id) : null;
+  const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
+
+  await postDiscordChannelMessage(channel.discord_channel_id, {
+    content: `${mention}${text}`,
+    components: proposalId ? [{
+      type: 1,
+      components: [
+        { type: 2, style: 3, custom_id: `rec:gamesched:proposal:accept:${gameId}:${proposalId}`, label: "Accept" },
+        { type: 2, style: 2, custom_id: `rec:gamesched:proposal:counter:${gameId}:${proposalId}`, label: "Counter" },
+      ],
+    }] : undefined,
+    allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
+  }).catch(() => undefined);
 }
 
 function formatIsoShort(iso: string): string {
@@ -258,14 +278,23 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game" });
 
   const opponentAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle();
+  const opponentDiscordId = opponentAccount.data?.discord_id ? String(opponentAccount.data.discord_id) : null;
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {
-    const mention = opponentAccount.data?.discord_id ? `<@${opponentAccount.data.discord_id}> ` : "";
+    const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
     await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `${mention}Your opponent can't make this game before the deadline. Choose how to proceed: accept a Fair Sim, or request AutoPilot.`,
+      content: `${mention}Your opponent can't make this game before the deadline. Choose how to proceed:`,
+      components: [{
+        type: 1,
+        components: [
+          { type: 2, style: 3, custom_id: `rec:gamesched:cantmake:accept_fs:${input.gameId}`, label: "Accept Fair Sim" },
+          { type: 2, style: 2, custom_id: `rec:gamesched:cantmake:autopilot:${input.gameId}`, label: "Request AutoPilot" },
+        ],
+      }],
+      allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
     }).catch(() => undefined);
   }
-  return { flagged: true, opponentId };
+  return { flagged: true, opponentId, opponentDiscordId };
 }
 
 // The opponent's response to markCantMakeGame -- either choice just notifies commissioners and

@@ -12,6 +12,28 @@ import {
   requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
+import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
+
+// Accepts either a raw UTC instant or a local wall-clock time + zone (the Discord custom-time
+// modal, which can't do DST-aware conversion client-side) -- same "8pm"/"8:30pm" format as the
+// bot's availability-text parser, kept as a tiny local duplicate since that parser lives in the
+// bot package and isn't shared cross-package for ~10 lines of regex.
+const LOCAL_TIME_RE = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i;
+function resolveProposedForUtc(input: { proposedForUtc?: string; localDate?: string; localTime?: string; timezone?: string }): string {
+  if (input.proposedForUtc) return input.proposedForUtc;
+  if (!input.localDate || !input.localTime || !input.timezone) throw new ApiError(400, "Provide either proposedForUtc or localDate/localTime/timezone.");
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.localDate.trim());
+  if (!dateMatch) throw new ApiError(400, "Date must be YYYY-MM-DD.");
+  const timeMatch = LOCAL_TIME_RE.exec(input.localTime.trim());
+  if (!timeMatch) throw new ApiError(400, 'Time must look like "8:00 PM".');
+  const hour12 = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2] ?? "0");
+  if (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59) throw new ApiError(400, "Invalid time.");
+  const meridiem = timeMatch[3]!.toLowerCase();
+  const hour24 = meridiem === "am" ? (hour12 === 12 ? 0 : hour12) : (hour12 === 12 ? 12 : hour12 + 12);
+  const [, year, month, day] = dateMatch;
+  return zonedWallTimeToUtcIana(Number(year), Number(month), Number(day), hour24, minute, input.timezone).toISOString();
+}
 
 // Every action here is reachable identically from Discord (bot mode, discordId in the body,
 // trusted) and the site (user mode, session-resolved discordId) -- one scheduling service
@@ -122,9 +144,13 @@ export async function schedulingRoutes(app: FastifyInstance) {
 
   app.post("/v1/scheduling/matchup/propose", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), proposedForUtc: z.string() }).parse(request.body);
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(),
+        proposedForUtc: z.string().optional(), localDate: z.string().optional(), localTime: z.string().optional(), timezone: z.string().optional(),
+      }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await proposeTime({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), proposedForUtc: body.proposedForUtc }));
+      const proposedForUtc = resolveProposedForUtc(body);
+      return reply.send(await proposeTime({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), proposedForUtc }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -132,10 +158,12 @@ export async function schedulingRoutes(app: FastifyInstance) {
     try {
       const body = z.object({
         guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), proposalId: z.string().uuid(),
-        action: z.enum(["accept", "counter", "withdraw"]), counterForUtc: z.string().optional(),
+        action: z.enum(["accept", "counter", "withdraw"]),
+        counterForUtc: z.string().optional(), localDate: z.string().optional(), localTime: z.string().optional(), timezone: z.string().optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await respondToProposal({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), proposalId: body.proposalId, action: body.action, counterForUtc: body.counterForUtc }));
+      const counterForUtc = body.action === "counter" ? resolveProposedForUtc({ proposedForUtc: body.counterForUtc, localDate: body.localDate, localTime: body.localTime, timezone: body.timezone }) : undefined;
+      return reply.send(await respondToProposal({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), proposalId: body.proposalId, action: body.action, counterForUtc }));
     } catch (error) { return sendError(reply, error); }
   });
 
