@@ -7,6 +7,7 @@ import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { openCustomTimePicker } from "./custom-time-picker.js";
 
 export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelAvailability: "rec:gamesched:panel:availability:",
@@ -14,10 +15,8 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelCantMake: "rec:gamesched:panel:cantmake:",
   panelReset: "rec:gamesched:panel:reset:",
   proposeSelect: "rec:gamesched:proposeselect:",
-  proposeModal: "rec:gamesched:proposemodal:",
   proposalAccept: "rec:gamesched:proposal:accept:",
   proposalCounter: "rec:gamesched:proposal:counter:",
-  counterModal: "rec:gamesched:countermodal:",
   checkin: "rec:gamesched:checkin:",
   fwRequest: "rec:gamesched:fwrequest:",
   autopilot: "rec:gamesched:autopilot:",
@@ -144,14 +143,7 @@ export async function handleProposeOrCounterSelect(interaction: StringSelectMenu
   const value = interaction.values[0]!;
 
   if (value === "custom") {
-    const modal = new ModalBuilder()
-      .setCustomId(kind === "counter" ? `${GAME_SCHEDULING_CUSTOM_IDS.counterModal}${gameId}:${proposalId}` : `${GAME_SCHEDULING_CUSTOM_IDS.proposeModal}${gameId}`)
-      .setTitle("Custom time")
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("date").setLabel("Date (YYYY-MM-DD)").setStyle(TextInputStyle.Short).setPlaceholder("2026-08-20").setRequired(true)),
-        new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("time").setLabel("Time (e.g. 8:00 PM)").setStyle(TextInputStyle.Short).setPlaceholder("8:00 PM").setRequired(true)),
-      );
-    await interaction.showModal(modal);
+    await openCustomTimePicker(interaction, kind, gameId, proposalId);
     return;
   }
 
@@ -162,47 +154,7 @@ export async function handleProposeOrCounterSelect(interaction: StringSelectMenu
     } else {
       await recApi.proposeSchedulingTime({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, proposedForUtc: value });
     }
-    await interaction.editReply({ content: `Proposed **${fmtUtc(value)}**. Your opponent has been notified.`, components: [] });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-async function userTimezoneOrDefault(guildId: string, discordId: string): Promise<string> {
-  try {
-    const profile = await recApi.getSchedulingProfile({ guildId, discordId });
-    return profile.profile.timezone ?? "America/Chicago";
-  } catch {
-    return "America/Chicago";
-  }
-}
-
-export async function handleProposeCustomModal(interaction: ModalSubmitInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.proposeModal, interaction.customId);
-  const date = interaction.fields.getTextInputValue("date");
-  const time = interaction.fields.getTextInputValue("time");
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    const timezone = await userTimezoneOrDefault(interaction.guildId, interaction.user.id);
-    await recApi.proposeSchedulingTime({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, localDate: date, localTime: time, timezone });
-    await interaction.editReply({ content: `Proposed **${date} ${time} (${timezone})**. Your opponent has been notified.` });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleCounterCustomModal(interaction: ModalSubmitInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const rest = idAfter(GAME_SCHEDULING_CUSTOM_IDS.counterModal, interaction.customId);
-  const [gameId, proposalId] = rest.split(":");
-  const date = interaction.fields.getTextInputValue("date");
-  const time = interaction.fields.getTextInputValue("time");
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    const timezone = await userTimezoneOrDefault(interaction.guildId, interaction.user.id);
-    await recApi.respondToSchedulingProposal({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: gameId!, proposalId: proposalId!, action: "counter", localDate: date, localTime: time, timezone });
-    await interaction.editReply({ content: `Countered with **${date} ${time} (${timezone})**. Your opponent has been notified.` });
+    await interaction.editReply({ content: `Proposed **${fmtUtc(value)}**. Your opponent has been notified in the channel to accept or counter.`, components: [] });
   } catch (error) {
     await replyErr(interaction, error);
   }

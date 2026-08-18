@@ -158,10 +158,14 @@ import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelReset,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
-  handleProposeCustomModal, handleCounterCustomModal,
   handleCantMakeResponse, handleCheckin, handleFwRequest, handleAutopilotRequest,
   handleGameOverButton, handleGameOverModal,
 } from "./flows/game-scheduling-panel.js";
+import {
+  CUSTOM_TIME_PICKER_CUSTOM_IDS,
+  handleCustomTimeDateSelect, handleCustomTimeDateModal, handleCustomTimeHourSelect,
+  handleCustomTimeMinuteSelect, handleCustomTimeSubmit,
+} from "./flows/custom-time-picker.js";
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
@@ -685,8 +689,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter)) return handleProposalCounterButton(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept)) return handleProposalAcceptButton(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeSelect)) return handleProposeOrCounterSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeModal)) return handleProposeCustomModal(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.counterModal)) return handleCounterCustomModal(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.date)) return handleCustomTimeDateSelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.customDateModal)) return handleCustomTimeDateModal(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.hour)) return handleCustomTimeHourSelect(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.minute)) return handleCustomTimeMinuteSelect(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.submit)) return handleCustomTimeSubmit(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAcceptFs)) return handleCantMakeResponse(interaction, "accept_fs");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAutopilot)) return handleCantMakeResponse(interaction, "request_autopilot");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);

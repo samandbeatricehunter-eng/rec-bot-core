@@ -8,6 +8,7 @@ import { getGameChannelByGameId } from "../game-channels/game-channels.service.j
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { autoResetSchedulingAfterMissedKickoff } from "./matchup-scheduling.service.js";
 import { logSchedulingEvent } from "./shared.js";
+import { syncAvailabilityBoard } from "./availability-board.service.js";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -323,6 +324,20 @@ async function runAvailabilityNag() {
   }
 }
 
+// Periodic catch-all instead of hooking every one of the many places a team's user_id can
+// change (roster admin tools, trades, boot/reassign, etc.) -- any team-assignment change shows
+// up in the board within a minute regardless of which code path caused it. syncAvailabilityBoard
+// only edits its tracked messages in place, so this is cheap and never spams the channel.
+async function runAvailabilityBoardResync() {
+  const { data, error } = await supabase.from("rec_server_routes").select("scheduling_channel_id,server:rec_discord_servers(guild_id)").not("scheduling_channel_id", "is", null);
+  if (error) { console.error("[ERROR] scheduling reminder poller: availability board resync query failed (non-fatal):", error); return; }
+  for (const row of data ?? []) {
+    const guildId = (row as any).server?.guild_id;
+    if (!guildId) continue;
+    await syncAvailabilityBoard(String(guildId)).catch((err) => console.error(`[ERROR] scheduling reminder poller: availability board resync failed for guild ${guildId} (non-fatal):`, err));
+  }
+}
+
 export async function runSchedulingReminderSweep() {
   await runContactReminders(4, "contact_4h");
   await runContactReminders(8, "contact_8h");
@@ -332,4 +347,5 @@ export async function runSchedulingReminderSweep() {
   await runCheckinFollowUps();
   await runGameOverPrompt();
   await runAvailabilityNag();
+  await runAvailabilityBoardResync();
 }

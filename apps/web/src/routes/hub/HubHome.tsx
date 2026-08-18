@@ -1637,6 +1637,7 @@ export function HubHome() {
                     className="hub-hero-scheduling-chip"
                   />
                 )}
+                <Button variant="ghost" size="compact" onClick={() => setAvailabilityModalOpen(true)}>Availability</Button>
               </div>
               <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}</div>
               <div className="hub-hero-metrics">

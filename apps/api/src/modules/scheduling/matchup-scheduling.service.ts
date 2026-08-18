@@ -237,18 +237,19 @@ export async function requestForceWin(input: { gameId: string; discordId: string
 
 async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string, proposalId?: string) {
   const channel = await getGameChannelByGameId(gameId);
-  if (!channel) return;
-  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${text}` }).catch(() => undefined);
-  if (!channel.discord_channel_id) return;
+  if (!channel) { console.error(`[ERROR] notifyOpponent: no tracked game channel for game ${gameId} -- opponent not tagged.`); return; }
+  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${text}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
+  if (!channel.discord_channel_id) { console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`); return; }
 
   const opponentId = actingUserId === game.home_user_id ? game.away_user_id : game.home_user_id;
   const opponentAccount = opponentId
     ? await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle()
     : { data: null };
   const opponentDiscordId = opponentAccount.data?.discord_id ? String(opponentAccount.data.discord_id) : null;
+  if (!opponentDiscordId) console.error(`[WARN] notifyOpponent: opponent ${opponentId} has no linked Discord account -- posting without a tag.`);
   const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
 
-  await postDiscordChannelMessage(channel.discord_channel_id, {
+  const posted = await postDiscordChannelMessage(channel.discord_channel_id, {
     content: `${mention}${text}`,
     components: proposalId ? [{
       type: 1,
@@ -258,7 +259,8 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
       ],
     }] : undefined,
     allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
-  }).catch(() => undefined);
+  }).catch((error) => { console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage threw for channel ${channel.discord_channel_id}:`, error); return null; });
+  if (!posted) console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage returned null for channel ${channel.discord_channel_id} (see prior [WARN] log from discord-guild.ts for Discord's rejection reason).`);
 }
 
 function formatIsoShort(iso: string): string {
