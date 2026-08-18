@@ -17,7 +17,7 @@ import { getLeagueDataMode } from "./data-mode.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
+import { listConfirmableWagers, resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
@@ -676,6 +676,19 @@ export async function completeAdvanceWeek(input: {
     // if box-score approval or manual score entry already settled it earlier).
     await settleGotwPollsForGame({ guildId: input.guildId, gameId: game.data.id, winningTeamId }).catch((err) => {
       console.error("[ERROR] settleGotwPollsForGame failed during advance (non-fatal):", err);
+    });
+
+    // Surface any pending wager this result just made settle-ready. The Discord bot does this
+    // itself (refreshConfirmableWagerEmbeds, called from its own interactive advance wizard)
+    // but that only fires for an advance actually run through the bot — a web-dashboard advance,
+    // or a late/corrected result entered for an already-passed week, went straight through this
+    // API path with nothing ever re-checking wagers for it. Confirmed live: a week-2 wager sat
+    // "pending" with no commissioner-inbox row for a full week after its result was entered,
+    // because the week-2-to-3 advance had already run resolveWagersOnAdvance before this result
+    // existed, and nothing re-checked it afterward. listConfirmableWagers is idempotent —
+    // already-recorded inbox rows are a no-op via recordWagerInbox's own dedupe.
+    await listConfirmableWagers(context.leagueId).catch((err) => {
+      console.error("[ERROR] listConfirmableWagers failed during advance (non-fatal):", err);
     });
 
     // Bowl games and the national championship don't get a regular weekly recap otherwise
