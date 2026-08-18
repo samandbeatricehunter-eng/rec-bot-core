@@ -1,10 +1,10 @@
 /**
  * Selects real Madden 27 players as base-attribute templates for the archetype-based custom
- * player wizard: for each REC position and package tier, buckets real players by OVR percentile
- * (tier 5 = top 20% at that position, tier 1 = bottom 20% — percentile-based so every position
- * gets viable candidates regardless of its real OVR distribution shape), then within each bucket
- * picks the best real exemplar of up to 3 of that position's existing MADDEN archetypes (by
- * primary-attribute average) for variety.
+ * player wizard: for each REC position and package tier, finds the real player closest to that
+ * tier's target base OVR (Tier 1: 66, Tier 2: 69, Tier 3: 75, Tier 4: 79, Tier 5: 82 — set by
+ * Samuel 2026-08, deliberately well below elite real-player OVR so the tier's bonus CP is what
+ * makes a build feel earned), for up to 3 of that position's existing MADDEN archetypes (by
+ * primary-attribute average, for variety).
  *
  * No real player identity is kept in the output beyond a debug comment — only the archetype
  * label and the attribute set are meant to reach users.
@@ -108,14 +108,22 @@ function loadPlayers(): Player[] {
 
 const TIERS: RecPackageTier[] = [1, 2, 3, 4, 5];
 
-function bucketForTier(sortedDesc: Player[], tier: RecPackageTier): Player[] {
-  // tier 5 = top 20% (best real players), tier 1 = bottom 20% (backups/replacement level).
-  const n = sortedDesc.length;
-  const bucketSize = n / 5;
-  const startPct = 5 - tier; // tier5 -> 0, tier1 -> 4
-  const start = Math.floor(startPct * bucketSize);
-  const end = Math.ceil((startPct + 1) * bucketSize);
-  return sortedDesc.slice(start, Math.max(end, start + 1));
+// Base template OVR target per tier (Samuel, 2026-08) — deliberately modest so each tier's
+// bonus CP (see calibrate-archetype-cp-budgets.ts) is what actually builds the player up, not
+// the template alone.
+export const REC_ARCHETYPE_BASE_OVR_TARGET: Readonly<Record<RecPackageTier, number>> = {
+  1: 66,
+  2: 69,
+  3: 75,
+  4: 79,
+  5: 82,
+};
+
+/** The N players at this position whose real OVR is closest to the tier's target, widest net
+ * first so a thin position (e.g. FB, K, P) still has enough candidates to pick 3 distinct
+ * archetypes from. */
+function candidatesNearTarget(pool: Player[], targetOvr: number, count: number): Player[] {
+  return [...pool].sort((a, b) => Math.abs(a.ovr - targetOvr) - Math.abs(b.ovr - targetOvr)).slice(0, Math.max(count * 4, 12));
 }
 
 function archetypeScore(player: Player, primaryAttributes: readonly string[]): number {
@@ -135,10 +143,11 @@ function curatePosition(position: RecOvrPosition, players: Player[]) {
   }> = [];
 
   for (const tier of TIERS) {
-    const bucket = bucketForTier(pool, tier);
+    const targetOvr = REC_ARCHETYPE_BASE_OVR_TARGET[tier];
+    const archetypeSlice = archetypes.slice(0, 3);
+    const bucket = candidatesNearTarget(pool, targetOvr, archetypeSlice.length || 1);
     if (bucket.length === 0) continue;
     const used = new Set<string>();
-    const archetypeSlice = archetypes.slice(0, 3);
     for (const archetype of archetypeSlice) {
       let best: Player | null = null;
       let bestScore = -Infinity;
@@ -159,7 +168,7 @@ function curatePosition(position: RecOvrPosition, players: Player[]) {
       });
     }
     // Positions with < 3 defined archetypes (K/P/FB) still need coverage — fall back to just
-    // the top real player in the bucket if no archetype produced a pick.
+    // the closest-to-target real player if no archetype produced a pick.
     if (archetypeSlice.length === 0 && bucket.length) {
       const best = bucket[0]!;
       results.push({ tier, archetypeKey: "default", archetypeLabel: "Standard", ovr: best.ovr, sourceName: best.name, attrs: best.attrs });
