@@ -8,6 +8,10 @@
 export type MaddenPickTransfer = readonly [draftYear: number, round: number, from: string, to: string, conditional: 0 | 1];
 export type MaddenSupplementalPick = Readonly<{ draftYear: number; round: number; original: string; assetKey: string }>;
 
+// PROVISIONAL — M27_PICK_TRANSFERS below (m27_2026-08-18_v2) was transcribed from a manual
+// screenshot pass and has NOT been re-audited year-by-year against the original screenshots'
+// year headers. Do not run seedMaddenDraftPicks("madden_27", ...) against a real league until
+// that audit replaces this comment with a confirmation note (or a corrected v3 baseline).
 export const MADDEN_PICK_BASELINE_META = {
   madden_26: { firstDraftYear: 2026, snapshotDate: "2025-08-14", version: "m26_release_v1" },
   madden_27: { firstDraftYear: 2027, snapshotDate: "2026-08-18", version: "m27_2026-08-18_v2" },
