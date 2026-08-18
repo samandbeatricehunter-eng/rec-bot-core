@@ -634,9 +634,11 @@ export function evaluateRecCustomPlayerBuild(
   // Archetype-template path (2026-08): if this position/tier/archetype has a curated real-player
   // template (Madden only for now — see archetype-templates.ts), its attributes become the
   // per-attribute floor instead of the flat REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, and the build only
-  // pays CP for points raised past that floor. Games/positions/archetypes without a template
-  // (currently all of CFB) fall back to the legacy flat-35 system unchanged.
-  const template = getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey);
+  // pays CP for points raised past that floor. Explicitly gated to game === "MADDEN" — templates
+  // are keyed only by position/tier/archetypeKey, and CFB and Madden archetype catalogs
+  // occasionally share a key spelling by coincidence (e.g. "speedster"), which would otherwise
+  // let a CFB build accidentally match a Madden template.
+  const template = input.game === "MADDEN" ? getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey) : null;
   const floorMap: Readonly<Record<string, number>> | null = template?.attributes ?? null;
 
   // Every editable attribute starts at its floor (the template's real value, or the flat

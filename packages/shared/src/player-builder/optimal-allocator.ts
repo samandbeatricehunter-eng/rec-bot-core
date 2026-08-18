@@ -97,7 +97,7 @@ export function allocateRecOptimalCpForOvr(
   input: RecOptimalCpAllocationInput
 ): RecOptimalCpAllocationResult {
   const position = normalizeRecOvrPosition(input.position);
-  const template = getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey);
+  const template = input.game === "MADDEN" ? getRecArchetypeTemplate(position, input.packageTier, input.archetypeKey) : null;
   const effectiveCreationPoints = template
     ? getRecArchetypeBonusCp(position, input.packageTier)
     : getRecEffectiveCreationPoints(position, input.packageTier);

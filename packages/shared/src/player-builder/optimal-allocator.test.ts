@@ -21,7 +21,7 @@ for (const fixture of FIXTURES) {
     test(`optimal allocator spends CP legally for ${fixture.game} ${fixture.position}/${fixture.archetypeKey} tier ${tier}`, () => {
       const allocation = allocateRecOptimalCpForOvr({ ...fixture, packageTier: tier });
       const position = normalizeRecOvrPosition(fixture.position);
-      const template = getRecArchetypeTemplate(position, tier, fixture.archetypeKey);
+      const template = fixture.game === "MADDEN" ? getRecArchetypeTemplate(position, tier, fixture.archetypeKey) : null;
       const effectiveCreationPoints = template
         ? getRecArchetypeBonusCp(position, tier)
         : getRecEffectiveCreationPoints(fixture.position, tier);
