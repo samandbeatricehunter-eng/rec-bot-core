@@ -62,7 +62,12 @@ function buildAdPayload(
   const fields = [...byConference.entries()].slice(0, 25).map(([conference, teams]) => {
     const byDivision = new Map<string, any[]>();
     for (const team of teams) {
-      const key = team.division || "";
+      // Grouping on the raw division string split one real division into two silent groups
+      // whenever a team's stored value didn't exactly match its division-mates' (e.g. "West"
+      // vs "NFC West" — confirmed live: one team in a 32-team league had the bare form while
+      // the rest of its division had the conference-prefixed form). Stripping the leading
+      // conference name normalizes both to the same key before grouping.
+      const key = String(team.division || "").replace(new RegExp(`^${conference}\\s+`, "i"), "").trim();
       const list = byDivision.get(key) ?? [];
       list.push(team);
       byDivision.set(key, list);
