@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isTerminalSeasonStage, stageLabel, type LeagueGame } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -128,6 +128,11 @@ function AdvanceReadinessSection() {
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [notifyBusyGameId, setNotifyBusyGameId] = useState<string | null>(null);
   const [notifyPrompt, setNotifyPrompt] = useState<{ gameId: string; target: "home" | "away" | "both" } | null>(null);
+  // cleanupSeasonHighlights (apps/api/src/modules/highlights/highlights.service.ts) hard-deletes
+  // every non-Play-of-the-Year highlight the instant an advance crosses this exact boundary --
+  // synchronously, no grace period. Warn before that happens, not after.
+  const [rolloverHighlightCount, setRolloverHighlightCount] = useState<number | null>(null);
+  const [rolloverWarningLoading, setRolloverWarningLoading] = useState(false);
 
   function load() {
     recApi
@@ -230,6 +235,17 @@ function AdvanceReadinessSection() {
     if (!data) return;
     setError(null);
     setShowAdvanceModal(true);
+    setRolloverHighlightCount(null);
+    const crossesIntoOffseason =
+      isTerminalSeasonStage(data.currentStage, game as LeagueGame) &&
+      data.nextSeasonStage === firstOffseasonStage(game as LeagueGame);
+    if (crossesIntoOffseason) {
+      setRolloverWarningLoading(true);
+      recApi.getSeasonHighlightsExport(guildId)
+        .then((result) => setRolloverHighlightCount(result.highlights.length))
+        .catch(() => setRolloverHighlightCount(null))
+        .finally(() => setRolloverWarningLoading(false));
+    }
     if (data.nextSeasonStage !== "regular_season") {
       setNextGotwCandidates([]);
       setNextGotwGameId("");
@@ -365,6 +381,18 @@ function AdvanceReadinessSection() {
                 <strong>{data.nextLabel}</strong>
               </div>
             </div>
+            {rolloverWarningLoading && <p className="form-hint">Checking this season's highlights…</p>}
+            {!rolloverWarningLoading && rolloverHighlightCount !== null && rolloverHighlightCount > 0 && (
+              <div className="advance-modal-copy" style={{ border: "1px solid var(--color-danger, #dc2626)", borderRadius: "var(--radius-md, 8px)", padding: "var(--space-3)" }}>
+                <h3 style={{ margin: 0 }}>⚠ {rolloverHighlightCount} highlight{rolloverHighlightCount === 1 ? "" : "s"} will be permanently deleted</h3>
+                <p className="form-hint">
+                  This advance moves the league into the offseason, which immediately and irreversibly deletes every
+                  highlight from this season (Play-of-the-Year winners are kept). There is no grace period — download
+                  anything you want to keep first.
+                </p>
+                <Link to={`/l/${data.league.id}/mgmt/publishing`} target="_blank" rel="noreferrer">Open Season Highlights Export</Link>
+              </div>
+            )}
             <div className="advance-modal-copy">
               <h3>Game of the Week</h3>
               {data.nextSeasonStage !== "regular_season"
