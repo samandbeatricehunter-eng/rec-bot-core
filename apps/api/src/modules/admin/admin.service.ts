@@ -365,7 +365,13 @@ export async function listRecentAdminUsers(): Promise<{ users: AdminUserSummary[
 export async function searchAdminUsers(input: { query?: string; limit?: number }): Promise<{
   users: AdminUserSummary[];
 }> {
-  const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+  // The "View As" panel calls this with no query on first load to browse the full user base —
+  // a default of 25 (with the UI offering no pagination) silently dropped every user past the
+  // 25th alphabetically, with no indication anything was cut off. A user who was very much
+  // still registered and active (an intact site account, real Stripe subscription) just never
+  // rendered. Default and ceiling raised well past any realistic current user count; still
+  // capped so a future much larger user base can't make this call unbounded.
+  const limit = Math.min(Math.max(input.limit ?? 500, 1), 1000);
   const query = input.query?.trim();
   const result = await getPgPool().query(
     `
