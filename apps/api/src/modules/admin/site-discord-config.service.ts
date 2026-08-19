@@ -46,7 +46,12 @@ export async function updateSiteDiscordConfig(patch: {
     update.league_post_channel_cfb_27 = emptyToNull(patch.leaguePostChannels.cfb_27);
   }
 
-  const { data, error } = await supabase.from("rec_site_discord_config").upsert({ id: true, ...update }).select("*").single();
+  // onConflict must be explicit -- this project's Postgres-shim client does NOT default a bare
+  // .upsert() to the table's primary key like real supabase-js/PostgREST. Without it, this
+  // singleton row (id boolean primary key, always id=true) would only ever get written once:
+  // every later save would emit a targetless `ON CONFLICT DO NOTHING` and silently no-op instead
+  // of updating the saved config.
+  const { data, error } = await supabase.from("rec_site_discord_config").upsert({ id: true, ...update }, { onConflict: "id" }).select("*").single();
   if (error) throw new ApiError(500, `Failed to save Discord config: ${error.message}`, error);
 
   const saved: SiteDiscordConfig = {
