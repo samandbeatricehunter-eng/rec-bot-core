@@ -19,6 +19,7 @@ import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { listConfirmableWagers, resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
+import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance, publishTransitionStory } from "../hub/story-publishing.js";
@@ -145,7 +146,7 @@ async function publishLeagueAdvanceAnnouncement(input: {
   });
 
   const body = lines.length
-    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nSwitch to Chat on the main league page to view your game channel.`
+    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nOpen your matchup on the Matchups page to chat with your opponent.`
     : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check Matchups for this week's slate.`;
 
   await recordHubAnnouncement({
@@ -624,7 +625,14 @@ export async function completeAdvanceWeek(input: {
   const nextTarget = nextLeagueStage(currentWeek, currentStage, context.rec_leagues.game);
   const now = new Date().toISOString();
 
-  for (const result of input.results) {
+  // Fully sequential here used to mean one HTTP request awaiting several DB round-trips PLUS
+  // GOTW/wager/story side effects for EVERY game in the week, one at a time — a CFB week's ~20
+  // games routinely pushed this past a minute of wall-clock time, long enough for the mobile
+  // network or a reverse-proxy timeout to kill the connection ("Load failed" client-side) before
+  // the response ever came back, even though the advance itself was still completing server-side.
+  // Each game's work here is independent (its own row, no shared mutable state across iterations
+  // besides read-only context/seasonNumber/currentWeek/now), so bounded concurrency is safe.
+  await mapWithConcurrency(input.results, 6, async (result) => {
     const game = await supabase
       .from("rec_games")
       .select(
@@ -742,7 +750,7 @@ export async function completeAdvanceWeek(input: {
         primaryAngle: game.data.is_national_championship ? "national_championship_recap" : "bowl_game_recap",
       }).catch((err) => console.error("[ERROR] Failed to publish bowl/national championship recap (non-fatal):", err));
     }
-  }
+  });
 
   const advanceResult = await setLeagueWeek({
     guildId: input.guildId,

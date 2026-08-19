@@ -92,6 +92,11 @@ import type {
 } from "../types/api.js";
 
 const REC_API_TIMEOUT_MS = 30_000;
+// completeAdvanceWeek processes every game in the week server-side (results, GOTW settling,
+// wager checks, story posts) before responding -- a full CFB slate (~20+ games) can genuinely
+// take longer than the default timeout, which aborted the request client-side ("Load failed")
+// even when the advance was still completing successfully on the server.
+const REC_API_ADVANCE_TIMEOUT_MS = 120_000;
 
 declare global {
   interface Window {
@@ -984,7 +989,7 @@ export const recApi = {
   notifyMissingBoxScore: (input: { guildId: string; gameId: string; target: "home" | "away" | "both"; reason?: "box_score" | "schedule" | "both" }) =>
     recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
-    recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
+    recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }), signal: AbortSignal.timeout(REC_API_ADVANCE_TIMEOUT_MS) }),
   getDivisionWinnerOptions: (guildId: string) =>
     recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>
