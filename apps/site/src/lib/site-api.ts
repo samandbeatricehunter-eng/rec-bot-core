@@ -204,6 +204,8 @@ export type SiteLeagueTickerItem = {
   gameId: string;
   awayTeamName: string;
   homeTeamName: string;
+  awayTeamAbbr: string | null;
+  homeTeamAbbr: string | null;
   awayScore: number | null;
   homeScore: number | null;
   isFinal: boolean;

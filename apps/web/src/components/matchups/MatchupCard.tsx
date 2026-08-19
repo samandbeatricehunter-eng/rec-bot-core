@@ -4,6 +4,7 @@ import type { HubMatchupGame } from "../../types/api.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { MatchupReactionBar } from "./MatchupReactionBar.js";
+import { TeamLogo } from "../ui/TeamLogo.js";
 
 function readableText(hex: string) {
   const value = hex.replace("#", "");
@@ -124,6 +125,7 @@ export function MatchupCard({
       <span className="rec-matchup-card__sheen" aria-hidden="true" />
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
+        <TeamLogo abbreviation={game.awayTeamAbbr} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" />
         <small>{game.awayTeamName}</small><strong>{game.awayTeamMascot}</strong>
       </div>
       <div className="rec-matchup-card__center">
@@ -137,6 +139,7 @@ export function MatchupCard({
         {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
       </div>
       <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
+        <TeamLogo abbreviation={game.homeTeamAbbr} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" />
         <small>{game.homeTeamName}</small><strong>{game.homeTeamMascot}</strong>
       </div>
       {reactionsEnabled ? (

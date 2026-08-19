@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { americanFromDecimal } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../lib/site-api.js";
@@ -6,27 +6,36 @@ import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../li
 const LEAGUE_POLL_MS = 60_000;
 const ANNOUNCEMENT_POLL_MS = 5 * 60_000;
 
-function matchupSegment(item: SiteLeagueTickerItem): string {
-  const line = `${item.awayTeamName} at ${item.homeTeamName}`;
+// Logo assets only exist for the 32 standard Madden teams (apps/web/public/assets/team-logos,
+// mirrored onto the site's own public/assets at build time) -- null abbreviation (CFB schools,
+// relocated/custom teams) just renders no image.
+function TickerLogo({ abbreviation, alt }: { abbreviation: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!abbreviation || failed) return null;
+  return <img src={`/assets/team-logos/${abbreviation.toUpperCase()}.png`} alt={alt} className="site-ticker-logo" onError={() => setFailed(true)} />;
+}
+
+function matchupSegment(item: SiteLeagueTickerItem): ReactNode {
+  const away = <><TickerLogo abbreviation={item.awayTeamAbbr} alt={item.awayTeamName} />{item.awayTeamAbbr ?? item.awayTeamName}</>;
+  const home = <><TickerLogo abbreviation={item.homeTeamAbbr} alt={item.homeTeamName} />{item.homeTeamAbbr ?? item.homeTeamName}</>;
   if (item.isFinal && item.awayScore != null && item.homeScore != null) {
-    return `${line} — FINAL ${item.awayScore}-${item.homeScore}`;
+    return <>{away} {item.awayScore} — {item.homeScore} {home} <span className="site-ticker-final">FINAL</span></>;
   }
   if (item.isLive && item.awayScore != null && item.homeScore != null) {
-    return `● LIVE — ${line} ${item.awayScore}-${item.homeScore}`;
+    return <><span className="site-ticker-live">● LIVE</span> {away} {item.awayScore} — {item.homeScore} {home}</>;
   }
   if (item.isLive) {
-    return `● LIVE — ${line}`;
+    return <><span className="site-ticker-live">● LIVE</span> {away} at {home}</>;
   }
   // Odds only ever come through pre-game (server omits them once a game is live/final).
   if (item.odds) {
-    const ml = `ML ${item.awayTeamName} ${americanFromDecimal(item.odds.awayMoneyline)} / ${item.homeTeamName} ${americanFromDecimal(item.odds.homeMoneyline)}`;
     const ou = item.odds.overUnder != null ? ` · O/U ${item.odds.overUnder}` : "";
-    return `${line} — ${ml}${ou}`;
+    return <>{away} at {home} — ML {americanFromDecimal(item.odds.awayMoneyline)}/{americanFromDecimal(item.odds.homeMoneyline)}{ou}</>;
   }
-  return line;
+  return <>{away} at {home}</>;
 }
 
-function useLeagueTickerSegments(leagueId: string): string[] {
+function useLeagueTickerSegments(leagueId: string): ReactNode[] {
   const [items, setItems] = useState<SiteLeagueTickerItem[]>([]);
 
   useEffect(() => {
@@ -52,7 +61,7 @@ function useLeagueTickerSegments(leagueId: string): string[] {
   return items.map(matchupSegment);
 }
 
-function useAnnouncementSegments(): string[] {
+function useAnnouncementSegments(): ReactNode[] {
   const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([]);
 
   useEffect(() => {
@@ -78,7 +87,7 @@ function useAnnouncementSegments(): string[] {
   return announcements.map((a) => (a.body ? `${a.title} — ${a.body}` : a.title));
 }
 
-function TickerTrack({ segments }: { segments: string[] }) {
+function TickerTrack({ segments }: { segments: ReactNode[] }) {
   // Render the segment list twice back-to-back so a 50%-width translate loops seamlessly.
   return (
     <div className="site-ticker-track">

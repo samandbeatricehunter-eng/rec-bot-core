@@ -1365,7 +1365,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   }
   let gamesQuery = supabase
     .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color),rivalry:rec_league_rivalries(rivalry_name)")
+    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),rivalry:rec_league_rivalries(rivalry_name)")
     .eq("league_id", context.leagueId)
     .eq("week_number", selectedWeek);
   if (seasonId) gamesQuery = gamesQuery.eq("season_id", seasonId);
@@ -1532,6 +1532,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         awayTeamMascot: mascotName(game.away_team, "Away"),
         homeTeamColor: game.home_team?.primary_color ?? "#FFFFFF",
         awayTeamColor: game.away_team?.primary_color ?? "#FFFFFF",
+        // Logo assets only exist for the 32 standard Madden teams (apps/web/public/assets/
+        // team-logos/{ABBR}.png) — relocated/custom teams and CFB schools have no matching file.
+        homeTeamAbbr: !isCfb && !game.home_team?.is_relocated ? game.home_team?.abbreviation ?? null : null,
+        awayTeamAbbr: !isCfb && !game.away_team?.is_relocated ? game.away_team?.abbreviation ?? null : null,
         rivalryName: (Array.isArray(game.rivalry) ? game.rivalry[0] : game.rivalry)?.rivalry_name ?? null,
         homeConference: game.home_team?.conference ?? null,
         awayConference: game.away_team?.conference ?? null,

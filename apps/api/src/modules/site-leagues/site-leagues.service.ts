@@ -492,6 +492,10 @@ export type SiteLeagueTickerItem = {
   gameId: string;
   awayTeamName: string;
   homeTeamName: string;
+  // Logo assets only exist for the 32 standard Madden teams — null for CFB schools and
+  // relocated/custom teams (see homeTeamAbbr/awayTeamAbbr on getHubMatchupSchedule's games).
+  awayTeamAbbr: string | null;
+  homeTeamAbbr: string | null;
   awayScore: number | null;
   homeScore: number | null;
   isFinal: boolean;
@@ -542,6 +546,8 @@ export async function getSiteLeagueTicker(input: {
         gameId: game.gameId,
         awayTeamName: game.awayTeamName,
         homeTeamName: game.homeTeamName,
+        awayTeamAbbr: game.awayTeamAbbr,
+        homeTeamAbbr: game.homeTeamAbbr,
         awayScore: game.awayScore,
         homeScore: game.homeScore,
         isFinal: game.isFinal,

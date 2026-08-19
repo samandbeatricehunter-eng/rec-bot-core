@@ -1,5 +1,6 @@
 import { MessageCircle, MoreHorizontal } from "lucide-react";
 import type { HubMatchupGame } from "../../types/api.js";
+import { TeamLogo } from "../ui/TeamLogo.js";
 
 // spec §6.2.A: a compact header that stays reachable while scrolling a long Gameday Center
 // page — team identity, live/final status, and quick jumps to chat and the action toolbar.
@@ -18,7 +19,9 @@ export function MatchupStickyHeader({
   return (
     <div className="matchup-sticky-header">
       <span className="matchup-sticky-header__teams">
+        <TeamLogo abbreviation={matchup.awayTeamAbbr} alt={matchup.awayTeamMascot} className="matchup-sticky-header__logo" />
         {matchup.awayTeamName} <span className="matchup-sticky-header__at">@</span> {matchup.homeTeamName}
+        <TeamLogo abbreviation={matchup.homeTeamAbbr} alt={matchup.homeTeamMascot} className="matchup-sticky-header__logo" />
       </span>
       {matchup.isFinal && matchup.homeScore != null && matchup.awayScore != null && (
         <span className="matchup-sticky-header__score">
