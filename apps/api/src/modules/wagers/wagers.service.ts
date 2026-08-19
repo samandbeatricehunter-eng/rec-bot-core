@@ -1145,6 +1145,17 @@ export async function settleWager(input: { wagerId: string; leagueId?: string | 
   if (error) throw new ApiError(500, "We couldn't load that wager. Please try again.", error);
   if (!wager) throw new ApiError(404, "Wager not found.");
   if (!["pending", "confirmed"].includes(wager.status)) {
+    // The wager left pending/confirmed some other way (e.g. the advance grace-period sweep
+    // auto-refunded it before a result ever got logged) but its commissioner-inbox card was
+    // never cleared — clicking Settle here did nothing and the same stale card just kept
+    // reappearing. Close it out now that we know it's moot.
+    const now = new Date().toISOString();
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "resolved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+      .eq("source_table", "rec_wagers")
+      .eq("source_id", wager.id)
+      .eq("status", "pending");
     return { ok: false, alreadyResolved: true, status: wager.status, wager };
   }
 

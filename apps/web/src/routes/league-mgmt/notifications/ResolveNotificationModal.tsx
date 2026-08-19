@@ -496,7 +496,22 @@ export function ResolveNotificationModal({
         action === "approve" && notification.type === "legend" && notification.payload?.isCfb !== true && selectedTarget
           ? { playerId: selectedTarget }
           : undefined;
-      await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
+      const result = await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
+      // Wager settle/reject can come back { ok: false, ... } instead of throwing (e.g. the
+      // wager already left pending/confirmed some other way, like an auto-refund) — without
+      // this check the modal just closed as if it worked, so clicking Settle looked like it
+      // silently did nothing.
+      if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+        const r = result as { alreadyResolved?: boolean; status?: string };
+        setError(
+          r.alreadyResolved
+            ? `This wager is already ${r.status ?? "resolved"} — nothing to settle. The card has been cleared.`
+            : "This wager can't be settled yet — the game result it depends on isn't confirmed.",
+        );
+        setBusy(false);
+        onResolved();
+        return;
+      }
       onResolved();
       onClose();
     } catch (err) {

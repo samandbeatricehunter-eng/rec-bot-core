@@ -799,30 +799,18 @@ export async function importEaDatasetsWithProgress(
   // Sync schedule results and trigger wager settlement checks
   if (scheduleImported) {
     pushProgress(leagueId, { type: "reconciling", step: "Syncing game results…" });
+    // Also rebuilds rec_league_user_records/rec_season_user_records/rec_global_user_records
+    // from the freshly-synced results — see the rebuild call inside
+    // syncCompanionScheduleResultsIntoGameResults itself.
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
-    // rec_season_user_records (win/loss record, point differential) is a maintained table,
-    // not a live view — nothing recomputed it after an EA import populated rec_game_results,
-    // so "my record" stayed stuck at 0-0-0 no matter how many games came in. CFB gets this
-    // via rebuildOfficialRecordsAfterBoxScore when a box score is approved; Madden needs the
-    // same rebuild triggered here since it has no box-score approval step at all.
     pushProgress(leagueId, { type: "reconciling", step: "Recalculating records…" });
-    await (async () => {
-      try {
-        const leagueRow = await getPgPool().query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId]);
-        const seasonNum = leagueRow.rows[0]?.season_number ?? 1;
-        const { rebuildOfficialRecordsAfterBoxScore } = await import("../official-records/official-records.service.js");
-        await rebuildOfficialRecordsAfterBoxScore({ leagueId, seasonNumber: seasonNum });
-      } catch (error) {
-        console.error("[WARN] Failed to rebuild official records after EA import (non-fatal):", error);
-      }
-      try {
-        const { refreshLeagueRecordHolders } = await import("../league-records/league-records.service.js");
-        await refreshLeagueRecordHolders(leagueId);
-      } catch (error) {
-        console.error("[WARN] Failed to refresh league record holders after EA import (non-fatal):", error);
-      }
-    })();
+    try {
+      const { refreshLeagueRecordHolders } = await import("../league-records/league-records.service.js");
+      await refreshLeagueRecordHolders(leagueId);
+    } catch (error) {
+      console.error("[WARN] Failed to refresh league record holders after EA import (non-fatal):", error);
+    }
     // Trigger wager inbox notifications for any wagers that now have results
     try {
       const { listConfirmableWagers } = await import("../wagers/wagers.service.js");

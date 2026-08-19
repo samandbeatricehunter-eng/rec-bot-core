@@ -6,7 +6,7 @@ import { ApiError } from "../../lib/errors.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { companionChecksum, normalizeCompanionPayload, splitCompanionPayload } from "./madden-companion.adapters.js";
 import { applyCompanionRecordToCanonical } from "./madden-companion.canonical.js";
-import { gameResultsApplyKey } from "../official-records/official-records.service.js";
+import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 
 export type MaddenEndpointKey =
   | "league_metadata"
@@ -371,6 +371,14 @@ export async function syncCompanionScheduleResultsIntoGameResults(leagueId: stri
       ],
     ).catch((error) => console.error(`[WARN] Failed to sync companion schedule result for game ${g.id} (non-fatal):`, error));
   });
+
+  // rec_league_user_records / rec_season_user_records / rec_global_user_records are
+  // maintained tables, not live views — nothing recomputed them after this sync wrote into
+  // rec_game_results, so imported Madden games never showed up in anyone's W/L record (box
+  // score approval and manual/advance score entry all trigger this same rebuild; this was
+  // the one write path into rec_game_results that didn't).
+  await rebuildOfficialRecordsAfterBoxScore({ leagueId, seasonNumber }).catch((error) =>
+    console.error("[WARN] Failed to rebuild official records after companion schedule sync (non-fatal):", error));
 }
 
 export async function listCompanionImportJobs(leagueId: string) {
