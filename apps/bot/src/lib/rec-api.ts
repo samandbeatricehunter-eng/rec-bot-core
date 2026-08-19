@@ -124,6 +124,19 @@ export const recApi = {
     recFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
   markGameOver: (input: { guildId: string; discordId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
     recFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
+  getReadyToAdvanceStatus: (input: { guildId: string; discordId: string }) =>
+    recFetch<
+      | { kind: "not_linked" }
+      | { kind: "no_game" }
+      | { kind: "h2h_ready"; gameId: string; opponentLabel: string; isComplete: boolean; scheduledFor: string | null }
+      | { kind: "h2h_needs_input"; gameId: string; opponentLabel: string }
+      | { kind: "cpu_ready"; gameId: string; isComplete: boolean; fwRequested: boolean }
+      | { kind: "cpu_needs_input"; gameId: string }
+    >("/v1/scheduling/ready-to-advance/status", { method: "POST", body: JSON.stringify(input) }),
+  reportReadyToAdvanceScore: (input: { guildId: string; discordId: string; gameId: string; myScore: number; opponentScore: number }) =>
+    recFetch<{ ok: true; homeScore: number; awayScore: number }>("/v1/scheduling/ready-to-advance/report-score", { method: "POST", body: JSON.stringify(input) }),
+  requestReadyToAdvanceCpuForceWin: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<{ flagged: true }>("/v1/scheduling/ready-to-advance/cpu-force-win", { method: "POST", body: JSON.stringify(input) }),
   linkLeagueServerByDiscord: (input: { discordId: string; guildId: string; serverName?: string; leagueId?: string }) =>
     recFetch<
       | { linked: true; server: { id: string; name: string }; leagueName: string }

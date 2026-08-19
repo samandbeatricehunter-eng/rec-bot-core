@@ -166,6 +166,11 @@ import {
   handleCustomTimeDateSelect, handleCustomTimeDateModal, handleCustomTimeHourSelect,
   handleCustomTimeMinuteSelect, handleCustomTimeSubmit,
 } from "./flows/custom-time-picker.js";
+import {
+  READY_TO_ADVANCE_CUSTOM_IDS,
+  handleReadyToAdvanceButton, handleH2hYesButton, handleH2hNoButton, handleH2hScoreModalSubmit,
+  handleCpuPlayedButton, handleCpuFwButton, handleCpuScoreModalSubmit,
+} from "./flows/ready-to-advance.js";
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
@@ -699,6 +704,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOver)) return handleGameOverButton(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal)) return handleGameOverModal(interaction);
+    if (interaction.isButton() && interaction.customId === READY_TO_ADVANCE_CUSTOM_IDS.button) return handleReadyToAdvanceButton(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hYes)) return handleH2hYesButton(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hNo)) return handleH2hNoButton(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuPlayed)) return handleCpuPlayedButton(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuFw)) return handleCpuFwButton(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hScoreModal)) return handleH2hScoreModalSubmit(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuScoreModal)) return handleCpuScoreModalSubmit(interaction);
 
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setAvailability) return handleBoardSetAvailability(interaction);
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setTimezone) return handleBoardSetTimezone(interaction);

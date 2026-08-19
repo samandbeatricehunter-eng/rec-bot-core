@@ -15,6 +15,7 @@ import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
 import { syncAvailabilityBoard } from "./availability-board.service.js";
 import { markGameOver } from "./game-announcement.service.js";
+import { getReadyToAdvanceStatus, reportOwnGameScore, requestCpuForceWin } from "./ready-to-advance.service.js";
 
 function resyncBoard(guildId: string) {
   syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
@@ -278,6 +279,33 @@ export async function schedulingRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       return reply.send(await markGameOver({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), homeScore: body.homeScore, awayScore: body.awayScore }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/ready-to-advance/status", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await getReadyToAdvanceStatus({ guildId: body.guildId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/ready-to-advance/report-score", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(),
+        myScore: z.number().int().min(0), opponentScore: z.number().int().min(0),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await reportOwnGameScore({ guildId: body.guildId, discordId: actorDiscordId(auth, body.discordId), gameId: body.gameId, myScore: body.myScore, opponentScore: body.opponentScore }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/ready-to-advance/cpu-force-win", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await requestCpuForceWin({ guildId: body.guildId, discordId: actorDiscordId(auth, body.discordId), gameId: body.gameId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -13,6 +13,10 @@ type SchedulingRow = {
   fw_flagged: boolean; fw_flagged_for_user_id: string | null; proposed_by_user_id: string | null;
 };
 
+// Channel-wide, not per-game -- the handler resolves "your game" itself from the clicking
+// user's discordId (see ready-to-advance.service.ts), so no gameId needs to travel in the id.
+export const READY_TO_ADVANCE_BUTTON_ID = "rec:rta:btn";
+
 function mentionOrFallback(discordId: string | null | undefined): string {
   return discordId ? `<@${discordId}>` : "someone";
 }
@@ -52,7 +56,11 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const week = await getAdvanceWeekGames(guildId).catch((error) => { console.error("[ERROR] matchups channel: failed to load week games (non-fatal):", error); return null; });
   if (!week) return;
   const h2hGames = (week.games as any[]).filter((g) => g.isH2h);
-  if (!h2hGames.length) return;
+  // A CPU matchup with one human coach (not a full CPU-vs-CPU game, which nobody needs to
+  // ready up for) -- shown in its own block below the H2H list, per-game so a coach can see
+  // which of their weeks still needs a Force Win request or a final score.
+  const humanCpuGames = (week.games as any[]).filter((g) => !g.isH2h && (g.homeUserId || g.awayUserId));
+  if (!h2hGames.length && !humanCpuGames.length) return;
 
   const context = await getCurrentLeagueContext(guildId).catch(() => null);
   if (!context) return;
@@ -60,10 +68,10 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const channelId = String((routes?.routes as any)?.matchups_channel_id ?? "");
   if (!channelId) return;
 
-  const gameIds = h2hGames.map((g) => g.gameId);
+  const gameIds = [...h2hGames, ...humanCpuGames].map((g) => g.gameId);
   const [scheduling, streams] = await Promise.all([
     supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id").in("game_id", gameIds),
-    supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", gameIds).eq("status", "posted").is("ended_at", null),
+    supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", h2hGames.map((g) => g.gameId)).eq("status", "posted").is("ended_at", null),
   ]);
   const schedulingByGame = new Map<string, SchedulingRow>((scheduling.data ?? []).map((r: any) => [String(r.game_id), r]));
   const streamsByGame = new Map<string, Array<{ team_id: string | null; message_url: string }>>();
@@ -73,7 +81,7 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
     streamsByGame.set(String(row.game_id), list);
   }
 
-  const userIds = [...new Set(h2hGames.flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
+  const userIds = [...new Set([...h2hGames, ...humanCpuGames].flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
   const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [] as any[] };
   const discordByUser = new Map<string, string>((accounts.data ?? []).map((a: any) => [String(a.user_id), String(a.discord_id)]));
 
@@ -94,10 +102,31 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
     return `${header}\n> ${statusText}${streamLine}`;
   });
 
+  const cpuLines = humanCpuGames.map((g) => {
+    const s = schedulingByGame.get(g.gameId);
+    const isHome = Boolean(g.homeUserId);
+    const coachTeamName = isHome ? g.homeTeamName : g.awayTeamName;
+    const coachUserId = isHome ? g.homeUserId : g.awayUserId;
+    const cpuTeamName = isHome ? g.awayTeamName : g.homeTeamName;
+    const header = `**${coachTeamName}** ${mentionOrFallback(discordByUser.get(coachUserId))} vs **${cpuTeamName}** (CPU)`;
+    const statusText = s?.fw_flagged
+      ? "Requesting Force Win"
+      : g.homeScore != null && g.awayScore != null
+        ? `Final: ${g.awayScore} — ${g.homeScore}`
+        : "Not yet reported";
+    return `${header}\n> ${statusText}`;
+  });
+
   const seasonNumber = week.seasonNumber ?? 1;
   const title = `Season ${seasonNumber}, Week ${week.currentWeek} Matchups`;
   const description = lines.join("\n\n");
-  const payload = { embeds: [{ title, color: 0xd9a521, description: description.slice(0, 4096) }] };
+  const embeds: Array<{ title: string; color: number; description: string }> = [];
+  if (lines.length) embeds.push({ title, color: 0xd9a521, description: description.slice(0, 4096) });
+  if (cpuLines.length) embeds.push({ title: lines.length ? "Human vs CPU" : title, color: 0x6a5120, description: cpuLines.join("\n\n").slice(0, 4096) });
+  const payload = {
+    embeds,
+    components: [{ type: 1, components: [{ type: 2, style: 1, custom_id: READY_TO_ADVANCE_BUTTON_ID, label: "Ready to Advance", emoji: { name: "✅" } }] }],
+  };
 
   const state = await supabase.from("rec_matchups_channel_posts").select("week_number,channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
 
