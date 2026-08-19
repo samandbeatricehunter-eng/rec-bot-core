@@ -176,10 +176,17 @@ export function AttributePurchaseBuilder({
               const individualCap = individualCapFor(code);
               const used = usedFor(code);
               const showIndividualUsage = individualCap > 0;
+              const current = currentValueFor(code);
+              const projected = current != null ? Math.min(MADDEN_ATTRIBUTE_MAX, current + pts) : null;
               return (
                 <div key={code} className={`attr-builder-row${isCore(code) ? " core" : ""}`}>
                   <div className="attr-builder-name"><strong>{code}</strong><span>{def?.name ?? code}</span></div>
                   <span className="attr-builder-tag">{isCore(code) ? "Core" : "Non-core"} · {formatCoins(unitPrice(code))}/pt</span>
+                  {current != null && (
+                    <span className="attr-builder-value">
+                      {pts > 0 ? <>{current} <b>→</b> {projected}</> : current}
+                    </span>
+                  )}
                   <div className="attr-builder-counter">
                     <button type="button" disabled={pts === 0} onClick={() => decrement(code)}>−</button>
                     <span>{pts}</span>
