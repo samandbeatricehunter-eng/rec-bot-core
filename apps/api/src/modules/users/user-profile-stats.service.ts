@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase.js";
+import { getTeamByAbbreviation } from "@rec/shared";
 
 export type ProfileBoxScoreStats = {
   gamesLogged: number;
@@ -475,6 +476,7 @@ export function formatTeamDisplayName(team: {
  */
 export function resolveTeamSchool(team: {
   name?: string | null;
+  abbreviation?: string | null;
   display_city?: string | null;
   display_nick?: string | null;
   is_relocated?: boolean | null;
@@ -487,6 +489,16 @@ export function resolveTeamSchool(team: {
   const nick = team.display_nick?.trim();
   if (name && nick && name.length > nick.length && name.toLowerCase().endsWith(nick.toLowerCase())) {
     return name.slice(0, name.length - nick.length).trim();
+  }
+  // Standard (non-relocated) Madden teams are seeded with just the mascot in `name`
+  // ("Falcons") and no display_city/display_nick at all — nothing above can derive a
+  // city for them. Fall back to the static NFL catalog by abbreviation ("ATL" ->
+  // "Atlanta Falcons") and strip the known mascot off the end.
+  if (!team.is_relocated && team.abbreviation && name) {
+    const catalogName = getTeamByAbbreviation(team.abbreviation.toUpperCase())?.name?.trim();
+    if (catalogName && catalogName.length > name.length && catalogName.toLowerCase().endsWith(name.toLowerCase())) {
+      return catalogName.slice(0, catalogName.length - name.length).trim();
+    }
   }
   return null;
 }
