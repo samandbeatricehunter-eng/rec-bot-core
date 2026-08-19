@@ -291,6 +291,16 @@ async function runGameOverPrompt() {
   }
 }
 
+// In-process circuit breaker for the availability nag, independent of rec_availability_nag_state
+// -- a prior incident had this posting every single minute for hours despite the DB-backed 4h
+// gate, because the state upsert was silently failing every tick (never persisted, so every
+// tick read as "nothing posted yet"). This in-memory floor means a single process can physically
+// never re-post for a league sooner than this interval, regardless of whether the DB write
+// behind it is working. Reset on every deploy/restart, which is fine -- worst case one extra
+// early post right after a restart, never a repeating one.
+const lastAvailabilityNagAttempt = new Map<string, number>();
+const AVAILABILITY_NAG_MIN_INTERVAL_MS = 4 * HOUR;
+
 // -- Missing-availability nag: one message per league listing every linked coach with no
 // timezone and/or no weekly windows set, gated to at most once per 4h AT THE LEAGUE LEVEL (not
 // per user) and replacing its own previous post each time it fires. The old design cooled down
@@ -317,6 +327,14 @@ async function runAvailabilityNag() {
       supabase.from("rec_user_availability_windows").select("user_id").in("user_id", userIds).eq("active", true),
       supabase.from("rec_availability_nag_state").select("channel_id,message_id,posted_at").eq("league_id", leagueId).maybeSingle(),
     ]);
+    // Fail closed, not open: if any of these reads errors, `state.data` would silently read as
+    // "nothing ever posted" and the 4h gate below would never actually gate anything -- this is
+    // exactly what turned into a message-every-minute incident once. Skip the league this tick
+    // rather than risk spamming on bad data.
+    if (profiles.error || windows.error || state.error) {
+      console.error("[ERROR] scheduling reminder poller: availability nag read failed for league (skipping this tick, non-fatal):", leagueId, profiles.error ?? windows.error ?? state.error);
+      continue;
+    }
     const hasTimezone = new Set((profiles.data ?? []).filter((p: any) => p.timezone).map((p: any) => String(p.user_id)));
     const hasWindows = new Set((windows.data ?? []).map((w: any) => String(w.user_id)));
     const missing = userIds.filter((id) => !hasTimezone.has(id) || !hasWindows.has(id));
@@ -331,7 +349,9 @@ async function runAvailabilityNag() {
     }
 
     const lastPostedMs = state.data?.posted_at ? new Date(state.data.posted_at).getTime() : 0;
-    if (Date.now() - lastPostedMs < 4 * HOUR) continue;
+    const lastAttemptMs = lastAvailabilityNagAttempt.get(leagueId) ?? 0;
+    if (Date.now() - lastPostedMs < 4 * HOUR || Date.now() - lastAttemptMs < AVAILABILITY_NAG_MIN_INTERVAL_MS) continue;
+    lastAvailabilityNagAttempt.set(leagueId, Date.now());
 
     const discordByUser = await discordIdsFor(missing);
     const mentionIds = missing.map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
@@ -346,7 +366,8 @@ async function runAvailabilityNag() {
       allowed_mentions: { users: mentionIds },
     }).catch((error) => { console.error("[ERROR] scheduling reminder poller: failed to post availability nag (non-fatal):", error); return null; });
     if (posted?.id) {
-      await supabase.from("rec_availability_nag_state").upsert({ league_id: leagueId, channel_id: channelId, message_id: posted.id, posted_at: new Date().toISOString() });
+      const upserted = await supabase.from("rec_availability_nag_state").upsert({ league_id: leagueId, channel_id: channelId, message_id: posted.id, posted_at: new Date().toISOString() });
+      if (upserted.error) console.error("[ERROR] scheduling reminder poller: failed to record availability nag state -- next tick may repost early (non-fatal):", upserted.error);
     }
   }
 }
