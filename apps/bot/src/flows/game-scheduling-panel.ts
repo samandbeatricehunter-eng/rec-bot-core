@@ -89,7 +89,7 @@ export async function handleAdjustAvailability(interaction: ButtonInteraction) {
       ? `Best shared window: **${fmtUtc(suggestions.bestWindow.kickoffUtc)}** – ${fmtUtc(suggestions.bestWindow.windowEndUtc)}`
       : "No shared availability found yet before the deadline.";
     await interaction.editReply({
-      content: `${best}\n\nUse \`/setavailability\` and \`/settimezone\` to update your own availability (or the Availability button on the site).`,
+      content: `${best}\n\nUse the Set Availability / Set Timezone buttons on the League Availability panel to update your own availability (or the Availability button on the site).`,
     });
   } catch (error) {
     await replyErr(interaction, error);

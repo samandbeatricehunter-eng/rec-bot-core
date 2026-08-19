@@ -6,7 +6,7 @@ import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
 import { formatInstantInZone } from "../../lib/timezone.js";
@@ -85,8 +85,17 @@ export async function getSchedulingSuggestions(gameId: string) {
   const best = scored[0] ?? null;
   const bestKickoffOptions = best ? suggestedKickoffsWithinWindow(shared.find((w) => w.startUtc === best.kickoffUtc) ?? shared[0]) : [];
 
+  // This is a read path (called on every site page load and panel refresh) with a side effect
+  // that used to fire unconditionally -- it clobbered "proposed"/"confirmed" rows the instant
+  // someone merely viewed the matchup with no shared availability computed yet, silently erasing
+  // pending offers and confirmed kickoffs. Only downgrade from states that don't already
+  // represent a real decision in flight.
   if (!shared.length) {
-    await supabase.from("rec_game_scheduling").update({ status: "no_shared_availability", attention_required: true, updated_at: new Date().toISOString() }).eq("game_id", gameId);
+    const current = await supabase.from("rec_game_scheduling").select("status").eq("game_id", gameId).maybeSingle();
+    const downgradable = !current.data || current.data.status === "not_scheduled" || current.data.status === "no_shared_availability";
+    if (downgradable) {
+      await supabase.from("rec_game_scheduling").update({ status: "no_shared_availability", attention_required: true, updated_at: new Date().toISOString() }).eq("game_id", gameId);
+    }
   }
 
   return {
@@ -118,11 +127,12 @@ export async function proposeTime(input: { gameId: string; discordId: string; pr
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: now }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_created", payload: { proposedForUtc: input.proposedForUtc } });
-  await notifyOpponent(input.gameId, game, userId, (tz) => `proposed **${formatInstantInZone(input.proposedForUtc, tz)}**`, insert.data.id);
+  await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} proposed to play at **${formatInstantInZone(input.proposedForUtc, ctx.tz)}** — waiting on response from ${ctx.opponentMention}`, insert.data.id);
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return insert.data;
 }
 
-export async function respondToProposal(input: { gameId: string; discordId: string; proposalId: string; action: "accept" | "counter" | "withdraw"; counterForUtc?: string }) {
+export async function respondToProposal(input: { gameId: string; discordId: string; proposalId: string; action: "accept" | "counter" | "withdraw" | "reject"; counterForUtc?: string }) {
   const game = await loadGame(input.gameId);
   const userId = await userIdFromDiscordId(input.discordId);
   if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can respond.");
@@ -137,10 +147,21 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
     await supabase.from("rec_game_scheduling").update({ status: "not_scheduled", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_withdrawn" });
+    await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
     return { status: "withdrawn" };
   }
 
-  if (proposal.data.proposed_by_user_id === userId) throw new ApiError(403, "You can't accept or counter your own proposal.");
+  if (proposal.data.proposed_by_user_id === userId) throw new ApiError(403, "You can't respond to your own proposal.");
+
+  if (input.action === "reject") {
+    await supabase.from("rec_game_time_proposals").update({ status: "rejected", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
+    await supabase.from("rec_game_scheduling").update({ status: "not_scheduled", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
+    await markResponded(input.gameId, userId);
+    await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_rejected", payload: { proposedFor: proposal.data.proposed_for } });
+    await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} declined the proposed **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}** — propose a new time. ${ctx.opponentMention}`);
+    await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+    return { status: "rejected" };
+  }
 
   if (input.action === "accept") {
     await supabase.from("rec_game_time_proposals").update({ status: "accepted", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
@@ -150,8 +171,9 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     }).eq("game_id", input.gameId);
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
-    await notifyOpponent(input.gameId, game, userId, (tz) => `accepted **${formatInstantInZone(proposal.data.proposed_for, tz)}** — game confirmed.`);
+    await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.opponentMention} — your proposed time was accepted by ${ctx.actingMention}: **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}**. Game confirmed!`);
     await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
+    await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };
   }
 
@@ -165,7 +187,8 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_countered", payload: { proposedForUtc: input.counterForUtc } });
-  await notifyOpponent(input.gameId, game, userId, (tz) => `countered with **${formatInstantInZone(input.counterForUtc!, tz)}**`, counter.data.id);
+  await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} countered with **${formatInstantInZone(input.counterForUtc!, ctx.tz)}** — waiting on response from ${ctx.opponentMention}`, counter.data.id);
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return counter.data;
 }
 
@@ -178,7 +201,8 @@ export async function requestReschedule(input: { gameId: string; discordId: stri
     scheduled_for: null, confirmed_at: null, updated_at: new Date().toISOString(),
   }).eq("game_id", input.gameId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "reschedule_requested" });
-  await notifyOpponent(input.gameId, game, userId, "requested to reschedule the confirmed time.");
+  await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} requested to reschedule the confirmed time. ${ctx.opponentMention}`);
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { status: "reschedule_requested" };
 }
 
@@ -199,6 +223,7 @@ export async function markStreamStarted(gameId: string) {
   if (updated.error) throw new ApiError(500, "Failed to mark the game started.", updated.error);
   await logSchedulingEvent({ gameId, eventType: "stream_started" });
   await postOrUpdateGameAnnouncement(gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to update game announcement with stream link (non-fatal):", error));
+  await updateSchedulingPanel(gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return updated.data;
 }
 
@@ -245,6 +270,7 @@ export async function requestForceWin(input: { gameId: string; discordId: string
       allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
     }).catch(() => undefined);
   }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { flagged: true };
 }
 
@@ -259,39 +285,80 @@ async function resolveDisplayTimezone(opponentId: string | null, actingUserId: s
   return (opponentProfile as any).data?.timezone ?? (actingProfile as any).data?.timezone ?? "America/Chicago";
 }
 
-async function notifyOpponent(gameId: string, game: Game, actingUserId: string, text: string | ((tz: string) => string), proposalId?: string) {
+// Direct, personal notification (site bell + push + Discord DM) to the coach who needs to
+// know/act -- separate from the shared game-channel post, which the other coach also sees but
+// won't necessarily check promptly. Best-effort: a failure here never blocks the scheduling
+// action that triggered it.
+async function notifyCoachDirectly(input: { userId: string; gameId: string; leagueId: string; title: string; message: string }) {
+  const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.userId).maybeSingle();
+  const discordId = account.data?.discord_id ? String(account.data.discord_id) : null;
+  const plainMessage = input.message.replace(/<@!?(\d+)>/g, "").replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  const href = `/matchups/${input.gameId}`;
+  const { createSiteNotification } = await import("../site-notifications/site-notifications.service.js");
+  const { sendPushToUsers } = await import("../push/push.service.js");
+  await Promise.all([
+    createSiteNotification({ userId: input.userId, leagueId: input.leagueId, kind: "scheduling", title: input.title, body: plainMessage, href })
+      .catch((error) => console.error("[ERROR] notifyCoachDirectly: failed to create site notification (non-fatal):", error)),
+    sendPushToUsers([input.userId], { title: input.title, body: plainMessage, url: href })
+      .catch((error) => console.error("[ERROR] notifyCoachDirectly: failed to send push notification (non-fatal):", error)),
+    discordId
+      ? sendDiscordDirectMessage(discordId, plainMessage).catch((error) => console.error("[ERROR] notifyCoachDirectly: failed to send Discord DM (non-fatal):", error))
+      : Promise.resolve(),
+  ]);
+}
+
+type MentionCtx = { tz: string; actingMention: string; opponentMention: string };
+
+// Posts one shared message in the game channel tagging BOTH coaches (previously this only
+// tagged the recipient, leaving the proposer's own action unattributed in the ping), plus a
+// direct site notification/push/DM to whichever coach needs to know or act next.
+async function notifyOpponent(gameId: string, game: Game, actingUserId: string, buildText: (ctx: MentionCtx) => string, proposalId?: string) {
   const channel = await getGameChannelByGameId(gameId);
   if (!channel) { console.error(`[ERROR] notifyOpponent: no tracked game channel for game ${gameId} -- opponent not tagged.`); return; }
 
   const opponentId = actingUserId === game.home_user_id ? game.away_user_id : game.home_user_id;
   const displayTz = await resolveDisplayTimezone(opponentId, actingUserId);
-  const resolvedText = typeof text === "function" ? text(displayTz) : text;
 
-  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${resolvedText}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
-  if (!channel.discord_channel_id) { console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`); return; }
-
-  const opponentAccount = opponentId
-    ? await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle()
-    : { data: null };
+  const [actingAccount, opponentAccount] = await Promise.all([
+    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", actingUserId).maybeSingle(),
+    opponentId ? supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const actingDiscordId = actingAccount.data?.discord_id ? String(actingAccount.data.discord_id) : null;
   const opponentDiscordId = opponentAccount.data?.discord_id ? String(opponentAccount.data.discord_id) : null;
   if (!opponentDiscordId) console.error(`[WARN] notifyOpponent: opponent ${opponentId} has no linked Discord account -- posting without a tag.`);
-  const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
 
-  const posted = await postDiscordChannelMessage(channel.discord_channel_id, {
-    content: `${mention}${resolvedText}`,
-    components: proposalId ? [{
-      type: 1,
-      components: [
-        // Discord exposes components to everyone who can see a message. Include the invited
-        // coach's snowflake so the bot can reject clicks by anybody else while staying under
-        // Discord's 100-character custom_id limit.
-        { type: 2, style: 3, custom_id: `r:s:a:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Accept" },
-        { type: 2, style: 2, custom_id: `r:s:c:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Counter" },
-      ],
-    }] : undefined,
-    allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
-  }).catch((error) => { console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage threw for channel ${channel.discord_channel_id}:`, error); return null; });
-  if (!posted) console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage returned null for channel ${channel.discord_channel_id} (see prior [WARN] log from discord-guild.ts for Discord's rejection reason).`);
+  const actingMention = actingDiscordId ? `<@${actingDiscordId}>` : "A coach";
+  const opponentMention = opponentDiscordId ? `<@${opponentDiscordId}>` : "the other coach";
+  const resolvedText = buildText({ tz: displayTz, actingMention, opponentMention });
+
+  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${resolvedText}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
+
+  if (channel.discord_channel_id) {
+    const mentionIds = [actingDiscordId, opponentDiscordId].filter((id): id is string => Boolean(id));
+    const posted = await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: resolvedText,
+      components: proposalId ? [{
+        type: 1,
+        components: [
+          // Discord exposes components to everyone who can see a message. Include the invited
+          // coach's snowflake so the bot can reject clicks by anybody else while staying under
+          // Discord's 100-character custom_id limit.
+          { type: 2, style: 3, custom_id: `r:s:a:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Accept" },
+          { type: 2, style: 2, custom_id: `r:s:c:${gameId}:${proposalId}:${opponentDiscordId}`, label: "Counter" },
+        ],
+      }] : undefined,
+      allowed_mentions: mentionIds.length ? { users: mentionIds } : { parse: [] },
+    }).catch((error) => { console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage threw for channel ${channel.discord_channel_id}:`, error); return null; });
+    if (!posted) console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage returned null for channel ${channel.discord_channel_id} (see prior [WARN] log from discord-guild.ts for Discord's rejection reason).`);
+  } else {
+    console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`);
+  }
+
+  if (opponentId) {
+    const title = proposalId ? "Scheduling: a time needs your response" : "Scheduling update";
+    await notifyCoachDirectly({ userId: opponentId, gameId, leagueId: game.league_id, title, message: resolvedText })
+      .catch((error) => console.error("[ERROR] notifyOpponent: failed to send direct notification (non-fatal):", error));
+  }
 }
 
 function formatIsoShort(iso: string): string {
@@ -330,6 +397,7 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
       allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
     }).catch(() => undefined);
   }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { flagged: true, opponentId, opponentDiscordId };
 }
 
@@ -382,6 +450,7 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
   if (channel?.discord_channel_id) {
     await postDiscordChannelMessage(channel.discord_channel_id, { content: channelMessage }).catch(() => undefined);
   }
+  await updateSchedulingPanel(gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { reset: true };
 }
 
@@ -430,6 +499,22 @@ async function schedulingPanelDescription(gameId: string): Promise<string> {
       const unix = Math.floor(new Date(scheduling.data.scheduled_for).getTime() / 1000);
       return `✅ Confirmed — <t:${unix}:F> (<t:${unix}:R>)`;
     }
+  }
+  // A pending offer must show as its own state -- otherwise this fell through to the generic
+  // "Not Scheduled" copy below even while a coach was actively waiting on a response, which read
+  // as if nothing had happened yet.
+  if (status === "time_proposed") {
+    const proposal = await supabase.from("rec_game_time_proposals").select("proposed_for").eq("game_id", gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (proposal.data?.proposed_for) {
+      const unix = Math.floor(new Date(proposal.data.proposed_for).getTime() / 1000);
+      return `🟠 Time Proposed — <t:${unix}:F> (<t:${unix}:R>). Waiting on a response — use the buttons below to Accept or Counter.`;
+    }
+  }
+  if (status === "no_shared_availability") {
+    return "🔴 No Shared Availability found before the deadline — adjust your availability or use Can't Make Game for commissioner help.";
+  }
+  if (status === "needs_commissioner_help") {
+    return "🆘 Needs Commissioner Help — a request has been filed and a commissioner has been notified.";
   }
   try {
     const suggestions = await getSchedulingSuggestions(gameId);

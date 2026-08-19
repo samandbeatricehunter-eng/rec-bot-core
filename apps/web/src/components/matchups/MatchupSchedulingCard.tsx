@@ -4,6 +4,8 @@ import { Button } from "../ui/Button.js";
 import { ErrorState } from "../ui/ErrorState.js";
 import { AvailabilityModal } from "../hub/AvailabilityModal.js";
 import { StatusChip } from "../design-system/StatusChip.js";
+import { ProposeTimeModal } from "./ProposeTimeModal.js";
+import { ReviewOffersModal } from "./ReviewOffersModal.js";
 
 type Snapshot = { status: string; scheduledFor: string | null; fwFlagged: boolean; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string; proposedByMe: boolean } | null };
 type Suggestions = {
@@ -28,6 +30,9 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [counterOpen, setCounterOpen] = useState(false);
 
   function load() {
     recApi.getSchedulingMatchupStatus({ guildId, gameId }).then(setSnapshot).catch((err) => setError(err instanceof Error ? err.message : "Failed to load scheduling status."));
@@ -51,9 +56,10 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
 
   if (!snapshot) return null;
   const statusLabel = STATUS_LABELS[snapshot.status] ?? snapshot.status;
+  const awaitingMyResponse = Boolean(snapshot.pendingProposal && !snapshot.pendingProposal.proposedByMe);
 
   return (
-    <section className="matchup-scheduling-card">
+    <section className={`matchup-scheduling-card${awaitingMyResponse ? " matchup-scheduling-card--attention" : ""}`}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h3 style={{ margin: 0 }}>Scheduling</h3>
         <StatusChip status={snapshot.status === "confirmed" ? "approved" : snapshot.status === "not_scheduled" ? "pending" : "info"} label={statusLabel} />
@@ -74,7 +80,10 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
 
       {snapshot.pendingProposal && snapshot.status !== "confirmed" && (
         <>
-          <p>Proposed: <strong>{fmt(snapshot.pendingProposal.proposedFor)}</strong></p>
+          <p className={snapshot.pendingProposal.proposedByMe ? undefined : "matchup-scheduling-attention"}>
+            {snapshot.pendingProposal.proposedByMe ? "Proposed: " : "🔔 Offer received — "}
+            <strong>{fmt(snapshot.pendingProposal.proposedFor)}</strong>
+          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {snapshot.pendingProposal.proposedByMe ? (
               <>
@@ -82,13 +91,9 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
                 <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" }), "Proposal deleted.")}>Delete</Button>
               </>
             ) : (
-              <>
-                <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "accept" }), "Confirmed.")}>Accept</Button>
-                {suggestions?.bestWindow && (
-                  <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "counter", counterForUtc: suggestions.bestWindow!.kickoffUtc }), "Countered.")}>Counter with best overlap</Button>
-                )}
-              </>
+              <Button variant="primary" size="compact" disabled={busy} onClick={() => setReviewOpen(true)}>Review Offers</Button>
             )}
+            <Button variant="ghost" size="compact" onClick={() => setAvailabilityOpen(true)}>Adjust Availability</Button>
           </div>
         </>
       )}
@@ -101,8 +106,9 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
             <p className="hub-empty">No shared availability found yet before the deadline.</p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button variant="primary" size="compact" disabled={busy} onClick={() => setProposeOpen(true)}>Propose Time</Button>
             {suggestions?.bestWindow && (
-              <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.proposeSchedulingTime({ guildId, gameId, proposedForUtc: suggestions.bestWindow!.kickoffUtc }), "Time proposed.")}>Propose This Time</Button>
+              <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.proposeSchedulingTime({ guildId, gameId, proposedForUtc: suggestions.bestWindow!.kickoffUtc }), "Time proposed.")}>Propose Best Overlap</Button>
             )}
             <Button variant="ghost" size="compact" onClick={() => setAvailabilityOpen(true)}>Adjust Availability</Button>
             <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markSchedulingCantMakeGame({ guildId, gameId }), "Opponent notified.")}>Can't Make Game</Button>
@@ -117,6 +123,39 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
       )}
 
       {availabilityOpen && <AvailabilityModal guildId={guildId} onClose={() => { setAvailabilityOpen(false); load(); }} />}
+
+      {proposeOpen && (
+        <ProposeTimeModal
+          guildId={guildId}
+          gameId={gameId}
+          title="Propose Time"
+          onClose={() => setProposeOpen(false)}
+          onDone={(message) => { setProposeOpen(false); setNotice(message); load(); }}
+        />
+      )}
+
+      {reviewOpen && snapshot.pendingProposal && (
+        <ReviewOffersModal
+          proposedFor={snapshot.pendingProposal.proposedFor}
+          busy={busy}
+          error={error}
+          onClose={() => setReviewOpen(false)}
+          onAccept={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "accept" }), "Confirmed.").then(() => setReviewOpen(false))}
+          onReject={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "reject" }), "Offer rejected.").then(() => setReviewOpen(false))}
+          onCounter={() => { setReviewOpen(false); setCounterOpen(true); }}
+        />
+      )}
+
+      {counterOpen && snapshot.pendingProposal && (
+        <ProposeTimeModal
+          guildId={guildId}
+          gameId={gameId}
+          proposalId={snapshot.pendingProposal.id}
+          title="Counter Offer"
+          onClose={() => setCounterOpen(false)}
+          onDone={(message) => { setCounterOpen(false); setNotice(message); load(); }}
+        />
+      )}
     </section>
   );
 }

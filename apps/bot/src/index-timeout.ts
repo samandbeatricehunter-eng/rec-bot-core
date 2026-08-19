@@ -146,8 +146,8 @@ import { handleLinkLeagueSlash } from "./flows/linkleague-slash.js";
 import { handleStandingsSlash } from "./flows/standings-slash.js";
 import { handleWalletSlash } from "./flows/wallet-slash.js";
 import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
-import { handleSetTimezoneSlash, handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
-import { handleSetAvailabilitySlash, handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
+import { handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
+import { handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
 import { handleRulesSlash, handleRulesPage, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import {
   AVAILABILITY_BOARD_CUSTOM_IDS,
@@ -661,17 +661,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isChatInputCommand() && interaction.commandName === "settimezone") {
-      await handleSetTimezoneSlash(interaction);
-      return;
-    }
+    // /settimezone and /setavailability were removed as standalone slash commands -- the
+    // League Availability panel's Set Timezone/Set Availability buttons (and the site) cover
+    // the same flows now. handleSetTimezoneSlash/handleSetAvailabilitySlash and their
+    // select/modal follow-ups stay wired since availability-board-panel.ts's button handlers
+    // still call straight into them.
     if (interaction.isStringSelectMenu() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.select) return handleSetTimezoneSelect(interaction);
     if (interaction.isModalSubmit() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.otherModal) return handleSetTimezoneOtherModal(interaction);
 
-    if (interaction.isChatInputCommand() && interaction.commandName === "setavailability") {
-      await handleSetAvailabilitySlash(interaction);
-      return;
-    }
     if (interaction.isButton() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.dayPrefix)) return handleSetAvailabilityDay(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.modalPrefix)) return handleSetAvailabilityModal(interaction);
 

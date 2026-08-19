@@ -8,7 +8,7 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { postSchedulingPanel, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
 
-const DASHING_NOTICE = "⚠️ **DASHING (QUITTING IN 1ST HALF) IS NOT TOLERATED. THIS IS YOUR WARNING. QUIT EARLY AND YOU WILL BE BOOTED/BANNED AND POSTED IN ALL THE MADDEN LEAGUE SERVERS AS A DASHER. WAIT UNTIL THE SECOND HALF TO CONCEDE UNLESS YOU HAVE AN ACTUAL EMERGENCY.**";
+const DASHING_NOTICE = "⚠️ **DASHING (QUITTING IN 1ST HALF) IS NOT ALLOWED.**\nUsers can **CONCEDE** the game in the **2ND HALF**, but quitting in the first will result in getting booted, banned, and your username shared on all major Madden gaming servers.";
 
 export async function getGameChannelByDiscordId(discordChannelId: string) {
   const { data, error } = await supabase

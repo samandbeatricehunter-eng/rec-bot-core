@@ -37,7 +37,7 @@ export async function handleSetAvailabilitySlash(interaction: ChatInputCommandIn
   const byWeekday = new Map<number, Array<{ startMinute: number; endMinute: number }>>();
   for (const w of current?.windows ?? []) byWeekday.set(w.weekday, [...(byWeekday.get(w.weekday) ?? []), { startMinute: w.startMinute, endMinute: w.endMinute }]);
   const summary = WEEKDAY_LABELS.map((d) => `**${d.label}**: ${formatWindows(byWeekday.get(d.weekday) ?? [])}`).join("\n");
-  const timezoneNote = current?.profile?.timezone ? `Timezone: **${current.profile.timezone}**` : "⚠️ You haven't set a timezone yet — run `/settimezone` first.";
+  const timezoneNote = current?.profile?.timezone ? `Timezone: **${current.profile.timezone}**` : "⚠️ You haven't set a timezone yet — use the Set Timezone button on the League Availability panel first.";
 
   await interaction.editReply({
     content: `${timezoneNote}\n\nTap a day to set when you're normally available (e.g. "6pm-9pm, 10pm-12am" or "off"):\n\n${summary}`,
@@ -75,7 +75,7 @@ export async function handleSetAvailabilityModal(interaction: ModalSubmitInterac
   const label = WEEKDAY_LABELS.find((d) => d.weekday === weekday)?.label ?? "That day";
   try {
     await recApi.setSchedulingWindows({ guildId: interaction.guildId, discordId: interaction.user.id, leagueScoped: false, weekday, windows: parsed.windows });
-    await interaction.editReply({ content: `${label}: ${formatWindows(parsed.windows)}. Run \`/setavailability\` again to set another day.` });
+    await interaction.editReply({ content: `${label}: ${formatWindows(parsed.windows)}. Use the Set Availability button again to set another day.` });
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Failed to save your availability." });
   }

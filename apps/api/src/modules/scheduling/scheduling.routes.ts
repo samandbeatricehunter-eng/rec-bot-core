@@ -196,7 +196,7 @@ export async function schedulingRoutes(app: FastifyInstance) {
     try {
       const body = z.object({
         guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), proposalId: z.string().uuid(),
-        action: z.enum(["accept", "counter", "withdraw"]),
+        action: z.enum(["accept", "counter", "withdraw", "reject"]),
         counterForUtc: z.string().optional(), localDate: z.string().optional(), localTime: z.string().optional(), timezone: z.string().optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
