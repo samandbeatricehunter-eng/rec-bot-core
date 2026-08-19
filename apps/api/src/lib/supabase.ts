@@ -129,9 +129,28 @@ function errorResult(error: unknown): QueryResult {
   return { data: null, error };
 }
 
+// node-postgres attaches the real Postgres error code (and detail/hint/constraint/table/column)
+// as extra own properties on the thrown Error instance -- {message, name, stack} alone drops
+// every one of them. A LOT of call sites across the codebase branch on `error.code` (23505
+// duplicate-key, 42P01 missing-relation, etc.), matching the shape real supabase-js/PostgREST
+// errors carry ({message, code, details, hint}) -- with those fields silently stripped, every
+// one of those checks always fell through to the unhandled-error branch instead of the specific
+// case it was written for (e.g. a wager's own commissioner-inbox row already existing, meant to
+// be silently ignored, instead threw a 500 on every single settle attempt).
 function serializeError(error: unknown): unknown {
   if (error instanceof Error) {
-    return { message: error.message, name: error.name, stack: error.stack };
+    const pgError = error as Error & { code?: string; detail?: string; hint?: string; constraint?: string; table?: string; column?: string };
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      code: pgError.code,
+      details: pgError.detail,
+      hint: pgError.hint,
+      constraint: pgError.constraint,
+      table: pgError.table,
+      column: pgError.column,
+    };
   }
   return error;
 }
