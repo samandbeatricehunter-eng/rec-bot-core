@@ -366,7 +366,18 @@ async function runAvailabilityNag() {
       allowed_mentions: { users: mentionIds },
     }).catch((error) => { console.error("[ERROR] scheduling reminder poller: failed to post availability nag (non-fatal):", error); return null; });
     if (posted?.id) {
-      const upserted = await supabase.from("rec_availability_nag_state").upsert({ league_id: leagueId, channel_id: channelId, message_id: posted.id, posted_at: new Date().toISOString() });
+      // onConflict must be explicit here -- unlike real supabase-js/PostgREST, this project's
+      // Postgres-shim client does NOT default a bare .upsert() to the table's primary key. With
+      // no onConflict it emits a plain `ON CONFLICT DO NOTHING` (no target), which only ever
+      // creates a row the very first time; every later post for the same league silently no-ops
+      // instead of updating posted_at/message_id -- so this row would freeze after its first
+      // write and every tick after that would (correctly, given what it read) think the last
+      // real post was ages ago and never actually persisted state, both root causes of the
+      // repeated/duplicate availability-nag postings this was built to stop.
+      const upserted = await supabase.from("rec_availability_nag_state").upsert(
+        { league_id: leagueId, channel_id: channelId, message_id: posted.id, posted_at: new Date().toISOString() },
+        { onConflict: "league_id" },
+      );
       if (upserted.error) console.error("[ERROR] scheduling reminder poller: failed to record availability nag state -- next tick may repost early (non-fatal):", upserted.error);
     }
   }
