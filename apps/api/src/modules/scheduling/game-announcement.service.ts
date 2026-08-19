@@ -67,8 +67,20 @@ export async function postOrUpdateGameAnnouncement(gameId: string, opts: { annou
   const payload = await buildAnnouncementPayload(gameId);
   let staleMessage = false;
 
+  // Live-game announcements should read as "the game between X and Y is LIVE", not a kickoff
+  // countdown -- the embed title already carries the matchup ("Away @ Home"), so the ping just
+  // needs to point everyone at it.
+  const announceIsLive = scheduling.data.status === "live" || (scheduling.data.game_started_at && scheduling.data.status !== "completed");
+  const liveContent = announceIsLive ? "@everyone — this game is LIVE now:" : "@everyone";
+
   if (scheduling.data.announcement_message_id) {
-    const edited = await editDiscordMessage(channelId, scheduling.data.announcement_message_id, payload).catch(() => false);
+    // Previously only `payload` (embeds) was sent on edit -- Discord's PATCH treats an omitted
+    // field as "leave it unchanged", so the "@everyone — this game is LIVE now:" text from the
+    // original kickoff post could never be cleared by a later edit (a final score from
+    // markGameOver, a routine stream-link refresh, anything). The embed itself correctly
+    // flipped to the final score, but the message content above it stayed stuck on LIVE
+    // forever. Include content on every edit, not just the first post, so it tracks real status.
+    const edited = await editDiscordMessage(channelId, scheduling.data.announcement_message_id, { ...payload, content: liveContent, allowed_mentions: { parse: ["everyone"] } }).catch(() => false);
     if (edited) return;
     // The tracked message is gone (deleted, channel changed, etc.) -- every future call would
     // otherwise keep trying to edit the same dead id and silently no-op forever (e.g. a final
@@ -79,12 +91,9 @@ export async function postOrUpdateGameAnnouncement(gameId: string, opts: { annou
   }
   if (!opts.announceNow && !staleMessage) return; // Don't post a brand-new announcement on a routine update if none exists yet.
 
-  // Live-game announcements should read as "the game between X and Y is LIVE", not a kickoff
-  // countdown -- the embed title already carries the matchup ("Away @ Home"), so the ping just
-  // needs to point everyone at it. A repair repost (staleMessage) never re-pings @everyone --
-  // it's recovering an existing announcement, not a new event.
-  const announceIsLive = scheduling.data.status === "live" || (scheduling.data.game_started_at && scheduling.data.status !== "completed");
-  const content = staleMessage ? undefined : announceIsLive ? "@everyone — this game is LIVE now:" : "@everyone";
+  // A repair repost (staleMessage) never re-pings @everyone -- it's recovering an existing
+  // announcement, not a new event.
+  const content = staleMessage ? undefined : liveContent;
   const posted = await postDiscordChannelMessage(channelId, { ...(content ? { content, allowed_mentions: { parse: ["everyone"] } } : {}), ...payload });
   if (!posted?.id) return;
   await supabase.from("rec_game_scheduling").update({ announcement_channel_id: channelId, announcement_message_id: posted.id, updated_at: new Date().toISOString() }).eq("game_id", gameId);
