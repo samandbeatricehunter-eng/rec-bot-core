@@ -13,6 +13,7 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelAvailability: "rec:gamesched:panel:availability:",
   panelPropose: "rec:gamesched:panel:propose:",
   panelCantMake: "rec:gamesched:panel:cantmake:",
+  panelGameStarted: "rec:gamesched:panel:gamestarted:",
   panelReset: "rec:gamesched:panel:reset:",
   proposeSelect: "rec:gamesched:proposeselect:",
   // Kept short deliberately -- prefix + 2 UUIDs (73 chars) must stay under Discord's 100-char
@@ -62,6 +63,7 @@ export function buildSchedulingPanel(gameId: string) {
       new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelCantMake}${gameId}`).setLabel("Can't Make Game").setStyle(ButtonStyle.Danger),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted}${gameId}`).setLabel("Game Started").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelReset}${gameId}`).setLabel("Reset (Commissioner)").setStyle(ButtonStyle.Secondary),
     ),
   ];
@@ -277,6 +279,18 @@ export async function handleGameOverModal(interaction: ModalSubmitInteraction) {
     }
     await recApi.markGameOver({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, homeScore, awayScore });
     await interaction.editReply({ content: "Game marked over. The announcement has been updated." });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handlePanelGameStarted(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted, interaction.customId);
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await recApi.markGameStarted({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
+    await interaction.editReply({ content: "🔴 Game marked as started — announced to the league. The panel button now says Game Over for when you're done." });
   } catch (error) {
     await replyErr(interaction, error);
   }

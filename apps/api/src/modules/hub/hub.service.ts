@@ -3,7 +3,8 @@ import { env } from "../../config/env.js";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { markStreamStarted } from "../scheduling/matchup-scheduling.service.js";
+import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
+import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1745,7 +1746,10 @@ export async function shareHubMatchupStream(input: {
     .single();
   if (inserted.error) throw new ApiError(500, "We couldn't save that stream URL. Please try again.", inserted.error);
 
-  await markStreamStarted(input.gameId).catch((error) => console.error("[ERROR] Failed to mark game started from stream share (non-fatal):", error));
+  await markGameStarted({ gameId: input.gameId }).catch((error) => console.error("[ERROR] Failed to mark game started from stream share (non-fatal):", error));
+  // markGameStarted no-ops once the game is already live, so a second/third stream (the other
+  // coach's, or a re-share) would never otherwise get its link added to the announcement embed.
+  await postOrUpdateGameAnnouncement(input.gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
 
   await Promise.all([
     closeWageringForGame({ guildId: input.guildId, gameId: input.gameId }),

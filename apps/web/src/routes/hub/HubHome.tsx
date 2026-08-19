@@ -67,7 +67,7 @@ const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "
 const HERO_SCHEDULING_STATUS_LABELS: Record<string, string> = {
   not_scheduled: "Not Scheduled", waiting_on_opponent: "Waiting on Opponent", time_proposed: "Time Proposed",
   confirmed: "Confirmed", reschedule_requested: "Reschedule Requested", no_shared_availability: "No Shared Availability",
-  needs_commissioner_help: "Needs Commissioner Help", completed: "Completed",
+  needs_commissioner_help: "Needs Commissioner Help", live: "Live", completed: "Completed",
 };
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 

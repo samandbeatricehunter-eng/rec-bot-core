@@ -110,6 +110,8 @@ export const recApi = {
     recFetch<any>("/v1/scheduling/matchup/respond-to-proposal", { method: "POST", body: JSON.stringify(input) }),
   checkInScheduling: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<any>("/v1/scheduling/matchup/checkin", { method: "POST", body: JSON.stringify(input) }),
+  markGameStarted: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<any>("/v1/scheduling/matchup/game-started", { method: "POST", body: JSON.stringify(input) }),
   requestSchedulingForceWin: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
   markSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string }) =>

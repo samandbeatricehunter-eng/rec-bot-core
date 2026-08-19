@@ -3,7 +3,7 @@
 // minutes of slack so an occasional slow tick never skips a reminder, de-duped per (game/user,
 // type) via rec_scheduling_reminders_sent so a restart or a slow tick never double-sends either.
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { autoResetSchedulingAfterMissedKickoff } from "./matchup-scheduling.service.js";
@@ -247,16 +247,16 @@ async function runCheckinFollowUps() {
   }
 }
 
-// -- 45 minutes after a stream goes up for a confirmed game, ping both coaches with a
-// "Game is Over" button so they can close it out (optionally with a final score), which updates
-// the announcement and stops the stream from showing live on the site.
+// -- 45 minutes after a game goes live (marked started manually or by a stream going up), ping
+// both coaches with a "Game is Over" button so they can close it out (optionally with a final
+// score), which updates the announcement and stops any stream from showing live on the site.
 async function runGameOverPrompt() {
   const cutoff = new Date(Date.now() - 45 * MIN).toISOString();
   const laterCutoff = new Date(Date.now() - 50 * MIN).toISOString();
-  const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,stream_started_at")
-    .not("stream_started_at", "is", null).lte("stream_started_at", cutoff).gt("stream_started_at", laterCutoff).neq("status", "completed");
+  const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,game_started_at")
+    .not("game_started_at", "is", null).lte("game_started_at", cutoff).gt("game_started_at", laterCutoff).neq("status", "completed");
   if (error) { console.error("[ERROR] scheduling reminder poller: game-over prompt query failed (non-fatal):", error); return; }
-  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; stream_started_at: string }>;
+  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; game_started_at: string }>;
   if (!rows.length) return;
   const sent = await alreadySent(rows.map((r) => r.game_id), "game_over_prompt");
   const pending = rows.filter((r) => !sent.has(r.game_id));
@@ -281,45 +281,63 @@ async function runGameOverPrompt() {
   }
 }
 
-// -- Missing-availability nag: every linked coach with no timezone set gets pinged in their
-// league's scheduling channel every 4h until they set one (repeating, unlike every other
-// reminder type here, so this checks the LAST send time rather than existence).
+// -- Missing-availability nag: one message per league listing every linked coach with no
+// timezone and/or no weekly windows set, gated to at most once per 4h AT THE LEAGUE LEVEL (not
+// per user) and replacing its own previous post each time it fires. The old design cooled down
+// per user, so whenever different users' individual 4h windows happened to lapse minutes apart
+// (common right after several coaches join around the same time) the channel accumulated a
+// fresh near-duplicate message every few minutes. A timezone alone isn't "availability set"
+// either -- a coach who picked a timezone but never added a single recurring window still has
+// nothing for the overlap finder to work with.
 async function runAvailabilityNag() {
   const { data: leagues, error } = await supabase.from("rec_leagues").select("id");
   if (error) { console.error("[ERROR] scheduling reminder poller: availability nag league query failed (non-fatal):", error); return; }
   for (const league of leagues ?? []) {
-    const routes = await findServerRoutesForLeague(String((league as any).id)).catch(() => null);
+    const leagueId = String((league as any).id);
+    const routes = await findServerRoutesForLeague(leagueId).catch(() => null);
     const channelId = String((routes?.routes as any)?.scheduling_channel_id ?? "");
     if (!channelId) continue;
 
-    const assignments = await supabase.from("rec_team_assignments").select("user_id").eq("league_id", (league as any).id).eq("assignment_status", "active").is("ended_at", null);
+    const assignments = await supabase.from("rec_team_assignments").select("user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null);
     const userIds: string[] = [...new Set<string>((assignments.data ?? []).map((a: any) => String(a.user_id)))];
     if (!userIds.length) continue;
 
-    const profiles = await supabase.from("rec_user_availability_profiles").select("user_id,timezone").in("user_id", userIds);
+    const [profiles, windows, state] = await Promise.all([
+      supabase.from("rec_user_availability_profiles").select("user_id,timezone").in("user_id", userIds),
+      supabase.from("rec_user_availability_windows").select("user_id").in("user_id", userIds).eq("active", true),
+      supabase.from("rec_availability_nag_state").select("channel_id,message_id,posted_at").eq("league_id", leagueId).maybeSingle(),
+    ]);
     const hasTimezone = new Set((profiles.data ?? []).filter((p: any) => p.timezone).map((p: any) => String(p.user_id)));
-    const missing = userIds.filter((id) => !hasTimezone.has(id));
-    if (!missing.length) continue;
+    const hasWindows = new Set((windows.data ?? []).map((w: any) => String(w.user_id)));
+    const missing = userIds.filter((id) => !hasTimezone.has(id) || !hasWindows.has(id));
 
-    const lastSent = await supabase.from("rec_scheduling_reminders_sent").select("user_id,sent_at").eq("reminder_type", "availability_nag_4h").in("user_id", missing).order("sent_at", { ascending: false });
-    const lastSentByUser = new Map<string, string>();
-    for (const row of lastSent.data ?? []) if (!lastSentByUser.has(String((row as any).user_id))) lastSentByUser.set(String((row as any).user_id), (row as any).sent_at);
+    if (!missing.length) {
+      // Everyone's set now -- clean up any lingering nag instead of leaving it stale forever.
+      if (state.data?.message_id) {
+        await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
+        await supabase.from("rec_availability_nag_state").delete().eq("league_id", leagueId);
+      }
+      continue;
+    }
 
-    const due = missing.filter((id) => {
-      const last = lastSentByUser.get(id);
-      return !last || Date.now() - new Date(last).getTime() >= 4 * HOUR;
-    });
-    if (!due.length) continue;
+    const lastPostedMs = state.data?.posted_at ? new Date(state.data.posted_at).getTime() : 0;
+    if (Date.now() - lastPostedMs < 4 * HOUR) continue;
 
-    const discordByUser = await discordIdsFor(due);
-    const mentionIds = due.map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
+    const discordByUser = await discordIdsFor(missing);
+    const mentionIds = missing.map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
     if (!mentionIds.length) continue;
     const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
-    await postDiscordChannelMessage(channelId, {
+
+    if (state.data?.message_id) {
+      await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
+    }
+    const posted = await postDiscordChannelMessage(channelId, {
       content: `${mentions} — set your availability and timezone through here or the site so the scheduling system can find shared kickoff windows for your games.`,
       allowed_mentions: { users: mentionIds },
-    }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post availability nag (non-fatal):", error));
-    for (const userId of due) await supabase.from("rec_scheduling_reminders_sent").insert({ user_id: userId, reminder_type: "availability_nag_4h" });
+    }).catch((error) => { console.error("[ERROR] scheduling reminder poller: failed to post availability nag (non-fatal):", error); return null; });
+    if (posted?.id) {
+      await supabase.from("rec_availability_nag_state").upsert({ league_id: leagueId, channel_id: channelId, message_id: posted.id, posted_at: new Date().toISOString() });
+    }
   }
 }
 

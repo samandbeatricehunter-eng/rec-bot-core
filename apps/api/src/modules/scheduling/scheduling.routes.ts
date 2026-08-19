@@ -8,7 +8,7 @@ import {
   getRecurringWindows, listOverrides, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
 } from "./availability.service.js";
 import {
-  checkIn, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markResponded, proposeTime,
+  checkIn, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
   refreshSchedulingPanelsForUser, requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
@@ -218,6 +218,14 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       return reply.send(await checkIn({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/game-started", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await markGameStarted({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
     } catch (error) { return sendError(reply, error); }
   });
 

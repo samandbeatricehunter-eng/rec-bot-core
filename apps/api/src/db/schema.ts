@@ -1295,7 +1295,7 @@ export const recGameScheduling = pgTable("rec_game_scheduling", {
   proposedByUserId: uuid("proposed_by_user_id").references(() => recUsers.id),
   acceptedByUserId: uuid("accepted_by_user_id").references(() => recUsers.id),
   rescheduleRequestedAt: timestamp("reschedule_requested_at", { withTimezone: true, mode: "string" }),
-  streamStartedAt: timestamp("stream_started_at", { withTimezone: true, mode: "string" }),
+  gameStartedAt: timestamp("game_started_at", { withTimezone: true, mode: "string" }),
   fwFlagged: boolean("fw_flagged").notNull().default(false),
   fwFlaggedForUserId: uuid("fw_flagged_for_user_id").references(() => recUsers.id),
   fwFlaggedAt: timestamp("fw_flagged_at", { withTimezone: true, mode: "string" }),

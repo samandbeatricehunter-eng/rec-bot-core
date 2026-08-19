@@ -34,9 +34,12 @@ async function buildAnnouncementPayload(gameId: string) {
   const title = `${awayLabel} @ ${homeLabel}`;
 
   const lines: string[] = [`Week ${game.week_number ?? "?"}`];
+  const isLive = s?.status === "live" || (s?.game_started_at && s?.status !== "completed");
   if (game.home_score != null && game.away_score != null) {
     const winner = game.home_score > game.away_score ? homeLabel : game.away_score > game.home_score ? awayLabel : "Tie";
     lines.push(`**Final: ${awayLabel} ${game.away_score} — ${homeLabel} ${game.home_score}**`, winner === "Tie" ? "Game ended in a tie." : `${winner} wins.`);
+  } else if (isLive) {
+    lines.push("🔴 **LIVE NOW**");
   } else if (s?.scheduled_for) {
     const unix = Math.floor(new Date(s.scheduled_for).getTime() / 1000);
     lines.push(`Kickoff: <t:${unix}:F> (<t:${unix}:R>)`);
@@ -46,16 +49,16 @@ async function buildAnnouncementPayload(gameId: string) {
   const awayStream = game.away_team_id ? streamByTeam.get(String(game.away_team_id)) : null;
   const homeStream = game.home_team_id ? streamByTeam.get(String(game.home_team_id)) : null;
   const streamLines = [
-    awayStream ? `[Watch ${awayLabel} Stream](${awayStream})` : null,
-    homeStream ? `[Watch ${homeLabel} Stream](${homeStream})` : null,
+    awayStream ? `[${awayLabel} Stream](${awayStream})` : null,
+    homeStream ? `[${homeLabel} Stream](${homeStream})` : null,
   ].filter((v): v is string => Boolean(v));
   if (streamLines.length) lines.push("", ...streamLines);
 
-  return { embeds: [{ title, color: 0xd9a521, description: lines.join("\n") }] };
+  return { embeds: [{ title, color: isLive ? 0xdc3545 : 0xd9a521, description: lines.join("\n") }] };
 }
 
 export async function postOrUpdateGameAnnouncement(gameId: string, opts: { announceNow?: boolean } = {}) {
-  const scheduling = await supabase.from("rec_game_scheduling").select("league_id,announcement_channel_id,announcement_message_id").eq("game_id", gameId).maybeSingle();
+  const scheduling = await supabase.from("rec_game_scheduling").select("league_id,announcement_channel_id,announcement_message_id,status,game_started_at").eq("game_id", gameId).maybeSingle();
   if (scheduling.error || !scheduling.data) return;
   const context = await getCurrentLeagueContext((await getGuildIdForLeague(scheduling.data.league_id)) ?? "");
   const channelId = scheduling.data.announcement_channel_id ?? String((context?.routes as any)?.announcements_channel_id ?? "");
@@ -69,7 +72,12 @@ export async function postOrUpdateGameAnnouncement(gameId: string, opts: { annou
   }
   if (!opts.announceNow) return; // Don't post a brand-new announcement on a routine update if none exists yet.
 
-  const posted = await postDiscordChannelMessage(channelId, { content: "@everyone", allowed_mentions: { parse: ["everyone"] }, ...payload });
+  // Live-game announcements should read as "the game between X and Y is LIVE", not a kickoff
+  // countdown -- the embed title already carries the matchup ("Away @ Home"), so the ping just
+  // needs to point everyone at it.
+  const announceIsLive = scheduling.data.status === "live" || (scheduling.data.game_started_at && scheduling.data.status !== "completed");
+  const content = announceIsLive ? "@everyone — this game is LIVE now:" : "@everyone";
+  const posted = await postDiscordChannelMessage(channelId, { content, allowed_mentions: { parse: ["everyone"] }, ...payload });
   if (!posted?.id) return;
   await supabase.from("rec_game_scheduling").update({ announcement_channel_id: channelId, announcement_message_id: posted.id, updated_at: new Date().toISOString() }).eq("game_id", gameId);
   await logSchedulingEvent({ gameId, eventType: "announcement_posted" });
@@ -98,5 +106,9 @@ export async function markGameOver(input: { gameId: string; discordId: string; h
   await supabase.from("rec_stream_compliance_logs").update({ ended_at: new Date().toISOString() }).eq("game_id", input.gameId).is("ended_at", null);
   await logSchedulingEvent({ gameId: input.gameId, eventType: "game_marked_over", payload: { homeScore: input.homeScore ?? null, awayScore: input.awayScore ?? null } });
   await postOrUpdateGameAnnouncement(input.gameId, { announceNow: false });
+  // Dynamic import to avoid a static circular dependency (matchup-scheduling.service.ts imports
+  // postOrUpdateGameAnnouncement from this file).
+  const { updateSchedulingPanel } = await import("./matchup-scheduling.service.js");
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { ok: true as const };
 }

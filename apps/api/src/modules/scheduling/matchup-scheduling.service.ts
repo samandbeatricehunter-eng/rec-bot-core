@@ -14,7 +14,7 @@ import { formatInstantInZone } from "../../lib/timezone.js";
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
   | "not_scheduled" | "waiting_on_you" | "waiting_on_opponent" | "finding_a_time" | "time_proposed"
-  | "confirmed" | "reschedule_requested" | "no_shared_availability" | "needs_commissioner_help" | "completed";
+  | "confirmed" | "reschedule_requested" | "no_shared_availability" | "needs_commissioner_help" | "live" | "completed";
 
 type Game = { id: string; league_id: string; home_user_id: string | null; away_user_id: string | null; status: string };
 
@@ -216,14 +216,39 @@ export async function checkIn(input: { gameId: string; discordId: string }) {
   return insert.data;
 }
 
-export async function markStreamStarted(gameId: string) {
-  const row = await ensureScheduling(gameId);
-  if (row.stream_started_at) return row;
-  const updated = await supabase.from("rec_game_scheduling").update({ stream_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("game_id", gameId).select("*").single();
+// Flips a game live -- triggered automatically the first time either coach posts a stream
+// (discordId omitted, system call), or manually via the "Game Started" panel button (discordId
+// required, must be one of the two coaches). Idempotent: a second stream from the other coach,
+// or a stray click, is a no-op here (the caller still refreshes the announcement separately so
+// a later stream's link gets added either way -- see postOrUpdateGameAnnouncement call sites in
+// hub.service.ts's shareHubMatchupStream and streams.service.ts's recordStreamPost).
+//
+// The flip itself is a single conditional UPDATE (.is("game_started_at", null)) rather than a
+// read-then-write -- both coaches clicking "Game Started" at once, or a click racing a stream
+// auto-trigger, would otherwise both read game_started_at as null and both go on to post a
+// duplicate @everyone LIVE announcement. Only the request whose UPDATE actually matches a row
+// proceeds past this point; the loser sees zero rows affected and returns quietly.
+export async function markGameStarted(input: { gameId: string; discordId?: string | null }) {
+  await ensureScheduling(input.gameId);
+  if (input.discordId) {
+    const game = await loadGame(input.gameId);
+    const userId = await userIdFromDiscordId(input.discordId);
+    if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can mark the game started.");
+  }
+  const updated = await supabase.from("rec_game_scheduling").update({
+    game_started_at: new Date().toISOString(), status: "live", scheduled_for: null, updated_at: new Date().toISOString(),
+  }).eq("game_id", input.gameId).is("game_started_at", null).neq("status", "completed").select("*").maybeSingle();
   if (updated.error) throw new ApiError(500, "Failed to mark the game started.", updated.error);
-  await logSchedulingEvent({ gameId, eventType: "stream_started" });
-  await postOrUpdateGameAnnouncement(gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to update game announcement with stream link (non-fatal):", error));
-  await updateSchedulingPanel(gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  if (!updated.data) {
+    const existing = await supabase.from("rec_game_scheduling").select("*").eq("game_id", input.gameId).maybeSingle();
+    if (existing.data?.status === "completed") throw new ApiError(409, "This game has already been marked over.");
+    return existing.data;
+  }
+  // A live game makes any pending/confirmed kickoff moot -- it's happening right now.
+  await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", input.gameId).eq("status", "pending");
+  await logSchedulingEvent({ gameId: input.gameId, eventType: "game_started" });
+  await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post live game announcement (non-fatal):", error));
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return updated.data;
 }
 
@@ -438,7 +463,7 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
     supabase.from("rec_game_scheduling").update({
       status: "not_scheduled", response_started_at: new Date().toISOString(), home_responded_at: null, away_responded_at: null,
       scheduled_for: null, confirmed_at: null, proposed_by_user_id: null, accepted_by_user_id: null,
-      reschedule_requested_at: null, stream_started_at: null, fw_flagged: false, fw_flagged_for_user_id: null,
+      reschedule_requested_at: null, game_started_at: null, fw_flagged: false, fw_flagged_for_user_id: null,
       fw_flagged_at: null, attention_required: false, updated_at: new Date().toISOString(),
     }).eq("game_id", gameId),
     supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", gameId).eq("status", "pending"),
@@ -471,8 +496,16 @@ export async function autoResetSchedulingAfterMissedKickoff(gameId: string) {
 
 // Posted once per game channel right after the intro embed -- raw Discord REST JSON (this is
 // apps/api, not the bot's discord.js instance) using the exact custom_id scheme the bot's
-// apps/bot/src/flows/game-scheduling-panel.ts listens for.
-function schedulingPanelComponents(gameId: string) {
+// apps/bot/src/flows/game-scheduling-panel.ts listens for. The second row's first button toggles
+// between "Game Started" and "Game Over" depending on whether the game is currently live (and
+// disappears once completed, so a finished game can't be re-flipped live from a stale panel) --
+// "Game Over" reuses the exact custom_id prefix (rec:gamesched:gameover:) the standalone
+// post-stream reminder already posts, so the existing modal handler covers both without any
+// bot-side branching.
+function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
+  const lifecycleButton = status === "completed" ? null
+    : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
+    : { type: 2, style: 1, custom_id: `rec:gamesched:panel:gamestarted:${gameId}`, label: "Game Started" };
   return [
     {
       type: 1,
@@ -485,14 +518,22 @@ function schedulingPanelComponents(gameId: string) {
     {
       type: 1,
       components: [
+        ...(lifecycleButton ? [lifecycleButton] : []),
         { type: 2, style: 2, custom_id: `rec:gamesched:panel:reset:${gameId}`, label: "Reset (Commissioner)" },
       ],
     },
   ];
 }
 
-async function schedulingPanelDescription(gameId: string): Promise<string> {
-  const status = await computeUserFacingStatus(gameId);
+async function schedulingPanelDescription(gameId: string, status: UserFacingStatus): Promise<string> {
+  if (status === "live") {
+    const scheduling = await supabase.from("rec_game_scheduling").select("game_started_at").eq("game_id", gameId).maybeSingle();
+    if (scheduling.data?.game_started_at) {
+      const unix = Math.floor(new Date(scheduling.data.game_started_at).getTime() / 1000);
+      return `🔴 LIVE — started <t:${unix}:R>. Hit Game Over below once it's done.`;
+    }
+    return "🔴 LIVE — hit Game Over below once it's done.";
+  }
   if (status === "confirmed" || status === "completed" || status === "reschedule_requested") {
     const scheduling = await supabase.from("rec_game_scheduling").select("scheduled_for").eq("game_id", gameId).maybeSingle();
     if (scheduling.data?.scheduled_for) {
@@ -528,12 +569,72 @@ async function schedulingPanelDescription(gameId: string): Promise<string> {
   return "🟡 Not Scheduled — use the buttons below to line up a kickoff time before advance.";
 }
 
+async function getGameTeamNames(gameId: string): Promise<{ home: string; away: string }> {
+  const row = await supabase.from("rec_games").select("home_team_id,away_team_id").eq("id", gameId).maybeSingle();
+  const homeId = row.data?.home_team_id ? String(row.data.home_team_id) : null;
+  const awayId = row.data?.away_team_id ? String(row.data.away_team_id) : null;
+  const ids = [homeId, awayId].filter((v): v is string => Boolean(v));
+  if (!ids.length) return { home: "Home", away: "Away" };
+  const teams = await supabase.from("rec_teams").select("id,name").in("id", ids);
+  const byId = new Map<string, string>((teams.data ?? []).map((t: any): [string, string] => [String(t.id), String(t.name)]));
+  return { home: (homeId ? byId.get(homeId) : null) ?? "Home", away: (awayId ? byId.get(awayId) : null) ?? "Away" };
+}
+
+// Discord auto-localizes <t:...> markup to each viewer's own client settings, so this reads
+// correctly for both coaches and any commissioner glancing at the channel without picking a
+// zone to render in server-side.
+function formatWindowLines(intervals: Array<{ startUtc: string; endUtc: string }>, max = 8): string {
+  if (!intervals.length) return "_No availability set for this window._";
+  const lines = intervals.slice(0, max).map((iv) => {
+    const startUnix = Math.floor(new Date(iv.startUtc).getTime() / 1000);
+    const endUnix = Math.floor(new Date(iv.endUtc).getTime() / 1000);
+    return `<t:${startUnix}:F> – <t:${endUnix}:t>`;
+  });
+  if (intervals.length > max) lines.push(`_+${intervals.length - max} more window(s)_`);
+  return lines.join("\n");
+}
+
+// Both coaches' free windows between now and the next advance (or the 48h fallback horizon) --
+// shown on the panel so a coach doesn't have to open Adjust Availability just to see whether a
+// proposed/suggested time actually falls inside the other coach's known-free time.
+async function buildAvailabilityFields(gameId: string, game: Game): Promise<Array<{ name: string; value: string }>> {
+  if (!game.home_user_id || !game.away_user_id) return [];
+  try {
+    const nowUtc = new Date().toISOString();
+    const deadlineUtc = await getDeadlineUtc(game.league_id);
+    const [home, away, names] = await Promise.all([
+      getEffectiveAvailability({ userId: game.home_user_id, leagueId: game.league_id, gameId, fromUtc: nowUtc, toUtc: deadlineUtc }),
+      getEffectiveAvailability({ userId: game.away_user_id, leagueId: game.league_id, gameId, fromUtc: nowUtc, toUtc: deadlineUtc }),
+      getGameTeamNames(gameId),
+    ]);
+    return [
+      { name: `${names.home} — Available Until Next Advance`, value: formatWindowLines(home.intervals) },
+      { name: `${names.away} — Available Until Next Advance`, value: formatWindowLines(away.intervals) },
+    ];
+  } catch (error) {
+    console.error("[ERROR] Failed to build availability fields for scheduling panel (non-fatal):", error);
+    return [];
+  }
+}
+
+async function buildSchedulingPanelPayload(gameId: string) {
+  const [game, status] = await Promise.all([loadGame(gameId).catch(() => null), computeUserFacingStatus(gameId)]);
+  const isLive = status === "live";
+  const showAvailability = game && status !== "live" && status !== "completed";
+  const [description, fields] = await Promise.all([
+    schedulingPanelDescription(gameId, status),
+    showAvailability ? buildAvailabilityFields(gameId, game) : Promise.resolve([]),
+  ]);
+  return {
+    embeds: [{ title: "Scheduling", color: isLive ? 0xdc3545 : 0xd9a521, description, fields }],
+    components: schedulingPanelComponents(gameId, status),
+  };
+}
+
 export async function postSchedulingPanel(channelId: string, gameId: string) {
-  const description = await schedulingPanelDescription(gameId);
-  const posted = await postDiscordChannelMessage(channelId, {
-    embeds: [{ title: "Scheduling", color: 0xd9a521, description }],
-    components: schedulingPanelComponents(gameId),
-  }).catch((error) => { console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error); return null; });
+  const payload = await buildSchedulingPanelPayload(gameId);
+  const posted = await postDiscordChannelMessage(channelId, payload)
+    .catch((error) => { console.error("[ERROR] Failed to post scheduling panel (non-fatal):", error); return null; });
   if (posted?.id) {
     await supabase.from("rec_game_scheduling").update({ panel_channel_id: channelId, panel_message_id: posted.id }).eq("game_id", gameId);
   }
@@ -545,11 +646,9 @@ export async function postSchedulingPanel(channelId: string, gameId: string) {
 export async function updateSchedulingPanel(gameId: string) {
   const row = await supabase.from("rec_game_scheduling").select("panel_channel_id,panel_message_id").eq("game_id", gameId).maybeSingle();
   if (!row.data?.panel_channel_id || !row.data?.panel_message_id) return;
-  const description = await schedulingPanelDescription(gameId);
-  await editDiscordMessage(row.data.panel_channel_id, row.data.panel_message_id, {
-    embeds: [{ title: "Scheduling", color: 0xd9a521, description }],
-    components: schedulingPanelComponents(gameId),
-  }).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  const payload = await buildSchedulingPanelPayload(gameId);
+  await editDiscordMessage(row.data.panel_channel_id, row.data.panel_message_id, payload)
+    .catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
 }
 
 // Called after a coach updates their availability/timezone/overrides -- refreshes the panel for
@@ -581,7 +680,7 @@ export async function listWeekSchedulingStatuses(guildId: string) {
     const s = byGameId.get(g.gameId);
     let status: UserFacingStatus = "not_scheduled";
     if (s) {
-      if (["confirmed", "completed", "reschedule_requested", "no_shared_availability", "needs_commissioner_help"].includes(s.status)) status = s.status as UserFacingStatus;
+      if (["confirmed", "completed", "reschedule_requested", "no_shared_availability", "needs_commissioner_help", "live"].includes(s.status)) status = s.status as UserFacingStatus;
       else if (s.status === "proposed") status = "time_proposed";
       else if (s.response_started_at && (!s.home_responded_at || !s.away_responded_at)) status = "waiting_on_opponent";
     }
@@ -597,7 +696,7 @@ export async function computeUserFacingStatus(gameId: string): Promise<UserFacin
   const row = await supabase.from("rec_game_scheduling").select("*").eq("game_id", gameId).maybeSingle();
   if (row.error || !row.data) return "not_scheduled";
   const s = row.data;
-  if (s.status === "confirmed" || s.status === "completed" || s.status === "reschedule_requested" || s.status === "no_shared_availability" || s.status === "needs_commissioner_help") {
+  if (s.status === "confirmed" || s.status === "completed" || s.status === "reschedule_requested" || s.status === "no_shared_availability" || s.status === "needs_commissioner_help" || s.status === "live") {
     return s.status as UserFacingStatus;
   }
   if (s.status === "proposed") return "time_proposed";

@@ -156,7 +156,7 @@ import {
 } from "./flows/availability-board-panel.js";
 import {
   GAME_SCHEDULING_CUSTOM_IDS,
-  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelReset,
+  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted, handlePanelReset,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
   handleCantMakeResponse, handleCheckin, handleFwRequest, handleAutopilotRequest,
   handleGameOverButton, handleGameOverModal,
@@ -682,6 +682,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelPropose)) return handleProposePanel(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelCantMake)) return handleCantMakePanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted)) return handlePanelGameStarted(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReset)) return handlePanelReset(interaction);
     if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter) || interaction.customId.startsWith("rec:sc:pc:"))) return handleProposalCounterButton(interaction);
     if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept) || interaction.customId.startsWith("rec:sc:pa:"))) return handleProposalAcceptButton(interaction);

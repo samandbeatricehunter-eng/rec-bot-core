@@ -320,8 +320,8 @@ function AdvanceReadinessSection() {
                 {!g.needsInput && <Badge status="approved">{g.existingResultSource ?? "Has result"}</Badge>}
                 {g.needsInput && <Badge status="pending">Needs input</Badge>}
                 {g.isH2h && (
-                  <Badge status={!g.needsInput ? "approved" : schedulingByGameId[g.gameId] === "confirmed" ? "info" : "pending"}>
-                    {!g.needsInput ? "Played" : schedulingByGameId[g.gameId] === "confirmed" ? "Scheduled" : "Not Scheduled"}
+                  <Badge status={!g.needsInput ? "approved" : ["confirmed", "live"].includes(schedulingByGameId[g.gameId] ?? "") ? "info" : "pending"}>
+                    {!g.needsInput ? "Played" : schedulingByGameId[g.gameId] === "live" ? "Live" : schedulingByGameId[g.gameId] === "confirmed" ? "Scheduled" : "Not Scheduled"}
                   </Badge>
                 )}
                 {g.fwFlaggedForUserId && (

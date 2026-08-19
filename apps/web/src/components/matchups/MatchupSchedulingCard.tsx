@@ -16,7 +16,7 @@ type Suggestions = {
 const STATUS_LABELS: Record<string, string> = {
   not_scheduled: "Not Scheduled", waiting_on_opponent: "Waiting on Opponent", time_proposed: "Time Proposed",
   confirmed: "Confirmed", reschedule_requested: "Reschedule Requested", no_shared_availability: "No Shared Availability",
-  needs_commissioner_help: "Needs Commissioner Help", completed: "Completed",
+  needs_commissioner_help: "Needs Commissioner Help", live: "Live", completed: "Completed",
 };
 
 function fmt(iso: string): string {
@@ -62,23 +62,33 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
     <section className={`matchup-scheduling-card${awaitingMyResponse ? " matchup-scheduling-card--attention" : ""}`}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h3 style={{ margin: 0 }}>Scheduling</h3>
-        <StatusChip status={snapshot.status === "confirmed" ? "approved" : snapshot.status === "not_scheduled" ? "pending" : "info"} label={statusLabel} />
+        <StatusChip status={snapshot.status === "live" ? "info" : snapshot.status === "confirmed" ? "approved" : snapshot.status === "not_scheduled" ? "pending" : "info"} label={statusLabel} />
       </header>
       {error && <ErrorState message={error} />}
       {notice && <p className="site-auth-success">{notice}</p>}
       {snapshot.fwFlagged && <p className="form-hint" style={{ color: "var(--warning, #d9a521)" }}>A Force Win was requested for this game — a commissioner has been notified.</p>}
+
+      {snapshot.status === "live" && (
+        <>
+          <p className="matchup-scheduling-attention">🔴 <strong>LIVE</strong></p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameOver({ guildId, gameId }), "Game marked over.")}>Game Over</Button>
+          </div>
+        </>
+      )}
 
       {snapshot.status === "confirmed" && snapshot.scheduledFor && (
         <>
           <p>Kickoff: <strong>{fmt(snapshot.scheduledFor)}</strong></p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.checkInScheduling({ guildId, gameId }), "You're checked in.")}>I'm Ready</Button>
+            <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameStarted({ guildId, gameId }), "Game marked started.")}>Game Started</Button>
             <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.requestSchedulingReschedule({ guildId, gameId }), "Reschedule requested.")}>Reschedule</Button>
           </div>
         </>
       )}
 
-      {snapshot.pendingProposal && snapshot.status !== "confirmed" && (
+      {snapshot.pendingProposal && snapshot.status !== "confirmed" && snapshot.status !== "live" && snapshot.status !== "completed" && (
         <>
           <p className={snapshot.pendingProposal.proposedByMe ? undefined : "matchup-scheduling-attention"}>
             {snapshot.pendingProposal.proposedByMe ? "Proposed: " : "🔔 Offer received — "}
@@ -98,7 +108,7 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
         </>
       )}
 
-      {!snapshot.pendingProposal && snapshot.status !== "confirmed" && (
+      {!snapshot.pendingProposal && snapshot.status !== "confirmed" && snapshot.status !== "live" && snapshot.status !== "completed" && (
         <>
           {suggestions?.bestWindow ? (
             <p>Best shared window: <strong>{fmt(suggestions.bestWindow.kickoffUtc)}</strong> – {fmt(suggestions.bestWindow.windowEndUtc)}</p>
@@ -112,6 +122,7 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
             )}
             <Button variant="ghost" size="compact" onClick={() => setAvailabilityOpen(true)}>Adjust Availability</Button>
             <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markSchedulingCantMakeGame({ guildId, gameId }), "Opponent notified.")}>Can't Make Game</Button>
+            <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameStarted({ guildId, gameId }), "Game marked started.")}>Game Started</Button>
           </div>
         </>
       )}

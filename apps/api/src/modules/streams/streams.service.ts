@@ -10,6 +10,8 @@ import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
+import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 
 // Site<->Discord stream mirroring — used by both the Discord stream command
 // (recordStreamPost) and the site's share-stream flow (shareHubMatchupStream in
@@ -280,6 +282,14 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   if (lockedGameId) {
     await supabase.from("rec_stream_compliance_logs").update({ game_id: lockedGameId }).eq("id", streamLog.data.id)
       .then(({ error }) => { if (error) console.error("[ERROR] Failed to backfill stream log game_id (non-fatal):", error); });
+  }
+
+  // A stream posted in Discord marks the game live the same as one shared from the site --
+  // markGameStarted no-ops once already live, so the announcement is always refreshed
+  // separately underneath it to pick up a second/third stream's link either way.
+  if (lockedGameId) {
+    await markGameStarted({ gameId: lockedGameId }).catch((error) => console.error("[ERROR] Failed to mark game started from Discord stream post (non-fatal):", error));
+    await postOrUpdateGameAnnouncement(lockedGameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
   }
 
   // Best-effort public notice on the league chat — never blocks the stream post itself.
