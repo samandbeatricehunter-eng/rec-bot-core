@@ -71,7 +71,12 @@ export type RosterPositionGroup = {
 export async function getTeamRoster(input: { guildId: string; discordId: string; teamId?: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
-  const userId = await userIdForDiscord(input.discordId);
+  // resolveTargetTeamId only ever touches userId on the "no teamId given, look up MY team"
+  // fallback path -- viewing an explicitly-selected open team's roster (the /openteams "View
+  // Rosters" flow) never needed it at all. Requiring a linked REC account just to browse a
+  // team's roster before ever joining the league locked out exactly the people /openteams is
+  // for: prospective members who haven't signed up on the site yet.
+  const userId = input.teamId ? "" : await userIdForDiscord(input.discordId);
   const teamId = await resolveTargetTeamId(leagueId, userId, input.teamId);
 
   const team = await supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,is_relocated").eq("id", teamId).single();
