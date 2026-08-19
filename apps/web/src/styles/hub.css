@@ -355,6 +355,29 @@ button.poty:disabled {
 .modal-panel:has(.roundtable-story) { max-width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 .modal-panel:has(.hub-my-schedule) { max-width: min(720px, calc(100vw - 32px)); }
 .modal-panel:has(.recruiting-board) { max-width: min(720px, calc(100vw - 32px)); }
+.modal-panel.availability-modal { max-width: min(560px, calc(100vw - 32px)); }
+
+.availability-tz-row { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.availability-tz-row .form-select { width: auto; flex: 1 1 220px; }
+.availability-tz-warning { color: var(--warning, #d9a521); }
+
+.availability-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.availability-tabs .site-btn { flex: 1; text-align: center; }
+.availability-tabs .site-btn.is-active,
+.availability-weekday-grid .site-btn.is-active { border-color: var(--accent, var(--gold)); color: var(--accent, var(--gold)); }
+
+.availability-weekday-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
+.availability-weekday-grid .site-btn { padding-left: 0; padding-right: 0; text-align: center; }
+@media (max-width: 480px) {
+  .availability-weekday-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.availability-window-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; margin-top: var(--space-2); justify-content: space-between; }
+.availability-time-range { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.availability-time-to { color: var(--text-secondary); font-size: var(--text-sm); }
+.availability-time-select { display: flex; gap: 4px; }
+.availability-time-select .form-select { width: auto; min-width: 64px; padding-left: var(--space-2); padding-right: var(--space-2); }
+.availability-date-select { width: auto; flex: 1 1 220px; }
 .hub-article-modal { max-width:min(900px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
 @media (max-width:700px) {
   .hub-article-modal-overlay { align-items:stretch; padding:0; overflow:hidden; }

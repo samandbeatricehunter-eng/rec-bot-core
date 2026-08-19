@@ -176,7 +176,7 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
   }
 
   return (
-    <Modal title="Availability" onClose={onClose}>
+    <Modal title="Availability" onClose={onClose} panelClassName="availability-modal">
       {error && <ErrorState message={error} />}
       {notice && <p className="site-auth-success">{notice}</p>}
       {loading ? <p className="hub-empty">Loading…</p> : (
@@ -190,7 +190,7 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
             ) : (
               <p className="form-hint">We couldn't detect your timezone automatically.</p>
             )}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="availability-tz-row">
               {detectedTimezone && detectedTimezone !== timezone && (
                 <Button variant="ghost" size="compact" onClick={() => void useDetectedTimezone()}>Use {detectedTimezone}</Button>
               )}
@@ -204,24 +204,23 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
                 <option value="Pacific/Honolulu">Hawaii</option>
               </select>
             </div>
-            {timezoneSource === "unset" && <p className="form-hint" style={{ color: "var(--warning, #d9a521)" }}>Set a timezone so your availability lines up correctly for opponents.</p>}
+            {timezoneSource === "unset" && <p className="form-hint availability-tz-warning">Set a timezone so your availability lines up correctly for opponents.</p>}
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-            <button type="button" className="site-btn site-btn-ghost" style={tab === "weekly" ? { borderColor: "var(--accent, var(--gold))", color: "var(--accent, var(--gold))" } : undefined} onClick={() => setTab("weekly")}>Set Availability</button>
-            <button type="button" className="site-btn site-btn-ghost" style={tab === "thisWeek" ? { borderColor: "var(--accent, var(--gold))", color: "var(--accent, var(--gold))" } : undefined} onClick={() => setTab("thisWeek")}>This Week</button>
+          <div className="availability-tabs">
+            <button type="button" className={`site-btn site-btn-ghost${tab === "weekly" ? " is-active" : ""}`} onClick={() => setTab("weekly")}>Set Availability</button>
+            <button type="button" className={`site-btn site-btn-ghost${tab === "thisWeek" ? " is-active" : ""}`} onClick={() => setTab("thisWeek")}>This Week</button>
           </div>
 
           {tab === "weekly" && (
             <div className="form-field">
               <label className="form-label">Weekly availability</label>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", margin: "4px 0 12px" }}>
+              <div className="availability-weekday-grid">
                 {WEEKDAYS.map((d) => (
                   <button
                     key={d.weekday}
                     type="button"
-                    className="site-btn site-btn-ghost"
-                    style={activeDay === d.weekday ? { borderColor: "var(--accent, var(--gold))", color: "var(--accent, var(--gold))" } : undefined}
+                    className={`site-btn site-btn-ghost${activeDay === d.weekday ? " is-active" : ""}`}
                     onClick={() => setActiveDay(d.weekday)}
                   >
                     {d.label.slice(0, 3)}
@@ -237,10 +236,12 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
                 ))}
               </ul>
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                <TimeSelect value={draft} onChange={setDraft} />
-                <span>to</span>
-                <TimeSelect value={draftEnd} onChange={setDraftEnd} />
+              <div className="availability-window-row">
+                <div className="availability-time-range">
+                  <TimeSelect value={draft} onChange={setDraft} />
+                  <span className="availability-time-to">to</span>
+                  <TimeSelect value={draftEnd} onChange={setDraftEnd} />
+                </div>
                 <Button variant="primary" size="compact" disabled={savingDay} onClick={() => void addWindow()}>Add Window</Button>
               </div>
             </div>
@@ -261,16 +262,18 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
                 ))}
               </ul>
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                <select className="form-select" value={thisWeekDate} onChange={(e) => setThisWeekDate(e.target.value)}>
+              <div className="availability-window-row">
+                <select className="form-select availability-date-select" value={thisWeekDate} onChange={(e) => setThisWeekDate(e.target.value)}>
                   {nextSevenDays().map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
                 <Button variant="ghost" size="compact" disabled={savingOverride} onClick={() => void markThisWeekUnavailable()}>Mark Unavailable All Day</Button>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                <TimeSelect value={thisWeekDraft} onChange={setThisWeekDraft} />
-                <span>to</span>
-                <TimeSelect value={thisWeekDraftEnd} onChange={setThisWeekDraftEnd} />
+              <div className="availability-window-row">
+                <div className="availability-time-range">
+                  <TimeSelect value={thisWeekDraft} onChange={setThisWeekDraft} />
+                  <span className="availability-time-to">to</span>
+                  <TimeSelect value={thisWeekDraftEnd} onChange={setThisWeekDraftEnd} />
+                </div>
                 <Button variant="primary" size="compact" disabled={savingOverride} onClick={() => void addThisWeekWindow()}>Add Exception Window</Button>
               </div>
             </div>
@@ -283,7 +286,7 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
 
 function TimeSelect({ value, onChange }: { value: Draft; onChange: (d: Draft) => void }) {
   return (
-    <span style={{ display: "flex", gap: 4 }}>
+    <span className="availability-time-select">
       <select className="form-select" value={value.hour} onChange={(e) => onChange({ ...value, hour: Number(e.target.value) })}>
         {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>

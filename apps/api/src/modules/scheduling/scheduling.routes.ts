@@ -94,10 +94,11 @@ export async function schedulingRoutes(app: FastifyInstance) {
 
   app.post("/v1/scheduling/profile", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string() }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      const profile = await getAvailabilityProfileByDiscordId(body.discordId);
-      const userId = await userIdFromDiscordId(body.discordId);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = actorDiscordId(auth, body.discordId);
+      const profile = await getAvailabilityProfileByDiscordId(discordId);
+      const userId = await userIdFromDiscordId(discordId);
       const context = await getCurrentLeagueContext(body.guildId);
       const windows = await getRecurringWindows(userId, context.leagueId);
       const overrides = await listOverrides({ userId, leagueId: context.leagueId });

@@ -8,11 +8,11 @@ import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDisc
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { syncScheduleGameUserIdsForLeague, syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
-import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, postDiscordChannelMessage, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
-import { resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 
 // The nickname a newly-linked member gets tagged with: the school name for CFB (e.g.
 // "Georgia"), or the mascot for Madden (e.g. "Cowboys") — display_nick holds that directly for
@@ -999,7 +999,10 @@ export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; di
     .select("team_id");
   if (ended.error) throw new ApiError(500, "Failed to release the leaving member's team assignments.", ended.error);
   if (ended.data?.length) {
-    await syncScheduleGameUserIdsForTeams(league.id, ended.data.map((row) => row.team_id).filter(Boolean));
+    const teamIds = ended.data.map((row) => row.team_id).filter(Boolean);
+    await syncScheduleGameUserIdsForTeams(league.id, teamIds);
+    await announceMemberTeamDeparture({ guildId: input.guildId, discordId: input.discordId, teamIds }).catch((error) =>
+      console.error("[WARN] Failed to post team-departure announcement (non-fatal):", error));
   }
 
   // Reject any pending/approved requests this member still has — same team-freeing effect, and
@@ -1053,4 +1056,38 @@ export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; di
     userId,
     teamIds: (ended.data ?? []).map((row) => row.team_id),
   };
+}
+
+// Cheeky legal-themed charges for the public departure announcement below — purely flavor text,
+// picked at random so repeat departures don't read as a copy-pasted template.
+const DEPARTURE_TORTS = [
+  "Abandonment", "Negligence", "Breach of Fiduciary Duty", "Constructive Desertion",
+  "Reckless Disregard for the Standings", "Intentional Infliction of Roster Distress",
+  "Failure to Mitigate Losses", "Unjust Enrichment (of everyone else's schedule)",
+];
+
+/** Public "Coach quits the team" announcement for a member who left the Discord server while
+ * still holding an active team assignment. Best-effort and non-fatal — a missing announcements
+ * channel or a Discord API hiccup shouldn't block the team-release cleanup above. */
+async function announceMemberTeamDeparture(input: { guildId: string; discordId: string; teamIds: string[] }) {
+  if (!input.teamIds.length) return;
+  const context = await getCurrentLeagueContext(input.guildId);
+  const channelId = String((context?.routes as any)?.announcements_channel_id ?? "");
+  if (!channelId) return;
+
+  const teams = await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated").in("id", input.teamIds);
+  if (teams.error || !teams.data?.length) return;
+  const teamNames = teams.data.map((team) => formatTeamDisplayName(team) ?? team.name).filter(Boolean);
+  if (!teamNames.length) return;
+
+  const tort = DEPARTURE_TORTS[Math.floor(Math.random() * DEPARTURE_TORTS.length)];
+  const teamList = teamNames.join(", ");
+  const content = [
+    "@everyone",
+    `🚨 <@${input.discordId}> has left the server, leaving the **${teamList}** without a coach.`,
+    `Charged with: **${tort}** (a tort, probably).`,
+    "Nah nah nah, nah nah nah nah, hey hey hey, goodbyeee 👋",
+  ].join("\n");
+
+  await postDiscordChannelMessage(channelId, { content, allowed_mentions: { parse: ["everyone"] } });
 }
