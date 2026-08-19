@@ -170,7 +170,9 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
           <span className="form-label">Position</span>
           <select className="form-input" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
             <option value="All">All positions</option>
-            {roster.draftPicks.length > 0 && <option value="Draft Picks">Draft Picks</option>}
+            {/* roster.positionGroups (the source of `groups`) already includes a synthetic
+                "Draft Picks" entry for Madden rosters -- this used to also add its own literal
+                option ahead of that map, rendering "Draft Picks" twice in the same dropdown. */}
             {groups.map((group) => <option key={group} value={group}>{group}</option>)}
           </select>
         </label>
@@ -470,7 +472,7 @@ function evaluatorBadge(report: TradeEvaluatorReport, proposingLabel: string, re
 }
 
 function assetLine(asset: TradeAssetDisplay): string {
-  if (asset.type === "pick") return asset.label;
+  if (asset.type === "pick" || asset.type === "coins") return asset.label;
   const parts = [`${asset.overallRating ?? "—"} OVR`];
   if (asset.devTrait) parts.push(asset.devTrait.replace(/\b\w/g, (c) => c.toUpperCase()));
   const specs: string[] = [];

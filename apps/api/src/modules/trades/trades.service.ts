@@ -104,7 +104,7 @@ export async function teamPositionNeeds(leagueId: string, teamId: string): Promi
 
 export type TradeAssetDisplay = {
   id: string;
-  type: "player" | "pick";
+  type: "player" | "pick" | "coins";
   label: string;
   position: string | null;
   overallRating: number | null;
@@ -112,6 +112,14 @@ export type TradeAssetDisplay = {
   speed: number | null;
   age: number | null;
 };
+
+function coinsDisplay(amount: number): TradeAssetDisplay | null {
+  if (amount <= 0) return null;
+  return {
+    id: "coins", type: "coins", label: `🪙 ${amount.toLocaleString()} coins`,
+    position: null, overallRating: null, devTrait: null, speed: null, age: null,
+  };
+}
 
 async function resolveLegAssets(leagueId: string, legs: LegInput[]): Promise<{ players: RecTradePlayerInput[]; picks: RecTradePickInput[]; displays: TradeAssetDisplay[] }> {
   const playerIds = legs.filter((l) => l.type === "player").map((l: any) => l.playerId);
@@ -174,7 +182,16 @@ async function buildTradeFairnessReport(input: {
     receivingPlayers: requested.players, receivingPicks: requested.picks, receivingCoins: input.requestedCoins,
     proposingTeamNeeds: proposingNeeds, receivingTeamNeeds: receivingNeeds,
   });
-  return { ...report, proposingAssets: offered.displays, receivingAssets: requested.displays };
+  // The value math already folds coins in (evaluateRecTradeFairness above), but the asset
+  // list itself never included a line item for them — coins silently raised the total with
+  // nothing on screen to show why, making it look like typing an amount did nothing.
+  const proposingCoinsDisplay = coinsDisplay(input.offeredCoins);
+  const receivingCoinsDisplay = coinsDisplay(input.requestedCoins);
+  return {
+    ...report,
+    proposingAssets: proposingCoinsDisplay ? [...offered.displays, proposingCoinsDisplay] : offered.displays,
+    receivingAssets: receivingCoinsDisplay ? [...requested.displays, receivingCoinsDisplay] : requested.displays,
+  };
 }
 
 /** Live trade-evaluator preview for the Trade Center builder screen — no trade needs to exist

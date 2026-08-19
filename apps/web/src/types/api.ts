@@ -4,7 +4,7 @@
 import type { RecTradeFairnessReport } from "@rec/shared";
 
 export type TradeAssetDisplay = {
-  id: string; type: "player" | "pick"; label: string; position: string | null;
+  id: string; type: "player" | "pick" | "coins"; label: string; position: string | null;
   overallRating: number | null; devTrait: string | null; speed: number | null; age: number | null;
 };
 export type TradeEvaluatorReport = RecTradeFairnessReport & { proposingAssets: TradeAssetDisplay[]; receivingAssets: TradeAssetDisplay[] };
