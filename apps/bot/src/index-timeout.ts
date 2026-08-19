@@ -579,6 +579,12 @@ client.on("guildMemberAdd", async (member) => {
   await recApi.syncMemberForGuildJoin(member.guild.id, member.id).catch((error) => {
     console.error(`Failed to sync team nickname/role for ${member.id} joining guild ${member.guild.id} (non-fatal)`, error);
   });
+
+  const routes = await getRouteChannels(member.guild.id).catch(() => ({}));
+  const announcementsChannel = await getAnnouncementsChannel(member.guild, routes).catch(() => null);
+  await announcementsChannel?.send(
+    `Welcome to the REC, <@${member.id}>! Use the /openteams command to view open teams and their rosters and request one when you're ready! If you're not registered on the rec-leagues.com site, reach out to the commissioner and we can get you set up.`,
+  ).catch((error) => console.error(`Failed to post welcome message for ${member.id} joining guild ${member.guild.id} (non-fatal)`, error));
 });
 
 // Frees a departing member's team assignments + pending/approved team-link requests so /openteams
