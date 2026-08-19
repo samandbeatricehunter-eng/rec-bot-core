@@ -1318,9 +1318,9 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const context = await getCurrentLeagueContext(input.guildId);
   const isCfb = context.rec_leagues.game === "cfb_27";
   const universityName = (team: any, fallback: string) =>
-    isCfb ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
+    resolveTeamSchool(team) ?? formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   const mascotName = (team: any, fallback: string) =>
-    isCfb ? resolveTeamNick(team) : universityName(team, fallback);
+    resolveTeamNick(team) ?? fallback;
   const userId = await userIdForDiscord(input.discordId);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
