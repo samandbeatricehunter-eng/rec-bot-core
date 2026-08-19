@@ -636,14 +636,31 @@ export async function completeAdvanceWeek(input: {
     if (game.error) throw new ApiError(500, "We couldn't load that game for the week advance. Please try again.", game.error);
     if (!game.data) throw new ApiError(404, "Scheduled game not found.");
 
+    // rec_games.home_user_id/away_user_id can be stale or null (schedule seed writes them
+    // before coaches claim teams — see loadWeekGamesForStage above for the same overlay).
+    // Trusting those raw columns here silently wrote null user ids into rec_game_results,
+    // which official-records rebuilds key off of — a whole week's results could go missing
+    // from every affected user's W/L record with no error anywhere.
+    const assignments = await supabase
+      .from("rec_team_assignments")
+      .select("team_id,user_id")
+      .eq("league_id", context.leagueId)
+      .in("team_id", [game.data.home_team_id, game.data.away_team_id].filter(Boolean))
+      .eq("assignment_status", "active")
+      .is("ended_at", null);
+    if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for this week's games. Please try again.", assignments.error);
+    const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
+    const homeUserId = userByTeam.get(game.data.home_team_id) ?? game.data.home_user_id ?? null;
+    const awayUserId = userByTeam.get(game.data.away_team_id) ?? game.data.away_user_id ?? null;
+
     // Prefer real final scores when the commissioner supplied them; otherwise fall
     // back to a 1–0 win/loss flag (legacy behavior).
     const hasRealScores = result.homeScore != null && result.awayScore != null;
     const homeScore = hasRealScores ? Number(result.homeScore) : result.outcome === "home" ? 1 : 0;
     const awayScore = hasRealScores ? Number(result.awayScore) : result.outcome === "away" ? 1 : 0;
     const isTie = result.outcome === "tie";
-    const winningUserId = isTie ? null : result.outcome === "home" ? game.data.home_user_id : game.data.away_user_id;
-    const losingUserId = isTie ? null : result.outcome === "home" ? game.data.away_user_id : game.data.home_user_id;
+    const winningUserId = isTie ? null : result.outcome === "home" ? homeUserId : awayUserId;
+    const losingUserId = isTie ? null : result.outcome === "home" ? awayUserId : homeUserId;
     const winningTeamId = isTie ? null : result.outcome === "home" ? game.data.home_team_id : game.data.away_team_id;
     const losingTeamId = isTie ? null : result.outcome === "home" ? game.data.away_team_id : game.data.home_team_id;
     const recordsApplyKey = gameResultsApplyKey({
@@ -665,16 +682,16 @@ export async function completeAdvanceWeek(input: {
         external_game_id: game.data.external_game_id ?? null,
         home_team_id: game.data.home_team_id,
         away_team_id: game.data.away_team_id,
-        home_user_id: game.data.home_user_id,
-        away_user_id: game.data.away_user_id,
+        home_user_id: homeUserId,
+        away_user_id: awayUserId,
         home_score: homeScore,
         away_score: awayScore,
         winning_user_id: winningUserId,
         losing_user_id: losingUserId,
         winning_team_id: winningTeamId,
         losing_team_id: losingTeamId,
-        is_user_h2h: Boolean(game.data.home_user_id && game.data.away_user_id),
-        is_cpu_game: !(game.data.home_user_id && game.data.away_user_id),
+        is_user_h2h: Boolean(homeUserId && awayUserId),
+        is_cpu_game: !(homeUserId && awayUserId),
         is_tie: isTie,
         is_playoff: !isRegularSeasonWeek(game.data.week_number ?? currentWeek, context.rec_leagues.game),
         source: "commissioner_advance",

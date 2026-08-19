@@ -134,6 +134,18 @@ export async function directWriteSchedule(
     if (completed && homeUuid && awayUuid && homeScore != null && awayScore != null) {
       const isTie = homeScore === awayScore;
       const homeWon = homeScore > awayScore;
+      // Resolve the human user (if any) currently assigned to each team. Without this, every
+      // row written here has null home_user_id/away_user_id, which is invisible to W/L record
+      // aggregation (rebuildLeagueOfficialRecords etc. key off these columns, not team_id) —
+      // silently dropping every EA-direct-imported game from everyone's record.
+      const userRows = await pool.query<{ team_id: string; user_id: string }>(
+        `select team_id, user_id from rec_team_assignments
+           where league_id=$1 and assignment_status='active' and ended_at is null and team_id = any($2::uuid[])`,
+        [leagueId, [homeUuid, awayUuid]],
+      );
+      const userByTeam = new Map(userRows.rows.map((r) => [r.team_id, r.user_id]));
+      const homeUserId = userByTeam.get(homeUuid) ?? null;
+      const awayUserId = userByTeam.get(awayUuid) ?? null;
       // Shared dedup key (also used by box score, manual entry, and week-advance) so this
       // same game never gets double-counted in official records if it's later re-confirmed
       // through a different source — an EA-only ad hoc key here used to let that happen.
@@ -143,16 +155,21 @@ export async function directWriteSchedule(
       await pool.query(
         `insert into rec_game_results
            (league_id, game_id, season_number, week_number, game_type, home_team_id, away_team_id,
-            home_score, away_score, winning_team_id, losing_team_id, is_tie, is_playoff, source,
+            home_user_id, away_user_id, home_score, away_score, winning_user_id, losing_user_id,
+            winning_team_id, losing_team_id, is_tie, is_playoff, source,
             records_apply_key, created_at, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'madden_companion_import',$14,now(),now())
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'madden_companion_import',$18,now(),now())
          on conflict (records_apply_key) do update set
+           home_user_id=excluded.home_user_id, away_user_id=excluded.away_user_id,
            home_score=excluded.home_score, away_score=excluded.away_score,
+           winning_user_id=excluded.winning_user_id, losing_user_id=excluded.losing_user_id,
            winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
            is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()`,
         [
           leagueId, gameId, null, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
-          homeUuid, awayUuid, homeScore, awayScore,
+          homeUuid, awayUuid, homeUserId, awayUserId, homeScore, awayScore,
+          isTie ? null : homeWon ? homeUserId : awayUserId,
+          isTie ? null : homeWon ? awayUserId : homeUserId,
           isTie ? null : homeWon ? homeUuid : awayUuid,
           isTie ? null : homeWon ? awayUuid : homeUuid,
           isTie, phase === "playoffs", applyKey,
