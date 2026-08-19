@@ -185,10 +185,18 @@ async function runConfirmedGameReminders() {
 // -- Post-kickoff check-in follow-up (+30m if neither checked in) and auto-reset (+2h if still
 // neither checked in) -- and the "one checked in, one didn't" Force-Win-eligible notice at +1h
 // from the FIRST check-in specifically (not from kickoff).
+//
+// Includes status="live" (not just "confirmed") -- a game can go live via a stream with no prior
+// confirmed kickoff at all (markGameStarted clears scheduled_for), and this follow-up sequence
+// is exactly what catches a genuine no-show opponent, so it can't just stop applying the moment
+// one coach starts streaming solo. game_started_at stands in for scheduled_for as the reference
+// "kickoff happened" moment when there was never a confirmed time.
 async function runCheckinFollowUps() {
-  const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,scheduled_for").eq("status", "confirmed").not("scheduled_for", "is", null).lt("scheduled_for", new Date().toISOString());
+  const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,status,scheduled_for,game_started_at").in("status", ["confirmed", "live"]);
   if (error) { console.error("[ERROR] scheduling reminder poller: checkin-followup query failed (non-fatal):", error); return; }
-  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; scheduled_for: string }>;
+  const rows = ((data ?? []) as Array<{ game_id: string; league_id: string; status: string; scheduled_for: string | null; game_started_at: string | null }>)
+    .map((r) => ({ ...r, referenceAt: r.scheduled_for ?? r.game_started_at }))
+    .filter((r): r is typeof r & { referenceAt: string } => r.referenceAt != null && new Date(r.referenceAt).getTime() < Date.now());
   if (!rows.length) return;
 
   const gameIds = rows.map((r) => r.game_id);
@@ -208,8 +216,7 @@ async function runCheckinFollowUps() {
   for (const row of rows) {
     const game = games.get(row.game_id);
     if (!game) continue;
-    const scheduledMs = new Date(row.scheduled_for).getTime();
-    const pastMin = (now - scheduledMs) / MIN;
+    const pastMin = (now - new Date(row.referenceAt).getTime()) / MIN;
     const checkedIn = checkinsByGame.get(row.game_id) ?? [];
     const mentionIds = [game.home_user_id, game.away_user_id].filter((v): v is string => Boolean(v)).map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
     const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
@@ -219,7 +226,10 @@ async function runCheckinFollowUps() {
       await markSent(row.game_id, "game_kickoff_followup_30m");
     }
 
-    if (pastMin >= 120 && checkedIn.length < 2 && !sentReset.has(row.game_id)) {
+    // A live game already has visible proof someone showed up (that's how it became live) --
+    // auto-resetting it back to not_scheduled would silently wipe out a real, in-progress game.
+    // Confirmed-but-never-started games are the ones this is meant to unstick.
+    if (row.status === "confirmed" && pastMin >= 120 && checkedIn.length < 2 && !sentReset.has(row.game_id)) {
       await autoResetSchedulingAfterMissedKickoff(row.game_id);
       await markSent(row.game_id, "game_reset_2h");
       continue;

@@ -10,6 +10,7 @@ import { postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
 import { formatInstantInZone } from "../../lib/timezone.js";
+import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
@@ -105,6 +106,33 @@ export async function getSchedulingSuggestions(gameId: string) {
   };
 }
 
+// Withdraw-old-then-insert-new is a read-then-write pair, not atomic -- two near-simultaneous
+// propose calls (double-click, a retried Discord interaction) could both see "nothing pending"
+// and both insert, leaving a permanently orphaned duplicate since every read path only ever
+// looks at the single newest pending row. rec_game_time_proposals_one_pending_uidx (a partial
+// unique index on game_id where status='pending') makes the DB reject the loser's insert
+// instead of silently accepting a second pending row; this retries once after re-withdrawing,
+// which resolves cleanly once the winner's insert has landed.
+async function withdrawPendingAndInsertProposal(gameId: string, userId: string, proposedForUtc: string, counterToId?: string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const withdrawn = await supabase.from("rec_game_time_proposals")
+      .update({ status: "withdrawn", responded_at: new Date().toISOString() })
+      .eq("game_id", gameId)
+      .eq("status", "pending");
+    if (withdrawn.error) throw new ApiError(500, "Failed to replace the pending proposed time.", withdrawn.error);
+
+    const insert = await supabase.from("rec_game_time_proposals").insert({
+      game_id: gameId, proposed_by_user_id: userId, proposed_for: proposedForUtc, status: "pending",
+      ...(counterToId ? { counter_to_id: counterToId } : {}),
+    }).select("*").single();
+    if (!insert.error) return insert.data;
+    if (insert.error.code !== "23505" || attempt === 1) throw new ApiError(500, "Failed to save your proposed time.", insert.error);
+    // Lost the race -- the other request's proposal is now the pending row; withdraw it and
+    // insert ours as the new one instead of leaving the caller with a confusing failure.
+  }
+  throw new ApiError(500, "Failed to save your proposed time.");
+}
+
 export async function proposeTime(input: { gameId: string; discordId: string; proposedForUtc: string }) {
   const game = await loadGame(input.gameId);
   const userId = await userIdFromDiscordId(input.discordId);
@@ -115,20 +143,14 @@ export async function proposeTime(input: { gameId: string; discordId: string; pr
   // This keeps old Discord buttons from confirming a stale time after either coach has
   // proposed a replacement.
   const now = new Date().toISOString();
-  const withdrawn = await supabase.from("rec_game_time_proposals")
-    .update({ status: "withdrawn", responded_at: now })
-    .eq("game_id", input.gameId)
-    .eq("status", "pending");
-  if (withdrawn.error) throw new ApiError(500, "Failed to replace the pending proposed time.", withdrawn.error);
-
-  const insert = await supabase.from("rec_game_time_proposals").insert({ game_id: input.gameId, proposed_by_user_id: userId, proposed_for: input.proposedForUtc, status: "pending" }).select("*").single();
-  if (insert.error) throw new ApiError(500, "Failed to save your proposed time.", insert.error);
+  const insert = { data: await withdrawPendingAndInsertProposal(input.gameId, userId, input.proposedForUtc) };
 
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: now }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_created", payload: { proposedForUtc: input.proposedForUtc } });
   await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} proposed to play at **${formatInstantInZone(input.proposedForUtc, ctx.tz)}** — waiting on response from ${ctx.opponentMention}`, insert.data.id);
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return insert.data;
 }
 
@@ -148,6 +170,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await supabase.from("rec_game_scheduling").update({ status: "not_scheduled", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_withdrawn" });
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
     return { status: "withdrawn" };
   }
 
@@ -160,35 +183,39 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_rejected", payload: { proposedFor: proposal.data.proposed_for } });
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} declined the proposed **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}** — propose a new time. ${ctx.opponentMention}`);
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+    await refreshMatchupsChannelForGame(input.gameId);
     return { status: "rejected" };
   }
 
   if (input.action === "accept") {
     await supabase.from("rec_game_time_proposals").update({ status: "accepted", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
+    // Guard against a stream auto-triggering markGameStarted (which withdraws pending proposals,
+    // but as a separate statement) in the narrow window between this accept reading the proposal
+    // as pending and this write landing -- without .neq("status","live") a still-in-flight accept
+    // could overwrite a game that's already live with a stale "confirmed" + future kickoff time.
     await supabase.from("rec_game_scheduling").update({
       status: "confirmed", scheduled_for: proposal.data.proposed_for, confirmed_at: new Date().toISOString(),
       accepted_by_user_id: userId, updated_at: new Date().toISOString(),
-    }).eq("game_id", input.gameId);
+    }).eq("game_id", input.gameId).neq("status", "live");
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.opponentMention} — your proposed time was accepted by ${ctx.actingMention}: **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}**. Game confirmed!`);
     await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+    await refreshMatchupsChannelForGame(input.gameId);
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };
   }
 
   // Counter.
   if (!input.counterForUtc) throw new ApiError(400, "A counter needs a proposed time.");
   await supabase.from("rec_game_time_proposals").update({ status: "countered", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
-  const counter = await supabase.from("rec_game_time_proposals").insert({
-    game_id: input.gameId, proposed_by_user_id: userId, proposed_for: input.counterForUtc, status: "pending", counter_to_id: input.proposalId,
-  }).select("*").single();
-  if (counter.error) throw new ApiError(500, "Failed to save your counter.", counter.error);
+  const counter = { data: await withdrawPendingAndInsertProposal(input.gameId, userId, input.counterForUtc, input.proposalId) };
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_countered", payload: { proposedForUtc: input.counterForUtc } });
   await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} countered with **${formatInstantInZone(input.counterForUtc!, ctx.tz)}** — waiting on response from ${ctx.opponentMention}`, counter.data.id);
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return counter.data;
 }
 
@@ -203,6 +230,7 @@ export async function requestReschedule(input: { gameId: string; discordId: stri
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "reschedule_requested" });
   await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} requested to reschedule the confirmed time. ${ctx.opponentMention}`);
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return { status: "reschedule_requested" };
 }
 
@@ -249,6 +277,7 @@ export async function markGameStarted(input: { gameId: string; discordId?: strin
   await logSchedulingEvent({ gameId: input.gameId, eventType: "game_started" });
   await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post live game announcement (non-fatal):", error));
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return updated.data;
 }
 
@@ -296,6 +325,7 @@ export async function requestForceWin(input: { gameId: string; discordId: string
     }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return { flagged: true };
 }
 
@@ -423,6 +453,7 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
     }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(input.gameId);
   return { flagged: true, opponentId, opponentDiscordId };
 }
 
@@ -476,6 +507,7 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
     await postDiscordChannelMessage(channel.discord_channel_id, { content: channelMessage }).catch(() => undefined);
   }
   await updateSchedulingPanel(gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  await refreshMatchupsChannelForGame(gameId);
   return { reset: true };
 }
 

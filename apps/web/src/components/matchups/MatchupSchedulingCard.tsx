@@ -97,7 +97,7 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {snapshot.pendingProposal.proposedByMe ? (
               <>
-                <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" }), "Proposal withdrawn — propose a new time below.")}>Edit</Button>
+                <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" })).then(() => setProposeOpen(true))}>Edit</Button>
                 <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.respondToSchedulingProposal({ guildId, gameId, proposalId: snapshot.pendingProposal!.id, action: "withdraw" }), "Proposal deleted.")}>Delete</Button>
               </>
             ) : (

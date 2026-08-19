@@ -73,6 +73,12 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "schedulingChannelId",
     dbField: "scheduling_channel_id",
   },
+  matchups: {
+    label: "Matchups (Weekly Schedule)",
+    defaultName: "matchups",
+    inputField: "matchupsChannelId",
+    dbField: "matchups_channel_id",
+  },
 } as const;
 
 export type RecRouteChannelKey = keyof typeof REC_ROUTE_CHANNELS;

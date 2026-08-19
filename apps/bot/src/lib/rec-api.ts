@@ -106,7 +106,7 @@ export const recApi = {
     }>("/v1/scheduling/matchup/suggestions", { method: "POST", body: JSON.stringify(input) }),
   proposeSchedulingTime: (input: { guildId: string; discordId: string; gameId: string; proposedForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
     recFetch<{ id: string; proposed_for: string }>("/v1/scheduling/matchup/propose", { method: "POST", body: JSON.stringify(input) }),
-  respondToSchedulingProposal: (input: { guildId: string; discordId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw"; counterForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
+  respondToSchedulingProposal: (input: { guildId: string; discordId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw" | "reject"; counterForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
     recFetch<any>("/v1/scheduling/matchup/respond-to-proposal", { method: "POST", body: JSON.stringify(input) }),
   checkInScheduling: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<any>("/v1/scheduling/matchup/checkin", { method: "POST", body: JSON.stringify(input) }),

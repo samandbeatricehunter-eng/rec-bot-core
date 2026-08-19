@@ -1750,6 +1750,8 @@ export async function shareHubMatchupStream(input: {
   // markGameStarted no-ops once the game is already live, so a second/third stream (the other
   // coach's, or a re-share) would never otherwise get its link added to the announcement embed.
   await postOrUpdateGameAnnouncement(input.gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
+  const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
+  await refreshMatchupsChannelForGame(input.gameId);
 
   await Promise.all([
     closeWageringForGame({ guildId: input.guildId, gameId: input.gameId }),

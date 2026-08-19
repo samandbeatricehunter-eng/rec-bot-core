@@ -290,6 +290,8 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   if (lockedGameId) {
     await markGameStarted({ gameId: lockedGameId }).catch((error) => console.error("[ERROR] Failed to mark game started from Discord stream post (non-fatal):", error));
     await postOrUpdateGameAnnouncement(lockedGameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
+    const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
+    await refreshMatchupsChannelForGame(lockedGameId);
   }
 
   // Best-effort public notice on the league chat — never blocks the stream post itself.

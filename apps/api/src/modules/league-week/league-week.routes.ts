@@ -17,6 +17,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { createGameChannelsForCurrentWeek } from "../game-channels/game-channels.service.js";
 import { supabase } from "../../lib/supabase.js";
 import { getBoxScoreCommandState } from "./data-mode.service.js";
+import { refreshMatchupsChannel } from "../scheduling/matchups-channel.service.js";
 
 // completeAdvanceWeek/completeAdvanceJump already post the advance announcement to Discord
 // (via publishLeagueAdvanceAnnouncement -> recordHubAnnouncement) as part of advancing —
@@ -202,6 +203,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           });
         }
       }
+      await refreshMatchupsChannel(body.guildId).catch((error) => console.error("[ERROR] Failed to post weekly matchups channel (non-fatal):", error));
       const discord = auth.mode === "user"
         ? await relayWebAdvanceToDiscord(body.guildId).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;

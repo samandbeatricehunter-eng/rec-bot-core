@@ -65,19 +65,27 @@ export async function postOrUpdateGameAnnouncement(gameId: string, opts: { annou
   if (!channelId) return;
 
   const payload = await buildAnnouncementPayload(gameId);
+  let staleMessage = false;
 
   if (scheduling.data.announcement_message_id) {
     const edited = await editDiscordMessage(channelId, scheduling.data.announcement_message_id, payload).catch(() => false);
     if (edited) return;
+    // The tracked message is gone (deleted, channel changed, etc.) -- every future call would
+    // otherwise keep trying to edit the same dead id and silently no-op forever (e.g. a final
+    // score from markGameOver, which always calls with announceNow:false, would never actually
+    // reach the channel). Clear it and fall through to repost as a repair, not a fresh event.
+    staleMessage = true;
+    await supabase.from("rec_game_scheduling").update({ announcement_channel_id: null, announcement_message_id: null }).eq("game_id", gameId);
   }
-  if (!opts.announceNow) return; // Don't post a brand-new announcement on a routine update if none exists yet.
+  if (!opts.announceNow && !staleMessage) return; // Don't post a brand-new announcement on a routine update if none exists yet.
 
   // Live-game announcements should read as "the game between X and Y is LIVE", not a kickoff
   // countdown -- the embed title already carries the matchup ("Away @ Home"), so the ping just
-  // needs to point everyone at it.
+  // needs to point everyone at it. A repair repost (staleMessage) never re-pings @everyone --
+  // it's recovering an existing announcement, not a new event.
   const announceIsLive = scheduling.data.status === "live" || (scheduling.data.game_started_at && scheduling.data.status !== "completed");
-  const content = announceIsLive ? "@everyone — this game is LIVE now:" : "@everyone";
-  const posted = await postDiscordChannelMessage(channelId, { content, allowed_mentions: { parse: ["everyone"] }, ...payload });
+  const content = staleMessage ? undefined : announceIsLive ? "@everyone — this game is LIVE now:" : "@everyone";
+  const posted = await postDiscordChannelMessage(channelId, { ...(content ? { content, allowed_mentions: { parse: ["everyone"] } } : {}), ...payload });
   if (!posted?.id) return;
   await supabase.from("rec_game_scheduling").update({ announcement_channel_id: channelId, announcement_message_id: posted.id, updated_at: new Date().toISOString() }).eq("game_id", gameId);
   await logSchedulingEvent({ gameId, eventType: "announcement_posted" });
@@ -110,5 +118,7 @@ export async function markGameOver(input: { gameId: string; discordId: string; h
   // postOrUpdateGameAnnouncement from this file).
   const { updateSchedulingPanel } = await import("./matchup-scheduling.service.js");
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  const { refreshMatchupsChannelForGame } = await import("./matchups-channel.service.js");
+  await refreshMatchupsChannelForGame(input.gameId);
   return { ok: true as const };
 }
