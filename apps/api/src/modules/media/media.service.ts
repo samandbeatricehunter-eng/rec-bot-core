@@ -6,6 +6,7 @@ import {
   copyStreamFromUrl,
   createStreamDirectUpload,
   deleteStreamVideo,
+  enableStreamDownload,
   HIGHLIGHT_MAX_DURATION_SECONDS,
   HIGHLIGHT_MAX_HEIGHT,
   streamPlaybackUrls,
@@ -65,6 +66,30 @@ async function postHighlightToDiscord(input: {
     const content = mentionIds.length ? mentionIds.map((id: string) => `<@${id}>`).join(" ") : undefined;
 
     const watchUrl = input.streamUid ? `https://iframe.videodelivery.net/${input.streamUid}` : input.playbackUrl;
+    // Discord only ever auto-renders a *playable* inline video for a raw direct-file URL
+    // posted as message content — the iframe player URL above is an HTML page, so Discord
+    // can't unfurl it as video no matter where it's linked from, and a link inside an embed
+    // never auto-plays regardless of URL type. Enable the Stream MP4 download and drop its
+    // direct URL into the message content so Discord's own unfurler builds the native player;
+    // fall back to the "Watch the clip" link when the download isn't encoded yet.
+    let directVideoUrl: string | null = null;
+    if (input.streamUid) {
+      try {
+        // First call just kicks off Cloudflare's MP4 encode (usually a few seconds for a
+        // clip this short) and comes back not-ready; a couple of short retries catches it
+        // landing instead of falling back to the non-playable iframe link almost every time.
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const download = await enableStreamDownload(input.streamUid);
+          if (download.ready) {
+            directVideoUrl = download.url;
+            break;
+          }
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 2500));
+        }
+      } catch (error) {
+        console.error(`[WARN] Failed to enable Stream download for highlight ${input.highlightId} (non-fatal):`, error);
+      }
+    }
     const embed: any = {
       title: `New Highlight — ${teamName ?? "Unassigned"} · Week ${input.weekNumber}`,
       color: 0x1d9bf0,
@@ -72,10 +97,11 @@ async function postHighlightToDiscord(input: {
         `Submitted by ${submitterLabel}`,
         teamName ? `Team: ${teamName}` : null,
         `Week ${input.weekNumber}, Season ${input.seasonNumber}`,
-        watchUrl ? `[Watch the clip](${watchUrl})` : null,
+        !directVideoUrl && watchUrl ? `[Watch the clip](${watchUrl})` : null,
       ].filter(Boolean).join("\n"),
     };
-    const sent = await postDiscordChannelMessage(channelId, content ? { content, embeds: [embed] } : { embeds: [embed] });
+    const contentLines = [content, directVideoUrl].filter(Boolean).join("\n") || undefined;
+    const sent = await postDiscordChannelMessage(channelId, contentLines ? { content: contentLines, embeds: [embed] } : { embeds: [embed] });
     if (sent?.id) {
       await supabase.from("rec_highlight_posts").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", input.highlightId);
       return { posted: true };
