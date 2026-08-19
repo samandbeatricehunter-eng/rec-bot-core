@@ -1373,7 +1373,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     gamesQuery,
     supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),
     supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
-    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").gte("posted_at", streamLiveSince()).is("ended_at", null).order("posted_at", { ascending: false }),
+    // No `gte(posted_at, streamLiveSince())` floor here (unlike the "watch now" queries
+    // elsewhere) — a stream older than the 2h live window still tells us the game was
+    // actually played, which the status computation below needs even after the badge expires.
+    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").is("ended_at", null).order("posted_at", { ascending: false }),
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(username,display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
@@ -1471,8 +1474,27 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       const awayScore = result?.away_score ?? game.away_score ?? null;
       const isFinal = Boolean(result) || ["final", "completed", "played"].includes(String(game.status ?? "").toLowerCase()) || (homeScore != null && awayScore != null && selectedWeek < currentWeek);
       const showStreams = !isFinal && game.home_user_id && game.away_user_id;
-      const homeStream = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
-      const awayStream = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
+      const homeStreamRaw = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
+      const awayStreamRaw = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
+      const streamIsLive = (stream: any) => Boolean(stream?.posted_at) && Date.now() - new Date(stream.posted_at).getTime() < STREAM_LIVE_WINDOW_MS;
+      // The "watch now" badges only ever show a currently-live stream -- once the 2h window
+      // closes the stream itself goes stale for viewing, but its existence still means the
+      // game was actually played (see displayStatus below), so homeStreamRaw/awayStreamRaw
+      // (unfiltered by recency) are kept around for that computation.
+      const homeStream = homeStreamRaw && streamIsLive(homeStreamRaw) ? homeStreamRaw : null;
+      const awayStream = awayStreamRaw && streamIsLive(awayStreamRaw) ? awayStreamRaw : null;
+      // A score can land on rec_games (manual entry, Discord-side report, Madden Companion
+      // import, etc.) before a commissioner ever runs Advance Week / approves a box score --
+      // that's a legitimate result, just not yet "official" (isFinal). Surface it instead of
+      // hiding it behind "Not yet played".
+      const hasPreliminaryScore = !isFinal && homeScore != null && awayScore != null;
+      const staleStream = (homeStreamRaw && !streamIsLive(homeStreamRaw)) ? homeStreamRaw : (awayStreamRaw && !streamIsLive(awayStreamRaw)) ? awayStreamRaw : null;
+      const displayStatus: "scheduled" | "live" | "awaiting_result" | "final" =
+        isFinal ? "final"
+        : hasPreliminaryScore ? "awaiting_result"
+        : staleStream ? "awaiting_result"
+        : (homeStream || awayStream) ? "live"
+        : "scheduled";
       const boxScore = boxScoreByGameId.get(game.id) ?? null;
       const gameReactionRows = (gameReactionsForWeek.data ?? []).filter((reaction: any) => reaction.game_id === game.id);
       // Older GOTW rows can point at a superseded rec_games id after a schedule refresh.
@@ -1516,6 +1538,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         homeScore,
         awayScore,
         isFinal,
+        hasPreliminaryScore,
+        displayStatus,
         wageringOpen: String(game.status ?? "scheduled").toLowerCase() === "scheduled" && !isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,

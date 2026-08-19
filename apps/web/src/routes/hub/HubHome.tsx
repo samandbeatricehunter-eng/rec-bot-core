@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, priceForPurchaseWithConfig, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
@@ -473,6 +473,7 @@ export function HubHome() {
   const auth = useAuth();
   const hubChrome = useHubChrome();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [economyValues, setEconomyValues] = useState<RecGlobalEconomyConfig>(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG);
@@ -1056,6 +1057,10 @@ export function HubHome() {
   }
 
   function jumpToMyMatchup() {
+    if (heroCurrentGameId && hub?.league.id) {
+      navigate(`/l/${hub.league.id}/matchups/${heroCurrentGameId}`);
+      return;
+    }
     setSection("league");
     setSubTab("matchups");
     writeHubParams("league", "matchups");
@@ -2189,10 +2194,17 @@ export function HubHome() {
             : scheduleLeagueData.isOffseason ? <p className="hub-empty">No games this week — the league is in the offseason ({scheduleLeagueData.offseasonStageLabel ?? "Offseason"}).</p>
             : !scheduleLeagueData.games.length ? <p className="hub-empty">No games scheduled for Week {scheduleLeagueData.selectedWeek}.</p>
             : <div className="hub-schedule-week-list">{scheduleLeagueData.games.map((game) => (
-                <article key={game.gameId} className={`hub-schedule-week ${game.isFinal ? "cpu" : "missing"}`}>
+                <article key={game.gameId} className={`hub-schedule-week ${game.displayStatus === "final" ? "cpu" : game.displayStatus === "live" ? "live" : game.displayStatus === "awaiting_result" ? "awaiting-result" : "missing"}`}>
                   <span className="hub-schedule-week-label">{game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "Human vs CPU" : "CPU"}</span>
                   <strong>{game.awayTeamName} at {game.homeTeamName}</strong>
-                  {game.isFinal ? <b className="hub-final-score">{game.awayScore}-{game.homeScore}</b> : <span className="hub-muted">Not yet played</span>}
+                  {game.displayStatus === "final" ? <b className="hub-final-score">{game.awayScore}-{game.homeScore}</b>
+                    : game.displayStatus === "awaiting_result" ? (
+                      game.homeScore != null && game.awayScore != null
+                        ? <span className="hub-muted hub-score-unofficial">{game.awayScore}-{game.homeScore} (unofficial)</span>
+                        : <span className="hub-muted">Played — awaiting result</span>
+                    )
+                    : game.displayStatus === "live" ? <span className="hub-live-badge">LIVE</span>
+                    : <span className="hub-muted">Not yet played</span>}
                 </article>
               ))}</div>}
         </div>

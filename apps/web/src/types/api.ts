@@ -663,6 +663,8 @@ export type HubMatchupSchedule = {
     homeScore: number | null;
     awayScore: number | null;
     isFinal: boolean;
+    hasPreliminaryScore: boolean;
+    displayStatus: "scheduled" | "live" | "awaiting_result" | "final";
     wageringOpen: boolean;
     winnerTeamId: string | null;
     boxScoreSubmissionId: string | null;
