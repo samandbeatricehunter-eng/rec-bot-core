@@ -15,6 +15,10 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-md);
+  /* Base typography matches the button language (weight + letter-spacing) so inherited text
+     reads consistently; components with a different voice override this explicitly. */
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 a {

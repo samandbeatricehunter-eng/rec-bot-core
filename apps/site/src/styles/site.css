@@ -115,6 +115,11 @@ body {
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
+  /* Base typography now matches the .site-btn language (weight + letter-spacing) so every
+     inherited text node — labels, copy, nav — reads consistently; components that need a
+     different voice (display headings, eyebrows) still override this explicitly below. */
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 a { color: var(--gold-light); }
 h1, h2, h3, .site-wordmark {
@@ -3390,7 +3395,7 @@ h1, h2, h3, .site-wordmark {
 .site-page {
   background-color: #05070a;
   background-image:
-    linear-gradient(180deg, rgba(5, 7, 10, 0.45) 0%, rgba(5, 7, 10, 0.78) 55%, rgba(5, 7, 10, 0.92) 100%),
+    linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
     url("/assets/backgrounds/stadium-hero.png");
   background-size: cover;
   background-position: center top;
