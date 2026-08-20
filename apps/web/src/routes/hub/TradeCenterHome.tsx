@@ -1052,7 +1052,7 @@ export function TradeCenterHome() {
               setBuilderReminder(null);
               if (!nextTeam?.hasSiteAccount) { setOfferedCoins(0); setRequestedCoins(0); }
             }}>
-              <option value="">Select a team\u2026</option>
+              <option value="">Select a team…</option>
               {otherTeams.map((team) => (
                 <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
               ))}
