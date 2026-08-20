@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import { env } from "../config/env.js";
 import { signMatchupRenderToken } from "./render-token.js";
 
-const RENDER_VIEWPORT = { width: 1750, height: 420 };
+const RENDER_VIEWPORT = { width: 1450, height: 400 };
 const RENDER_TIMEOUT_MS = 15_000;
 
 export async function renderMatchupCardPng(gameId: string): Promise<Buffer> {

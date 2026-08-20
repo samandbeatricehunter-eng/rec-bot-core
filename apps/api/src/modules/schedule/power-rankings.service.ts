@@ -304,9 +304,14 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
     for (const row of prevSnap.data ?? []) prevRankByTeam.set(row.team_id, row.rank);
   }
 
+  // Reuses the same per-team W-L-T aggregation rankTeams already ran internally -- computed
+  // fresh here (rather than plumbed out of rankTeams) so this stays a small, additive change.
+  // Still only one extra query on a cache miss, since the whole result below is cached.
+  const recordAgg = await aggregateTeams(leagueId, currentSeason);
   const teams = ranked.map((r) => {
     const t = teamById.get(r.teamId);
     const prevRank = prevRankByTeam.get(r.teamId) ?? null;
+    const agg = recordAgg.get(r.teamId);
     return {
       teamId: r.teamId,
       teamName: teamDisplayName(t),
@@ -317,6 +322,9 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       score: round(r.score, 3),
       prevRank,
       change: prevRank == null ? null : prevRank - r.rank, // + = moved up
+      wins: agg?.wins ?? 0,
+      losses: agg?.losses ?? 0,
+      ties: agg?.ties ?? 0,
     };
   });
 

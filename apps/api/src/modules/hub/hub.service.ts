@@ -1372,7 +1372,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   }
   const gamesQuery = leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: selectedWeek },
     "id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),rivalry:rec_league_rivalries(rivalry_name)");
-  const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll] = await Promise.all([
+  const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll, powerRankings] = await Promise.all([
     gamesQuery,
     // Was league_id-only (no season scope) -- once a league reached its second season this
     // pulled every week number that ever had a game, including the prior season's postseason
@@ -1394,6 +1394,9 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     // week can now carry many concurrent polls, not just one — fetch them all instead of
     // the single most-recent poll.
     supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }),
+    // Rank/record badges on each matchup card -- best-effort (60s-cached internally) so a power-
+    // rankings hiccup never breaks the whole schedule load, just leaves ranks/records unset.
+    bestEffort("hub.matchup_schedule.power_rankings", () => computePowerRankings(input.guildId), { guildId: input.guildId }).then((v) => v ?? { teams: [] as any[] }),
   ]);
   if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "We couldn't load the matchup schedule. Please try again.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
   if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "We couldn't load stream views right now. Please try again.", streamViewsForWeek.error);
@@ -1451,6 +1454,12 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   for (const result of results.data ?? []) {
     if (result.home_team_id && result.away_team_id) resultByTeams.set(`${result.home_team_id}:${result.away_team_id}`, result);
   }
+  const rankByTeamId = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
+  const teamRecordText = (teamId: string | null | undefined): string | null => {
+    const row = teamId ? rankByTeamId.get(teamId) : null;
+    if (!row) return null;
+    return row.ties > 0 ? `${row.wins}-${row.losses}-${row.ties}` : `${row.wins}-${row.losses}`;
+  };
   const streamByUser = new Map<string, any>();
   for (const stream of streamLogs.data ?? []) {
     if (stream.user_id && stream.message_url && !streamByUser.has(stream.user_id)) streamByUser.set(stream.user_id, stream);
@@ -1546,6 +1555,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         // team-logos/{ABBR}.png) — relocated/custom teams and CFB schools have no matching file.
         homeTeamAbbr: !isCfb && !game.home_team?.is_relocated ? game.home_team?.abbreviation ?? null : null,
         awayTeamAbbr: !isCfb && !game.away_team?.is_relocated ? game.away_team?.abbreviation ?? null : null,
+        homeTeamRank: rankByTeamId.get(game.home_team?.id)?.rank ?? null,
+        awayTeamRank: rankByTeamId.get(game.away_team?.id)?.rank ?? null,
+        homeTeamRecord: teamRecordText(game.home_team?.id),
+        awayTeamRecord: teamRecordText(game.away_team?.id),
         rivalryName: (Array.isArray(game.rivalry) ? game.rivalry[0] : game.rivalry)?.rivalry_name ?? null,
         homeConference: game.home_team?.conference ?? null,
         awayConference: game.away_team?.conference ?? null,

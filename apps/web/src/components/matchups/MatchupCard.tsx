@@ -6,6 +6,11 @@ import { recApi } from "../../lib/rec-api-client.js";
 import { MatchupReactionBar } from "./MatchupReactionBar.js";
 import { TeamLogo } from "../ui/TeamLogo.js";
 
+function teamMetaLine(rank: number | null, record: string | null): string | null {
+  const parts = [rank ? `#${rank}` : null, record].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function readableText(hex: string) {
   const value = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) || 0);
@@ -135,7 +140,11 @@ export function MatchupCard({
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
         <TeamLogo abbreviation={game.awayTeamAbbr} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" />
-        <span className="rec-matchup-card__team-text"><small>{game.awayTeamName}</small><strong>{game.awayTeamMascot}</strong></span>
+        <span className="rec-matchup-card__team-text">
+          <small>{game.awayTeamName}</small>
+          <strong>{game.awayTeamMascot}</strong>
+          {teamMetaLine(game.awayTeamRank, game.awayTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.awayTeamRank, game.awayTeamRecord)}</em>}
+        </span>
       </div>
       <div className="rec-matchup-card__center">
         {topTag}
@@ -148,7 +157,11 @@ export function MatchupCard({
         {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
       </div>
       <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
-        <span className="rec-matchup-card__team-text"><small>{game.homeTeamName}</small><strong>{game.homeTeamMascot}</strong></span>
+        <span className="rec-matchup-card__team-text">
+          <small>{game.homeTeamName}</small>
+          <strong>{game.homeTeamMascot}</strong>
+          {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
+        </span>
         <TeamLogo abbreviation={game.homeTeamAbbr} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" />
       </div>
       {reactionsEnabled ? (

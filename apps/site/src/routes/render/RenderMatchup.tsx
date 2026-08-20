@@ -36,15 +36,14 @@ export function RenderMatchup() {
   if (!game) return null;
 
   return (
-    <div style={{ width: 1650, height: 330, padding: 24, background: "#0b0d10" }}>
-      {/* Discord scales an embed image's DISPLAYED width to fit its own layout regardless of
-          source resolution -- a higher-res screenshot of the same short/wide card doesn't look
-          any bigger on screen, only crisper. Stretching the actual rendered element (Playwright
-          screenshots the painted/transformed bounding box, not the static layout box) is what
-          actually changes the card's proportions in the final image. */}
-      <div style={{ width: 1400, transform: "scale(1.15, 1.65)", transformOrigin: "top left" }}>
-        <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
-      </div>
+    // Discord caps an embed image's DISPLAYED WIDTH to a fixed ceiling regardless of source
+    // resolution and scales height to match the image's own aspect ratio -- a skewed
+    // transform: scale(x,y) just distorts the same effective footprint rather than growing it.
+    // A genuinely taller card (via the .rec-matchup-card--render CSS override, hub.css) is what
+    // actually displays bigger, since Discord preserves that taller aspect ratio when it scales
+    // width down to its cap.
+    <div style={{ width: 1400, padding: 24, background: "#0b0d10" }}>
+      <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
     </div>
   );
 }
