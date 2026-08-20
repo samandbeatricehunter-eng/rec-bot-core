@@ -7,7 +7,7 @@ import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
 import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
-import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -158,6 +158,10 @@ export const INTERVIEW_QUESTIONS = INTERVIEW_TOPICS.flatMap((topic) =>
 );
 
 async function userIdForDiscord(discordId: string) {
+  // Site-only leagues (and the matchup-render pipeline, which resolves a viewer-less render via
+  // a synthetic discordId) use the same site-only-id convention already established in
+  // scheduling/shared.ts's userIdFromDiscordId -- this local copy just never special-cased it.
+  if (isSiteOnlyDiscordId(discordId)) return recUserIdFromSiteOnlyDiscordId(discordId);
   const result = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
   if (result.error) throw new ApiError(500, "We couldn't load your REC account. Please try again.", result.error);
   if (!result.data?.user_id) throw new ApiError(404, "Discord account is not linked to a REC user.");

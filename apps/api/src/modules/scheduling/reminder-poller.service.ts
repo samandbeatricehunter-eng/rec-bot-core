@@ -162,12 +162,16 @@ async function lastSentAt(gameId: string, type: string): Promise<number | null> 
 // not_scheduled (any other logged action -- Can't Make Game, a status change, etc. -- moves the
 // status off not_scheduled, which is exactly the stop condition this checks).
 async function runScheduleInSystemNag() {
+  // The shim's .or() only supports flat "col.op.value" clauses (eq/is null/in/neq) -- it can't
+  // parse "col.not.is.null" or an and(...) sub-group, so "at least one side responded" is
+  // filtered in JS after a plain unfiltered-by-response fetch instead of pushing that logic
+  // into a .or() expression the shim was never built to handle.
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,home_responded_at,away_responded_at")
-    .eq("status", "not_scheduled")
-    .or("home_responded_at.not.is.null,away_responded_at.not.is.null");
+    .eq("status", "not_scheduled");
   if (error) { console.error("[ERROR] scheduling reminder poller: schedule-in-system nag query failed (non-fatal):", error); return; }
-  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>;
+  const rows = ((data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>)
+    .filter((r) => r.home_responded_at || r.away_responded_at);
   if (!rows.length) return;
 
   const gameIds = rows.map((r) => r.game_id);
@@ -207,14 +211,18 @@ async function runScheduleInSystemNag() {
 // separate scan, since it's the same underlying condition with an extra settings gate.
 async function runFailureToScheduleFwSurface() {
   const cutoff = new Date(Date.now() - 8 * HOUR).toISOString();
+  // Same shim limitation as runScheduleInSystemNag above -- "exactly one side responded" (an
+  // and(...)-grouped or() expression) isn't something the shim's .or() can parse, so fetch the
+  // broader not-yet-responded-on-both-sides set and filter the XOR condition in JS.
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,home_responded_at,away_responded_at")
     .not("response_started_at", "is", null)
     .lte("response_started_at", cutoff)
     .not("status", "in", "(confirmed,completed)")
-    .or("and(home_responded_at.not.is.null,away_responded_at.is.null),and(home_responded_at.is.null,away_responded_at.not.is.null)");
+    .or("home_responded_at.is.null,away_responded_at.is.null");
   if (error) { console.error("[ERROR] scheduling reminder poller: failure-to-schedule FW query failed (non-fatal):", error); return; }
-  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>;
+  const rows = ((data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>)
+    .filter((r) => Boolean(r.home_responded_at) !== Boolean(r.away_responded_at));
   if (!rows.length) return;
 
   const sent = await alreadySent(rows.map((r) => r.game_id), "fw_failure_to_schedule_8h");
