@@ -170,6 +170,15 @@ import {
   handleCustomTimeMinuteSelect, handleCustomTimeSubmit,
 } from "./flows/custom-time-picker.js";
 import {
+  REPORT_VIOLATION_CUSTOM_IDS,
+  handleDashingResolve,
+  handleReportViolationChoiceDash,
+  handleReportViolationChoiceRule,
+  handleReportViolationPanel,
+  handleReportViolationRuleModal,
+  handleViolationResolve,
+} from "./flows/report-violation-flow.js";
+import {
   READY_TO_ADVANCE_CUSTOM_IDS,
   handleReadyToAdvanceButton, handleH2hYesButton, handleH2hNoButton, handleH2hScoreModalSubmit,
   handleCpuPlayedButton, handleCpuFwButton, handleCpuScoreModalSubmit,
@@ -705,6 +714,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelPropose)) return handleProposePanel(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelCantMake)) return handleCantMakePanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReportViolation)) return handleReportViolationPanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.choiceRule)) return handleReportViolationChoiceRule(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.choiceDash)) return handleReportViolationChoiceDash(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.ruleModal)) return handleReportViolationRuleModal(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.violationGrantFw)) return handleViolationResolve(interaction, "grant_fw");
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.violationClear)) return handleViolationResolve(interaction, "clear");
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingGrantFw)) return handleDashingResolve(interaction, "grant_fw");
+    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingReject)) return handleDashingResolve(interaction, "reject");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted)) return handlePanelGameStarted(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReset)) return handlePanelReset(interaction);
     if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter) || interaction.customId.startsWith("rec:sc:pc:"))) return handleProposalCounterButton(interaction);

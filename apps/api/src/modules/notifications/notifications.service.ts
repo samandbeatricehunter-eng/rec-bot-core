@@ -413,7 +413,7 @@ export async function markCommissionerNotificationsDmSent(guildId: string, ids: 
 // notification-only request types like force_win_request/autopilot_request/matchup_issue_report)
 // — every other type is resolved by its own source-specific service function instead, per this
 // module's usual "reads only" convention, but those types don't have a source table to update.
-const MATCHUP_HELP_QUEUE_TYPES = new Set(["force_win_request", "autopilot_request", "matchup_issue_report"]);
+const MATCHUP_HELP_QUEUE_TYPES = new Set(["force_win_request", "autopilot_request", "matchup_issue_report", "rule_violation_report", "dashing_report"]);
 
 export async function markCommissionerInboxItemHandled(input: { guildId: string; inboxId: string; reviewerDiscordId: string }) {
   const { data, error } = await supabase

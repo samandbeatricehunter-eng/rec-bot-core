@@ -9,7 +9,8 @@ import {
 } from "./availability.service.js";
 import {
   checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
-  refreshSchedulingPanelsForUser, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame, respondToProposal,
+  refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
+  resolveDashingReport, resolveViolationReport, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
@@ -268,6 +269,38 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), decision: z.enum(["grant_autopilot", "enforce_fs"]) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await resolveAutopilotRequest({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), decision: body.decision }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/report-violation", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), description: z.string().min(1).max(500) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await reportRuleViolation({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), description: body.description }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/violation-resolve", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), decision: z.enum(["grant_fw", "clear"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await resolveViolationReport({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), decision: body.decision }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/report-dashing", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await reportDashing({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/dashing-resolve", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), decision: z.enum(["grant_fw", "reject"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await resolveDashingReport({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), decision: body.decision }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -129,6 +129,14 @@ export const recApi = {
     recFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
   resolveAutopilotRequest: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_autopilot" | "enforce_fs" }) =>
     recFetch<{ decision: string }>("/v1/scheduling/matchup/autopilot-resolve", { method: "POST", body: JSON.stringify(input) }),
+  reportRuleViolation: (input: { guildId: string; discordId: string; gameId: string; description: string }) =>
+    recFetch<{ ok: true }>("/v1/scheduling/matchup/report-violation", { method: "POST", body: JSON.stringify(input) }),
+  resolveViolationReport: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_fw" | "clear" }) =>
+    recFetch<{ decision: string }>("/v1/scheduling/matchup/violation-resolve", { method: "POST", body: JSON.stringify(input) }),
+  reportDashing: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<{ ok: true }>("/v1/scheduling/matchup/report-dashing", { method: "POST", body: JSON.stringify(input) }),
+  resolveDashingReport: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_fw" | "reject" }) =>
+    recFetch<{ decision: string }>("/v1/scheduling/matchup/dashing-resolve", { method: "POST", body: JSON.stringify(input) }),
   resetScheduling: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; discordId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>

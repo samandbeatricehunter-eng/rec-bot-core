@@ -614,6 +614,147 @@ export async function resolveAutopilotRequest(input: { gameId: string; discordId
   return { decision: input.decision };
 }
 
+// Report Violation: the reporter's own free-text description of what the opponent did wrong.
+// Files a matchup-help ticket AND posts a commissioner-role-tagged in-channel review with
+// Grant FW (only if rule_violation is enabled for this stage) / Clear buttons -- same public-
+// post-with-gated-buttons pattern as the AutoPilot escalation above, since there's no
+// commissioner-only channel to post a truly private review into.
+export async function reportRuleViolation(input: { gameId: string; discordId: string; description: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can report a violation.");
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "rule_violation_reported", payload: { description: input.description } });
+
+  const routes = await findServerRoutesForLeague(game.league_id);
+  await submitMatchupHelpRequest({
+    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
+    discordId: input.discordId,
+    gameId: input.gameId,
+    kind: "rule_violation",
+    message: input.description,
+  }).catch((err) => console.error("[ERROR] Failed to file the rule-violation Request Help ticket (non-fatal):", err));
+
+  const active = await getActiveRuleKeys(game.league_id);
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
+    const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
+    const buttons = [{ type: 2, style: 2, custom_id: `rec:gamesched:violation:clear:${input.gameId}`, label: "Clear" }];
+    if (active.forceWin.includes("rule_violation")) {
+      buttons.unshift({ type: 2, style: 3, custom_id: `rec:gamesched:violation:grantfw:${input.gameId}`, label: "Grant FW" } as any);
+    }
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `⚠️ **Rule violation reported.** ${roleMention}"${input.description.slice(0, 500)}"`,
+      components: [{ type: 1, components: buttons }],
+      allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+    }).catch(() => undefined);
+  }
+  return { ok: true as const };
+}
+
+// Commissioner resolution of a violation report -- Grant FW flags fw_flagged for the reporter
+// (same "flag, don't mechanically apply" pattern as requestForceWin/markCantMakeGame's grant_fw
+// branch); Clear just logs and closes it out.
+export async function resolveViolationReport(input: { gameId: string; discordId: string; decision: "grant_fw" | "clear" }) {
+  const game = await loadGame(input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "violation_resolved", payload: { decision: input.decision } });
+
+  if (input.decision === "grant_fw") {
+    // The reporter is whoever wasn't the reported party -- but this report has no stored
+    // "reported user", only "who filed it" (logSchedulingEvent above). Award the FW to whichever
+    // coach did NOT most recently file the report by checking the latest event's userId.
+    const lastReport = await supabase.from("rec_game_scheduling_events").select("user_id").eq("game_id", input.gameId).eq("event_type", "rule_violation_reported").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const reporterId = lastReport.data?.user_id ?? null;
+    const beneficiaryId = reporterId === game.home_user_id ? game.home_user_id : reporterId === game.away_user_id ? game.away_user_id : null;
+    if (beneficiaryId) {
+      await supabase.from("rec_game_scheduling").update({
+        fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
+        attention_required: true, updated_at: new Date().toISOString(),
+      }).eq("game_id", input.gameId);
+    }
+  }
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const text = input.decision === "grant_fw" ? "✅ Force Win **granted** by a commissioner for this violation report." : "Violation report **cleared** by a commissioner — no action taken.";
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: text }).catch(() => undefined);
+  }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { decision: input.decision };
+}
+
+// Report Dashing: the reporter flags that their opponent quit out before halftime. Posts a
+// PUBLIC notice (unlike the violation report above, there's no free-text description step --
+// dashing is binary) tagging both the reported coach and the commissioner role, with Grant FW /
+// Reject buttons. Boot lands with Phase 6's Commish Tools (Boot User needs a real site
+// team-unlink + Discord kick implementation, not just a status flag).
+export async function reportDashing(input: { gameId: string; discordId: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can report dashing.");
+  const reportedId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
+  if (!reportedId) throw new ApiError(400, "This game has no opponent to report.");
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "dashing_reported", payload: { reportedUserId: reportedId } });
+
+  const routes = await findServerRoutesForLeague(game.league_id);
+  await submitMatchupHelpRequest({
+    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
+    discordId: input.discordId,
+    gameId: input.gameId,
+    kind: "dashing",
+    message: "Opponent dashed (quit out before halftime) instead of conceding.",
+  }).catch((err) => console.error("[ERROR] Failed to file the dashing Request Help ticket (non-fatal):", err));
+
+  const active = await getActiveRuleKeys(game.league_id);
+  const [reportedAccount, channel] = await Promise.all([
+    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", reportedId).maybeSingle(),
+    getGameChannelByGameId(input.gameId),
+  ]);
+  const reportedDiscordId = reportedAccount.data?.discord_id ? String(reportedAccount.data.discord_id) : null;
+  if (channel?.discord_channel_id) {
+    const routesRow = routes;
+    const commissionerRoleId = String((routesRow?.routes as any)?.commissioner_role_id ?? "");
+    const mentions = [reportedDiscordId ? `<@${reportedDiscordId}>` : "the reported coach", commissionerRoleId ? `<@&${commissionerRoleId}>` : null].filter(Boolean).join(" ");
+    const buttons = [{ type: 2, style: 2, custom_id: `rec:gamesched:dashing:reject:${input.gameId}`, label: "Reject" }];
+    if (active.forceWin.includes("dashing")) {
+      buttons.unshift({ type: 2, style: 3, custom_id: `rec:gamesched:dashing:grantfw:${input.gameId}`, label: "Grant FW" } as any);
+    }
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `🚫 **Dashing reported.** ${mentions} — quitting out before halftime instead of conceding is not allowed.`,
+      components: [{ type: 1, components: buttons }],
+      allowed_mentions: { users: reportedDiscordId ? [reportedDiscordId] : [], roles: commissionerRoleId ? [commissionerRoleId] : [] },
+    }).catch(() => undefined);
+  }
+  return { ok: true as const };
+}
+
+// Commissioner resolution of a dashing report. Grant FW flags fw_flagged for the reporter
+// (opponent of the reported coach); Reject just logs and closes it out.
+export async function resolveDashingReport(input: { gameId: string; discordId: string; decision: "grant_fw" | "reject" }) {
+  const game = await loadGame(input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "dashing_resolved", payload: { decision: input.decision } });
+
+  if (input.decision === "grant_fw") {
+    const lastReport = await supabase.from("rec_game_scheduling_events").select("user_id").eq("game_id", input.gameId).eq("event_type", "dashing_reported").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const reporterId = lastReport.data?.user_id ?? null;
+    const beneficiaryId = reporterId === game.home_user_id ? game.home_user_id : reporterId === game.away_user_id ? game.away_user_id : null;
+    if (beneficiaryId) {
+      await supabase.from("rec_game_scheduling").update({
+        fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
+        attention_required: true, updated_at: new Date().toISOString(),
+      }).eq("game_id", input.gameId);
+    }
+  }
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const text = input.decision === "grant_fw" ? "✅ Force Win **granted** by a commissioner for this dashing report." : "Dashing report **rejected** by a commissioner — no action taken.";
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: text }).catch(() => undefined);
+  }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { decision: input.decision };
+}
+
 // Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed
 // time, FW flag, pending proposals, kickoff check-ins) so both coaches can restart scheduling
 // from scratch -- e.g. a "Can't Make Game" that later turns out to have been premature.
@@ -671,6 +812,9 @@ function proposeButtonLabel(status: UserFacingStatus): string {
   return "Propose Time";
 }
 
+// Row layout matches the spec: Availability/Propose; Can't Make Game/Report Violation;
+// lifecycle+Reset. Commish Tools (the spec's 3rd-row second button) isn't added until Phase 6
+// builds it -- Reset stays the sole commissioner control on that row until then.
 function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
   const lifecycleButton = status === "completed" ? null
     : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
@@ -681,7 +825,13 @@ function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
       components: [
         { type: 2, style: 2, custom_id: `rec:gamesched:panel:availability:${gameId}`, label: "Adjust Availability" },
         { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: proposeButtonLabel(status) },
+      ],
+    },
+    {
+      type: 1,
+      components: [
         { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
+        { type: 2, style: 2, custom_id: `rec:gamesched:panel:reportviolation:${gameId}`, label: "Report Violation" },
       ],
     },
     {

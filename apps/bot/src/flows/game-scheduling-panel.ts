@@ -14,6 +14,7 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelAvailability: "rec:gamesched:panel:availability:",
   panelPropose: "rec:gamesched:panel:propose:",
   panelCantMake: "rec:gamesched:panel:cantmake:",
+  panelReportViolation: "rec:gamesched:panel:reportviolation:",
   panelGameStarted: "rec:gamesched:panel:gamestarted:",
   panelReset: "rec:gamesched:panel:reset:",
   proposeSelect: "rec:gamesched:proposeselect:",
@@ -38,7 +39,7 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   gameOverModal: "rec:gamesched:gameovermodal:",
 };
 
-function idAfter(prefix: string, customId: string): string {
+export function idAfter(prefix: string, customId: string): string {
   return customId.slice(prefix.length);
 }
 

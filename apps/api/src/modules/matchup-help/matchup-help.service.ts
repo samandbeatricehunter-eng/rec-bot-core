@@ -12,18 +12,22 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 
-export type MatchupHelpKind = "force_win" | "autopilot" | "matchup_issue";
+export type MatchupHelpKind = "force_win" | "autopilot" | "matchup_issue" | "rule_violation" | "dashing";
 
 const QUEUE_TYPE_BY_KIND: Record<MatchupHelpKind, string> = {
   force_win: "force_win_request",
   autopilot: "autopilot_request",
   matchup_issue: "matchup_issue_report",
+  rule_violation: "rule_violation_report",
+  dashing: "dashing_report",
 };
 
 const HEADER_BY_KIND: Record<MatchupHelpKind, string> = {
   force_win: "Force Win requested",
   autopilot: "Opponent AutoPilot requested",
   matchup_issue: "Matchup issue reported",
+  rule_violation: "Rule violation reported",
+  dashing: "Dashing reported",
 };
 
 export async function submitMatchupHelpRequest(input: {
