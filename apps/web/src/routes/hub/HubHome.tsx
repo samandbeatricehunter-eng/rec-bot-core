@@ -781,7 +781,9 @@ export function HubHome() {
     return () => window.clearInterval(timer);
   }, [subTab, headlineWeekIndex, activeHeadlineGroup?.items.length, mobileStorySwipe.isDragging]);
 
-  const heroCurrentGameId: string | null = (hub?.myTeam?.display as any)?.currentGameId ?? null;
+  const heroCurrentGameId: string | null = (hub?.myTeam?.display as any)?.currentGameId
+    ?? matchupSchedule?.games.find((game) => game.involvesMe)?.gameId
+    ?? null;
   useEffect(() => {
     if (auth.status !== "ready" || !heroCurrentGameId) {
       setHeroSchedulingStatus(null);
