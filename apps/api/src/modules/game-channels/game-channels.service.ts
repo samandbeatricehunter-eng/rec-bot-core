@@ -1,4 +1,4 @@
-import { fairSimRuleLabel, forceWinRuleLabel } from "@rec/shared";
+import { forceWinRuleLabel } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -169,10 +169,41 @@ async function discordIdsByUserId(userIds: string[]) {
   return new Map<string, string>((data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
 }
 
-function ruleKeyBullets(keys: unknown, labeler: (key: string) => string): string {
-  const list = Array.isArray(keys) ? keys.filter(Boolean) : [];
-  if (!list.length) return "_Not configured for this stage._";
-  return list.map((key: string) => `• ${labeler(key)}`).join("\n");
+// Full-sentence explanations instead of bare rule-option labels, per the user's spec for what
+// the Rules embed should actually say. cant_make_game_no_autopilot's wording folds in
+// allow_autopilot_requests rather than listing it as its own bullet -- "Allow AutoPilot
+// requests" read as a standalone rule when it's really a modifier on the can't-make-game rule.
+function fairSimBullets(keys: unknown): string {
+  const active = new Set(Array.isArray(keys) ? keys.filter(Boolean) : []);
+  if (!active.size) return "_Not configured for this stage._";
+  const lines: string[] = [];
+  if (active.has("scheduling_disagreement")) {
+    lines.push("• Inability to agree on a time before advance qualifies for Fair Sim.");
+  }
+  if (active.has("cant_make_game_no_autopilot")) {
+    lines.push(active.has("allow_autopilot_requests")
+      ? "• If a coach logs that they can't make the game, their opponent can request AutoPilot to play both sides, or the game will result in a Fair Sim."
+      : "• If a coach logs that they can't make the game, the game will result in a Fair Sim.");
+  } else if (active.has("allow_autopilot_requests")) {
+    lines.push("• AutoPilot requests are allowed if a coach can't make the game.");
+  }
+  return lines.length ? lines.join("\n") : "_Not configured for this stage._";
+}
+
+function forceWinBullets(keys: unknown): string {
+  const active = new Set(Array.isArray(keys) ? keys.filter(Boolean) : []);
+  if (!active.size) return "_Not configured for this stage._";
+  if (active.has("never")) return "_Force Win is disabled for this stage._";
+  const lines: string[] = [];
+  if (active.has("failure_to_schedule")) {
+    lines.push("• If a coach makes no attempt to schedule within 8 hours of their opponent reaching out, the opponent can request a Force Win.");
+  }
+  if (active.has("missed_window")) {
+    lines.push("• If both coaches agree to a kickoff time and one is 1 hour or more late, the coach who was ready can request a Force Win.");
+  }
+  if (active.has("dashing")) lines.push(`• ${forceWinRuleLabel("dashing")}`);
+  if (active.has("rule_violation")) lines.push(`• ${forceWinRuleLabel("rule_violation")}`);
+  return lines.length ? lines.join("\n") : "_Not configured for this stage._";
 }
 
 // Extracted so the site game chat can seed a "channel opened" system-message card with the
@@ -194,8 +225,8 @@ function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draf
   const headerDescription = `${input.game.awayTeamName} at ${input.game.homeTeamName}`;
 
   const rulesFields = [
-    { name: "Fair Sim", value: ruleKeyBullets(fsKeys, fairSimRuleLabel), inline: false },
-    { name: "Force Win", value: ruleKeyBullets(fwKeys, forceWinRuleLabel), inline: false },
+    { name: "Fair Sim", value: fairSimBullets(fsKeys), inline: false },
+    { name: "Force Win", value: forceWinBullets(fwKeys), inline: false },
     { name: "4th Down", value: fourthDownText(input.draft, isPlayoff), inline: false },
     { name: "Streaming", value: gotwRule ? `${streamingText(input.draft, isPlayoff)}\nGOTW: ${gotwRule}` : streamingText(input.draft, isPlayoff), inline: false },
   ];
