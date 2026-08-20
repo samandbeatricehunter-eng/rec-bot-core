@@ -36,8 +36,15 @@ export function RenderMatchup() {
   if (!game) return null;
 
   return (
-    <div style={{ width: 1400, padding: 24, background: "#0b0d10" }}>
-      <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
+    <div style={{ width: 1650, height: 330, padding: 24, background: "#0b0d10" }}>
+      {/* Discord scales an embed image's DISPLAYED width to fit its own layout regardless of
+          source resolution -- a higher-res screenshot of the same short/wide card doesn't look
+          any bigger on screen, only crisper. Stretching the actual rendered element (Playwright
+          screenshots the painted/transformed bounding box, not the static layout box) is what
+          actually changes the card's proportions in the final image. */}
+      <div style={{ width: 1400, transform: "scale(1.15, 1.65)", transformOrigin: "top left" }}>
+        <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
+      </div>
     </div>
   );
 }

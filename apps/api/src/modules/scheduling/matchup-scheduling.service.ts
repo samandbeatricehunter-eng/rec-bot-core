@@ -1009,7 +1009,7 @@ function proposeButtonLabel(status: UserFacingStatus): string {
 function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
   const lifecycleButton = status === "completed" ? null
     : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
-    : { type: 2, style: 1, custom_id: `rec:gamesched:panel:gamestarted:${gameId}`, label: "Game Started" };
+    : { type: 2, style: 3, custom_id: `rec:gamesched:panel:gamestarted:${gameId}`, label: "Game Started" };
   return [
     {
       type: 1,
