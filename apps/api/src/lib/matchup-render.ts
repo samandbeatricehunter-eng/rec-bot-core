@@ -18,7 +18,12 @@ export async function renderMatchupCardPng(gameId: string): Promise<Buffer> {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: RENDER_VIEWPORT, deviceScaleFactor: 2 });
-    await page.goto(url, { waitUntil: "networkidle", timeout: RENDER_TIMEOUT_MS });
+    // "networkidle" is the wrong wait condition for a Supabase-auth-backed SPA -- the site's
+    // AuthProvider/session machinery can keep a connection open long enough that the network
+    // never goes quiet for the required 500ms, so goto() just burns its whole timeout and every
+    // render silently fails. "domcontentloaded" fires immediately; target.waitFor below is the
+    // real readiness gate (data fetched + MatchupCard actually mounted).
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: RENDER_TIMEOUT_MS });
     const target = page.locator("[data-matchup-render]");
     await target.waitFor({ state: "visible", timeout: RENDER_TIMEOUT_MS });
     return await target.screenshot({ type: "png" });

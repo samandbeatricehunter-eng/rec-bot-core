@@ -297,10 +297,12 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
       })
     : null;
 
+  // Coach mentions live only in the header embed's description, not the message content --
+  // an embed mention never triggers a Discord ping/notification, so having them in BOTH content
+  // AND the embed (the original design) just rendered the same tag twice in the channel.
   const payload = {
-    content: built.mentions.join(" "),
     embeds: png ? [{ ...headerEmbed, image: { url: "attachment://matchup-card.png" } }, rulesEmbed] : [headerEmbed, rulesEmbed],
-    allowed_mentions: { users: built.mentionIds },
+    allowed_mentions: { parse: [] },
   };
 
   if (png) {

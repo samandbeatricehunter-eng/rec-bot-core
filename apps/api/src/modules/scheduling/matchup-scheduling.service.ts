@@ -1022,14 +1022,14 @@ function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
       type: 1,
       components: [
         { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
-        { type: 2, style: 2, custom_id: `rec:gamesched:panel:reportviolation:${gameId}`, label: "Report Violation" },
+        { type: 2, style: 4, custom_id: `rec:gamesched:panel:reportviolation:${gameId}`, label: "Report Violation" },
       ],
     },
     {
       type: 1,
       components: [
         ...(lifecycleButton ? [lifecycleButton] : []),
-        { type: 2, style: 2, custom_id: `rec:gamesched:panel:commishtools:${gameId}`, label: "Commish Tools" },
+        { type: 2, style: 3, custom_id: `rec:gamesched:panel:commishtools:${gameId}`, label: "Commish Tools" },
       ],
     },
   ];
