@@ -1332,6 +1332,21 @@ export const recGameTimeProposals = pgTable("rec_game_time_proposals", {
 // gameday-scheduling scaffolding (id, game_id, user_id, event_type, payload, created_at) --
 // reused as-is for this system's immutable event log rather than creating a parallel table.
 
+// Phase 8: one edited-in-place message per (league, season, week) listing every confirmed H2H
+// kickoff, instead of a separate announcement post per confirmed game. confirmedGames is the
+// source of truth the embed gets rebuilt from on every edit (rather than trying to read Discord's
+// own message content back), keyed by gameId so a re-confirm (reschedule) replaces its own entry.
+export const recWeeklyConfirmedAnnouncements = pgTable("rec_weekly_confirmed_announcements", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  seasonNumber: integer("season_number").notNull(),
+  weekNumber: integer("week_number").notNull(),
+  channelId: text("channel_id"),
+  messageId: text("message_id"),
+  confirmedGames: jsonb("confirmed_games").notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
+});
+
 // Commish Tools' Suspend User action. "weeks" is calendar time (endsAt = startsAt + weeks*7d),
 // not league week numbers -- CFB/Madden don't share a uniform week model, so this stays simple
 // rather than trying to hook into per-game-week scheduling.

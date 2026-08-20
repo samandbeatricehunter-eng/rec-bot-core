@@ -10,7 +10,7 @@ import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, purgeDiscordChannelMessages, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
-import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
+import { postOrUpdateGameAnnouncement, postOrUpdateWeeklyConfirmedAnnouncement } from "./game-announcement.service.js";
 import { formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
@@ -212,7 +212,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
     await closeOutProposalNotice(proposal.data, "✅ Accepted — game confirmed!");
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.opponentMention} — your proposed time was accepted by ${ctx.actingMention}: **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}**. Game confirmed!`);
-    await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
+    await postOrUpdateWeeklyConfirmedAnnouncement(input.gameId).catch((error) => console.error("[ERROR] Failed to post weekly confirmed-matchups announcement (non-fatal):", error));
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
     await refreshMatchupsChannelForGame(input.gameId);
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };

@@ -2,6 +2,7 @@
 // place as streams go live and again with the final score -- never reposted, so it never spams
 // the announcements channel. Distinct from the game-channel scheduling panel (matchup-scheduling
 // .service.ts), which lives in the private H2H channel, not the public announcements one.
+import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
@@ -98,6 +99,62 @@ export async function postOrUpdateGameAnnouncement(gameId: string, opts: { annou
   if (!posted?.id) return;
   await supabase.from("rec_game_scheduling").update({ announcement_channel_id: channelId, announcement_message_id: posted.id, updated_at: new Date().toISOString() }).eq("game_id", gameId);
   await logSchedulingEvent({ gameId, eventType: "announcement_posted" });
+}
+
+// Phase 8: the "a proposal was accepted" moment specifically posts/edits ONE per-week "Confirmed
+// Matchups" message instead of a separate announcement per game -- rebuilds the full field list
+// from confirmedGames (the DB-stored source of truth) on every call rather than trying to
+// read-modify Discord's own returned embed content back. Only this one call site changed; the
+// per-game postOrUpdateGameAnnouncement above is unchanged and still handles LIVE status and
+// final-score updates with their own dedicated posts, per the spec's literal scope.
+export async function postOrUpdateWeeklyConfirmedAnnouncement(gameId: string) {
+  const [game, scheduling] = await Promise.all([
+    loadGameForAnnouncement(gameId),
+    supabase.from("rec_game_scheduling").select("scheduled_for").eq("game_id", gameId).maybeSingle(),
+  ]);
+  if (!scheduling.data?.scheduled_for) return;
+
+  const league = await supabase.from("rec_leagues").select("season_number").eq("id", game.league_id).maybeSingle();
+  const seasonNumber = Number(league.data?.season_number ?? 1);
+  const weekNumber = Number(game.week_number ?? 1);
+
+  const context = await getCurrentLeagueContext((await getGuildIdForLeague(game.league_id)) ?? "");
+  const channelId = String((context?.routes as any)?.announcements_channel_id ?? "");
+
+  const awayLabel = teamLabel(game.away_team);
+  const homeLabel = teamLabel(game.home_team);
+  const entry = { gameId, awayLabel, homeLabel, scheduledFor: scheduling.data.scheduled_for };
+
+  const existing = await supabase.from("rec_weekly_confirmed_announcements").select("*")
+    .eq("league_id", game.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).maybeSingle();
+  const priorGames = Array.isArray(existing.data?.confirmed_games) ? (existing.data.confirmed_games as any[]) : [];
+  const games = [...priorGames.filter((g) => g.gameId !== gameId), entry]
+    .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
+
+  const fields = games.map((g) => {
+    const unix = Math.floor(new Date(g.scheduledFor).getTime() / 1000);
+    return { name: `${g.awayLabel} @ ${g.homeLabel}`, value: `<t:${unix}:F> (<t:${unix}:R>)`, inline: false };
+  });
+  const payload = { embeds: [{ title: `Week ${weekNumber} — Confirmed Matchups`, color: 0xd9a521, fields }] };
+
+  if (existing.data?.message_id && existing.data?.channel_id) {
+    const edited = await editDiscordMessage(existing.data.channel_id, existing.data.message_id, payload).catch(() => false);
+    if (edited) {
+      await supabase.from("rec_weekly_confirmed_announcements").update({ confirmed_games: games, updated_at: new Date().toISOString() }).eq("id", existing.data.id);
+      return;
+    }
+  }
+  if (!channelId) return;
+  const posted = await postDiscordChannelMessage(channelId, payload).catch(() => null);
+  if (!posted?.id) return;
+  if (existing.data?.id) {
+    await supabase.from("rec_weekly_confirmed_announcements").update({ channel_id: channelId, message_id: posted.id, confirmed_games: games, updated_at: new Date().toISOString() }).eq("id", existing.data.id);
+  } else {
+    await supabase.from("rec_weekly_confirmed_announcements").insert({
+      id: randomUUID(), league_id: game.league_id, season_number: seasonNumber, week_number: weekNumber,
+      channel_id: channelId, message_id: posted.id, confirmed_games: games, updated_at: new Date().toISOString(),
+    });
+  }
 }
 
 async function getGuildIdForLeague(leagueId: string): Promise<string | null> {
