@@ -71,9 +71,15 @@ async function getDeadlineUtc(leagueId: string): Promise<string> {
   return new Date(Date.now() + HORIZON_HOURS_NO_ADVANCE * 60 * 60 * 1000).toISOString();
 }
 
-export async function getSchedulingSuggestions(gameId: string) {
+export async function getSchedulingSuggestions(gameId: string, discordId?: string) {
   const game = await loadGame(gameId);
   if (!game.home_user_id || !game.away_user_id) throw new ApiError(400, "This game doesn't have two human coaches to schedule.");
+  if (discordId) {
+    const userId = await userIdFromDiscordId(discordId);
+    if (userId !== game.home_user_id && userId !== game.away_user_id) {
+      throw new ApiError(403, "Only the two coaches in this matchup can use scheduling on this channel.");
+    }
+  }
   const nowUtc = new Date().toISOString();
   const deadlineUtc = await getDeadlineUtc(game.league_id);
 
@@ -169,6 +175,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("id", input.proposalId);
     await supabase.from("rec_game_scheduling").update({ status: "not_scheduled", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_withdrawn" });
+    await closeOutProposalNotice(proposal.data, "This proposed time was withdrawn.");
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   await refreshMatchupsChannelForGame(input.gameId);
     return { status: "withdrawn" };
@@ -181,6 +188,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await supabase.from("rec_game_scheduling").update({ status: "not_scheduled", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_rejected", payload: { proposedFor: proposal.data.proposed_for } });
+    await closeOutProposalNotice(proposal.data, "❌ Declined — a new time needs to be proposed.");
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} declined the proposed **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}** — propose a new time. ${ctx.opponentMention}`);
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
     await refreshMatchupsChannelForGame(input.gameId);
@@ -199,6 +207,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     }).eq("game_id", input.gameId).neq("status", "live");
     await markResponded(input.gameId, userId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
+    await closeOutProposalNotice(proposal.data, "✅ Accepted — game confirmed!");
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.opponentMention} — your proposed time was accepted by ${ctx.actingMention}: **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}**. Game confirmed!`);
     await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post game announcement (non-fatal):", error));
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
@@ -213,6 +222,7 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
   await supabase.from("rec_game_scheduling").update({ status: "proposed", proposed_by_user_id: userId, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await markResponded(input.gameId, userId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_countered", payload: { proposedForUtc: input.counterForUtc } });
+  await closeOutProposalNotice(proposal.data, "🔁 Countered — see the new proposed time below.");
   await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.actingMention} countered with **${formatInstantInZone(input.counterForUtc!, ctx.tz)}** — waiting on response from ${ctx.opponentMention}`, counter.data.id);
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   await refreshMatchupsChannelForGame(input.gameId);
@@ -405,6 +415,13 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
       allowed_mentions: mentionIds.length ? { users: mentionIds } : { parse: [] },
     }).catch((error) => { console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage threw for channel ${channel.discord_channel_id}:`, error); return null; });
     if (!posted) console.error(`[ERROR] notifyOpponent: postDiscordChannelMessage returned null for channel ${channel.discord_channel_id} (see prior [WARN] log from discord-guild.ts for Discord's rejection reason).`);
+    // Track this message's location on the proposal it belongs to so respondToProposal can find
+    // it later and edit the Accept/Counter buttons away once someone actually responds, instead
+    // of leaving a resolved offer's buttons clickable forever.
+    if (posted?.id && proposalId) {
+      await supabase.from("rec_game_time_proposals").update({ notice_channel_id: channel.discord_channel_id, notice_message_id: posted.id }).eq("id", proposalId)
+        .then(({ error }) => { if (error) console.error("[ERROR] notifyOpponent: failed to record notice message id (non-fatal):", error); });
+    }
   } else {
     console.error(`[ERROR] notifyOpponent: tracked game channel ${channel.id} has no discord_channel_id -- opponent not tagged.`);
   }
@@ -414,6 +431,16 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
     await notifyCoachDirectly({ userId: opponentId, gameId, leagueId: game.league_id, title, message: resolvedText })
       .catch((error) => console.error("[ERROR] notifyOpponent: failed to send direct notification (non-fatal):", error));
   }
+}
+
+// Once a proposal is accepted/countered/rejected/withdrawn, its original Accept/Counter message
+// (posted by notifyOpponent above) is stale -- clicking either button on it would try to respond
+// to an already-resolved proposal. Strip the buttons and relabel the message with the outcome
+// instead of leaving live-looking buttons on a dead offer.
+async function closeOutProposalNotice(proposal: { notice_channel_id?: string | null; notice_message_id?: string | null }, resolutionLine: string) {
+  if (!proposal.notice_channel_id || !proposal.notice_message_id) return;
+  await editDiscordMessage(proposal.notice_channel_id, proposal.notice_message_id, { content: resolutionLine, components: [] })
+    .catch((error) => console.error("[ERROR] closeOutProposalNotice: failed to edit original proposal message (non-fatal):", error));
 }
 
 function formatIsoShort(iso: string): string {

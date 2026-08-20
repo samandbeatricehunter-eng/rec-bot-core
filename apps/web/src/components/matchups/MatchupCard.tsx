@@ -126,7 +126,7 @@ export function MatchupCard({
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
         <TeamLogo abbreviation={game.awayTeamAbbr} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" />
-        <small>{game.awayTeamName}</small><strong>{game.awayTeamMascot}</strong>
+        <span className="rec-matchup-card__team-text"><small>{game.awayTeamName}</small><strong>{game.awayTeamMascot}</strong></span>
       </div>
       <div className="rec-matchup-card__center">
         {topTag}
@@ -139,8 +139,8 @@ export function MatchupCard({
         {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
       </div>
       <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
+        <span className="rec-matchup-card__team-text"><small>{game.homeTeamName}</small><strong>{game.homeTeamMascot}</strong></span>
         <TeamLogo abbreviation={game.homeTeamAbbr} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" />
-        <small>{game.homeTeamName}</small><strong>{game.homeTeamMascot}</strong>
       </div>
       {reactionsEnabled ? (
         <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>

@@ -156,9 +156,9 @@ export async function schedulingRoutes(app: FastifyInstance) {
 
   app.post("/v1/scheduling/matchup/suggestions", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await getSchedulingSuggestions(body.gameId));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await getSchedulingSuggestions(body.gameId, actorDiscordId(auth, body.discordId)));
     } catch (error) { return sendError(reply, error); }
   });
 

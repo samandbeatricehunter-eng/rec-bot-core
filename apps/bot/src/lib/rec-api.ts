@@ -98,7 +98,7 @@ export const recApi = {
     recFetch<any>("/v1/scheduling/windows", { method: "POST", body: JSON.stringify(input) }),
   setSchedulingOverride: (input: { guildId: string; discordId: string; scope: "week" | "day" | "matchup"; gameId?: string; localDate: string; timezone: string; startMinute?: number; endMinute?: number; unavailable: boolean }) =>
     recFetch<any>("/v1/scheduling/overrides", { method: "POST", body: JSON.stringify(input) }),
-  getSchedulingSuggestions: (input: { guildId: string; gameId: string }) =>
+  getSchedulingSuggestions: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{
       deadlineUtc: string; homeTimezone: string | null; awayTimezone: string | null;
       sharedWindows: Array<{ startUtc: string; endUtc: string }>;

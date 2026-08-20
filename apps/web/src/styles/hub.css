@@ -2509,21 +2509,20 @@ button.poty:disabled {
 @keyframes recCardSheen { 0%,70% { background-position:0 0,160% 0; } 100% { background-position:0 0,-70% 0; } }
 
 .rec-matchup-card__team {
-  position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; min-width:0;
+  position:relative; z-index:1; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:clamp(8px,2vw,16px); min-width:0;
   padding:22px clamp(12px,3vw,32px); color:var(--team-text);
   background:linear-gradient(135deg,color-mix(in srgb,var(--team-color) 88%,#000) 0%,var(--team-color) 60%,color-mix(in srgb,var(--team-color) 72%,#000) 100%);
 }
 .rec-matchup-card__team::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:.5; mix-blend-mode:overlay; background:repeating-linear-gradient(125deg, rgba(255,255,255,.16) 0 2px, transparent 2px 10px); }
 .rec-matchup-card__team--away { text-align:left; clip-path:polygon(0 0,100% 0,88% 100%,0 100%); padding-right:13%; box-shadow:inset -18px 0 26px -18px color-mix(in srgb,var(--team-color) 88%,#fff); }
 .rec-matchup-card__team--home { text-align:right; clip-path:polygon(12% 0,100% 0,100% 100%,0 100%); padding-left:13%; box-shadow:inset 18px 0 26px -18px color-mix(in srgb,var(--team-color) 88%,#fff); }
-/* Pinned to the card's outer corner, independent of the team-name flex flow below it, so a
-   bigger crest reads as sitting "outside" the color block while the name stays inset from the
-   edge rather than crowding directly under the logo. */
-.rec-matchup-card__team-logo { position:absolute; top:14px; z-index:2; width:clamp(36px,7vw,58px); height:clamp(36px,7vw,58px); object-fit:contain; filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
-.rec-matchup-card__team--away .rec-matchup-card__team-logo { left:14px; }
-.rec-matchup-card__team--home .rec-matchup-card__team-logo { right:14px; }
-.rec-matchup-card__team small { position:relative; z-index:1; margin-top:30px; font:700 .66rem var(--font-sans); letter-spacing:.14em; text-transform:uppercase; opacity:.74; }
-.rec-matchup-card__team strong { position:relative; z-index:1; font-family:var(--font-display); font-size:clamp(1.05rem,3vw,2rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
+/* Logo sits beside the name in a row (not stacked above it) -- laying it out in normal flex
+   flow, rather than absolutely positioned over a centered text block, is what actually
+   guarantees no overlap regardless of card height across breakpoints. */
+.rec-matchup-card__team-logo { position:relative; z-index:1; flex-shrink:0; width:clamp(30px,6vw,48px); height:clamp(30px,6vw,48px); object-fit:contain; filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+.rec-matchup-card__team-text { position:relative; z-index:1; display:flex; flex-direction:column; min-width:0; }
+.rec-matchup-card__team small { font:700 .66rem var(--font-sans); letter-spacing:.14em; text-transform:uppercase; opacity:.74; }
+.rec-matchup-card__team strong { font-family:var(--font-display); font-size:clamp(1.05rem,3vw,2rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
 
 /* Center medallion — light score bug with glowing accent seams */
 .rec-matchup-card__center { position:relative; z-index:3; display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:0; padding:24px 4px; color:#080a0c; text-align:center; background:linear-gradient(180deg,#fbf8ef,#f2eee3 60%,#e4ddca); box-shadow:inset 0 0 0 1px rgba(0,0,0,.12),inset 0 2px 6px rgba(255,255,255,.7); }

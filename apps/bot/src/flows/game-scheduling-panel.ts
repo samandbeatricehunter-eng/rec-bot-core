@@ -86,7 +86,7 @@ export async function handleAdjustAvailability(interaction: ButtonInteraction) {
   const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability, interaction.customId);
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId, gameId });
+    const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
     const best = suggestions.bestWindow
       ? `Best shared window: **${fmtUtc(suggestions.bestWindow.kickoffUtc)}** – ${fmtUtc(suggestions.bestWindow.windowEndUtc)}`
       : "No shared availability found yet before the deadline.";
@@ -99,7 +99,7 @@ export async function handleAdjustAvailability(interaction: ButtonInteraction) {
 }
 
 async function postProposeOptions(interaction: ButtonInteraction | ButtonInteraction, gameId: string, isCounter: boolean, proposalId?: string) {
-  const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId!, gameId });
+  const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId!, discordId: interaction.user.id, gameId });
   const options = suggestions.bestKickoffOptions.slice(0, 4).map((iso) =>
     new StringSelectMenuOptionBuilder().setLabel(fmtUtc(iso).slice(0, 100)).setValue(iso),
   );
