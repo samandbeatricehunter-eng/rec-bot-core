@@ -23,6 +23,7 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   proposalCounter: "r:s:c:",
   checkin: "rec:gamesched:checkin:",
   fwRequest: "rec:gamesched:fwrequest:",
+  fwRequestFailureToSchedule: "rec:gamesched:fwfts:",
   autopilot: "rec:gamesched:autopilot:",
   cantMakeAcceptFs: "rec:gamesched:cantmake:accept_fs:",
   cantMakeAutopilot: "rec:gamesched:cantmake:autopilot:",
@@ -266,6 +267,18 @@ export async function handleFwRequest(interaction: ButtonInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await recApi.requestSchedulingForceWin({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
     await interaction.editReply({ content: "Force Win requested — flagged for the commissioner in Advance Readiness." });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handleFwRequestFailureToSchedule(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.fwRequestFailureToSchedule, interaction.customId);
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await recApi.requestFailureToScheduleForceWin({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
+    await interaction.editReply({ content: "Force Win requested for failure to schedule — flagged for the commissioner in Advance Readiness." });
   } catch (error) {
     await replyErr(interaction, error);
   }

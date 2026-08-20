@@ -10,7 +10,7 @@ import {
 import {
   bootUser, checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, grantFairSimCommissioner, grantForceWinCommissioner,
   listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
-  refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
+  refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestFailureToScheduleForceWin, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
   resolveDashingReport, resolveViolationReport, respondToProposal, suspendUser,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
@@ -238,6 +238,14 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       return reply.send(await requestForceWin({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/request-force-win-failure-to-schedule", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await requestFailureToScheduleForceWin({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
     } catch (error) { return sendError(reply, error); }
   });
 

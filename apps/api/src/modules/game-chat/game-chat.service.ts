@@ -213,6 +213,16 @@ export async function ingestDiscordGameChatMessage(input: {
   if (inserted.error && (inserted.error as any).code !== "23505") throw new ApiError(500, "We couldn't import that Discord game chat message. Please try again.", inserted.error);
   if (!inserted.error) {
     broadcastChatEvent("game", channel.id, { kind: "message", row: inserted.data });
+    // A chat message from a participant counts as "engaged with scheduling" the same as any
+    // scheduling-panel action -- feeds the existing (previously-unwired) home_responded_at/
+    // away_responded_at contact-reminder gating in reminder-poller.service.ts, and the Phase 7
+    // "message in channel" signal for the schedule-in-system nag. Dynamic import avoids a
+    // circular import (matchup-scheduling.service.ts already imports FROM this file).
+    if (userId && channel.game_id) {
+      import("../scheduling/matchup-scheduling.service.js")
+        .then(({ markResponded }) => markResponded(channel.game_id as string, userId))
+        .catch((error) => console.error("[ERROR] Failed to mark scheduling response from game chat message (non-fatal):", error));
+    }
     // Discord CDN URLs are referenced directly (not re-uploaded to our own storage) — they're
     // stable for the message's lifetime in practice, but unlike site-uploaded attachments
     // there's no storage_key we own, so storage_key just echoes the source URL.

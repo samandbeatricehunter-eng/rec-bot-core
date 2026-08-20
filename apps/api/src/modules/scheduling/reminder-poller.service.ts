@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
-import { autoResetSchedulingAfterMissedKickoff } from "./matchup-scheduling.service.js";
+import { autoResetSchedulingAfterMissedKickoff, getActiveRuleKeys } from "./matchup-scheduling.service.js";
 import { logSchedulingEvent } from "./shared.js";
 
 const MIN = 60_000;
@@ -61,10 +61,14 @@ async function postToGameChannel(gameId: string, content: string, mentionUserIds
   }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post reminder (non-fatal):", error));
 }
 
-// -- Contact reminders: 4h/8h/12h since the response clock started, for whichever side(s)
-// haven't responded yet. The 12h tier also surfaces "Request AutoPilot" (neither responded at
-// all in 12h is one of the two AutoPilot trigger conditions).
-async function runContactReminders(hours: 4 | 8 | 12, type: string) {
+// -- Contact reminders: 2h/4h/8h/12h since the response clock started (= channel creation --
+// startResponseClock runs right after the channel is made), for whichever side(s) haven't
+// responded yet. "Responded" now includes a plain chat message in the channel (see
+// game-chat.service.ts's ingestDiscordGameChatMessage -> markResponded wiring), not just
+// scheduling-panel actions, so the 2h tier below doubles as the spec's "channel silence" ping
+// without a separate/redundant mechanism. The 12h tier also surfaces "Request AutoPilot"
+// (neither responded at all in 12h is one of the two AutoPilot trigger conditions).
+async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string) {
   const cutoff = new Date(Date.now() - hours * HOUR).toISOString();
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,status,response_started_at,home_responded_at,away_responded_at,scheduled_for")
@@ -134,6 +138,108 @@ async function surfaceAutoPilot(gameId: string, game: Game, type: string, reason
   }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post AutoPilot surface (non-fatal):", error));
   await markSent(gameId, type);
   await logSchedulingEvent({ gameId, eventType: "autopilot_surfaced", payload: { type } });
+}
+
+// Most-recent send timestamp for a (game, type) pair -- unlike alreadySent's "has this ever
+// fired" Set (fine for the one-shot reminders above), the recurring schedule-in-system nag needs
+// to know HOW LONG AGO it last fired so it can re-fire every 2h, not just once.
+async function lastSentAt(gameId: string, type: string): Promise<number | null> {
+  const { data, error } = await supabase.from("rec_scheduling_reminders_sent").select("sent_at").eq("game_id", gameId).eq("reminder_type", type).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) { console.error("[ERROR] scheduling reminder poller: lastSentAt query failed (non-fatal):", error); return null; }
+  return data?.sent_at ? new Date(data.sent_at).getTime() : null;
+}
+
+// -- Recurring "schedule in our system" nag: once at least one coach has spoken in the channel
+// (home_responded_at/away_responded_at, now driven by chat messages too -- see
+// game-chat.service.ts) but neither has proposed a time through the system, ping every 2h
+// starting 2h after that first message, repeating until a proposal exists or the game leaves
+// not_scheduled (any other logged action -- Can't Make Game, a status change, etc. -- moves the
+// status off not_scheduled, which is exactly the stop condition this checks).
+async function runScheduleInSystemNag() {
+  const { data, error } = await supabase.from("rec_game_scheduling")
+    .select("game_id,league_id,home_responded_at,away_responded_at")
+    .eq("status", "not_scheduled")
+    .or("home_responded_at.not.is.null,away_responded_at.not.is.null");
+  if (error) { console.error("[ERROR] scheduling reminder poller: schedule-in-system nag query failed (non-fatal):", error); return; }
+  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>;
+  if (!rows.length) return;
+
+  const gameIds = rows.map((r) => r.game_id);
+  const proposals = await supabase.from("rec_game_time_proposals").select("game_id").in("game_id", gameIds);
+  if (proposals.error) { console.error("[ERROR] scheduling reminder poller: schedule-in-system nag proposal check failed (non-fatal):", proposals.error); return; }
+  const proposedGameIds = new Set((proposals.data ?? []).map((r: any) => String(r.game_id)));
+  const candidates = rows.filter((r) => !proposedGameIds.has(r.game_id));
+  if (!candidates.length) return;
+
+  const games = await loadGamesById(candidates.map((r) => r.game_id));
+  const discordByUser = await discordIdsFor([...games.values()].flatMap((g) => [g.home_user_id, g.away_user_id]).filter((v): v is string => Boolean(v)));
+  const now = Date.now();
+
+  for (const row of candidates) {
+    const game = games.get(row.game_id);
+    if (!game) continue;
+    const firstSpokeMs = Math.min(
+      ...[row.home_responded_at, row.away_responded_at].filter((v): v is string => Boolean(v)).map((v) => new Date(v).getTime()),
+    );
+    if (!Number.isFinite(firstSpokeMs) || now - firstSpokeMs < 2 * HOUR) continue;
+
+    const last = await lastSentAt(row.game_id, "schedule_in_system_nag");
+    if (last != null && now - last < 2 * HOUR) continue;
+
+    const mentionIds = [game.home_user_id, game.away_user_id].filter((v): v is string => Boolean(v)).map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
+    const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
+    await postToGameChannel(row.game_id, `${mentions} — still no time lined up through the scheduling system. Use the buttons above to line up a kickoff before advance.`, mentionIds);
+    await markSent(row.game_id, "schedule_in_system_nag");
+    await logSchedulingEvent({ gameId: row.game_id, eventType: "reminder_sent", payload: { type: "schedule_in_system_nag" } });
+  }
+}
+
+// -- 8h after one coach has responded/spoken and the other still hasn't, surface a "Request FW
+// for failure to schedule" button to the coach who DID respond -- gated on the league having
+// `failure_to_schedule` active in force_win_rules_* for the current season stage. Reuses the
+// contact_8h query shape (same anchor as the pre-existing 8h contact reminder) rather than a
+// separate scan, since it's the same underlying condition with an extra settings gate.
+async function runFailureToScheduleFwSurface() {
+  const cutoff = new Date(Date.now() - 8 * HOUR).toISOString();
+  const { data, error } = await supabase.from("rec_game_scheduling")
+    .select("game_id,league_id,home_responded_at,away_responded_at")
+    .not("response_started_at", "is", null)
+    .lte("response_started_at", cutoff)
+    .not("status", "in", "(confirmed,completed)")
+    .or("and(home_responded_at.not.is.null,away_responded_at.is.null),and(home_responded_at.is.null,away_responded_at.not.is.null)");
+  if (error) { console.error("[ERROR] scheduling reminder poller: failure-to-schedule FW query failed (non-fatal):", error); return; }
+  const rows = (data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>;
+  if (!rows.length) return;
+
+  const sent = await alreadySent(rows.map((r) => r.game_id), "fw_failure_to_schedule_8h");
+  const pending = rows.filter((r) => !sent.has(r.game_id));
+  if (!pending.length) return;
+
+  const games = await loadGamesById(pending.map((r) => r.game_id));
+  const discordByUser = await discordIdsFor([...games.values()].flatMap((g) => [g.home_user_id, g.away_user_id]).filter((v): v is string => Boolean(v)));
+
+  for (const row of pending) {
+    const game = games.get(row.game_id);
+    if (!game) continue;
+    const active = await getActiveRuleKeys(row.league_id).catch(() => ({ forceWin: [] as string[], fairSim: [] as string[] }));
+    if (!active.forceWin.includes("failure_to_schedule")) continue;
+
+    const respondedUserId = row.home_responded_at ? game.home_user_id : game.away_user_id;
+    const respondedDiscordId = respondedUserId ? discordByUser.get(respondedUserId) : null;
+    const channel = await getGameChannelByGameId(row.game_id);
+    if (channel?.discord_channel_id) {
+      await postDiscordChannelMessage(channel.discord_channel_id, {
+        content: `${respondedDiscordId ? `<@${respondedDiscordId}>` : "A coach"} — your opponent hasn't engaged with scheduling in 8 hours. If you'd like to request a Force Win for failure to schedule, hit the button below.`,
+        // Deliberately a different customId prefix than the existing rec:gamesched:fwrequest:
+        // button (missed-kickoff-after-checkin justification, gated on a check-in state this
+        // never-scheduled game doesn't have) -- reusing it here would silently 403.
+        components: [{ type: 1, components: [{ type: 2, style: 4, custom_id: `rec:gamesched:fwfts:${row.game_id}`, label: "Request Force Win" }] }],
+        allowed_mentions: { users: respondedDiscordId ? [respondedDiscordId] : [] },
+      }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post failure-to-schedule FW surface (non-fatal):", error));
+    }
+    await markSent(row.game_id, "fw_failure_to_schedule_8h");
+    await logSchedulingEvent({ gameId: row.game_id, eventType: "fw_eligibility_notice_posted", payload: { reason: "failure_to_schedule" } });
+  }
 }
 
 // -- Confirmed-game reminders: 30m before, 10m before, at kickoff (post the check-in embed).
@@ -384,10 +490,13 @@ async function runAvailabilityNag() {
 }
 
 export async function runSchedulingReminderSweep() {
+  await runContactReminders(2, "contact_2h");
   await runContactReminders(4, "contact_4h");
   await runContactReminders(8, "contact_8h");
   await runContactReminders(12, "contact_escalate_12h");
   await runStaleProposalAutoPilot();
+  await runScheduleInSystemNag();
+  await runFailureToScheduleFwSurface();
   await runConfirmedGameReminders();
   await runCheckinFollowUps();
   await runGameOverPrompt();

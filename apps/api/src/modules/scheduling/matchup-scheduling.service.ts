@@ -299,7 +299,7 @@ const POSTSEASON_STAGE_KEYS = ["wild_card", "divisional", "conference_championsh
 // Shared by requestForceWin and the Can't Make Game flow below -- both need "which FW/FS rule
 // keys are active for this league at the CURRENT season stage" rather than the raw regular vs.
 // postseason columns.
-async function getActiveRuleKeys(leagueId: string): Promise<{ forceWin: ReturnType<typeof sanitizeForceWinRuleKeys>; fairSim: ReturnType<typeof sanitizeFairSimRuleKeys> }> {
+export async function getActiveRuleKeys(leagueId: string): Promise<{ forceWin: ReturnType<typeof sanitizeForceWinRuleKeys>; fairSim: ReturnType<typeof sanitizeFairSimRuleKeys> }> {
   const [leagueStageRow, config] = await Promise.all([
     supabase.from("rec_leagues").select("season_stage").eq("id", leagueId).maybeSingle(),
     supabase.from("rec_league_configuration").select("force_win_rules_regular,force_win_rules_postseason,fair_sim_rules_regular,fair_sim_rules_postseason").eq("league_id", leagueId).maybeSingle(),
@@ -614,6 +614,51 @@ export async function resolveAutopilotRequest(input: { gameId: string; discordId
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { decision: input.decision };
+}
+
+// Distinct from requestForceWin (which requires a check-in mismatch after a CONFIRMED kickoff) --
+// this is the "opponent never engaged with scheduling at all" justification surfaced by
+// reminder-poller.service.ts's runFailureToScheduleFwSurface after 8h of silence from one side.
+export async function requestFailureToScheduleForceWin(input: { gameId: string; discordId: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only a coach in this matchup can request a Force Win.");
+  const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
+  if (!opponentId) throw new ApiError(400, "This game has no opponent to request a Force Win against.");
+
+  const active = await getActiveRuleKeys(game.league_id);
+  if (!active.forceWin.includes("failure_to_schedule")) throw new ApiError(403, "Force Win for failure to schedule is not enabled for this league.");
+
+  const scheduling = await supabase.from("rec_game_scheduling").select("home_responded_at,away_responded_at").eq("game_id", input.gameId).maybeSingle();
+  const opponentResponded = userId === game.home_user_id ? scheduling.data?.away_responded_at : scheduling.data?.home_responded_at;
+  if (opponentResponded) throw new ApiError(409, "Your opponent has already engaged with scheduling — no Force Win to request.");
+
+  await supabase.from("rec_game_scheduling").update({
+    fw_flagged: true, fw_flagged_for_user_id: userId, fw_flagged_at: new Date().toISOString(),
+    attention_required: true, updated_at: new Date().toISOString(),
+  }).eq("game_id", input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested_failure_to_schedule" });
+
+  const routes = await findServerRoutesForLeague(game.league_id);
+  await submitMatchupHelpRequest({
+    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
+    discordId: input.discordId,
+    gameId: input.gameId,
+    kind: "force_win",
+    message: "Opponent has not engaged with scheduling at all in 8+ hours. Requesting a Force Win for failure to schedule.",
+  }).catch((err) => console.error("[ERROR] Failed to file the failure-to-schedule Force Win Request Help ticket (non-fatal):", err));
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
+    const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `⚠️ **Force Win requested (failure to schedule).** ${roleMention}A coach's opponent has not engaged with scheduling at all — flagged in Advance Readiness for review.`,
+      allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+    }).catch(() => undefined);
+  }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { flagged: true };
 }
 
 // Report Violation: the reporter's own free-text description of what the opponent did wrong.

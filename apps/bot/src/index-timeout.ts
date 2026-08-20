@@ -161,7 +161,7 @@ import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
-  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve, handleCheckin, handleFwRequest, handleAutopilotRequest,
+  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve, handleCheckin, handleFwRequest, handleFwRequestFailureToSchedule, handleAutopilotRequest,
   handleGameOverButton, handleGameOverModal,
 } from "./flows/game-scheduling-panel.js";
 import {
@@ -768,6 +768,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveEnforceFs)) return handleAutopilotResolve(interaction, "enforce_fs");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequestFailureToSchedule)) return handleFwRequestFailureToSchedule(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOver)) return handleGameOverButton(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal)) return handleGameOverModal(interaction);
