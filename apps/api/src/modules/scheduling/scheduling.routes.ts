@@ -8,9 +8,10 @@ import {
   getRecurringWindows, listOverrides, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
 } from "./availability.service.js";
 import {
-  checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
+  bootUser, checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, grantFairSimCommissioner, grantForceWinCommissioner,
+  listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
   refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
-  resolveDashingReport, resolveViolationReport, respondToProposal,
+  resolveDashingReport, resolveViolationReport, respondToProposal, suspendUser,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
@@ -304,11 +305,47 @@ export async function schedulingRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  app.post("/v1/scheduling/matchup/reset", async (request, reply) => {
+  // --- Commish Tools ---
+  app.post("/v1/scheduling/matchup/commish/grant-fw", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), side: z.enum(["home", "away"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await grantForceWinCommissioner({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), side: body.side }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/commish/grant-fs", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send(await resetScheduling({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+      return reply.send(await grantFairSimCommissioner({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/commish/suspend-user", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(),
+        side: z.enum(["home", "away"]), reason: z.string().min(1).max(500), weeks: z.number().int().min(1).max(4),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await suspendUser({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), side: body.side, reason: body.reason, weeks: body.weeks }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/commish/boot-user", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), side: z.enum(["home", "away"]), reason: z.string().min(1).max(500) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await bootUser({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), side: body.side, reason: body.reason }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/reset", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), wipeMessages: z.boolean().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await resetScheduling({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), wipeMessages: body.wipeMessages }));
     } catch (error) { return sendError(reply, error); }
   });
 

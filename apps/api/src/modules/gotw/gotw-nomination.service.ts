@@ -172,7 +172,7 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for GOTW. Please try again.", assignments.error);
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
 
-  const eligible = ((gamesRes.data ?? []) as any[]).filter((g) => {
+  const preEligible = ((gamesRes.data ?? []) as any[]).filter((g) => {
     const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null;
     const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null;
     return g.home_team_id && g.away_team_id && homeUserId && awayUserId
@@ -182,6 +182,16 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
     home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,
     away_user_id: userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null,
   }));
+  if (!preEligible.length) return [];
+
+  // A coach on Commish Tools suspension can't have their game suggested as GOTW.
+  const candidateUserIds = [...new Set(preEligible.flatMap((g) => [g.home_user_id, g.away_user_id]).filter(Boolean))];
+  const suspensions = candidateUserIds.length
+    ? await supabase.from("rec_user_suspensions").select("user_id").eq("active", true).gt("ends_at", new Date().toISOString()).in("user_id", candidateUserIds)
+    : { data: [] as any[], error: null };
+  if (suspensions.error) throw new ApiError(500, "We couldn't check suspensions for GOTW nomination. Please try again.", suspensions.error);
+  const suspendedUserIds = new Set((suspensions.data ?? []).map((row: any) => row.user_id));
+  const eligible = preEligible.filter((g) => !suspendedUserIds.has(g.home_user_id) && !suspendedUserIds.has(g.away_user_id));
   if (!eligible.length) return [];
 
   const [sos, users, recentForm, recentTeams] = await Promise.all([

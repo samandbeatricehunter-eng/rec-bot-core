@@ -7,7 +7,7 @@ import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage, post
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
-import { postSchedulingPanel, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
+import { getActiveSuspension, postSchedulingPanel, repostPendingProposalNoticeIfAny, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
 import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 
 const DASHING_NOTICE = "⚠️ **DASHING (QUITTING IN 1ST HALF) IS NOT ALLOWED.**\nUsers can **CONCEDE** the game in the **2ND HALF**, but quitting in the first will result in getting booted, banned, and your username shared on all major Madden gaming servers.";
@@ -314,6 +314,31 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
 type GameChannelContext = Awaited<ReturnType<typeof getCurrentLeagueContext>>;
 type AdvanceWeek = Awaited<ReturnType<typeof getAdvanceWeekGames>>;
 
+// If either coach in this H2H matchup is currently suspended (Commish Tools' Suspend User),
+// the game channel gets an advisory posted at creation AND the opponent's Force Win is applied
+// in the system immediately -- a suspended coach's opponent shouldn't have to notice the
+// suspension and go request it manually every week it recurs.
+async function postSuspensionAdvisoryIfNeeded(channelId: string, game: any) {
+  const [awaySuspension, homeSuspension] = await Promise.all([
+    game.awayUserId ? getActiveSuspension(game.awayUserId) : Promise.resolve(null),
+    game.homeUserId ? getActiveSuspension(game.homeUserId) : Promise.resolve(null),
+  ]);
+  const suspended = awaySuspension ? { side: "away" as const, beneficiaryUserId: game.homeUserId, teamName: game.awayTeamName, ...awaySuspension }
+    : homeSuspension ? { side: "home" as const, beneficiaryUserId: game.awayUserId, teamName: game.homeTeamName, ...homeSuspension }
+    : null;
+  if (!suspended || !suspended.beneficiaryUserId) return;
+
+  await supabase.from("rec_game_scheduling").update({
+    fw_flagged: true, fw_flagged_for_user_id: suspended.beneficiaryUserId, fw_flagged_at: new Date().toISOString(),
+    attention_required: true, updated_at: new Date().toISOString(),
+  }).eq("game_id", game.gameId);
+
+  const until = new Date(suspended.endsAt).toUTCString().replace(" GMT", " UTC");
+  await postDiscordChannelMessage(channelId, {
+    content: `🚫 **${suspended.teamName}'s coach is currently suspended** (until ${until}) — the opponent receives the Force Win by default. This has already been flagged in the system.`,
+  }).catch(() => undefined);
+}
+
 // Shared by both createGameChannelsForCurrentWeek (full replace) and
 // repairGameChannelsForCurrentWeek (fill-only) — everything past "which games need a
 // channel" is identical: create the Discord channel, register it, post the intro embed,
@@ -349,6 +374,10 @@ async function createChannelsForGames(context: GameChannelContext, guildId: stri
     if (game.awayUserId && game.homeUserId) {
       await startResponseClock(game.gameId).catch((error) => console.error("[ERROR] Failed to start scheduling response clock (non-fatal):", error));
       await postSchedulingPanel(channel.id, game.gameId);
+      await postSuspensionAdvisoryIfNeeded(channel.id, game).catch((error) => console.error("[ERROR] Failed to post suspension advisory (non-fatal):", error));
+      // Channel wipe/recreate (or a repair filling a gap) must not silently drop a pending
+      // scheduling offer -- repost it into the freshly-created channel.
+      await repostPendingProposalNoticeIfAny(game.gameId).catch((error) => console.error("[ERROR] Failed to repost pending proposal notice (non-fatal):", error));
     }
     if (gameChannelRow?.id) {
       await supabase

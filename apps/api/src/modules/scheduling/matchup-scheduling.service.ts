@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -7,11 +8,12 @@ import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, purgeDiscordChannelMessages, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { postOrUpdateGameAnnouncement } from "./game-announcement.service.js";
 import { formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
+import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
 
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
@@ -758,7 +760,7 @@ export async function resolveDashingReport(input: { gameId: string; discordId: s
 // Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed
 // time, FW flag, pending proposals, kickoff check-ins) so both coaches can restart scheduling
 // from scratch -- e.g. a "Can't Make Game" that later turns out to have been premature.
-async function resetSchedulingInternal(gameId: string, userId: string | null, eventType: string, channelMessage: string) {
+async function resetSchedulingInternal(gameId: string, userId: string | null, eventType: string, channelMessage: string, wipeMessages = false) {
   await Promise.all([
     supabase.from("rec_game_scheduling").update({
       status: "not_scheduled", response_started_at: new Date().toISOString(), home_responded_at: null, away_responded_at: null,
@@ -773,6 +775,9 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
 
   const channel = await getGameChannelByGameId(gameId);
   if (channel?.discord_channel_id) {
+    if (wipeMessages) {
+      await purgeDiscordChannelMessages(channel.discord_channel_id).catch((error) => console.error("[ERROR] Failed to wipe game channel messages (non-fatal):", error));
+    }
     await postDiscordChannelMessage(channel.discord_channel_id, { content: channelMessage }).catch(() => undefined);
   }
   await updateSchedulingPanel(gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
@@ -780,9 +785,150 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
   return { reset: true };
 }
 
-export async function resetScheduling(input: { gameId: string; discordId: string }) {
+export async function resetScheduling(input: { gameId: string; discordId: string; wipeMessages?: boolean }) {
   const userId = await userIdFromDiscordId(input.discordId).catch(() => null);
-  return resetSchedulingInternal(input.gameId, userId, "commissioner_reset", "🔄 A commissioner reset scheduling for this game — you can propose a new time.");
+  return resetSchedulingInternal(
+    input.gameId, userId, "commissioner_reset",
+    "🔄 A commissioner reset scheduling for this game — you can propose a new time.",
+    Boolean(input.wipeMessages),
+  );
+}
+
+// Called by game-channels.service.ts's recreateGameChannelsForGames AFTER the new channel is
+// created+registered -- a game channel wipe/recreate shouldn't silently drop a pending
+// scheduling offer, so this reposts it (same Accept/Counter notice notifyOpponent already
+// builds) into whatever channel getGameChannelByGameId now resolves to (the new one).
+export async function repostPendingProposalNoticeIfAny(gameId: string) {
+  const game = await loadGame(gameId).catch(() => null);
+  if (!game) return;
+  const proposal = await supabase.from("rec_game_time_proposals").select("id,proposed_by_user_id,proposed_for").eq("game_id", gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!proposal.data) return;
+  const proposedForUnix = Math.floor(new Date(proposal.data.proposed_for).getTime() / 1000);
+  await notifyOpponent(
+    gameId, game, proposal.data.proposed_by_user_id,
+    (ctx) => `This channel was rebuilt — carrying over a pending scheduling offer. ${ctx.actingMention} proposed <t:${proposedForUnix}:F> (<t:${proposedForUnix}:R>). ${ctx.opponentMention}, respond below:`,
+    proposal.data.id,
+  );
+}
+
+// Read-only lookup used by game-channels.service.ts (advise + auto-FW a suspended coach's new
+// game channel) and the GOTW nomination scorer (exclude a suspended coach's games from being
+// suggested) -- both need "is this user currently suspended" without importing the Commish
+// Tools write-path functions below.
+export async function getActiveSuspension(userId: string): Promise<{ id: string; reason: string; endsAt: string } | null> {
+  const row = await supabase.from("rec_user_suspensions").select("id,reason,ends_at").eq("user_id", userId).eq("active", true).gt("ends_at", new Date().toISOString()).order("ends_at", { ascending: false }).limit(1).maybeSingle();
+  if (row.error || !row.data) return null;
+  return { id: row.data.id, reason: row.data.reason, endsAt: row.data.ends_at };
+}
+
+// --- Commish Tools -----------------------------------------------------------------------
+// All four functions below are called only from routes gated `permission: "co_commissioner"`
+// (scheduling.routes.ts) -- there's no independent auth check inside these functions
+// themselves, matching how resetScheduling/resolveAutopilotRequest/resolveViolationReport/
+// resolveDashingReport are already gated purely at the route layer.
+
+export async function grantForceWinCommissioner(input: { gameId: string; discordId: string; side: "home" | "away" }) {
+  const game = await loadGame(input.gameId);
+  const beneficiaryId = input.side === "home" ? game.home_user_id : game.away_user_id;
+  if (!beneficiaryId) throw new ApiError(400, "This game has no user on that side to grant a Force Win to.");
+  await supabase.from("rec_game_scheduling").update({
+    fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
+    attention_required: true, updated_at: new Date().toISOString(),
+  }).eq("game_id", input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fw", payload: { side: input.side } });
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: `✅ **Force Win granted** by a commissioner to the **${input.side}** side.` }).catch(() => undefined);
+  }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { granted: true, side: input.side };
+}
+
+export async function grantFairSimCommissioner(input: { gameId: string; discordId: string }) {
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fs" });
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: "✅ **Fair Sim granted** by a commissioner for this game." }).catch(() => undefined);
+  }
+  return { granted: true };
+}
+
+// Records a suspension row and immediately Force-Wins the suspended coach's CURRENT game (if
+// any) for their opponent, matching this file's existing "flag now, don't chase every future
+// week" scope -- automatically skipping a suspended user's FUTURE weekly game-channel creation
+// isn't wired up yet (would need advance/game-channel-creation changes beyond this flow).
+export async function suspendUser(input: { gameId: string; discordId: string; side: "home" | "away"; reason: string; weeks: number }) {
+  const game = await loadGame(input.gameId);
+  const targetUserId = input.side === "home" ? game.home_user_id : game.away_user_id;
+  if (!targetUserId) throw new ApiError(400, "This game has no user on that side to suspend.");
+  const actingUserId = await userIdFromDiscordId(input.discordId).catch(() => null);
+
+  const startsAt = new Date();
+  const endsAt = new Date(startsAt.getTime() + input.weeks * 7 * 24 * 60 * 60 * 1000);
+  const insert = await supabase.from("rec_user_suspensions").insert({
+    id: randomUUID(), league_id: game.league_id, user_id: targetUserId, reason: input.reason, weeks: input.weeks,
+    starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), created_by_user_id: actingUserId, active: true, created_at: startsAt.toISOString(),
+  });
+  if (insert.error) throw new ApiError(500, "Failed to record the suspension.", insert.error);
+  await logSchedulingEvent({ gameId: input.gameId, userId: actingUserId, eventType: "commissioner_suspend_user", payload: { targetUserId, weeks: input.weeks, reason: input.reason } });
+
+  const opponentSideBeneficiary = input.side === "home" ? game.away_user_id : game.home_user_id;
+  if (opponentSideBeneficiary) {
+    await supabase.from("rec_game_scheduling").update({
+      fw_flagged: true, fw_flagged_for_user_id: opponentSideBeneficiary, fw_flagged_at: new Date().toISOString(),
+      attention_required: true, updated_at: new Date().toISOString(),
+    }).eq("game_id", input.gameId);
+  }
+
+  const [targetAccount, routes, channel] = await Promise.all([
+    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", targetUserId).maybeSingle(),
+    findServerRoutesForLeague(game.league_id),
+    getGameChannelByGameId(input.gameId),
+  ]);
+  const targetDiscordId = targetAccount.data?.discord_id ? String(targetAccount.data.discord_id) : null;
+  if (channel?.discord_channel_id) {
+    const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
+    const mention = targetDiscordId ? `<@${targetDiscordId}>` : "A coach";
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `🚫 **Suspension.** ${mention} has been suspended for **${input.weeks} week${input.weeks === 1 ? "" : "s"}** by a commissioner. Reason: ${input.reason}\nThis game has been flagged as a Force Win for the opponent.`,
+      allowed_mentions: { users: targetDiscordId ? [targetDiscordId] : [], roles: commissionerRoleId ? [commissionerRoleId] : [] },
+    }).catch(() => undefined);
+  }
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { suspended: true, targetUserId, endsAt: endsAt.toISOString() };
+}
+
+// Boot User: unlinks the coach's team assignments (reusing releaseMemberTeamLinksOnLeave, the
+// same cleanup a natural guild-leave already triggers) and kicks them from the Discord server.
+// The REST kick also fires Discord's own guildMemberRemove gateway event, which re-runs the
+// same release call -- harmless (it's idempotent against already-ended assignments).
+export async function bootUser(input: { gameId: string; discordId: string; side: "home" | "away"; reason: string }) {
+  const game = await loadGame(input.gameId);
+  const targetUserId = input.side === "home" ? game.home_user_id : game.away_user_id;
+  if (!targetUserId) throw new ApiError(400, "This game has no user on that side to boot.");
+
+  const [targetAccount, routes] = await Promise.all([
+    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", targetUserId).maybeSingle(),
+    findServerRoutesForLeague(game.league_id),
+  ]);
+  const targetDiscordId = targetAccount.data?.discord_id ? String(targetAccount.data.discord_id) : null;
+  const guildId = routes?.guildId ?? siteOnlyGuildId(game.league_id);
+
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_boot_user", payload: { targetUserId, reason: input.reason } });
+  if (targetDiscordId) {
+    await releaseMemberTeamLinksOnLeave({ guildId, discordId: targetDiscordId }).catch((error) => console.error("[ERROR] Failed to release team links for booted user (non-fatal):", error));
+    await kickDiscordGuildMember(guildId, targetDiscordId, input.reason.slice(0, 400)).catch((error) => console.error("[ERROR] Failed to kick booted user from Discord (non-fatal):", error));
+  }
+
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `🚫 **Boot.** A coach has been removed from the league and the server by a commissioner. Reason: ${input.reason}`,
+      allowed_mentions: { parse: [] },
+    }).catch(() => undefined);
+  }
+  return { booted: true, targetUserId };
 }
 
 // System-triggered variant: neither coach checked in within 2h of the confirmed kickoff. Falls
@@ -813,8 +959,8 @@ function proposeButtonLabel(status: UserFacingStatus): string {
 }
 
 // Row layout matches the spec: Availability/Propose; Can't Make Game/Report Violation;
-// lifecycle+Reset. Commish Tools (the spec's 3rd-row second button) isn't added until Phase 6
-// builds it -- Reset stays the sole commissioner control on that row until then.
+// lifecycle+Commish Tools. Reset now lives INSIDE Commish Tools (with the message-wipe option)
+// instead of being its own row-3 button.
 function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
   const lifecycleButton = status === "completed" ? null
     : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
@@ -838,7 +984,7 @@ function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
       type: 1,
       components: [
         ...(lifecycleButton ? [lifecycleButton] : []),
-        { type: 2, style: 2, custom_id: `rec:gamesched:panel:reset:${gameId}`, label: "Reset (Commissioner)" },
+        { type: 2, style: 2, custom_id: `rec:gamesched:panel:commishtools:${gameId}`, label: "Commish Tools" },
       ],
     },
   ];

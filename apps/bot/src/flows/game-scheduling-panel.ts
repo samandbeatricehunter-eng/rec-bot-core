@@ -1,9 +1,8 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, EmbedBuilder, MessageFlags,
+  ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, MessageFlags,
   ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction,
   StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle,
 } from "discord.js";
-import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
@@ -16,7 +15,6 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelCantMake: "rec:gamesched:panel:cantmake:",
   panelReportViolation: "rec:gamesched:panel:reportviolation:",
   panelGameStarted: "rec:gamesched:panel:gamestarted:",
-  panelReset: "rec:gamesched:panel:reset:",
   proposeSelect: "rec:gamesched:proposeselect:",
   // Kept short deliberately -- prefix + 2 UUIDs (73 chars) must stay under Discord's 100-char
   // custom_id limit, or postDiscordChannelMessage gets silently rejected (code 50035) and the
@@ -56,27 +54,6 @@ async function rejectNonRecipient(interaction: ButtonInteraction, targetDiscordI
     flags: MessageFlags.Ephemeral,
   }).catch(() => undefined);
   return true;
-}
-
-// Builds a persistent panel; posted once per game channel right after the intro embed. Callers
-// re-post/edit this same shape from a status-refresh action, so it's exported.
-export function buildSchedulingPanel(gameId: string) {
-  const embed = new EmbedBuilder()
-    .setTitle("Scheduling")
-    .setColor(COLORS.gold)
-    .setDescription("🟡 Not Scheduled — use the buttons below to line up a kickoff time before advance.");
-  const rows = [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelAvailability}${gameId}`).setLabel("Adjust Availability").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelPropose}${gameId}`).setLabel("Propose Time").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelCantMake}${gameId}`).setLabel("Can't Make Game").setStyle(ButtonStyle.Danger),
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted}${gameId}`).setLabel("Game Started").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.panelReset}${gameId}`).setLabel("Reset (Commissioner)").setStyle(ButtonStyle.Secondary),
-    ),
-  ];
-  return { embeds: [embed], components: rows };
 }
 
 function fmtUtc(iso: string): string {
@@ -350,17 +327,3 @@ export async function handlePanelGameStarted(interaction: ButtonInteraction) {
   }
 }
 
-export async function handlePanelReset(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelReset, interaction.customId);
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only a commissioner or co-commissioner can reset scheduling.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
-  }
-  try {
-    await interaction.deferReply();
-    await recApi.resetScheduling({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "🔄 Scheduling reset for this game." });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}

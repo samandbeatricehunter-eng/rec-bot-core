@@ -1332,6 +1332,22 @@ export const recGameTimeProposals = pgTable("rec_game_time_proposals", {
 // gameday-scheduling scaffolding (id, game_id, user_id, event_type, payload, created_at) --
 // reused as-is for this system's immutable event log rather than creating a parallel table.
 
+// Commish Tools' Suspend User action. "weeks" is calendar time (endsAt = startsAt + weeks*7d),
+// not league week numbers -- CFB/Madden don't share a uniform week model, so this stays simple
+// rather than trying to hook into per-game-week scheduling.
+export const recUserSuspensions = pgTable("rec_user_suspensions", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  userId: uuid("user_id").notNull().references(() => recUsers.id),
+  reason: text("reason").notNull(),
+  weeks: integer("weeks").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" }).notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => recUsers.id),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
+});
+
 export const recGameKickoffCheckins = pgTable("rec_game_kickoff_checkins", {
   id: uuid("id").primaryKey(),
   gameId: uuid("game_id").notNull().references(() => recGames.id),

@@ -137,8 +137,16 @@ export const recApi = {
     recFetch<{ ok: true }>("/v1/scheduling/matchup/report-dashing", { method: "POST", body: JSON.stringify(input) }),
   resolveDashingReport: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_fw" | "reject" }) =>
     recFetch<{ decision: string }>("/v1/scheduling/matchup/dashing-resolve", { method: "POST", body: JSON.stringify(input) }),
-  resetScheduling: (input: { guildId: string; discordId: string; gameId: string }) =>
+  resetScheduling: (input: { guildId: string; discordId: string; gameId: string; wipeMessages?: boolean }) =>
     recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
+  grantForceWinCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away" }) =>
+    recFetch<{ granted: true; side: string }>("/v1/scheduling/matchup/commish/grant-fw", { method: "POST", body: JSON.stringify(input) }),
+  grantFairSimCommissioner: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<{ granted: true }>("/v1/scheduling/matchup/commish/grant-fs", { method: "POST", body: JSON.stringify(input) }),
+  suspendUserCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away"; reason: string; weeks: number }) =>
+    recFetch<{ suspended: true; targetUserId: string; endsAt: string }>("/v1/scheduling/matchup/commish/suspend-user", { method: "POST", body: JSON.stringify(input) }),
+  bootUserCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away"; reason: string }) =>
+    recFetch<{ booted: true; targetUserId: string }>("/v1/scheduling/matchup/commish/boot-user", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; discordId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
     recFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
   markGameOver: (input: { guildId: string; discordId: string; gameId: string; homeScore?: number; awayScore?: number }) =>

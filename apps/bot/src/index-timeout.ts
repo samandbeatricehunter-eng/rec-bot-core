@@ -159,7 +159,7 @@ import {
 } from "./flows/availability-board-panel.js";
 import {
   GAME_SCHEDULING_CUSTOM_IDS,
-  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted, handlePanelReset,
+  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
   handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve, handleCheckin, handleFwRequest, handleAutopilotRequest,
   handleGameOverButton, handleGameOverModal,
@@ -178,6 +178,22 @@ import {
   handleReportViolationRuleModal,
   handleViolationResolve,
 } from "./flows/report-violation-flow.js";
+import {
+  COMMISH_TOOLS_CUSTOM_IDS,
+  handleCommishBootConfirm,
+  handleCommishBootModal,
+  handleCommishBootSide,
+  handleCommishBootStart,
+  handleCommishGrantFs,
+  handleCommishGrantFwSide,
+  handleCommishGrantFwStart,
+  handleCommishResetStart,
+  handleCommishResetWipeConfirm,
+  handleCommishSuspendModal,
+  handleCommishSuspendSide,
+  handleCommishSuspendStart,
+  handleCommishToolsPanel,
+} from "./flows/commish-tools-flow.js";
 import {
   READY_TO_ADVANCE_CUSTOM_IDS,
   handleReadyToAdvanceButton, handleH2hYesButton, handleH2hNoButton, handleH2hScoreModalSubmit,
@@ -723,7 +739,19 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingGrantFw)) return handleDashingResolve(interaction, "grant_fw");
     if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingReject)) return handleDashingResolve(interaction, "reject");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted)) return handlePanelGameStarted(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReset)) return handlePanelReset(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.panel)) return handleCommishToolsPanel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFwSide)) return handleCommishGrantFwSide(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFw)) return handleCommishGrantFwStart(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFs)) return handleCommishGrantFs(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendSide)) return handleCommishSuspendSide(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspend)) return handleCommishSuspendStart(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendModal)) return handleCommishSuspendModal(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootConfirm)) return handleCommishBootConfirm(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootSide)) return handleCommishBootSide(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.boot)) return handleCommishBootStart(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootModal)) return handleCommishBootModal(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.resetWipeConfirm)) return handleCommishResetWipeConfirm(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.reset)) return handleCommishResetStart(interaction);
     if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter) || interaction.customId.startsWith("rec:sc:pc:"))) return handleProposalCounterButton(interaction);
     if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept) || interaction.customId.startsWith("rec:sc:pa:"))) return handleProposalAcceptButton(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeSelect)) return handleProposeOrCounterSelect(interaction);
