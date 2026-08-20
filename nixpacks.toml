@@ -1,4 +1,11 @@
 # Nixpacks / Railway monorepo build.
+#
+# CURRENTLY NOT IN USE (confirmed 2026-08-20 via a live build log): Railway's builder for this
+# project is Railpack, not Nixpacks -- it never reads this file. Build config lives in
+# railpack.json at the repo root instead. Left in place (not deleted) in case the project ever
+# switches builders back; don't assume edits here take effect without re-confirming which
+# builder Railway is actually using for the service you're touching.
+#
 # Each Railway service must set RAILWAY_SERVICE_NAME (or the service name) so
 # `scripts/railway-build.mjs` only builds that service + @rec/shared.
 # Do NOT use `pnpm -r build` here — that rebuilds api+bot+site every deploy.
