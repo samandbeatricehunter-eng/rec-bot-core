@@ -363,6 +363,14 @@ class PostgresQueryBuilder {
       values.push(value);
       return `${columnSql} <> $${values.length}`;
     }
+    if (operator === "in") {
+      // Matches real supabase-js's PostgREST convention: .not(col, "in", "(a,b,c)") -- the value
+      // is a parenthesized, comma-separated string, not a JS array, so it needs parsing before
+      // it can be bound as a Postgres array parameter for ANY().
+      const list = typeof value === "string" ? value.replace(/^\(|\)$/g, "").split(",").filter(Boolean) : (value as unknown[]);
+      values.push(list);
+      return `NOT (${columnSql} = ANY($${values.length}))`;
+    }
     throw new Error(`Unsupported not() operator: ${operator}`);
   }
 
