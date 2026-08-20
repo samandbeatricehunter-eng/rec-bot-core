@@ -218,16 +218,22 @@ export async function getTeamLinkRequest(requestId: string) {
   return data;
 }
 
+// The cap is on occupied TEAM slots (max 32 teams, one owner each) -- rec_team_assignments is
+// the only table that reflects that. rec_league_memberships also includes people who've joined/
+// linked to the league (e.g. via Discord) but haven't claimed a team yet, which used to get
+// unioned in here too: that double-counted every pending requester against the very cap that
+// was supposed to gate whether they could get a team, so a league sitting well under 32 actual
+// rosters could still reject every new team-link request once enough unassigned members had
+// joined -- matches getLeagueHeaderSummary's teams.linked count (league-context.service.ts),
+// which has always been assignments-only.
 async function assertLeagueHasMemberCapacity(leagueId: string, incomingUserId: string | null) {
-  const [league, memberships, assignments] = await Promise.all([
+  const [league, assignments] = await Promise.all([
     supabase.from("rec_leagues").select("max_members").eq("id", leagueId).maybeSingle(),
-    supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId).eq("status", "active"),
     supabase.from("rec_team_assignments").select("user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
   ]);
   if (league.error || !league.data) throw new ApiError(404, "League not found.", league.error ?? undefined);
-  if (memberships.error || assignments.error) throw new ApiError(500, "Failed to verify league member capacity.", memberships.error ?? assignments.error);
+  if (assignments.error) throw new ApiError(500, "Failed to verify league member capacity.", assignments.error);
   const members = new Set<string>();
-  for (const row of memberships.data ?? []) if (row.user_id) members.add(row.user_id);
   for (const row of assignments.data ?? []) if (row.user_id) members.add(row.user_id);
   if (incomingUserId && members.has(incomingUserId)) return;
   if (members.size >= Number(league.data.max_members ?? 32)) {
