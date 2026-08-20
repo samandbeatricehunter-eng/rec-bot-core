@@ -610,7 +610,15 @@ export async function reviewCustomPlayer(input: {
         .map((code) => [code, Number(requested.attributes?.[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)]),
     ),
   };
-  validateIdentity(build.game_family, adjusted.identity, build.position);
+  // Same principle as the INSUFFICIENT_POINTS carve-out below, applied to identity (height/
+  // weight/body-type) rules: this review UI is approve/reject only ("applied exactly as the
+  // buyer built them") and never sends input.adjustments, so re-running validateIdentity here
+  // unconditionally retroactively enforced whatever position height/weight caps exist *today*
+  // against a build that was valid under the rules in force when it was submitted -- a build
+  // that already passed validation at submit time and sat untouched in the queue could become
+  // permanently unapprovable the moment a cap tightened underneath it. Only re-validate identity
+  // when a caller actually supplies an edit; an unedited build is applied as originally built.
+  if (input.adjustments) validateIdentity(build.game_family, adjusted.identity, build.position);
   const reevaluated = evaluateCustomPlayer({ game: build.game_family, packageTier: build.package_tier, position: build.position, archetypeKey: build.selected_archetype_key, developmentTrait: build.development_trait, attributes: adjusted.attributes, mode: "submit" });
   // A build submitted while the CP cost model was cheaper can now exceed its package budget
   // (the shared pricing was raised so 90+ ratings cost real CP). The buyer was validated and
