@@ -536,11 +536,11 @@ export const recApi = {
     recApiFetch<{ approved?: true; rejected?: true }>("/v1/roster/edit-proposals/review", { method: "POST", body: JSON.stringify(input) }),
   getLeagueDataMode: (guildId: string) =>
     recApiFetch<{ dataMode: "import" | "box_scores" | "manual" }>("/v1/league-context/data-mode", { method: "POST", body: JSON.stringify({ guildId }) }),
-  placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
+  placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number }) =>
     recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
-  placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>
+  placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string }> }) =>
     recApiFetch<{ wager: unknown; payout: number; combinedOdds: number; legs: string[] }>("/v1/wagers/place-parlay", { method: "POST", body: JSON.stringify(input) }),
-  placePeerWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null; customLine?: number | null }) =>
+  placePeerWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null }) =>
     recApiFetch<{ wager: unknown; payout: number; marketLabel: string; proposerPickLabel: string }>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
   acceptPeerWager: (input: { guildId: string; wagerId: string }) =>
     recApiFetch<{ wager: unknown }>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify(input) }),

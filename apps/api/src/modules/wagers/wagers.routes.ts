@@ -76,7 +76,6 @@ export async function wagerRoutes(app: FastifyInstance) {
         market: z.string().min(1),
         pick: z.string().min(1),
         stake: z.number().int().positive(),
-        customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
@@ -97,7 +96,6 @@ export async function wagerRoutes(app: FastifyInstance) {
           gameId: z.string().uuid(),
           market: z.string().min(1),
           pick: z.string().min(1),
-          customLine: z.number().min(-10).max(10).nullable().optional(),
         })).min(2).max(3),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
@@ -120,7 +118,6 @@ export async function wagerRoutes(app: FastifyInstance) {
         stake: z.number().int().positive(),
         challengeType: z.enum(["open", "direct"]),
         targetUserId: z.string().uuid().optional().nullable(),
-        customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);

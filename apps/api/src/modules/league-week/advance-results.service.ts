@@ -146,8 +146,8 @@ async function publishLeagueAdvanceAnnouncement(input: {
   });
 
   const body = lines.length
-    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nOpen your matchup on the Matchups page to chat with your opponent.`
-    : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check Matchups for this week's slate.`;
+    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nUse your matchup card on the main League page for scheduling, uploads, reactions, and help.`
+    : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check the main League page for this week's slate.`;
 
   await recordHubAnnouncement({
     guildId: input.guildId,

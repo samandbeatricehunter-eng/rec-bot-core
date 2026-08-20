@@ -29,6 +29,20 @@ async function loadGame(gameId: string): Promise<Game> {
   return row.data as Game;
 }
 
+async function getForceWinParticipants(gameId: string, game: Game, requesterId: string, recipientId: string) {
+  const [teams, accounts] = await Promise.all([
+    getGameTeamNames(gameId),
+    supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", [requesterId, recipientId]),
+  ]);
+  const discordByUser = new Map<string, string>((accounts.data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
+  const label = (userId: string) => {
+    const discordId = discordByUser.get(userId);
+    const team = userId === game.home_user_id ? teams.home : teams.away;
+    return `${discordId ? `<@${discordId}>` : "Coach"} (${team})`;
+  };
+  return { requester: label(requesterId), recipient: label(recipientId), discordIds: [...discordByUser.values()] };
+}
+
 export async function ensureScheduling(gameId: string) {
   const existing = await supabase.from("rec_game_scheduling").select("*").eq("game_id", gameId).maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load scheduling state.", existing.error);
@@ -340,6 +354,7 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested" });
 
   const routes = await findServerRoutesForLeague(game.league_id);
+  const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
   const league = await supabase.from("rec_leagues").select("owner_user_id").eq("id", game.league_id).maybeSingle();
   const ticketTz = await resolveDisplayTimezone(league.data?.owner_user_id ?? null, scheduling.data?.proposed_by_user_id ?? userId);
   await submitMatchupHelpRequest({
@@ -355,8 +370,8 @@ export async function requestForceWin(input: { gameId: string; discordId: string
     const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
     const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
     await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `⚠️ **Force Win requested.** ${roleMention}A coach checked in for the confirmed kickoff and their opponent did not — this has been flagged in Advance Readiness for review.`,
-      allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+      content: `⚠️ **Force Win requested.** ${roleMention}${participants.requester} requested the Force Win against ${participants.recipient}, who missed the confirmed kickoff — flagged in Advance Readiness for review.`,
+      allowed_mentions: { roles: commissionerRoleId ? [commissionerRoleId] : [], users: participants.discordIds },
     }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
@@ -513,13 +528,14 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_grant_fw" });
 
     const routes = await findServerRoutesForLeague(game.league_id);
+    const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
     const channel = await getGameChannelByGameId(input.gameId);
     if (channel?.discord_channel_id) {
       const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
       const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
       await postDiscordChannelMessage(channel.discord_channel_id, {
-        content: `🏳️ **Force Win conceded.** ${roleMention}A coach can't make this game and has conceded the Force Win to their opponent — flagged in Advance Readiness for review.`,
-        allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+        content: `🏳️ **Force Win conceded.** ${roleMention}${participants.requester} cannot make the game and conceded the Force Win to ${participants.recipient} — flagged in Advance Readiness for review.`,
+        allowed_mentions: { roles: commissionerRoleId ? [commissionerRoleId] : [], users: participants.discordIds },
       }).catch(() => undefined);
     }
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
@@ -648,6 +664,7 @@ export async function requestFailureToScheduleForceWin(input: { gameId: string; 
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested_failure_to_schedule" });
 
   const routes = await findServerRoutesForLeague(game.league_id);
+  const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
   await submitMatchupHelpRequest({
     guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
     discordId: input.discordId,
@@ -661,8 +678,8 @@ export async function requestFailureToScheduleForceWin(input: { gameId: string; 
     const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
     const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
     await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `⚠️ **Force Win requested (failure to schedule).** ${roleMention}A coach's opponent has not engaged with scheduling at all — flagged in Advance Readiness for review.`,
-      allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+      content: `⚠️ **Force Win requested (failure to schedule).** ${roleMention}${participants.requester} requested the Force Win against ${participants.recipient}, who has not engaged with scheduling — flagged in Advance Readiness for review.`,
+      allowed_mentions: { roles: commissionerRoleId ? [commissionerRoleId] : [], users: participants.discordIds },
     }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));

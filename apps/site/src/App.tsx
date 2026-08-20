@@ -28,6 +28,10 @@ function LegacyCommissionerInboxRedirect() {
   const { leagueId = "" } = useParams();
   return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
 }
+function LegacyMatchupRedirect() {
+  const { leagueId = "" } = useParams();
+  return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+}
 const AuthCallback = lazy(() => import("./routes/AuthCallback.js").then((m) => ({ default: m.AuthCallback })));
 const OnboardingPromo = lazy(() => import("./routes/OnboardingPromo.js").then((m) => ({ default: m.OnboardingPromo })));
 const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default: m.OpenApp })));
@@ -244,7 +248,7 @@ function Routed() {
         <Route path="/friends" element={<Friends />} />
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
-        <Route path="/l/:leagueId/matchups/:gameId" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/matchups/:gameId" element={<LegacyMatchupRedirect />} />
         <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/wagers" element={<LeagueHubPage />} />

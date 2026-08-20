@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BarChart3, ClipboardList, Film, LifeBuoy, Share2 } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupGame } from "../../types/api.js";
 import { Modal } from "../ui/Modal.js";
@@ -13,10 +14,20 @@ export function HeroMatchupActions({
   guildId,
   matchup,
   onChanged,
+  onOpenBoxScore,
+  onOpenPlayerStats,
+  onOpenShareStream,
+  onUploadHighlight,
+  onOpenRequestHelp,
 }: {
   guildId: string;
   matchup: HubMatchupGame;
   onChanged: () => void;
+  onOpenBoxScore?: () => void;
+  onOpenPlayerStats?: () => void;
+  onOpenShareStream?: () => void;
+  onUploadHighlight?: () => void;
+  onOpenRequestHelp?: () => void;
 }) {
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
@@ -150,6 +161,13 @@ export function HeroMatchupActions({
           <button type="button" disabled={matchup.isFinal} onClick={() => { setCompletedOpen(true); setError(null); }}>Game Completed</button>
         </>}
       </div>
+      {matchup.involvesMe && <div className="matchup-actions hub-hero-game-actions" role="group" aria-label="Game tools">
+        <button type="button" className="matchup-action" disabled={!onOpenBoxScore || matchup.isFinal || Boolean(matchup.boxScoreSubmissionId)} onClick={onOpenBoxScore}><ClipboardList size={16} /> Box Score</button>
+        <button type="button" className="matchup-action" disabled={!onOpenPlayerStats || !matchup.boxScoreSubmissionId || matchup.boxScoreStatus === "denied"} onClick={onOpenPlayerStats}><BarChart3 size={16} /> Player Stats</button>
+        <button type="button" className="matchup-action" disabled={!onOpenShareStream} onClick={onOpenShareStream}><Share2 size={16} /> Share Stream</button>
+        <button type="button" className="matchup-action" disabled={!onUploadHighlight} onClick={onUploadHighlight}><Film size={16} /> Upload Highlight(s)</button>
+        <button type="button" className="matchup-action" disabled={!onOpenRequestHelp} onClick={onOpenRequestHelp}><LifeBuoy size={16} /> Request Help</button>
+      </div>}
       {notice && <p className="hub-hero-action-notice">{notice}</p>}
       {error && !cantMakeOpen && !violationOpen && !completedOpen && <p className="hub-transfer-status">{error}</p>}
     </div>

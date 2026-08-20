@@ -5,11 +5,14 @@ import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
-import { InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
+import { InterviewMicIcon, ManageTeamIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
+import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.js";
+import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
+import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -67,11 +70,6 @@ type MatchupView = "h2h" | "cpu" | "rankings";
 
 const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules", "trades"]);
 
-const HERO_SCHEDULING_STATUS_LABELS: Record<string, string> = {
-  not_scheduled: "Not Scheduled", waiting_on_opponent: "Waiting on Opponent", time_proposed: "Time Proposed",
-  confirmed: "Confirmed", reschedule_requested: "Reschedule Requested", no_shared_availability: "No Shared Availability",
-  needs_commissioner_help: "Needs Commissioner Help", live: "Live", completed: "Completed",
-};
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -86,8 +84,9 @@ function parseLeagueSubTab(value: string | null): LeagueSubTab | null {
   return null;
 }
 type WagerMode = "single" | "parlay" | "peer";
-type WagerLeg = { gameId: string; label: string; options: WagerOptionsResponse; market: string; pick: string; customLine: string };
+type WagerLeg = { gameId: string; label: string; options: WagerOptionsResponse; market: string; pick: string };
 type WagerPanel = {
+  game: HubMatchupSchedule["games"][number];
   gameId: string;
   label: string;
   options: WagerOptionsResponse | null;
@@ -95,7 +94,6 @@ type WagerPanel = {
   market: string;
   pick: string;
   /** Overrides the market's system-generated line — empty string means use the default line. */
-  customLine: string;
   stake: string;
   parlay: WagerLeg[];
   challengeType: "open" | "direct";
@@ -110,12 +108,12 @@ function WagerSlip({ panel }: { panel: WagerPanel }) {
   const legs = panel.mode === "parlay"
     ? panel.parlay
     : panel.market && panel.pick && panel.options
-      ? [{ gameId: panel.gameId, label: panel.label, options: panel.options, market: panel.market, pick: panel.pick, customLine: panel.customLine }]
+      ? [{ gameId: panel.gameId, label: panel.label, options: panel.options, market: panel.market, pick: panel.pick }]
       : [];
   const renderedLegs = legs.map((leg) => {
     const market = leg.options.markets.find((item) => item.market === leg.market);
     const side = market?.sides.find((item) => item.pick === leg.pick);
-    const line = leg.customLine.trim() ? Number(leg.customLine) : market?.line;
+    const line = market?.line;
     const pickLabel = leg.pick === "over" || leg.pick === "under"
       ? `${leg.pick.toUpperCase()}${line == null ? "" : ` ${line}`}`
       : side?.label ?? displayLabel(leg.pick);
@@ -135,7 +133,7 @@ function WagerSlip({ panel }: { panel: WagerPanel }) {
 
   return <aside className="hub-bet-slip" aria-label="Current bet slip">
     <header className="hub-bet-slip-head">
-      <span>Franchise Hub Sportsbook</span>
+      <span>REC League eSports</span>
       <strong>Bet Slip</strong>
       <small>{panel.mode === "parlay" ? `${renderedLegs.length}-leg parlay` : panel.mode === "peer" ? "User wager" : "House single"}</small>
     </header>
@@ -257,7 +255,7 @@ function RankingListSearch<T>({
 // (League Records/League History). Trade Center/Roster/League History dropped out of the top
 // nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
 function MaddenMyTeamGrid({
-  coachName, my, profile, heroRank, powerRankSos, heroUserScore, selectSection, jumpToMyMatchup, viewMySchedule,
+  coachName, my, profile, heroRank, powerRankSos, heroUserScore, selectSection, viewMySchedule,
   setMediaModal, mediaPortal, setPowerRankingsModalOpen, setSosModalOpen, setBankModalOpen,
   setFinancialModalOpen, setCareerStatsModalOpen, leagueId,
 }: {
@@ -268,7 +266,6 @@ function MaddenMyTeamGrid({
   powerRankSos: string;
   heroUserScore: string;
   selectSection: (next: HubSection) => void;
-  jumpToMyMatchup: () => void;
   viewMySchedule: () => void | Promise<void>;
   setMediaModal: (value: "interview" | "article" | null) => void;
   mediaPortal: MediaPortalResponse | null;
@@ -292,7 +289,6 @@ function MaddenMyTeamGrid({
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
           <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
           <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
@@ -568,12 +564,10 @@ export function HubHome() {
   const [myWagers, setMyWagers] = useState<MyWagersResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
   const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
-  const [closeWagersOpen, setCloseWagersOpen] = useState(false);
-  const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
-  const [heroSchedulingStatus, setHeroSchedulingStatus] = useState<string | null>(null);
   const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
+  const [heroWagerOptions, setHeroWagerOptions] = useState<WagerOptionsResponse | null>(null);
   const [manageFundsOpen, setManageFundsOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
@@ -586,6 +580,9 @@ export function HubHome() {
   const mediaArticleBodyRef = useRef<HTMLTextAreaElement>(null);
   const [boxScoreUploadGame, setBoxScoreUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
+  const [shareStreamGame, setShareStreamGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
+  const [highlightUploadGame, setHighlightUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
+  const [requestHelpGame, setRequestHelpGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(null);
   const [playerStatsDraft, setPlayerStatsDraft] = useState({ playerName: "", watchedPlayerId: "", category: "passing", values: {} as Record<string, string> });
   const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
@@ -606,7 +603,6 @@ export function HubHome() {
   const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
   const [scheduleBoxScoreWeek, setScheduleBoxScoreWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
-  const [highlightWeekPickerOpen, setHighlightWeekPickerOpen] = useState(false);
   const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
   const [lateSubmissionsWeek, setLateSubmissionsWeek] = useState<number | undefined>(undefined);
   const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
@@ -837,16 +833,16 @@ export function HubHome() {
     ?? null;
   useEffect(() => {
     if (auth.status !== "ready" || !heroCurrentGameId) {
-      setHeroSchedulingStatus(null);
       setHeroPreview(null);
+      setHeroWagerOptions(null);
       return;
     }
     Promise.all([
-      recApi.getSchedulingMatchupStatus({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
       recApi.getMatchupPreview({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
-    ]).then(([scheduling, preview]) => {
-      setHeroSchedulingStatus(scheduling?.status ?? null);
+      recApi.getWagerOptions({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
+    ]).then(([preview, wagerOptions]) => {
       setHeroPreview(preview);
+      setHeroWagerOptions(wagerOptions);
     });
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, heroCurrentGameId, matchupReloadKey]);
 
@@ -1113,16 +1109,6 @@ export function HubHome() {
     writeHubParams(next, next === "league" ? subTab : undefined);
   }
 
-  function jumpToMyMatchup() {
-    if (heroCurrentGameId && hub?.league.id) {
-      navigate(`/l/${hub.league.id}/matchups/${heroCurrentGameId}`);
-      return;
-    }
-    setSection("league");
-    setSubTab("matchups");
-    writeHubParams("league", "matchups");
-  }
-
   async function openTeamSchedulePicker() {
     if (auth.status !== "ready") return;
     setSection("schedules");
@@ -1235,7 +1221,7 @@ export function HubHome() {
   async function openWager(game: HubMatchupSchedule["games"][number]) {
     if (auth.status !== "ready") return;
     const label = `${game.awayTeamName} at ${game.homeTeamName}`;
-    setWagerPanel({ gameId: game.gameId, label, options: null, mode: "single", market: "", pick: "", customLine: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: [], board: [], notice: null, busy: true });
+    setWagerPanel({ game, gameId: game.gameId, label, options: null, mode: "single", market: "", pick: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: [], board: [], notice: null, busy: true });
     try {
       const [options, board, coaches] = await Promise.all([
         recApi.getWagerOptions({ guildId: auth.guildId, gameId: game.gameId }),
@@ -1243,7 +1229,7 @@ export function HubHome() {
         recApi.listChallengeableCoaches(auth.guildId),
       ]);
       const firstMarket = options.markets[0];
-      setWagerPanel({ gameId: game.gameId, label, options, mode: "single", market: firstMarket?.market ?? "", pick: firstMarket?.sides[0]?.pick ?? "", customLine: "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: coaches.coaches, board: board.wagers, notice: null, busy: false });
+      setWagerPanel({ game, gameId: game.gameId, label, options, mode: "single", market: firstMarket?.market ?? "", pick: firstMarket?.sides[0]?.pick ?? "", stake: "25", parlay: [], challengeType: "open", targetUserId: "", coaches: coaches.coaches, board: board.wagers, notice: null, busy: false });
     } catch (cause) {
       setWagerPanel((current) => current ? { ...current, notice: cause instanceof Error ? cause.message : "Lines unavailable.", busy: false } : current);
     }
@@ -1251,7 +1237,7 @@ export function HubHome() {
 
   function addParlayLeg() {
     if (!wagerPanel?.options || wagerPanel.parlay.length >= 3) return;
-    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.market !== wagerPanel.market), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick, customLine: wagerPanel.customLine }].slice(0, 3) });
+    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.market !== wagerPanel.market), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick }].slice(0, 3) });
   }
 
   async function placeWager() {
@@ -1263,17 +1249,16 @@ export function HubHome() {
     }
     setWagerPanel({ ...wagerPanel, busy: true, notice: null });
     try {
-      const customLine = wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : null;
       let message = "Wager placed.";
       if (wagerPanel.mode === "parlay") {
-        const legs = wagerPanel.parlay.length ? wagerPanel.parlay : [{ gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options!, market: wagerPanel.market, pick: wagerPanel.pick, customLine: wagerPanel.customLine }];
-        const result = await recApi.placeParlay({ guildId: auth.guildId, stake: Math.floor(stake), legs: legs.map((leg) => ({ gameId: leg.gameId, market: leg.market, pick: leg.pick, customLine: leg.customLine.trim() ? Number(leg.customLine) : null })) });
+        const legs = wagerPanel.parlay.length ? wagerPanel.parlay : [{ gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options!, market: wagerPanel.market, pick: wagerPanel.pick }];
+        const result = await recApi.placeParlay({ guildId: auth.guildId, stake: Math.floor(stake), legs: legs.map((leg) => ({ gameId: leg.gameId, market: leg.market, pick: leg.pick })) });
         message = `Parlay placed. Potential payout ${coinsNumber(result.payout)}.`;
       } else if (wagerPanel.mode === "peer") {
-        const result = await recApi.placePeerWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), challengeType: wagerPanel.challengeType, targetUserId: wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null, customLine });
+        const result = await recApi.placePeerWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), challengeType: wagerPanel.challengeType, targetUserId: wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null });
         message = `Peer wager posted. Pot payout ${coinsNumber(result.payout)}.`;
       } else {
-        const result = await recApi.placeHouseWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), customLine });
+        const result = await recApi.placeHouseWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake) });
         message = `House wager placed. Potential payout ${coinsNumber(result.payout)}.`;
       }
       const board = await recApi.getPeerWagerBoard(auth.guildId).catch(() => ({ wagers: wagerPanel.board }));
@@ -1325,29 +1310,6 @@ export function HubHome() {
       setWagersBoardNotice("Wager removed and the held stake was refunded.");
     } catch (cause) { setWagersBoardNotice(cause instanceof Error ? cause.message : String(cause)); }
     finally { setWagersBoardBusy(false); }
-  }
-
-  async function closeGameWagers(gameId: string) {
-    if (auth.status !== "ready") return;
-    setWagersBoardBusy(true);
-    try {
-      const result = await recApi.closeGameWagering({ guildId: auth.guildId, gameId });
-      setWagersBoard((current) => (current ?? []).filter((wager) => wager.gameId !== gameId));
-      setWagersBoardNotice(`Wagering closed${result.refundedCount ? `; ${result.refundedCount} open offer(s) refunded` : ""}.`);
-    } catch (cause) { setWagersBoardNotice(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setWagersBoardBusy(false); }
-  }
-
-  function openCloseWagersModal() {
-    setCloseWagerGameIds(new Set((matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.wageringOpen).map((game) => game.gameId)));
-    setCloseWagersOpen(true);
-  }
-
-  async function submitClosedWagers() {
-    const games = (matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && game.wageringOpen && closeWagerGameIds.has(game.gameId));
-    for (const game of games) await closeGameWagers(game.gameId);
-    setCloseWagersOpen(false);
-    setMatchupReloadKey((value) => value + 1);
   }
 
   if (error) return <div className="hub-state"><h1>League Hub</h1><p>{error}</p><button className="btn btn-primary" onClick={() => void load()}>Try again</button></div>;
@@ -1428,7 +1390,6 @@ export function HubHome() {
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<MyMatchupIcon size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
@@ -1455,7 +1416,6 @@ export function HubHome() {
         powerRankSos={powerRankSos}
         heroUserScore={heroUserScore}
         selectSection={selectSection}
-        jumpToMyMatchup={jumpToMyMatchup}
         viewMySchedule={viewMySchedule}
         setMediaModal={setMediaModal}
         mediaPortal={mediaPortal}
@@ -1682,13 +1642,22 @@ export function HubHome() {
             <header className="hub-hero-centered-header">
               <p className="hub-eyebrow">{gameLabel(hub.league.game)}</p>
               <h1><span>{hub.league.name}</span><em>–</em><span>{displayLabel(String(hub.league.seasonStage))}</span><em>–</em><span>Week {hub.league.weekNumber}</span></h1>
-              {heroSchedulingStatus && <StatusChip status={heroSchedulingStatus === "confirmed" ? "approved" : heroSchedulingStatus === "not_scheduled" ? "pending" : "info"} label={HERO_SCHEDULING_STATUS_LABELS[heroSchedulingStatus] ?? heroSchedulingStatus} />}
+              {auth.status === "ready" && heroCurrentGameId && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroCurrentGameId} reloadKey={matchupReloadKey} />}
             </header>
 
             {heroMatchup ? <div className="hub-hero-matchup-stack">
-              <MatchupCard game={heroMatchup} showReactions={false} />
-              {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
-              {auth.status === "ready" && <HeroMatchupActions guildId={auth.guildId} matchup={heroMatchup} onChanged={() => setMatchupReloadKey((value) => value + 1)} />}
+              <MatchupCard game={heroMatchup} showReactions reactionsBelow />
+              {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} wagerOptions={heroWagerOptions} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+              {auth.status === "ready" && <HeroMatchupActions
+                guildId={auth.guildId}
+                matchup={heroMatchup}
+                onChanged={() => setMatchupReloadKey((value) => value + 1)}
+                onOpenBoxScore={() => setBoxScoreUploadGame(heroMatchup)}
+                onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
+                onOpenShareStream={() => setShareStreamGame(heroMatchup)}
+                onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
+                onOpenRequestHelp={() => setRequestHelpGame(heroMatchup)}
+              />}
             </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
 
             <section className="hub-season-snapshot">
@@ -1704,7 +1673,6 @@ export function HubHome() {
             <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
               <p className="hub-eyebrow">Quick actions</p>
               <div className="hub-gameday-actions hub-quick-actions-row">
-                <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
@@ -1807,7 +1775,6 @@ export function HubHome() {
           eyebrow="Community clips"
           title="Highlight Reel"
           className="hub-highlight-section"
-          action={<Button variant="secondary" size="compact" onClick={() => { setHighlightWeekPickerOpen(true); void viewMySchedule(); }}>Post Highlight(s)</Button>}
         >
           {activeHighlight ? <div className="hub-highlight-carousel">
             {highlightCount > 1 && <button className="hub-highlight-arrow previous" aria-label="Previous highlight" title="Previous highlight" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
@@ -2034,38 +2001,10 @@ export function HubHome() {
     {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async (submissionId) => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setAssignStatsSubmissionId(submissionId); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
     {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={(submissionId) => { setScheduleBoxScoreWeek(null); setAssignStatsSubmissionId(submissionId); setMySchedule(null); void viewMySchedule(); }} />}
     {assignStatsSubmissionId && auth.status === "ready" && <AssignBoxScoreStatsModal guildId={auth.guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />}
+    {shareStreamGame && auth.status === "ready" && <ShareStreamModal guildId={auth.guildId} gameId={shareStreamGame.gameId} onClose={() => setShareStreamGame(null)} onSubmitted={() => { setShareStreamGame(null); setMatchupReloadKey((value) => value + 1); }} />}
+    {highlightUploadGame && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={highlightUploadGame.gameId} onClose={() => setHighlightUploadGame(null)} onSubmitted={() => { setHighlightUploadGame(null); setMatchupReloadKey((value) => value + 1); }} />}
+    {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
-    {highlightWeekPickerOpen && (
-      <Modal title="Post Highlight(s)" onClose={() => setHighlightWeekPickerOpen(false)}>
-        {myScheduleError ? (
-          <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
-        ) : !mySchedule ? (
-          <p className="hub-empty">Loading your schedule…</p>
-        ) : (() => {
-          // Any played, non-bye week with a game on record — including past weeks a coach
-          // never got around to posting for, which is the whole point of this shortcut.
-          const eligibleWeeks = mySchedule.weeks.filter((week) => week.alreadyConfirmed && !week.isBye && Boolean(week.gameId));
-          if (!eligibleWeeks.length) return <p className="hub-empty">No games on your schedule yet to post a highlight for.</p>;
-          return <div className="hub-schedule-week-list">
-            {eligibleWeeks.map((week) => {
-              const posted = myHighlightCounts?.[week.weekNumber] ?? 0;
-              return (
-                <button
-                  type="button"
-                  key={week.weekNumber}
-                  className="hub-schedule-week"
-                  onClick={() => { setHighlightWeekPickerOpen(false); setScheduleHighlightWeek(week); }}
-                >
-                  <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-                  <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
-                  <span className="hub-muted">{scheduleResultLabel(week) ?? "Not yet played"} · {posted}/2 posted</span>
-                </button>
-              );
-            })}
-          </div>;
-        })()}
-      </Modal>
-    )}
     {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} viewerUserId={hub.userRatings?.viewerUserId ?? null} canManageLeague={hub.canManageLeague} onClose={() => setRecruitingBoardOpen(false)} />}
     {editRosterOpen && auth.status === "ready" && <EditRosterRequestModal guildId={auth.guildId} onClose={() => setEditRosterOpen(false)} onDone={() => setEditRosterOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
@@ -2076,21 +2015,26 @@ export function HubHome() {
       <div className="hub-submission-grid">{(PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).map(([key, label]) => <label className="form-field" key={key}><span className="form-label">{label}</span><input className="form-input" type="number" min="0" value={playerStatsDraft.values[key] ?? ""} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, values: { ...current.values, [key]: event.target.value } }))} /></label>)}</div>
       <Button variant="primary" disabled={playerStatsBusy} onClick={() => void submitPlayerStats()}>{playerStatsBusy ? "Submitting..." : "Submit Player Stats"}</Button>
     </div></Modal>}
-    {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
-    {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
     {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} panelClassName="hub-wager-slip-modal" hideHeader onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
-      <header className="hub-wager-modal-brand"><span>Franchise Hub</span><strong>Sportsbook</strong><small>{wagerPanel.label}</small></header>
+      <header className="hub-wager-modal-brand">
+        <span>REC League eSports</span>
+        <div className="hub-wager-matchup-title">
+          <TeamLogo abbreviation={wagerPanel.game.awayTeamAbbr} alt={wagerPanel.game.awayTeamMascot} />
+          <strong>{wagerPanel.game.awayTeamAbbr ?? wagerPanel.game.awayTeamName} <em>at</em> {wagerPanel.game.homeTeamAbbr ?? wagerPanel.game.homeTeamName}</strong>
+          <TeamLogo abbreviation={wagerPanel.game.homeTeamAbbr} alt={wagerPanel.game.homeTeamMascot} />
+        </div>
+        <small>Sportsbook</small>
+      </header>
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
         {wagerPanel.mode === "parlay" && <p className="hub-muted">Choose exactly three different stat-line Over/Under picks from this game. Each side is a separate selection.</p>}
         <div className="hub-wager-workbench">
           <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => {
             const isSelectedMarket = wagerPanel.market === market.market;
-            const effectiveLine = isSelectedMarket && wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : market.line;
+            const effectiveLine = market.line;
             return <article key={market.market} className={isSelectedMarket ? "active" : ""}>
-              <button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "", customLine: "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button>
+              <button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button>
               <div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={isSelectedMarket && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${effectiveLine ?? ""}` : side.pick === "under" ? `UNDER ${effectiveLine ?? ""}` : side.label}</b><small>{side.label} · {americanFromDecimal(side.odds)}</small></button>)}</div>
-              {isSelectedMarket && market.line != null && <label className="form-field hub-wager-custom-line"><span className="form-label">Custom line (optional — defaults to {market.line})</span><input className="form-input" type="number" step="0.5" placeholder={String(market.line)} value={wagerPanel.customLine} onChange={(event) => setWagerPanel({ ...wagerPanel, customLine: event.target.value })} /></label>}
             </article>;
           })}</div>
           <div className="hub-wager-ticket-column">

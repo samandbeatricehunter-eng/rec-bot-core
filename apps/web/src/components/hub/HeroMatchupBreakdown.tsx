@@ -1,13 +1,15 @@
-import type { MatchupPreview, MatchupTeamBreakdown } from "../../types/api.js";
+import type { MatchupPreview, MatchupTeamBreakdown, WagerOptionsResponse } from "../../types/api.js";
+import { PositionMatchupAdvantages } from "../matchups/PositionMatchupAdvantages.js";
 
-function ranked(value: number, rank: number | null, suffix = "") {
-  if (rank == null) return <><strong>—</strong><small>No data</small></>;
+function ranked(value: number, rank: number | null, suffix = "", missingRankLabel = "Rank unavailable") {
   const signed = suffix === " signed" && value > 0 ? "+" : "";
-  return <><strong>{signed}{value.toFixed(Number.isInteger(value) ? 0 : 1)}</strong><small>#{rank} in league</small></>;
+  return <><strong>{signed}{value.toFixed(Number.isInteger(value) ? 0 : 1)}</strong><small>{rank == null ? missingRankLabel : `#${rank} in league`}</small></>;
 }
 
 function comparisonRows(team: MatchupTeamBreakdown) {
   return [
+    { key: "points-for", label: "Points / game", value: ranked(team.pointsPerGame, null, "", "Season average") },
+    { key: "points-allowed", label: "Points allowed / game", value: ranked(team.pointsAllowedPerGame, null, "", "Season average") },
     { key: "pass-for", label: "Passing yards / game", value: ranked(team.passingYardsPerGame, team.passingYardsRank) },
     { key: "pass-allowed", label: "Passing yards allowed / game", value: ranked(team.passingYardsAllowedPerGame, team.passingYardsAllowedRank) },
     { key: "rush-for", label: "Rushing yards / game", value: ranked(team.rushingYardsPerGame, team.rushingYardsRank) },
@@ -17,7 +19,7 @@ function comparisonRows(team: MatchupTeamBreakdown) {
   ];
 }
 
-export function HeroMatchupBreakdown({ preview }: { preview: MatchupPreview }) {
+export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: MatchupPreview; wagerOptions?: WagerOptionsResponse | null }) {
   const awayRows = comparisonRows(preview.away);
   const homeRows = comparisonRows(preview.home);
   return <section className="hub-hero-breakdown" aria-label="Matchup stat comparison">
@@ -33,6 +35,7 @@ export function HeroMatchupBreakdown({ preview }: { preview: MatchupPreview }) {
         <div>{homeRows[index].value}</div>
       </div>)}
     </div>
+    <PositionMatchupAdvantages away={preview.away} home={preview.home} wagerOptions={wagerOptions} />
     <footer className="hub-hero-prediction">
       <span>Predicted Score</span>
       <strong>{preview.away.abbr ?? preview.away.teamName} {preview.prediction.predictedAwayScore} <em>–</em> {preview.prediction.predictedHomeScore} {preview.home.abbr ?? preview.home.teamName}</strong>

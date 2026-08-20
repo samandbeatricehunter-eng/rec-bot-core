@@ -38,7 +38,6 @@ export const WAGER_CUSTOM_IDS = {
   parlayPlace: "rec:wager:parlay_place",
   stakeModal: "rec:wager:stake_modal",
   stakeInput: "rec:wager:stake_input",
-  customLinePrefix: "rec:wager:custom_line:", // + leg index (0 for single wagers)
   approvePrefix: "rec:wager:approve:", // + wagerId (pending-payout review)
   cancelPrefix: "rec:wager:void:",     // + wagerId (pending-payout review)
   acceptPrefix: "rec:wager:accept:",   // + wagerId (accept an open/direct challenge as-is)
@@ -77,18 +76,6 @@ function getSession(userId: string): WagerSession {
   const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, marketKind: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
-}
-
-const CUSTOM_SPREAD_MIN = -10;
-const CUSTOM_SPREAD_MAX = 10;
-
-function parseCustomLine(raw: string | undefined | null): number | null {
-  const trimmed = (raw ?? "").trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed);
-  if (!Number.isFinite(n)) throw new Error("Custom spread must be a number.");
-  if (n < CUSTOM_SPREAD_MIN || n > CUSTOM_SPREAD_MAX) throw new Error(`Custom spread must be between ${CUSTOM_SPREAD_MIN} and +${CUSTOM_SPREAD_MAX}.`);
-  return n;
 }
 
 // ─── Placement flow (in the player's /menu session) ────────────────────────────
@@ -412,10 +399,6 @@ export async function handleWagerSideSelect(interaction: StringSelectMenuInterac
   const components = [new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Stake on ${side.label}`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole coins, e.g. 100")),
   ];
-  if (session.marketKind === "spread") {
-    components.push(new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(`${WAGER_CUSTOM_IDS.customLinePrefix}0`).setLabel("Custom spread (optional)").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder(`Offered: ${session.line}. Leave blank to take it, or enter -10..+10.`)));
-  }
   const modal = new ModalBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeModal).setTitle("Enter Stake").addComponents(...components);
   return interaction.showModal(modal);
 }
@@ -481,21 +464,8 @@ export async function handleWagerParlayPlace(interaction: ButtonInteraction) {
   }
   const rows: Array<ActionRowBuilder<TextInputBuilder>> = [new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Parlay stake (${session.parlayLegs.length} legs)`).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole coins, e.g. 100"))];
-  session.parlayLegs.forEach((leg, i) => {
-    if (leg.kind !== "spread" || rows.length >= 5) return;
-    rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(`${WAGER_CUSTOM_IDS.customLinePrefix}${i}`).setLabel(`Custom line: ${leg.label}`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder(`Offered: ${leg.offeredLine}. Leave blank to take it, or -10..+10.`)));
-  });
   const modal = new ModalBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeModal).setTitle("Parlay Stake").addComponents(...rows);
   return interaction.showModal(modal);
-}
-
-function getModalField(interaction: ModalSubmitInteraction, customId: string): string | null {
-  try {
-    return interaction.fields.getTextInputValue(customId);
-  } catch {
-    return null;
-  }
 }
 
 export async function handleWagerStakeModal(interaction: ModalSubmitInteraction) {
@@ -511,35 +481,22 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
     if (session.parlayLegs.length < 2 || session.parlayLegs.length > 3) {
       return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(COLORS.error).setDescription("Your parlay session expired — restart from Place Wager.")], components: [] });
     }
-    let customLines: Array<number | null>;
-    try {
-      customLines = session.parlayLegs.map((_, i) => parseCustomLine(getModalField(interaction, `${WAGER_CUSTOM_IDS.customLinePrefix}${i}`)));
-    } catch (err) {
-      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(COLORS.error).setDescription((err as Error).message)], components: [] });
-    }
-    return placeParlayAndPost(interaction, session, stake, customLines);
+    return placeParlayAndPost(interaction, session, stake);
   }
 
   if (!session.gameId || !session.market || !session.pick) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("Your wager session expired — restart from Place Wager.")], components: [] });
   }
 
-  let customLine: number | null;
-  try {
-    customLine = parseCustomLine(getModalField(interaction, `${WAGER_CUSTOM_IDS.customLinePrefix}0`));
-  } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription((err as Error).message)], components: [] });
-  }
-
-  if (session.mode === "house") return placeHouseAndPost(interaction, session, stake, customLine);
-  return proposePeerAndPost(interaction, session, stake, customLine);
+  if (session.mode === "house") return placeHouseAndPost(interaction, session, stake);
+  return proposePeerAndPost(interaction, session, stake);
 }
 
-async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number, customLine: number | null) {
+async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
   if (!interaction.inCachedGuild()) return;
   let result: any;
   try {
-    result = await recApi.placeHouseWager({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake, customLine });
+    result = await recApi.placeHouseWager({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake });
   } catch (err) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Placed").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
@@ -565,7 +522,6 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
       .setDescription([
         `**${result.gameLabel}**`,
         `${result.marketLabel}: **${result.sideLabel}** (${americanFromDecimal(result.odds)})`,
-        session.marketKind === "spread" && customLine != null ? `Custom line: **${result.line > 0 ? "+" : ""}${result.line}** (offered: ${session.line})` : "",
         `Stake: **${formatCoins(result.wager.stake)}** → To win: **${formatCoins(result.payout)}**`,
         "",
         `${formatCoins(result.wager.stake)} was moved to holding. Wallet balance: **${formatCoins(result.walletBalance)}**.`,
@@ -575,11 +531,11 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
   });
 }
 
-async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number, customLines: Array<number | null>) {
+async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
   if (!interaction.inCachedGuild()) return;
   let result: any;
   try {
-    result = await recApi.placeParlay({ guildId: interaction.guildId, discordId: interaction.user.id, stake, legs: session.parlayLegs.map((l, i) => ({ gameId: l.gameId, market: l.market, pick: l.pick, customLine: customLines[i] ?? null })) });
+    result = await recApi.placeParlay({ guildId: interaction.guildId, discordId: interaction.user.id, stake, legs: session.parlayLegs.map((l) => ({ gameId: l.gameId, market: l.market, pick: l.pick })) });
   } catch (err) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay Not Placed").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
@@ -624,14 +580,14 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
   });
 }
 
-async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number, customLine: number | null) {
+async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
   if (!interaction.inCachedGuild()) return;
   const challengeType = session.mode === "peer_direct" ? "direct" : "open";
   let result: any;
   try {
     result = await recApi.placePeerWager({
       guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake,
-      challengeType, targetUserId: session.targetUserId, customLine,
+      challengeType, targetUserId: session.targetUserId,
     });
   } catch (err) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Sent").setColor(COLORS.error).setDescription(userError(err))], components: [] });

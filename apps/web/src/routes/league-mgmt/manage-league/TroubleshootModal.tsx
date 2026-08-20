@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Coins, Wrench } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
+import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 
 export function TroubleshootModal({
   guildId,
@@ -13,6 +14,7 @@ export function TroubleshootModal({
   onClose: () => void;
 }) {
   const [repairOpen, setRepairOpen] = useState(false);
+  const [wagersOpen, setWagersOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -27,9 +29,10 @@ export function TroubleshootModal({
       />
     );
   }
+  if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
 
   return (
-    <Modal title="Troubleshoot" onClose={onClose}>
+    <Modal title="Tools" onClose={onClose}>
       {notice && (
         <p className="form-hint" style={{ color: "var(--gold)", marginBottom: "var(--space-3)" }}>
           {notice}
@@ -44,6 +47,10 @@ export function TroubleshootModal({
           <Button variant="secondary" onClick={() => setRepairOpen(true)}>
             <Wrench size={14} /> Open Repair Tool
           </Button>
+        </CollapsibleSection>
+        <CollapsibleSection title="Close or Refund Wagers">
+          <p className="form-hint" style={{ marginTop: 0 }}>Select a game to close new wagering and/or cancel and refund its open wagers.</p>
+          <Button variant="secondary" onClick={() => setWagersOpen(true)}><Coins size={14} /> Open Wager Tool</Button>
         </CollapsibleSection>
       </div>
     </Modal>

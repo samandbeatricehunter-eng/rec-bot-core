@@ -148,7 +148,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                 <Newspaper size={16} /> Generate Media
               </Button>
               <Button variant="secondary" onClick={() => setTroubleshootOpen(true)}>
-                <Wrench size={16} /> Troubleshoot
+                <Wrench size={16} /> Tools
               </Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
                 <Settings size={16} /> Settings

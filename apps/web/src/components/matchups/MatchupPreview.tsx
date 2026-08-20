@@ -5,6 +5,7 @@ import type {
   MatchupTeamBreakdown,
   WagerOptionsResponse,
 } from "../../types/api.js";
+import { PositionMatchupAdvantages } from "./PositionMatchupAdvantages.js";
 
 function readableText(hex: string) {
   const value = hex.replace("#", "");
@@ -233,33 +234,7 @@ export function MatchupPreview({
         </section>
       )}
 
-      {wagerOptions?.matchup?.units?.length ? (
-        <section className="matchup-preview__lanes">
-          <header className="matchup-preview__wagers-head">
-            <span>Roster</span>
-            <strong>Position Matchups</strong>
-          </header>
-          <div className="matchup-preview__lane-grid">
-            {wagerOptions.matchup.units.map((unit) => {
-              const favor = unit.edge > 0.1 ? "home" : unit.edge < -0.1 ? "away" : null;
-              return (
-                <article key={unit.key} className="matchup-preview__lane">
-                  <span className="matchup-preview__lane-label">{unit.label}</span>
-                  <span className="matchup-preview__lane-bar" aria-hidden="true">
-                    <span
-                      className={unit.edge > 0 ? "is-home" : "is-away"}
-                      style={{ width: Math.min(100, Math.abs(unit.edge) * 2.5) + "%" }}
-                    />
-                  </span>
-                  <small className={"matchup-preview__lane-edge" + (favor ? " is-" + favor : "")}>
-                    {favor ? `${favor === "home" ? home.abbr : away.abbr} +${Math.abs(Math.round(unit.edge))}` : "Even"}
-                  </small>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+      <PositionMatchupAdvantages away={away} home={home} wagerOptions={wagerOptions} />
     </section>
   );
 }

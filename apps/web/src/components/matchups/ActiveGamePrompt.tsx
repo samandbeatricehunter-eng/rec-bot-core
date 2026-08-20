@@ -2,7 +2,7 @@ import type { HubMatchupDetail } from "../../types/api.js";
 
 // spec §6.2.B: one high-priority contextual prompt, not a stack of banners — cast GOTW pick,
 // watch live, box score awaiting review, box score rejected, or missing required submission.
-// Priority order below matches the spec's own ordering. Reuses data MatchupDetailPage already
+// Priority order below matches the spec's own ordering. Reuses the matchup detail data already
 // loads; no new backend calls.
 export function ActiveGamePrompt({
   detail,

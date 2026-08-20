@@ -25,21 +25,6 @@ function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string |
   return (team.display_abbr ?? "").trim() || (team.abbreviation ?? "").trim() || (team.name ?? "").trim() || "TBD";
 }
 
-const CUSTOM_SPREAD_MIN = -10;
-const CUSTOM_SPREAD_MAX = 10;
-
-// A custom spread applies directly to the bettor's chosen side (no sign flip — the
-// number they enter is their line), clamped to the house's allowed range. Odds stay
-// the standard spread price; only the line moves.
-function resolveCustomLine(kind: string, offeredLine: number | null, customLine: number | null | undefined): number | null {
-  if (customLine == null) return offeredLine;
-  if (kind !== "spread") throw new ApiError(400, "Custom lines are only available on spread wagers.");
-  if (!Number.isFinite(customLine) || customLine < CUSTOM_SPREAD_MIN || customLine > CUSTOM_SPREAD_MAX) {
-    throw new ApiError(400, `Custom spread must be between ${CUSTOM_SPREAD_MIN} and +${CUSTOM_SPREAD_MAX}.`);
-  }
-  return Math.round(customLine * 2) / 2; // nearest half-point
-}
-
 async function userIdFromDiscord(discordId: string): Promise<string> {
   const { data, error } = await supabase
     .from("rec_discord_accounts")
@@ -140,7 +125,6 @@ export type PlaceHouseWagerInput = {
   market: string;
   pick: string;
   stake: number;
-  customLine?: number | null;
 };
 
 export async function placeHouseWager(input: PlaceHouseWagerInput) {
@@ -198,8 +182,6 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   } else if (marketDef.kind === "moneyline") {
     line = null;
   }
-  line = resolveCustomLine(marketDef.kind, line, input.customLine);
-
   // Weekly cap: at most one non-human (CPU) game wagered per week.
   if (!options.humanInvolved) {
     const { data: cpuWagers } = await supabase
@@ -278,7 +260,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
 }
 
 // Shared placement validation + line/odds resolution for house and peer wagers.
-async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number, customLine?: number | null) {
+async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number) {
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   const marketDef = WAGER_MARKET_BY_KEY.get(market);
   if (!marketDef) throw new ApiError(400, "Unknown wager market.");
@@ -314,8 +296,6 @@ async function prepareSingleWager(guildId: string, userId: string, leagueId: str
   } else if (marketDef.kind === "moneyline") {
     line = null;
   }
-  line = resolveCustomLine(marketDef.kind, line, customLine);
-
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
   return { game, options, marketDef, marketOption, side, line, balance };
@@ -330,7 +310,6 @@ export type PlacePeerWagerInput = {
   stake: number;
   challengeType: "open" | "direct";
   targetUserId?: string | null;
-  customLine?: number | null;
   /** "user" = placed from the site; "bot" = placed from a Discord slash-command flow, which
    * already posts its own richer (live discord.js) announcement client-side after this call
    * returns — only "user"-origin wagers get the announcement posted here, to avoid a duplicate. */
@@ -353,7 +332,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
 
   const stake = Math.floor(Number(input.stake));
   await assertPeerWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
-  const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake, input.customLine);
+  const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake);
 
   if (input.challengeType === "direct") {
     if (!input.targetUserId) throw new ApiError(400, "Pick a coach to challenge.");
@@ -778,7 +757,7 @@ export async function attachWagerAnnouncementMessage(input: { wagerId: string; c
 export type PlaceParlayInput = {
   guildId: string;
   discordId: string;
-  legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }>;
+  legs: Array<{ gameId: string; market: string; pick: string }>;
   stake: number;
 };
 
@@ -818,7 +797,7 @@ export async function placeParlay(input: PlaceParlayInput) {
 
   const prepared: Array<{ gameId: string; market: string; pick: string; line: number | null; odds: number; label: string }> = [];
   for (const leg of input.legs) {
-    const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake, leg.customLine);
+    const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake);
     prepared.push({ gameId: leg.gameId, market: leg.market, pick: leg.pick, line: prep.line, odds: Number(prep.side.odds), label: `${prep.options.awayLabel} at ${prep.options.homeLabel} — ${prep.marketDef.label}: ${prep.side.label}${prep.line != null && prep.marketDef.kind === "spread" ? ` (line ${prep.line > 0 ? "+" : ""}${prep.line})` : ""}` });
   }
 

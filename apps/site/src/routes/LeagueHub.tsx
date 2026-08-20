@@ -19,7 +19,6 @@ import {
   LeagueThemeProvider,
   LinkTeamForm,
   ManageLeagueHome,
-  MatchupDetailPage,
   NotificationsHome,
   PlayerStatsReview,
   PublishingHome,
@@ -367,8 +366,6 @@ export function LeagueHubPage() {
                 <HubErrorBoundary>
                   {location.pathname.endsWith("/draft-board") ? (
                     <FantasyDraftBoardPage />
-                  ) : /\/matchups\/[^/]+$/.test(location.pathname) ? (
-                    <MatchupDetailPage />
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />
                   ) : view === "rules" ? (

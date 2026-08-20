@@ -752,7 +752,7 @@ export const recApi = {
     recFetch<any>("/v1/wagers/games", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
   getWagerOptions: (guildId: string, gameId: string) =>
     recFetch<any>("/v1/wagers/options", { method: "POST", body: JSON.stringify({ guildId, gameId }) }),
-  placeHouseWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
+  placeHouseWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number }) =>
     recFetch<any>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
   attachWagerPendingMessage: (input: { wagerId: string; channelId: string; messageId: string }) =>
     recFetch<any>("/v1/wagers/attach-message", { method: "POST", body: JSON.stringify(input) }),
@@ -764,9 +764,9 @@ export const recApi = {
     recFetch<any>("/v1/wagers/resolvability", { method: "POST", body: JSON.stringify({ guildId, wagerId }) }),
   listConfirmableWagers: (guildId: string) =>
     recFetch<any>("/v1/wagers/confirmable", { method: "POST", body: JSON.stringify({ guildId }) }),
-  placePeerWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null; customLine?: number | null }) =>
+  placePeerWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null }) =>
     recFetch<any>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
-  placeParlay: (input: { guildId: string; discordId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>
+  placeParlay: (input: { guildId: string; discordId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string }> }) =>
     recFetch<any>("/v1/wagers/place-parlay", { method: "POST", body: JSON.stringify(input) }),
   acceptPeerWager: (guildId: string, discordId: string, wagerId: string) =>
     recFetch<any>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify({ guildId, discordId, wagerId }) }),

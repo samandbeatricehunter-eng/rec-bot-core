@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type {
   GotwGuessingRecordsResponse,
@@ -35,7 +35,6 @@ export function GotwVotingCarousel({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewByGame, setPreviewByGame] = useState<Record<string, MatchupPreviewData>>({});
   const [wagersByGame, setWagersByGame] = useState<Record<string, WagerOptionsResponse>>({});
-  const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
   const [detailsError, setDetailsError] = useState<string | null>(null);
 
   const gameIds = useMemo(() => games.map((game) => game.gameId).join("|"), [games]);
@@ -50,9 +49,8 @@ export function GotwVotingCarousel({
   }, [gameIds]);
 
   useEffect(() => {
-    if (!drawerOpen || !game || previewByGame[game.gameId] || loadingGameId === game.gameId) return;
+    if (!drawerOpen || !game || previewByGame[game.gameId]) return;
     let cancelled = false;
-    setLoadingGameId(game.gameId);
     setDetailsError(null);
     Promise.all([
       recApi.getMatchupPreview({ guildId, gameId: game.gameId }),
@@ -67,14 +65,11 @@ export function GotwVotingCarousel({
       })
       .catch((cause) => {
         if (!cancelled) setDetailsError(cause instanceof Error ? cause.message : "Matchup details are unavailable.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingGameId(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [drawerOpen, game, guildId, loadingGameId, previewByGame]);
+  }, [drawerOpen, game?.gameId, game?.matchupType, guildId, previewByGame]);
 
   if (!game || !poll) return null;
 
@@ -99,10 +94,10 @@ export function GotwVotingCarousel({
         <Button variant="tactical" size="compact" onClick={() => void onCloseVoting(poll.pollId)}>Close Voting</Button>
       ) : undefined}
     >
-      <div className="hub-gotw-carousel-stage">
+      <div className={`hub-gotw-carousel-stage${games.length > 1 ? " has-navigation" : ""}`}>
         {games.length > 1 ? <button type="button" className="hub-highlight-arrow previous" aria-label="Previous Game of the Week" onClick={() => move(-1)}><ChevronLeft /></button> : null}
         <div className="hub-gotw-carousel-content">
-          <MatchupCard game={game} featured showReactions={false} />
+          <MatchupCard game={game} featured showReactions reactionsBelow />
 
           <div className="hub-gotw-voting" aria-label="Game of the Week voting">
             <button
@@ -141,7 +136,7 @@ export function GotwVotingCarousel({
               <span><strong>Matchup &amp; wager details</strong><small>Scouting, prediction and current lines</small></span>
               {drawerOpen ? <ChevronUp size={19} /> : <ChevronDown size={19} />}
             </button>
-            {canPlaceWager ? <Button variant="primary" onClick={() => onOpenWager(game)}>Place a Wager</Button> : null}
+            {canPlaceWager ? <Button variant="primary" size="compact" className="hub-gotw-wager-button" onClick={() => onOpenWager(game)}><Coins size={15} /> Place a Wager</Button> : null}
           </div>
 
           {guessingRecord ? <p className="hub-gotw-record">Your record: {guessingRecord.wins}-{guessingRecord.losses}{guessingRecord.ties ? `-${guessingRecord.ties}` : ""}{guessingRecord.current_streak > 1 ? ` · ${guessingRecord.current_streak}-game streak` : ""}</p> : null}

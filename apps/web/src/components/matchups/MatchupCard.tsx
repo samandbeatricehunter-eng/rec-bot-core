@@ -1,4 +1,3 @@
-import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import type { HubMatchupGame } from "../../types/api.js";
 import { useAuth } from "../../lib/auth-context.js";
@@ -21,17 +20,18 @@ export function MatchupCard({
   game: initialGame,
   featured = false,
   showReactions = true,
+  reactionsBelow = false,
   renderMode = "site",
 }: {
   game: HubMatchupGame;
   featured?: boolean;
   showReactions?: boolean;
+  reactionsBelow?: boolean;
   /** "discord" strips interactivity (link/reactions/hover) for the Playwright screenshot used in game-channel embeds. */
   renderMode?: "site" | "discord";
 }) {
   const auth = useAuth();
   const guildId = auth.status === "ready" ? auth.guildId : "";
-  const location = useLocation();
   const [game, setGame] = useState(initialGame);
   const [busy, setBusy] = useState(false);
 
@@ -164,7 +164,7 @@ export function MatchupCard({
         </span>
         <TeamLogo abbreviation={game.homeTeamAbbr} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" />
       </div>
-      {reactionsEnabled ? (
+      {reactionsEnabled && !reactionsBelow ? (
         <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>
           <MatchupReactionBar
             game={game}
@@ -179,14 +179,10 @@ export function MatchupCard({
     </article>
   );
   if (renderMode === "discord") return <div className="rec-matchup-card-link render">{card}</div>;
-
-  const leagueMatch = /^\/l\/([^/]+)\/matchups(?:\/|$)/.exec(location.pathname);
-  const detailPath = leagueMatch
-    ? `/l/${leagueMatch[1]}/matchups/${game.gameId}`
-    : `/matchups/${game.gameId}`;
-
-  // Pure CPU-vs-CPU games have no human participant and nothing to do on the detail page.
-  // human_cpu games have one human side that still needs to reach box score/highlight
-  // uploads there, so they link through just like h2h.
-  return game.matchupType !== "cpu" ? <Link className="rec-matchup-card-link" to={detailPath}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;
+  return <div className={`rec-matchup-card-link${game.matchupType === "cpu" ? " cpu" : ""}`}>
+    {card}
+    {reactionsEnabled && reactionsBelow ? <div className="rec-matchup-card__reactions rec-matchup-card__reactions--below">
+      <MatchupReactionBar game={game} busy={busy} onLike={() => void react("like")} onDislike={() => void react("dislike")} onSubmitGoty={submitGoty} onClearGoty={clearGoty} />
+    </div> : null}
+  </div>;
 }
