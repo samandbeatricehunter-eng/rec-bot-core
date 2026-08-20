@@ -68,7 +68,7 @@ async function postToGameChannel(gameId: string, content: string, mentionUserIds
 // scheduling-panel actions, so the 2h tier below doubles as the spec's "channel silence" ping
 // without a separate/redundant mechanism. The 12h tier also surfaces "Request AutoPilot"
 // (neither responded at all in 12h is one of the two AutoPilot trigger conditions).
-async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string) {
+async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string, handledThisTick: Set<string>) {
   const cutoff = new Date(Date.now() - hours * HOUR).toISOString();
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,status,response_started_at,home_responded_at,away_responded_at,scheduled_for")
@@ -77,7 +77,7 @@ async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string) {
     .not("status", "in", "(confirmed,completed)")
     .or("home_responded_at.is.null,away_responded_at.is.null");
   if (error) { console.error("[ERROR] scheduling reminder poller: contact reminder query failed (non-fatal):", error); return; }
-  const rows = (data ?? []) as SchedulingRow[];
+  const rows = ((data ?? []) as SchedulingRow[]).filter((r) => !handledThisTick.has(r.game_id));
   if (!rows.length) return;
 
   const sent = await alreadySent(rows.map((r) => r.game_id), type);
@@ -96,9 +96,15 @@ async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string) {
     ].filter((v): v is string => Boolean(v));
     if (!waitingOn.length) continue;
     const mentions = waitingOn.map((id) => `<@${id}>`).join(" ");
-    await postToGameChannel(row.game_id, `${mentions} — you haven't responded in your game channel yet. Set a time or adjust your availability before advance.`, waitingOn);
+    await postToGameChannel(row.game_id, `${mentions} — Schedule a time or reach out to your opponent.`, waitingOn);
     await markSent(row.game_id, type);
     await logSchedulingEvent({ gameId: row.game_id, eventType: "reminder_sent", payload: { type } });
+    // A game that just qualified for a tier is done for THIS sweep tick, regardless of how many
+    // higher/lower tiers it also crosses -- without this, an old game whose response clock
+    // started well before this deploy (or before markResponded had a writer at all) crosses
+    // several thresholds simultaneously on the first tick and gets one near-identical message
+    // per tier instead of one total.
+    handledThisTick.add(row.game_id);
 
     if (hours === 12) await surfaceAutoPilot(row.game_id, game, "autopilot_surface_12h", "Neither coach has responded in 12 hours.");
   }
@@ -490,10 +496,15 @@ async function runAvailabilityNag() {
 }
 
 export async function runSchedulingReminderSweep() {
-  await runContactReminders(2, "contact_2h");
-  await runContactReminders(4, "contact_4h");
-  await runContactReminders(8, "contact_8h");
-  await runContactReminders(12, "contact_escalate_12h");
+  // Highest tier first, sharing one "already handled this tick" set -- a game whose response
+  // clock started well in the past (an old game on the first tick after a deploy, or before
+  // markResponded had any writer at all) can cross several thresholds at once; this makes sure
+  // it only ever gets the one most-urgent reminder per tick instead of one per crossed tier.
+  const contactHandledThisTick = new Set<string>();
+  await runContactReminders(12, "contact_escalate_12h", contactHandledThisTick);
+  await runContactReminders(8, "contact_8h", contactHandledThisTick);
+  await runContactReminders(4, "contact_4h", contactHandledThisTick);
+  await runContactReminders(2, "contact_2h", contactHandledThisTick);
   await runStaleProposalAutoPilot();
   await runScheduleInSystemNag();
   await runFailureToScheduleFwSurface();
