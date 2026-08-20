@@ -3486,6 +3486,11 @@ button.poty:disabled {
   align-items: center;
   gap: var(--space-2);
 }
+.hub-gotw-commissioner-action {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+}
 .hub-gotw-carousel-stage.has-navigation { grid-template-columns: 38px minmax(0, 1fr) 38px; }
 .hub-gotw-carousel-content {
   display: grid;

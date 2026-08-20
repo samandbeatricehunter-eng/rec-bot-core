@@ -6,6 +6,7 @@ type SectionFrameProps = {
   eyebrow?: string;
   title: string;
   subtitle?: string;
+  beforeHeading?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -13,9 +14,10 @@ type SectionFrameProps = {
 
 /** Section heading + eyebrow + optional action slot, wrapped in a FootballPanel. Replaces
  * .hub-section-heading + .hub-section pairs. */
-export function SectionFrame({ eyebrow, title, subtitle, action, children, className }: SectionFrameProps) {
+export function SectionFrame({ eyebrow, title, subtitle, beforeHeading, action, children, className }: SectionFrameProps) {
   return (
     <FootballPanel className={className}>
+      {beforeHeading}
       <div className="section-frame-heading">
         <div>
           {eyebrow && <BroadcastLabel>{eyebrow}</BroadcastLabel>}

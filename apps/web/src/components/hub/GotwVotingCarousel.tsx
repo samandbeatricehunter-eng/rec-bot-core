@@ -90,8 +90,10 @@ export function GotwVotingCarousel({
       title="Game of the Week"
       subtitle={`Week ${game.weekNumber}${games.length > 1 ? ` · Matchup ${activeIndex + 1} of ${games.length}` : ""}`}
       className="hub-gotw-carousel"
-      action={canManageLeague && poll.status === "open" ? (
-        <Button variant="tactical" size="compact" onClick={() => void onCloseVoting(poll.pollId)}>Close Voting</Button>
+      beforeHeading={canManageLeague && poll.status === "open" ? (
+        <div className="hub-gotw-commissioner-action">
+          <Button variant="tactical" size="compact" onClick={() => void onCloseVoting(poll.pollId)}>Close Voting</Button>
+        </div>
       ) : undefined}
     >
       <div className={`hub-gotw-carousel-stage${games.length > 1 ? " has-navigation" : ""}`}>
