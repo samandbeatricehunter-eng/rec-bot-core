@@ -45,6 +45,17 @@ export type MatchupTeamBreakdown = {
   pointsPerGame: number;
   pointsAllowedPerGame: number;
   pointDifferential: number;
+  pointDifferentialRank: number | null;
+  passingYardsPerGame: number;
+  passingYardsRank: number | null;
+  passingYardsAllowedPerGame: number;
+  passingYardsAllowedRank: number | null;
+  rushingYardsPerGame: number;
+  rushingYardsRank: number | null;
+  rushingYardsAllowedPerGame: number;
+  rushingYardsAllowedRank: number | null;
+  turnoverDifferential: number;
+  turnoverDifferentialRank: number | null;
   avgMargin: number;
   last5: ("W" | "L" | "T")[];
   streak: string;
@@ -82,6 +93,20 @@ type TeamSeasonAgg = {
   pa: number;
   scored: number;
   history: { week: number; outcome: "W" | "L" | "T" }[];
+};
+
+type TeamComparisonStats = {
+  passingYardsPerGame: number;
+  passingYardsRank: number | null;
+  passingYardsAllowedPerGame: number;
+  passingYardsAllowedRank: number | null;
+  rushingYardsPerGame: number;
+  rushingYardsRank: number | null;
+  rushingYardsAllowedPerGame: number;
+  rushingYardsAllowedRank: number | null;
+  pointDifferentialRank: number | null;
+  turnoverDifferential: number;
+  turnoverDifferentialRank: number | null;
 };
 
 const emptyAgg = (): TeamSeasonAgg => ({
@@ -152,6 +177,61 @@ async function aggregateForTeams(
   return map;
 }
 
+async function comparisonStatsForLeague(leagueId: string, seasonNumber: number): Promise<Map<string, TeamComparisonStats>> {
+  const { data, error } = await supabase
+    .from("rec_team_game_stats")
+    .select("id,game_id,submission_id,team_id,points_for,points_against,off_pass_yards,pass_yards_allowed,off_rush_yards,rush_yards_allowed,turnovers_committed,generated_turnovers")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber);
+  if (error) throw new ApiError(500, "We couldn't load team comparisons for the matchup preview. Please try again.", error);
+
+  const unique = new Map<string, any>();
+  for (const row of (data ?? []) as any[]) {
+    if (!row.team_id) continue;
+    const source = row.game_id ?? row.submission_id ?? row.id;
+    unique.set(`${row.team_id}:${source}`, row);
+  }
+
+  const totals = new Map<string, { games: number; passFor: number; passAllowed: number; rushFor: number; rushAllowed: number; pointDiff: number; turnoverDiff: number }>();
+  for (const row of unique.values()) {
+    const current = totals.get(row.team_id) ?? { games: 0, passFor: 0, passAllowed: 0, rushFor: 0, rushAllowed: 0, pointDiff: 0, turnoverDiff: 0 };
+    current.games += 1;
+    current.passFor += Number(row.off_pass_yards ?? 0);
+    current.passAllowed += Number(row.pass_yards_allowed ?? 0);
+    current.rushFor += Number(row.off_rush_yards ?? 0);
+    current.rushAllowed += Number(row.rush_yards_allowed ?? 0);
+    current.pointDiff += Number(row.points_for ?? 0) - Number(row.points_against ?? 0);
+    current.turnoverDiff += Number(row.generated_turnovers ?? 0) - Number(row.turnovers_committed ?? 0);
+    totals.set(row.team_id, current);
+  }
+
+  const values = [...totals.entries()].map(([teamId, item]) => ({
+    teamId,
+    passFor: item.games ? item.passFor / item.games : 0,
+    passAllowed: item.games ? item.passAllowed / item.games : 0,
+    rushFor: item.games ? item.rushFor / item.games : 0,
+    rushAllowed: item.games ? item.rushAllowed / item.games : 0,
+    pointDiff: item.pointDiff,
+    turnoverDiff: item.turnoverDiff,
+  }));
+  const rank = (value: number, key: "passFor" | "passAllowed" | "rushFor" | "rushAllowed" | "pointDiff" | "turnoverDiff", lowerIsBetter = false) =>
+    1 + values.filter((item) => lowerIsBetter ? item[key] < value : item[key] > value).length;
+
+  return new Map(values.map((item) => [item.teamId, {
+    passingYardsPerGame: round(item.passFor, 1),
+    passingYardsRank: rank(item.passFor, "passFor"),
+    passingYardsAllowedPerGame: round(item.passAllowed, 1),
+    passingYardsAllowedRank: rank(item.passAllowed, "passAllowed", true),
+    rushingYardsPerGame: round(item.rushFor, 1),
+    rushingYardsRank: rank(item.rushFor, "rushFor"),
+    rushingYardsAllowedPerGame: round(item.rushAllowed, 1),
+    rushingYardsAllowedRank: rank(item.rushAllowed, "rushAllowed", true),
+    pointDifferentialRank: rank(item.pointDiff, "pointDiff"),
+    turnoverDifferential: round(item.turnoverDiff, 0),
+    turnoverDifferentialRank: rank(item.turnoverDiff, "turnoverDiff"),
+  }]));
+}
+
 function streakLabel(history: { outcome: "W" | "L" | "T" }[]): string {
   if (!history.length) return "-";
   const latest = history[history.length - 1].outcome;
@@ -186,6 +266,7 @@ function buildBreakdown(
   agg: TeamSeasonAgg,
   isHuman: boolean,
   user: { rating: number; grade: string; rank: number } | null,
+  comparison: TeamComparisonStats | null,
 ): MatchupTeamBreakdown {
   const gamesPlayed = agg.wins + agg.losses + agg.ties;
   const winPct = gamesPlayed > 0 ? (agg.wins + 0.5 * agg.ties) / gamesPlayed : 0;
@@ -210,6 +291,17 @@ function buildBreakdown(
     pointsPerGame: round(ppg, 1),
     pointsAllowedPerGame: round(papg, 1),
     pointDifferential: round(agg.pf - agg.pa, 0),
+    pointDifferentialRank: comparison?.pointDifferentialRank ?? null,
+    passingYardsPerGame: comparison?.passingYardsPerGame ?? 0,
+    passingYardsRank: comparison?.passingYardsRank ?? null,
+    passingYardsAllowedPerGame: comparison?.passingYardsAllowedPerGame ?? 0,
+    passingYardsAllowedRank: comparison?.passingYardsAllowedRank ?? null,
+    rushingYardsPerGame: comparison?.rushingYardsPerGame ?? 0,
+    rushingYardsRank: comparison?.rushingYardsRank ?? null,
+    rushingYardsAllowedPerGame: comparison?.rushingYardsAllowedPerGame ?? 0,
+    rushingYardsAllowedRank: comparison?.rushingYardsAllowedRank ?? null,
+    turnoverDifferential: comparison?.turnoverDifferential ?? 0,
+    turnoverDifferentialRank: comparison?.turnoverDifferentialRank ?? null,
     avgMargin: agg.scored > 0 ? round((agg.pf - agg.pa) / agg.scored, 1) : 0,
     last5: agg.history.slice(-5).map((h) => h.outcome),
     streak: streakLabel(agg.history),
@@ -257,8 +349,9 @@ export async function getMatchupPreview(input: {
         ? "human_cpu"
         : "cpu";
 
-  const [aggs, userRatings] = await Promise.all([
+  const [aggs, comparisons, userRatings] = await Promise.all([
     aggregateForTeams(leagueId, seasonNumber, [homeTeam.id, awayTeam.id]),
+    comparisonStatsForLeague(leagueId, seasonNumber),
     bestEffort("matchup_preview.user_ratings", () => computeUserRatings(input.guildId), { guildId: input.guildId }).then((v) => v ?? null),
   ]);
   const ratingByUser = new Map((userRatings?.users ?? []).map((u: any) => [u.userId, u]));
@@ -267,8 +360,8 @@ export async function getMatchupPreview(input: {
 
   const homeUser = isHomeHuman ? (ratingByUser.get(game.home_user_id) ?? null) : null;
   const awayUser = isAwayHuman ? (ratingByUser.get(game.away_user_id) ?? null) : null;
-  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeUser);
-  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayUser);
+  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeUser, comparisons.get(homeTeam.id) ?? null);
+  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayUser, comparisons.get(awayTeam.id) ?? null);
 
   const hasSeasonData = home.gamesPlayed > 0 || away.gamesPlayed > 0;
 

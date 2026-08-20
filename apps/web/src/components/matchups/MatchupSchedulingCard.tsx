@@ -121,7 +121,7 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
               <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.proposeSchedulingTime({ guildId, gameId, proposedForUtc: suggestions.bestWindow!.kickoffUtc }), "Time proposed.")}>Propose Best Overlap</Button>
             )}
             <Button variant="ghost" size="compact" onClick={() => setAvailabilityOpen(true)}>Adjust Availability</Button>
-            <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markSchedulingCantMakeGame({ guildId, gameId }), "Opponent notified.")}>Can't Make Game</Button>
+            <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markSchedulingCantMakeGame({ guildId, gameId, choice: "request_fs" }), "Opponent notified.")}>Can't Make Game</Button>
             <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameStarted({ guildId, gameId }), "Game marked started.")}>Game Started</Button>
           </div>
         </>

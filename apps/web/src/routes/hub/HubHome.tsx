@@ -6,18 +6,19 @@ import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText,
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
-import { WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
+import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
+import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
+import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
-import { AvailabilityModal } from "../../components/hub/AvailabilityModal.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -132,13 +133,6 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
 function gameLabel(game: string | null | undefined) {
   return String(game ?? "League").replace(/_/g, " ").replace(/\bcfb\b/gi, "CFB").toUpperCase();
-}
-
-function leagueTimelineLabel(league: HubResponse["league"]) {
-  const stage = String(league.seasonStage ?? "regular_season");
-  const stageLabel = displayLabel(stage);
-  const weekLabel = stage === "regular_season" ? `Week ${league.weekNumber}` : stageLabel;
-  return `Season ${league.seasonNumber} · ${weekLabel}`;
 }
 
 function ProfileStats({ values, hideBoxScoresUploaded }: { values: Record<string, unknown> | null | undefined; hideBoxScoresUploaded?: boolean }) {
@@ -527,8 +521,9 @@ export function HubHome() {
   const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
-  const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [heroSchedulingStatus, setHeroSchedulingStatus] = useState<string | null>(null);
+  const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
+  const [manageFundsOpen, setManageFundsOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
@@ -788,11 +783,19 @@ export function HubHome() {
 
   const heroCurrentGameId: string | null = (hub?.myTeam?.display as any)?.currentGameId ?? null;
   useEffect(() => {
-    if (auth.status !== "ready" || !heroCurrentGameId) { setHeroSchedulingStatus(null); return; }
-    recApi.getSchedulingMatchupStatus({ guildId: auth.guildId, gameId: heroCurrentGameId })
-      .then((res) => setHeroSchedulingStatus(res.status))
-      .catch(() => setHeroSchedulingStatus(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, heroCurrentGameId]);
+    if (auth.status !== "ready" || !heroCurrentGameId) {
+      setHeroSchedulingStatus(null);
+      setHeroPreview(null);
+      return;
+    }
+    Promise.all([
+      recApi.getSchedulingMatchupStatus({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
+      recApi.getMatchupPreview({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
+    ]).then(([scheduling, preview]) => {
+      setHeroSchedulingStatus(scheduling?.status ?? null);
+      setHeroPreview(preview);
+    });
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, heroCurrentGameId, matchupReloadKey]);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -1317,15 +1320,9 @@ export function HubHome() {
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
-  const powerRankScore = profile.powerRank?.score != null ? `Score ${Number(profile.powerRank.score).toFixed(3)}` : "Pending";
   const powerRankSos = profile.powerRank?.sosScore != null ? `SOS ${Number(profile.powerRank.sosScore).toFixed(3)}` : "SOS --";
-  const heroRecord = profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0";
-  const heroStreak = profile.seasonRecord?.activeStreak ?? "—";
-  const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
   const coachName = my.siteUsername || my.displayName || profile.user?.username || my.discordUsername || profile.user?.display_name || "REC Member";
-  const heroGotw = my.gotwStatus && !["No", "Not GOTW"].includes(String(my.gotwStatus)) ? String(my.gotwStatus) : "";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
-  const heroSchool = my.schoolName ?? profile.schoolName ?? null;
   const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
   const heroUserScore = viewerUser
     ? (hub.userRatings?.displayAsGrade
@@ -1335,6 +1332,10 @@ export function HubHome() {
   const heroUserMeta = viewerUser
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
+  const heroMatchup = matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
+    ?? matchupSchedule?.games.find((game) => game.involvesMe)
+    ?? null;
+  const heroSosValue = profile.powerRank?.sosScore != null ? Number(profile.powerRank.sosScore).toFixed(3) : "—";
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
@@ -1624,86 +1625,47 @@ export function HubHome() {
     </section> : section === "roster" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
-          <section className="hub-hero hub-hero-compact">
-            <div className="hub-hero-main">
-              <p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p>
-              <h1>{hub.league.name}</h1>
-              <p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p>
-              <p className="hub-hero-coach">{coachName}</p>
+          <section className="hub-hero hub-hero-rebuilt">
+            <header className="hub-hero-centered-header">
+              <p className="hub-eyebrow">{gameLabel(hub.league.game)}</p>
+              <h1><span>{hub.league.name}</span><em>–</em><span>{displayLabel(String(hub.league.seasonStage))}</span><em>–</em><span>Week {hub.league.weekNumber}</span></h1>
+              {heroSchedulingStatus && <StatusChip status={heroSchedulingStatus === "confirmed" ? "approved" : heroSchedulingStatus === "not_scheduled" ? "pending" : "info"} label={HERO_SCHEDULING_STATUS_LABELS[heroSchedulingStatus] ?? heroSchedulingStatus} />}
+            </header>
+
+            {heroMatchup ? <div className="hub-hero-matchup-stack">
+              <MatchupCard game={heroMatchup} showReactions={false} />
+              {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+              {auth.status === "ready" && <HeroMatchupActions guildId={auth.guildId} matchup={heroMatchup} onChanged={() => setMatchupReloadKey((value) => value + 1)} />}
+            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
+
+            <section className="hub-season-snapshot">
+              <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
+              <div className="hub-season-snapshot-grid">
+                <article><span>User Score &amp; League Ranking</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
+                <article><span>Strength of Schedule</span><strong>{heroSosValue}</strong><small>{profile.powerRank?.rank ? heroRank : "Ranking pending"}</small></article>
+                <article><span>Wallet Balance</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Available funds</small></article>
+                <article><span>Savings Balance</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong><small>Banked funds</small></article>
+              </div>
+            </section>
+
+            <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
+              <p className="hub-eyebrow">Quick actions</p>
+              <div className="hub-gameday-actions hub-quick-actions-row">
+                <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => selectSection("wagers")}><strong>Place a Wager</strong><span>Sportsbook</span></button>
+                {hub.league.game === "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => setRecruitingBoardOpen(true)}><strong>Recruiting</strong><span>Board &amp; commits</span></button>}
+                {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
+                <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
+              </div>
             </div>
-            <aside className="hub-hero-snapshot">
-              <div className="hub-hero-matchup">
-                <span>This week</span>
-                <strong>{my.currentMatchupText ?? "No matchup"}</strong>
-                {heroGotw && <small>{heroGotw}</small>}
-                {heroSchedulingStatus && (
-                  <StatusChip
-                    status={heroSchedulingStatus === "confirmed" ? "approved" : heroSchedulingStatus === "not_scheduled" ? "pending" : "info"}
-                    label={HERO_SCHEDULING_STATUS_LABELS[heroSchedulingStatus] ?? heroSchedulingStatus}
-                    className="hub-hero-scheduling-chip"
-                  />
-                )}
-                <Button variant="ghost" size="compact" onClick={() => setAvailabilityModalOpen(true)}>Availability</Button>
-              </div>
-              <div className="hub-hero-team">
-                <span>Team</span>
-                {hub.league.game?.startsWith("madden") && !hub.myTeam?.team?.is_relocated && (
-                  <TeamLogo abbreviation={hub.myTeam?.team?.abbreviation} alt={heroTeam} className="hub-hero-team-logo" />
-                )}
-                <strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}
-              </div>
-              <div className="hub-hero-metrics">
-                <article className="hub-hero-metric-wide">
-                  <span>Record &amp; Streak</span>
-                  <strong>{heroRecord} · {heroStreak}</strong>
-                  <small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff · Current W/L</small>
-                </article>
-                <article className="hub-hero-metric-wide hub-hero-metric-scores">
-                  <div>
-                    <span>Power Rank</span>
-                    <strong>{heroRank}</strong>
-                    <small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small>
-                  </div>
-                  <div>
-                    <span>User Score</span>
-                    <strong>{heroUserScore}</strong>
-                    <small>{heroUserMeta}</small>
-                  </div>
-                </article>
-                <WalletSavingsCard
-                  guildId={auth.status === "ready" ? auth.guildId : ""}
-                  wallet={Number(my.wallet ?? 0)}
-                  savings={Number(my.savings ?? 0)}
-                  onTransferred={load}
-                />
-              </div>
-            </aside>
           </section>
-          {availabilityModalOpen && (
-            <AvailabilityModal guildId={auth.status === "ready" ? auth.guildId : ""} onClose={() => setAvailabilityModalOpen(false)} />
-          )}
-          <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
-            {activeAnnouncementGroup ? (
-              <div className="hub-announce-carousel">
-                {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex + 1) % announcementWeekGroups.length)}><ChevronLeft /></button> : null}
-                {(() => {
-                  const items = activeAnnouncementGroup.items;
-                  const item = items[announcementItemIndex % items.length];
-                  const weekLabel = activeAnnouncementGroup.weekNumber == null ? "" : `Week ${activeAnnouncementGroup.weekNumber} · `;
-                  return (
-                    <article key={item.id}>
-                      <time>{weekLabel}{new Date(item.published_at).toLocaleDateString()}</time>
-                      <h3>{item.title}</h3>
-                      <p className="hub-announcement-body">{item.body}</p>
-                      {items.length > 1 ? <span className="hub-announce-pos">{(announcementItemIndex % items.length) + 1} / {items.length}</span> : null}
-                    </article>
-                  );
-                })()}
-                {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex - 1 + announcementWeekGroups.length) % announcementWeekGroups.length)}><ChevronRight /></button> : null}
-              </div>
-            ) : <p className="hub-empty">League announcements will appear here.</p>}
-          </SectionFrame>
         </div>
+
+        {manageFundsOpen && auth.status === "ready" && <ManageFundsModal guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setManageFundsOpen(false)} />}
 
         {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
           <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
@@ -1717,20 +1679,6 @@ export function HubHome() {
           </div>
           {gotwGuessing?.mine && <p className="hub-gotw-record">Your record: {gotwGuessing.mine.wins}-{gotwGuessing.mine.losses}{gotwGuessing.mine.ties ? `-${gotwGuessing.mine.ties}` : ""}{gotwGuessing.mine.current_streak > 1 ? ` · ${gotwGuessing.mine.current_streak}-game streak` : ""}</p>}
         </div>}
-
-        <div className="hub-gameday-card hub-quick-actions-card">
-          <p className="hub-eyebrow">Quick actions</p>
-          <div className="hub-gameday-actions hub-quick-actions-row">
-            <button type="button" className="hub-my-team-btn" onClick={jumpToMyMatchup}><strong>My Matchup</strong><span>Game page</span></button>
-            <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-            <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
-            <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
-            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("wagers")}><strong>Place a Wager</strong><span>Sportsbook</span></button>
-            {hub.league.game === "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => setRecruitingBoardOpen(true)}><strong>Recruiting</strong><span>Board &amp; commits</span></button>}
-            {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
-            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
-          </div>
-        </div>
 
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
@@ -1838,6 +1786,25 @@ export function HubHome() {
                 <button aria-label="Dislike" className={(activeHighlight.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts?.dislike || ""}</small></button>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" aria-label="Next highlight" title="Next highlight" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
+        </SectionFrame>
+        <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
+          {activeAnnouncementGroup ? (
+            <div className="hub-announce-carousel">
+              {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex + 1) % announcementWeekGroups.length)}><ChevronLeft /></button> : null}
+              {(() => {
+                const items = activeAnnouncementGroup.items;
+                const item = items[announcementItemIndex % items.length];
+                const weekLabel = activeAnnouncementGroup.weekNumber == null ? "" : `Week ${activeAnnouncementGroup.weekNumber} · `;
+                return <article key={item.id}>
+                  <time>{weekLabel}{new Date(item.published_at).toLocaleDateString()}</time>
+                  <h3>{item.title}</h3>
+                  <p className="hub-announcement-body">{item.body}</p>
+                  {items.length > 1 ? <span className="hub-announce-pos">{(announcementItemIndex % items.length) + 1} / {items.length}</span> : null}
+                </article>;
+              })()}
+              {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex - 1 + announcementWeekGroups.length) % announcementWeekGroups.length)}><ChevronRight /></button> : null}
+            </div>
+          ) : <p className="hub-empty">League announcements will appear here.</p>}
         </SectionFrame>
         </>
       </>}

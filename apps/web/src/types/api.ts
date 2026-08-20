@@ -726,6 +726,17 @@ export type MatchupTeamBreakdown = {
   pointsPerGame: number;
   pointsAllowedPerGame: number;
   pointDifferential: number;
+  pointDifferentialRank: number | null;
+  passingYardsPerGame: number;
+  passingYardsRank: number | null;
+  passingYardsAllowedPerGame: number;
+  passingYardsAllowedRank: number | null;
+  rushingYardsPerGame: number;
+  rushingYardsRank: number | null;
+  rushingYardsAllowedPerGame: number;
+  rushingYardsAllowedRank: number | null;
+  turnoverDifferential: number;
+  turnoverDifferentialRank: number | null;
   avgMargin: number;
   last5: Array<"W" | "L" | "T">;
   streak: string;

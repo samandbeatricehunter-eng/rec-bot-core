@@ -462,7 +462,9 @@ export const recApi = {
     recApiFetch<any>("/v1/scheduling/matchup/game-started", { method: "POST", body: JSON.stringify(input) }),
   requestSchedulingForceWin: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
-  markSchedulingCantMakeGame: (input: { guildId: string; gameId: string }) =>
+  getSchedulingCantMakeGameOptions: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ canGrantForceWin: boolean; canRequestFairSim: boolean }>("/v1/scheduling/matchup/cant-make-game-options", { method: "POST", body: JSON.stringify(input) }),
+  markSchedulingCantMakeGame: (input: { guildId: string; gameId: string; choice: "grant_fw" | "request_fs" }) =>
     recApiFetch<{ flagged: true; opponentId: string | null }>("/v1/scheduling/matchup/cant-make-game", { method: "POST", body: JSON.stringify(input) }),
   resolveSchedulingCantMakeGame: (input: { guildId: string; gameId: string; choice: "accept_fs" | "request_autopilot" }) =>
     recApiFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
@@ -470,6 +472,10 @@ export const recApi = {
     recApiFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   markGameOver: (input: { guildId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
     recApiFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
+  reportSchedulingViolation: (input: { guildId: string; gameId: string; description: string }) =>
+    recApiFetch<{ ok: true }>("/v1/scheduling/matchup/report-violation", { method: "POST", body: JSON.stringify(input) }),
+  reportSchedulingDashing: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/scheduling/matchup/report-dashing", { method: "POST", body: JSON.stringify(input) }),
   getWeekSchedulingStatus: (guildId: string) =>
     recApiFetch<{ weekNumber: number; games: Array<{ gameId: string; awayTeamName: string; homeTeamName: string; status: string; scheduledFor: string | null; fwFlagged: boolean }> }>("/v1/scheduling/week-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyTeamSchedule: (guildId: string) =>

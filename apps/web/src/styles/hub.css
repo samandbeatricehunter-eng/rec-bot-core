@@ -2563,7 +2563,11 @@ button.poty:disabled {
    actually displays bigger once Discord scales it down to that width. */
 .rec-matchup-card--render { min-height:400px; }
 .rec-matchup-card--render .rec-matchup-card__team-logo { width:160px; height:160px; }
-.rec-matchup-card--render .rec-matchup-card__team strong { font-size:4.2rem; }
+/* Base rule's overflow-wrap:anywhere is what a longer team name (e.g. "CHARGERS") needs at
+   normal card sizes -- at render-mode's much larger font it broke mid-word instead. Team names
+   must never wrap here; nowrap + a slightly smaller max size than the first pass keeps them on
+   one line while staying much bigger than the site's default. */
+.rec-matchup-card--render .rec-matchup-card__team strong { font-size:3.4rem; white-space:nowrap; overflow-wrap:normal; word-break:keep-all; }
 .rec-matchup-card--render .rec-matchup-card__team small { font-size:1.4rem; }
 .rec-matchup-card--render .rec-matchup-card__team-meta { font-size:1.9rem; margin-top:12px; }
 .rec-matchup-card--render .rec-matchup-card__result b { font-size:4.4rem; }
