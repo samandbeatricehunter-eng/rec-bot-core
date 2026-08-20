@@ -115,6 +115,13 @@ export async function handleProposePanel(interaction: ButtonInteraction) {
   const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelPropose, interaction.customId);
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    // The button's label already told the user what this does (Propose Time / Edit Proposal /
+    // Reschedule-Cancel per proposeButtonLabel on the API side) -- a confirmed/reschedule-
+    // requested game needs the confirmed time cleared before a fresh proposal can go out.
+    const snapshot = await recApi.getSchedulingStatus({ guildId: interaction.guildId, discordId: interaction.user.id, gameId }).catch(() => null);
+    if (snapshot?.status === "confirmed") {
+      await recApi.requestSchedulingReschedule({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
+    }
     await postProposeOptions(interaction, gameId, false);
   } catch (error) {
     await replyErr(interaction, error);

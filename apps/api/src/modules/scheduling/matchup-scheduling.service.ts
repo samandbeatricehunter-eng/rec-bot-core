@@ -570,6 +570,15 @@ export async function autoResetSchedulingAfterMissedKickoff(gameId: string) {
 // "Game Over" reuses the exact custom_id prefix (rec:gamesched:gameover:) the standalone
 // post-stream reminder already posts, so the existing modal handler covers both without any
 // bot-side branching.
+// Propose Time is context-aware: same button/customId, but its label reflects what clicking
+// it will actually do given the current state, so a coach isn't guessing whether it'll propose
+// a fresh time or edit/cancel one that already exists.
+function proposeButtonLabel(status: UserFacingStatus): string {
+  if (status === "time_proposed") return "Edit Proposal";
+  if (status === "confirmed" || status === "reschedule_requested") return "Reschedule / Cancel";
+  return "Propose Time";
+}
+
 function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
   const lifecycleButton = status === "completed" ? null
     : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
@@ -579,7 +588,7 @@ function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
       type: 1,
       components: [
         { type: 2, style: 2, custom_id: `rec:gamesched:panel:availability:${gameId}`, label: "Adjust Availability" },
-        { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: "Propose Time" },
+        { type: 2, style: 1, custom_id: `rec:gamesched:panel:propose:${gameId}`, label: proposeButtonLabel(status) },
         { type: 2, style: 4, custom_id: `rec:gamesched:panel:cantmake:${gameId}`, label: "Can't Make Game" },
       ],
     },
