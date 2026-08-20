@@ -4,10 +4,10 @@
     "playwright-chromium": {
       "inputs": [{ "step": "build" }],
       "commands": [
-        "mkdir -p apps/api/node_modules/playwright-core/.local-browsers",
-        "PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @rec/api exec playwright install --with-deps chromium || echo '[playwright-chromium] install failed or skipped -- deployOutputs still has an (empty) dir to copy so this never fails the build'"
+        "mkdir -p /app/.playwright-browsers",
+        "PLAYWRIGHT_BROWSERS_PATH=/app/.playwright-browsers pnpm --filter @rec/api exec playwright install --with-deps chromium || echo '[playwright-chromium] install failed or skipped -- deployOutputs still has an (empty) dir to copy so this never fails the build'"
       ],
-      "deployOutputs": [{ "include": ["/app/apps/api/node_modules/playwright-core/.local-browsers"] }]
+      "deployOutputs": [{ "include": ["/app/.playwright-browsers"] }]
     }
   },
   "deploy": {
@@ -18,7 +18,7 @@
       "libasound2", "libatspi2.0-0", "fonts-liberation"
     ],
     "variables": {
-      "PLAYWRIGHT_BROWSERS_PATH": "0"
+      "PLAYWRIGHT_BROWSERS_PATH": "/app/.playwright-browsers"
     }
   }
 }
