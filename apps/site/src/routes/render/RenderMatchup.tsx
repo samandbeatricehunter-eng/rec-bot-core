@@ -36,8 +36,8 @@ export function RenderMatchup() {
   if (!game) return null;
 
   return (
-    <div style={{ width: 1200, padding: 24, background: "#0b0d10" }}>
-      <MatchupCard game={game} renderMode="discord" showReactions={false} />
+    <div style={{ width: 1400, padding: 24, background: "#0b0d10" }}>
+      <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
     </div>
   );
 }

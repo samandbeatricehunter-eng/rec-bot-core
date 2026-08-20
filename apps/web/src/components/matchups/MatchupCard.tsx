@@ -40,7 +40,9 @@ export function MatchupCard({
 
   const bottomTags = [
     isRivalry && isGotw ? <span key="gotw" className="rec-tag rec-tag--gotw">Game of the Week</span> : null,
-    game.involvesMe ? <span key="mine" className="rec-tag rec-tag--mine">Your Matchup</span> : null,
+    // "Your Matchup" is a personalized, viewer-relative tag -- meaningless (and always
+    // technically "true" from the neutral render-pipeline viewer) on the Discord card image.
+    renderMode !== "discord" && game.involvesMe ? <span key="mine" className="rec-tag rec-tag--mine">Your Matchup</span> : null,
   ].filter(Boolean);
 
   const topTag = isRivalry
