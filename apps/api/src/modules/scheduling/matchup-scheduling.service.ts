@@ -629,9 +629,17 @@ export async function requestFailureToScheduleForceWin(input: { gameId: string; 
   const active = await getActiveRuleKeys(game.league_id);
   if (!active.forceWin.includes("failure_to_schedule")) throw new ApiError(403, "Force Win for failure to schedule is not enabled for this league.");
 
-  const scheduling = await supabase.from("rec_game_scheduling").select("home_responded_at,away_responded_at").eq("game_id", input.gameId).maybeSingle();
+  const [scheduling, pendingProposal] = await Promise.all([
+    supabase.from("rec_game_scheduling").select("response_started_at,home_responded_at,away_responded_at").eq("game_id", input.gameId).maybeSingle(),
+    supabase.from("rec_game_time_proposals").select("proposed_by_user_id,created_at").eq("game_id", input.gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const requesterHasStaleUnansweredProposal = pendingProposal.data?.proposed_by_user_id === userId
+    && Date.now() - new Date(pendingProposal.data.created_at).getTime() >= 8 * 60 * 60 * 1000;
+  const requesterResponded = userId === game.home_user_id ? scheduling.data?.home_responded_at : scheduling.data?.away_responded_at;
   const opponentResponded = userId === game.home_user_id ? scheduling.data?.away_responded_at : scheduling.data?.home_responded_at;
-  if (opponentResponded) throw new ApiError(409, "Your opponent has already engaged with scheduling — no Force Win to request.");
+  const responseStartedAt = scheduling.data?.response_started_at ? new Date(scheduling.data.response_started_at).getTime() : Number.NaN;
+  const legacyContactEligibility = Boolean(requesterResponded) && !opponentResponded && Number.isFinite(responseStartedAt) && Date.now() - responseStartedAt >= 8 * 60 * 60 * 1000;
+  if (!requesterHasStaleUnansweredProposal && !legacyContactEligibility) throw new ApiError(403, "Only a coach who attempted to schedule and waited 8 hours without a scheduling response can request this Force Win.");
 
   await supabase.from("rec_game_scheduling").update({
     fw_flagged: true, fw_flagged_for_user_id: userId, fw_flagged_at: new Date().toISOString(),
@@ -854,6 +862,69 @@ export async function repostPendingProposalNoticeIfAny(gameId: string) {
     (ctx) => `This channel was rebuilt — carrying over a pending scheduling offer. ${ctx.actingMention} proposed <t:${proposedForUnix}:F> (<t:${proposedForUnix}:R>). ${ctx.opponentMention}, respond below:`,
     proposal.data.id,
   );
+}
+
+// Rebuildable eligibility surface for a proposal that has sat unanswered for 8+ hours. The
+// proposer is the only eligible coach: they are the one who attempted to schedule, so only
+// their Discord account is mentioned and both server-side request paths enforce that identity.
+export async function postStaleProposalEligibilityNoticeIfAny(gameId: string) {
+  const game = await loadGame(gameId).catch(() => null);
+  if (!game) return { posted: false, includedForceWin: false };
+  const [proposal, active] = await Promise.all([
+    supabase.from("rec_game_time_proposals").select("id,proposed_by_user_id,created_at").eq("game_id", gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    getActiveRuleKeys(game.league_id),
+  ]);
+  if (!proposal.data || Date.now() - new Date(proposal.data.created_at).getTime() < 8 * 60 * 60 * 1000) {
+    return { posted: false, includedForceWin: false };
+  }
+  const proposerUserId = String(proposal.data.proposed_by_user_id);
+  const proposerIsHome = proposerUserId === game.home_user_id;
+  const proposerIsAway = proposerUserId === game.away_user_id;
+  if (!proposerIsHome && !proposerIsAway) return { posted: false, includedForceWin: false };
+  const includeAutopilot = active.fairSim.includes("allow_autopilot_requests");
+  // A pending 8h-old proposal is itself the proof that the opponent has not answered the
+  // scheduling attempt. home/away_responded_at also records ordinary chat, which must not make
+  // the actual proposer lose Force Win eligibility merely because the opponent sent a message.
+  const includeForceWin = active.forceWin.includes("failure_to_schedule");
+  if (!includeAutopilot && !includeForceWin) return { posted: false, includedForceWin: false };
+
+  const [account, channel] = await Promise.all([
+    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", proposerUserId).maybeSingle(),
+    getGameChannelByGameId(gameId),
+  ]);
+  const discordId = account.data?.discord_id ? String(account.data.discord_id) : null;
+  if (!channel?.discord_channel_id || !discordId) return { posted: false, includedForceWin: false };
+  const actions: Array<Record<string, unknown>> = [];
+  if (includeAutopilot) actions.push({ type: 2, style: 2, custom_id: `rec:gamesched:staleautopilot:${gameId}`, label: "Request AutoPilot" });
+  if (includeForceWin) actions.push({ type: 2, style: 4, custom_id: `rec:gamesched:fwfts:${gameId}`, label: "Request Force Win" });
+  const choices = [includeAutopilot ? "AutoPilot" : null, includeForceWin ? "a Force Win" : null].filter(Boolean).join(" or ");
+  await postDiscordChannelMessage(channel.discord_channel_id, {
+    content: `<@${discordId}> — your proposed time has gone unanswered for 8 hours. Because you attempted to schedule and your opponent has not answered the proposal, you may request ${choices}.`,
+    components: [{ type: 1, components: actions }],
+    allowed_mentions: { users: [discordId] },
+  });
+  await logSchedulingEvent({ gameId, userId: proposerUserId, eventType: "scheduling_eligibility_notice_posted", payload: { reason: "stale_proposal", autopilot: includeAutopilot, forceWin: includeForceWin } });
+  return { posted: true, includedForceWin: includeForceWin };
+}
+
+export async function requestStaleProposalAutopilot(input: { gameId: string; discordId: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  const proposal = await supabase.from("rec_game_time_proposals").select("proposed_by_user_id,created_at").eq("game_id", input.gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!proposal.data || proposal.data.proposed_by_user_id !== userId) throw new ApiError(403, "Only the coach whose unanswered proposal triggered this notice can request AutoPilot.");
+  if (Date.now() - new Date(proposal.data.created_at).getTime() < 8 * 60 * 60 * 1000) throw new ApiError(409, "AutoPilot becomes available after the proposal has gone unanswered for 8 hours.");
+  const active = await getActiveRuleKeys(game.league_id);
+  if (!active.fairSim.includes("allow_autopilot_requests")) throw new ApiError(403, "AutoPilot requests are not enabled for this league stage.");
+  const routes = await findServerRoutesForLeague(game.league_id);
+  await submitMatchupHelpRequest({
+    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
+    discordId: input.discordId,
+    gameId: input.gameId,
+    kind: "autopilot",
+    message: "My proposed time has gone unanswered for 8+ hours. Requesting AutoPilot.",
+  });
+  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "autopilot_requested_stale_proposal" });
+  return { requested: true as const };
 }
 
 // Read-only lookup used by game-channels.service.ts (advise + auto-FW a suspended coach's new

@@ -123,6 +123,8 @@ export const recApi = {
     recFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
   requestFailureToScheduleForceWin: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win-failure-to-schedule", { method: "POST", body: JSON.stringify(input) }),
+  requestStaleProposalAutopilot: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<{ requested: true }>("/v1/scheduling/matchup/request-autopilot-stale-proposal", { method: "POST", body: JSON.stringify(input) }),
   getCantMakeGameOptions: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ canGrantForceWin: boolean; canRequestFairSim: boolean; allowAutopilotRequests: boolean }>("/v1/scheduling/matchup/cant-make-game-options", { method: "POST", body: JSON.stringify(input) }),
   markSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string; choice: "grant_fw" | "request_fs" }) =>

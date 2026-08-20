@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupGame } from "../../types/api.js";
 import { Modal } from "../ui/Modal.js";
@@ -7,6 +7,7 @@ import { AvailabilityModal } from "./AvailabilityModal.js";
 import { ProposeTimeModal } from "../matchups/ProposeTimeModal.js";
 
 type CantMakeOptions = { canGrantForceWin: boolean; canRequestFairSim: boolean };
+type SchedulingSnapshot = Awaited<ReturnType<typeof recApi.getSchedulingMatchupStatus>>;
 
 export function HeroMatchupActions({
   guildId,
@@ -30,13 +31,39 @@ export function HeroMatchupActions({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scheduling, setScheduling] = useState<SchedulingSnapshot | null>(null);
 
   const isH2h = matchup.matchupType === "h2h";
+  const myPendingProposal = scheduling?.pendingProposal?.proposedByMe ? scheduling.pendingProposal : null;
+
+  useEffect(() => {
+    if (!isH2h) return;
+    let cancelled = false;
+    recApi.getSchedulingMatchupStatus({ guildId, gameId: matchup.gameId })
+      .then((result) => { if (!cancelled) setScheduling(result); })
+      .catch(() => { if (!cancelled) setScheduling(null); });
+    return () => { cancelled = true; };
+  }, [guildId, matchup.gameId, isH2h]);
 
   function actionSucceeded(message: string) {
     setNotice(message);
     setError(null);
     onChanged();
+    if (isH2h) recApi.getSchedulingMatchupStatus({ guildId, gameId: matchup.gameId }).then(setScheduling).catch(() => undefined);
+  }
+
+  async function cancelProposal() {
+    if (!myPendingProposal) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await recApi.respondToSchedulingProposal({ guildId, gameId: matchup.gameId, proposalId: myPendingProposal.id, action: "withdraw" });
+      actionSucceeded("Proposal canceled. Discord and the site were updated.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't cancel the proposal.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openCantMake() {
@@ -114,17 +141,21 @@ export function HeroMatchupActions({
       <div className="hub-hero-action-pills" role="group" aria-label="Your matchup actions">
         <button type="button" onClick={() => setAvailabilityOpen(true)}>Set Availability</button>
         {isH2h && <>
-          <button type="button" onClick={() => setProposeOpen(true)}>Propose Time</button>
+          {myPendingProposal ? <>
+            <button type="button" onClick={() => setProposeOpen(true)}>Edit Proposal</button>
+            <button type="button" disabled={busy} onClick={() => void cancelProposal()}>Cancel Proposal</button>
+          </> : <button type="button" onClick={() => setProposeOpen(true)}>{scheduling?.pendingProposal ? "Counter Proposal" : "Propose Time"}</button>}
           <button type="button" onClick={openCantMake}>Can't Make Game</button>
           <button type="button" onClick={() => { setViolationOpen(true); setError(null); }}>Report Violation</button>
           <button type="button" disabled={matchup.isFinal} onClick={() => { setCompletedOpen(true); setError(null); }}>Game Completed</button>
         </>}
       </div>
       {notice && <p className="hub-hero-action-notice">{notice}</p>}
+      {error && !cantMakeOpen && !violationOpen && !completedOpen && <p className="hub-transfer-status">{error}</p>}
     </div>
 
     {availabilityOpen && <AvailabilityModal guildId={guildId} onClose={() => { setAvailabilityOpen(false); onChanged(); }} />}
-    {proposeOpen && <ProposeTimeModal guildId={guildId} gameId={matchup.gameId} title="Propose Time" onClose={() => setProposeOpen(false)} onDone={(message) => { setProposeOpen(false); actionSucceeded(message); }} />}
+    {proposeOpen && <ProposeTimeModal guildId={guildId} gameId={matchup.gameId} title={myPendingProposal ? "Edit Proposal" : scheduling?.pendingProposal ? "Counter Proposal" : "Propose Time"} onClose={() => setProposeOpen(false)} onDone={(message) => { setProposeOpen(false); actionSucceeded(message); }} />}
 
     {cantMakeOpen && <Modal title="Can't Make Game" onClose={() => setCantMakeOpen(false)}>
       <div className="hub-hero-action-modal">

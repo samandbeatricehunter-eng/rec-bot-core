@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, priceForPurchaseWithConfig, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
@@ -9,6 +9,7 @@ import { InterviewMicIcon, ManageTeamIcon, MyMatchupIcon, RecruitingCapIcon, Sch
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
+import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -104,6 +105,55 @@ type WagerPanel = {
   notice: string | null;
   busy: boolean;
 };
+
+function WagerSlip({ panel }: { panel: WagerPanel }) {
+  const legs = panel.mode === "parlay"
+    ? panel.parlay
+    : panel.market && panel.pick && panel.options
+      ? [{ gameId: panel.gameId, label: panel.label, options: panel.options, market: panel.market, pick: panel.pick, customLine: panel.customLine }]
+      : [];
+  const renderedLegs = legs.map((leg) => {
+    const market = leg.options.markets.find((item) => item.market === leg.market);
+    const side = market?.sides.find((item) => item.pick === leg.pick);
+    const line = leg.customLine.trim() ? Number(leg.customLine) : market?.line;
+    const pickLabel = leg.pick === "over" || leg.pick === "under"
+      ? `${leg.pick.toUpperCase()}${line == null ? "" : ` ${line}`}`
+      : side?.label ?? displayLabel(leg.pick);
+    return {
+      key: `${leg.gameId}-${leg.market}`,
+      game: leg.label,
+      market: market?.label ?? displayLabel(leg.market),
+      pickLabel,
+      odds: side?.odds ?? 1,
+    };
+  });
+  const decimalOdds = panel.mode === "parlay"
+    ? parlayOdds(renderedLegs.map((leg) => leg.odds))
+    : renderedLegs[0]?.odds ?? 1;
+  const stake = Math.max(0, Number(panel.stake) || 0);
+  const payout = potentialPayout(stake, decimalOdds);
+
+  return <aside className="hub-bet-slip" aria-label="Current bet slip">
+    <header className="hub-bet-slip-head">
+      <span>Franchise Hub Sportsbook</span>
+      <strong>Bet Slip</strong>
+      <small>{panel.mode === "parlay" ? `${renderedLegs.length}-leg parlay` : panel.mode === "peer" ? "User wager" : "House single"}</small>
+    </header>
+    <div className="hub-bet-slip-status"><span>{panel.label}</span><b>Draft</b></div>
+    <div className="hub-bet-slip-legs">
+      {renderedLegs.length ? renderedLegs.map((leg, index) => <article key={leg.key}>
+        <span className="hub-bet-slip-number">{index + 1}</span>
+        <div><strong>{leg.pickLabel}</strong><small>{leg.game} · {leg.market}</small></div>
+        <b>{americanFromDecimal(leg.odds)}</b>
+      </article>) : <p>Select a line to build your ticket.</p>}
+    </div>
+    <dl className="hub-bet-slip-total">
+      <div><dt>Stake</dt><dd><CoinAmount amount={stake} /></dd></div>
+      <div><dt>{panel.mode === "parlay" ? "Combined odds" : "Odds"}</dt><dd>{decimalOdds.toFixed(2)}x</dd></div>
+      <div className="hub-bet-slip-win"><dt>To win</dt><dd><CoinAmount amount={Math.max(0, payout - stake)} /></dd></div>
+    </dl>
+  </aside>;
+}
 
 function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -495,6 +545,7 @@ export function HubHome() {
       : "h2h",
   );
   const [rankByConference, setRankByConference] = useState(false);
+  const gotwGames = useMemo(() => (matchupSchedule?.games ?? []).filter((game) => Boolean(game.gotw)), [matchupSchedule]);
   const isCfbLeague = hub?.league.game === "cfb_27";
   const powerRankingsByConference = useMemo(() => {
     const teams = hub?.powerRankings?.teams ?? [];
@@ -1673,14 +1724,15 @@ export function HubHome() {
           <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
         )}
 
-        {matchupSchedule?.gotw?.status === "open" && <div className="hub-gameday-card">
-          <p className="hub-eyebrow">GOTW voting is open</p>
-          <div className="hub-gameday-actions">
-            <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.awayTeamId)}><div><strong>{matchupSchedule.gotw.awayTeamName}</strong><span>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</span></div></button>
-            <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.homeTeamId)}><div><strong>{matchupSchedule.gotw.homeTeamName}</strong><span>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</span></div></button>
-          </div>
-          {gotwGuessing?.mine && <p className="hub-gotw-record">Your record: {gotwGuessing.mine.wins}-{gotwGuessing.mine.losses}{gotwGuessing.mine.ties ? `-${gotwGuessing.mine.ties}` : ""}{gotwGuessing.mine.current_streak > 1 ? ` · ${gotwGuessing.mine.current_streak}-game streak` : ""}</p>}
-        </div>}
+        {auth.status === "ready" && gotwGames.length ? <GotwVotingCarousel
+          guildId={auth.guildId}
+          games={gotwGames}
+          canManageLeague={hub.canManageLeague}
+          guessingRecord={gotwGuessing?.mine}
+          onVote={voteGotw}
+          onCloseVoting={closeGotw}
+          onOpenWager={(game) => void openWager(game)}
+        /> : null}
 
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
@@ -1814,70 +1866,6 @@ export function HubHome() {
       {subTab === "matchups" && (
         <>
 
-          {matchupSchedule?.gotw ? (
-            <SectionFrame
-              title="Game of the Week"
-              subtitle={`Week ${
-                matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.weekNumber ??
-                matchupSchedule.selectedWeek ??
-                hub.league.weekNumber ??
-                "—"
-              }`}
-            >
-              <div className="hub-gotw-feature">
-                {(() => {
-                  const gotwGame = matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId) ?? null;
-                  return (
-                    <div className="hub-gotw-board">
-                      <button
-                        type="button"
-                        className={`hub-gotw-vote away${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`}
-                        disabled={matchupSchedule.gotw.status !== "open"}
-                        onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.awayTeamId)}
-                        aria-label="Vote away"
-                      >
-                        <TeamLogo abbreviation={gotwGame?.awayTeamAbbr} alt={gotwGame?.awayTeamMascot ?? "Away"} className="hub-gotw-vote-logo" />
-                        <span>{gotwGame?.awayTeamName ?? "Away"}</span>
-                        <b>{gotwGame?.awayTeamMascot ?? "Away"}</b>
-                        <small>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</small>
-                      </button>
-                      <div className="hub-gotw-center"><span>VS</span></div>
-                      <button
-                        type="button"
-                        className={`hub-gotw-vote home${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`}
-                        disabled={matchupSchedule.gotw.status !== "open"}
-                        onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.homeTeamId)}
-                        aria-label="Vote home"
-                      >
-                        <TeamLogo abbreviation={gotwGame?.homeTeamAbbr} alt={gotwGame?.homeTeamMascot ?? "Home"} className="hub-gotw-vote-logo" />
-                        <span>{gotwGame?.homeTeamName ?? "Home"}</span>
-                        <b>{gotwGame?.homeTeamMascot ?? "Home"}</b>
-                        <small>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</small>
-                      </button>
-                    </div>
-                  );
-                })()}
-                {hub.canManageLeague && matchupSchedule.gotw.status === "open" ? (
-                  <div className="hub-matchup-admin-slot">
-                    <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
-                  </div>
-                ) : null}
-                {gotwGuessing?.mine && <p className="hub-gotw-record">Your record: {gotwGuessing.mine.wins}-{gotwGuessing.mine.losses}{gotwGuessing.mine.ties ? `-${gotwGuessing.mine.ties}` : ""}{gotwGuessing.mine.current_streak > 1 ? ` · ${gotwGuessing.mine.current_streak}-game streak` : ""}</p>}
-                {(() => {
-                  const total = matchupSchedule.gotw.awayVotes + matchupSchedule.gotw.homeVotes;
-                  const away = total ? Math.round((matchupSchedule.gotw.awayVotes / total) * 100) : 50;
-                  return (
-                    <div className="hub-gotw-meter" style={{ "--away-share": `${away}%` } as CSSProperties}>
-                      <strong>{away}%</strong>
-                      <i />
-                      <strong>{100 - away}%</strong>
-                    </div>
-                  );
-                })()}
-              </div>
-            </SectionFrame>
-          ) : null}
-
           <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
             <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
             <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
@@ -1976,19 +1964,17 @@ export function HubHome() {
                 })()}
                 {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${game.gotw ? " gotw" : ""}`} key={game.gameId}>
                   <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.gotw ? " gotw" : "")}>
-                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{game.gotw ? (game.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{game.gotw ? "Game of the Week" : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                     <div className="hub-matchup-board">
-                      {game.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${game.gotw.myVote === game.gotw.awayTeamId ? " active" : ""}`} disabled={game.gotw.status !== "open"} onClick={() => void voteGotw(game.gotw!.pollId, game.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>{game.awayTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</b><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
+                      <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>
                       <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
-                      {game.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${game.gotw.myVote === game.gotw.homeTeamId ? " active" : ""}`} disabled={game.gotw.status !== "open"} onClick={() => void voteGotw(game.gotw!.pollId, game.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>{game.homeTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</b><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>}
+                      <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>
                     </div>
                     <div className="hub-matchup-rails">
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                     </div>
-                    {game.gotw && hub.canManageLeague && game.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button></div>}
-                    {game.gotw && (() => { const total = game.gotw.awayVotes + game.gotw.homeVotes; const away = total ? Math.round(game.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {
                         const awayStream = game.streams.find((stream) => stream.side === "away");
@@ -2092,25 +2078,29 @@ export function HubHome() {
     </div></Modal>}
     {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
     {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
-    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
+    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} panelClassName="hub-wager-slip-modal" hideHeader onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
+      <header className="hub-wager-modal-brand"><span>Franchise Hub</span><strong>Sportsbook</strong><small>{wagerPanel.label}</small></header>
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
         {wagerPanel.mode === "parlay" && <p className="hub-muted">Choose exactly three different stat-line Over/Under picks from this game. Each side is a separate selection.</p>}
-        <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => {
-          const isSelectedMarket = wagerPanel.market === market.market;
-          const effectiveLine = isSelectedMarket && wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : market.line;
-          return <article key={market.market} className={isSelectedMarket ? "active" : ""}>
-            <button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "", customLine: "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button>
-            <div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={isSelectedMarket && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${effectiveLine ?? ""}` : side.pick === "under" ? `UNDER ${effectiveLine ?? ""}` : side.label}</b><small>{side.label} · odds {americanFromDecimal(side.odds)}</small></button>)}</div>
-            {isSelectedMarket && market.line != null && (
-              <label className="form-field hub-wager-custom-line"><span className="form-label">Custom line (optional — defaults to {market.line})</span><input className="form-input" type="number" step="0.5" placeholder={String(market.line)} value={wagerPanel.customLine} onChange={(event) => setWagerPanel({ ...wagerPanel, customLine: event.target.value })} /></label>
-            )}
-          </article>;
-        })}</div>
-        {wagerPanel.mode === "parlay" && <div className="hub-parlay-slip"><div><strong>Parlay slip</strong><span>{wagerPanel.parlay.length}/3 picks</span></div><Button variant="secondary" size="compact" disabled={wagerPanel.parlay.length >= 3} onClick={addParlayLeg}>Add Pick</Button>{wagerPanel.parlay.map((leg) => <p key={`${leg.gameId}-${leg.market}`}>{leg.label}: {leg.market}{leg.customLine.trim() ? ` @ ${leg.customLine}` : ""}</p>)}</div>}
-        {wagerPanel.mode === "peer" && <div className="hub-peer-controls"><select className="form-input" value={wagerPanel.challengeType} onChange={(event) => setWagerPanel({ ...wagerPanel, challengeType: event.target.value as "open" | "direct" })}><option value="open">Post to board</option><option value="direct">Direct challenge</option></select>{wagerPanel.challengeType === "direct" && <select className="form-input" value={wagerPanel.targetUserId} onChange={(event) => setWagerPanel({ ...wagerPanel, targetUserId: event.target.value })}><option value="">Select coach</option>{wagerPanel.coaches.map((coach) => <option key={coach.userId} value={coach.userId}>{coach.teamAbbr} · {coach.conference}</option>)}</select>}</div>}
-        <div className="hub-wager-submit"><label className="form-field"><span className="form-label">Stake</span><input className="form-input" type="number" min="1" value={wagerPanel.stake} onChange={(event) => setWagerPanel({ ...wagerPanel, stake: event.target.value })} /></label><Button variant="primary" disabled={wagerPanel.busy || !wagerPanel.market || !wagerPanel.pick || (wagerPanel.mode === "peer" && wagerPanel.challengeType === "direct" && !wagerPanel.targetUserId) || (wagerPanel.mode === "parlay" && wagerPanel.parlay.length !== 3)} onClick={() => void placeWager()}>{wagerPanel.busy ? "Submitting..." : wagerPanel.mode === "peer" ? "Post User Wager" : wagerPanel.mode === "parlay" ? "Place 3-Pick Parlay" : "Bet House"}</Button></div>
-        {wagerPanel.notice && <p className="hub-transfer-status">{wagerPanel.notice}</p>}
+        <div className="hub-wager-workbench">
+          <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => {
+            const isSelectedMarket = wagerPanel.market === market.market;
+            const effectiveLine = isSelectedMarket && wagerPanel.customLine.trim() ? Number(wagerPanel.customLine) : market.line;
+            return <article key={market.market} className={isSelectedMarket ? "active" : ""}>
+              <button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "", customLine: "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button>
+              <div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={isSelectedMarket && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${effectiveLine ?? ""}` : side.pick === "under" ? `UNDER ${effectiveLine ?? ""}` : side.label}</b><small>{side.label} · {americanFromDecimal(side.odds)}</small></button>)}</div>
+              {isSelectedMarket && market.line != null && <label className="form-field hub-wager-custom-line"><span className="form-label">Custom line (optional — defaults to {market.line})</span><input className="form-input" type="number" step="0.5" placeholder={String(market.line)} value={wagerPanel.customLine} onChange={(event) => setWagerPanel({ ...wagerPanel, customLine: event.target.value })} /></label>}
+            </article>;
+          })}</div>
+          <div className="hub-wager-ticket-column">
+            <WagerSlip panel={wagerPanel} />
+            {wagerPanel.mode === "parlay" && <Button variant="secondary" disabled={wagerPanel.parlay.length >= 3 || !wagerPanel.market || !wagerPanel.pick} onClick={addParlayLeg}>Add Selection to Slip · {wagerPanel.parlay.length}/3</Button>}
+            {wagerPanel.mode === "peer" && <div className="hub-peer-controls"><select className="form-input" value={wagerPanel.challengeType} onChange={(event) => setWagerPanel({ ...wagerPanel, challengeType: event.target.value as "open" | "direct" })}><option value="open">Post to board</option><option value="direct">Direct challenge</option></select>{wagerPanel.challengeType === "direct" && <select className="form-input" value={wagerPanel.targetUserId} onChange={(event) => setWagerPanel({ ...wagerPanel, targetUserId: event.target.value })}><option value="">Select coach</option>{wagerPanel.coaches.map((coach) => <option key={coach.userId} value={coach.userId}>{coach.teamAbbr} · {coach.conference}</option>)}</select>}</div>}
+            <div className="hub-wager-submit"><label className="form-field"><span className="form-label">Stake</span><input className="form-input" type="number" min="1" value={wagerPanel.stake} onChange={(event) => setWagerPanel({ ...wagerPanel, stake: event.target.value })} /></label><Button variant="primary" disabled={wagerPanel.busy || !wagerPanel.market || !wagerPanel.pick || (wagerPanel.mode === "peer" && wagerPanel.challengeType === "direct" && !wagerPanel.targetUserId) || (wagerPanel.mode === "parlay" && wagerPanel.parlay.length !== 3)} onClick={() => void placeWager()}>{wagerPanel.busy ? "Submitting..." : wagerPanel.mode === "peer" ? "Post User Wager" : wagerPanel.mode === "parlay" ? "Place 3-Pick Parlay" : "Place Bet"}</Button></div>
+            {wagerPanel.notice && <p className="hub-transfer-status">{wagerPanel.notice}</p>}
+          </div>
+        </div>
         <div className="hub-peer-board"><h3>Peer Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · <CoinAmount amount={wager.stake} /> · {wager.challengeType}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>
       </>}
     </div></Modal>}

@@ -25,6 +25,7 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   fwRequest: "rec:gamesched:fwrequest:",
   fwRequestFailureToSchedule: "rec:gamesched:fwfts:",
   autopilot: "rec:gamesched:autopilot:",
+  staleProposalAutopilot: "rec:gamesched:staleautopilot:",
   cantMakeAcceptFs: "rec:gamesched:cantmake:accept_fs:",
   cantMakeAutopilot: "rec:gamesched:cantmake:autopilot:",
   cantMakeChoiceGrantFw: "rec:gamesched:cantmakechoice:grant_fw:",
@@ -290,6 +291,18 @@ export async function handleAutopilotRequest(interaction: ButtonInteraction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await recApi.submitMatchupHelpRequest({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, kind: "autopilot", message: "Requested via the scheduling reminder's Request AutoPilot button." });
+    await interaction.editReply({ content: "AutoPilot requested — a commissioner has been notified." });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handleStaleProposalAutopilotRequest(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.staleProposalAutopilot, interaction.customId);
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await recApi.requestStaleProposalAutopilot({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
     await interaction.editReply({ content: "AutoPilot requested — a commissioner has been notified." });
   } catch (error) {
     await replyErr(interaction, error);

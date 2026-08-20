@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
-import { autoResetSchedulingAfterMissedKickoff, getActiveRuleKeys } from "./matchup-scheduling.service.js";
+import { autoResetSchedulingAfterMissedKickoff, getActiveRuleKeys, postStaleProposalEligibilityNoticeIfAny } from "./matchup-scheduling.service.js";
 import { logSchedulingEvent } from "./shared.js";
 
 const MIN = 60_000;
@@ -113,18 +113,24 @@ async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string, handledT
 // -- AutoPilot condition 2: a proposal has sat unanswered for 8+ hours.
 async function runStaleProposalAutoPilot() {
   const cutoff = new Date(Date.now() - 8 * HOUR).toISOString();
-  const { data, error } = await supabase.from("rec_game_time_proposals").select("game_id,created_at").eq("status", "pending").lte("created_at", cutoff);
+  const { data, error } = await supabase.from("rec_game_time_proposals").select("game_id,created_at,proposed_by_user_id").eq("status", "pending").lte("created_at", cutoff);
   if (error) { console.error("[ERROR] scheduling reminder poller: stale proposal query failed (non-fatal):", error); return; }
   const gameIds: string[] = [...new Set<string>((data ?? []).map((r: any) => String(r.game_id)))];
   if (!gameIds.length) return;
-  const sent = await alreadySent(gameIds, "autopilot_surface_proposal_8h");
+  // Versioned key intentionally differs from the legacy AutoPilot-only surface. Existing
+  // stale proposals need one corrected proposer-only notice after deploy, even if the old
+  // two-coach message was already recorded as sent.
+  const sent = await alreadySent(gameIds, "proposal_eligibility_8h_v2");
   const pending = gameIds.filter((id) => !sent.has(id));
   if (!pending.length) return;
-  const games = await loadGamesById(pending);
   for (const gameId of pending) {
-    const game = games.get(gameId);
-    if (!game) continue;
-    await surfaceAutoPilot(gameId, game, "autopilot_surface_proposal_8h", "A proposed time has gone unanswered for 8 hours.");
+    const result = await postStaleProposalEligibilityNoticeIfAny(gameId).catch((error) => {
+      console.error("[ERROR] scheduling reminder poller: failed to post stale-proposal eligibility surface (non-fatal):", error);
+      return { posted: false, includedForceWin: false };
+    });
+    if (!result.posted) continue;
+    await markSent(gameId, "proposal_eligibility_8h_v2");
+    if (result.includedForceWin) await markSent(gameId, "fw_failure_to_schedule_8h");
   }
 }
 

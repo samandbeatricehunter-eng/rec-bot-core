@@ -7,7 +7,7 @@ import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage, post
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
-import { getActiveSuspension, postSchedulingPanel, repostPendingProposalNoticeIfAny, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
+import { getActiveSuspension, postSchedulingPanel, postStaleProposalEligibilityNoticeIfAny, repostPendingProposalNoticeIfAny, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
 import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 
 const DASHING_NOTICE = "⚠️ **DASHING (QUITTING IN 1ST HALF) IS NOT ALLOWED.**\nUsers can **CONCEDE** the game in the **2ND HALF**, but quitting in the first will result in getting booted, banned, and your username shared on all major Madden gaming servers.";
@@ -422,6 +422,7 @@ async function createChannelsForGames(context: GameChannelContext, guildId: stri
       // Channel wipe/recreate (or a repair filling a gap) must not silently drop a pending
       // scheduling offer -- repost it into the freshly-created channel.
       await repostPendingProposalNoticeIfAny(game.gameId).catch((error) => console.error("[ERROR] Failed to repost pending proposal notice (non-fatal):", error));
+      await postStaleProposalEligibilityNoticeIfAny(game.gameId).catch((error) => console.error("[ERROR] Failed to repost scheduling eligibility notice (non-fatal):", error));
     }
     if (gameChannelRow?.id) {
       await supabase
