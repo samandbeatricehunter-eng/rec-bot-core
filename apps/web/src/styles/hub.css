@@ -2519,11 +2519,11 @@ button.poty:disabled {
 /* Logo sits beside the name in a row (not stacked above it) -- laying it out in normal flex
    flow, rather than absolutely positioned over a centered text block, is what actually
    guarantees no overlap regardless of card height across breakpoints. */
-.rec-matchup-card__team-logo { position:relative; z-index:1; flex-shrink:0; width:clamp(40px,8vw,68px); height:clamp(40px,8vw,68px); object-fit:contain; filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+.rec-matchup-card__team-logo { position:relative; z-index:1; flex-shrink:0; width:clamp(46px,9vw,80px); height:clamp(46px,9vw,80px); object-fit:contain; filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
 .rec-matchup-card__team-text { position:relative; z-index:1; display:flex; flex-direction:column; min-width:0; }
-.rec-matchup-card__team small { font:700 .66rem var(--font-sans); letter-spacing:.14em; text-transform:uppercase; opacity:.74; }
-.rec-matchup-card__team strong { font-family:var(--font-display); font-size:clamp(1.05rem,3vw,2rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
-.rec-matchup-card__team-meta { display:block; font:700 .58rem var(--font-sans); letter-spacing:.08em; text-transform:uppercase; opacity:.82; margin-top:2px; }
+.rec-matchup-card__team small { font:700 .72rem var(--font-sans); letter-spacing:.14em; text-transform:uppercase; opacity:.78; }
+.rec-matchup-card__team strong { font-family:var(--font-display); font-size:clamp(1.15rem,3.4vw,2.3rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
+.rec-matchup-card__team-meta { display:block; font:800 .74rem var(--font-sans); letter-spacing:.06em; text-transform:uppercase; opacity:.95; margin-top:3px; }
 
 /* Center medallion — light score bug with glowing accent seams */
 .rec-matchup-card__center { position:relative; z-index:3; display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:0; padding:24px 4px; color:#080a0c; text-align:center; background:linear-gradient(180deg,#fbf8ef,#f2eee3 60%,#e4ddca); box-shadow:inset 0 0 0 1px rgba(0,0,0,.12),inset 0 2px 6px rgba(255,255,255,.7); }
@@ -2561,13 +2561,13 @@ button.poty:disabled {
 /* Discord caps an embed image's displayed WIDTH to a fixed ceiling and scales height to match
    the image's own aspect ratio -- a genuinely taller card (not a skewed CSS stretch) is what
    actually displays bigger once Discord scales it down to that width. */
-.rec-matchup-card--render { min-height:300px; }
-.rec-matchup-card--render .rec-matchup-card__team-logo { width:96px; height:96px; }
-.rec-matchup-card--render .rec-matchup-card__team strong { font-size:2.6rem; }
-.rec-matchup-card--render .rec-matchup-card__team small { font-size:.9rem; }
-.rec-matchup-card--render .rec-matchup-card__team-meta { font-size:1rem; margin-top:6px; }
-.rec-matchup-card--render .rec-matchup-card__result b { font-size:3rem; }
-.rec-matchup-card--render .rec-matchup-card__result .rec-matchup-card__at { font-size:3.4rem; }
+.rec-matchup-card--render { min-height:400px; }
+.rec-matchup-card--render .rec-matchup-card__team-logo { width:160px; height:160px; }
+.rec-matchup-card--render .rec-matchup-card__team strong { font-size:4.2rem; }
+.rec-matchup-card--render .rec-matchup-card__team small { font-size:1.4rem; }
+.rec-matchup-card--render .rec-matchup-card__team-meta { font-size:1.9rem; margin-top:12px; }
+.rec-matchup-card--render .rec-matchup-card__result b { font-size:4.4rem; }
+.rec-matchup-card--render .rec-matchup-card__result .rec-matchup-card__at { font-size:5rem; }
 @media (max-width:640px) {
   .rec-matchup-list { gap:10px; }
   .rec-matchup-card,.rec-matchup-card--featured { grid-template-columns:minmax(0,1fr) 94px minmax(0,1fr); min-height:118px; border-radius:12px; }
