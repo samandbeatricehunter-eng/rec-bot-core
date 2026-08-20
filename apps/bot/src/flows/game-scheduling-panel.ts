@@ -27,6 +27,13 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   autopilot: "rec:gamesched:autopilot:",
   cantMakeAcceptFs: "rec:gamesched:cantmake:accept_fs:",
   cantMakeAutopilot: "rec:gamesched:cantmake:autopilot:",
+  cantMakeChoiceGrantFw: "rec:gamesched:cantmakechoice:grant_fw:",
+  cantMakeChoiceRequestFs: "rec:gamesched:cantmakechoice:request_fs:",
+  // Deliberately NOT prefixed with GAME_SCHEDULING_CUSTOM_IDS.autopilot ("rec:gamesched:autopilot:")
+  // -- that's a different, pre-existing button (Request AutoPilot from the reminder flow) and a
+  // shared prefix would make its startsWith() dispatch check also match these two.
+  autopilotResolveGrant: "rec:gamesched:apresolve:grant:",
+  autopilotResolveEnforceFs: "rec:gamesched:apresolve:enforcefs:",
   gameOver: "rec:gamesched:gameover:",
   gameOverModal: "rec:gamesched:gameovermodal:",
 };
@@ -188,13 +195,59 @@ export async function handleProposeOrCounterSelect(interaction: StringSelectMenu
   }
 }
 
+// First step: show only the options this league actually has enabled for the current season
+// stage (getCantMakeGameOptions), rather than always offering both.
 export async function handleCantMakePanel(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelCantMake, interaction.customId);
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.markSchedulingCantMakeGame({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "Your opponent has been notified and asked to choose Fair Sim or AutoPilot." });
+    const options = await recApi.getCantMakeGameOptions({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
+    const buttons: ButtonBuilder[] = [];
+    if (options.canGrantForceWin) buttons.push(new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceGrantFw}${gameId}`).setLabel("Grant Force Win to Opponent").setStyle(ButtonStyle.Danger));
+    if (options.canRequestFairSim) buttons.push(new ButtonBuilder().setCustomId(`${GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceRequestFs}${gameId}`).setLabel("Request Fair Sim").setStyle(ButtonStyle.Primary));
+    if (!buttons.length) {
+      return interaction.editReply({ content: "Neither Force Win nor Fair Sim is enabled for this league at this stage. Contact a commissioner directly." });
+    }
+    await interaction.editReply({
+      content: "You can't make this game before the deadline. How would you like to proceed?",
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)],
+    });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handleCantMakeChoice(interaction: ButtonInteraction, choice: "grant_fw" | "request_fs") {
+  if (!interaction.inCachedGuild()) return;
+  const prefix = choice === "grant_fw" ? GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceGrantFw : GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceRequestFs;
+  const gameId = idAfter(prefix, interaction.customId);
+  try {
+    await interaction.deferUpdate();
+    await recApi.markSchedulingCantMakeGame({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, choice });
+    await interaction.editReply({
+      content: choice === "grant_fw" ? "You conceded the Force Win to your opponent — a commissioner has been tagged." : "Your opponent has been notified and asked to choose Fair Sim or AutoPilot.",
+      components: [],
+    });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
+}
+
+export async function handleAutopilotResolve(interaction: ButtonInteraction, decision: "grant_autopilot" | "enforce_fs") {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only a commissioner can resolve an AutoPilot request.", flags: MessageFlags.Ephemeral });
+  }
+  const prefix = decision === "grant_autopilot" ? GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveGrant : GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveEnforceFs;
+  const gameId = idAfter(prefix, interaction.customId);
+  try {
+    await interaction.deferUpdate();
+    await recApi.resolveAutopilotRequest({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, decision });
+    await interaction.editReply({
+      content: decision === "grant_autopilot" ? "✅ AutoPilot granted." : "Fair Sim enforced — AutoPilot was not granted.",
+      components: [],
+    });
   } catch (error) {
     await replyErr(interaction, error);
   }

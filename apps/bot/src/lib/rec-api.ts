@@ -121,10 +121,14 @@ export const recApi = {
     recFetch<any>("/v1/scheduling/matchup/game-started", { method: "POST", body: JSON.stringify(input) }),
   requestSchedulingForceWin: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
-  markSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string }) =>
+  getCantMakeGameOptions: (input: { guildId: string; discordId: string; gameId: string }) =>
+    recFetch<{ canGrantForceWin: boolean; canRequestFairSim: boolean; allowAutopilotRequests: boolean }>("/v1/scheduling/matchup/cant-make-game-options", { method: "POST", body: JSON.stringify(input) }),
+  markSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string; choice: "grant_fw" | "request_fs" }) =>
     recFetch<{ flagged: true; opponentId: string | null }>("/v1/scheduling/matchup/cant-make-game", { method: "POST", body: JSON.stringify(input) }),
   resolveSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string; choice: "accept_fs" | "request_autopilot" }) =>
     recFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
+  resolveAutopilotRequest: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_autopilot" | "enforce_fs" }) =>
+    recFetch<{ decision: string }>("/v1/scheduling/matchup/autopilot-resolve", { method: "POST", body: JSON.stringify(input) }),
   resetScheduling: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; discordId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>

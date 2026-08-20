@@ -161,7 +161,7 @@ import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted, handlePanelReset,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
-  handleCantMakeResponse, handleCheckin, handleFwRequest, handleAutopilotRequest,
+  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve, handleCheckin, handleFwRequest, handleAutopilotRequest,
   handleGameOverButton, handleGameOverModal,
 } from "./flows/game-scheduling-panel.js";
 import {
@@ -717,6 +717,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.submit)) return handleCustomTimeSubmit(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAcceptFs)) return handleCantMakeResponse(interaction, "accept_fs");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAutopilot)) return handleCantMakeResponse(interaction, "request_autopilot");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceGrantFw)) return handleCantMakeChoice(interaction, "grant_fw");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceRequestFs)) return handleCantMakeChoice(interaction, "request_fs");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveGrant)) return handleAutopilotResolve(interaction, "grant_autopilot");
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveEnforceFs)) return handleAutopilotResolve(interaction, "enforce_fs");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);

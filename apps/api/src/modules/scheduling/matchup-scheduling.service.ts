@@ -1,4 +1,4 @@
-import { sanitizeForceWinRuleKeys } from "@rec/shared";
+import { sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEffectiveAvailability } from "./availability.service.js";
@@ -292,6 +292,23 @@ export async function markGameStarted(input: { gameId: string; discordId?: strin
   return updated.data;
 }
 
+const POSTSEASON_STAGE_KEYS = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"];
+
+// Shared by requestForceWin and the Can't Make Game flow below -- both need "which FW/FS rule
+// keys are active for this league at the CURRENT season stage" rather than the raw regular vs.
+// postseason columns.
+async function getActiveRuleKeys(leagueId: string): Promise<{ forceWin: ReturnType<typeof sanitizeForceWinRuleKeys>; fairSim: ReturnType<typeof sanitizeFairSimRuleKeys> }> {
+  const [leagueStageRow, config] = await Promise.all([
+    supabase.from("rec_leagues").select("season_stage").eq("id", leagueId).maybeSingle(),
+    supabase.from("rec_league_configuration").select("force_win_rules_regular,force_win_rules_postseason,fair_sim_rules_regular,fair_sim_rules_postseason").eq("league_id", leagueId).maybeSingle(),
+  ]);
+  const isPostseason = POSTSEASON_STAGE_KEYS.includes(String(leagueStageRow.data?.season_stage ?? ""));
+  return {
+    forceWin: sanitizeForceWinRuleKeys(isPostseason ? config.data?.force_win_rules_postseason : config.data?.force_win_rules_regular),
+    fairSim: sanitizeFairSimRuleKeys(isPostseason ? config.data?.fair_sim_rules_postseason : config.data?.fair_sim_rules_regular),
+  };
+}
+
 // FW is a manual-apply LABEL only (no code path here actually forces a win) -- files a
 // Request Help ticket the commissioner can act on, posts public evidence in the game channel,
 // and flags rec_game_scheduling.fw_flagged so Advance Readiness can badge the matchup.
@@ -302,10 +319,7 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
   if (!opponentId) throw new ApiError(400, "This game has no opponent to request a Force Win against.");
 
-  const leagueStageRow = await supabase.from("rec_leagues").select("season_stage").eq("id", game.league_id).maybeSingle();
-  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"].includes(String(leagueStageRow.data?.season_stage ?? ""));
-  const config = await supabase.from("rec_league_configuration").select("force_win_rules_regular,force_win_rules_postseason").eq("league_id", game.league_id).maybeSingle();
-  const activeRules = sanitizeForceWinRuleKeys(isPostseason ? config.data?.force_win_rules_postseason : config.data?.force_win_rules_regular);
+  const activeRules = (await getActiveRuleKeys(game.league_id)).forceWin;
   if (!activeRules.includes("missed_window")) {
     throw new ApiError(403, "Force Win for a missed kickoff window is not enabled for this league.");
   }
@@ -456,18 +470,62 @@ function formatIsoShort(iso: string): string {
   return new Date(iso).toUTCString().replace(" GMT", " UTC");
 }
 
-// "Can't Make Game" -- a user who knows ahead of time their availability doesn't cover any
-// window before the deadline flags it. Posts an embed tagging the opponent with two choices
-// (handled by resolveCantMakeIt below); doesn't touch scheduling status itself, since nothing
-// is decided until the opponent responds.
-export async function markCantMakeGame(input: { gameId: string; discordId: string }) {
+// What options are actually available to a coach who can't make it, given the league's FW/FS
+// rule settings for the CURRENT season stage. Fetched by the bot before it renders the initial
+// ephemeral choice, so a disabled option is never even shown.
+export async function getCantMakeGameOptions(input: { gameId: string; discordId: string }) {
+  const game = await loadGame(input.gameId);
+  const userId = await userIdFromDiscordId(input.discordId);
+  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can use Can't Make Game.");
+  const active = await getActiveRuleKeys(game.league_id);
+  return {
+    canGrantForceWin: active.forceWin.length > 0 && !active.forceWin.includes("never"),
+    canRequestFairSim: active.fairSim.length > 0,
+    allowAutopilotRequests: active.fairSim.includes("allow_autopilot_requests"),
+  };
+}
+
+// "Can't Make Game" -- a coach who knows ahead of time their availability doesn't cover any
+// window before the deadline flags it, then picks how to proceed:
+// - "grant_fw": self-forfeit -- concedes the Force Win to the opponent outright. Public,
+//   commish-tagged confirmation; no opponent response needed, nothing left to decide.
+// - "request_fs": tags the opponent with Grant Fair Sim / Request AutoPilot choices (handled by
+//   resolveCantMakeGame below); doesn't touch scheduling status itself since nothing is decided
+//   until the opponent responds.
+export async function markCantMakeGame(input: { gameId: string; discordId: string; choice: "grant_fw" | "request_fs" }) {
   const game = await loadGame(input.gameId);
   const userId = await userIdFromDiscordId(input.discordId);
   if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can use Can't Make Game.");
   const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
   if (!opponentId) throw new ApiError(400, "This game has no opponent.");
 
+  const active = await getActiveRuleKeys(game.league_id);
   await ensureScheduling(input.gameId);
+
+  if (input.choice === "grant_fw") {
+    if (!active.forceWin.length || active.forceWin.includes("never")) throw new ApiError(403, "Force Win is not enabled for this league at this stage.");
+    await supabase.from("rec_game_scheduling").update({
+      status: "needs_commissioner_help", fw_flagged: true, fw_flagged_for_user_id: opponentId, fw_flagged_at: new Date().toISOString(),
+      attention_required: true, updated_at: new Date().toISOString(),
+    }).eq("game_id", input.gameId);
+    await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_grant_fw" });
+
+    const routes = await findServerRoutesForLeague(game.league_id);
+    const channel = await getGameChannelByGameId(input.gameId);
+    if (channel?.discord_channel_id) {
+      const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
+      const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
+      await postDiscordChannelMessage(channel.discord_channel_id, {
+        content: `🏳️ **Force Win conceded.** ${roleMention}A coach can't make this game and has conceded the Force Win to their opponent — flagged in Advance Readiness for review.`,
+        allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+      }).catch(() => undefined);
+    }
+    await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+    await refreshMatchupsChannelForGame(input.gameId);
+    return { flagged: true, opponentId };
+  }
+
+  if (!active.fairSim.length) throw new ApiError(403, "Fair Sim is not enabled for this league at this stage.");
   await supabase.from("rec_game_scheduling").update({ status: "needs_commissioner_help", attention_required: true, updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game" });
 
@@ -476,15 +534,13 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {
     const mention = opponentDiscordId ? `<@${opponentDiscordId}> ` : "";
+    const buttons = [{ type: 2, style: 3, custom_id: `rec:gamesched:cantmake:accept_fs:${input.gameId}`, label: "Grant Fair Sim" }];
+    if (active.fairSim.includes("allow_autopilot_requests")) {
+      buttons.push({ type: 2, style: 2, custom_id: `rec:gamesched:cantmake:autopilot:${input.gameId}`, label: "Request AutoPilot" } as any);
+    }
     await postDiscordChannelMessage(channel.discord_channel_id, {
       content: `${mention}Your opponent can't make this game before the deadline. Choose how to proceed:`,
-      components: [{
-        type: 1,
-        components: [
-          { type: 2, style: 3, custom_id: `rec:gamesched:cantmake:accept_fs:${input.gameId}`, label: "Accept Fair Sim" },
-          { type: 2, style: 2, custom_id: `rec:gamesched:cantmake:autopilot:${input.gameId}`, label: "Request AutoPilot" },
-        ],
-      }],
+      components: [{ type: 1, components: buttons }],
       allowed_mentions: opponentDiscordId ? { users: [opponentDiscordId] } : { parse: [] },
     }).catch(() => undefined);
   }
@@ -493,15 +549,17 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
   return { flagged: true, opponentId, opponentDiscordId };
 }
 
-// The opponent's response to markCantMakeGame -- either choice just notifies commissioners and
-// records what was chosen; neither one applies an FS or AutoPilot outcome itself (FS is already
-// the automatic default when nothing gets scheduled, and AutoPilot is commissioner-applied like
-// every other Request Help kind).
+// The opponent's response to markCantMakeGame's "request_fs" branch. Grant Fair Sim resolves
+// it outright (FS is the automatic default once nothing gets scheduled, so there's nothing
+// further to apply). Request AutoPilot escalates to the commissioner team with real Grant
+// AutoPilot / Enforce FS buttons (resolveAutopilotRequest below) instead of only a ticket.
 export async function resolveCantMakeGame(input: { gameId: string; discordId: string; choice: "accept_fs" | "request_autopilot" }) {
   const game = await loadGame(input.gameId);
   const userId = await userIdFromDiscordId(input.discordId);
   if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can respond.");
   await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_resolved", payload: { choice: input.choice } });
+
+  const channel = await getGameChannelByGameId(input.gameId);
 
   if (input.choice === "request_autopilot") {
     const routes = await findServerRoutesForLeague(game.league_id);
@@ -512,14 +570,48 @@ export async function resolveCantMakeGame(input: { gameId: string; discordId: st
       kind: "autopilot",
       message: "Opponent can't make the game before the deadline; requesting AutoPilot instead of a Fair Sim.",
     }).catch((err) => console.error("[ERROR] Failed to file the AutoPilot Request Help ticket (non-fatal):", err));
+
+    if (channel?.discord_channel_id) {
+      const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
+      const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
+      await postDiscordChannelMessage(channel.discord_channel_id, {
+        content: `${roleMention}AutoPilot requested instead of a Fair Sim for this game.`,
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: 3, custom_id: `rec:gamesched:apresolve:grant:${input.gameId}`, label: "Grant AutoPilot" },
+            { type: 2, style: 4, custom_id: `rec:gamesched:apresolve:enforcefs:${input.gameId}`, label: "Enforce FS" },
+          ],
+        }],
+        allowed_mentions: commissionerRoleId ? { roles: [commissionerRoleId] } : { parse: [] },
+      }).catch(() => undefined);
+    }
+    return { choice: input.choice };
   }
+
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: "Scheduling: opponent granted a Fair Sim for this game." }).catch(() => undefined);
+  }
+  return { choice: input.choice };
+}
+
+// Commissioner resolution of an AutoPilot request (resolveCantMakeGame's request_autopilot
+// branch above). AutoPilot itself is advisory/manual today -- there's no mechanical
+// "play both sides" toggle anywhere in the codebase -- so this records the decision and posts a
+// public confirmation, same scope as every other FW/FS status flag in this file.
+export async function resolveAutopilotRequest(input: { gameId: string; discordId: string; decision: "grant_autopilot" | "enforce_fs" }) {
+  const game = await loadGame(input.gameId);
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "autopilot_resolved", payload: { decision: input.decision } });
 
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {
-    const text = input.choice === "accept_fs" ? "accepted a Fair Sim for this game." : "requested AutoPilot instead of a Fair Sim — a commissioner has been notified.";
-    await postDiscordChannelMessage(channel.discord_channel_id, { content: `Scheduling: opponent ${text}` }).catch(() => undefined);
+    const text = input.decision === "grant_autopilot"
+      ? "✅ AutoPilot **granted** by a commissioner — the opponent may play both sides."
+      : "Fair Sim **enforced** by a commissioner — AutoPilot was not granted.";
+    await postDiscordChannelMessage(channel.discord_channel_id, { content: text }).catch(() => undefined);
   }
-  return { choice: input.choice };
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { decision: input.decision };
 }
 
 // Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed

@@ -8,8 +8,8 @@ import {
   getRecurringWindows, listOverrides, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
 } from "./availability.service.js";
 import {
-  checkIn, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
-  refreshSchedulingPanelsForUser, requestForceWin, requestReschedule, resetScheduling, resolveCantMakeGame, respondToProposal,
+  checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
+  refreshSchedulingPanelsForUser, requestForceWin, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame, respondToProposal,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
@@ -239,11 +239,19 @@ export async function schedulingRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  app.post("/v1/scheduling/matchup/cant-make-game", async (request, reply) => {
+  app.post("/v1/scheduling/matchup/cant-make-game-options", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await markCantMakeGame({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+      return reply.send(await getCantMakeGameOptions({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/cant-make-game", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), choice: z.enum(["grant_fw", "request_fs"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      return reply.send(await markCantMakeGame({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), choice: body.choice }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -252,6 +260,14 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), choice: z.enum(["accept_fs", "request_autopilot"]) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       return reply.send(await resolveCantMakeGame({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), choice: body.choice }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/autopilot-resolve", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), decision: z.enum(["grant_autopilot", "enforce_fs"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await resolveAutopilotRequest({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), decision: body.decision }));
     } catch (error) { return sendError(reply, error); }
   });
 
