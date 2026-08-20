@@ -1,4 +1,5 @@
 export * from "./football-positions.js";
+export * from "./fw-fs-rules.js";
 export * from "./highlight-emojis.js";
 export * from "./nfl-teams.js";
 export * from "./nfl-team-colors.js";

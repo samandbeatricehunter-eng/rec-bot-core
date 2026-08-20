@@ -52,7 +52,6 @@ import {
 import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel } from "./ui/server-setup-admin.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
-  buildActivityRequirementsModal,
   buildLeagueSetupWindow,
   buildSettingsPickerWindow,
   getNextLeagueSetupStep,
@@ -174,7 +173,6 @@ import {
 import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
-  handleActivityRequirementsModal,
   handleCoachAbilitiesRestrictionModal,
   handleCpuTradingRestrictionModal,
   handleDifficultyCustomModal,
@@ -954,21 +952,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesDone ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)
       ) return handleLeagueSetupButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
-      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
-        const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Open League Management on the REC site to continue.", flags: MessageFlags.Ephemeral });
-        return interaction.showModal(buildActivityRequirementsModal(draft));
-      }
-      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip) {
-        const draft = leagueSetupSessions.get(interaction.user.id);
-        if (!draft) return interaction.reply({ content: "Session expired. Open League Management on the REC site to continue.", flags: MessageFlags.Ephemeral });
-        draft.step = draft.editMode ? "settings_picker" : getNextLeagueSetupStep(draft.step, draft);
-        leagueSetupSessions.set(interaction.user.id, draft);
-        return interaction.update(buildLeagueSetupWindow(draft));
-      }
       if (
         interaction.customId === "rec:league_setup:skip_team_linking"
         || interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.continueFromTeams
@@ -1121,7 +1109,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueModal) return handleDeleteLeagueModal(interaction);
-      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelModal}:`)) return handleLeagueSetupServerChannelModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomModal}:`)) return handleFourthDownCustomModal(interaction);

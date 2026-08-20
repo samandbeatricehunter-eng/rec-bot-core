@@ -62,6 +62,10 @@ export function useLeagueWizardState() {
   const [injuryPolicy, setInjuryPolicy] = useState("on_standard");
   const [fairSimRequirements, setFairSimRequirements] = useState("Fair Sims are the default for any game where users fail to schedule their game prior to advance time.");
   const [forceWinRequirements, setForceWinRequirements] = useState("Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.");
+  const [forceWinRulesRegular, setForceWinRulesRegular] = useState<string[]>([]);
+  const [forceWinRulesPostseason, setForceWinRulesPostseason] = useState<string[]>([]);
+  const [fairSimRulesRegular, setFairSimRulesRegular] = useState<string[]>([]);
+  const [fairSimRulesPostseason, setFairSimRulesPostseason] = useState<string[]>([]);
   const [offensivePlayCallLimitsEnabled, setOffensivePlayCallLimitsEnabled] = useState(false);
   const [offensivePlayCallLimit, setOffensivePlayCallLimit] = useState(10);
   const [offensivePlayCallCooldownEnabled, setOffensivePlayCallCooldownEnabled] = useState(false);
@@ -243,6 +247,10 @@ export function useLeagueWizardState() {
       injuryPolicy,
       fairSimRequirements: fairSimRequirements || undefined,
       forceWinRequirements: forceWinRequirements || undefined,
+      forceWinRulesRegular,
+      forceWinRulesPostseason,
+      fairSimRulesRegular,
+      fairSimRulesPostseason,
       offensivePlayCallLimitsEnabled,
       offensivePlayCallLimit: offensivePlayCallLimitsEnabled ? offensivePlayCallLimit : undefined,
       offensivePlayCallCooldownEnabled,
@@ -331,6 +339,10 @@ export function useLeagueWizardState() {
     fourthDownRuleTypePlayoff, customFourthDownRulePlayoff,
     advanceTiming, advanceTimingOther, injuryPolicy,
     fairSimRequirements, forceWinRequirements,
+    forceWinRulesRegular, setForceWinRulesRegular,
+    forceWinRulesPostseason, setForceWinRulesPostseason,
+    fairSimRulesRegular, setFairSimRulesRegular,
+    fairSimRulesPostseason, setFairSimRulesPostseason,
     offensivePlayCallLimitsEnabled, offensivePlayCallLimit,
     offensivePlayCallCooldownEnabled, offensivePlayCallCooldown,
     defensivePlayCallLimitsEnabled, defensivePlayCallLimit,
@@ -577,6 +589,14 @@ export function useLeagueWizardState() {
     setFairSimRequirements,
     forceWinRequirements,
     setForceWinRequirements,
+    forceWinRulesRegular,
+    setForceWinRulesRegular,
+    forceWinRulesPostseason,
+    setForceWinRulesPostseason,
+    fairSimRulesRegular,
+    setFairSimRulesRegular,
+    fairSimRulesPostseason,
+    setFairSimRulesPostseason,
     offensivePlayCallLimitsEnabled,
     setOffensivePlayCallLimitsEnabled,
     offensivePlayCallLimit,

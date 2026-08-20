@@ -1,4 +1,8 @@
+import { FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS } from "@rec/shared";
 import type { LeagueSettingsDraft } from "../../../types/api.js";
+
+const FORCE_WIN_OPTIONS = FORCE_WIN_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
+const FAIR_SIM_OPTIONS = FAIR_SIM_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
 
 // Declarative field schema driving a single generic form renderer (SettingsHome.tsx)
 // instead of ~8 hand-built screens — apps/api/src/modules/setup/setup.schemas.ts's
@@ -13,7 +17,7 @@ import type { LeagueSettingsDraft } from "../../../types/api.js";
 // (apps/api/src/modules/server-config/), not updateLeagueConfig, matching how the Discord
 // flow itself separates them (see apps/bot/src/flows/league-setup.ts's saveChannelEditIfNeeded).
 
-export type SettingsFieldType = "toggle" | "number" | "text" | "textarea" | "enum";
+export type SettingsFieldType = "toggle" | "number" | "text" | "textarea" | "enum" | "multiselect";
 
 export type SettingsField = {
   key: string;
@@ -46,8 +50,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: "features",
     label: "Features",
     fields: [
-      { key: "fairSimRequirements", label: "Fair Sim Requirements", type: "textarea" },
-      { key: "forceWinRequirements", label: "Force Win Requirements", type: "textarea" },
+      { key: "forceWinRulesRegular", label: "Force Win Rules — Regular Season", type: "multiselect", options: FORCE_WIN_OPTIONS, hint: "When any of these apply, a coach can request (or a commissioner can grant) a Force Win." },
+      { key: "forceWinRulesPostseason", label: "Force Win Rules — Postseason", type: "multiselect", options: FORCE_WIN_OPTIONS },
+      { key: "fairSimRulesRegular", label: "Fair Sim Rules — Regular Season", type: "multiselect", options: FAIR_SIM_OPTIONS, hint: "When any of these apply, the game is settled as a Fair Sim instead of played." },
+      { key: "fairSimRulesPostseason", label: "Fair Sim Rules — Postseason", type: "multiselect", options: FAIR_SIM_OPTIONS },
     ],
   },
   {

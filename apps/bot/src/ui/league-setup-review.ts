@@ -6,7 +6,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from "discord.js";
-import { getDefaultNflSeasonLabelForGame, type MaddenLeagueGame } from "@rec/shared";
+import { fairSimRuleLabel, forceWinRuleLabel, getDefaultNflSeasonLabelForGame, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import {
   LEAGUE_GAME_OPTIONS,
@@ -23,6 +23,7 @@ import {
 import { buildLeagueSetupServerSetupWindow, formatChannelValue, LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS } from "./league-setup-server.js";
 import {
   buildActivityRequirementsWindow,
+  buildFairSimRulesWindow,
   buildCoachAbilitiesRestrictedWindow,
   buildCpuRulesWindow,
   buildCustomCoachesRequiredWindow,
@@ -62,6 +63,22 @@ import {
 } from "./league-setup-gameplay.js";
 import { buildFeatureDecisionWindow } from "./league-setup-purchases.js";
 import { buildGameSelectWindow, buildLeagueTypeWindow } from "./league-setup-core.js";
+
+function formatFwFsRules(draft: LeagueSetupDraft): { fairSim: string; forceWin: string } {
+  const fwRegular = draft.forceWinRulesRegular.map((k) => forceWinRuleLabel(k));
+  const fwPostseason = draft.forceWinRulesPostseason.map((k) => forceWinRuleLabel(k));
+  const fsRegular = draft.fairSimRulesRegular.map((k) => fairSimRuleLabel(k));
+  const fsPostseason = draft.fairSimRulesPostseason.map((k) => fairSimRuleLabel(k));
+
+  const forceWin = fwRegular.length || fwPostseason.length
+    ? `Regular: ${fwRegular.length ? fwRegular.join(", ") : "None"} | Postseason: ${fwPostseason.length ? fwPostseason.join(", ") : "None"}`
+    : "Not set";
+  const fairSim = fsRegular.length || fsPostseason.length
+    ? `Regular: ${fsRegular.length ? fsRegular.join(", ") : "None"} | Postseason: ${fsPostseason.length ? fsPostseason.join(", ") : "None"}`
+    : "Not set";
+
+  return { fairSim, forceWin };
+}
 
 export function buildTeamLinkingOptionalWindow(draft: LeagueSetupDraft) {
   return {
@@ -356,8 +373,8 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Coach Abilities Restricted: ${yesNo(draft.coachAbilitiesRestricted)}${draft.coachAbilitiesRestricted && draft.coachAbilitiesRestrictionNotes ? ` - ${draft.coachAbilitiesRestrictionNotes}` : ""}`,
           `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
           `CPU Trading: ${fmt(draft.cpuTradingPolicy)}${draft.cpuTradingPolicy === "restricted" ? ` - ${draft.cpuTradingRestriction || "Restriction text missing"}` : ""}`,
-          `Fair Sim: ${draft.fairSimRequirements || "Not set"}`,
-          `Force Win: ${draft.forceWinRequirements || "Not set"}`
+          `Fair Sim: ${formatFwFsRules(draft).fairSim}`,
+          `Force Win: ${formatFwFsRules(draft).forceWin}`
         ].join("\n"),
         inline: false
       },
@@ -487,8 +504,8 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
           `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}${draft.fourthDownRuleTypePlayoff === "custom" ? ` - ${draft.customFourthDownRulePlayoff || "Custom text missing"}` : ""}`,
           `Custom Coaches Required: ${yesNo(draft.customCoachesRequired)}`,
           `Custom Playbooks Allowed: ${yesNo(draft.customPlaybooksAllowed)}`,
-          `Fair Sim: ${draft.fairSimRequirements || "Not set"}`,
-          `Force Win: ${draft.forceWinRequirements || "Not set"}`
+          `Fair Sim: ${formatFwFsRules(draft).fairSim}`,
+          `Force Win: ${formatFwFsRules(draft).forceWin}`
         ].join("\n"),
         inline: false
       },
@@ -641,6 +658,7 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "team_linking_optional": return buildTeamLinkingOptionalWindow(draft);
     case "default_schedule_confirm": return buildDefaultScheduleConfirmWindow(draft);
     case "activity_requirements": return buildActivityRequirementsWindow(draft);
+    case "fair_sim_rules": return buildFairSimRulesWindow(draft);
     case "settings_picker": return buildSettingsPickerWindow(draft);
     case "review": return buildLeagueSetupReviewWindow(draft);
   }

@@ -1,4 +1,5 @@
 import { EmbedBuilder, MessageFlags, type Interaction, type ModalSubmitInteraction } from "discord.js";
+import { sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
@@ -71,6 +72,27 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
         await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
       } catch (err) {
         console.error("[ERROR] Failed to save purchase cap setting:", err);
+      }
+    }
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesRegularSelect ||
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesPostseasonSelect ||
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesRegularSelect ||
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesPostseasonSelect
+  ) {
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesRegularSelect) draft.forceWinRulesRegular = sanitizeForceWinRuleKeys(interaction.values);
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesPostseasonSelect) draft.forceWinRulesPostseason = sanitizeForceWinRuleKeys(interaction.values);
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesRegularSelect) draft.fairSimRulesRegular = sanitizeFairSimRuleKeys(interaction.values);
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesPostseasonSelect) draft.fairSimRulesPostseason = sanitizeFairSimRuleKeys(interaction.values);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && interaction.guildId) {
+      try {
+        await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      } catch (err) {
+        console.error("[ERROR] Failed to save Force Win/Fair Sim rule selection:", err);
       }
     }
     return interaction.update(buildLeagueSetupWindow(draft));
@@ -428,6 +450,30 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
     return interaction.update(buildLeagueSetupWindow(draft));
   }
 
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesDone) {
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, "features"));
+    }
+    draft.step = getNextLeagueSetupStep("activity_requirements", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesDone) {
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, "features"));
+    }
+    draft.step = getNextLeagueSetupStep("fair_sim_rules", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate || interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate) {
     setLeagueSetupFeatureAnswer(draft, interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate);
     applyLeagueSetupDependencies(draft);
@@ -515,34 +561,6 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }
-}
-
-export async function handleActivityRequirementsModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
-  if (!interaction.isModalSubmit()) return;
-  const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
-
-  draft.fairSimRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput).trim();
-  draft.forceWinRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput).trim();
-  leagueSetupSessions.set(interaction.user.id, draft);
-
-  if (interaction.isFromMessage()) await interaction.deferUpdate();
-  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  if (draft.editMode && interaction.guildId) {
-    try {
-      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
-    } catch (err) {
-      console.error("[ERROR] Failed to save activity requirements:", err);
-    }
-    draft.step = "settings_picker";
-    leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.editReply(buildSettingsPickerWindow(draft));
-  }
-
-  draft.step = getNextLeagueSetupStep(draft.step, draft);
-  leagueSetupSessions.set(interaction.user.id, draft);
-  return interaction.editReply(buildLeagueSetupWindow(draft));
 }
 
 export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {

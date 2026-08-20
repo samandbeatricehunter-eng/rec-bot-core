@@ -233,6 +233,10 @@ export const CreateLeagueSchema = z.object({
 
   fairSimRequirements: z.string().optional().nullable(),
   forceWinRequirements: z.string().optional().nullable(),
+  forceWinRulesRegular: z.array(z.string()).optional(),
+  forceWinRulesPostseason: z.array(z.string()).optional(),
+  fairSimRulesRegular: z.array(z.string()).optional(),
+  fairSimRulesPostseason: z.array(z.string()).optional(),
   announcementsChannelId: z.string().optional().nullable(),
   mainChatChannelId: z.string().optional().nullable(),
   powerRankingsChannelId: z.string().optional().nullable(),

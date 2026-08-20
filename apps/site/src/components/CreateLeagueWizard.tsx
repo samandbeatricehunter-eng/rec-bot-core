@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
-  CONFERENCE_ORDER, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS,
+  CONFERENCE_ORDER, FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS,
   type MaddenAttributeCode,
 } from "@rec/shared";
 import { siteApi } from "../lib/site-api.js";
@@ -13,7 +13,7 @@ import {
   MADDEN_LEAGUE_TEMPLATES,
 } from "../lib/league-templates.js";
 import {
-  CoreAttributePicker, CounterField, NumberField, Section, SelectField,
+  CheckboxGroupField, CoreAttributePicker, CounterField, NumberField, Section, SelectField,
   TextField, TextareaField, ToggleField,
 } from "./wizard/fields.js";
 import {
@@ -97,6 +97,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     setFairSimRequirements,
     forceWinRequirements,
     setForceWinRequirements,
+    forceWinRulesRegular,
+    setForceWinRulesRegular,
+    forceWinRulesPostseason,
+    setForceWinRulesPostseason,
+    fairSimRulesRegular,
+    setFairSimRulesRegular,
+    fairSimRulesPostseason,
+    setFairSimRulesPostseason,
     offensivePlayCallLimitsEnabled,
     setOffensivePlayCallLimitsEnabled,
     offensivePlayCallLimit,
@@ -855,10 +863,18 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               )}
               <SelectField label="Injury policy" hint="Controls in-game injury frequency."
                 value={injuryPolicy} onChange={setInjuryPolicy} options={INJURY_OPTIONS} />
-              <TextareaField label="Fair sim requirements" hint="Rules users must follow when simming (e.g. play caller restrictions, sim speed)."
-                value={fairSimRequirements} onChange={setFairSimRequirements} placeholder="Optional" />
-              <TextareaField label="Force win requirements" hint="Conditions under which a win may be awarded by admin (e.g. no-show, disconnect)."
-                value={forceWinRequirements} onChange={setForceWinRequirements} placeholder="Optional" />
+              <CheckboxGroupField label="Force win rules — regular season" hint="When any of these apply, a coach can request (or a commissioner can grant) a Force Win."
+                value={forceWinRulesRegular} onChange={setForceWinRulesRegular}
+                options={FORCE_WIN_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))} />
+              <CheckboxGroupField label="Force win rules — postseason"
+                value={forceWinRulesPostseason} onChange={setForceWinRulesPostseason}
+                options={FORCE_WIN_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))} />
+              <CheckboxGroupField label="Fair sim rules — regular season" hint="When any of these apply, the game is settled as a Fair Sim instead of played."
+                value={fairSimRulesRegular} onChange={setFairSimRulesRegular}
+                options={FAIR_SIM_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))} />
+              <CheckboxGroupField label="Fair sim rules — postseason"
+                value={fairSimRulesPostseason} onChange={setFairSimRulesPostseason}
+                options={FAIR_SIM_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))} />
             </Section>
 
             <Section title="Play Call Limits">

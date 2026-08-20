@@ -4,9 +4,12 @@ import {
   ButtonStyle,
   EmbedBuilder,
   ModalBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
+import { FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import { LEAGUE_SETUP_CUSTOM_IDS, type LeagueSetupDraft } from "./league-setup-types.js";
 import { baseEmbed, option, selectRow } from "./league-setup-shared.js";
@@ -272,49 +275,79 @@ export function buildCpuTradingRestrictionModal(draft: LeagueSetupDraft) {
     );
 }
 
+// Two small fixed-option multi-selects (regular season / postseason), each with independent
+// Force Win eligibility rules -- replaces the old free-text "Force Win Requirements" modal,
+// which described a policy but had no logic behind it (see packages/shared/fw-fs-rules.ts).
 export function buildActivityRequirementsWindow(draft: LeagueSetupDraft) {
-  const lines = [
-    `League: **${draft.name}**`,
-    "",
-    "Enter your league's Fair Sim and Force Win rules. These appear in the rules panel and game channel embeds.",
-    "",
-    draft.fairSimRequirements ? `**Fair Sim:** ${draft.fairSimRequirements}` : "Fair Sim: Not set",
-    draft.forceWinRequirements ? `**Force Win:** ${draft.forceWinRequirements}` : "Force Win: Not set"
-  ].join("\n");
+  const embed = new EmbedBuilder()
+    .setTitle("League Setup: Force Win Rules")
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Select every condition that should let a coach request (or a commissioner grant) a Force Win. Selecting **Never granted** overrides any other selection for that season stage.",
+    ].join("\n"));
+
+  function row(customId: string, selected: string[]) {
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(customId)
+        .setPlaceholder("Select Force Win rules")
+        .setMinValues(0)
+        .setMaxValues(FORCE_WIN_RULE_OPTIONS.length)
+        .addOptions(
+          ...FORCE_WIN_RULE_OPTIONS.map((opt) =>
+            new StringSelectMenuOptionBuilder().setLabel(opt.label).setDescription(opt.description.slice(0, 100)).setValue(opt.key).setDefault(selected.includes(opt.key))
+          )
+        )
+    );
+  }
+
   return {
-    embeds: [new EmbedBuilder().setTitle("League Setup: Activity Requirements").setDescription(lines)],
+    embeds: [embed],
     components: [
+      row(LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesRegularSelect, draft.forceWinRulesRegular),
+      row(LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesPostseasonSelect, draft.forceWinRulesPostseason),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen).setLabel("Enter Activity Requirements").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip).setLabel("Skip / Continue").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesDone).setLabel(draft.editMode ? "Save & Continue" : "Continue").setStyle(ButtonStyle.Success)
       ),
       buildNavigationRow()
     ]
   };
 }
 
-export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
-  return new ModalBuilder()
-    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal)
-    .setTitle("Activity Requirements")
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput)
-          .setLabel("Fair Sim Requirements")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(false)
-          .setValue(draft.fairSimRequirements ?? "")
-          .setPlaceholder("Fair Sims are the default when users fail to schedule before advance.")
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput)
-          .setLabel("Force Win Requirements")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(false)
-          .setValue(draft.forceWinRequirements ?? "")
-          .setPlaceholder("Force Wins when one user misses an agreed game time by 1 hour.")
-      )
+export function buildFairSimRulesWindow(draft: LeagueSetupDraft) {
+  const embed = new EmbedBuilder()
+    .setTitle("League Setup: Fair Sim Rules")
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Select every condition where the game should be settled as a Fair Sim instead of played.",
+    ].join("\n"));
+
+  function row(customId: string, selected: string[]) {
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(customId)
+        .setPlaceholder("Select Fair Sim rules")
+        .setMinValues(0)
+        .setMaxValues(FAIR_SIM_RULE_OPTIONS.length)
+        .addOptions(
+          ...FAIR_SIM_RULE_OPTIONS.map((opt) =>
+            new StringSelectMenuOptionBuilder().setLabel(opt.label).setDescription(opt.description.slice(0, 100)).setValue(opt.key).setDefault(selected.includes(opt.key))
+          )
+        )
     );
+  }
+
+  return {
+    embeds: [embed],
+    components: [
+      row(LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesRegularSelect, draft.fairSimRulesRegular),
+      row(LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesPostseasonSelect, draft.fairSimRulesPostseason),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesDone).setLabel(draft.editMode ? "Save & Continue" : "Continue").setStyle(ButtonStyle.Success)
+      ),
+      buildNavigationRow()
+    ]
+  };
 }

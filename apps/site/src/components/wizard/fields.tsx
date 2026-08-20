@@ -52,6 +52,31 @@ export function ToggleField({ label, hint, checked, onChange, disabled, desc }: 
   );
 }
 
+// Small fixed-option multi-select (checkbox list) — for FW/FS rule pickers and anything else
+// with a short, non-searchable option set. CoreAttributePicker below is the searchable/grouped
+// variant for larger option sets; this is the simpler sibling for a handful of options.
+export function CheckboxGroupField({ label, hint, value, onChange, options }: {
+  label: string; hint?: string; value: string[]; onChange: (v: string[]) => void;
+  options: { value: string; label: string }[];
+}) {
+  function toggle(optionValue: string) {
+    onChange(value.includes(optionValue) ? value.filter((v) => v !== optionValue) : [...value, optionValue]);
+  }
+  return (
+    <div className="site-field">
+      <FieldLabel label={label} hint={hint} />
+      <div className="settings-multiselect">
+        {options.map((o) => (
+          <label key={o.value} className="settings-multiselect-option">
+            <input type="checkbox" checked={value.includes(o.value)} onChange={() => toggle(o.value)} />
+            <span>{o.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Counter (stepper) input for caps: a toggle pair plus a read-only value, so commissioners can
 // bump a cap up/down without fighting a native number input that refuses to clear its default 0.
 // 0 always means "no limit" for purchase caps and is labelled as such via unlimitedLabel.

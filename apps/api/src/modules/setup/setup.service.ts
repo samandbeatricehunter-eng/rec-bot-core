@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, type LeagueTemplateId } from "@rec/shared";
+import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys, type LeagueTemplateId } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -335,6 +335,10 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
 
     ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
     ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {}),
+    ...(input.forceWinRulesRegular != null ? { force_win_rules_regular: sanitizeForceWinRuleKeys(input.forceWinRulesRegular) } : {}),
+    ...(input.forceWinRulesPostseason != null ? { force_win_rules_postseason: sanitizeForceWinRuleKeys(input.forceWinRulesPostseason) } : {}),
+    ...(input.fairSimRulesRegular != null ? { fair_sim_rules_regular: sanitizeFairSimRuleKeys(input.fairSimRulesRegular) } : {}),
+    ...(input.fairSimRulesPostseason != null ? { fair_sim_rules_postseason: sanitizeFairSimRuleKeys(input.fairSimRulesPostseason) } : {}),
     default_schedule_seed_requested: input.seedDefaultSchedule ?? false,
   };
 
@@ -1276,6 +1280,10 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
     ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
     ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {}),
+    ...(input.forceWinRulesRegular != null ? { force_win_rules_regular: sanitizeForceWinRuleKeys(input.forceWinRulesRegular) } : {}),
+    ...(input.forceWinRulesPostseason != null ? { force_win_rules_postseason: sanitizeForceWinRuleKeys(input.forceWinRulesPostseason) } : {}),
+    ...(input.fairSimRulesRegular != null ? { fair_sim_rules_regular: sanitizeFairSimRuleKeys(input.fairSimRulesRegular) } : {}),
+    ...(input.fairSimRulesPostseason != null ? { fair_sim_rules_postseason: sanitizeFairSimRuleKeys(input.fairSimRulesPostseason) } : {}),
     default_schedule_seed_requested: input.seedDefaultSchedule ?? false,
   };
 
@@ -1454,6 +1462,10 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     defensivePlayCallCooldown: c.defensive_play_call_cooldown ?? null,
     fairSimRequirements: c.fair_sim_requirements || "Fair Sims are the default for any game where users fail to schedule their game prior to advance time.",
     forceWinRequirements: c.force_win_requirements || "Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.",
+    forceWinRulesRegular: sanitizeForceWinRuleKeys(c.force_win_rules_regular),
+    forceWinRulesPostseason: sanitizeForceWinRuleKeys(c.force_win_rules_postseason),
+    fairSimRulesRegular: sanitizeFairSimRuleKeys(c.fair_sim_rules_regular),
+    fairSimRulesPostseason: sanitizeFairSimRuleKeys(c.fair_sim_rules_postseason),
     announcementsChannelId: r.announcements_channel_id ?? null,
     powerRankingsChannelId: r.power_rankings_channel_id ?? null,
     streamsChannelId: r.streams_channel_id ?? null,

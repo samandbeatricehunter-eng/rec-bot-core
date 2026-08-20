@@ -1,3 +1,4 @@
+import { sanitizeForceWinRuleKeys } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEffectiveAvailability } from "./availability.service.js";
@@ -300,6 +301,14 @@ export async function requestForceWin(input: { gameId: string; discordId: string
   if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only a checked-in coach in this matchup can request a Force Win.");
   const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
   if (!opponentId) throw new ApiError(400, "This game has no opponent to request a Force Win against.");
+
+  const leagueStageRow = await supabase.from("rec_leagues").select("season_stage").eq("id", game.league_id).maybeSingle();
+  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"].includes(String(leagueStageRow.data?.season_stage ?? ""));
+  const config = await supabase.from("rec_league_configuration").select("force_win_rules_regular,force_win_rules_postseason").eq("league_id", game.league_id).maybeSingle();
+  const activeRules = sanitizeForceWinRuleKeys(isPostseason ? config.data?.force_win_rules_postseason : config.data?.force_win_rules_regular);
+  if (!activeRules.includes("missed_window")) {
+    throw new ApiError(403, "Force Win for a missed kickoff window is not enabled for this league.");
+  }
 
   const checkins = await supabase.from("rec_game_kickoff_checkins").select("user_id").eq("game_id", input.gameId);
   if (checkins.error) throw new ApiError(500, "Failed to verify check-in status.", checkins.error);

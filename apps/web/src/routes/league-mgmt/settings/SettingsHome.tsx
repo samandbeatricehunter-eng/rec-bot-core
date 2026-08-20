@@ -249,6 +249,26 @@ export function SettingsHome() {
                           onChange={(e) => setField(field.key, e.target.value)}
                         />
                       )}
+                      {field.type === "multiselect" && (() => {
+                        const selected = Array.isArray(draft[field.key]) ? draft[field.key] as string[] : [];
+                        return (
+                          <div className="settings-multiselect">
+                            {field.options?.map((opt) => {
+                              const checked = selected.includes(opt.value);
+                              return (
+                                <label key={opt.value} className="settings-multiselect-option">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => setField(field.key, checked ? selected.filter((v) => v !== opt.value) : [...selected, opt.value])}
+                                  />
+                                  <span>{opt.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                   {field.hint && <p className="form-hint">{field.hint}</p>}

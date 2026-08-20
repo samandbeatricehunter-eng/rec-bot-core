@@ -2120,6 +2120,9 @@ h1, h2, h3, .site-wordmark {
 .site-field-checkbox input {
   width: auto;
 }
+.settings-multiselect { display: flex; flex-direction: column; gap: 4px; padding: var(--space-2, 8px) var(--space-3, 12px); border: 1px solid var(--border, rgba(255,255,255,.12)); border-radius: var(--radius-sm, 4px); }
+.settings-multiselect-option { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; cursor: pointer; }
+.settings-multiselect-option input { width: auto; }
 .site-modal-close {
   position: absolute;
   top: 12px;

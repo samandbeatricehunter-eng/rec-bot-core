@@ -65,6 +65,12 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   activityRequirementsModal: "rec:league_setup:activity_requirements_modal",
   fairSimInput: "rec:league_setup:fair_sim_input",
   forceWinInput: "rec:league_setup:force_win_input",
+  forceWinRulesRegularSelect: "rec:league_setup:fw_rules_regular",
+  forceWinRulesPostseasonSelect: "rec:league_setup:fw_rules_postseason",
+  forceWinRulesDone: "rec:league_setup:fw_rules_done",
+  fairSimRulesRegularSelect: "rec:league_setup:fs_rules_regular",
+  fairSimRulesPostseasonSelect: "rec:league_setup:fs_rules_postseason",
+  fairSimRulesDone: "rec:league_setup:fs_rules_done",
   settingsPicker: "rec:league_setup:settings_picker",
   customCoachesRequired: "rec:league_setup:custom_coaches_required",
   customPlaybooksAllowedSelect: "rec:league_setup:custom_playbooks_allowed",
@@ -194,6 +200,7 @@ export type LeagueSetupStep =
   | "team_linking_optional"
   | "default_schedule_confirm"
   | "activity_requirements"
+  | "fair_sim_rules"
   | "settings_picker"
   | "review";
 
@@ -305,8 +312,14 @@ export type LeagueSetupDraft = {
   linkTeamsAfterSetup: boolean;
   /** null until the commissioner answers the franchise Year 1 / default schedule question. */
   seedDefaultSchedule: boolean | null;
+  // Legacy free-text copy -- no longer collected by this wizard (see fair_sim_rules /
+  // activity_requirements steps below), kept only so existing drafts/API payloads round-trip.
   fairSimRequirements: string;
   forceWinRequirements: string;
+  forceWinRulesRegular: string[];
+  forceWinRulesPostseason: string[];
+  fairSimRulesRegular: string[];
+  fairSimRulesPostseason: string[];
   announcementsChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   streamsChannelId?: string | null;
@@ -396,6 +409,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "defensive_cooldown",
   "team_linking_optional",
   "activity_requirements",
+  "fair_sim_rules",
   "default_schedule_confirm",
   "review"
 ];
@@ -502,6 +516,10 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     seedDefaultSchedule: null,
     fairSimRequirements: "Fair Sims are the default for any game where users fail to schedule their game prior to advance time.",
     forceWinRequirements: "Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.",
+    forceWinRulesRegular: [],
+    forceWinRulesPostseason: [],
+    fairSimRulesRegular: [],
+    fairSimRulesPostseason: [],
     announcementsChannelId: null,
     powerRankingsChannelId: null,
     streamsChannelId: null,
@@ -577,8 +595,10 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // CFB has no Salary Cap, Trade Deadline, or Abilities gameplay toggles.
   if (isCfb && step === "accelerated_clock_seconds") return "wear_and_tear";
 
+  if (isCfb && step === "fair_sim_rules") return "review";
+
   // CFB has no NFL default-schedule seeding question.
-  if (isCfb && step === "activity_requirements") return "review";
+  if (isCfb && step === "activity_requirements") return "fair_sim_rules";
 
   // CFB drops Position Change Policy entirely, and Coach Abilities/Trade Approval/CPU Trading
   // after Custom Playbooks — it keeps Custom Coaches Required and Custom Playbooks Allowed.

@@ -962,8 +962,17 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   postseasonStreamingRequirement: text("postseason_streaming_requirement").notNull().default("required"),
   offensivePlayCallCooldownEnabled: boolean("offensive_play_call_cooldown_enabled").notNull().default(false),
   defensivePlayCallCooldownEnabled: boolean("defensive_play_call_cooldown_enabled").notNull().default(false),
+  // Legacy free-text copy -- kept for one release as a fallback while the game-channel embeds
+  // migrate to reading the structured arrays below instead.
   fairSimRequirements: text("fair_sim_requirements"),
   forceWinRequirements: text("force_win_requirements"),
+  // Structured FW/FS policy, split by season stage. Values are keys from FORCE_WIN_RULE_KEYS /
+  // FAIR_SIM_RULE_KEYS (packages/shared) -- see requestForceWin/resolveCantMakeGame for the
+  // gates that actually read these.
+  forceWinRulesRegular: text("force_win_rules_regular").array().notNull().default([]),
+  forceWinRulesPostseason: text("force_win_rules_postseason").array().notNull().default([]),
+  fairSimRulesRegular: text("fair_sim_rules_regular").array().notNull().default([]),
+  fairSimRulesPostseason: text("fair_sim_rules_postseason").array().notNull().default([]),
   customCoachesRequired: boolean("custom_coaches_required").notNull().default(false),
   coachAbilitiesRestricted: boolean("coach_abilities_restricted").notNull().default(false),
   coachAbilitiesRestrictionNotes: text("coach_abilities_restriction_notes"),

@@ -3,6 +3,8 @@
 // from this package); this covers the subset a coach actually needs to check mid-season,
 // grouped for a Discord embed. Custom Rules (free-text, commissioner-authored) come from the
 // same draft and get their own category per the draft's own `category` field.
+import { fairSimRuleLabel, forceWinRuleLabel } from "@rec/shared";
+
 export type RuleRow = { label: string; value: string };
 export type RuleCategory = { key: string; label: string; rows: RuleRow[] };
 
@@ -19,6 +21,11 @@ function row(l: string, value: unknown): RuleRow | null {
 
 function compact(rows: Array<RuleRow | null>): RuleRow[] {
   return rows.filter((r): r is RuleRow => r !== null);
+}
+
+function formatRuleKeyList(keys: unknown, labeler: (key: string) => string): string | null {
+  if (!Array.isArray(keys) || keys.length === 0) return null;
+  return keys.map((k) => labeler(String(k))).join(", ");
 }
 
 export function buildRuleCategories(draft: Record<string, any>): RuleCategory[] {
@@ -54,8 +61,10 @@ export function buildRuleCategories(draft: Record<string, any>): RuleCategory[] 
     key: "fs_fw",
     label: "Fair Sim / Force Win",
     rows: compact([
-      row("Fair Sim", draft.fairSimRequirements),
-      row("Force Win", draft.forceWinRequirements),
+      row("Fair Sim — Regular", formatRuleKeyList(draft.fairSimRulesRegular, fairSimRuleLabel)),
+      row("Fair Sim — Postseason", formatRuleKeyList(draft.fairSimRulesPostseason, fairSimRuleLabel)),
+      row("Force Win — Regular", formatRuleKeyList(draft.forceWinRulesRegular, forceWinRuleLabel)),
+      row("Force Win — Postseason", formatRuleKeyList(draft.forceWinRulesPostseason, forceWinRuleLabel)),
     ]),
   });
 

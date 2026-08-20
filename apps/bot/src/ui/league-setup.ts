@@ -71,7 +71,7 @@ export {
   buildCpuRulesWindow,
   buildCpuTradingRestrictionModal,
   buildActivityRequirementsWindow,
-  buildActivityRequirementsModal
+  buildFairSimRulesWindow
 } from "./league-setup-rules.js";
 
 export {
