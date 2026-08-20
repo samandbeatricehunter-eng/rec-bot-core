@@ -8,6 +8,16 @@ providers = ["node"]
 [phases.setup]
 nixPkgs = ["nodejs_22"]
 
+# PLAYWRIGHT_BROWSERS_PATH=0 forces Playwright to install Chromium inside
+# node_modules/playwright-core/.local-browsers instead of the default ~/.cache/ms-playwright.
+# The default cache-dir location is a classic PaaS trap: the build phase and the running
+# container don't always share the same $HOME/user, so a browser downloaded during install can
+# be invisible to the app at runtime ("Executable doesn't exist" from chromium.launch()) even
+# though the install step itself reported success. Keeping it inside node_modules ties the
+# browser to the deployed app files themselves, which always persist into the runtime image.
+[variables]
+PLAYWRIGHT_BROWSERS_PATH = "0"
+
 [phases.install]
 cmds = [
   "corepack enable",

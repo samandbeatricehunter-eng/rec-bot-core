@@ -278,9 +278,16 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
 
   // Best-effort: the game-channel post must go out even if Chromium is unavailable or the
   // render times out (e.g. a fresh deploy still warming up) -- the card image is a nice-to-have
-  // on top of the header embed, not a hard dependency for the channel to be usable.
+  // on top of the header embed, not a hard dependency for the channel to be usable. Raced against
+  // an outer timeout as a last-resort safety net -- renderMatchupCardPng has its own internal
+  // timeouts, but if Chromium itself hangs on launch (the classic "no sandbox capability in this
+  // container" failure mode) rather than rejecting, nothing inside it can catch that; this makes
+  // sure a stuck render can never block the rest of a week's channel creation.
   const png = input.game.gameId
-    ? await renderMatchupCardPng(input.game.gameId).catch((error) => {
+    ? await Promise.race([
+        renderMatchupCardPng(input.game.gameId),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Matchup card render timed out (outer 20s safety net)")), 20_000)),
+      ]).catch((error) => {
         console.error("[ERROR] Failed to render matchup card for game channel (non-fatal):", error);
         return null;
       })
