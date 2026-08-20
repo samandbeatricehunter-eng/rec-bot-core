@@ -8,10 +8,8 @@ import { isMissingDiscordAccountError, recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
 import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
 import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionButton, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
-import { GAME_CHANNEL_PAGE_PREFIX, handleGameChannelPage } from "./flows/game-channel-pages.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import { GOTW_CUSTOM_IDS, handleGotwConfirm, handleGotwPollsMenu, handleGotwSelect, handleRerunGotwPolls, handleSetGotw } from "./flows/gotw.js";
-import { handleGameChannels } from "./flows/game-channels.js";
 import {
   EOS_PAYOUT_CUSTOM_IDS,
   TROUBLESHOOT_EOS_CUSTOM_IDS,
@@ -775,12 +773,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith("rec:gotw_vote:")) {
       await interaction.reply({ content: "GOTW vote received.", flags: MessageFlags.Ephemeral });
       return;
-    }
-
-    // Game-channel page flips are public and persistent (no menu session): route
-    // them before the session-touch guard so any player can use them anytime.
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_CHANNEL_PAGE_PREFIX)) {
-      return handleGameChannelPage(interaction);
     }
 
     // EOS payout reviews live on public pending-payouts messages with no menu

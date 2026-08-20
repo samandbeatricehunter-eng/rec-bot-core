@@ -57,7 +57,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtGotwPolls: "rec:league_mgmt:advance:gotw_polls",
   leagueMgmtSetGotw: "rec:league_mgmt:advance:set_gotw",
   leagueMgmtRerunGotw: "rec:league_mgmt:advance:rerun_gotw",
-  leagueMgmtGameChannels: "rec:league_mgmt:advance:game_channels",
   leagueMgmtSetWeek: "rec:league_mgmt:advance:set_week",
   leagueMgmtSetSeason: "rec:league_mgmt:advance:set_season",
   leagueMgmtEosActions: "rec:league_mgmt:advance:eos_actions",

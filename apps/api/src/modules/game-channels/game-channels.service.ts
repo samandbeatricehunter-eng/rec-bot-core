@@ -1,12 +1,14 @@
+import { fairSimRuleLabel, forceWinRuleLabel } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage, postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { postSchedulingPanel, startResponseClock } from "../scheduling/matchup-scheduling.service.js";
+import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 
 const DASHING_NOTICE = "⚠️ **DASHING (QUITTING IN 1ST HALF) IS NOT ALLOWED.**\nUsers can **CONCEDE** the game in the **2ND HALF**, but quitting in the first will result in getting booted, banned, and your username shared on all major Madden gaming servers.";
 
@@ -167,40 +169,59 @@ async function discordIdsByUserId(userIds: string[]) {
   return new Map<string, string>((data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
 }
 
+function ruleKeyBullets(keys: unknown, labeler: (key: string) => string): string {
+  const list = Array.isArray(keys) ? keys.filter(Boolean) : [];
+  if (!list.length) return "_Not configured for this stage._";
+  return list.map((key: string) => `• ${labeler(key)}`).join("\n");
+}
+
 // Extracted so the site game chat can seed a "channel opened" system-message card with the
-// exact same content as the Discord embed below, instead of duplicating (or faking) it.
+// exact same content as the Discord embeds below, instead of duplicating (or faking) it.
 function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
   const awayDiscordId = input.game.awayUserId ? input.discordByUserId.get(input.game.awayUserId) : null;
   const homeDiscordId = input.game.homeUserId ? input.discordByUserId.get(input.game.homeUserId) : null;
   const mentionIds = [awayDiscordId, homeDiscordId].filter(Boolean) as string[];
   const mentions = mentionIds.map((id) => `<@${id}>`);
   const isPlayoff = input.weekNumber > 16;
-  const fs = String(input.draft?.fairSimRequirements ?? "Fair Sims are the default when users do not complete a game before advance.");
-  const fw = String(input.draft?.forceWinRequirements ?? "Force Wins can be requested when scheduling rules are met and one user misses the agreed time.");
+  const fwKeys = isPlayoff ? input.draft?.forceWinRulesPostseason : input.draft?.forceWinRulesRegular;
+  const fsKeys = isPlayoff ? input.draft?.fairSimRulesPostseason : input.draft?.fairSimRulesRegular;
   const gotwRule = input.isGotw ? gotwStreamingText(input.draft, awayDiscordId ? `<@${awayDiscordId}>` : null, homeDiscordId ? `<@${homeDiscordId}>` : null) : null;
+
+  const headerTitle = `Week ${input.weekNumber} · ${input.isGotw ? "GAME OF THE WEEK" : "H2H MATCHUP"}`;
+  const headerDescription = mentions.length
+    ? `${mentions.join(" @ ")}\n${input.game.awayTeamName} at ${input.game.homeTeamName}`
+    : `${input.game.awayTeamName} at ${input.game.homeTeamName}`;
+
+  const rulesFields = [
+    { name: "Fair Sim", value: ruleKeyBullets(fsKeys, fairSimRuleLabel), inline: false },
+    { name: "Force Win", value: ruleKeyBullets(fwKeys, forceWinRuleLabel), inline: false },
+    { name: "4th Down", value: fourthDownText(input.draft, isPlayoff), inline: false },
+    { name: "Streaming", value: gotwRule ? `${streamingText(input.draft, isPlayoff)}\nGOTW: ${gotwRule}` : streamingText(input.draft, isPlayoff), inline: false },
+  ];
+
+  // Plain-text mirror of the same content, used to seed the site game-chat "channel opened"
+  // system card -- that surface only renders a body string, not real Discord embeds.
   const lines = [
-    `**Week ${input.weekNumber} H2H${input.isGotw ? " · GAME OF THE WEEK" : ""}**`,
-    mentions.length ? `${mentions.join(" vs ")}, this is your head-to-head game channel.` : "This is the head-to-head game channel for this matchup.",
+    `**${headerTitle}**`,
+    headerDescription,
     "",
     "**Power Rankings**",
     rankLine(input.game.awayTeamName, input.game.awayTeamId, input.ranks),
     rankLine(input.game.homeTeamName, input.game.homeTeamId, input.ranks),
     "",
-    "**Game Rules**",
-    `4th Down: ${fourthDownText(input.draft, isPlayoff)}`,
-    `Streaming: ${streamingText(input.draft, isPlayoff)}`,
-    ...(gotwRule ? [`GOTW Streaming: ${gotwRule}`] : []),
-    "",
-    "**FS / FW**",
-    `Fair Sim: ${fs}`,
-    `Force Win: ${fw}`,
+    "**Rules**",
+    ...rulesFields.map((field) => `${field.name}:\n${field.value}`),
     "",
     DASHING_NOTICE,
     "",
     "**After the Game**",
     "Open this matchup's Chat on the REC site/app. Use the matchup actions there to submit the final box score, player stats, and highlights so records, payouts, reels, and stories update.",
   ];
-  return { mentionIds, mentions, lines, title: `${input.game.awayTeamName} at ${input.game.homeTeamName}` };
+  return {
+    mentionIds, mentions, lines,
+    title: `${input.game.awayTeamName} at ${input.game.homeTeamName}`,
+    headerTitle, headerDescription, rulesFields,
+  };
 }
 
 // Boot-safe one-time backfill for channels that existed before the intro embed gained the
@@ -253,15 +274,40 @@ export async function postDashingNoticeToActiveGameChannels() {
 
 async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
   const built = buildGameChannelIntroLines(input);
-  await postDiscordChannelMessage(input.channelId, {
+
+  const headerEmbed: Record<string, unknown> = {
+    title: built.headerTitle,
+    color: input.isGotw ? 0xd4af37 : 0xd9a521,
+    description: built.headerDescription,
+  };
+  const rulesEmbed: Record<string, unknown> = {
+    title: "Rules",
+    color: 0xd9a521,
+    fields: built.rulesFields,
+    description: DASHING_NOTICE,
+  };
+
+  // Best-effort: the game-channel post must go out even if Chromium is unavailable or the
+  // render times out (e.g. a fresh deploy still warming up) -- the card image is a nice-to-have
+  // on top of the header embed, not a hard dependency for the channel to be usable.
+  const png = input.game.gameId
+    ? await renderMatchupCardPng(input.game.gameId).catch((error) => {
+        console.error("[ERROR] Failed to render matchup card for game channel (non-fatal):", error);
+        return null;
+      })
+    : null;
+
+  const payload = {
     content: built.mentions.join(" "),
-    embeds: [{
-      title: built.title,
-      color: 0xd9a521,
-      description: built.lines.join("\n").slice(0, 4096),
-    }],
+    embeds: png ? [{ ...headerEmbed, image: { url: "attachment://matchup-card.png" } }, rulesEmbed] : [headerEmbed, rulesEmbed],
     allowed_mentions: { users: built.mentionIds },
-  });
+  };
+
+  if (png) {
+    await postDiscordChannelMessageWithFile(input.channelId, payload, { buffer: png, name: "matchup-card.png" });
+  } else {
+    await postDiscordChannelMessage(input.channelId, payload);
+  }
   return built;
 }
 
