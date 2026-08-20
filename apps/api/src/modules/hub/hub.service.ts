@@ -9,7 +9,7 @@ import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
-import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
+import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
@@ -492,6 +492,7 @@ export async function getHub(guildId: string, discordId: string) {
     ? null
     : await assertGuildPermission(guildId, discordId, "commissioner").then(() => "commissioner" as const).catch(() => "co_commissioner" as const);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
 
@@ -553,10 +554,12 @@ export async function getHub(guildId: string, discordId: string) {
         iframeUrl: streamed.iframeUrl,
       };
     })),
-    supabase
-      .from("rec_games")
-      .select("week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
-      .eq("league_id", context.leagueId),
+    // Same cross-season leakage risk as the matchup-schedule week selector above: unscoped by
+    // season, a (week_number, home_team_id, away_team_id) pairing that recurs in a later season
+    // (common with stable team rosters) could resolve a highlight's matchup label against last
+    // season's game instead of the current one.
+    leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId },
+      "week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)"),
     supabase
       .from("rec_stream_compliance_logs")
       .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
@@ -1363,15 +1366,18 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         .then(() => undefined);
     }));
   }
-  let gamesQuery = supabase
-    .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),rivalry:rec_league_rivalries(rivalry_name)")
-    .eq("league_id", context.leagueId)
-    .eq("week_number", selectedWeek);
-  if (seasonId) gamesQuery = gamesQuery.eq("season_id", seasonId);
+  const gamesQuery = leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: selectedWeek },
+    "id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),rivalry:rec_league_rivalries(rivalry_name)");
   const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll] = await Promise.all([
     gamesQuery,
-    supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),
+    // Was league_id-only (no season scope) -- once a league reached its second season this
+    // pulled every week number that ever had a game, including the prior season's postseason
+    // weeks (e.g. CFB's 15-19), into the week selector. Picking one of those correctly returned
+    // zero games from gamesQuery above (season_id-scoped), but the selector itself was
+    // advertising weeks/stages that don't exist yet in the current season -- the recurring
+    // cross-season leakage bug (see league-games.query.ts) reaching a spot that predates the
+    // canonical helper.
+    leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId }, "week_number").order("week_number", { ascending: true }),
     supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     // No `gte(posted_at, streamLiveSince())` floor here (unlike the "watch now" queries
     // elsewhere) — a stream older than the 2h live window still tells us the game was
