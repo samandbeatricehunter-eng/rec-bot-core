@@ -276,18 +276,6 @@ export async function postDashingNoticeToActiveGameChannels() {
 async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
   const built = buildGameChannelIntroLines(input);
 
-  const headerEmbed: Record<string, unknown> = {
-    title: built.headerTitle,
-    color: input.isGotw ? 0xd4af37 : 0xd9a521,
-    description: built.headerDescription,
-  };
-  const rulesEmbed: Record<string, unknown> = {
-    title: "Rules",
-    color: 0xd9a521,
-    fields: built.rulesFields,
-    description: DASHING_NOTICE,
-  };
-
   // Best-effort: the game-channel post must go out even if Chromium is unavailable or the
   // render times out (e.g. a fresh deploy still warming up) -- the card image is a nice-to-have
   // on top of the header embed, not a hard dependency for the channel to be usable.
@@ -297,6 +285,20 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
         return null;
       })
     : null;
+
+  // The card image already shows the matchup -- the "Away at Home" text description is only
+  // needed as a fallback for when the render didn't come through.
+  const headerEmbed: Record<string, unknown> = {
+    title: built.headerTitle,
+    color: input.isGotw ? 0xd4af37 : 0xd9a521,
+    ...(png ? {} : { description: built.headerDescription }),
+  };
+  const rulesEmbed: Record<string, unknown> = {
+    title: "Rules",
+    color: 0xd9a521,
+    fields: built.rulesFields,
+    description: DASHING_NOTICE,
+  };
 
   // Coach mentions live ONLY in the message content, not the header embed's description -- an
   // embed mention never triggers a Discord ping/notification, so this is the one place that
