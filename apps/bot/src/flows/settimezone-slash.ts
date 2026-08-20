@@ -10,7 +10,7 @@ export const SETTIMEZONE_CUSTOM_IDS = {
   otherModal: "rec:settz:other_modal",
 };
 
-const ZONE_OPTIONS: Array<{ label: string; value: string; iana: string }> = [
+export const ZONE_OPTIONS: Array<{ label: string; value: string; iana: string }> = [
   { label: "Eastern", value: "eastern", iana: "America/New_York" },
   { label: "Central", value: "central", iana: "America/Chicago" },
   { label: "Mountain", value: "mountain", iana: "America/Denver" },

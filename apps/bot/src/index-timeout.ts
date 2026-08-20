@@ -144,12 +144,18 @@ import { handleStandingsSlash } from "./flows/standings-slash.js";
 import { handleWalletSlash } from "./flows/wallet-slash.js";
 import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
 import { handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
-import { handleSetAvailabilityDay, handleSetAvailabilityModal, SETAVAILABILITY_CUSTOM_IDS } from "./flows/availability-slash.js";
+import {
+  AVAILABILITY_WIZARD_CUSTOM_IDS,
+  handleAvailabilityWizardButton,
+  handleAvailabilityWizardDateModal,
+  handleAvailabilityWizardDayModal,
+  handleAvailabilityWizardTimezoneOtherModal,
+  handleAvailabilityWizardTimezoneSelect,
+} from "./flows/availability-wizard.js";
 import { handleRulesSlash, handleRulesPage, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import {
   AVAILABILITY_BOARD_CUSTOM_IDS,
   handleBoardSetAvailability, handleBoardSetTimezone, handleBoardThisWeek,
-  handleBoardThisWeekDaySelect, handleBoardThisWeekModal,
 } from "./flows/availability-board-panel.js";
 import {
   GAME_SCHEDULING_CUSTOM_IDS,
@@ -668,16 +674,26 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    // /settimezone and /setavailability were removed as standalone slash commands -- the
-    // League Availability panel's Set Timezone/Set Availability buttons (and the site) cover
-    // the same flows now. handleSetTimezoneSlash/handleSetAvailabilitySlash and their
-    // select/modal follow-ups stay wired since availability-board-panel.ts's button handlers
-    // still call straight into them.
+    // /settimezone was removed as a standalone slash command -- the League Availability panel's
+    // Set Timezone button (and the site) cover the same flow now. handleSetTimezoneSlash and its
+    // select/modal follow-ups stay wired since availability-board-panel.ts's button handler
+    // still calls straight into them.
     if (interaction.isStringSelectMenu() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.select) return handleSetTimezoneSelect(interaction);
     if (interaction.isModalSubmit() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.otherModal) return handleSetTimezoneOtherModal(interaction);
 
-    if (interaction.isButton() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.dayPrefix)) return handleSetAvailabilityDay(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(SETAVAILABILITY_CUSTOM_IDS.modalPrefix)) return handleSetAvailabilityModal(interaction);
+    if (interaction.isButton() && (
+      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.modeRoutine ||
+      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.modeTemporary ||
+      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.next ||
+      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.back ||
+      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.done ||
+      interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dayPrefix) ||
+      interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.datePrefix)
+    )) return handleAvailabilityWizardButton(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dayModalPrefix)) return handleAvailabilityWizardDayModal(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dateModalPrefix)) return handleAvailabilityWizardDateModal(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.tzSelect) return handleAvailabilityWizardTimezoneSelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.tzOtherModal) return handleAvailabilityWizardTimezoneOtherModal(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "rules") {
       await handleRulesSlash(interaction);
@@ -717,8 +733,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setAvailability) return handleBoardSetAvailability(interaction);
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setTimezone) return handleBoardSetTimezone(interaction);
     if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.thisWeek) return handleBoardThisWeek(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.thisWeekDaySelect) return handleBoardThisWeekDaySelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_BOARD_CUSTOM_IDS.thisWeekModalPrefix)) return handleBoardThisWeekModal(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);

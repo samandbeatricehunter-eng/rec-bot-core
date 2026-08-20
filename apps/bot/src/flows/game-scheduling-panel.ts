@@ -8,6 +8,7 @@ import { userFacingError } from "../lib/errors.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { openCustomTimePicker } from "./custom-time-picker.js";
+import { startAvailabilityWizard } from "./availability-wizard.js";
 
 export const GAME_SCHEDULING_CUSTOM_IDS = {
   panelAvailability: "rec:gamesched:panel:availability:",
@@ -83,16 +84,8 @@ async function replyErr(interaction: ButtonInteraction | ModalSubmitInteraction 
 
 export async function handleAdjustAvailability(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability, interaction.customId);
   try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    const best = suggestions.bestWindow
-      ? `Best shared window: **${fmtUtc(suggestions.bestWindow.kickoffUtc)}** – ${fmtUtc(suggestions.bestWindow.windowEndUtc)}`
-      : "No shared availability found yet before the deadline.";
-    await interaction.editReply({
-      content: `${best}\n\nUse the Set Availability / Set Timezone buttons on the League Availability panel to update your own availability (or the Availability button on the site).`,
-    });
+    await startAvailabilityWizard(interaction);
   } catch (error) {
     await replyErr(interaction, error);
   }
