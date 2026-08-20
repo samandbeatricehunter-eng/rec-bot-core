@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import type { HubMatchupGame } from "../../types/api.js";
-import { useReadyAuth } from "../../lib/auth-context.js";
+import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { MatchupReactionBar } from "./MatchupReactionBar.js";
 import { TeamLogo } from "../ui/TeamLogo.js";
@@ -16,12 +16,16 @@ export function MatchupCard({
   game: initialGame,
   featured = false,
   showReactions = true,
+  renderMode = "site",
 }: {
   game: HubMatchupGame;
   featured?: boolean;
   showReactions?: boolean;
+  /** "discord" strips interactivity (link/reactions/hover) for the Playwright screenshot used in game-channel embeds. */
+  renderMode?: "site" | "discord";
 }) {
-  const { guildId } = useReadyAuth();
+  const auth = useAuth();
+  const guildId = auth.status === "ready" ? auth.guildId : "";
   const location = useLocation();
   const [game, setGame] = useState(initialGame);
   const [busy, setBusy] = useState(false);
@@ -32,7 +36,7 @@ export function MatchupCard({
 
   const isRivalry = Boolean(game.rivalryName);
   const isGotw = Boolean(game.isGameOfWeek);
-  const reactionsEnabled = showReactions && game.matchupType === "h2h";
+  const reactionsEnabled = renderMode !== "discord" && showReactions && game.matchupType === "h2h";
 
   const bottomTags = [
     isRivalry && isGotw ? <span key="gotw" className="rec-tag rec-tag--gotw">Game of the Week</span> : null,
@@ -121,7 +125,10 @@ export function MatchupCard({
   }
 
   const card = (
-    <article className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${isGotw ? " rec-matchup-card--gotw" : ""}`}>
+    <article
+      className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${isGotw ? " rec-matchup-card--gotw" : ""}${renderMode === "discord" ? " rec-matchup-card--render" : ""}`}
+      data-matchup-render={renderMode === "discord" ? "" : undefined}
+    >
       <span className="rec-matchup-card__sheen" aria-hidden="true" />
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
@@ -156,6 +163,8 @@ export function MatchupCard({
       ) : null}
     </article>
   );
+  if (renderMode === "discord") return <div className="rec-matchup-card-link render">{card}</div>;
+
   const leagueMatch = /^\/l\/([^/]+)\/matchups(?:\/|$)/.exec(location.pathname);
   const detailPath = leagueMatch
     ? `/l/${leagueMatch[1]}/matchups/${game.gameId}`

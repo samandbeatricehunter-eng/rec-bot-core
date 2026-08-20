@@ -34,6 +34,7 @@ const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default:
 const AdminPage = lazy(() => import("./routes/Admin.js").then((m) => ({ default: m.AdminPage })));
 const PublicLeague = lazy(() => import("./routes/PublicLeague.js").then((m) => ({ default: m.PublicLeague })));
 const Demo = lazy(() => import("./routes/Demo.js").then((m) => ({ default: m.Demo })));
+const RenderMatchup = lazy(() => import("./routes/render/RenderMatchup.js").then((m) => ({ default: m.RenderMatchup })));
 import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
@@ -230,6 +231,7 @@ function Routed() {
       <Route path="/terms" element={<Terms />} />
       <Route path="/league/:slug" element={<PublicLeague />} />
       <Route path="/demo" element={<Demo />} />
+      <Route path="/render/matchup/:gameId" element={<RenderMatchup />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

@@ -58,6 +58,10 @@ const EnvSchema = z.object({
   STRIPE_PRICE_GOLD_ANNUAL: z.string().optional(),
   STRIPE_PRICE_PLATINUM_ANNUAL: z.string().optional(),
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
+  // Signs the short-lived token the Playwright matchup-card render pipeline uses to fetch
+  // render data without a signed-in viewer (apps/api/src/lib/render-token.ts). Optional --
+  // falls back to SUPABASE_SERVICE_ROLE_KEY (always set) so this never needs a separate secret.
+  MATCHUP_RENDER_SECRET: z.string().optional(),
   API_CORS_ALLOWED_ORIGINS: z.string().optional(),
   // Web Push (Account page notification toggle). Optional so the API boots without it;
   // /v1/push/public-key returns null and the frontend just hides the button.

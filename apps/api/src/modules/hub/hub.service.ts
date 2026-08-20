@@ -7,7 +7,7 @@ import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
 import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
-import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -1578,6 +1578,27 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     isOffseason: false,
     offseasonStageLabel: null,
   };
+}
+
+// Unauthenticated variant of getHubMatchupSchedule/getHubMatchupDetail for the Playwright
+// render pipeline (apps/api/src/lib/matchup-render.ts) -- there's no signed-in viewer, so we
+// resolve guildId/discordId from the game itself instead of trusting a caller-supplied identity.
+export async function getMatchupCardRenderData(gameId: string) {
+  const gameRow = await supabase.from("rec_games").select("id,league_id,week_number,home_user_id,away_user_id").eq("id", gameId).maybeSingle();
+  if (gameRow.error) throw new ApiError(500, "We couldn't load that matchup. Please try again.", gameRow.error);
+  if (!gameRow.data) throw new ApiError(404, "Matchup not found.");
+  const game = gameRow.data as any;
+  const anchorUserId = game.home_user_id ?? game.away_user_id;
+  if (!anchorUserId) throw new ApiError(400, "CPU-vs-CPU matchups have no card to render.");
+
+  const routes = await findServerRoutesForLeague(game.league_id);
+  const guildId = routes?.guildId ?? siteOnlyGuildId(game.league_id);
+  const discordId = siteOnlyDiscordId(anchorUserId);
+
+  const schedule = await getHubMatchupSchedule({ guildId, discordId, weekNumber: Number(game.week_number) });
+  const matchup = schedule.games.find((item: any) => item.gameId === gameId);
+  if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");
+  return matchup;
 }
 
 export async function getHubMatchupDetail(input: { guildId: string; discordId: string; gameId: string }) {

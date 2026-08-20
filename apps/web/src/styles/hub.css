@@ -2554,6 +2554,9 @@ button.poty:disabled {
 .rec-matchup-card--gotw { border-color:color-mix(in srgb,var(--accent) 62%,var(--border)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent),0 12px 32px rgba(0,0,0,.46),0 0 30px color-mix(in srgb,var(--accent) 26%,transparent); }
 
 @media (prefers-reduced-motion:reduce) { .rec-matchup-card__sheen { animation:none; } }
+/* Playwright screenshot target for Discord game-channel embeds -- freeze the sheen sweep so
+   the capture isn't dependent on which animation frame the headless browser lands on. */
+.rec-matchup-card--render .rec-matchup-card__sheen { animation:none; background-position:0 0,20% 0; }
 @media (max-width:640px) {
   .rec-matchup-list { gap:10px; }
   .rec-matchup-card,.rec-matchup-card--featured { grid-template-columns:minmax(0,1fr) 94px minmax(0,1fr); min-height:118px; border-radius:12px; }

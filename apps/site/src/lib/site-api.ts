@@ -1129,6 +1129,9 @@ export const siteApi = {
       body: JSON.stringify({ slug }),
     });
   },
+  getMatchupCardRenderData(gameId: string, token: string) {
+    return publicRequest<Record<string, unknown>>(`/v1/render/matchup/${gameId}?token=${encodeURIComponent(token)}`);
+  },
 };
 
 export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft";

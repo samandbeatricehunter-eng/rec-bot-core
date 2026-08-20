@@ -309,6 +309,31 @@ export async function postDiscordChannelMessage(channelId: string, payload: Reco
   return (await sent.json()) as { id: string } & Record<string, any>;
 }
 
+// Same as postDiscordChannelMessage but attaches a file (the Playwright-rendered matchup-card
+// PNG) alongside the embed/components JSON. Discord's multipart endpoint wants the JSON payload
+// under a "payload_json" field and each file under "files[n]" -- deliberately NOT setting a
+// content-type header ourselves so fetch's native FormData/Blob handling generates the correct
+// multipart boundary (setting content-type: application/json like the sibling function above
+// would break this).
+export async function postDiscordChannelMessageWithFile(
+  channelId: string,
+  payload: Record<string, unknown>,
+  file: { buffer: Buffer; name: string; contentType?: string },
+): Promise<({ id: string } & Record<string, any>) | null> {
+  const path = `/channels/${channelId}/messages`;
+  const form = new FormData();
+  form.set("payload_json", JSON.stringify(payload));
+  form.set("files[0]", new Blob([new Uint8Array(file.buffer)], { type: file.contentType ?? "image/png" }), file.name);
+  const init: RequestInit = { method: "POST", body: form };
+  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  if (!sent.ok) {
+    const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
+    console.error(`[WARN] Discord rejected postDiscordChannelMessageWithFile to channel ${channelId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
+    return null;
+  }
+  return (await sent.json()) as { id: string } & Record<string, any>;
+}
+
 export async function deleteDiscordMessage(channelId: string, messageId: string): Promise<void> {
   await bestEffort("discord.delete_message", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }), { entityId: messageId });
 }
