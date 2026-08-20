@@ -188,9 +188,10 @@ function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draf
   const gotwRule = input.isGotw ? gotwStreamingText(input.draft, awayDiscordId ? `<@${awayDiscordId}>` : null, homeDiscordId ? `<@${homeDiscordId}>` : null) : null;
 
   const headerTitle = `Week ${input.weekNumber} · ${input.isGotw ? "GAME OF THE WEEK" : "H2H MATCHUP"}`;
-  const headerDescription = mentions.length
-    ? `${mentions.join(" @ ")}\n${input.game.awayTeamName} at ${input.game.homeTeamName}`
-    : `${input.game.awayTeamName} at ${input.game.homeTeamName}`;
+  // Coach mentions live in the message content (postGameChannelIntro), not here -- an embed
+  // mention never triggers a Discord ping, so keeping them here too would tag the coaches
+  // twice for one actual notification.
+  const headerDescription = `${input.game.awayTeamName} at ${input.game.homeTeamName}`;
 
   const rulesFields = [
     { name: "Fair Sim", value: ruleKeyBullets(fsKeys, fairSimRuleLabel), inline: false },
@@ -297,12 +298,13 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
       })
     : null;
 
-  // Coach mentions live only in the header embed's description, not the message content --
-  // an embed mention never triggers a Discord ping/notification, so having them in BOTH content
-  // AND the embed (the original design) just rendered the same tag twice in the channel.
+  // Coach mentions live ONLY in the message content, not the header embed's description -- an
+  // embed mention never triggers a Discord ping/notification, so this is the one place that
+  // needs them for the channel-creation ping to actually fire.
   const payload = {
+    content: built.mentions.join(" "),
     embeds: png ? [{ ...headerEmbed, image: { url: "attachment://matchup-card.png" } }, rulesEmbed] : [headerEmbed, rulesEmbed],
-    allowed_mentions: { parse: [] },
+    allowed_mentions: { users: built.mentionIds },
   };
 
   if (png) {
