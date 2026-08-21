@@ -524,19 +524,24 @@ export type EaImportProgressEvent =
 
 // In-memory progress store keyed by leagueId — the import writes events here,
 // the frontend polls them via /v1/import/madden/ea/import-progress.
-const importProgressStore = new Map<string, { events: EaImportProgressEvent[]; startedAt: number }>();
+type ImportProgressSource = "manual" | "auto";
+const importProgressStore = new Map<string, { events: EaImportProgressEvent[]; startedAt: number; source: ImportProgressSource }>();
 
 export function pushProgress(leagueId: string, event: EaImportProgressEvent) {
-  const entry = importProgressStore.get(leagueId) ?? { events: [], startedAt: Date.now() };
+  const entry = importProgressStore.get(leagueId) ?? { events: [], startedAt: Date.now(), source: "manual" as const };
   entry.events.push(event);
   importProgressStore.set(leagueId, entry);
 }
 
-export function getImportProgress(leagueId: string): { events: EaImportProgressEvent[]; running: boolean } {
+export function getImportProgress(leagueId: string): { events: EaImportProgressEvent[]; running: boolean; source: ImportProgressSource | null } {
   const entry = importProgressStore.get(leagueId);
-  if (!entry) return { events: [], running: false };
+  if (!entry) return { events: [], running: false, source: null };
   const done = entry.events.some((e) => e.type === "done" || e.type === "error");
-  return { events: entry.events, running: !done };
+  return { events: entry.events, running: !done, source: entry.source };
+}
+
+export function beginImportProgress(leagueId: string, source: ImportProgressSource) {
+  importProgressStore.set(leagueId, { events: [], startedAt: Date.now(), source });
 }
 
 export function clearImportProgress(leagueId: string) {
@@ -894,6 +899,7 @@ export async function importEaDatasetsWithProgress(
  * of waiting for a commissioner to click "Import Now." Wired into apps/api/src/index.ts on an
  * interval; each connection with auto_import enabled gets refreshed and re-imported in turn. Runs
  * connections sequentially (not in parallel) to stay gentle on both EA's API and this DB.
+ * After a successful pull, Pending Items gets a confirmation of scores, stats, or player movement.
  */
 /** Persists a failed import's error onto the connection row so it's visible outside the live progress stream (e.g. after the commissioner's modal is closed). */
 export async function recordEaImportError(connectionId: string, error: unknown): Promise<void> {
@@ -916,9 +922,14 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — an import is already running.`);
       continue;
     }
-    clearImportProgress(row.league_id);
+    beginImportProgress(row.league_id, "auto");
     try {
+      const { snapshotImportState, describeImportChanges, notifyCommissionersOfAutoImport } = await import("./ea-auto-import-notify.js");
+      const before = await snapshotImportState(row.league_id);
       await importEaDatasetsWithProgress(row.id, row.league_id, { weekScope: "current" });
+      const after = await snapshotImportState(row.league_id);
+      const notes = describeImportChanges(before, after);
+      if (notes.length) await notifyCommissionersOfAutoImport(row.league_id, notes);
       succeeded += 1;
     } catch (error) {
       failed += 1;

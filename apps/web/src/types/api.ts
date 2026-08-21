@@ -248,6 +248,7 @@ export type CommissionerNotificationType =
   | "legend"
   | "custom_player"
   | "custom_team"
+  | "ea_auto_import"
   | "force_win_request"
   | "autopilot_request"
   | "matchup_issue_report"

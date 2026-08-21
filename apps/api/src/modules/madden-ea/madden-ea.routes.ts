@@ -11,7 +11,7 @@ import {
   importEaDatasets,
   importEaDatasetsWithProgress,
   getImportProgress,
-  clearImportProgress,
+  beginImportProgress,
   pushProgress,
   listEaImportJobs,
   listEaLeagues,
@@ -22,6 +22,7 @@ import {
   wipeBaselineRoster,
   type EaDataset,
 } from "./ea-connections.service.js";
+import { auditEaImportData } from "./import-audit.service.js";
 import { EA_DATASETS } from "./ea-datasets.js";
 import { validateWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
@@ -176,7 +177,7 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       if (getImportProgress(body.league_id).running) {
         throw new ApiError(409, "An import is already running for this league. Wait for it to finish, or reopen Import Data to watch its progress.");
       }
-      clearImportProgress(body.league_id);
+      beginImportProgress(body.league_id, "manual");
 
       // Fire and forget — the import runs in the background
       importEaDatasetsWithProgress(body.connection_id, body.league_id, options).catch((error) => {
@@ -278,6 +279,16 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       );
 
       return reply.send({ ok: true, games: counts.rows[0], results: resultsCount.rows[0], sampleGames: sample.rows });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/import/madden/ea/audit", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send(await auditEaImportData(body.guild_id, body.league_id));
     } catch (error) {
       return sendError(reply, error);
     }

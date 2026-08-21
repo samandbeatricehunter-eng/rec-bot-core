@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
   custom_player: "Custom Player",
   custom_team: "Custom Team",
+  ea_auto_import: "EA Import",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue", trade: "Trade",
 };
