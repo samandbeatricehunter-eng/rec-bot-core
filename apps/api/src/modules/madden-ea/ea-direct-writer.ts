@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
+import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
 
 type Json = Record<string, unknown>;
 
@@ -205,12 +206,14 @@ export async function directWriteRoster(
 
   // Pre-fetch existing player hashes so we can skip unchanged rows
   const existingHashes = new Map<string, string>();
+  const existingNumericEaIds = new Set<string>();
   const existing = await pool.query<{ madden_player_id: string; raw_hash: string }>(
     `select madden_player_id, raw_hash from rec_players where league_id=$1 and madden_player_id is not null`,
     [leagueId],
   );
   for (const row of existing.rows) {
     if (row.raw_hash) existingHashes.set(row.madden_player_id, row.raw_hash);
+    if (isNumericEaPlayerId(row.madden_player_id)) existingNumericEaIds.add(row.madden_player_id);
   }
 
   const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
@@ -316,10 +319,11 @@ export async function directWriteRoster(
     // or none at all for a not-yet-installed legend) that never conflicts with EA's real
     // numeric roster id, so without this the row would silently insert as a brand-new
     // duplicate player instead of adopting the real identity of the player it's supposed to
-    // represent — exactly what happened to every baseline-seeded player and every approved
-    // legend purchase once real EA data arrived. Match narrowly (same team, same full name)
-    // and only against rows that don't already have a real numeric EA id.
-    if (teamUuid) {
+    // represent. Skip when this numeric EA id already exists — rewriting a leftover
+    // placeholder onto that id trips rec_players_league_id_madden_player_id_key. The INSERT
+    // below then updates the existing EA row instead.
+    const rosterIdText = String(rosterId);
+    if (teamUuid && shouldAdoptNamePlaceholder(existingNumericEaIds, rosterIdText)) {
       const placeholder = await pool.query<{ id: string }>(
         `select id from rec_players
          where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
@@ -329,7 +333,18 @@ export async function directWriteRoster(
         [leagueId, teamUuid, fullName],
       );
       if (placeholder.rows[0]) {
-        await pool.query(`update rec_players set madden_player_id=$2, updated_at=now() where id=$1`, [placeholder.rows[0].id, String(rosterId)]);
+        await pool.query(
+          `update rec_players set madden_player_id=$2, updated_at=now()
+           where id=$1
+             and not exists (
+               select 1 from rec_players other
+                where other.league_id = rec_players.league_id
+                  and other.madden_player_id = $2
+                  and other.id <> rec_players.id
+             )`,
+          [placeholder.rows[0].id, rosterIdText],
+        );
+        existingNumericEaIds.add(rosterIdText);
       }
     }
 
@@ -361,12 +376,12 @@ export async function directWriteRoster(
          raw_hash=excluded.raw_hash,
          roster_status='active',
          is_free_agent=excluded.is_free_agent,
-         height_inches=coalesce(excluded.height_inches, rec_players.height_inches),
-         weight_lbs=coalesce(excluded.weight_lbs, rec_players.weight_lbs),
-         college=coalesce(excluded.college, rec_players.college),
-         hometown_city=coalesce(excluded.hometown_city, rec_players.hometown_city),
-         birth_year=coalesce(excluded.birth_year, rec_players.birth_year),
-         updated_at=now()`,
+        height_inches=coalesce(excluded.height_inches, rec_players.height_inches),
+        weight_lbs=coalesce(excluded.weight_lbs, rec_players.weight_lbs),
+        college=coalesce(excluded.college, rec_players.college),
+        hometown_city=coalesce(excluded.hometown_city, rec_players.hometown_city),
+        birth_year=coalesce(excluded.birth_year, rec_players.birth_year),
+        updated_at=now()`,
       [
         leagueId, String(rosterId), firstName, lastName, fullName, position, teamUuid,
         overall, devTrait, jerseyNum, yearsPro, age, contractYearsLeft,
@@ -378,6 +393,8 @@ export async function directWriteRoster(
         heightInches, weightLbs, college, hometownCity, birthYear,
       ],
     );
+    existingNumericEaIds.add(String(rosterId));
+    existingHashes.set(String(rosterId), hash);
     written += 1;
   }
   if (skipped > 0) console.log(`[EA] Roster: ${written} written, ${skipped} skipped (unchanged)`);

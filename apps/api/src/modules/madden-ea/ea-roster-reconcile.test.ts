@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { shouldRetainPlayerAfterEaReconcile } from "./ea-roster-reconcile.js";
+import { shouldRetainPlayerAfterEaReconcile, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
 
 const imported = new Set(["100", "200"]);
 
@@ -66,4 +66,10 @@ test("keeps minted custom-player builds even if their EA id is absent this impor
     ),
     true,
   );
+});
+
+test("does not adopt a name placeholder when the numeric EA id already exists", () => {
+  const existing = new Set(["100"]);
+  assert.equal(shouldAdoptNamePlaceholder(existing, "100"), false);
+  assert.equal(shouldAdoptNamePlaceholder(existing, "101"), true);
 });

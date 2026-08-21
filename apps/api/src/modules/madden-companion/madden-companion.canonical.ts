@@ -89,16 +89,32 @@ async function applyRosterPlayer(client: PoolClient, leagueId: string, record: N
   // identity of the player it's actually supposed to represent — leaving the real legend row
   // stuck roster_status='removed' with the height/weight/attributes only the duplicate has.
   if (resolvedTeamId) {
-    const placeholder = await client.query<{ id: string }>(
-      `select id from rec_players
-       where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
-         and (madden_player_id is null or madden_player_id !~ '^[0-9]+$')
-       order by (player_source in ('legend','custom_player')) desc, created_at asc
-       limit 1`,
-      [leagueId, resolvedTeamId, full],
+    const taken = await client.query<{ id: string }>(
+      `select id from rec_players where league_id=$1 and madden_player_id=$2 limit 1`,
+      [leagueId, playerId],
     );
-    if (placeholder.rows[0]) {
-      await client.query(`update rec_players set madden_player_id=$2, updated_at=now() where id=$1`, [placeholder.rows[0].id, playerId]);
+    if (!taken.rows[0]) {
+      const placeholder = await client.query<{ id: string }>(
+        `select id from rec_players
+         where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
+           and (madden_player_id is null or madden_player_id !~ '^[0-9]+$')
+         order by (player_source in ('legend','custom_player')) desc, created_at asc
+         limit 1`,
+        [leagueId, resolvedTeamId, full],
+      );
+      if (placeholder.rows[0]) {
+        await client.query(
+          `update rec_players set madden_player_id=$2, updated_at=now()
+           where id=$1
+             and not exists (
+               select 1 from rec_players other
+                where other.league_id = rec_players.league_id
+                  and other.madden_player_id = $2
+                  and other.id <> rec_players.id
+             )`,
+          [placeholder.rows[0].id, playerId],
+        );
+      }
     }
   }
 

@@ -30,3 +30,16 @@ export function shouldRetainPlayerAfterEaReconcile(
   }
   return false;
 }
+
+/**
+ * Name+team placeholder adoption rewrites madden_player_id onto an existing seeded row.
+ * If this numeric EA id already belongs to another row, that UPDATE hits
+ * rec_players_league_id_madden_player_id_key. Only adopt when the id is still free;
+ * otherwise the upcoming INSERT … ON CONFLICT updates the existing EA row.
+ */
+export function shouldAdoptNamePlaceholder(
+  existingNumericEaIds: ReadonlySet<string>,
+  rosterId: string,
+): boolean {
+  return !existingNumericEaIds.has(rosterId);
+}
