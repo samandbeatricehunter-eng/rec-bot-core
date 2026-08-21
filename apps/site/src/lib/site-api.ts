@@ -1,4 +1,5 @@
 import type { RecGlobalEconomyConfig } from "@rec/shared";
+import { createReadCache } from "./read-cache.js";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
 const apiBaseUrl = () => siteApiBaseUrl() || (import.meta.env.VITE_REC_CORE_API_URL as string | undefined);
@@ -100,19 +101,77 @@ function requireApiBaseUrl(): string {
   return base;
 }
 
-async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+const siteReadCache = createReadCache();
+const READ_TTL_MS: Record<string, number> = {
+  "/v1/site-auth/me": 15_000,
+  "/v1/site-leagues/mine": 15_000,
+  "/v1/site-leagues/open-hub": 30_000,
+  "/v1/site-leagues/ticker": 10_000,
+  "/v1/site-home/card": 15_000,
+  "/v1/site-home/announcements": 30_000,
+  "/v1/site-home/spotlight": 20_000,
+  "/v1/site-notifications/counts": 10_000,
+  "/v1/subscriptions/me": 15_000,
+};
+
+let sessionCache: { token: string; expiresAt: number } | null = null;
+let sessionInflight: Promise<string> | null = null;
+
+async function requireAccessToken(): Promise<string> {
+  if (sessionCache && sessionCache.expiresAt > Date.now() + 10_000) return sessionCache.token;
+  if (sessionInflight) return sessionInflight;
+  sessionInflight = (async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error("You are not signed in.");
+    const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now() + 50_000;
+    sessionCache = { token, expiresAt };
+    return token;
+  })().finally(() => {
+    sessionInflight = null;
+  });
+  return sessionInflight;
+}
+
+function invalidateRelatedCaches(path: string) {
+  if (path === "/v1/site-auth/me" || path === "/v1/site-leagues/mine") return;
+  if (path.startsWith("/v1/site-auth/") || path.startsWith("/v1/subscriptions/")) {
+    siteReadCache.invalidate("/v1/site-auth/me");
+    siteReadCache.invalidate("/v1/subscriptions/me");
+  }
+  if (path.startsWith("/v1/site-leagues/") && path !== "/v1/site-leagues/open-hub" && path !== "/v1/site-leagues/ticker") {
+    siteReadCache.invalidate("/v1/site-leagues/mine");
+    siteReadCache.invalidate("/v1/site-leagues/open-hub");
+    siteReadCache.invalidate("/v1/site-leagues/ticker");
+  }
+  if (path.startsWith("/v1/site-home/spotlight/react")) {
+    siteReadCache.invalidate("/v1/site-home/spotlight");
+  }
+  if (path.startsWith("/v1/site-notifications/") && path !== "/v1/site-notifications/counts") {
+    siteReadCache.invalidate("/v1/site-notifications/counts");
+  }
+}
+
+async function requestUncached<T>(path: string, body: unknown = {}): Promise<T> {
   const base = requireApiBaseUrl();
+  const token = await requireAccessToken();
   const response = await fetch(`${base}${path}`, {
-    method: init?.method ?? "GET",
+    method: "POST",
     headers: {
-      ...(init?.body ? { "content-type": "application/json" } : {}),
-      ...(init?.headers ?? {}),
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
     },
-    body: init?.body,
+    body: JSON.stringify(body),
   });
   const payload = (await response.json().catch(() => null)) as
     | { error?: string; message?: string }
     | null;
+  if (response.status === 401) {
+    sessionCache = null;
+    siteReadCache.invalidate();
+  }
   if (!response.ok) {
     // The API's sendError returns {error: "..."} with a plain-language message for 5xx,
     // or {error, details} for 4xx. Prefer .error (always user-friendly), then .message.
@@ -126,19 +185,30 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function request<T>(path: string, body: unknown = {}): Promise<T> {
+  const ttl = READ_TTL_MS[path];
+  if (ttl) {
+    return siteReadCache.get(`${path}:${JSON.stringify(body)}`, ttl, () => requestUncached<T>(path, body));
+  }
+  const result = await requestUncached<T>(path, body);
+  invalidateRelatedCaches(path);
+  return result;
+}
+
+export function clearSiteApiCaches() {
+  sessionCache = null;
+  sessionInflight = null;
+  siteReadCache.invalidate();
+}
+
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const base = requireApiBaseUrl();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  if (!token) throw new Error("You are not signed in.");
   const response = await fetch(`${base}${path}`, {
-    method: "POST",
+    method: init?.method ?? "GET",
     headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
+      ...(init?.body ? { "content-type": "application/json" } : {}),
+      ...(init?.headers ?? {}),
     },
-    body: JSON.stringify(body),
+    body: init?.body,
   });
   const payload = (await response.json().catch(() => null)) as
     | { error?: string; message?: string }

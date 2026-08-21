@@ -1,3 +1,4 @@
+import { createReadCache } from "./read-cache.js";
 import { REC_API_ROUTES } from "@rec/shared";
 import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary, RecGlobalEconomyConfig } from "@rec/shared";
 import type { TradeEvaluatorReport } from "../types/api.js";
@@ -143,7 +144,19 @@ export function setHubGuildId(guildId: string | null) {
 // once when the dashboard button is clicked, and there's no ongoing Discord session in the
 // browser to draw a fresh one from. An expired/invalid session just means "go back to
 // Discord and click Open Web Dashboard again," which this error message says directly.
-export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+const recReadCache = createReadCache();
+
+type RecFetchInit = RequestInit & { cacheTtlMs?: number };
+
+export async function recApiFetch<T>(path: string, init?: RecFetchInit): Promise<T> {
+  const { cacheTtlMs, ...fetchInit } = init ?? {};
+  const run = () => recApiFetchNetwork<T>(path, fetchInit);
+  if (!cacheTtlMs) return run();
+  const key = `${path}:${typeof fetchInit.body === "string" ? fetchInit.body : ""}`;
+  return recReadCache.get(key, cacheTtlMs, run);
+}
+
+async function recApiFetchNetwork<T>(path: string, init?: RequestInit): Promise<T> {
   // FormData bodies (image uploads) need the browser to set its own multipart boundary
   // header — setting content-type: application/json here would break the parse server-side.
   const isFormData = init?.body instanceof FormData;
@@ -158,6 +171,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
     },
   });
   if (response.status === 401) {
+    recReadCache.invalidate();
     throw new Error("Your session has expired — sign in again on rec-leagues.com, or run /app in Discord.");
   }
   if (!response.ok) {
@@ -319,7 +333,7 @@ export const recApi = {
     recApiFetch<{ ok: boolean; wiped: number }>("/v1/import/madden/ea/wipe-roster", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   backfillEaScores: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/backfill-scores", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
-  getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}" }),
+  getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}", cacheTtlMs: 60_000 }),
   sendLeagueReport: (input: { guildId: string; message: string }) =>
     recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),
   uploadLeagueLogo: (guildId: string, file: File) => {
@@ -352,9 +366,9 @@ export const recApi = {
       }>;
     }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input) }),
   getHub: (guildId: string) =>
-    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 8_000 }),
   getHubBootstrapStatus: (guildId: string) =>
-    recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 10_000 }),
   retireFromHub: (guildId: string) =>
     recApiFetch<{ ok: true }>("/v1/hub/retire", { method: "POST", body: JSON.stringify({ guildId }) }),
   getCommissionerRetireContext: (guildId: string) =>
@@ -455,11 +469,11 @@ export const recApi = {
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
-    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 8_000 }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
   getMatchupPreview: (input: { guildId: string; gameId: string }) =>
-    recApiFetch<import("../types/api.js").MatchupPreview>("/v1/hub/matchups/preview", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<import("../types/api.js").MatchupPreview>("/v1/hub/matchups/preview", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 10_000 }),
   sendHubMatchupMessage: (input: { guildId: string; gameId: string; body: string }) =>
     recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
@@ -536,7 +550,7 @@ export const recApi = {
   clearLoggedGotwVotes: (input: { guildId: string; pollId: string }) =>
     recApiFetch<{ cleared: true; recordsCleared: number; payoutsReversed: number }>("/v1/gotw/poll/clear-logged-votes", { method: "POST", body: JSON.stringify(input) }),
   getGotwGuessingRecords: (guildId: string) =>
-    recApiFetch<GotwGuessingRecordsResponse>("/v1/hub/gotw/guessing-records", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<GotwGuessingRecordsResponse>("/v1/hub/gotw/guessing-records", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 15_000 }),
   getWagerOptions: (input: { guildId: string; gameId: string }) =>
     recApiFetch<WagerOptionsResponse>("/v1/wagers/options", { method: "POST", body: JSON.stringify(input) }),
   getWeekWagerLines: (input: { guildId: string; weekNumber: number }) =>

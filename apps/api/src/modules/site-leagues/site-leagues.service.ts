@@ -1,5 +1,6 @@
 import { CFB_27_TEAMS, stageLabel } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
@@ -451,18 +452,38 @@ export async function openSiteLeagueHubContext(input: {
   recUserId: string;
   leagueId: string;
 }): Promise<{ guildId: string; discordId: string; leagueId: string }> {
+  return withComputeCache(`open-hub:${input.recUserId}:${input.leagueId}`, 30_000, () => loadSiteLeagueHubContext(input));
+}
+
+async function loadSiteLeagueHubContext(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ guildId: string; discordId: string; leagueId: string }> {
   await assertSiteLeagueAccess(input.recUserId, input.leagueId);
 
-  const profile = await getPgPool().query(
-    `
-      select u.username, d.discord_id
-      from rec_users u
-      left join rec_discord_accounts d on d.user_id = u.id
-      where u.id = $1
-      limit 1
-    `,
-    [input.recUserId],
-  );
+  const [profile, guild] = await Promise.all([
+    getPgPool().query(
+      `
+        select u.username, d.discord_id
+        from rec_users u
+        left join rec_discord_accounts d on d.user_id = u.id
+        where u.id = $1
+        limit 1
+      `,
+      [input.recUserId],
+    ),
+    getPgPool().query(
+      `
+        select s.guild_id
+        from rec_server_league_links link
+        inner join rec_discord_servers s on s.id = link.server_id
+        where link.league_id = $1
+        order by link.is_primary desc, link.created_at asc
+        limit 1
+      `,
+      [input.leagueId],
+    ),
+  ]);
   const row = profile.rows[0] as { username: string | null; discord_id: string | null } | undefined;
   if (!row?.username) {
     throw new ApiError(403, "Choose a username on Account before opening a league hub.");
@@ -471,18 +492,6 @@ export async function openSiteLeagueHubContext(input: {
   // a Discord server, both fall back to a synthetic identity that resolves through the same
   // discordId/guildId-keyed hub plumbing (see league-context.service.ts / lib/user-auth.ts).
   const discordId = row.discord_id ?? siteOnlyDiscordId(input.recUserId);
-
-  const guild = await getPgPool().query(
-    `
-      select s.guild_id
-      from rec_server_league_links link
-      inner join rec_discord_servers s on s.id = link.server_id
-      where link.league_id = $1
-      order by link.is_primary desc, link.created_at asc
-      limit 1
-    `,
-    [input.leagueId],
-  );
   const guildId = (guild.rows[0] as { guild_id: string } | undefined)?.guild_id ?? siteOnlyGuildId(input.leagueId);
 
   return { guildId, discordId, leagueId: input.leagueId };
@@ -511,6 +520,13 @@ export type SiteLeagueTickerItem = {
  * logic as the Discord-activity hub (getHubMatchupSchedule), just resolved from a site
  * session instead of a guild session. */
 export async function getSiteLeagueTicker(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ items: SiteLeagueTickerItem[]; weekNumber: number }> {
+  return withComputeCache(`league-ticker:${input.recUserId}:${input.leagueId}`, 15_000, () => loadSiteLeagueTicker(input));
+}
+
+async function loadSiteLeagueTicker(input: {
   recUserId: string;
   leagueId: string;
 }): Promise<{ items: SiteLeagueTickerItem[]; weekNumber: number }> {

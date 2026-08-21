@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 import { bestEffort } from "../../lib/best-effort.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { inspectStreamVideo, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
@@ -203,6 +204,10 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
 }
 
 export async function listSiteAnnouncements() {
+  return withComputeCache("site-announcements", 30_000, loadSiteAnnouncements);
+}
+
+async function loadSiteAnnouncements() {
   const now = new Date().toISOString();
   const rows = await supabase
     .from("rec_site_announcements")

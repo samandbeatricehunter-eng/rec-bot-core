@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { stageLabel } from "@rec/shared";
 import { getDrizzleDb } from "../../db/client.js";
 import { recDiscordServers, recLeagues, recServerLeagueLinks, recServerRoutes } from "../../db/schema.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { toSnakeRow } from "../../lib/case.js";
 import { supabase } from "../../lib/supabase.js";
@@ -73,7 +74,9 @@ async function findStandaloneLeagueContext(guildId: string): Promise<CurrentLeag
   };
 }
 
-export async function findCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
+const LEAGUE_CONTEXT_CACHE_MS = 15_000;
+
+async function loadCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
   if (isSiteOnlyGuildId(guildId)) return findStandaloneLeagueContext(guildId);
 
   const db = getDrizzleDb();
@@ -105,10 +108,16 @@ export async function findCurrentLeagueContext(guildId: string): Promise<Current
   };
 }
 
+export async function findCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
+  return loadCurrentLeagueContext(guildId);
+}
+
 export async function getCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext> {
-  const context = await findCurrentLeagueContext(guildId);
-  if (!context) throw new ApiError(404, "No current REC league is linked to this Discord server.");
-  return context;
+  return withComputeCache(`league-context:${guildId}`, LEAGUE_CONTEXT_CACHE_MS, async () => {
+    const context = await loadCurrentLeagueContext(guildId);
+    if (!context) throw new ApiError(404, "No current REC league is linked to this Discord server.");
+    return context;
+  });
 }
 
 // Reverse of findCurrentLeagueContext — callers that only have a leagueId (e.g. the
