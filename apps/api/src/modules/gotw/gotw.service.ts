@@ -397,10 +397,10 @@ async function isAdministrativeGotwOutcome(gameId: string | null | undefined): P
   if (!gameId) return false;
   const game = await supabase.from("rec_games").select("advance_outcome_override").eq("id", gameId).maybeSingle();
   const override = String(game.data?.advance_outcome_override ?? "");
-  return override === "fw" || override === "fs";
+  return override === "fw";
 }
 
-/** Void GOTW polls for a Force Win / Fair Sim so picks are not logged to records or paid out. */
+/** Void GOTW polls for a Force Win so picks are not logged to records or paid out. */
 export async function voidGotwPollsForGame(input: { guildId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const now = new Date().toISOString();

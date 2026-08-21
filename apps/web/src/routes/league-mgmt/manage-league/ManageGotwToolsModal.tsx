@@ -81,7 +81,8 @@ export function ManageGotwToolsModal({
       <div className="hub-hero-action-modal">
         <p>
           Close voting when a GOTW started without a stream (so it did not auto-close).
-          Clear logged votes when a GOTW was settled as a Force Win or Fair Sim and should not count toward records or payouts.
+          Clear logged votes when a GOTW was settled as a Force Win and should not count toward records or payouts.
+          Fair Sims still settle GOTW picks.
         </p>
         {schedule?.weekNumbers.length ? (
           <label className="form-field">

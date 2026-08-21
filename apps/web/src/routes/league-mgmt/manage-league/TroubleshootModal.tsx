@@ -65,7 +65,7 @@ export function TroubleshootModal({
         <CollapsibleSection title="Game of the Week">
           <p className="form-hint" style={{ marginTop: 0 }}>
             Close voting when a GOTW started without a stream, or clear logged votes if a Force Win
-            or Fair Sim was settled as a real pick.
+            was settled as a real pick.
           </p>
           <Button variant="secondary" onClick={() => setGotwOpen(true)}>
             <Trophy size={14} /> Open GOTW Tools
