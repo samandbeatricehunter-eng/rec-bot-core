@@ -246,10 +246,14 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
 
   // League record holding bonus: a flat, deterministic 500 coins per game/season record the
   // coach currently holds — not a tiered/competitive category like the items below, so it pays
-  // directly rather than going through commissioner review. Idempotent per season (see
-  // rec_league_record_bonus_payouts' unique constraint), so re-running this on every
-  // subsequent postseason advance never double-pays.
-  const { payLeagueRecordHoldingBonuses } = await import("../league-records/league-records.service.js");
+  // directly rather than going through commissioner review. Refresh holders first so an import
+  // that landed after the last refresh (or a later import that broke a record) is the source of
+  // truth; payouts go to whoever holds each record now, not whoever set it mid-season.
+  // Idempotent per season (see rec_league_record_bonus_payouts' unique constraint), so
+  // re-running this on every subsequent postseason advance never double-pays.
+  const { refreshLeagueRecordHolders, payLeagueRecordHoldingBonuses } = await import("../league-records/league-records.service.js");
+  await refreshLeagueRecordHolders(leagueId).catch((error) =>
+    console.error("[ERROR] Failed to refresh league record holders before EOS bonuses (non-fatal):", error));
   await payLeagueRecordHoldingBonuses(leagueId, seasonNumber).catch((error) =>
     console.error("[ERROR] Failed to pay league record holding bonuses (non-fatal):", error));
 

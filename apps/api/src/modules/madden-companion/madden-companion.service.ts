@@ -4,6 +4,8 @@ import { bestEffort } from "../../lib/best-effort.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import { isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
+import { finalizeImportedLeagueStats } from "../league-records/league-records.service.js";
+import { importedStatsNeedFinalize } from "../league-records/league-records.finalize.js";
 import { companionChecksum, normalizeCompanionPayload, splitCompanionPayload } from "./madden-companion.adapters.js";
 import { applyCompanionRecordToCanonical } from "./madden-companion.canonical.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
@@ -219,6 +221,10 @@ export async function ingestCompanionBundle(connection: CompanionConnection, pay
   if (imports.some((item) => item.endpoint_key === "schedule")) {
     await syncCompanionScheduleResultsIntoGameResults(connection.league_id).catch((error) =>
       console.error("[WARN] Failed to sync Companion schedule results into rec_game_results (non-fatal):", error));
+  }
+  if (importedStatsNeedFinalize(imports.map((item) => item.endpoint_key))) {
+    await finalizeImportedLeagueStats(connection.league_id).catch((error) =>
+      console.error("[WARN] Failed to refresh league records and hub ranks after Companion import (non-fatal):", error));
   }
   return {
     accepted: true as const,

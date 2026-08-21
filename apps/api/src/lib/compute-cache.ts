@@ -62,9 +62,12 @@ export function invalidateComputeCache(prefix: string): void {
 
 // Power rankings, SOS, coach/user ratings, and league context are keyed by guildId
 // (see power-rankings.service.ts, sos.service.ts, ratings.service.ts, league-context.service.ts)
-// — call this after anything that changes a league's game results, roster, or current week
-// (advance, box score approve/replace, manual result entry, team assignment change) so the
-// next read reflects it immediately instead of within the TTL.
+// — call this after anything that changes a league's game results, roster, weekly stats, or
+// current week (advance, box score approve/replace, manual result entry, team assignment
+// change, EA / Companion import) so the next hub/GOTW read reflects it immediately instead
+// of within the TTL. Import paths that only have a leagueId should call
+// finalizeImportedLeagueStats (league-records.service.ts), which resolves Discord + site-only
+// guild ids and then this.
 export function invalidateLeagueComputeCaches(guildId: string): void {
   for (const prefix of ["power-rankings:", "sos:", "coach-ratings:", "user-ratings:", "league-context:"]) {
     invalidateComputeCache(`${prefix}${guildId}`);
