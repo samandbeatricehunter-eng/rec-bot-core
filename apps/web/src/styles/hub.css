@@ -348,16 +348,43 @@ button.poty:disabled {
   .hub-shortcut-card strong { font-size: var(--text-sm); }
   .hub-shortcut-card span { font-size: 10px; }
   .hub-quick-actions-card { margin-inline: -4px; padding: 10px 8px; overflow: hidden; }
-  .hub-quick-actions-row { display: flex; gap: 7px; overflow-x: auto; padding: 1px 1px 7px; scroll-snap-type: x proximity; scrollbar-width: thin; }
-  .hub-shortcut-card.hub-quick-action { flex: 0 0 126px; width: 126px; min-height: 62px; padding: 8px; flex-direction: row; text-align: left; scroll-snap-align: start; }
+  /* League Home uses .hub-my-team-btn (min-width:0 + overflow-wrap:anywhere). Switching the
+     row to flex without a fixed basis made all 8 buttons shrink into one-letter columns
+     instead of overflowing into a swipeable strip. */
+  .hub-quick-actions-row,
+  .hub-hero-quick-actions .hub-quick-actions-row,
+  .hub-my-team-quick-actions .hub-quick-actions-row-compact {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 7px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1px 1px 7px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hub-quick-actions-row > .hub-shortcut-card.hub-quick-action,
+  .hub-quick-actions-row > .hub-my-team-btn {
+    box-sizing: border-box;
+    flex: 0 0 148px;
+    width: 148px;
+    min-width: 148px;
+    max-width: 148px;
+    min-height: 62px;
+    padding: 8px 10px;
+    scroll-snap-align: start;
+  }
+  .hub-shortcut-card.hub-quick-action { flex-direction: row; text-align: left; }
   .hub-shortcut-card.hub-quick-action strong { font-size: 11px; }
   .hub-shortcut-card.hub-quick-action span { font-size: 9px; }
-  /* Higher specificity than the desktop-only .hub-quick-actions-row-compact rules (which
-     would otherwise still win here despite this being inside the mobile media query) —
-     those set an 8px label size for the 8-column desktop layout; this row switches to
-     horizontal scroll below 600px and needs the same readable size as the non-compact cards. */
   .hub-quick-actions-row-compact .hub-shortcut-card.hub-quick-action strong { font-size: 11px; }
   .hub-quick-actions-row-compact .hub-shortcut-card.hub-quick-action span { font-size: 9px; }
+  .hub-quick-actions-row > .hub-my-team-btn strong,
+  .hub-quick-actions-row > .hub-my-team-btn span {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 }
 .hub-media-modal { display: flex; flex-direction: column; gap: var(--space-3); }
 .modal-panel:has(.hub-media-modal) { max-width: 640px; }
