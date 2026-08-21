@@ -347,6 +347,8 @@ export type SiteLinkProfile = {
   avatarUrl: string | null;
   entitlements: Awaited<ReturnType<typeof getEntitlementSummary>> | null;
   claimDropdownOpen: boolean;
+  /** Hub identity: real Discord snowflake, or a site-only synthetic id. */
+  discordId: string | null;
 };
 
 export async function getSiteLinkProfile(input: {
@@ -391,6 +393,7 @@ export async function getSiteLinkProfile(input: {
       avatarUrl: null,
       entitlements: null,
       claimDropdownOpen,
+      discordId: null,
     };
   }
   const entitlements = await getEntitlementSummary(row.id);
@@ -404,6 +407,7 @@ export async function getSiteLinkProfile(input: {
     avatarUrl: linkedDiscord ? row.discord_avatar_url ?? null : null,
     entitlements,
     claimDropdownOpen,
+    discordId: row.discord_id ?? siteOnlyDiscordId(row.id),
   };
 }
 

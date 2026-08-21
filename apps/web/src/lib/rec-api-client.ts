@@ -448,7 +448,7 @@ export const recApi = {
     return recApiFetch<UploadImageResponse>(`/v1/hub/relocation/upload-logo?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
   },
   getHubMediaPortal: (guildId: string) =>
-    recApiFetch<MediaPortalResponse>("/v1/hub/media/portal", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<MediaPortalResponse>("/v1/hub/media/portal", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 15_000 }),
   submitHubMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null }) =>
     recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/article/submit", { method: "POST", body: JSON.stringify(input) }),
   submitHubInterview: (input: { guildId: string; tagOpponent?: boolean; answers: Array<{ questionId: string; question: string; answer: string }> }) =>
@@ -610,7 +610,7 @@ export const recApi = {
   reopenGameWagering: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ reopened: true }>("/v1/wagers/reopen-game", { method: "POST", body: JSON.stringify(input) }),
   getPeerWagerBoard: (guildId: string) =>
-    recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 8_000 }),
   getMyWagers: (guildId: string) =>
     recApiFetch<MyWagersResponse>("/v1/wagers/my-wagers", { method: "POST", body: JSON.stringify({ guildId }) }),
   listChallengeableCoaches: (guildId: string) =>

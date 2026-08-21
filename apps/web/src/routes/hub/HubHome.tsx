@@ -875,16 +875,16 @@ export function HubHome() {
     if (auth.status !== "ready") return;
     const guildId = auth.guildId;
     try {
-      const [hubResult, economy, guessing] = await Promise.all([
-        recApi.getHub(guildId),
-        recApi.getGlobalEconomyValues().catch(() => DEFAULT_REC_GLOBAL_ECONOMY_CONFIG),
-        recApi.getGotwGuessingRecords(guildId).catch(() => null),
-      ]);
+      const hubP = recApi.getHub(guildId);
+      const economyP = recApi.getGlobalEconomyValues().catch(() => DEFAULT_REC_GLOBAL_ECONOMY_CONFIG);
+      const guessingP = recApi.getGotwGuessingRecords(guildId).catch(() => null);
+      const hubResult = await hubP;
       setHub(hubResult);
-      setEconomyValues(economy);
-      setGotwGuessing(guessing);
       setError(null);
       setSetupAccess(null);
+      const [economy, guessing] = await Promise.all([economyP, guessingP]);
+      setEconomyValues(economy);
+      setGotwGuessing(guessing);
     }
     catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);

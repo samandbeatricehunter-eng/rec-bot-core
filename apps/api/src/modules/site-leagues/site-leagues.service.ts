@@ -4,7 +4,6 @@ import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
-import { getGameWagerOptions } from "../wagers/odds.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { siteOnlyDiscordId } from "../../lib/user-auth.js";
@@ -55,6 +54,8 @@ export type SiteLeagueSummary = {
   /** head = owner / head commissioner; co = co-commissioner; member = player only */
   commissionerRole: "head" | "co" | "member";
   discordBotEnabled: boolean;
+  /** Discord guild id, or a site-only synthetic id when the league has no Discord server. */
+  guildId: string;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -119,7 +120,15 @@ export async function listMySiteLeagues(input: {
           )
       )
       select distinct on (id)
-        id, name, logo_url, game, owner_user_id, discord_bot_enabled, team_name, membership_role
+        id, name, logo_url, game, owner_user_id, discord_bot_enabled, team_name, membership_role,
+        (
+          select s.guild_id
+          from rec_server_league_links link
+          inner join rec_discord_servers s on s.id = link.server_id
+          where link.league_id = linked.id
+          order by link.is_primary desc, link.created_at asc
+          limit 1
+        ) as guild_id
       from linked
       order by id, team_name nulls last
     `,
@@ -135,6 +144,7 @@ export async function listMySiteLeagues(input: {
     team_name: string | null;
     membership_role: string | null;
     discord_bot_enabled: boolean | null;
+    guild_id: string | null;
   }>).map((row) => {
     const role = String(row.membership_role ?? "").toLowerCase();
     let commissionerRole: "head" | "co" | "member" = "member";
@@ -153,6 +163,7 @@ export async function listMySiteLeagues(input: {
       isCommissioner: commissionerRole !== "member",
       commissionerRole,
       discordBotEnabled: Boolean(row.discord_bot_enabled),
+      guildId: row.guild_id ?? siteOnlyGuildId(row.id),
     };
   });
 
@@ -537,41 +548,25 @@ async function loadSiteLeagueTicker(input: {
   });
   const h2hGames = schedule.games.filter((game) => game.matchupType === "h2h");
 
-  const items = await Promise.all(
-    h2hGames.map(async (game) => {
-      const isLive = game.streams.length > 0 && !game.isFinal;
-      // Odds only make sense pre-game — getGameWagerOptions itself 409s once a game
-      // leaves "scheduled" status (live or a box score already in), so treat that as
-      // "no odds to show" rather than an error.
-      let odds: SiteLeagueTickerItem["odds"] = null;
-      if (!game.isFinal && !isLive) {
-        try {
-          const options = await getGameWagerOptions(context.guildId, game.gameId);
-          const moneyline = options.markets.find((market) => market.market === "moneyline");
-          const total = options.markets.find((market) => market.market === "total_points");
-          const awaySide = moneyline?.sides.find((side) => side.pick === game.awayTeamId);
-          const homeSide = moneyline?.sides.find((side) => side.pick === game.homeTeamId);
-          if (awaySide && homeSide) {
-            odds = { awayMoneyline: awaySide.odds, homeMoneyline: homeSide.odds, overUnder: total?.line ?? null };
-          }
-        } catch {
-          odds = null;
-        }
-      }
-      return {
-        gameId: game.gameId,
-        awayTeamName: game.awayTeamName,
-        homeTeamName: game.homeTeamName,
-        awayTeamAbbr: game.awayTeamAbbr,
-        homeTeamAbbr: game.homeTeamAbbr,
-        awayScore: game.awayScore,
-        homeScore: game.homeScore,
-        isFinal: game.isFinal,
-        isLive,
-        odds,
-      };
-    }),
-  );
+  // Skip per-game wager-option derivation here. getGameWagerOptions recomputes
+  // power rankings / roster matchup for every scheduled H2H game, and the ticker
+  // shares the league-page critical path with getHub. Scores, LIVE, and FINAL
+  // still render; pre-game lines stay on the hub wager board.
+  const items = h2hGames.map((game) => {
+    const isLive = game.streams.length > 0 && !game.isFinal;
+    return {
+      gameId: game.gameId,
+      awayTeamName: game.awayTeamName,
+      homeTeamName: game.homeTeamName,
+      awayTeamAbbr: game.awayTeamAbbr,
+      homeTeamAbbr: game.homeTeamAbbr,
+      awayScore: game.awayScore,
+      homeScore: game.homeScore,
+      isFinal: game.isFinal,
+      isLive,
+      odds: null,
+    };
+  });
   return { items, weekNumber: schedule.currentWeek };
 }
 
