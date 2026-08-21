@@ -300,7 +300,7 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/Article</strong><span>Media desk</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/<wbr />Article</strong><span>Media desk</span></button>
         </div>
       </div>
       <div className="hub-my-team-card">
@@ -1410,7 +1410,7 @@ export function HubHome() {
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview/Article</strong><span>Media desk</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview/<wbr />Article</strong><span>Media desk</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => openSportsbook()}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
@@ -1695,7 +1695,7 @@ export function HubHome() {
               <p className="hub-eyebrow">Quick actions</p>
               <div className="hub-gameday-actions hub-quick-actions-row">
                 <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/Article</strong><span>Media desk</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/<wbr />Article</strong><span>Media desk</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
