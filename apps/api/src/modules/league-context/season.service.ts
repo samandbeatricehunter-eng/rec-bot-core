@@ -1,3 +1,4 @@
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "./league-context.service.js";
@@ -9,7 +10,13 @@ export function resolveSeasonNumber(
   return Number(seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
 }
 
+const SEASON_ID_CACHE_MS = 5 * 60_000;
+
 export async function resolveSeasonId(leagueId: string, seasonNumber: number) {
+  return withComputeCache(`season-id:${leagueId}:${seasonNumber}`, SEASON_ID_CACHE_MS, () => loadSeasonId(leagueId, seasonNumber));
+}
+
+async function loadSeasonId(leagueId: string, seasonNumber: number) {
   const existing = await supabase
     .from("rec_seasons")
     .select("id")

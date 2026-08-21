@@ -873,14 +873,26 @@ export function HubHome() {
 
   async function load() {
     if (auth.status !== "ready") return;
-    try { setHub(await recApi.getHub(auth.guildId)); setError(null); setSetupAccess(null); }
+    const guildId = auth.guildId;
+    try {
+      const [hubResult, economy, guessing] = await Promise.all([
+        recApi.getHub(guildId),
+        recApi.getGlobalEconomyValues().catch(() => DEFAULT_REC_GLOBAL_ECONOMY_CONFIG),
+        recApi.getGotwGuessingRecords(guildId).catch(() => null),
+      ]);
+      setHub(hubResult);
+      setEconomyValues(economy);
+      setGotwGuessing(guessing);
+      setError(null);
+      setSetupAccess(null);
+    }
     catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       // A 404 here means no league is linked to this Discord server yet — not a real
       // error. Check whether this viewer can run First-Time Setup instead of showing
       // a dead-end error screen.
       if (message.includes("404")) {
-        try { setSetupAccess(await recApi.getHubBootstrapStatus(auth.guildId)); }
+        try { setSetupAccess(await recApi.getHubBootstrapStatus(guildId)); }
         catch { setSetupAccess({ leagueExists: false, canSetup: false }); }
         setError(null);
       } else {
@@ -889,8 +901,6 @@ export function HubHome() {
     }
   }
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
-  useEffect(() => { if (auth.status === "ready") recApi.getGlobalEconomyValues().then(setEconomyValues).catch(() => undefined); }, [auth.status]);
-  useEffect(() => { if (auth.status === "ready") recApi.getGotwGuessingRecords(auth.guildId).then(setGotwGuessing).catch(() => undefined); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
   useEffect(() => {
     if (section === "store") void loadStoreContext(true);
   }, [section, auth.status, auth.status === "ready" ? auth.guildId : null]);

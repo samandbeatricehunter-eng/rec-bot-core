@@ -4,6 +4,7 @@ import { jwtVerify } from "jose";
 import { classifyGuildRoleNames } from "@rec/shared";
 import { env } from "../config/env.js";
 import { bestEffort } from "./best-effort.js";
+import { withComputeCache } from "./compute-cache.js";
 import { ApiError } from "./errors.js";
 import { hasValidInternalApiKey, requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
@@ -67,23 +68,25 @@ async function trySiteDiscordSession(token: string): Promise<{ discordId: string
   const authUserId = verified?.userId ?? (await supabaseAuth.auth.getUser(token)).data.user?.id ?? null;
   if (!authUserId) return null;
 
-  const user = await supabase
-    .from("rec_users")
-    .select("id")
-    .eq("supabase_auth_user_id", authUserId)
-    .maybeSingle();
-  if (user.error || !user.data?.id) return null;
+  return withComputeCache(`site-session:${authUserId}`, 45_000, async () => {
+    const user = await supabase
+      .from("rec_users")
+      .select("id")
+      .eq("supabase_auth_user_id", authUserId)
+      .maybeSingle();
+    if (user.error || !user.data?.id) return null;
 
-  const account = await supabase
-    .from("rec_discord_accounts")
-    .select("discord_id")
-    .eq("user_id", user.data.id)
-    .maybeSingle();
-  if (account.error) return null;
-  // No Discord linked — still a valid site session. Fall back to a stable synthetic discordId
-  // so this user resolves through the same discordId-keyed hub plumbing every other session
-  // type already uses, instead of failing the whole session.
-  return { discordId: account.data?.discord_id ?? siteOnlyDiscordId(user.data.id) };
+    const account = await supabase
+      .from("rec_discord_accounts")
+      .select("discord_id")
+      .eq("user_id", user.data.id)
+      .maybeSingle();
+    if (account.error) return null;
+    // No Discord linked — still a valid site session. Fall back to a stable synthetic discordId
+    // so this user resolves through the same discordId-keyed hub plumbing every other session
+    // type already uses, instead of failing the whole session.
+    return { discordId: account.data?.discord_id ?? siteOnlyDiscordId(user.data.id) };
+  });
 }
 
 export async function requireUserSession(request: FastifyRequest): Promise<UserSession> {

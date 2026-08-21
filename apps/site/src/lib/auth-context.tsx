@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getKeepLoggedIn, setKeepLoggedIn, sitePublicUrl, supabase } from "./supabase-client.js";
+import { clearSiteApiCaches } from "./site-api.js";
 
 type AuthState =
   | { status: "loading" }
@@ -146,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    clearSiteApiCaches();
     await supabase.auth.signOut();
     setKeepLoggedIn(false);
   }
