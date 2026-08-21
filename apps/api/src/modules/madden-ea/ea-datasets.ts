@@ -113,22 +113,32 @@ export type EaEnvelope = {
   rowCount: number;
 };
 
-function rowsFrom(raw: unknown, envelopeKey: string): Json[] {
-  if (Array.isArray(raw)) {
-    return raw.filter((row): row is Json => Boolean(row) && typeof row === "object" && !Array.isArray(row));
-  }
+function isRow(row: unknown): row is Json {
+  return Boolean(row) && typeof row === "object" && !Array.isArray(row);
+}
+
+/**
+ * Pull player/game rows out of an EA export. Snallabot keeps the companion envelope
+ * (`{ rosterInfoList: [...] }`); REC's team-roster fetch used to flatten that into a
+ * bare array. `typeof [] === "object"`, so a helper that only looks for `envelopeKey`
+ * then "the sole array-valued property" treats a player list as an object of players
+ * (none of which are arrays) and returns []. Handle all three shapes:
+ * a top-level array, the named envelope, or a single leftover array.
+ */
+export function extractEaEnvelopeRows(raw: unknown, envelopeKey: string): Json[] {
+  if (Array.isArray(raw)) return raw.filter(isRow);
   if (!raw || typeof raw !== "object") return [];
   const container = raw as Json;
   const direct = container[envelopeKey];
-  if (Array.isArray(direct)) {
-    return direct.filter((row): row is Json => Boolean(row) && typeof row === "object" && !Array.isArray(row));
-  }
+  if (Array.isArray(direct)) return direct.filter(isRow);
   // Tolerate EA renaming an envelope by falling back to the sole array present.
   const arrays = Object.values(container).filter((value): value is unknown[] => Array.isArray(value));
-  if (arrays.length === 1) {
-    return arrays[0].filter((row): row is Json => Boolean(row) && typeof row === "object" && !Array.isArray(row));
-  }
+  if (arrays.length === 1) return arrays[0].filter(isRow);
   return [];
+}
+
+function rowsFrom(raw: unknown, envelopeKey: string): Json[] {
+  return extractEaEnvelopeRows(raw, envelopeKey);
 }
 
 /**
