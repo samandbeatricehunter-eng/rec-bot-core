@@ -44,6 +44,7 @@ import {
   type EaDataset,
 } from "./ea-datasets.js";
 import { directWriteSchedule, directWriteRoster } from "./ea-direct-writer.js";
+import { shouldRetainPlayerAfterEaReconcile } from "./ea-roster-reconcile.js";
 import {
   isTokenExpired,
   openToken,
@@ -60,6 +61,13 @@ const PENDING_AUTH_TTL_MS = 10 * 60 * 1000;
 /** Extract rows from EA's export envelope (e.g. { gameScheduleInfoList: [...] }). */
 function extractEaRows(raw: unknown, envelopeKey: string): Array<Record<string, unknown>> {
   return extractEaEnvelopeRows(raw, envelopeKey);
+}
+
+function collectImportedPlayerIds(raw: unknown, into: Set<string>): void {
+  for (const row of extractEaRows(raw, "rosterInfoList")) {
+    const id = row.rosterId ?? row.roster_id ?? row.playerId ?? row.player_id;
+    if (id != null) into.add(String(id));
+  }
 }
 
 type EaConnectionRow = {
@@ -681,14 +689,12 @@ export async function importEaDatasetsWithProgress(
     console.log(`[EA] Saved ${photoByEaId.size} photos by EA ID, ${photoByName.size} by name for photo restore.`);
   }
 
-  // First EA import for this league: wipe all baseline/seeded players so the EA data becomes
-  // the sole source of truth. Custom player builds are preserved. Fetch the roster from EA
-  // FIRST and confirm it actually returned players before wiping anything — a flaky session or
-  // an auth hiccup that comes back empty must never delete a league's entire roster with
-  // nothing to replace it.
+  // Fetch rosters before writing so an empty EA response never reconciles against a blank
+  // id list (that would delete every player). We do not wipe the existing roster — each
+  // import upserts/moves/updates, then drops anyone EA no longer lists.
   let preloadedRosterRaw: unknown | null = null;
-  if (!row.last_import_at && datasets.includes("rosters")) {
-    pushProgress(leagueId, { type: "reconciling", step: "Checking EA roster before first import…" });
+  if (datasets.includes("rosters")) {
+    pushProgress(leagueId, { type: "reconciling", step: "Checking EA roster…" });
     preloadedRosterRaw = await runWithFreshSession((c) => fetchDataset(c, "rosters", eaLeagueId, defaultWeekRef, teamIdInfoList));
     const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
     if (preloadedCount === 0) {
@@ -699,13 +705,10 @@ export async function importEaDatasetsWithProgress(
           : String(preloadedRosterRaw);
       console.error(`[EA] Empty roster payload shape: ${shape}; teams=${teamIdInfoList.length}`);
       throw new Error(
-        "EA returned an empty roster for this franchise. Nothing was wiped. This usually means the EA " +
+        "EA returned an empty roster for this franchise. Existing players were left unchanged. This usually means the EA " +
           "session needs to be reconnected — try again, and reconnect from the Import Data window if it keeps failing.",
       );
     }
-    pushProgress(leagueId, { type: "reconciling", step: "First import — clearing baseline roster…" });
-    const wiped = await wipeBaselineRoster(leagueId);
-    console.log(`[EA] First import: wiped ${wiped} baseline player(s) for league ${leagueId}`);
   }
 
   pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
@@ -730,13 +733,10 @@ export async function importEaDatasetsWithProgress(
       scheduleImported = true;
     } else if (dataset === "rosters") {
       records = await directWriteRoster(leagueId, raw, false);
-      const rows = extractEaRows(raw, "rosterInfoList");
-      for (const r of rows) {
-        const id = (r as any).rosterId ?? (r as any).roster_id ?? (r as any).playerId ?? (r as any).player_id;
-        if (id != null) importedPlayerIds.add(String(id));
-      }
+      collectImportedPlayerIds(raw, importedPlayerIds);
     } else if (dataset === "free_agents") {
       records = await directWriteRoster(leagueId, raw, true);
+      collectImportedPlayerIds(raw, importedPlayerIds);
     } else {
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
       const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
@@ -849,9 +849,9 @@ export async function importEaDatasetsWithProgress(
       }
     }
   }
-  // Subsequent imports: reconcile — remove players no longer in the EA export.
-  // First imports already wiped the baseline, so this only applies to re-imports.
-  if (datasets.includes("rosters") && row.last_import_at && importedPlayerIds.size > 0) {
+  // Cross-reference DB rosters with this import: drop players EA no longer lists.
+  // Moves and rating updates already happened in directWriteRoster (upsert by EA id).
+  if (datasets.includes("rosters") && importedPlayerIds.size > 0) {
     pushProgress(leagueId, { type: "reconciling", step: "Reconciling rosters…" });
     await reconcileRostersToImport(leagueId, [...importedPlayerIds]).catch((error) =>
       console.error("[WARN] Failed to reconcile rosters against the EA import (non-fatal):", error));
@@ -1084,35 +1084,44 @@ export async function reconcilePendingPurchasesToImport(leagueId: string): Promi
 /**
  * Source-of-truth reconciliation: the EA import defines the league's rosters. Players absent
  * from the imported rows are removed — imported rows themselves already upserted by
- * madden_player_id, overwriting any manually edited values. Players minted by custom-player
- * builds (paid content, referenced from rec_custom_player_builds.created_player_id) are
- * always spared. A hard delete can trip NO ACTION foreign keys (award nominees, fantasy
- * draft picks); those rows fall back to roster_status='removed' so they leave the active
- * roster either way.
+ * madden_player_id (ratings, team moves, free-agent flags). Players minted by custom-player
+ * builds and unmatched legend/custom placeholders are spared. A hard delete can trip NO ACTION
+ * foreign keys (award nominees, fantasy draft picks); those rows fall back to
+ * roster_status='removed' so they leave the active roster either way.
  */
 async function reconcileRostersToImport(leagueId: string, importedPlayerIds: string[]): Promise<void> {
-  const staleFilter = `
-    league_id=$1
-    and madden_player_id::text <> all($2::text[])
-    and not exists (
-      select 1 from rec_custom_player_builds b
-       where b.league_id=$1 and b.created_player_id = rec_players.id
-    )`;
-  const stale = await getPgPool().query<{ id: string }>(
-    `select id from rec_players where ${staleFilter}`,
-    [leagueId, importedPlayerIds],
+  const imported = new Set(importedPlayerIds);
+  const existing = await getPgPool().query<{
+    id: string;
+    madden_player_id: string | null;
+    player_source: string | null;
+    is_custom_build: boolean;
+  }>(
+    `select p.id, p.madden_player_id, p.player_source,
+            exists (
+              select 1 from rec_custom_player_builds b
+               where b.league_id=$1 and b.created_player_id = p.id
+            ) as is_custom_build
+       from rec_players p
+      where p.league_id=$1`,
+    [leagueId],
   );
-  if (!stale.rows.length) return;
+  const staleIds = existing.rows
+    .filter((row) => !shouldRetainPlayerAfterEaReconcile(
+      { maddenPlayerId: row.madden_player_id, playerSource: row.player_source, isCustomBuild: row.is_custom_build === true },
+      imported,
+    ))
+    .map((row) => row.id);
+  if (!staleIds.length) return;
   try {
-    await getPgPool().query(`delete from rec_players where ${staleFilter}`, [leagueId, importedPlayerIds]);
-    console.log(`[EA] Roster reconciliation: removed ${stale.rows.length} stale player(s) not present in the EA import.`);
+    await getPgPool().query(`delete from rec_players where league_id=$1 and id = any($2::uuid[])`, [leagueId, staleIds]);
+    console.log(`[EA] Roster reconciliation: removed ${staleIds.length} stale player(s) not present in the EA import.`);
   } catch (error) {
-    // FK-blocked rows: retire them from the roster instead of deleting outright.
     await getPgPool().query(
-      `update rec_players set roster_status='removed', updated_at=now() where ${staleFilter}`,
-      [leagueId, importedPlayerIds],
+      `update rec_players set roster_status='removed', updated_at=now() where league_id=$1 and id = any($2::uuid[])`,
+      [leagueId, staleIds],
     );
-    console.warn(`[EA] Roster reconciliation: marked ${stale.rows.length} stale player(s) removed (blocked by references):`, error instanceof Error ? error.message : error);
+    console.warn(`[EA] Roster reconciliation: marked ${staleIds.length} stale player(s) removed (blocked by references):`, error instanceof Error ? error.message : error);
   }
 }
 
