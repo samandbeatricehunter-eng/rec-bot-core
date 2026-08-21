@@ -39,6 +39,8 @@ export type LinkProfileResponse = {
   avatarUrl?: string | null;
   entitlements?: EntitlementSummary | null;
   claimDropdownOpen?: boolean;
+  /** Hub identity: real Discord snowflake, or a site-only synthetic id. */
+  discordId?: string | null;
 };
 
 export type StreamPlatform = "twitch" | "youtube" | "tiktok";
@@ -194,10 +196,48 @@ async function request<T>(path: string, body: unknown = {}): Promise<T> {
   return result;
 }
 
+const HUB_OPEN_CACHE_PREFIX = "rec-hub-open:";
+
+export function readCachedHubOpen(leagueId: string): { guildId: string; discordId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { guildId?: unknown; discordId?: unknown };
+    const guildId = String(parsed.guildId ?? "").trim();
+    const discordId = String(parsed.discordId ?? "").trim();
+    if (!guildId || !discordId) return null;
+    return { guildId, discordId };
+  } catch {
+    return null;
+  }
+}
+
+export function persistCachedHubOpen(leagueId: string, context: { guildId: string; discordId: string }) {
+  try {
+    sessionStorage.setItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`, JSON.stringify(context));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearCachedHubOpens() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith(HUB_OPEN_CACHE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function clearSiteApiCaches() {
   sessionCache = null;
   sessionInflight = null;
   siteReadCache.invalidate();
+  clearCachedHubOpens();
 }
 
 async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -303,6 +343,8 @@ export type SiteLeagueSummary = {
   isCommissioner: boolean;
   commissionerRole?: "head" | "co" | "member";
   discordBotEnabled: boolean;
+  /** Discord guild id, or a site-only synthetic id when the league has no Discord server. */
+  guildId?: string | null;
 };
 
 export type SiteLeagueTickerItem = {

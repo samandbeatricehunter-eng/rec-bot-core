@@ -109,7 +109,14 @@ async function loadCurrentLeagueContext(guildId: string): Promise<CurrentLeagueC
 }
 
 export async function findCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext | null> {
-  return loadCurrentLeagueContext(guildId);
+  // Share getCurrentLeagueContext's short TTL so hub chrome, menu profile, and the
+  // user snapshot don't each re-resolve the same guild → league row on one page load.
+  try {
+    return await getCurrentLeagueContext(guildId);
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode === 404) return null;
+    throw error;
+  }
 }
 
 export async function getCurrentLeagueContext(guildId: string): Promise<CurrentLeagueContext> {

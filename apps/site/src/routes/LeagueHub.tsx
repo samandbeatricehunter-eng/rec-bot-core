@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode
 import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
-import { siteApi } from "../lib/site-api.js";
+import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-api.js";
 import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
 import { LeagueTopNav } from "../components/LeagueTopNav.js";
@@ -259,6 +259,18 @@ function LeagueSettingsSection() {
   );
 }
 
+async function composeHubContextFromLists(leagueId: string): Promise<{ guildId: string; discordId: string } | null> {
+  const [profile, mine] = await Promise.all([
+    siteApi.getLinkProfile().catch(() => null),
+    siteApi.listMyLeagues().catch(() => null),
+  ]);
+  const discordId = String(profile?.discordId ?? "").trim();
+  const username = String(profile?.username ?? "").trim();
+  const guildId = String(mine?.leagues.find((league) => league.id === leagueId)?.guildId ?? "").trim();
+  if (!username || !discordId || !guildId) return null;
+  return { guildId, discordId };
+}
+
 /**
  * Renders the Discord hub panels inside the site shell (no iframe).
  * Uses the site BrowserRouter only — never nest MemoryRouter.
@@ -272,9 +284,9 @@ export function LeagueHubPage() {
   const [context, setContext] = useState<{
     guildId: string;
     discordId: string;
-  } | null>(null);
+  } | null>(() => (leagueId ? readCachedHubOpen(leagueId) : null));
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !(leagueId && readCachedHubOpen(leagueId)));
   const gameTheme = hub.selectedLeague?.game ?? null;
 
   useEffect(() => {
@@ -293,15 +305,33 @@ export function LeagueHubPage() {
       return;
     }
     let cancelled = false;
-    setLoading(true);
     setError(null);
-    siteApi
-      .openLeagueHub({ leagueId, view: "buzz" })
-      .then((result) => {
+
+    async function resolveHubContext() {
+      const cached = readCachedHubOpen(leagueId);
+      setContext(cached);
+      let painted = Boolean(cached);
+      if (cached) {
+        setLoading(false);
+      } else {
+        setLoading(true);
+        const composed = await composeHubContextFromLists(leagueId);
+        if (cancelled) return;
+        if (composed) {
+          painted = true;
+          persistCachedHubOpen(leagueId, composed);
+          setContext(composed);
+          setLoading(false);
+        }
+      }
+
+      try {
+        const result = await siteApi.openLeagueHub({ leagueId, view: "buzz" });
         if (cancelled) return;
         const guildId = String(result.guildId ?? "").trim();
         const discordId = String(result.discordId ?? "").trim();
         if (!guildId || !discordId) {
+          if (painted) return;
           setContext(null);
           setError(
             result.hubUrl
@@ -310,16 +340,21 @@ export function LeagueHubPage() {
           );
           return;
         }
-        setContext({ guildId, discordId });
-      })
-      .catch((err) => {
+        const next = { guildId, discordId };
+        persistCachedHubOpen(leagueId, next);
+        setContext(next);
+        setError(null);
+      } catch (err) {
         if (cancelled) return;
+        if (painted) return;
         setContext(null);
         setError(err instanceof Error ? err.message : "Could not open league hub.");
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }
+
+    void resolveHubContext();
     return () => {
       cancelled = true;
     };

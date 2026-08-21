@@ -482,29 +482,35 @@ export async function getLeagueUserIdentities(guildId: string) {
 // Returns all data needed for the User Snapshots paginated viewer in /menu > Rosters.
 // Aggregates season records, global records, power ranking, SOS, GOTW records, GOTW
 // competition history, and awards won in the given guild.
-export async function getUserSnapshot(targetDiscordId: string, guildId: string) {
-  const baseline = await getUserBaselineByDiscordId(targetDiscordId);
-  const userId = baseline.user.id;
+type UserProfilePrefetch = {
+  baselineP?: ReturnType<typeof getUserBaselineByDiscordId>;
+};
 
-  const context = await findCurrentLeagueContext(guildId);
+export async function getUserSnapshot(targetDiscordId: string, guildId: string, prefetch?: UserProfilePrefetch) {
+  const [baseline, context] = await Promise.all([
+    prefetch?.baselineP ?? getUserBaselineByDiscordId(targetDiscordId),
+    findCurrentLeagueContext(guildId),
+  ]);
+  const userId = baseline.user.id;
   const leagueId = context?.leagueId ?? null;
 
-  const assignmentResult = leagueId
-    ? await supabase
-        .from("rec_team_assignments")
-        .select("team_id,team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
-        .eq("league_id", leagueId)
-        .eq("user_id", userId)
-        .eq("assignment_status", "active")
-        .is("ended_at", null)
-        .maybeSingle()
-    : { data: null };
+  const [assignmentResult, leagueInfoResult] = await Promise.all([
+    leagueId
+      ? supabase
+          .from("rec_team_assignments")
+          .select("team_id,team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+          .eq("league_id", leagueId)
+          .eq("user_id", userId)
+          .eq("assignment_status", "active")
+          .is("ended_at", null)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    leagueId
+      ? supabase.from("rec_leagues").select("name,game,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
   const teamId = (assignmentResult.data as any)?.team_id ?? null;
   const teamRow = (assignmentResult.data as any)?.team ?? null;
-
-  const leagueInfoResult = leagueId
-    ? await supabase.from("rec_leagues").select("name,game,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
-    : { data: null };
   const leagueInfo = leagueInfoResult.data;
   const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? 1;
   const leagueGame = String(leagueInfo?.game ?? "madden_26");
@@ -521,6 +527,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     globalRecordRow,
     gameGlobalRecordRow,
     leagueSeasonRecords,
+    rankingPair,
   ] = await Promise.all([
     leagueId
       ? supabase
@@ -569,6 +576,12 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
           .eq("league_id", leagueId)
           .eq("user_id", userId)
       : Promise.resolve({ data: [] }),
+    leagueId && teamId
+      ? Promise.all([
+          bestEffort("users.power_rankings", () => computePowerRankings(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
+          bestEffort("users.league_sos", () => computeLeagueSos(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
+        ])
+      : Promise.resolve([null, null] as const),
   ]);
 
   const teamName = resolveTeamProgramName(teamRow) ?? formatTeamDisplayName(teamRow);
@@ -595,12 +608,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const gotwCorrect = gotwGuess?.correct_guesses ?? 0;
   const gotwWrong = gotwGuess?.wrong_guesses ?? 0;
   const gotwTotal = gotwCorrect + gotwWrong;
-  const [rankingResult, sosResult] = leagueId && teamId
-    ? await Promise.all([
-        bestEffort("users.power_rankings", () => computePowerRankings(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
-        bestEffort("users.league_sos", () => computeLeagueSos(guildId, targetDiscordId), { guildId }).then((v) => v ?? null),
-      ])
-    : [null, null];
+  const [rankingResult, sosResult] = rankingPair;
   const rankRow = rankingResult?.teams?.find((team: any) => String(team.teamId) === String(teamId)) ?? null;
   const sosRow = sosResult?.teams?.find((team: any) => String(team.teamId) === String(teamId)) ?? null;
 
@@ -1011,11 +1019,12 @@ function streakFromGames(games: any[], userId: string): string {
 // Projected savings interest on the next advance (matches advance-time SAVINGS_INTEREST_RATE of 3.5%, floored).
 const SAVINGS_INTEREST_RATE = 0.035;
 
-export async function getUserMenuProfileByDiscordId(discordId: string, guildId: string) {
-  const baseline = await getUserBaselineByDiscordId(discordId);
+export async function getUserMenuProfileByDiscordId(discordId: string, guildId: string, prefetch?: UserProfilePrefetch) {
+  const [baseline, context] = await Promise.all([
+    prefetch?.baselineP ?? getUserBaselineByDiscordId(discordId),
+    findCurrentLeagueContext(guildId),
+  ]);
   const userId = baseline.user.id;
-
-  const context = await findCurrentLeagueContext(guildId);
   const server: any = context?.rec_discord_servers ?? null;
   const league: any = context?.rec_leagues ?? null;
 

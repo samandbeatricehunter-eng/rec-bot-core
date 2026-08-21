@@ -11,7 +11,7 @@ import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueCo
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
-import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
+import { getUserBaselineByDiscordId, getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computeLatestPublishedPowerRankings, computePowerRankings } from "../schedule/power-rankings.service.js";
@@ -49,6 +49,9 @@ import { getSchedulingPayoutMultiplier } from "../scheduling/scheduling-bonus.se
 // stream runs longer than that, so anything older is treated as ended for display/watch.
 // This is a read-time window only; the compliance log itself is untouched (payouts still count).
 const STREAM_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+/** Hub carousel only needs a recent slice — a full-season highlight dump plus Discord
+ * CDN refreshes was dominating cold hub loads. */
+const HUB_HIGHLIGHT_LIMIT = 24;
 function streamLiveSince(): string {
   return new Date(Date.now() - STREAM_LIVE_WINDOW_MS).toISOString();
 }
@@ -684,26 +687,18 @@ export async function getHub(guildId: string, discordId: string) {
 
   const contextP = getCurrentLeagueContext(guildId);
   const userIdP = userIdForDiscord(discordId);
-  const canManageP = assertGuildPermission(guildId, discordId, "co_commissioner").then(() => true).catch(() => false);
-  const isCommissionerP = assertGuildPermission(guildId, discordId, "commissioner").then(() => true).catch(() => false);
-  const seasonIdP = contextP.then((ctx) => {
-    const seasonNumber = Number(ctx.rec_leagues.season_number ?? ctx.rec_leagues.display_season_number ?? 1);
-    return resolveSeasonId(ctx.leagueId, seasonNumber);
-  });
-  const [context, userId, canManageLeague, isCommissioner, seasonId] = await Promise.all([
-    contextP, userIdP, canManageP, isCommissionerP, seasonIdP,
-  ]);
-  const commissionerTier: "commissioner" | "co_commissioner" | null = isCommissioner
-    ? "commissioner"
-    : canManageLeague
-      ? "co_commissioner"
-      : null;
+  const [context, userId] = await Promise.all([contextP, userIdP]);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
   const emptyWeekly = { data: [] as any[] };
+  const seasonIdP = resolveSeasonId(context.leagueId, seasonNumber);
+  const membershipP = userId
+    ? supabase.from("rec_league_memberships").select("role").eq("league_id", context.leagueId).eq("user_id", userId).eq("status", "active").maybeSingle()
+    : Promise.resolve({ data: null as { role?: string | null } | null, error: null });
+  const baselineP = getUserBaselineByDiscordId(discordId);
 
-  const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, userRatings, storeConfig, economy, weeklyBundle, highlightGames, currentStreamLogs] = await Promise.all([
+  const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, userRatings, storeConfig, economy, weeklyBundle, currentStreamLogs, seasonId, membership] = await Promise.all([
     // 60 covers a full season's worth of weekly announcements (even with several posts some
     // weeks) so the hub carousel's week-by-week paging has real history to page back through.
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("published_at", { ascending: false }).limit(60),
@@ -711,9 +706,12 @@ export async function getHub(guildId: string, discordId: string) {
     // Order by the game's own week first (falling back to created_at within a week) so a
     // highlight submitted late for an earlier week slots back into that week's place in the
     // rotation instead of jumping to the front just because it was uploaded recently.
-    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }).limit(HUB_HIGHLIGHT_LIMIT),
     getWeeklyH2hGames(guildId),
-    Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
+    Promise.all([
+      getUserMenuProfileByDiscordId(discordId, guildId, { baselineP }),
+      getUserSnapshot(discordId, guildId, { baselineP }),
+    ]).then(([menu, profile]) => ({ ...menu, profile })),
     bestEffort("hub.power_rankings", () => computeLatestPublishedPowerRankings(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.league_sos", () => computeLeagueSos(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.user_ratings", () => computeUserRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
@@ -726,8 +724,6 @@ export async function getHub(guildId: string, discordId: string) {
       supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
       supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout"]),
     ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
-    leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId },
-      "week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)"),
     supabase
       .from("rec_stream_compliance_logs")
       .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
@@ -740,15 +736,34 @@ export async function getHub(guildId: string, discordId: string) {
       .is("ended_at", null)
       .order("posted_at", { ascending: false })
       .limit(16),
+    seasonIdP,
+    membershipP,
   ]);
   if (announcements.error) throw new ApiError(500, "We couldn't load hub announcements right now. Please try again.", announcements.error);
   if (headlines.error) throw new ApiError(500, "We couldn't load hub headlines right now. Please try again.", headlines.error);
   if (highlights.error) throw new ApiError(500, "We couldn't load highlights right now. Please try again.", highlights.error);
   if (storeConfig.error) throw new ApiError(500, "We couldn't load the Hub store settings. Please try again.", storeConfig.error);
+  if (membership.error) throw new ApiError(500, "We couldn't load your league role. Please try again.", membership.error);
+  const ownerUserId = context.rec_leagues.owner_user_id ?? null;
+  const membershipRole = String(membership.data?.role ?? "");
+  const isOwner = Boolean(userId && ownerUserId && userId === ownerUserId);
+  const canManageLeague = isOwner || ["commissioner", "head_commissioner", "co_commissioner", "co"].includes(membershipRole);
+  const commissionerTier: "commissioner" | "co_commissioner" | null = !canManageLeague
+    ? null
+    : ["co_commissioner", "co"].includes(membershipRole) && !isOwner
+      ? "co_commissioner"
+      : "commissioner";
   const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers] = weeklyBundle;
   const weeklyGame = (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null;
-  if (highlightGames.error) throw new ApiError(500, "We couldn't load highlight matchups right now. Please try again.", highlightGames.error);
   if (currentStreamLogs.error) throw new ApiError(500, "We couldn't load live streams right now. Please try again.", currentStreamLogs.error);
+
+  const highlightWeeks = [...new Set((highlights.data ?? []).map((item: any) => Number(item.week_number)).filter((week) => Number.isFinite(week) && week > 0))];
+  const highlightGames = highlightWeeks.length
+    ? await leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId },
+      "week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
+      .in("week_number", highlightWeeks)
+    : { data: [] as any[], error: null };
+  if (highlightGames.error) throw new ApiError(500, "We couldn't load highlight matchups right now. Please try again.", highlightGames.error);
 
   const ids = (highlights.data ?? []).map((item: any) => item.id);
   const storyIds = (headlines.data ?? []).map((item: any) => item.id);
@@ -756,8 +771,21 @@ export async function getHub(guildId: string, discordId: string) {
   const highlightGameUserIds = [...new Set((highlightGames.data ?? []).flatMap((game: any) => [game.home_user_id, game.away_user_id]).filter(Boolean))];
   const streamLogIds = (currentStreamLogs.data ?? []).map((stream: any) => stream.id);
   const liveGameTeamIds = [...new Set((currentStreamLogs.data ?? []).flatMap((stream: any) => [stream.game?.home_team_id, stream.game?.away_team_id]).filter(Boolean))];
+  const hydratedHighlights = (highlights.data ?? []).map((item: any) => {
+    const streamed = streamHighlightPlayback(item);
+    const videoUrlValue = streamed.streamUid ? streamed.videoUrl : videoUrl(item.content);
+    if (!streamed.streamUid && !discordCdnUrlIsFresh(videoUrlValue)) {
+      void refreshDiscordMediaUrl(item);
+    }
+    return {
+      ...item,
+      videoUrl: videoUrlValue,
+      streamUid: streamed.streamUid,
+      iframeUrl: streamed.iframeUrl,
+    };
+  });
 
-  const [weeklySubmission, schedulingMultiplier, reactions, views, storyReactions, storyComments, gameReactions, hydratedHighlights, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
+  const [weeklySubmission, schedulingMultiplier, reactions, views, storyReactions, storyComments, gameReactions, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
     weeklyGame ? supabase.from("rec_box_score_submissions").select("id").eq("game_id", weeklyGame.gameId).eq("status", "approved").limit(1).maybeSingle() : Promise.resolve({ data: null as { id: string } | null }),
     weeklyGame ? getSchedulingPayoutMultiplier({
       gameId: weeklyGame.gameId,
@@ -769,16 +797,6 @@ export async function getHub(guildId: string, discordId: string) {
     storyIds.length ? supabase.from("rec_story_reactions").select("story_id,user_id,reaction_key").in("story_id", storyIds) : Promise.resolve({ data: [], error: null }),
     storyIds.length ? supabase.from("rec_story_comments").select("story_id").in("story_id", storyIds) : Promise.resolve({ data: [], error: null }),
     gameIds.length ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key").in("game_id", gameIds) : Promise.resolve({ data: [], error: null }),
-    Promise.all((highlights.data ?? []).map(async (item: any) => {
-      const streamed = streamHighlightPlayback(item);
-      const videoUrlValue = streamed.streamUid ? streamed.videoUrl : await refreshDiscordMediaUrl(item);
-      return {
-        ...item,
-        videoUrl: videoUrlValue,
-        streamUid: streamed.streamUid,
-        iframeUrl: streamed.iframeUrl,
-      };
-    })),
     highlightGameUserIds.length
       ? supabase.from("rec_users").select("id,username,display_name").in("id", highlightGameUserIds)
       : Promise.resolve({ data: [] as any[], error: null }),
