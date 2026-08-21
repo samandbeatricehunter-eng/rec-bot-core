@@ -17,7 +17,7 @@ import { getLeagueDataMode } from "./data-mode.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { listConfirmableWagers, resolveWagersOnAdvance } from "../wagers/wagers.service.js";
+import { cancelAllWagersForGame, listConfirmableWagers, resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
@@ -785,6 +785,9 @@ export async function completeAdvanceWeek(input: {
           sourceReference: { gameId: game.data.id, userId, outcome: outcomeLabel },
         });
       }
+    }
+    if (result.designation === "force_win") {
+      await cancelAllWagersForGame({ guildId: input.guildId, gameId: game.data.id, reason: "force_win" });
     }
 
     // Surface any pending wager this result just made settle-ready. The Discord bot does this

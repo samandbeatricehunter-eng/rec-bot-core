@@ -449,32 +449,44 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   if (!account.data?.user_id) return { seasonNumber, teamStats: [], ranking: null };
   const userId = account.data.user_id;
 
-  const statsRows = await supabase
+  const assignment = await supabase.from("rec_team_assignments").select("team_id")
+    .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (assignment.error) throw new ApiError(500, "We couldn't load your current team. Please try again.", assignment.error);
+  const teamId = assignment.data?.team_id ?? null;
+
+  let statsQuery = supabase
     .from("rec_team_game_stats")
     .select("*")
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
-    .eq("user_id", userId)
     .lte("week_number", regularSeasonWeeks(game));
+  statsQuery = teamId ? statsQuery.eq("team_id", teamId) : statsQuery.eq("user_id", userId);
+  const statsRows = await statsQuery;
   if (statsRows.error) throw new ApiError(500, "We couldn't load your season stats right now. Please try again.", statsRows.error);
   const rows = statsRows.data ?? [];
+  const resultRows = teamId
+    ? await supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score")
+        .eq("league_id", context.leagueId).eq("season_number", seasonNumber).lte("week_number", regularSeasonWeeks(game))
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    : { data: [] as any[], error: null };
+  if (resultRows.error) throw new ApiError(500, "We couldn't load your finalized game results right now. Please try again.", resultRows.error);
+  const scoreRows = (resultRows.data ?? []).map((result: any) => {
+    const isHome = result.home_team_id === teamId;
+    return { points_for: isHome ? result.home_score : result.away_score, points_against: isHome ? result.away_score : result.home_score };
+  });
 
   const defenseNickname = await bestEffort("eos.defense_nickname_status", () => getMyDefenseNicknameStatus(input.guildId, input.discordId), { guildId: input.guildId }) ?? null;
 
-  // No box score submitted (or Madden stat import run) for this user yet this season — every
-  // evalTeamStat branch defaults to 0 when games=0, and 0 can fall inside a tier's synthetic
-  // progress window (e.g. a negative D-tier floor), so a coach with zero real games would
-  // otherwise see a partially-filled progress bar toward a tier they haven't actually made any
-  // progress on. Show a real zero instead of a computed-from-nothing one.
-  const hasSubmittedStats = rows.length > 0;
-
   const teamStats: EosPayoutProgressCard[] = teamDefinitions.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
-    const value = evalTeamStat(definition.statKey, rows, game);
+    const isScoreMetric = definition.statKey === "points_per_game" || definition.statKey === "points_allowed_per_game";
+    const sourceRows = isScoreMetric ? scoreRows : rows;
+    const hasMetricData = sourceRows.length > 0;
+    const value = evalTeamStat(definition.statKey, sourceRows, game);
     return {
       key: definition.key,
       label: definition.label,
-      currentValue: hasSubmittedStats && Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
-      progress: hasSubmittedStats
+      currentValue: hasMetricData && Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
+      progress: hasMetricData
         ? computeTierProgress(value, definition.tiers, definition.direction)
         : { currentTier: null, currentAmount: 0, nextTier: definition.tiers[definition.tiers.length - 1] ?? null, percent: 0 },
       tiers: definition.tiers,

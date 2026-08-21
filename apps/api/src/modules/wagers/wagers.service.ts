@@ -17,7 +17,7 @@ import { createSiteNotification } from "../site-notifications/site-notifications
 import { sendPushToUsers } from "../push/push.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { assertNotLeagueRestricted } from "../moderation/moderation.service.js";
-import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { editDiscordMessage, postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
@@ -1424,16 +1424,47 @@ export async function reopenWageringForGame(input: { guildId: string; gameId: st
 // the game — including already-accepted/house wagers that would otherwise ride to a normal
 // settlement — for when the game itself won't produce a real result (Fair Sim, Force Win,
 // or otherwise voided) and no wager on it should have a winner or loser.
-export async function cancelAllWagersForGame(input: { guildId: string; gameId: string }) {
+export async function cancelAllWagersForGame(input: { guildId: string; gameId: string; reason?: "force_win" | "fair_sim" | "voided" }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
-  const openWagers = await supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).eq("game_id", input.gameId).in("status", ["awaiting_accept", "pending", "confirmed"]);
+  const affectedLegs = await supabase.from("rec_wager_legs").select("wager_id").eq("game_id", input.gameId);
+  if (affectedLegs.error) throw new ApiError(500, "We couldn't load parlay wagers for that game. Please try again.", affectedLegs.error);
+  const parlayWagerIds = [...new Set((affectedLegs.data ?? []).map((row: any) => String(row.wager_id)))];
+  let openWagerQuery = supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).in("status", ["awaiting_accept", "pending", "confirmed"]);
+  openWagerQuery = parlayWagerIds.length
+    ? openWagerQuery.or(`game_id.eq.${input.gameId},id.in.(${parlayWagerIds.join(",")})`)
+    : openWagerQuery.eq("game_id", input.gameId);
+  const openWagers = await openWagerQuery;
   if (openWagers.error) throw new ApiError(500, "We couldn't load the wagers to cancel. Please try again.", openWagers.error);
-  for (const wager of openWagers.data ?? []) await refundWagerStake(wager, "Wager cancelled — game voided");
+  const reasonLabel = input.reason === "force_win" ? "Force Win" : input.reason === "fair_sim" ? "Fair Sim" : "game voided";
+  for (const wager of openWagers.data ?? []) await refundWagerStake(wager, `Wager refunded — ${reasonLabel}`);
   if (openWagers.data?.length) {
     await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", openWagers.data.map((wager) => wager.id));
+  }
+  const refundsByUser = new Map<string, number>();
+  for (const wager of openWagers.data ?? []) {
+    const stake = Number(wager.stake ?? 0);
+    refundsByUser.set(wager.placed_by_user_id, (refundsByUser.get(wager.placed_by_user_id) ?? 0) + stake);
+    if (wager.accepted_by_user_id) refundsByUser.set(wager.accepted_by_user_id, (refundsByUser.get(wager.accepted_by_user_id) ?? 0) + stake);
+    const closedPayload = { content: `↩️ **Wager refunded — ${reasonLabel}.** All posted stakes were returned because this game will not produce a wager result.`, components: [] };
+    if (wager.pending_channel_id && wager.pending_message_id) await editDiscordMessage(wager.pending_channel_id, wager.pending_message_id, closedPayload).catch(() => false);
+    if (wager.announcement_channel_id && wager.announcement_message_id) await editDiscordMessage(wager.announcement_channel_id, wager.announcement_message_id, closedPayload).catch(() => false);
+  }
+  const userIds = [...refundsByUser.keys()];
+  if (userIds.length) {
+    const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds);
+    const discordByUser = new Map<string, string>((accounts.data ?? []).map((row: any): [string, string] => [String(row.user_id), String(row.discord_id)]));
+    await Promise.all(userIds.map(async (userId) => {
+      const amount = refundsByUser.get(userId) ?? 0;
+      const title = `Wager refunded — ${reasonLabel}`;
+      const body = `${formatCoins(amount)} was returned to your wallet because the matchup was recorded as a ${reasonLabel}. The wager has no win or loss.`;
+      await createSiteNotification({ userId, leagueId: context.leagueId, kind: "wager_refunded", title, body, href: `/l/${context.leagueId}/buzz` }).catch(() => undefined);
+      await sendPushToUsers([userId], { title, body, url: `/l/${context.leagueId}/buzz` }).catch(() => undefined);
+      const discordId = discordByUser.get(userId);
+      if (discordId) await sendDiscordDirectMessage(discordId, `**${title}**\n${body}`).catch(() => undefined);
+    }));
   }
   return { cancelled: true, refundedCount: openWagers.data?.length ?? 0 };
 }
