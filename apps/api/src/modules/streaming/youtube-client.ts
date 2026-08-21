@@ -98,3 +98,29 @@ export async function youtubeIsLive(token: StreamingTokenPair): Promise<{ live: 
   const item = payload.items?.[0];
   return { live: Boolean(item?.id), streamId: item?.id ?? null };
 }
+
+/** Best-effort live check for a saved handle when the user linked a username instead of OAuth. */
+export async function youtubeHandleIsLive(handle: string): Promise<{ live: boolean; streamId: string | null }> {
+  const slug = handle.replace(/^@/, "").trim();
+  if (!slug) return { live: false, streamId: null };
+  const url = slug.startsWith("UC") && slug.length >= 22
+    ? `https://www.youtube.com/channel/${encodeURIComponent(slug)}/live`
+    : `https://www.youtube.com/@${encodeURIComponent(slug)}/live`;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      headers: { "user-agent": "Mozilla/5.0 (compatible; RECBot/1.0)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { live: false, streamId: null };
+    const finalUrl = res.url ?? "";
+    const watch = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+    if (watch?.[1]) return { live: true, streamId: watch[1] };
+    const html = await res.text();
+    const live = /"isLiveNow"\s*:\s*true/.test(html) || /"isLive"\s*:\s*true/.test(html);
+    return { live, streamId: null };
+  } catch {
+    return { live: false, streamId: null };
+  }
+}

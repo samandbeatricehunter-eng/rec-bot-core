@@ -16,6 +16,7 @@ import {
   declinePrompt,
   getLivePromptForUser,
   handleTwitchEventsubPayload,
+  linkStreamingUsername,
   linkTiktokUsername,
   listH2hMatchupsForUser,
   listStreamingAccounts,
@@ -73,6 +74,19 @@ export async function streamingRoutes(app: FastifyInstance) {
         return reply.redirect(siteAccountRedirect({ streaming: "error", platform: params.platform }));
       }
       return reply.redirect(await completeStreamingOAuth({ platform: params.platform, code: query.code, state: query.state }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/streaming/accounts/username", async (request, reply) => {
+    try {
+      const auth = await requireSiteRecUser(request);
+      const body = z.object({
+        platform: PlatformSchema,
+        username: z.string().min(1).max(64),
+      }).parse(request.body ?? {});
+      return reply.send(await linkStreamingUsername(auth.recUserId, body.platform, body.username));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -6,7 +6,10 @@ import { resolveRecUserIdByAuthUserId } from "../subscriptions/entitlements.serv
 import {
   autopostAtIso,
   formatMatchupOptionLabel,
+  isValidStreamHandle,
+  normalizeStreamHandle,
   publicStreamUrl,
+  streamHandleError,
   type StreamPlatform,
 } from "./streaming-labels.js";
 import {
@@ -24,13 +27,13 @@ import {
   exchangeTwitchCode,
   fetchTwitchUser,
   helixGetStreams,
+  helixGetUsersByLogin,
   subscribeTwitchStreamEvents,
   twitchAuthorizeUrl,
 } from "./twitch-client.js";
-import { exchangeYoutubeCode, fetchYoutubeChannel, youtubeAuthorizeUrl, youtubeIsLive } from "./youtube-client.js";
+import { exchangeYoutubeCode, fetchYoutubeChannel, youtubeAuthorizeUrl, youtubeHandleIsLive, youtubeIsLive } from "./youtube-client.js";
 import {
   exchangeTiktokCode,
-  normalizeTiktokUsername,
   tiktokAuthorizeUrl,
   tiktokIsLive,
 } from "./tiktok-client.js";
@@ -160,6 +163,8 @@ export function streamingPlatformStatus() {
     twitch: twitchConfigured(),
     youtube: youtubeConfigured(),
     tiktokOAuth: tiktokOAuthConfigured(),
+    twitchUsername: true,
+    youtubeUsername: true,
     tiktokUsername: true,
     publicApi: Boolean(publicApiBaseUrl()),
   };
@@ -310,21 +315,47 @@ export async function completeStreamingOAuth(input: { platform: StreamPlatform; 
   }
 }
 
-export async function linkTiktokUsername(userId: string, username: string) {
-  const login = normalizeTiktokUsername(username);
-  if (!/^[a-z0-9._]{2,24}$/i.test(login)) {
-    throw new ApiError(400, "Enter a valid TikTok username (letters, numbers, period, or underscore).");
+export async function linkStreamingUsername(userId: string, platform: StreamPlatform, username: string) {
+  const login = normalizeStreamHandle(platform, username);
+  if (!isValidStreamHandle(platform, login)) throw new ApiError(400, streamHandleError(platform));
+
+  let platformUserId: string | null = null;
+  let displayName = login;
+  let eventsubOnlineId: string | null = null;
+  let eventsubOfflineId: string | null = null;
+
+  if (platform === "twitch" && twitchConfigured()) {
+    try {
+      const users = await helixGetUsersByLogin([login]);
+      const twitchUser = users[0];
+      if (twitchUser) {
+        platformUserId = twitchUser.id;
+        displayName = twitchUser.display_name;
+        const eventsub = await subscribeTwitchStreamEvents(twitchUser.id);
+        eventsubOnlineId = eventsub.onlineId;
+        eventsubOfflineId = eventsub.offlineId;
+      }
+    } catch (error) {
+      console.warn("[WARN] Twitch username lookup failed; saved handle only.", error);
+    }
   }
+
   await upsertAccount({
     userId,
-    platform: "tiktok",
-    platformUserId: null,
-    platformLogin: login,
-    displayName: login,
-    profileUrl: publicStreamUrl("tiktok", login),
+    platform,
+    platformUserId,
+    platformLogin: platform === "twitch" ? login.toLowerCase() : login.replace(/^@/, ""),
+    displayName,
+    profileUrl: publicStreamUrl(platform, login, platformUserId),
     token: null,
+    eventsubOnlineId,
+    eventsubOfflineId,
   });
   return listStreamingAccounts(userId);
+}
+
+export async function linkTiktokUsername(userId: string, username: string) {
+  return linkStreamingUsername(userId, "tiktok", username);
 }
 
 export async function unlinkStreamingAccount(userId: string, platform: StreamPlatform) {
@@ -811,15 +842,25 @@ export async function runDayOfStreamingPrompts() {
 export async function pollLinkedLiveStatus() {
   const accounts = await supabase.from("rec_streaming_accounts").select("*").eq("status", "active");
   const rows = (accounts.data ?? []) as StreamingAccountRow[];
-  const twitch = rows.filter((row) => row.platform === "twitch" && row.platform_user_id);
-  const liveTwitch = await helixGetStreams(twitch.map((row) => String(row.platform_user_id)));
+  const twitch = rows.filter((row) => row.platform === "twitch");
+  const liveTwitch = await helixGetStreams(
+    twitch.map((row) => String(row.platform_user_id ?? "")).filter(Boolean),
+    twitch.filter((row) => !row.platform_user_id).map((row) => row.platform_login),
+  );
   const liveTwitchIds = new Set(liveTwitch.map((row) => row.user_id));
+  const liveTwitchLogins = new Set(liveTwitch.map((row) => row.user_login.toLowerCase()));
 
   for (const account of twitch) {
-    const live = liveTwitchIds.has(String(account.platform_user_id));
+    const live = account.platform_user_id
+      ? liveTwitchIds.has(String(account.platform_user_id))
+      : liveTwitchLogins.has(account.platform_login.toLowerCase());
     const session = await openSessionForAccount(account);
     if (live && !session) {
-      const stream = liveTwitch.find((row) => row.user_id === account.platform_user_id);
+      const stream = liveTwitch.find((row) =>
+        account.platform_user_id
+          ? row.user_id === account.platform_user_id
+          : row.user_login.toLowerCase() === account.platform_login.toLowerCase(),
+      );
       await handleStreamerWentLive({
         platform: "twitch",
         platformUserId: account.platform_user_id,
@@ -832,14 +873,18 @@ export async function pollLinkedLiveStatus() {
   }
 
   for (const account of rows.filter((row) => row.platform === "youtube")) {
-    if (!account.token_ciphertext || !account.token_iv || !account.token_tag) continue;
     try {
-      const token = openStreamingToken({
-        ciphertext: account.token_ciphertext,
-        iv: account.token_iv,
-        tag: account.token_tag,
-      });
-      const live = await youtubeIsLive(token);
+      let live = { live: false, streamId: null as string | null };
+      if (account.token_ciphertext && account.token_iv && account.token_tag) {
+        const token = openStreamingToken({
+          ciphertext: account.token_ciphertext,
+          iv: account.token_iv,
+          tag: account.token_tag,
+        });
+        live = await youtubeIsLive(token);
+      } else {
+        live = await youtubeHandleIsLive(account.platform_login);
+      }
       const session = await openSessionForAccount(account);
       if (live.live && !session) {
         await handleStreamerWentLive({ platform: "youtube", account, streamId: live.streamId });

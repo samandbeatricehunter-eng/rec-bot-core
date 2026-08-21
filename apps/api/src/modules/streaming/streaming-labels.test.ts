@@ -4,6 +4,8 @@ import {
   autopostAtIso,
   detectStreamPlatform,
   formatMatchupOptionLabel,
+  isValidStreamHandle,
+  normalizeStreamHandle,
   publicStreamUrl,
   shouldAutopostNow,
 } from "./streaming-labels.js";
@@ -29,6 +31,21 @@ test("publicStreamUrl builds platform watch links", () => {
   assert.equal(publicStreamUrl("twitch", "coachjoe"), "https://www.twitch.tv/coachjoe");
   assert.equal(publicStreamUrl("tiktok", "@coachjoe"), "https://www.tiktok.com/@coachjoe/live");
   assert.match(publicStreamUrl("youtube", "mychannel"), /youtube\.com/);
+});
+
+test("normalizeStreamHandle strips @, URLs, and trailing paths", () => {
+  assert.equal(normalizeStreamHandle("twitch", "https://www.twitch.tv/CoachJoe"), "coachjoe");
+  assert.equal(normalizeStreamHandle("tiktok", "@Coach.Joe/live"), "coach.joe");
+  assert.equal(normalizeStreamHandle("youtube", "https://youtube.com/@MyChannel/live"), "MyChannel");
+  assert.equal(normalizeStreamHandle("youtube", "UC1234567890abcdefghij"), "UC1234567890abcdefghij");
+});
+
+test("isValidStreamHandle accepts platform handles and rejects junk", () => {
+  assert.equal(isValidStreamHandle("twitch", "coach_joe"), true);
+  assert.equal(isValidStreamHandle("twitch", "ab"), false);
+  assert.equal(isValidStreamHandle("youtube", "My-Channel"), true);
+  assert.equal(isValidStreamHandle("tiktok", "coach.joe"), true);
+  assert.equal(isValidStreamHandle("tiktok", "no spaces"), false);
 });
 
 test("detectStreamPlatform recognizes twitch youtube tiktok", () => {

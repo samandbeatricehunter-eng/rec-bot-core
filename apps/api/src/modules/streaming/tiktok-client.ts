@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { publicApiBaseUrl, tiktokOAuthConfigured } from "./streaming-config.js";
+import { normalizeStreamHandle } from "./streaming-labels.js";
 import type { StreamingTokenPair } from "./streaming-token-vault.js";
 
 const TIKTOK_AUTH = "https://www.tiktok.com/v2/auth/authorize/";
@@ -8,7 +9,7 @@ const TIKTOK_TOKEN = "https://open.tiktokapis.com/v2/oauth/token/";
 const TIKTOK_USER = "https://open.tiktokapis.com/v2/user/info/";
 
 export function normalizeTiktokUsername(raw: string): string {
-  return String(raw ?? "").trim().replace(/^@/, "").replace(/\/.*$/, "").toLowerCase();
+  return normalizeStreamHandle("tiktok", raw);
 }
 
 export function tiktokOAuthRedirectUri(): string {

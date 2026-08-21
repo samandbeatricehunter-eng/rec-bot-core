@@ -12,10 +12,30 @@ const STREAMING_PLATFORMS: Array<{
   id: StreamPlatform;
   name: string;
   hint: string;
+  usernameLabel: string;
+  placeholder: string;
 }> = [
-  { id: "twitch", name: "Twitch", hint: "Auto-detect when you go live and post your stream to the game channel." },
-  { id: "youtube", name: "YouTube", hint: "Link the channel you livestream from. REC checks for an active broadcast." },
-  { id: "tiktok", name: "TikTok", hint: "Link your username so Share Stream can post your TikTok Live URL." },
+  {
+    id: "twitch",
+    name: "Twitch",
+    hint: "Save your Twitch username so Share Stream can post twitch.tv/you without pasting a URL.",
+    usernameLabel: "Twitch username",
+    placeholder: "yourchannel",
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    hint: "Save the YouTube handle you livestream from. Share Stream posts youtube.com/@you/live.",
+    usernameLabel: "YouTube handle",
+    placeholder: "@yourchannel",
+  },
+  {
+    id: "tiktok",
+    name: "TikTok",
+    hint: "Save your TikTok username so Share Stream can post your TikTok Live URL.",
+    usernameLabel: "TikTok username",
+    placeholder: "@yourname",
+  },
 ];
 
 function accountFor(accounts: StreamingAccount[], platform: StreamPlatform) {
@@ -44,7 +64,11 @@ export function LinkedAccountsPanel({
   const [busyPlatform, setBusyPlatform] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tiktokUsername, setTiktokUsername] = useState("");
+  const [usernameDrafts, setUsernameDrafts] = useState<Record<StreamPlatform, string>>({
+    twitch: "",
+    youtube: "",
+    tiktok: "",
+  });
   const [discordBusy, setDiscordBusy] = useState(false);
   const [discordError, setDiscordError] = useState<string | null>(null);
 
@@ -111,16 +135,16 @@ export function LinkedAccountsPanel({
     }
   }
 
-  async function saveTiktokUsername() {
-    setBusyPlatform("tiktok");
+  async function saveUsername(platform: StreamPlatform, name: string) {
+    setBusyPlatform(platform);
     setError(null);
     setNotice(null);
     try {
-      setPayload(await siteApi.linkTiktokUsername(tiktokUsername));
-      setTiktokUsername("");
-      setNotice("TikTok username saved.");
+      setPayload(await siteApi.linkStreamingUsername(platform, usernameDrafts[platform]));
+      setUsernameDrafts((prev) => ({ ...prev, [platform]: "" }));
+      setNotice(`${name} username saved.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that TikTok username.");
+      setError(err instanceof Error ? err.message : `Could not save that ${name} username.`);
     } finally {
       setBusyPlatform(null);
     }
@@ -254,13 +278,14 @@ export function LinkedAccountsPanel({
         <div className="site-linked-account-group-heading">
           <h3>Streaming</h3>
           <p className="site-muted">
-            Link the accounts you go live on. Share Stream can then post without pasting a URL.
+            Save the username you go live on. Share Stream can then post without pasting a URL.
           </p>
         </div>
         <div className="site-linked-account-list">
           {STREAMING_PLATFORMS.map((platform) => {
             const account = accountFor(accounts, platform.id);
             const oauthReady = platformConfigured(configured, platform.id);
+            const draft = usernameDrafts[platform.id];
             return (
               <article key={platform.id} className="site-linked-account-card">
                 <header>
@@ -304,28 +329,28 @@ export function LinkedAccountsPanel({
                     >
                       {busyPlatform === platform.id ? "Redirecting…" : `Link ${platform.name}`}
                     </button>
-                  ) : platform.id !== "tiktok" ? (
-                    <p className="site-muted">{platform.name} linking is not configured on this server yet.</p>
                   ) : null}
                 </div>
-                {platform.id === "tiktok" && !account ? (
+                {!account ? (
                   <div className="site-linked-account-username">
-                    <label htmlFor="tiktok-username">Or save a TikTok username</label>
+                    <label htmlFor={`${platform.id}-username`}>
+                      {oauthReady ? `Or save a ${platform.usernameLabel}` : platform.usernameLabel}
+                    </label>
                     <div className="site-linked-account-username-row">
                       <input
-                        id="tiktok-username"
-                        value={tiktokUsername}
-                        onChange={(event) => setTiktokUsername(event.target.value)}
-                        placeholder="@yourname"
+                        id={`${platform.id}-username`}
+                        value={draft}
+                        onChange={(event) => setUsernameDrafts((prev) => ({ ...prev, [platform.id]: event.target.value }))}
+                        placeholder={platform.placeholder}
                         autoComplete="off"
                       />
                       <button
                         type="button"
                         className="site-btn site-btn-primary"
-                        disabled={busyPlatform === "tiktok" || !tiktokUsername.trim()}
-                        onClick={() => void saveTiktokUsername()}
+                        disabled={busyPlatform === platform.id || !draft.trim()}
+                        onClick={() => void saveUsername(platform.id, platform.name)}
                       >
-                        {busyPlatform === "tiktok" ? "Saving…" : "Save"}
+                        {busyPlatform === platform.id ? "Saving…" : "Save"}
                       </button>
                     </div>
                   </div>
