@@ -112,18 +112,40 @@ function metadata(root: JsonObject, row: JsonObject) {
 }
 
 function recordKey(endpointKey: MaddenEndpointKey, row: JsonObject, meta: ReturnType<typeof metadata>, index: number): string {
-  const explicit = scalar(first(row, ["id", "recordId", "record_id", "scheduleId", "schedule_id", "gameId", "game_id"]));
-  if (explicit) return explicit;
+  // Do not use a lone `id` / `scheduleId` / `gameId` as the player-stat or team-stat key.
+  // EA week-1 passing/rushing/receiving/defense/kicking/punting rows all carry the same
+  // scheduleId (the game) and often `id: 0`. Companion records unique on
+  // (league, season, endpoint, record_key), so that made every player in the game share
+  // one rec_madden_companion_records row and then crash rec_player_weekly_stats on
+  // rec_player_weekly_stats_companion_record_key.
   if (endpointKey === "league_metadata") return "league";
-  if (endpointKey === "teams" || endpointKey === "standings") return meta.sourceTeamId ?? companionChecksum(row);
-  if (endpointKey === "rosters") return meta.sourcePlayerId ?? companionChecksum(row);
+  if (endpointKey === "teams" || endpointKey === "standings") {
+    return meta.sourceTeamId ?? scalar(first(row, ["id", "recordId", "record_id"])) ?? companionChecksum(row);
+  }
+  if (endpointKey === "rosters") {
+    return meta.sourcePlayerId ?? scalar(first(row, ["id", "recordId", "record_id"])) ?? companionChecksum(row);
+  }
   if (endpointKey === "schedule") {
+    const explicit = scalar(first(row, ["id", "recordId", "record_id", "scheduleId", "schedule_id", "gameId", "game_id", "external_game_id"]));
+    if (explicit) return explicit;
     const home = scalar(first(row, ["homeTeamId", "home_team_id", "homeTeam"]));
     const away = scalar(first(row, ["awayTeamId", "away_team_id", "awayTeam"]));
     return [meta.weekNumber ?? "week", home ?? "home", away ?? "away"].join(":");
   }
-  if (endpointKey === "player_stats") return [meta.sourcePlayerId ?? "player", meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`, meta.statCategory ?? "all"].join(":");
-  if (endpointKey === "team_stats") return [meta.sourceTeamId ?? "team", meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`, meta.statCategory ?? "all"].join(":");
+  if (endpointKey === "player_stats") {
+    return [
+      meta.sourcePlayerId ?? "player",
+      meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`,
+      meta.statCategory ?? "all",
+    ].join(":");
+  }
+  if (endpointKey === "team_stats") {
+    return [
+      meta.sourceTeamId ?? "team",
+      meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`,
+      meta.statCategory ?? "all",
+    ].join(":");
+  }
   return `${index}:${companionChecksum(row)}`;
 }
 

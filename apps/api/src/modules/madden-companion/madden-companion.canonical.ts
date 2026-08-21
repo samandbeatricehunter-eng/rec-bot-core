@@ -221,12 +221,21 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
   // query (League Records, season/career stat totals — all of it silently reads back empty).
   const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
   const category = statCategory(record.rawData, record);
-  // Conflict target is the actual business-identity constraint (added in
-  // 202606130001_award_stat_identity_and_rpc.sql), not source_companion_record_id — that column
-  // dedups against a specific rec_madden_companion_records row, but the EA-direct pipeline mints
-  // a fresh canonical record on every import run, so re-importing the same player/week/category
-  // never matches it and instead crashed straight into the identity constraint below with a raw
-  // "duplicate key value violates unique constraint" instead of upserting.
+  // Two unique indexes can fire here: the business identity
+  // (league/season/team/player/category/source_stat/source_schedule) and
+  // rec_player_weekly_stats_companion_record_key (one weekly-stats row per companion
+  // record). Postgres INSERT can only ON CONFLICT one of them. Re-imports mint a new
+  // companion record, so we upsert on identity; if this companion record is already
+  // pointed at a different identity (shared scheduleId keys, duplicate payload rows),
+  // detach it first so the insert does not bounce off companion_record_key.
+  // Two statements on purpose: a data-modifying CTE shares a snapshot with the INSERT
+  // and would not see the detach.
+  await client.query(
+    `update rec_player_weekly_stats
+        set source_companion_record_id = null
+      where source_companion_record_id = $1`,
+    [canonicalRecordId],
+  );
   await client.query(
     `insert into rec_player_weekly_stats
        (league_id,season_number,season_stage,week_number,player_id,team_id,madden_player_id,madden_team_id,
