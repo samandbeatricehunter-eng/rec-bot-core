@@ -18,6 +18,7 @@ import { createGameChannelsForCurrentWeek } from "../game-channels/game-channels
 import { supabase } from "../../lib/supabase.js";
 import { getBoxScoreCommandState } from "./data-mode.service.js";
 import { refreshMatchupsChannel } from "../scheduling/matchups-channel.service.js";
+import { failAdvanceProgress, finishAdvanceProgress, getAdvanceProgress, startAdvanceProgress, updateAdvanceProgress } from "./advance-progress.service.js";
 
 // completeAdvanceWeek/completeAdvanceJump already post the advance announcement to Discord
 // (via publishLeagueAdvanceAnnouncement -> recordHubAnnouncement) as part of advancing —
@@ -53,6 +54,13 @@ const SetLeagueWeekSchema = z.object({
 });
 
 export async function leagueWeekRoutes(app: FastifyInstance) {
+  app.post("/v1/league-week/advance-progress", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), runId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send({ progress: getAdvanceProgress(body.runId) });
+    } catch (error) { return sendError(reply, error); }
+  });
   app.post("/v1/league-week/view", async (request, reply) => {
     try {
       const { guildId } = ViewLeagueWeekSchema.parse(request.body);
@@ -169,7 +177,9 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           outcome: z.enum(["home", "away", "tie"]),
           homeScore: z.number().int().min(0).max(200).optional().nullable(),
           awayScore: z.number().int().min(0).max(200).optional().nullable(),
+          designation: z.enum(["played", "fair_sim", "force_win"]).optional(),
         })),
+        advanceRunId: z.string().uuid().optional().nullable(),
         nextAdvance: z.object({
           year: z.number().int(),
           month: z.number().int().min(1).max(12),
@@ -182,8 +192,9 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
+      if (body.advanceRunId) startAdvanceProgress(body.advanceRunId);
       const result = await completeAdvanceWeek(body);
-      const gameChannels = await createGameChannelsForCurrentWeek(body.guildId)
+      const gameChannels = await createGameChannelsForCurrentWeek(body.guildId, (stage) => updateAdvanceProgress(body.advanceRunId, stage === "removing" ? "Removing old game channels" : "Creating new game channels"))
         .catch((error) => ({ created: [], deleted: 0, eligible: 0, error: error instanceof Error ? error.message : "Game-channel refresh failed." }));
       if (gameChannels.created.length) {
         const context = await getCurrentLeagueContext(body.guildId);
@@ -203,12 +214,16 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           });
         }
       }
+      updateAdvanceProgress(body.advanceRunId, "Refreshing the new weekly matchup board");
       await refreshMatchupsChannel(body.guildId).catch((error) => console.error("[ERROR] Failed to post weekly matchups channel (non-fatal):", error));
       const discord = auth.mode === "user"
         ? await relayWebAdvanceToDiscord(body.guildId).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
+      finishAdvanceProgress(body.advanceRunId);
       return reply.send({ ...result, discord, gameChannels });
     } catch (error) {
+      const runId = (request.body as any)?.advanceRunId;
+      failAdvanceProgress(typeof runId === "string" ? runId : null, error);
       return sendError(reply, error);
     }
   });

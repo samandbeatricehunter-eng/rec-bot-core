@@ -447,12 +447,13 @@ async function createChannelsForGames(context: GameChannelContext, guildId: stri
 // Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
 // game channels and creates one per current-week H2H matchup, same as the bot's old
 // Game Channels menu button, but driven from the web via Discord's REST API.
-export async function createGameChannelsForCurrentWeek(guildId: string) {
+export async function createGameChannelsForCurrentWeek(guildId: string, onStage?: (stage: "removing" | "creating") => void) {
   const context = await getCurrentLeagueContext(guildId);
   const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
   if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
 
   const tracked = await listTrackedGameChannelDiscordIds(guildId);
+  onStage?.("removing");
   const deletedIds: string[] = [];
   for (const channelId of tracked) {
     const id = String(channelId);
@@ -463,6 +464,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
 
   const week = await getAdvanceWeekGames(guildId);
   const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+  onStage?.("creating");
   const created = await createChannelsForGames(context, guildId, categoryId, week, h2hGames);
   return { created, deleted: deletedIds.length, eligible: h2hGames.length };
 }

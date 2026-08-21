@@ -18,6 +18,7 @@ const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5
 
 type GameEntry = { awayScore: string; homeScore: string; designation: "played" | "fair_sim" | "force_win" };
 type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
+type AdvanceProgress = { stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string };
 
 function deriveOutcome(awayScore: string, homeScore: string): "home" | "away" | "tie" | null {
   const away = Number(awayScore);
@@ -154,6 +155,7 @@ function AdvanceReadinessSection() {
   const [rolloverHighlightCount, setRolloverHighlightCount] = useState<number | null>(null);
   const [rolloverWarningLoading, setRolloverWarningLoading] = useState(false);
   const [schedulingByGameId, setSchedulingByGameId] = useState<Record<string, string>>({});
+  const [advanceProgress, setAdvanceProgress] = useState<AdvanceProgress | null>(null);
 
   function load() {
     recApi
@@ -213,6 +215,8 @@ function AdvanceReadinessSection() {
       return;
     }
     setAdvancing(true);
+    const advanceRunId = crypto.randomUUID();
+    setAdvanceProgress({ stage: "Starting advance", completed: [], status: "running" });
     setError(null);
     setNotice(null);
     const results: AdvanceResultInput[] = data.games.flatMap((g): AdvanceResultInput[] => {
@@ -223,7 +227,13 @@ function AdvanceReadinessSection() {
       if (!outcome) return [];
       return [{ gameId: g.gameId, outcome, homeScore: Number(homeScore), awayScore: Number(awayScore), designation: entry?.designation ?? (g.fwFlaggedForUserId ? "force_win" : "played") }];
     });
+    let progressTimer: number | null = null;
     try {
+      progressTimer = window.setInterval(() => {
+        void recApi.getAdvanceProgress({ guildId, runId: advanceRunId }).then((response) => {
+          if (response.progress) setAdvanceProgress(response.progress);
+        }).catch(() => undefined);
+      }, 600);
       const nextAdvance = completeAdvanceTimeDraft()
         ? (() => {
             const [year, month, day] = advanceDate.date.split("-").map(Number);
@@ -235,9 +245,11 @@ function AdvanceReadinessSection() {
         nextWeekNumber: data.nextWeekNumber,
         nextSeasonStage: data.nextSeasonStage,
         results,
+        advanceRunId,
         nextGotwGameId: data.nextSeasonStage === "regular_season" ? nextGotwGameId || null : null,
         nextAdvance,
       });
+      setAdvanceProgress((current) => ({ stage: "Advance complete", completed: current?.completed ?? [], status: "complete" }));
       const relay = result.discord;
       const channels = result.gameChannels;
       setNotice(`Advanced to ${data.nextLabel}. Next advance: ${result.nextAdvanceLabel}. League inbox notifications sent; ${channels?.created.length ?? 0} Discord game channel${channels?.created.length === 1 ? "" : "s"} created.${channels?.error ? ` (${channels.error})` : ""}${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
@@ -250,6 +262,7 @@ function AdvanceReadinessSection() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete the advance.");
     } finally {
+      if (progressTimer != null) window.clearInterval(progressTimer);
       setAdvancing(false);
     }
   }
@@ -483,6 +496,11 @@ function AdvanceReadinessSection() {
               <Button variant="ghost" onClick={() => setShowAdvanceModal(false)} disabled={advancing}>Cancel</Button>
               <Button variant="tactical" onClick={handleAdvance} disabled={advancing || !completeAdvanceTimeDraft()}>{advancing ? "Advancing..." : "Submit"}</Button>
             </div>
+            {advancing && advanceProgress ? <div className="advance-progress" aria-live="polite">
+              <strong>{advanceProgress.stage}</strong>
+              <div className="advance-progress-bar"><span /></div>
+              <ul>{advanceProgress.completed.map((step) => <li key={step}>✓ {step}</li>)}<li className="is-current">● {advanceProgress.stage}</li></ul>
+            </div> : null}
           </div>
         </Modal>
       )}

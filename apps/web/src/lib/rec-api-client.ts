@@ -994,8 +994,10 @@ export const recApi = {
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
   notifyMissingBoxScore: (input: { guildId: string; gameId: string; target: "home" | "away" | "both"; reason?: "box_score" | "schedule" | "both" }) =>
     recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
-  completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
+  completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; advanceRunId?: string; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }), signal: AbortSignal.timeout(REC_API_ADVANCE_TIMEOUT_MS) }),
+  getAdvanceProgress: (input: { guildId: string; runId: string }) =>
+    recApiFetch<{ progress: { runId: string; stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string } | null }>("/v1/league-week/advance-progress", { method: "POST", body: JSON.stringify(input) }),
   getDivisionWinnerOptions: (guildId: string) =>
     recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>

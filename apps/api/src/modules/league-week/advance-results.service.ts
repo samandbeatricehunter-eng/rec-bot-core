@@ -35,6 +35,7 @@ import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwar
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { updateAdvanceProgress } from "./advance-progress.service.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
   custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
@@ -291,6 +292,54 @@ type AdvanceGameResultInput = {
   awayScore?: number | null;
   designation?: "played" | "fair_sim" | "force_win";
 };
+
+async function postWeeklyFinalResultsRecap(input: { guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; game: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const channelId = String((context.routes as any)?.announcements_channel_id ?? "");
+  if (!channelId) return { posted: false, games: 0 };
+  const results = await supabase.from("rec_game_results")
+    .select("game_id,home_team_id,away_team_id,home_score,away_score,is_tie")
+    .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber);
+  if (results.error) throw results.error;
+  const rows = results.data ?? [];
+  if (!rows.length) return { posted: false, games: 0 };
+  const teamIds = [...new Set(rows.flatMap((row: any) => [row.home_team_id, row.away_team_id]).filter(Boolean))];
+  const teams = teamIds.length
+    ? await supabase.from("rec_teams").select("id,name,display_nick,display_city,is_relocated").in("id", teamIds)
+    : { data: [], error: null };
+  if (teams.error) throw teams.error;
+  const teamById = new Map<string, any>((teams.data ?? []).map((team: any): [string, any] => [String(team.id), team]));
+  const label = (teamId: string | null) => {
+    const team = teamId ? teamById.get(String(teamId)) : null;
+    return input.game === "cfb_27" ? resolveTeamSchool(team) ?? formatTeamDisplayName(team) ?? "TBD" : formatTeamDisplayName(team) ?? "TBD";
+  };
+  const lines = rows.map((row: any) => {
+    const away = label(row.away_team_id);
+    const home = label(row.home_team_id);
+    const awayScore = Number(row.away_score ?? 0);
+    const homeScore = Number(row.home_score ?? 0);
+    const winner = row.is_tie ? null : homeScore > awayScore ? home : away;
+    return row.is_tie
+      ? `**${away} ${awayScore} — ${homeScore} ${home}** · Tie`
+      : `**${away} ${awayScore} — ${homeScore} ${home}** · ${winner} wins`;
+  });
+  const descriptions: string[] = [];
+  let chunk = "";
+  for (const line of lines) {
+    if (chunk && chunk.length + line.length + 2 > 3900) { descriptions.push(chunk); chunk = ""; }
+    chunk += `${chunk ? "\n" : ""}${line}`;
+  }
+  if (chunk) descriptions.push(chunk);
+  await postDiscordChannelMessage(channelId, {
+    embeds: descriptions.slice(0, 10).map((description, index) => ({
+      title: index === 0 ? `Week ${input.weekNumber} — Final Results` : `Week ${input.weekNumber} — Final Results (continued)`,
+      color: 0xd9a521,
+      description,
+      footer: index === descriptions.length - 1 ? { text: `${rows.length} game${rows.length === 1 ? "" : "s"} completed` } : undefined,
+    })),
+  });
+  return { posted: true, games: rows.length };
+}
 
 // Delegates to the shared canonical week->stage mapping instead of hand-rolling a second,
 // independently-drifting copy of it (this one had fallen out of sync with league-stage.ts twice).
@@ -619,6 +668,7 @@ export async function completeAdvanceWeek(input: {
     tzLabel: string;
   } | null;
   nextGotwGameId?: string | null;
+  advanceRunId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   await assertLeagueNotFrozen(context.leagueId);
@@ -774,6 +824,8 @@ export async function completeAdvanceWeek(input: {
     }
   });
 
+  updateAdvanceProgress(input.advanceRunId, "Advancing league week and processing awards");
+
   const advanceResult = await setLeagueWeek({
     guildId: input.guildId,
     weekNumber: nextTarget.weekNumber,
@@ -909,6 +961,7 @@ export async function completeAdvanceWeek(input: {
     const hour12 = hour % 12 === 0 ? 12 : hour % 12;
     nextAdvanceLabel = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${hour12}:${String(minute).padStart(2, "0")} ${ampm} ${tzLabel}`;
   }
+  updateAdvanceProgress(input.advanceRunId, "Posting league announcements and rankings");
   await publishLeagueAdvanceAnnouncement({
     guildId: input.guildId,
     leagueId: context.leagueId,
@@ -920,6 +973,9 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
   });
+  updateAdvanceProgress(input.advanceRunId, "Posting weekly final-results recap");
+  await postWeeklyFinalResultsRecap({ guildId: input.guildId, leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, game: context.rec_leagues.game })
+    .catch((err) => console.error("[ERROR] Weekly final-results recap failed after advance (non-fatal):", err));
 
   await publishPurchaseDeadlineReminder({
     guildId: input.guildId,
