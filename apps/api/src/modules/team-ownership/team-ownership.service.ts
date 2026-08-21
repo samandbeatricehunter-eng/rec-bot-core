@@ -346,6 +346,10 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
 
   if (result.error) throw new ApiError(500, "We couldn't register that custom team. Please try again.", result.error);
   await clearRivalriesForCustomTeam(league.id, result.data.id);
+  const { refreshGameChannelIntrosForTeam } = await import("../game-channels/game-channels.service.js");
+  await refreshGameChannelIntrosForTeam(input.guildId, result.data.id).catch((error) => {
+    console.error("[ERROR] Failed to refresh game-channel embeds after custom team replacement (non-fatal):", error);
+  });
 
   await writeAuditLog({
     action: "team.custom_replacement.registered",

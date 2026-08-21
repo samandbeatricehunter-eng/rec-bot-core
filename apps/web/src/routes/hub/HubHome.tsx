@@ -40,6 +40,7 @@ import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
+import { RelocateTeamWizard } from "../../components/hub/RelocateTeamWizard.js";
 import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
@@ -635,6 +636,8 @@ export function HubHome() {
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
   const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
   const [scheduleModalTab, setScheduleModalTab] = useState<"my" | "league">("my");
+  const [relocateWizardOpen, setRelocateWizardOpen] = useState(false);
+  const [relocateNotice, setRelocateNotice] = useState<string | null>(null);
   const [scheduleLeagueWeek, setScheduleLeagueWeek] = useState<number | null>(null);
   const [scheduleLeagueData, setScheduleLeagueData] = useState<HubMatchupSchedule | null>(null);
   const [scheduleLeagueError, setScheduleLeagueError] = useState<string | null>(null);
@@ -2052,9 +2055,9 @@ export function HubHome() {
       <header className="hub-wager-modal-brand">
         <span>REC League eSports</span>
         <div className="hub-wager-matchup-title">
-          <TeamLogo abbreviation={wagerPanel.game.awayTeamAbbr} alt={wagerPanel.game.awayTeamMascot} />
+          <TeamLogo abbreviation={wagerPanel.game.awayTeamAbbr} logoUrl={wagerPanel.game.awayTeamLogoUrl} alt={wagerPanel.game.awayTeamMascot} />
           <strong>{wagerPanel.game.awayTeamAbbr ?? wagerPanel.game.awayTeamName} <em>at</em> {wagerPanel.game.homeTeamAbbr ?? wagerPanel.game.homeTeamName}</strong>
-          <TeamLogo abbreviation={wagerPanel.game.homeTeamAbbr} alt={wagerPanel.game.homeTeamMascot} />
+          <TeamLogo abbreviation={wagerPanel.game.homeTeamAbbr} logoUrl={wagerPanel.game.homeTeamLogoUrl} alt={wagerPanel.game.homeTeamMascot} />
         </div>
         <small>Sportsbook</small>
       </header>
@@ -2133,6 +2136,12 @@ export function HubHome() {
     </div></Modal>}
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)} panelClassName="hub-schedule-modal"><div className="hub-my-schedule">
+      {!isCfbLeague && hub.myTeam && (
+        <div className="hub-schedule-relocate-row">
+          <Button variant="secondary" onClick={() => setRelocateWizardOpen(true)}>Relocate/Custom Team</Button>
+        </div>
+      )}
+      {relocateNotice && <p className="hub-transfer-status">{relocateNotice}</p>}
       <div className="hub-modal-pill-row">
         <button type="button" className={scheduleModalTab === "my" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setScheduleModalTab("my")}>My Schedule</button>
         <button type="button" className={scheduleModalTab === "league" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => { setScheduleModalTab("league"); if (!scheduleLeagueData) void loadScheduleLeagueWeek(); }}>League Schedule</button>
@@ -2179,6 +2188,18 @@ export function HubHome() {
         </div>
       )}
     </div></Modal>}
+    {relocateWizardOpen && auth.status === "ready" && (
+      <Modal title="Relocate / Custom Team" onClose={() => setRelocateWizardOpen(false)}>
+        <RelocateTeamWizard
+          guildId={auth.guildId}
+          onApplied={(message) => {
+            setRelocateNotice(message);
+            setRelocateWizardOpen(false);
+            void load();
+          }}
+        />
+      </Modal>
+    )}
     {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
       <p>Are you sure you want to retire from this league? Your team will become open, this league will be removed from your available leagues, and you will lose access to it.</p>
       {retireError && <p className="hub-transfer-status">{retireError}</p>}

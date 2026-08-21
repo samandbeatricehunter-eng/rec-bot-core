@@ -405,6 +405,11 @@ export const recApi = {
     formData.append("file", file);
     return recApiFetch<UploadImageResponse>(`/v1/hub/media/upload-image?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
   },
+  uploadHubTeamLogo: (guildId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return recApiFetch<UploadImageResponse>(`/v1/hub/relocation/upload-logo?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
+  },
   getHubMediaPortal: (guildId: string) =>
     recApiFetch<MediaPortalResponse>("/v1/hub/media/portal", { method: "POST", body: JSON.stringify({ guildId }) }),
   submitHubMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null }) =>
@@ -415,6 +420,17 @@ export const recApi = {
     recApiFetch<{ published?: true; scheduled?: true; id: string; storyId?: string }>("/v1/hub/media/commissioner-article", { method: "POST", body: JSON.stringify(input) }),
   reviewMedia: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/hub/media/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  getRelocationCatalog: (guildId: string) =>
+    recApiFetch<{
+      cities: Array<{ id: string; name: string; region: string | null; label: string }>;
+      brands: Array<{ slug: string; name: string; abbr: string; primaryColor: string; secondaryColor: string; houstonOnly?: boolean; logoUrl: string }>;
+    }>("/v1/hub/relocation/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
+  relocateHubTeam: (input: { guildId: string; cityId: string; keepBranding: boolean; brandSlug?: string | null }) =>
+    recApiFetch<{ team: unknown; pendingApproval: boolean }>("/v1/hub/relocation/apply", { method: "POST", body: JSON.stringify(input) }),
+  submitCustomTeamIdentity: (input: { guildId: string; city: string; nick: string; abbr: string; primaryColor: string; logoUrl: string }) =>
+    recApiFetch<{ pendingApproval: true; header: string }>("/v1/hub/relocation/custom", { method: "POST", body: JSON.stringify(input) }),
+  reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+    recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>

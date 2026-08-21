@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/wagers.test.ts src/purchases.test.ts src/economy.test.ts src/player-builder/bundle.test.ts src/player-builder/optimal-allocator.test.ts src/player-builder/catalog.test.ts"
+    "test": "tsx --test src/wagers.test.ts src/purchases.test.ts src/economy.test.ts src/player-builder/bundle.test.ts src/player-builder/optimal-allocator.test.ts src/player-builder/catalog.test.ts src/madden-relocation.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

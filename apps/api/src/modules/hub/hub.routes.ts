@@ -46,6 +46,14 @@ import {
 } from "./hub.service.js";
 import { backfillDiscordHeadlines } from "./story-publishing.js";
 import { getGotwGuessingRecordsForHub, getMyGotwGuessingRecord } from "../gotw/gotw.service.js";
+import {
+  listMaddenRelocationCatalog,
+  persistTeamCrestBuffer,
+  relocateHubTeam,
+  reviewCustomTeamIdentity,
+  submitCustomTeamIdentity,
+} from "../team-ownership/team-identity.service.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 const ImageUrl = z.string().url().optional().nullable();
 
@@ -455,6 +463,72 @@ export async function hubRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/hub/relocation/upload-logo", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.query);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Logo uploads require a user session.");
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Missing file.");
+      const buffer = await file.toBuffer();
+      const context = await getCurrentLeagueContext(guildId);
+      const url = await persistTeamCrestBuffer(context.leagueId, buffer, file.mimetype);
+      return reply.send({ url });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/relocation/catalog", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(listMaddenRelocationCatalog());
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/relocation/apply", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        cityId: z.string().min(1),
+        keepBranding: z.boolean(),
+        brandSlug: z.string().min(1).nullable().optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Relocation requires a user session.");
+      return reply.send(await relocateHubTeam({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/relocation/custom", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        city: z.string().min(1),
+        nick: z.string().min(1),
+        abbr: z.string().min(2).max(4),
+        primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+        logoUrl: z.string().min(1),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Custom team submit requires a user session.");
+      return reply.send(await submitCustomTeamIdentity({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/relocation/review", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        inboxId: z.string().uuid(),
+        action: z.enum(["approve", "deny"]),
+        deniedReason: z.string().trim().max(500).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Custom team review requires a user session.");
+      return reply.send(await reviewCustomTeamIdentity({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
   });
 
   // Member self-service: end active team assignment for this Discord user in the guild's league.

@@ -349,6 +349,58 @@ export async function deleteDiscordMessage(channelId: string, messageId: string)
   await bestEffort("discord.delete_message", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }), { entityId: messageId });
 }
 
+export type DiscordChannelMessage = {
+  id: string;
+  author?: { id?: string; bot?: boolean };
+  content?: string;
+  attachments?: Array<{ filename?: string }>;
+  embeds?: Array<{ title?: string | null; image?: { url?: string } | null }>;
+};
+
+export async function listDiscordChannelMessages(channelId: string, limit = 100): Promise<DiscordChannelMessage[]> {
+  const res = await discordBotFetch(`/channels/${channelId}/messages?limit=${Math.min(100, Math.max(1, limit))}`);
+  if (!res.ok) return [];
+  return (await res.json()) as DiscordChannelMessage[];
+}
+
+/** Discord PATCH with a new file attachment (used to refresh the matchup-card PNG in place). */
+export async function editDiscordMessageWithFile(
+  channelId: string,
+  messageId: string,
+  payload: Record<string, unknown>,
+  file: { buffer: Buffer; name: string; contentType?: string },
+): Promise<boolean> {
+  const path = `/channels/${channelId}/messages/${messageId}`;
+  const form = new FormData();
+  form.set("payload_json", JSON.stringify({
+    ...payload,
+    attachments: [{ id: 0, filename: file.name }],
+  }));
+  form.set("files[0]", new Blob([new Uint8Array(file.buffer)], { type: file.contentType ?? "image/png" }), file.name);
+  const init: RequestInit = { method: "PATCH", body: form };
+  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  if (!sent.ok) {
+    const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
+    console.error(`[WARN] Discord rejected editDiscordMessageWithFile on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
+  }
+  return sent.ok;
+}
+
+export async function renameGuildChannel(channelId: string, name: string, reason: string): Promise<boolean> {
+  const next = name.trim().toLowerCase().slice(0, 100);
+  if (!next) return false;
+  const res = await discordBotFetch(`/channels/${channelId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "X-Audit-Log-Reason": auditReason(reason) },
+    body: JSON.stringify({ name: next }),
+  });
+  if (!res.ok) {
+    const body = await bestEffort("discord.parse_error_body", () => res.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
+    console.error(`[WARN] Discord rejected renameGuildChannel on ${channelId} (${res.status}): ${body?.message ?? "unknown error"}`);
+  }
+  return res.ok;
+}
+
 /** Remove recent action prompts for one game while preserving ordinary channel chat. */
 export async function deleteDiscordComponentMessagesForGame(channelId: string, gameId: string): Promise<number> {
   const res = await discordBotFetch(`/channels/${channelId}/messages?limit=100`);

@@ -409,6 +409,7 @@ export const recTeams = pgTable("rec_teams", {
   displayAbbr: text("display_abbr"),
   isRelocated: boolean("is_relocated").notNull().default(false),
   originalAbbreviation: text("original_abbreviation"),
+  logoUrl: text("logo_url"),
   isSchedulePlaceholder: boolean("is_schedule_placeholder").notNull().default(false)
   ,primaryColor: text("primary_color").notNull().default("#FFFFFF")
 });
@@ -1277,6 +1278,7 @@ export const recGameChannels = pgTable("rec_game_channels", {
   awayUserId: uuid("away_user_id").references(() => recUsers.id),
   homeUserId: uuid("home_user_id").references(() => recUsers.id),
   status: text("status").notNull().default("active"),
+  introMessageId: text("intro_message_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()

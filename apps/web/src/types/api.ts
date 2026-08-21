@@ -247,6 +247,7 @@ export type CommissionerNotificationType =
   | "game_of_the_year"
   | "legend"
   | "custom_player"
+  | "custom_team"
   | "force_win_request"
   | "autopilot_request"
   | "matchup_issue_report"
@@ -661,6 +662,8 @@ export type HubMatchupSchedule = {
     awayTeamColor: string;
     homeTeamAbbr: string | null;
     awayTeamAbbr: string | null;
+    homeTeamLogoUrl: string | null;
+    awayTeamLogoUrl: string | null;
     homeTeamRank: number | null;
     awayTeamRank: number | null;
     homeTeamRecord: string | null;

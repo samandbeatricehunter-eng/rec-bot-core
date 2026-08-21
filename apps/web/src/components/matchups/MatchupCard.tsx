@@ -144,7 +144,7 @@ export function MatchupCard({
       <span className="rec-matchup-card__sheen" aria-hidden="true" />
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
-        <TeamLogo abbreviation={game.awayTeamAbbr} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
+        <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
         <span className="rec-matchup-card__team-text">
           <small>{game.awayTeamName}</small>
           <strong>{game.awayTeamMascot}</strong>
@@ -167,7 +167,7 @@ export function MatchupCard({
           <strong>{game.homeTeamMascot}</strong>
           {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
         </span>
-        <TeamLogo abbreviation={game.homeTeamAbbr} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
+        <TeamLogo abbreviation={game.homeTeamAbbr} logoUrl={game.homeTeamLogoUrl} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
       </div>
       {reactionsEnabled && !reactionsBelow ? (
         <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>

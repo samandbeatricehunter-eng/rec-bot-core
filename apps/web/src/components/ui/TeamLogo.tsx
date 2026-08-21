@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { teamLogoUrl } from "../../lib/team-logos.js";
 
-/** Team crest for the 32 standard Madden teams — renders nothing for CFB schools, relocated/
- * custom teams, or any abbreviation without a matching asset (onError hides itself rather than
- * showing a broken-image icon). */
-export function TeamLogo({ abbreviation, alt, className, priority = false }: {
+/** Team crest. Prefers an explicit logoUrl (relocated/custom), then the 32 stock Madden
+ *  abbreviations. Renders nothing when neither resolves (CFB, missing asset, load error). */
+export function TeamLogo({ abbreviation, logoUrl, alt, className, priority = false }: {
   abbreviation: string | null | undefined;
+  logoUrl?: string | null;
   alt: string;
   className?: string;
   /** Discord/Playwright renders must not lazy-load — the screenshot fires as soon as the card
@@ -13,7 +13,7 @@ export function TeamLogo({ abbreviation, alt, className, priority = false }: {
   priority?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  const src = teamLogoUrl(abbreviation);
+  const src = logoUrl || teamLogoUrl(abbreviation);
   if (!src || failed) return null;
   return (
     <img

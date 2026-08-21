@@ -384,6 +384,8 @@ async function resolveAction(
       return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
       return recApi.reviewForceWinRequest({ guildId, inboxId: notification.id, decision: action, reason: reason || undefined });
+    case "custom_team":
+      return recApi.reviewCustomTeamIdentity({ guildId, inboxId: notification.id, action, deniedReason: reason || undefined });
     case "autopilot_request":
     case "matchup_issue_report":
       // No dedicated review table for these — the generic handler resolves by the inbox row's
@@ -533,6 +535,13 @@ export function ResolveNotificationModal({
       )}
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
+      )}
+      {notification.type === "custom_team" && typeof (notification.payload as { logoUrl?: string } | null)?.logoUrl === "string" && (
+        <img
+          className="pending-item-logo-preview"
+          src={(notification.payload as { logoUrl: string }).logoUrl}
+          alt="Submitted custom team logo"
+        />
       )}
       {notification.type === "wager" && notification.sourceId && (
         <WagerReviewPreview guildId={guildId} wagerId={notification.sourceId} />

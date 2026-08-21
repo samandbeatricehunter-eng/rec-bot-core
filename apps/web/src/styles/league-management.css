@@ -633,6 +633,11 @@
 .pending-item-card-heading { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); flex-wrap: wrap; }
 .pending-item-card-title { min-width: 0; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
 .pending-item-card-amount { flex-shrink: 0; font-size: var(--text-lg); font-weight: 700; }
+.pending-item-logo-preview {
+  display: block; max-width: 160px; max-height: 160px; width: auto; height: auto;
+  object-fit: contain; margin-top: var(--space-2); padding: 8px;
+  border: 1px solid var(--border); border-radius: 12px; background: #111;
+}
 @media (max-width: 560px) {
   .pending-items-scroll-list { max-height: min(62vh, 560px); gap: var(--space-4) !important; }
   .pending-item-card { min-height: 118px; padding: var(--space-4) !important; overflow: visible; }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
+  <rect width="128" height="128" rx="22" fill="#BF0A30"/>
+  <path d="M24 28h80v52c0 22-18 40-40 40S24 102 24 80V28z" fill="#0033A0" opacity="0.3"/>
+  <text x="64" y="78" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="700" fill="#ffffff">M</text>
+</svg>
