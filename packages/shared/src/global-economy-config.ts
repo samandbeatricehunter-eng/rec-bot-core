@@ -31,7 +31,6 @@ export type RecGlobalEconomyConfig = {
     interview: number;
     gotwCorrectVote: number;
     gotwSeasonTopGuesserBonus: number;
-    potw: number;
   };
   wagers: { houseWeeklyMaximum: number; peerWeeklyMaximum: number };
   awards: {
@@ -76,7 +75,6 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     interview: 50,
     gotwCorrectVote: 25,
     gotwSeasonTopGuesserBonus: 2500,
-    potw: 10,
   },
   wagers: { houseWeeklyMaximum: 1000, peerWeeklyMaximum: 5000 },
   awards: { bestPassing: 200, bestRushing: 200, bestDefense: 200, mvp: 1000, mostSkilled: 350, mostHeart: 500 },

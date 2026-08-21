@@ -185,8 +185,6 @@ export function computeTierProgress(value: number, tiers: RecPayoutTierRule[], d
 }
 
 export const REC_WEEKLY_CHALLENGE_PAYOUTS = { S: 50, A: 25, B: 10 } as const;
-export const REC_POTW_PAYOUT_AMOUNT = 10;
-
 export function calculateOffensivePotwScore(input: {
   position?: string | null;
   passYds?: number;
