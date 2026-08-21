@@ -250,6 +250,7 @@ import {
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
+import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
 import { handleGameChannelChatMessage } from "./handlers/game-chat-bridge.js";
 import { handleLeagueChatMessage } from "./handlers/league-chat-bridge.js";
 import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
@@ -649,6 +650,14 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
+    if (
+      (interaction.isButton() || interaction.isStringSelectMenu())
+      && isLiveStreamCustomId(interaction.customId)
+    ) {
+      await handleLiveStreamInteraction(interaction);
+      return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
       await handleOpenTeamsSlash(interaction);
       return;

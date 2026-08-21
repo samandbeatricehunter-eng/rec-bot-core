@@ -40,6 +40,39 @@ export type LinkProfileResponse = {
   claimDropdownOpen?: boolean;
 };
 
+export type StreamPlatform = "twitch" | "youtube" | "tiktok";
+
+export type StreamingAccount = {
+  platform: StreamPlatform;
+  login: string;
+  displayName: string | null;
+  profileUrl: string | null;
+  status: string;
+  streamUrl: string;
+};
+
+export type StreamingAccountsResponse = {
+  accounts: StreamingAccount[];
+  configured: {
+    twitch: boolean;
+    youtube: boolean;
+    tiktokOAuth: boolean;
+    tiktokUsername: boolean;
+    publicApi: boolean;
+  };
+};
+
+export type StreamingMatchupOption = {
+  gameId: string;
+  leagueId: string;
+  weekNumber: number | null;
+  awayTeamName: string;
+  homeTeamName: string;
+  serverName: string;
+  label: string;
+  scheduledFor: string | null;
+};
+
 export type LinkCandidate = {
   recUserId: string;
   discordAccountId: string;
@@ -362,6 +395,31 @@ export type SiteActivityCounts = {
 export const siteApi = {
   getLinkProfile() {
     return request<LinkProfileResponse>("/v1/site-auth/me", {});
+  },
+  getStreamingAccounts() {
+    return request<StreamingAccountsResponse>("/v1/streaming/accounts", {});
+  },
+  startStreamingOAuth(platform: StreamPlatform) {
+    return request<{ url: string }>("/v1/streaming/oauth/start", { platform });
+  },
+  linkTiktokUsername(username: string) {
+    return request<StreamingAccountsResponse>("/v1/streaming/tiktok/username", { username });
+  },
+  unlinkStreamingAccount(platform: StreamPlatform) {
+    return request<StreamingAccountsResponse>("/v1/streaming/accounts/unlink", { platform });
+  },
+  listStreamingMatchups() {
+    return request<{ matchups: StreamingMatchupOption[] }>("/v1/streaming/h2h-matchups", {});
+  },
+  getLiveStreamPrompt() {
+    return request<{
+      prompt: { id: string; status: string; selected_game_id: string | null } | null;
+      matchups: StreamingMatchupOption[];
+      session: { id: string; platform: string; stream_url: string } | null;
+    }>("/v1/streaming/live-prompt", {});
+  },
+  respondLiveStreamPrompt(input: { promptId: string; action: "confirm" | "decline"; gameId?: string | null }) {
+    return request<{ confirmed?: boolean; declined?: boolean }>("/v1/streaming/live-prompt/respond", input);
   },
   linkDiscordOAuth() {
     return request<

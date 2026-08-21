@@ -589,6 +589,22 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  streamingSelectGame: (input: { discordId: string; promptId: string; gameId: string }) =>
+    recFetch<{ selected: true; gameId: string }>("/v1/streaming/discord/select", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  streamingConfirm: (input: { discordId: string; promptId: string; gameId?: string | null }) =>
+    recFetch<{ confirmed: boolean }>("/v1/streaming/discord/confirm", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  streamingDecline: (input: { discordId: string; promptId: string }) =>
+    recFetch<{ declined: true }>("/v1/streaming/discord/decline", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   reviewHighlightPayout: (input: {
     reviewId: string;
     action: "approve" | "deny";

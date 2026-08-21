@@ -425,8 +425,10 @@ export const recApi = {
     recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
     recApiFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
-  shareHubMatchupStream: (input: { guildId: string; gameId: string; url: string }) =>
+  shareHubMatchupStream: (input: { guildId: string; gameId: string; url?: string }) =>
     recApiFetch<{ posted: true; streamLogId: string; watchPath: string; service: string | null }>("/v1/hub/matchups/stream/share", { method: "POST", body: JSON.stringify(input) }),
+  getHubStreamingAccounts: (input: { guildId: string }) =>
+    recApiFetch<{ accounts: Array<{ platform: string; login: string; displayName: string | null; streamUrl: string }>; configured: Record<string, boolean> }>("/v1/hub/streaming/accounts", { method: "POST", body: JSON.stringify(input) }),
   getSchedulingAvailabilityProfile: (guildId: string) =>
     recApiFetch<{
       profile: { timezone: string | null; timezone_source: string; show_detailed_availability: boolean };

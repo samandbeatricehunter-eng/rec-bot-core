@@ -45,6 +45,71 @@ export const recDiscordAccounts = pgTable("rec_discord_accounts", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
+export const recStreamingAccounts = pgTable("rec_streaming_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  platformUserId: text("platform_user_id"),
+  platformLogin: text("platform_login").notNull(),
+  displayName: text("display_name"),
+  profileUrl: text("profile_url"),
+  tokenCiphertext: text("token_ciphertext"),
+  tokenIv: text("token_iv"),
+  tokenTag: text("token_tag"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true, mode: "string" }),
+  eventsubOnlineId: text("eventsub_online_id"),
+  eventsubOfflineId: text("eventsub_offline_id"),
+  status: text("status").notNull().default("active"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow()
+});
+
+export const recStreamingSessions = pgTable("rec_streaming_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").notNull(),
+  platform: text("platform").notNull(),
+  platformStreamId: text("platform_stream_id"),
+  streamUrl: text("stream_url").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true, mode: "string" }),
+  status: text("status").notNull().default("live"),
+  confirmedGameId: uuid("confirmed_game_id"),
+  ignored: boolean("ignored").notNull().default(false),
+  autopostAt: timestamp("autopost_at", { withTimezone: true, mode: "string" }),
+  postedAt: timestamp("posted_at", { withTimezone: true, mode: "string" }),
+  postedStreamLogId: uuid("posted_stream_log_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow()
+});
+
+export const recStreamingPrompts = pgTable("rec_streaming_prompts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  promptKind: text("prompt_kind").notNull(),
+  promptDate: text("prompt_date").notNull(),
+  sessionId: uuid("session_id"),
+  selectedGameId: uuid("selected_game_id"),
+  confirmedGameId: uuid("confirmed_game_id"),
+  status: text("status").notNull().default("pending"),
+  discordChannelId: text("discord_channel_id"),
+  discordMessageId: text("discord_message_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" })
+});
+
+export const recStreamingIntents = pgTable("rec_streaming_intents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  gameId: uuid("game_id").notNull(),
+  leagueId: uuid("league_id").notNull(),
+  source: text("source").notNull().default("discord_dm"),
+  status: text("status").notNull().default("armed"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true, mode: "string" })
+});
+
 export const recAppAccounts = pgTable("rec_app_accounts", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id").references(() => recUsers.id),
@@ -1995,6 +2060,7 @@ export const recStreamComplianceLogs = pgTable("rec_stream_compliance_logs", {
   discordMessageId: text("discord_message_id"),
   messageUrl: text("message_url"),
   postedAt: timestamp("posted_at", { withTimezone: true, mode: "string" }),
+  endedAt: timestamp("ended_at", { withTimezone: true, mode: "string" }),
   status: text("status").notNull().default("posted"),
   details: jsonb("details").$type<Record<string, unknown> | null>()
 });

@@ -7,6 +7,7 @@ import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { SiteFooter } from "./SiteFooter.js";
 import { SiteTicker } from "./SiteTicker.js";
+import { GoingLiveModal } from "./GoingLiveModal.js";
 import { useHub } from "../lib/hub-context.js";
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -53,6 +54,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </div>
 
       <SiteTicker />
+      <GoingLiveModal />
     </div>
   );
 }

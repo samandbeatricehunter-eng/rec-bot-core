@@ -20,7 +20,7 @@ import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
-import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel } from "../streams/streams.service.js";
+import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
 import { stageHasScheduledGames, stageLabel } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -241,6 +241,7 @@ function detectStreamService(rawUrl: string) {
   if (!url) return null;
   if (url.includes("twitch.tv")) return "twitch";
   if (url.includes("youtu.be") || url.includes("youtube.com")) return "youtube";
+  if (url.includes("tiktok.com")) return "tiktok";
   if (url.includes("kick.com")) return "kick";
   return "other";
 }
@@ -1793,15 +1794,27 @@ export async function sendHubMatchupMessage(input: { guildId: string; discordId:
   });
 }
 
+export async function getHubStreamingAccounts(input: { guildId: string; discordId: string }) {
+  const userId = await userIdForDiscord(input.discordId);
+  const { listStreamingAccounts } = await import("../streaming/streaming.service.js");
+  return listStreamingAccounts(userId);
+}
+
 export async function shareHubMatchupStream(input: {
   guildId: string;
   discordId: string;
   gameId: string;
-  url: string;
+  url?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
-  const cleanedUrl = String(input.url ?? "").trim();
+  let cleanedUrl = String(input.url ?? "").trim();
+  if (!cleanedUrl) {
+    const { resolveLinkedStreamUrl } = await import("../streaming/streaming.service.js");
+    const linked = await resolveLinkedStreamUrl(userId);
+    if (!linked) throw new ApiError(400, "Link a Twitch, YouTube, or TikTok account in My Account, or paste a stream URL.");
+    cleanedUrl = linked.url;
+  }
   if (!/^https?:\/\//i.test(cleanedUrl)) {
     throw new ApiError(400, "Enter a full stream URL (https://...).");
   }
@@ -1909,6 +1922,14 @@ export async function shareHubMatchupStream(input: {
         context.routes,
         `🔴 **${matchupContext.matchupLabel}** — ${matchupContext.awayTeamName} at ${matchupContext.homeTeamName}: ${author.displayName} is live! ${cleanedUrl}`,
       ),
+      postStreamToGameChannel({
+        gameId: input.gameId,
+        streamerDiscordId: isSiteOnlyDiscordId(input.discordId) ? null : input.discordId,
+        awayTeamName: matchupContext.awayTeamName,
+        homeTeamName: matchupContext.homeTeamName,
+        url: cleanedUrl,
+        weekNumber,
+      }),
       postLeagueChatStreamNotice({
         leagueId: context.leagueId,
         seasonNumber,

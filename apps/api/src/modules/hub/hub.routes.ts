@@ -16,6 +16,7 @@ import {
   reopenGameOfWeekVoting,
   createCommissionerMediaArticle,
   getHub,
+  getHubStreamingAccounts,
   getHubMatchupSchedule,
   getHubMatchupDetail,
   getHubBootstrapStatus,
@@ -375,13 +376,24 @@ export async function hubRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  app.post("/v1/hub/streaming/accounts", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Streaming accounts require a user session.");
+      return reply.send(await getHubStreamingAccounts({ guildId: body.guildId, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/hub/matchups/stream/share", async (request, reply) => {
     try {
       const body = z
         .object({
           guildId: z.string().min(1),
           gameId: z.string().uuid(),
-          url: z.string().trim().min(1).max(500),
+          url: z.string().trim().min(1).max(500).optional(),
         })
         .parse(request.body);
       const auth = await requireBotOrUserSession(request, {

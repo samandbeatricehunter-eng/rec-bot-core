@@ -11,6 +11,7 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
+import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 
 // Site<->Discord stream mirroring — used by both the Discord stream command
 // (recordStreamPost) and the site's share-stream flow (shareHubMatchupStream in
@@ -24,6 +25,32 @@ export async function postStreamToDiscordChannel(routes: Record<string, unknown>
   const channelId = typeof routes?.streams_channel_id === "string" ? routes.streams_channel_id : null;
   if (!channelId) return;
   await postDiscordChannelMessage(channelId, { content, allowed_mentions: { parse: [] } });
+}
+
+export async function postStreamToGameChannel(input: {
+  gameId: string;
+  streamerDiscordId: string | null;
+  awayTeamName: string;
+  homeTeamName: string;
+  url: string;
+  weekNumber?: number | null;
+}): Promise<void> {
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (!channel?.discord_channel_id) return;
+  const mentions = input.streamerDiscordId ? `<@${input.streamerDiscordId}>` : "a coach";
+  const title = `Week ${input.weekNumber ?? "?"} - ${input.awayTeamName} at ${input.homeTeamName}`;
+  await postDiscordChannelMessage(channel.discord_channel_id, {
+    content: "@everyone",
+    embeds: [{
+      title,
+      description: [
+        `**STREAMER:** ${mentions}`,
+        "",
+        `[WATCH STREAM](${input.url})`,
+      ].join("\n"),
+    }],
+    allowed_mentions: { parse: ["everyone"], users: input.streamerDiscordId ? [input.streamerDiscordId] : [] },
+  });
 }
 
 // Away/home team names + the H2H-vs-CPU two-way label (matches the convention already used in

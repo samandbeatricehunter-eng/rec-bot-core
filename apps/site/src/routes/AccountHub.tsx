@@ -18,11 +18,13 @@ import {
   type SiteNotificationItem,
 } from "../lib/site-api.js";
 import { formatUserIdentity } from "../lib/user-identity.js";
+import { LinkedAccountsPanel } from "../components/LinkedAccountsPanel.js";
 
-type AccountTab = "profile" | "stats" | "friends" | "inbox";
+type AccountTab = "profile" | "linked" | "stats" | "friends" | "inbox";
 
 const TABS: Array<{ id: AccountTab; label: string }> = [
   { id: "profile", label: "Profile & Account" },
+  { id: "linked", label: "Linked accounts" },
   { id: "stats", label: "Stats" },
   { id: "friends", label: "Friends" },
   { id: "inbox", label: "Inbox" },
@@ -44,7 +46,7 @@ function monthlyFee(tier: EntitlementSummary["tier"], billingStatus: string): st
 
 function tabFromSearch(): AccountTab {
   const raw = new URLSearchParams(window.location.search).get("tab");
-  if (raw === "stats" || raw === "friends" || raw === "inbox" || raw === "profile") return raw;
+  if (raw === "stats" || raw === "friends" || raw === "inbox" || raw === "profile" || raw === "linked") return raw;
   return "profile";
 }
 
@@ -52,12 +54,14 @@ export function AccountHub({
   linked,
   entitlements,
   onOpenBilling,
+  onLinkedProfileRefresh,
   billingBusy,
   billingError,
 }: {
   linked: LinkProfileResponse;
   entitlements: EntitlementSummary | null;
   onOpenBilling: () => void;
+  onLinkedProfileRefresh?: () => void;
   billingBusy: boolean;
   billingError: string | null;
 }) {
@@ -104,8 +108,6 @@ export function AccountHub({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
-  const [discordLinkBusy, setDiscordLinkBusy] = useState(false);
-  const [discordLinkError, setDiscordLinkError] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
@@ -254,17 +256,6 @@ export function AccountHub({
     }
   }
 
-  async function linkDiscordAccount() {
-    setDiscordLinkBusy(true);
-    setDiscordLinkError(null);
-    const { error } = await auth.linkDiscord("/account?tab=profile");
-    if (error) {
-      setDiscordLinkError(error);
-      setDiscordLinkBusy(false);
-    }
-    // On success the browser navigates away to Discord's OAuth page, so nothing else to do here.
-  }
-
   async function sendReset() {
     if (!email) {
       setResetNotice(
@@ -363,19 +354,13 @@ export function AccountHub({
               {linked.discordUsername ? (
                 <p className="site-muted">Discord linked</p>
               ) : (
-                <div className="site-account-discord-link">
-                  <p className="site-muted">Discord not linked</p>
-                  <button
-                    type="button"
-                    className="site-btn site-btn-primary"
-                    disabled={discordLinkBusy}
-                    onClick={() => void linkDiscordAccount()}
-                  >
-                    {discordLinkBusy ? "Redirecting…" : "Link Discord account"}
+                <p className="site-muted">
+                  Discord not linked.{" "}
+                  <button type="button" className="site-text-link" onClick={() => setTab("linked")}>
+                    Open Linked accounts
                   </button>
-                </div>
+                </p>
               )}
-              {discordLinkError ? <p className="site-auth-error">{discordLinkError}</p> : null}
             </div>
             {isAdmin ? (
               <Link className="site-btn site-btn-ghost" to="/admin" style={{ marginLeft: "auto" }}>
@@ -521,7 +506,14 @@ export function AccountHub({
         </section>
       ) : null}
 
-            {tab === "stats" ? (
+      {tab === "linked" ? (
+        <LinkedAccountsPanel
+          linked={linked}
+          onDiscordLinked={onLinkedProfileRefresh}
+        />
+      ) : null}
+
+      {tab === "stats" ? (
         <section className="site-account-panel">
           <h2>Global stats</h2>
           <div className="site-account-stat-grid">
