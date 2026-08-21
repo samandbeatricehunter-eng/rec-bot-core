@@ -11,7 +11,9 @@ const SOS_CACHE_TTL_MS = 60_000;
 // ─── Tunable SOS constants ─────────────────────────────────────────────────────
 // SOS = Σ over each scheduled game (repeats counted): typeWeight(opp) × quality(opp)
 //   typeWeight = 1.0 human / 0.5 CPU
-//   quality    = clamp(1 + K_W·(effWinPct − .5) + K_D·normPD, QUALITY_MIN, QUALITY_MAX)
+  //   quality    = clamp(1 + K_W·(effWinPct − .5) + K_D·normPD, QUALITY_MIN, QUALITY_MAX)
+  //                blended with opponent yards-for / yards-allowed when rec_team_game_stats
+  //                has real data (import or box score). Missing stats keep the W/L+PD formula.
 //   effWinPct  = shrinkage blend of this-season win% with a small prior-season prior
 //   normPD     = clamp(avg point differential / DOMINANCE_SCALE, −1, 1) — this season only
 const K_W = 0.5;             // win% weight
@@ -19,6 +21,7 @@ const K_D = 0.25;            // point-differential weight
 const DOMINANCE_SCALE = 14;  // avg margin (pts/game) treated as max dominance
 const PRIOR_WEIGHT = 3;      // prior-season "pseudo-games" (small; fades as games are played)
 const K_M = 0.2;             // momentum (recent form) weight
+const STAT_BLEND = 0.15;     // opponent yards-for / yards-allowed mix-in when rec_team_game_stats has data
 const QUALITY_MIN = 0.5;
 const QUALITY_MAX = 1.5;
 
@@ -105,6 +108,30 @@ function buildTeamRecords(rows: SeasonResultRow[]): Map<string, TeamRecord> {
       if (h) { const r = rec(h); r.pf += hs; r.pa += as_; r.scored++; }
       if (a) { const r = rec(a); r.pf += as_; r.pa += hs; r.scored++; }
     }
+  }
+  return map;
+}
+
+async function loadTeamEfficiency(leagueId: string, seasonNumber: number): Promise<Map<string, { ypg: number; yapg: number }>> {
+  const { data, error } = await supabase
+    .from("rec_team_game_stats")
+    .select("team_id,off_yards_gained,yards_allowed")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber);
+  if (error || !data?.length) return new Map();
+  const totals = new Map<string, { games: number; yards: number; allowed: number }>();
+  for (const row of data) {
+    if (!row.team_id) continue;
+    const current = totals.get(row.team_id) ?? { games: 0, yards: 0, allowed: 0 };
+    current.games += 1;
+    current.yards += Number(row.off_yards_gained ?? 0);
+    current.allowed += Number(row.yards_allowed ?? 0);
+    totals.set(row.team_id, current);
+  }
+  const map = new Map<string, { ypg: number; yapg: number }>();
+  for (const [teamId, item] of totals) {
+    if (!item.games) continue;
+    map.set(teamId, { ypg: item.yards / item.games, yapg: item.allowed / item.games });
   }
   return map;
 }
@@ -203,13 +230,20 @@ async function computeLeagueSosBase(guildId: string) {
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
 
   const hasPrior = currentSeason > 1;
-  const [currentSeasonRows, priorRecords] = await Promise.all([
+  const [currentSeasonRows, priorRecords, efficiency] = await Promise.all([
     loadSeasonGameResults(leagueId, currentSeason),
     hasPrior ? loadTeamRecords(leagueId, currentSeason - 1) : Promise.resolve(new Map<string, TeamRecord>()),
+    loadTeamEfficiency(leagueId, currentSeason),
   ]);
   const currentRecords = buildTeamRecords(currentSeasonRows);
   const playedKeys = buildPlayedMatchupKeys(currentSeasonRows);
   const streaks = buildTeamStreaks(currentSeasonRows);
+  const efficiencyValues = [...efficiency.values()];
+  const hasEfficiency = efficiencyValues.some((item) => item.ypg > 0 || item.yapg > 0);
+  const avgYpg = hasEfficiency ? efficiencyValues.reduce((sum, item) => sum + item.ypg, 0) / efficiencyValues.length : 0;
+  const avgYapg = hasEfficiency ? efficiencyValues.reduce((sum, item) => sum + item.yapg, 0) / efficiencyValues.length : 0;
+  const ypgScale = Math.max(80, avgYpg * 0.35 || 80);
+  const yapgScale = Math.max(80, avgYapg * 0.35 || 80);
 
   const typeWeight = (oppId: string) => (humanTeamIds.has(oppId) ? 1.0 : 0.5);
   const quality = (oppId: string) => {
@@ -224,7 +258,16 @@ async function computeLeagueSosBase(guildId: string) {
     }
     const normPd = clamp(avgPointDiff(cur) / DOMINANCE_SCALE, -1, 1);
     const momentum = momentumAdj(streaks.get(oppId) ?? 0);
-    return clamp(1 + K_W * (eff - 0.5) + K_D * normPd + K_M * momentum, QUALITY_MIN, QUALITY_MAX);
+    const recordQuality = clamp(1 + K_W * (eff - 0.5) + K_D * normPd + K_M * momentum, QUALITY_MIN, QUALITY_MAX);
+    if (!hasEfficiency) return recordQuality;
+    const oppEff = efficiency.get(oppId);
+    if (!oppEff || (oppEff.ypg === 0 && oppEff.yapg === 0)) return recordQuality;
+    const statQuality = clamp(
+      1 + 0.35 * clamp((oppEff.ypg - avgYpg) / ypgScale, -1, 1) + 0.35 * clamp((avgYapg - oppEff.yapg) / yapgScale, -1, 1),
+      QUALITY_MIN,
+      QUALITY_MAX,
+    );
+    return clamp((1 - STAT_BLEND) * recordQuality + STAT_BLEND * statQuality, QUALITY_MIN, QUALITY_MAX);
   };
 
   type Acc = { full: number; remaining: number; games: number; remGames: number; human: number; cpu: number; oppW: number; oppGp: number };

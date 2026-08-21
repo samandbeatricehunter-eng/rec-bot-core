@@ -94,6 +94,20 @@ function mergeSection<T extends Record<string, number>>(defaults: T, patch: unkn
   return result;
 }
 
+function mergeEos(
+  defaults: RecEndSeasonPayoutDefinition[],
+  patch: RecEndSeasonPayoutDefinition[],
+): RecEndSeasonPayoutDefinition[] {
+  const byKey = new Map(defaults.map((definition) => [definition.key, definition]));
+  for (const item of patch) {
+    if (!item?.key) continue;
+    const current = byKey.get(item.key);
+    byKey.set(item.key, current ? { ...current, ...item } : item);
+  }
+  const order = [...defaults.map((definition) => definition.key), ...patch.map((item) => item.key)];
+  return [...new Set(order)].map((key) => byKey.get(key)!).filter(Boolean);
+}
+
 export function mergeGlobalEconomyConfig(value: unknown): RecGlobalEconomyConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) return structuredClone(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG);
   const patch = value as Partial<RecGlobalEconomyConfig>;
@@ -103,6 +117,6 @@ export function mergeGlobalEconomyConfig(value: unknown): RecGlobalEconomyConfig
     submissions: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.submissions, patch.submissions),
     wagers: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.wagers, patch.wagers),
     awards: mergeSection(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.awards, patch.awards),
-    eos: Array.isArray(patch.eos) && patch.eos.length ? patch.eos : DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.eos,
+    eos: Array.isArray(patch.eos) && patch.eos.length ? mergeEos(DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.eos, patch.eos) : DEFAULT_REC_GLOBAL_ECONOMY_CONFIG.eos,
   };
 }

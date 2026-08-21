@@ -109,6 +109,8 @@ const TEAM_STAT_COLUMNS: Array<[canonicalKey: string, sqlSum: string]> = [
   ["total_yards_allowed", "coalesce(sum(g.yards_allowed),0)"],
   ["pass_yards_allowed", "coalesce(sum(g.pass_yards_allowed),0)"],
   ["rush_yards_allowed", "coalesce(sum(g.rush_yards_allowed),0)"],
+  ["red_zone_off_percentage", "coalesce(avg(g.red_zone_off_percentage) filter (where g.red_zone_off_percentage is not null),0)"],
+  ["red_zone_def_percentage", "coalesce(avg(g.red_zone_def_percentage) filter (where g.red_zone_def_percentage is not null),0)"],
   ["games_played", "count(g.id)"],
 ];
 

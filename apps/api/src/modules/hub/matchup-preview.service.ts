@@ -235,21 +235,23 @@ async function comparisonStatsForLeague(leagueId: string, seasonNumber: number):
   }
   const rank = (value: number, key: "pointsFor" | "pointsAllowed" | "passFor" | "passAllowed" | "rushFor" | "rushAllowed" | "pointDiff" | "turnoverDiff", lowerIsBetter = false) =>
     1 + values.filter((item) => lowerIsBetter ? item[key] < value : item[key] > value).length;
+  const hasYardage = values.some((item) => item.passFor || item.passAllowed || item.rushFor || item.rushAllowed);
+  const hasTurnovers = [...unique.values()].some((row) => Number(row.turnovers_committed ?? 0) || Number(row.generated_turnovers ?? 0));
 
   return new Map(values.map((item) => [item.teamId, {
     pointsPerGameRank: rank(item.pointsFor, "pointsFor"),
     pointsAllowedPerGameRank: rank(item.pointsAllowed, "pointsAllowed", true),
     passingYardsPerGame: round(item.passFor, 1),
-    passingYardsRank: rank(item.passFor, "passFor"),
+    passingYardsRank: hasYardage ? rank(item.passFor, "passFor") : null,
     passingYardsAllowedPerGame: round(item.passAllowed, 1),
-    passingYardsAllowedRank: rank(item.passAllowed, "passAllowed", true),
+    passingYardsAllowedRank: hasYardage ? rank(item.passAllowed, "passAllowed", true) : null,
     rushingYardsPerGame: round(item.rushFor, 1),
-    rushingYardsRank: rank(item.rushFor, "rushFor"),
+    rushingYardsRank: hasYardage ? rank(item.rushFor, "rushFor") : null,
     rushingYardsAllowedPerGame: round(item.rushAllowed, 1),
-    rushingYardsAllowedRank: rank(item.rushAllowed, "rushAllowed", true),
+    rushingYardsAllowedRank: hasYardage ? rank(item.rushAllowed, "rushAllowed", true) : null,
     pointDifferentialRank: rank(item.pointDiff, "pointDiff"),
     turnoverDifferential: round(item.turnoverDiff, 0),
-    turnoverDifferentialRank: rank(item.turnoverDiff, "turnoverDiff"),
+    turnoverDifferentialRank: hasTurnovers ? rank(item.turnoverDiff, "turnoverDiff") : null,
   }]));
 }
 

@@ -8,6 +8,8 @@ export type RecPayoutTierRule = {
   operator: RecTierOperator;
 };
 
+export type RecLeagueDataMode = "import" | "box_scores" | "manual";
+
 export type RecEndSeasonPayoutDefinition = {
   key: string;
   label: string;
@@ -19,6 +21,12 @@ export type RecEndSeasonPayoutDefinition = {
   tiers: RecPayoutTierRule[];
   /** Games this category applies to. Omit for shared/game-agnostic categories. */
   games?: string[];
+  /**
+   * Madden-only filter. CFB ignores this (its stats always come from box scores).
+   * Madden `import` (EA auth / companion) uses EA canonical keys; `box_scores`
+   * uses the stored box-score columns/JSON instead. Omit to apply in every mode.
+   */
+  dataModes?: RecLeagueDataMode[];
   /** Extra qualification note shown in the payout tooltip — e.g. a category with a special
    * one-time trigger/side-effect beyond just clearing the tier bar. */
   triggerNote?: string;
@@ -27,6 +35,23 @@ export type RecEndSeasonPayoutDefinition = {
 /** True if `definition` applies to `game` — no `games` list means shared across every game. */
 export function isPayoutEligibleForGame(definition: RecEndSeasonPayoutDefinition, game: string | null | undefined): boolean {
   return !definition.games?.length || definition.games.includes(String(game ?? "madden_26"));
+}
+
+/**
+ * Game + Madden data-mode gate. Import-only bonuses (player rushing extras, 50+ FGs,
+ * team INTs from `defIntsRec`) stay hidden in Madden box-score leagues, which never
+ * store those fields. CFB is unaffected.
+ */
+export function isPayoutEligibleForLeague(
+  definition: RecEndSeasonPayoutDefinition,
+  game: string | null | undefined,
+  dataMode?: RecLeagueDataMode | null,
+): boolean {
+  if (!isPayoutEligibleForGame(definition, game)) return false;
+  if (!definition.dataModes?.length) return true;
+  if (!String(game ?? "").startsWith("madden_")) return true;
+  const mode: RecLeagueDataMode = dataMode === "import" || dataMode === "manual" ? dataMode : "box_scores";
+  return definition.dataModes.includes(mode);
 }
 
 const higher = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule[] =>
@@ -39,6 +64,8 @@ const lower = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule
 export const REC_ECONOMY_MINIMUM_LINKED_USERS = 8;
 /** @deprecated Prefer REC_ECONOMY_MINIMUM_LINKED_USERS — kept for older EOS call sites. */
 export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = REC_ECONOMY_MINIMUM_LINKED_USERS;
+
+const MADDEN_GAMES = ["madden_26", "madden_27"];
 
 export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   {
@@ -71,10 +98,9 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // team_sacks was removed 2026-07-16: neither the Madden nor the CFB box-score parser
   // ever produces a "sacks" stat, so this category always resolved to the bottom tier.
   //
-  // team_def_ints is CFB-only: Madden's box score has no interceptions field at all
-  // (only a combined turnovers-forced number, already covered by turnover_diff below).
-  // CFB's box score does have one ("interceptions_thrown"), so a team's real defensive
-  // INTs = its opponent's interceptions_thrown for that game.
+  // team_def_ints: CFB always uses opponent interceptions_thrown from the box score.
+  // Madden only has a real INT count in EA/companion imports (defIntsRec); box-score
+  // Madden leagues stay on turnover_diff instead.
   // All team-scope stat categories are evaluated per game (converted 2026-08-03) so teams
   // stay comparable while box scores are uploaded at uneven rates — a season total would
   // reward whoever happened to have the most games logged. Rate categories (red-zone %,
@@ -84,7 +110,7 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // the whole ladder down ~10% while keeping the same relative spacing.
   { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 40, 200], ["A", 36, 150], ["B", 32, 100], ["C", 28, 75], ["D", 25, 50]]) },
   { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 16, 200], ["A", 19, 150], ["B", 22, 100], ["C", 25, 75], ["D", 28, 50]]) },
-  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27"], tiers: higher([["S", 2.5, 200], ["A", 2.0, 150], ["B", 1.6, 100], ["C", 1.3, 75], ["D", 1.2, 50]]) },
+  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 2.5, 200], ["A", 2.0, 150], ["B", 1.6, 100], ["C", 1.3, 75], ["D", 1.2, 50]]) },
   { key: "team_def_yards_allowed", label: "Defensive Yards Allowed (per game)", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 300, 200], ["A", 340, 150], ["B", 380, 100], ["C", 430, 75], ["D", 500, 50]]) },
   { key: "turnover_diff", label: "Turnover Differential (per game)", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 1.4, 200], ["A", 1.0, 150], ["B", 0.7, 100], ["C", 0.4, 75], ["D", 0.15, 50]]) },
   // Recalibrated 2026-08-05 alongside team_ppg — same inflation pattern, same ~-20yd shift.
@@ -96,8 +122,8 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // captures but Madden's doesn't (rush attempts/TDs, penalties, red-zone
   // TD-vs-FG split, time of possession).
   { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18.5 * 60, 200], ["A", 18 * 60, 150], ["B", 17.5 * 60, 100], ["C", 17 * 60, 75], ["D", 16.5 * 60, 50]]) },
-  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27"], tiers: lower([["S", 1.2, 200], ["A", 2, 150], ["B", 3, 100], ["C", 4, 75], ["D", 5, 50]]) },
-  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27"], tiers: higher([["S", 90, 200], ["A", 72, 150], ["B", 65, 100], ["C", 58, 75], ["D", 50, 50]]) },
+  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: lower([["S", 1.2, 200], ["A", 2, 150], ["B", 3, 100], ["C", 4, 75], ["D", 5, 50]]) },
+  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 90, 200], ["A", 72, 150], ["B", 65, 100], ["C", 58, 75], ["D", 50, 50]]) },
   // Recalibrated 2026-08-05 from a single all-or-nothing S tier (threshold 85) to a full
   // ladder with partial credit — 85 required near-max carries AND near-max yards/carry
   // simultaneously, which real bell-cow backs (high volume, merely good efficiency — heavy
@@ -127,6 +153,41 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
       { tier: "D", threshold: 32, amount: 50, operator: "greater_or_equal" },
     ],
     triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying.",
+  },
+
+  // Madden import-only player bonuses. Box-score leagues never store broken tackles,
+  // yards after contact, or 50+ FG splits, so these stay gated to EA/companion imports.
+  {
+    key: "madden_rb_workhorse",
+    label: "RB Workhorse Bonus",
+    scope: "player",
+    direction: "higher_is_better",
+    statKey: "madden_rb_workhorse_qualified",
+    games: MADDEN_GAMES,
+    dataModes: ["import"],
+    eligiblePositions: ["HB", "FB", "RB"],
+    minimums: {
+      rush_attempts: 150,
+      rush_yards: 1000,
+      broken_tackles: 50,
+      rush_yards_after_contact: 250,
+      rush_tds: 10,
+    },
+    tiers: higher([["S", 1, 1000]]),
+    triggerNote: "Pays 1,000 coins per user-team rusher with 150+ carries, 1,000+ rush yards, 50+ broken tackles, 250+ yards after contact, and 10+ rush TDs.",
+  },
+  {
+    key: "king_of_the_swing",
+    label: "King of the Swing",
+    scope: "player",
+    direction: "higher_is_better",
+    statKey: "king_of_the_swing_qualified",
+    games: MADDEN_GAMES,
+    dataModes: ["import"],
+    eligiblePositions: ["K"],
+    minimums: { fg_50_attempts: 2 },
+    tiers: higher([["S", 1, 500]]),
+    triggerNote: "Pays 500 coins per user-team kicker with at least two 50+ yard field-goal attempts, all made.",
   },
 ];
 

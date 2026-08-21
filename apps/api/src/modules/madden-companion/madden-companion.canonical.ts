@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import { canonicalizeStatPayload, normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
+import { mapEaTeamWeeklyStats } from "./team-stats-map.js";
 import { eaScheduleExternalId } from "../madden-ea/ea-weeks.js";
 
 type Json = Record<string, unknown>;
@@ -29,17 +30,26 @@ function bool(row: Json, keys: string[]) {
 
 const STAT_METADATA_KEYS = new Set([
   "id", "statid", "stat_id", "leagueid", "league_id", "seasonid", "season_id", "seasonyear", "season_year",
-  "week", "weekindex", "week_index", "stage", "seasonstage", "season_stage", "teamid", "team_id", "maddenteamid",
+  "week", "weekindex", "week_index", "weeklabel", "week_label", "stage", "stageindex", "stage_index",
+  "seasonindex", "season_index", "seasonstage", "season_stage", "teamid", "team_id", "maddenteamid",
   "madden_team_id", "playerid", "player_id", "maddenplayerid", "madden_player_id", "rosterid", "roster_id", "gameid",
   "game_id", "scheduleid", "schedule_id", "firstname", "first_name", "lastname", "last_name", "fullname", "full_name",
   "displayname", "display_name", "playername", "player_name", "teamname", "team_name", "position", "positionname",
   "positionabbr", "statcategory", "stat_category", "category", "createdat", "created_at", "updatedat", "updated_at",
+  "isplayoff", "is_playoff", "seed", "totalwins", "totallosses", "totalties",
 ]);
+
+function isNonAdditiveStatKey(key: string) {
+  const lower = key.toLowerCase();
+  if (STAT_METADATA_KEYS.has(lower)) return true;
+  if (/(per(game|att|play|rush|pass)|convpct|comppct|topct)$/.test(lower)) return true;
+  return false;
+}
 
 function statPayload(row: Json): Json {
   const raw: Record<string, number> = {};
   for (const [key, value] of Object.entries(row)) {
-    if (STAT_METADATA_KEYS.has(key.toLowerCase())) continue;
+    if (isNonAdditiveStatKey(key)) continue;
     const number = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
     if (Number.isFinite(number)) raw[key] = number;
   }
@@ -383,11 +393,7 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
     legacyExternalId: record.sourceGameId,
   });
   const opponentTeamId = game ? (game.home_team_id === resolvedTeamId ? game.away_team_id : game.home_team_id) : null;
-  const isHome = game ? game.home_team_id === resolvedTeamId : bool(row, ["isHome", "is_home"]);
-  const pointsFor = integer(row, ["pointsFor", "points_for", "score", "teamScore", "team_score"])
-    ?? (game ? (isHome ? game.home_score : game.away_score) : null);
-  const pointsAgainst = integer(row, ["pointsAgainst", "points_against", "opponentScore", "opponent_score"])
-    ?? (game ? (isHome ? game.away_score : game.home_score) : null);
+  const mapped = mapEaTeamWeeklyStats({ payload: row, teamId: resolvedTeamId, game });
   // See applyPlayerStats above — always use the league's real season number, never EA's own
   // 0-indexed seasonKey.
   const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0]?.season_number ?? 1;
@@ -399,8 +405,7 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
     "select user_id from rec_team_assignments where league_id=$1 and team_id=$2 and assignment_status='active' and ended_at is null limit 1",
     [leagueId, opponentTeamId],
   )).rows[0]?.user_id ?? null : null;
-  const result = pointsFor === null || pointsAgainst === null ? null : pointsFor > pointsAgainst ? "win" : pointsFor < pointsAgainst ? "loss" : "tie";
-  const stats = statPayload(row);
+  const result = mapped.result;
   await client.query(
     `update rec_team_game_stats set source_companion_record_id = null where source_companion_record_id = $1`,
     [canonicalRecordId],
@@ -417,7 +422,7 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
         punt_return_yards,kick_return_yards,total_yards_gained,turnovers_committed,red_zone_off_percentage,time_of_possession,
         generated_turnovers,yards_allowed,rush_yards_allowed,pass_yards_allowed,first_downs_allowed,red_zone_def_percentage,
         offensive_stats,defensive_stats,source_type,source_external_id,source_companion_record_id,raw_payload)
-     values ($1,$2,$3,$4,$5,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$30::jsonb,'madden_companion',$31,$32,$33::jsonb)
+     values ($1,$2,$3,$4,$5,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,'madden_companion',$32,$33,$34::jsonb)
      on conflict (source_companion_record_id) where source_companion_record_id is not null do update set
        season_number=excluded.season_number,week_number=excluded.week_number,phase=excluded.phase,game_id=excluded.game_id,
        team_id=excluded.team_id,opponent_team_id=excluded.opponent_team_id,user_id=excluded.user_id,opponent_user_id=excluded.opponent_user_id,
@@ -431,16 +436,12 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
        red_zone_def_percentage=excluded.red_zone_def_percentage,offensive_stats=excluded.offensive_stats,
        defensive_stats=excluded.defensive_stats,raw_payload=excluded.raw_payload`,
     [leagueId, season, record.weekNumber ?? 0, game?.phase ?? seasonStage(row, record), game?.id ?? null, resolvedTeamId, opponentTeamId,
-      userId, opponentUserId, isHome, result, pointsFor, pointsAgainst,
-      integer(row, ["offYds", "offensiveYards", "off_yards_gained", "totalOffense"]), integer(row, ["rushYds", "rushingYards", "off_rush_yards"]),
-      integer(row, ["passYds", "passingYards", "off_pass_yards"]), integer(row, ["firstDowns", "off_first_down"]),
-      integer(row, ["puntReturnYds", "punt_return_yards"]), integer(row, ["kickReturnYds", "kick_return_yards"]),
-      integer(row, ["totalYds", "totalYards", "total_yards_gained"]), integer(row, ["turnovers", "turnoversCommitted", "turnovers_committed"]),
-      integer(row, ["redZonePct", "redZoneOffPercentage", "red_zone_off_percentage"]), text(row, ["timeOfPossession", "time_of_possession"]),
-      integer(row, ["takeaways", "generatedTurnovers", "generated_turnovers"]), integer(row, ["yardsAllowed", "yards_allowed"]),
-      integer(row, ["rushYardsAllowed", "rush_yards_allowed"]), integer(row, ["passYardsAllowed", "pass_yards_allowed"]),
-      integer(row, ["firstDownsAllowed", "first_downs_allowed"]), integer(row, ["redZoneDefPct", "redZoneDefPercentage", "red_zone_def_percentage"]),
-      JSON.stringify(stats), record.recordKey, canonicalRecordId, JSON.stringify(row)],
+      userId, opponentUserId, mapped.is_home, result, mapped.points_for, mapped.points_against,
+      mapped.off_yards_gained, mapped.off_rush_yards, mapped.off_pass_yards, mapped.off_first_down,
+      mapped.punt_return_yards, mapped.kick_return_yards, mapped.total_yards_gained, mapped.turnovers_committed,
+      mapped.red_zone_off_percentage, mapped.time_of_possession, mapped.generated_turnovers, mapped.yards_allowed,
+      mapped.rush_yards_allowed, mapped.pass_yards_allowed, mapped.first_downs_allowed, mapped.red_zone_def_percentage,
+      JSON.stringify(mapped.offensive_stats), JSON.stringify(mapped.defensive_stats), record.recordKey, canonicalRecordId, JSON.stringify(row)],
   );
 }
 
