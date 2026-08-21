@@ -444,12 +444,23 @@ function EosPayoutProgressPanel() {
 function FinancialLedger({ summary }: { summary: any }) {
   const last30 = summary?.last30Days;
   const league = summary?.league;
+  const wagering = summary?.wagering;
   return <div className="hub-financial-ledger">
     {league && <div className="hub-profile-stat-list">
       <div><span>Total Earned</span><strong><CoinAmount amount={Number(league.totalEarned ?? 0)} /></strong></div>
       <div><span>Total Spent</span><strong><CoinAmount amount={Number(league.totalSpent ?? 0)} /></strong></div>
       <div><span>Profit / Deficit</span><strong><CoinAmount amount={Number(league.profitDeficit ?? 0)} signed /></strong></div>
     </div>}
+    {wagering && <><h4>Lifetime Wagering</h4><div className="hub-profile-stat-list">
+      <div><span>Coins Wagered</span><strong><CoinAmount amount={Number(wagering.lifetimeWagered ?? 0)} /></strong></div>
+      <div><span>Gross Won</span><strong><CoinAmount amount={Number(wagering.grossWon ?? 0)} /></strong></div>
+      <div><span>Lost Stakes</span><strong><CoinAmount amount={Number(wagering.lostStakes ?? 0)} /></strong></div>
+      <div><span>Net</span><strong><CoinAmount amount={Number(wagering.net ?? 0)} signed /></strong></div>
+      <div><span>Record / Win Rate</span><strong>{wagering.wins ?? 0}-{wagering.losses ?? 0} · {Number(wagering.winPercentage ?? 0).toFixed(1)}%</strong></div>
+      <div><span>Average / Largest Stake</span><strong><CoinAmount amount={Number(wagering.averageStake ?? 0)} /> / <CoinAmount amount={Number(wagering.largestStake ?? 0)} /></strong></div>
+      <div><span>Largest Win</span><strong><CoinAmount amount={Number(wagering.largestWin ?? 0)} /></strong></div>
+      <div><span>House / Peer Wagers</span><strong>{wagering.houseWagers ?? 0} / {wagering.peerWagers ?? 0}</strong></div>
+    </div></>}
     <h4>Last 30 Days</h4>
     {!last30 ? <p className="hub-empty">No recent activity.</p> : <>
       <div className="hub-profile-stat-list hub-ledger-summary">
@@ -1686,6 +1697,13 @@ export function HubHome() {
                 <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
               </div>
             </div>
+            <details className="hub-ways-paid">
+              <summary><span>Ways To Get Paid</span><small><CoinAmount amount={hub.waysToGetPaid.weeklyEarned} /> earned of <CoinAmount amount={hub.waysToGetPaid.weeklyPotential} /> potential this week</small></summary>
+              <div className="hub-ways-paid-body">
+                <section><h3>Weekly</h3><div className="hub-ways-paid-list">{hub.waysToGetPaid.weeklyItems.map((item) => <p key={item.key}>{item.label} to earn <CoinAmount amount={item.amount} />{item.limit > 1 ? " per submission" : ""} — <strong>{item.current}/{item.limit}</strong> submitted this week.{item.note ? ` ${item.note}.` : ""}</p>)}</div><p className="hub-muted">{hub.waysToGetPaid.wagerHint}</p></section>
+                <section><h3>Season Long</h3><p>Track your exact tier, threshold, current statistic, progress, and projected payout below.</p><EosPayoutProgressPanel /></section>
+              </div>
+            </details>
           </section>
         </div>
 

@@ -8,21 +8,22 @@ import { publishTransitionStory } from "../hub/story-publishing.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { computeUserRatings } from "./ratings.service.js";
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 
 // Auto-issued at season end — no poll, straight to the top-1 team by the stat.
 export const EOS_AUTO_AWARD_DEFINITIONS = [
-  { key: "best_passing_game", label: "Best Passing Game", amount: 200 },
-  { key: "best_rushing_game", label: "Best Rushing Game", amount: 200 },
-  { key: "best_defense", label: "Best Defense", amount: 200 },
+  { key: "best_passing_game", label: "Season Passing Leader", amount: 1000 },
+  { key: "best_rushing_game", label: "Season Rushing Leader", amount: 1000 },
+  { key: "best_defense", label: "Season Defensive Leader", amount: 1000 },
+  { key: "mvp", label: "League MVP", amount: 5000 },
 ] as const;
 
-// Web-hub poll categories — the only 3 that still require a vote.
+// Web-hub poll categories — the only two that still require a vote.
 export const EOS_POLL_AWARD_DEFINITIONS = [
-  { key: "mvp", label: "MVP", amount: 1000, limit: 5 },
-  { key: "best_user_skills", label: "Best User Skills", amount: 350, limit: 5 },
-  { key: "most_heart", label: "Most Heart", amount: 500, limit: 5 },
+  { key: "best_user_skills", label: "Most Skilled User", amount: 2000, limit: 10 },
+  { key: "most_heart", label: "Most Heart", amount: 2500, limit: 32 },
 ] as const;
 
 export const EOS_AWARD_DEFINITIONS = [...EOS_AUTO_AWARD_DEFINITIONS, ...EOS_POLL_AWARD_DEFINITIONS];
@@ -35,10 +36,7 @@ async function configuredAwardAmount(key: string, fallback: number) {
 
 type AwardKey = (typeof EOS_AWARD_DEFINITIONS)[number]["key"];
 
-// CFB doesn't have an NFL-style "MVP" — the closest real-world equivalent is the
-// Heisman Trophy. Every other award category keeps its default label for now.
-function awardLabel(key: AwardKey, game: string | null): string {
-  if (key === "mvp" && game === "cfb_27") return "Heisman Trophy Winner";
+function awardLabel(key: AwardKey, _game: string | null): string {
   return EOS_AWARD_DEFINITIONS.find((award) => award.key === key)?.label ?? key;
 }
 type Nominee = {
@@ -114,6 +112,31 @@ async function statsByUser(leagueId: string, seasonNumber: number, game: string 
     byUser.set(row.user_id, rows);
   }
   return byUser;
+}
+
+async function engagementScoreByUser(leagueId: string, seasonNumber: number, userIds: string[], seasonWeeks: number) {
+  if (!userIds.length) return new Map<string, { count: number; percent: number }>();
+  const [media, streams, highlights, gotwVotes] = await Promise.all([
+    supabase.from("rec_media_submissions").select("submitter_user_id,week_number,submission_type,status").eq("league_id", leagueId).eq("season_number", seasonNumber).in("submitter_user_id", userIds).neq("status", "denied"),
+    supabase.from("rec_stream_payout_reviews").select("user_id,week_number,status").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds).neq("status", "denied"),
+    supabase.from("rec_highlight_posts").select("user_id,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds),
+    supabase.from("rec_game_of_week_votes").select("user_id,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds),
+  ]);
+  const completed = new Map<string, Set<string>>(userIds.map((id) => [id, new Set<string>()]));
+  for (const row of media.data ?? []) completed.get(row.submitter_user_id)?.add(`${row.week_number}:${row.submission_type}`);
+  for (const row of streams.data ?? []) completed.get(row.user_id)?.add(`${row.week_number}:stream`);
+  const highlightCounts = new Map<string, number>();
+  for (const row of highlights.data ?? []) {
+    const key = `${row.user_id}:${row.week_number}`;
+    highlightCounts.set(key, Math.min(2, (highlightCounts.get(key) ?? 0) + 1));
+  }
+  for (const [key, count] of highlightCounts) for (let i = 1; i <= count; i += 1) completed.get(key.split(":")[0])?.add(`${key.split(":")[1]}:highlight:${i}`);
+  for (const row of gotwVotes.data ?? []) if (row.user_id) completed.get(row.user_id)?.add(`${row.week_number}:gotw_vote`);
+  const possible = Math.max(1, seasonWeeks * 6); // interview, article, stream, 2 highlights, GOTW vote
+  return new Map(userIds.map((id) => {
+    const count = completed.get(id)?.size ?? 0;
+    return [id, { count, percent: Math.min(100, count / possible * 100) }];
+  }));
 }
 
 type TeamGameLog = { opponentTeamId: string; won: boolean; margin: number };
@@ -201,14 +224,13 @@ function mostHeartMetric(agg: TeamResultAgg, powerRankByTeam: Map<string, number
   return { metric: score, detail: `${agg.wins}-${agg.losses}${agg.ties ? `-${agg.ties}` : ""}, ${closeLosses} close loss${closeLosses === 1 ? "" : "es"}, ${qualityLosses} quality loss${qualityLosses === 1 ? "" : "es"}` };
 }
 
-/** Builds nominees for the 3 poll categories only — MVP/Best User Skills from top-5 power rankings, Most Heart from the formula above. */
+/** Builds the Most Skilled top-ten ballot and the league-wide Most Heart ballot. */
 export async function prepareEosAwardNominees(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const linked = await linkedTeams(context.leagueId);
   const results = await resultAggByTeam(context.leagueId, seasonNumber, context.rec_leagues.game);
-  const rankings = await computePowerRankings(input.guildId).catch(() => ({ teams: [] as any[] }));
-  const powerRankByTeam = new Map<string, number>(rankings.teams.map((t: any): [string, number] => [t.teamId, t.rank]));
+  const ratings = await computeUserRatings(input.guildId).catch(() => ({ users: [] as any[] }));
 
   const base = linked.map((row) => {
     const agg = results.get(row.teamId) ?? { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0, games: [] };
@@ -217,24 +239,19 @@ export async function prepareEosAwardNominees(input: { guildId: string }) {
     return { userId: row.userId, discordId: row.discordId, teamId: row.teamId, teamName: row.teamName, record, pointDifferential };
   });
 
-  // MVP and Best User Skills: the top-5 human teams by season-end power ranking.
-  const powerRankMetric = new Map<string, { metric: number; detail: string }>();
-  for (const row of base) {
-    const rank = powerRankByTeam.get(row.teamId);
-    if (rank == null) continue;
-    powerRankMetric.set(row.teamId, { metric: -rank, detail: `Power Rank #${rank}` });
-  }
-
-  const mostHeart = new Map<string, { metric: number; detail: string }>();
+  const mostHeart = new Map<string, { metric: number; detail: string }>(base.map((row): [string, { metric: number; detail: string }] => [row.teamId, { metric: 1, detail: "League-wide user vote" }]));
+  const ratingByUser = new Map<string, number>((ratings.users ?? []).map((row: any): [string, number] => [String(row.userId), Number(row.rating ?? 0)]));
+  const mostSkilled = new Map<string, { metric: number; detail: string }>();
   for (const row of base) {
     const agg = results.get(row.teamId);
-    if (!agg) continue;
-    const entry = mostHeartMetric(agg, powerRankByTeam, row.teamId);
-    if (entry) mostHeart.set(row.teamId, entry);
+    const games = agg ? agg.wins + agg.losses + agg.ties : 0;
+    const winPct = games ? (agg!.wins + agg!.ties * 0.5) / games : 0;
+    const userScore = ratingByUser.get(row.userId) ?? 0;
+    mostSkilled.set(row.userId, { metric: userScore * winPct, detail: `User Score ${userScore.toFixed(1)} × ${(winPct * 100).toFixed(1)}% win rate` });
   }
 
   const awards = EOS_POLL_AWARD_DEFINITIONS.map((definition) => {
-    const nominees = definition.key === "most_heart" ? rankNominees(base, mostHeart, definition.limit) : rankNominees(base, powerRankMetric, definition.limit);
+    const nominees = definition.key === "most_heart" ? rankNominees(base, mostHeart, definition.limit) : rankNominees(base, mostSkilled, definition.limit);
     return { ...definition, label: awardLabel(definition.key, context.rec_leagues.game), nominees };
   });
 
@@ -247,12 +264,35 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
   const seasonNumber = resolveSeasonNumber(context);
   const linked = await linkedTeams(context.leagueId);
   const stats = await statsByUser(context.leagueId, seasonNumber, context.rec_leagues.game);
+  const results = await resultAggByTeam(context.leagueId, seasonNumber, context.rec_leagues.game);
+  const rankings = await computePowerRankings(guildId).catch(() => ({ teams: [] as any[] }));
+  const rankByTeam = new Map<string, number>((rankings.teams ?? []).map((row: any): [string, number] => [String(row.teamId), Number(row.rank)]));
+  const engagement = await engagementScoreByUser(context.leagueId, seasonNumber, linked.map((row) => row.userId), regularSeasonWeeks(context.rec_leagues.game));
+  const teamCount = Math.max(1, linked.length);
+  const seasonTotals = new Map<string, { takeaways: number; yardsAllowed: number; pointDifferential: number }>(linked.map((row): [string, { takeaways: number; yardsAllowed: number; pointDifferential: number }] => {
+    const rows = stats.get(row.userId) ?? [];
+    const result = results.get(row.teamId);
+    return [row.userId, { takeaways: sumRows(rows, "generated_turnovers"), yardsAllowed: sumRows(rows, "yards_allowed"), pointDifferential: result ? result.pf - result.pa : 0 }];
+  }));
+  const yardsRank = new Map([...seasonTotals.entries()].sort((a, b) => a[1].yardsAllowed - b[1].yardsAllowed).map(([id], index) => [id, index + 1]));
+  const differentialRank = new Map([...seasonTotals.entries()].sort((a, b) => b[1].pointDifferential - a[1].pointDifferential).map(([id], index) => [id, index + 1]));
 
-  const metricFor = (key: (typeof EOS_AUTO_AWARD_DEFINITIONS)[number]["key"], rows: any[]) => {
+  const metricFor = (key: (typeof EOS_AUTO_AWARD_DEFINITIONS)[number]["key"], userId: string, teamId: string, rows: any[]) => {
     if (key === "best_passing_game") return sumRows(rows, "off_pass_yards");
     if (key === "best_rushing_game") return sumRows(rows, "off_rush_yards");
-    // best_defense: takeaways help, points/yards allowed hurt.
-    return sumRows(rows, "generated_turnovers") * 75 - sumRows(rows, "points_against") * 5 - sumRows(rows, "yards_allowed") / 10;
+    if (key === "mvp") {
+      const engagementPercent = engagement.get(userId)?.percent ?? 0;
+      const rank = rankByTeam.get(teamId) ?? teamCount;
+      const powerPercent = teamCount <= 1 ? 100 : (teamCount - rank) / (teamCount - 1) * 100;
+      return engagementPercent * 0.6 + powerPercent * 0.4;
+    }
+    // Defensive score: takeaways multiplied by up to 2x based equally on yards-allowed
+    // rank and point-differential rank. Ranking percentiles keep the formula fair in leagues
+    // with fewer than 32 linked teams.
+    const totals = seasonTotals.get(userId) ?? { takeaways: 0 };
+    const yardsPercent = teamCount <= 1 ? 1 : (teamCount - (yardsRank.get(userId) ?? teamCount)) / (teamCount - 1);
+    const differentialPercent = teamCount <= 1 ? 1 : (teamCount - (differentialRank.get(userId) ?? teamCount)) / (teamCount - 1);
+    return totals.takeaways * (1 + yardsPercent * 0.5 + differentialPercent * 0.5);
   };
 
   let issued = 0;
@@ -264,7 +304,7 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
 
     let best: { userId: string; teamId: string; metric: number } | null = null;
     for (const row of linked) {
-      const metric = metricFor(definition.key, stats.get(row.userId) ?? []);
+      const metric = metricFor(definition.key, row.userId, row.teamId, stats.get(row.userId) ?? []);
       if (!best || metric > best.metric) best = { userId: row.userId, teamId: row.teamId, metric };
     }
     if (!best) continue;
@@ -440,6 +480,7 @@ export async function castEosAwardVote(input: { guildId: string; discordId: stri
   if (poll.data.status !== "open") throw new ApiError(400, "Voting has closed for this award.");
   const nomineeIds = Array.isArray(poll.data.nominee_user_ids) ? poll.data.nominee_user_ids : [];
   if (!nomineeIds.includes(input.nomineeUserId)) throw new ApiError(400, "That nominee isn't part of this award.");
+  if (input.nomineeUserId === account.data.user_id) throw new ApiError(400, "You cannot vote for yourself.");
 
   const upserted = await supabase.from("rec_eos_award_votes").upsert(
     { poll_id: input.pollId, voter_user_id: account.data.user_id, nominee_user_id: input.nomineeUserId, updated_at: new Date().toISOString() },
@@ -546,7 +587,7 @@ export async function getEosAwardVotingBlock(guildId: string, discordId: string)
       categoryKey: poll.category_key,
       categoryLabel: poll.category_label,
       amount: poll.award_amount,
-      nominees: (poll.nominee_payloads ?? []).map((nominee: any) => ({ ...nominee, votes: tallyByPoll.get(poll.id)?.get(nominee.userId) ?? 0 })),
+      nominees: (poll.nominee_payloads ?? []).filter((nominee: any) => nominee.userId !== userId).map((nominee: any) => ({ ...nominee, votes: tallyByPoll.get(poll.id)?.get(nominee.userId) ?? 0 })),
       myVote: myVoteByPoll.get(poll.id) ?? null,
     })),
     hasVotedAll: userId ? openPolls.every((poll: any) => myVoteByPoll.has(poll.id)) : false,

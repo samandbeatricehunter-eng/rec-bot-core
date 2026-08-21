@@ -698,7 +698,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       away_user_id: game.away_user_id,
       away_team_id: awayTeam?.id ?? null,
       away_team_label: awayTeam?.name ?? awayTeam?.abbreviation ?? "Away",
-      amount: Math.floor((await getGlobalEconomyConfig()).submissions.gameOfYear / topGames.length),
+      amount: (await getGlobalEconomyConfig()).submissions.gameOfYear,
       status: "pending",
     }, { onConflict: "league_id,season_number,game_id" }).select("id").single();
     if (inserted.error) throw new ApiError(500, "Failed to create Game of the Year review.", inserted.error);
@@ -714,11 +714,11 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       priority: 0,
       header: `Game of the Year candidate: ${awayTeam?.name ?? "Away"} @ ${homeTeam?.name ?? "Home"}`,
       summary: topGames.length > 1
-        ? `Tied at ${maxLikes} eligible like${maxLikes === 1 ? "" : "s"} — the payout is split evenly across the tied games.`
+        ? `Tied at ${maxLikes} eligible like${maxLikes === 1 ? "" : "s"} — the commissioner will select one winning matchup.`
         : `Leads the season with ${maxLikes} like${maxLikes === 1 ? "" : "s"}.`,
       requester_discord_id: null,
       requester_user_id: null,
-      amount: Math.floor((await getGlobalEconomyConfig()).submissions.gameOfYear / topGames.length),
+      amount: (await getGlobalEconomyConfig()).submissions.gameOfYear,
       source_table: "rec_game_of_year_reviews",
       source_id: inserted.data.id,
       payload: { reviewId: inserted.data.id, gameId: game.id, likeCount: maxLikes, tied: topGames.length > 1 },

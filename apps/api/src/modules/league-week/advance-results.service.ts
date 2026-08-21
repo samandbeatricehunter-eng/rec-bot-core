@@ -33,6 +33,8 @@ import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
+import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
   custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
@@ -287,6 +289,7 @@ type AdvanceGameResultInput = {
   // Optional real final scores; when absent we fall back to a 1–0 win/loss flag.
   homeScore?: number | null;
   awayScore?: number | null;
+  designation?: "played" | "fair_sim" | "force_win";
 };
 
 // Delegates to the shared canonical week->stage mapping instead of hand-rolling a second,
@@ -680,6 +683,7 @@ export async function completeAdvanceWeek(input: {
       awayTeamId: game.data.away_team_id,
     });
 
+    const priorResult = await supabase.from("rec_game_results").select("source").eq("records_apply_key", recordsApplyKey).maybeSingle();
     await supabase.from("rec_game_results").upsert(
       {
         league_id: context.leagueId,
@@ -702,7 +706,7 @@ export async function completeAdvanceWeek(input: {
         is_cpu_game: !(homeUserId && awayUserId),
         is_tie: isTie,
         is_playoff: !isRegularSeasonWeek(game.data.week_number ?? currentWeek, context.rec_leagues.game),
-        source: "commissioner_advance",
+        source: priorResult.data?.source ?? "commissioner_advance",
         records_apply_key: recordsApplyKey,
         updated_at: now,
       },
@@ -714,6 +718,24 @@ export async function completeAdvanceWeek(input: {
     await settleGotwPollsForGame({ guildId: input.guildId, gameId: game.data.id, winningTeamId }).catch((err) => {
       console.error("[ERROR] settleGotwPollsForGame failed during advance (non-fatal):", err);
     });
+    // Imported/manual scores receive the same result payout as an approved box score. Fair
+    // Sims and Force Wins are administrative outcomes, so neither participant is paid.
+    if (result.designation !== "fair_sim" && result.designation !== "force_win" && !BOX_SCORE_SOURCES.includes(String(priorResult.data?.source ?? ""))) {
+      const payoutConfig = (await getGlobalEconomyConfig()).submissions;
+      for (const [userId, amount, outcomeLabel] of [[winningUserId, payoutConfig.boxScoreWin, "win"], [losingUserId, payoutConfig.boxScoreLoss, "loss"]] as const) {
+        if (!userId || isTie) continue;
+        await creditOrBacklog({
+          leagueId: context.leagueId,
+          seasonNumber,
+          userId,
+          amount,
+          description: `Game result payout (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
+          transactionType: "game_result_payout",
+          source: "box_score",
+          sourceReference: { gameId: game.data.id, userId, outcome: outcomeLabel },
+        });
+      }
+    }
 
     // Surface any pending wager this result just made settle-ready. The Discord bot does this
     // itself (refreshConfirmableWagerEmbeds, called from its own interactive advance wizard)

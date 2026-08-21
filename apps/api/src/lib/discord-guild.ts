@@ -338,6 +338,18 @@ export async function deleteDiscordMessage(channelId: string, messageId: string)
   await bestEffort("discord.delete_message", () => discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }), { entityId: messageId });
 }
 
+/** Remove recent action prompts for one game while preserving ordinary channel chat. */
+export async function deleteDiscordComponentMessagesForGame(channelId: string, gameId: string): Promise<number> {
+  const res = await discordBotFetch(`/channels/${channelId}/messages?limit=100`);
+  if (!res.ok) return 0;
+  const messages = await res.json() as Array<{ id: string; components?: Array<{ components?: Array<{ custom_id?: string }> }> }>;
+  const targets = messages.filter((message) => (message.components ?? []).some((row) =>
+    (row.components ?? []).some((component) => component.custom_id?.includes(gameId)),
+  ));
+  await Promise.all(targets.map((message) => deleteDiscordMessage(channelId, message.id)));
+  return targets.length;
+}
+
 /** Edit a previously posted bot message (embeds/components/content) via REST. Used to keep
  * live status embeds (e.g. the fantasy-draft check-in board) in sync when a change comes
  * from a non-gateway source like the website. Returns false on any non-OK response (a

@@ -179,9 +179,7 @@ export async function markGameOver(input: { gameId: string; discordId: string; h
   await supabase.from("rec_game_scheduling").update({ status: "completed", updated_at: new Date().toISOString() }).eq("game_id", input.gameId);
   await supabase.from("rec_stream_compliance_logs").update({ ended_at: new Date().toISOString() }).eq("game_id", input.gameId).is("ended_at", null);
   await logSchedulingEvent({ gameId: input.gameId, eventType: "game_marked_over", payload: { homeScore: input.homeScore ?? null, awayScore: input.awayScore ?? null } });
-  await postOrUpdateGameAnnouncement(input.gameId, { announceNow: false });
-  // Dynamic import to avoid a static circular dependency (matchup-scheduling.service.ts imports
-  // postOrUpdateGameAnnouncement from this file).
+  // Dynamic import avoids a static scheduling-service cycle.
   const { updateSchedulingPanel } = await import("./matchup-scheduling.service.js");
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   const { refreshMatchupsChannelForGame } = await import("./matchups-channel.service.js");

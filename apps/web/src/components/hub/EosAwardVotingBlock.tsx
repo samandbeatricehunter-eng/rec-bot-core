@@ -17,6 +17,7 @@ export function EosAwardVotingBlock() {
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftVotes, setDraftVotes] = useState<Record<string, string>>({});
 
   function reload(resumeFromSession = false) {
     Promise.all([
@@ -117,21 +118,8 @@ export function EosAwardVotingBlock() {
             </div>
             <article className="hub-eos-vote-card">
               <div className="hub-eos-vote-header"><h4>{current.categoryLabel}</h4><span>${current.amount}</span></div>
-              <div className="hub-eos-vote-nominees">
-                {current.nominees.map((nominee) => (
-                  <button
-                    type="button"
-                    key={nominee.userId}
-                    className={current.myVote === nominee.userId ? "active" : ""}
-                    disabled={busy}
-                    onClick={() => void vote(nominee.userId)}
-                  >
-                    <span>{nominee.teamName}{nominee.displayName ? ` — ${nominee.displayName}` : ""}</span>
-                    <small>{nominee.record} · {nominee.detail}</small>
-                    <strong>{nominee.votes} vote{nominee.votes === 1 ? "" : "s"}</strong>
-                  </button>
-                ))}
-              </div>
+              <label className="form-field"><span className="form-label">Select a nominee</span><select className="form-input" value={draftVotes[current.id] ?? current.myVote ?? ""} disabled={busy || isSubmitted} onChange={(event) => setDraftVotes((values) => ({ ...values, [current.id]: event.target.value }))}><option value="">Choose a user-controlled team</option>{current.nominees.map((nominee) => <option key={nominee.userId} value={nominee.userId}>{nominee.teamName}{nominee.displayName ? ` — ${nominee.displayName}` : ""} · {nominee.detail}</option>)}</select></label>
+              <Button variant="primary" disabled={busy || isSubmitted || !(draftVotes[current.id] ?? current.myVote)} onClick={() => void vote(draftVotes[current.id] ?? current.myVote!)}>{current.myVote ? "Update Vote" : "Submit Vote"}</Button>
             </article>
             <div className="hub-eos-ballot-actions">
               <Button variant="ghost" disabled={index === 0} onClick={() => goTo(index - 1)}>Previous Award</Button>

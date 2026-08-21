@@ -285,7 +285,7 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
   const hubChrome = useHubChrome();
-  const [view, setView] = useState<"category" | "team" | "leaders">("category");
+  const [view, setView] = useState<"category" | "team">("category");
   const [scope, setScope] = useState<"season" | "career">("season");
   const [hub, setHub] = useState<Awaited<ReturnType<typeof recApi.getHub>> | null>(null);
   useEffect(() => { recApi.getHub(guildId).then(setHub).catch(() => setHub(null)); }, [guildId]);
@@ -300,10 +300,8 @@ export function LeagueStatsHome() {
     <div className="rec-matchup-tabs" role="tablist" aria-label="Stats view">
       <button type="button" role="tab" aria-selected={view === "category"} className={view === "category" ? "active" : ""} onClick={() => setView("category")}>Stats by Category</button>
       <button type="button" role="tab" aria-selected={view === "team"} className={view === "team" ? "active" : ""} onClick={() => setView("team")}>Stats by Team</button>
-      <button type="button" role="tab" aria-selected={view === "leaders"} className={view === "leaders" ? "active" : ""} onClick={() => setView("leaders")}>League Leaders</button>
     </div>
     {view === "category" && <CategoryStatsView guildId={guildId} scope={scope} />}
     {view === "team" && <TeamStatsView guildId={guildId} scope={scope} />}
-    {view === "leaders" && <LeagueLeadersView guildId={guildId} />}
   </div>;
 }

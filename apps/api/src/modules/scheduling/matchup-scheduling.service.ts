@@ -8,9 +8,8 @@ import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, purgeDiscordChannelMessages, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { deleteDiscordComponentMessagesForGame, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, purgeDiscordChannelMessages, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
-import { postOrUpdateGameAnnouncement, postOrUpdateWeeklyConfirmedAnnouncement } from "./game-announcement.service.js";
 import { formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
@@ -226,7 +225,6 @@ export async function respondToProposal(input: { gameId: string; discordId: stri
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "proposal_accepted", payload: { proposedFor: proposal.data.proposed_for } });
     await closeOutProposalNotice(proposal.data, "✅ Accepted — game confirmed!");
     await notifyOpponent(input.gameId, game, userId, (ctx) => `${ctx.opponentMention} — your proposed time was accepted by ${ctx.actingMention}: **${formatInstantInZone(proposal.data.proposed_for, ctx.tz)}**. Game confirmed!`);
-    await postOrUpdateWeeklyConfirmedAnnouncement(input.gameId).catch((error) => console.error("[ERROR] Failed to post weekly confirmed-matchups announcement (non-fatal):", error));
     await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
     await refreshMatchupsChannelForGame(input.gameId);
     return { status: "confirmed", scheduledFor: proposal.data.proposed_for };
@@ -302,7 +300,6 @@ export async function markGameStarted(input: { gameId: string; discordId?: strin
   // A live game makes any pending/confirmed kickoff moot -- it's happening right now.
   await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", input.gameId).eq("status", "pending");
   await logSchedulingEvent({ gameId: input.gameId, eventType: "game_started" });
-  await postOrUpdateGameAnnouncement(input.gameId, { announceNow: true }).catch((error) => console.error("[ERROR] Failed to post live game announcement (non-fatal):", error));
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   await refreshMatchupsChannelForGame(input.gameId);
   return updated.data;
@@ -526,6 +523,7 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
       attention_required: true, updated_at: new Date().toISOString(),
     }).eq("game_id", input.gameId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_grant_fw" });
+    await closeAdministrativeResult(input.gameId, "force_win");
 
     const routes = await findServerRoutesForLeague(game.league_id);
     const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
@@ -744,6 +742,7 @@ export async function resolveViolationReport(input: { gameId: string; discordId:
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
+    await closeAdministrativeResult(input.gameId, "force_win");
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -816,6 +815,7 @@ export async function resolveDashingReport(input: { gameId: string; discordId: s
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
+    await closeAdministrativeResult(input.gameId, "force_win");
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -960,6 +960,20 @@ export async function getActiveSuspension(userId: string): Promise<{ id: string;
 // themselves, matching how resetScheduling/resolveAutopilotRequest/resolveViolationReport/
 // resolveDashingReport are already gated purely at the route layer.
 
+async function closeAdministrativeResult(gameId: string, status: "force_win" | "fair_sim") {
+  const proposals = await supabase.from("rec_game_time_proposals").select("notice_channel_id,notice_message_id")
+    .eq("game_id", gameId).eq("status", "pending");
+  await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() })
+    .eq("game_id", gameId).eq("status", "pending");
+  await supabase.from("rec_game_scheduling").update({
+    status: "completed", attention_required: false, updated_at: new Date().toISOString(),
+  }).eq("game_id", gameId);
+  await Promise.all((proposals.data ?? []).map((proposal: any) => closeOutProposalNotice(proposal, `Closed — ${status === "force_win" ? "Force Win granted" : "Fair Sim granted"}.`)));
+  const channel = await getGameChannelByGameId(gameId);
+  if (channel?.discord_channel_id) await deleteDiscordComponentMessagesForGame(channel.discord_channel_id, gameId).catch(() => 0);
+  await refreshMatchupsChannelForGame(gameId);
+}
+
 export async function grantForceWinCommissioner(input: { gameId: string; discordId: string; side: "home" | "away" }) {
   const game = await loadGame(input.gameId);
   const beneficiaryId = input.side === "home" ? game.home_user_id : game.away_user_id;
@@ -968,6 +982,7 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
     fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
     attention_required: true, updated_at: new Date().toISOString(),
   }).eq("game_id", input.gameId);
+  await closeAdministrativeResult(input.gameId, "force_win");
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fw", payload: { side: input.side } });
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -979,6 +994,7 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
 }
 
 export async function grantFairSimCommissioner(input: { gameId: string; discordId: string }) {
+  await closeAdministrativeResult(input.gameId, "fair_sim");
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fs" });
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {

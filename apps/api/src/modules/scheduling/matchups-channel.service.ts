@@ -11,6 +11,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 type SchedulingRow = {
   game_id: string; status: string; scheduled_for: string | null;
   fw_flagged: boolean; fw_flagged_for_user_id: string | null; proposed_by_user_id: string | null;
+  response_started_at: string | null; home_responded_at: string | null; away_responded_at: string | null;
 };
 
 // Channel-wide, not per-game -- the handler resolves "your game" itself from the clicking
@@ -25,9 +26,11 @@ function statusLineFor(input: {
   s: SchedulingRow | undefined;
   homeScore: number | null; awayScore: number | null;
   discordByUser: Map<string, string>;
+  fairSim: boolean;
 }): string {
-  const { s, homeScore, awayScore, discordByUser } = input;
+  const { s, homeScore, awayScore, discordByUser, fairSim } = input;
   if (s?.fw_flagged) return `FW for ${mentionOrFallback(s.fw_flagged_for_user_id ? discordByUser.get(s.fw_flagged_for_user_id) : null)}`;
+  if (fairSim) return "Fair Sim";
   if (s?.status === "live") return "🔴 LIVE";
   if (s?.status === "completed" || (homeScore != null && awayScore != null)) {
     return homeScore != null && awayScore != null ? `Final: ${awayScore} — ${homeScore}` : "Completed";
@@ -42,7 +45,8 @@ function statusLineFor(input: {
   if (s?.status === "reschedule_requested") return "Reschedule Requested";
   if (s?.status === "needs_commissioner_help") return "Needs Commissioner Help";
   if (s?.status === "no_shared_availability") return "No Shared Availability";
-  return "Not Scheduled Yet, Designated FairSim";
+  if (s?.home_responded_at || s?.away_responded_at) return "Scheduling attempted — not scheduled";
+  return "Not scheduled";
 }
 
 // NOTE: the very first post for a new week (before rec_matchups_channel_posts has a row) has a
@@ -65,14 +69,16 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const context = await getCurrentLeagueContext(guildId).catch(() => null);
   if (!context) return;
   const routes = await findServerRoutesForLeague(context.leagueId).catch(() => null);
-  const channelId = String((routes?.routes as any)?.matchups_channel_id ?? "");
+  const channelId = String((routes?.routes as any)?.announcements_channel_id ?? (routes?.routes as any)?.matchups_channel_id ?? "");
   if (!channelId) return;
 
   const gameIds = [...h2hGames, ...humanCpuGames].map((g) => g.gameId);
-  const [scheduling, streams] = await Promise.all([
-    supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id").in("game_id", gameIds),
+  const [scheduling, streams, fairSims] = await Promise.all([
+    supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id,response_started_at,home_responded_at,away_responded_at").in("game_id", gameIds),
     supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", h2hGames.map((g) => g.gameId)).eq("status", "posted").is("ended_at", null),
+    supabase.from("rec_game_scheduling_events").select("game_id").in("game_id", gameIds).eq("event_type", "commissioner_grant_fs"),
   ]);
+  const fairSimGameIds = new Set((fairSims.data ?? []).map((row: any) => String(row.game_id)));
   const schedulingByGame = new Map<string, SchedulingRow>((scheduling.data ?? []).map((r: any) => [String(r.game_id), r]));
   const streamsByGame = new Map<string, Array<{ team_id: string | null; message_url: string }>>();
   for (const row of (streams.data ?? []) as any[]) {
@@ -87,7 +93,7 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
 
   const lines = h2hGames.map((g) => {
     const s = schedulingByGame.get(g.gameId);
-    const statusText = statusLineFor({ s, homeScore: g.homeScore, awayScore: g.awayScore, discordByUser });
+    const statusText = statusLineFor({ s, homeScore: g.homeScore, awayScore: g.awayScore, discordByUser, fairSim: fairSimGameIds.has(g.gameId) });
     const header = `**${g.awayTeamName}** ${mentionOrFallback(discordByUser.get(g.awayUserId))} VS **${g.homeTeamName}** ${mentionOrFallback(discordByUser.get(g.homeUserId))}`;
 
     const streamEntries = streamsByGame.get(g.gameId) ?? [];

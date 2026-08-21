@@ -4,7 +4,6 @@ import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
-import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
@@ -522,6 +521,30 @@ export async function getHub(guildId: string, discordId: string) {
   if (headlines.error) throw new ApiError(500, "We couldn't load hub headlines right now. Please try again.", headlines.error);
   if (highlights.error) throw new ApiError(500, "We couldn't load highlights right now. Please try again.", highlights.error);
   if (storeConfig.error) throw new ApiError(500, "We couldn't load the Hub store settings. Please try again.", storeConfig.error);
+  const economy = await getGlobalEconomyConfig();
+  const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers] = userId ? await Promise.all([
+    supabase.from("rec_media_submissions").select("submission_type,status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("submitter_user_id", userId).neq("status", "denied"),
+    supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
+    supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
+    supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
+    supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout"]),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+  const weeklyGame = (matchups.games ?? []).find((game: any) => game.involvesMe) ?? null;
+  const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) => String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? ""));
+  const paid = (rows: any[]) => rows.filter((row) => row.status === "issued" || row.status === "approved").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const mediaRows = weeklyMedia.data ?? [];
+  const interviewRows = mediaRows.filter((row: any) => row.submission_type === "interview");
+  const articleRows = mediaRows.filter((row: any) => row.submission_type === "user_article");
+  const weeklyItems = [
+    { key: "interview", label: "Submit an Interview", amount: economy.submissions.interview, current: interviewRows.length, limit: 1, earned: paid(interviewRows) },
+    { key: "article", label: "Submit a custom article", amount: economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
+    { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
+    { key: "highlights", label: "Post up to 2 game highlights", amount: economy.submissions.highlight, current: Math.min(economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
+    { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
+    ...(weeklyGame ? [{ key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: Number(weeklyGameLedger?.amount ?? 0), note: "100 for a win, 50 for a loss; Fair Sims and Force Wins pay neither coach" }] : []),
+  ];
+  const weeklyPotential = weeklyItems.reduce((sum, item) => sum + item.amount * item.limit, 0);
+  const weeklyEarned = weeklyItems.reduce((sum, item) => sum + item.earned, 0);
   const cfg = storeConfig.data ?? {};
   const cfbSeasonOne = context.rec_leagues.game === "cfb_27" && seasonNumber < 2;
   const productConfig = [
@@ -635,6 +658,7 @@ export async function getHub(guildId: string, discordId: string) {
         .filter(([, , flag]) => Boolean((cfg as any)[flag]))
         .map(([type, label, , cfbLocked]) => ({ type, label, locked: cfbSeasonOne && cfbLocked })),
     },
+    waysToGetPaid: { weeklyEarned, weeklyPotential, weeklyItems, wagerHint: "Place wagers from the Place a Wager button in Quick Actions." },
     announcements: announcements.data ?? [],
     headlines: (headlines.data ?? []).map((story: any) => {
       const reactions = (storyReactions.data ?? []).filter((reaction: any) => reaction.story_id === story.id);
@@ -1821,7 +1845,6 @@ export async function shareHubMatchupStream(input: {
   await markGameStarted({ gameId: input.gameId }).catch((error) => console.error("[ERROR] Failed to mark game started from stream share (non-fatal):", error));
   // markGameStarted no-ops once the game is already live, so a second/third stream (the other
   // coach's, or a re-share) would never otherwise get its link added to the announcement embed.
-  await postOrUpdateGameAnnouncement(input.gameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
   const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
   await refreshMatchupsChannelForGame(input.gameId);
 

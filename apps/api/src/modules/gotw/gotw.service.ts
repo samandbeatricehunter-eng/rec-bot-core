@@ -432,17 +432,17 @@ export async function payGotwGuessingBonuses(leagueId: string, seasonNumber: num
     .filter((r) => r.wins + r.losses + r.ties > 0)
     .map((r) => ({ ...r, winPct: r.wins / Math.max(1, r.wins + r.losses + r.ties) }))
     .sort((a, b) => (b.wins - a.wins) || (b.winPct - a.winPct));
-  const top3 = ranked.slice(0, 3);
-  if (!top3.length) return { paid: 0 };
+  const winner = ranked.slice(0, 1);
+  if (!winner.length) return { paid: 0 };
 
   const bonus = (await getGlobalEconomyConfig()).submissions.gotwSeasonTopGuesserBonus;
   const now = new Date().toISOString();
   let paid = 0;
-  for (let i = 0; i < top3.length; i += 1) {
+  for (let i = 0; i < winner.length; i += 1) {
     const rank = i + 1;
     const { data: inserted, error } = await supabase
       .from("rec_gotw_guessing_bonus_payouts")
-      .insert({ league_id: leagueId, season_number: seasonNumber, user_id: top3[i].user_id, rank, amount: bonus, paid_at: now })
+      .insert({ league_id: leagueId, season_number: seasonNumber, user_id: winner[i].user_id, rank, amount: bonus, paid_at: now })
       .select("id")
       .single();
     if (error) {
@@ -454,7 +454,7 @@ export async function payGotwGuessingBonuses(leagueId: string, seasonNumber: num
       await creditOrBacklog({
         leagueId,
         seasonNumber,
-        userId: top3[i].user_id,
+        userId: winner[i].user_id,
         amount: bonus,
         description: `GOTW top-${rank} guesser bonus — Season ${seasonNumber}`,
         transactionType: "gotw_guessing_bonus",

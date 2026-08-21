@@ -49,7 +49,7 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     statKey: "power_rank",
     // The REAL dollar amount always comes from the `rec_eos_rank_payouts` SQL function
     // (supabase/migrations/202606130006_rec_eos_rank_payouts_rpc.sql) — it pays a distinct
-    // amount per exact rank (250/175/125/100/75/75/50/50, 0 for rank 9+), which is finer-
+    // amount per exact rank (2500/1750/1250/1000/750/750/500/500, 0 for rank 9+), which is finer-
     // grained than this 5-tier ladder can represent exactly. These tiers exist only for
     // display (qualified_tier label, EOS progress bars) and for the commissioner's manual
     // "adjust to a different tier" override — so each tier is anchored to the WORST-case
@@ -57,10 +57,10 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     // adjustment can never pay out more than that rank could really earn. If the RPC's
     // amount table changes, update this to match.
     tiers: [
-      { tier: "S", threshold: 1, amount: 250, operator: "less_or_equal" },
-      { tier: "A", threshold: 2, amount: 175, operator: "less_or_equal" },
-      { tier: "B", threshold: 5, amount: 75, operator: "less_or_equal" },
-      { tier: "C", threshold: 8, amount: 50, operator: "less_or_equal" },
+      { tier: "S", threshold: 1, amount: 2500, operator: "less_or_equal" },
+      { tier: "A", threshold: 2, amount: 1750, operator: "less_or_equal" },
+      { tier: "B", threshold: 5, amount: 750, operator: "less_or_equal" },
+      { tier: "C", threshold: 8, amount: 500, operator: "less_or_equal" },
       { tier: "D", threshold: 9, amount: 0, operator: "greater_or_equal" },
     ],
   },

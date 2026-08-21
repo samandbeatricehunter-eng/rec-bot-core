@@ -4617,3 +4617,12 @@ details.fantasy-draft-checkin .fantasy-draft-checkin-status { margin-top: var(--
   .rec-stats-category-pills { justify-content:center; }
   .rec-stats-category-pills button { flex:1 1 auto; padding:8px 10px; font-size:.7rem; }
 }
+.hub-ways-paid { margin-top:var(--space-4); border:1px solid var(--border); border-radius:16px; background:var(--surface); overflow:hidden; }
+.hub-ways-paid > summary { display:flex; justify-content:space-between; gap:var(--space-3); align-items:center; padding:16px 18px; cursor:pointer; list-style:none; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; }
+.hub-ways-paid > summary::-webkit-details-marker { display:none; }
+.hub-ways-paid > summary small { color:var(--text-muted); font:600 .75rem var(--font-sans); text-transform:none; letter-spacing:0; }
+.hub-ways-paid-body { display:grid; gap:var(--space-4); padding:0 18px 18px; border-top:1px solid var(--border); }
+.hub-ways-paid-body section { padding-top:var(--space-3); }
+.hub-ways-paid-body h3 { margin:0 0 var(--space-2); }
+.hub-ways-paid-list { display:grid; gap:8px; }
+.hub-ways-paid-list p { margin:0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); }

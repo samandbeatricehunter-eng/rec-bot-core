@@ -414,7 +414,7 @@ async function loadLast30DaysLedger(userId: string, leagueId: string): Promise<L
 }
 
 export async function loadUserFinancialSummary(userId: string, leagueId: string | null) {
-  const [globalLedgerResult, leagueLedgerResult, globalPurchaseResult, leaguePurchaseResult, leagueWeeks, globalWeeks, last30Days] = await Promise.all([
+  const [globalLedgerResult, leagueLedgerResult, globalPurchaseResult, leaguePurchaseResult, leagueWeeks, globalWeeks, last30Days, wagerResult] = await Promise.all([
     supabase.from("rec_dollar_ledger").select("amount,transaction_type,league_id").eq("user_id", userId),
     leagueId
       ? supabase.from("rec_dollar_ledger").select("amount,transaction_type").eq("user_id", userId).eq("league_id", leagueId)
@@ -426,12 +426,16 @@ export async function loadUserFinancialSummary(userId: string, leagueId: string 
     leagueId ? countDistinctWeeksLogged(userId, leagueId) : Promise.resolve(0),
     countDistinctWeeksLogged(userId),
     leagueId ? loadLast30DaysLedger(userId, leagueId) : Promise.resolve(null),
+    leagueId
+      ? supabase.from("rec_wagers").select("wager_kind,stake,potential_payout,status,placed_by_user_id,accepted_by_user_id").eq("league_id", leagueId).or(`placed_by_user_id.eq.${userId},accepted_by_user_id.eq.${userId}`)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (globalLedgerResult.error) throw globalLedgerResult.error;
   if (leagueLedgerResult.error) throw leagueLedgerResult.error;
   if (globalPurchaseResult.error) throw globalPurchaseResult.error;
   if (leaguePurchaseResult.error) throw leaguePurchaseResult.error;
+  if (wagerResult.error) throw wagerResult.error;
 
   const league: FinancialSummaryScope = {
     ...summarizeLedgerRows(leagueLedgerResult.data, leagueWeeks),
@@ -442,7 +446,24 @@ export async function loadUserFinancialSummary(userId: string, leagueId: string 
     purchases: summarizePurchaseRows(globalPurchaseResult.data),
   };
 
-  return { league, global, last30Days };
+  const settledWagers = (wagerResult.data ?? []).filter((row: any) => ["won", "lost"].includes(row.status));
+  const wagering = settledWagers.reduce((acc, row: any) => {
+    const stake = Number(row.stake ?? 0);
+    const placer = row.placed_by_user_id === userId;
+    const won = placer ? row.status === "won" : row.status === "lost";
+    const gross = won ? (row.wager_kind === "peer" ? stake * 2 : Number(row.potential_payout ?? 0)) : 0;
+    acc.lifetimeWagered += stake;
+    acc.grossWon += gross;
+    acc.lostStakes += won ? 0 : stake;
+    acc.wins += won ? 1 : 0;
+    acc.losses += won ? 0 : 1;
+    acc.largestStake = Math.max(acc.largestStake, stake);
+    acc.largestWin = Math.max(acc.largestWin, gross);
+    if (row.wager_kind === "peer") acc.peerWagers += 1; else acc.houseWagers += 1;
+    return acc;
+  }, { lifetimeWagered: 0, grossWon: 0, lostStakes: 0, wins: 0, losses: 0, largestStake: 0, largestWin: 0, peerWagers: 0, houseWagers: 0 });
+  const wagerCount = wagering.wins + wagering.losses;
+  return { league, global, last30Days, wagering: { ...wagering, net: wagering.grossWon - wagering.lifetimeWagered, wagerCount, winPercentage: wagerCount ? wagering.wins / wagerCount * 100 : 0, averageStake: wagerCount ? wagering.lifetimeWagered / wagerCount : 0 } };
 }
 
 export function formatTeamDisplayName(team: {

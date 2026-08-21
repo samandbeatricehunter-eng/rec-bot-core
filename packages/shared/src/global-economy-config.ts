@@ -66,8 +66,8 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     boxScoreWin: 100,
     boxScoreLoss: 50,
     highlight: 25,
-    highlightSeasonAward: 500,
-    gameOfYear: 250,
+    highlightSeasonAward: 2000,
+    gameOfYear: 5000,
     highlightWeeklyPaidLimit: 2,
     highlightWeeklyUploadLimit: 2,
     stream: 50,
@@ -77,7 +77,7 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     gotwSeasonTopGuesserBonus: 2500,
   },
   wagers: { houseWeeklyMaximum: 1000, peerWeeklyMaximum: 5000 },
-  awards: { bestPassing: 200, bestRushing: 200, bestDefense: 200, mvp: 1000, mostSkilled: 350, mostHeart: 500 },
+  awards: { bestPassing: 1000, bestRushing: 1000, bestDefense: 1000, mvp: 5000, mostSkilled: 2000, mostHeart: 2500 },
   eos: REC_END_SEASON_PAYOUTS,
 };
 

@@ -16,7 +16,7 @@ import { ManageLeagueHome } from "../../routes/league-mgmt/manage-league/ManageL
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
-type GameEntry = { awayScore: string; homeScore: string };
+type GameEntry = { awayScore: string; homeScore: string; designation: "played" | "fair_sim" | "force_win" };
 type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
 
 function deriveOutcome(awayScore: string, homeScore: string): "home" | "away" | "tie" | null {
@@ -169,7 +169,7 @@ function AdvanceReadinessSection() {
   }
   useEffect(load, [guildId]);
 
-  const emptyEntry: GameEntry = { awayScore: "", homeScore: "" };
+  const emptyEntry: GameEntry = { awayScore: "", homeScore: "", designation: "played" };
   function setEntry(gameId: string, patch: Partial<GameEntry>) {
     setEntries((prev) => ({ ...prev, [gameId]: { ...(prev[gameId] ?? emptyEntry), ...patch } }));
   }
@@ -215,11 +215,13 @@ function AdvanceReadinessSection() {
     setAdvancing(true);
     setError(null);
     setNotice(null);
-    const results: AdvanceResultInput[] = data.gamesNeedingInput.flatMap((g): AdvanceResultInput[] => {
+    const results: AdvanceResultInput[] = data.games.flatMap((g): AdvanceResultInput[] => {
       const entry = entries[g.gameId];
-      const outcome = entry ? deriveOutcome(entry.awayScore, entry.homeScore) : null;
-      if (!outcome || !entry) return [];
-      return [{ gameId: g.gameId, outcome, homeScore: Number(entry.homeScore), awayScore: Number(entry.awayScore) }];
+      const awayScore = entry?.awayScore ?? (g.awayScore == null ? "" : String(g.awayScore));
+      const homeScore = entry?.homeScore ?? (g.homeScore == null ? "" : String(g.homeScore));
+      const outcome = deriveOutcome(awayScore, homeScore);
+      if (!outcome) return [];
+      return [{ gameId: g.gameId, outcome, homeScore: Number(homeScore), awayScore: Number(awayScore), designation: entry?.designation ?? (g.fwFlaggedForUserId ? "force_win" : "played") }];
     });
     try {
       const nextAdvance = completeAdvanceTimeDraft()
@@ -349,6 +351,7 @@ function AdvanceReadinessSection() {
                 </div>
               )}
               <div className="advance-game-actions">
+                {g.isH2h && <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? (g.fwFlaggedForUserId ? "force_win" : "played")} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout</option><option value="force_win">Force Win — no payout</option></select></label>}
                 {/* This league gets its scores from EA import, not box-score submissions — nudging a
                     coach to submit one doesn't apply here (they can't stop a game "missing" a score
                     until the next import runs). The score-entry fields above stay available either way

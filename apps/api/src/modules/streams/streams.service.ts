@@ -11,7 +11,6 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
-import { postOrUpdateGameAnnouncement } from "../scheduling/game-announcement.service.js";
 
 // Site<->Discord stream mirroring — used by both the Discord stream command
 // (recordStreamPost) and the site's share-stream flow (shareHubMatchupStream in
@@ -289,7 +288,6 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   // separately underneath it to pick up a second/third stream's link either way.
   if (lockedGameId) {
     await markGameStarted({ gameId: lockedGameId }).catch((error) => console.error("[ERROR] Failed to mark game started from Discord stream post (non-fatal):", error));
-    await postOrUpdateGameAnnouncement(lockedGameId, { announceNow: false }).catch((error) => console.error("[ERROR] Failed to refresh game announcement with stream link (non-fatal):", error));
     const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
     await refreshMatchupsChannelForGame(lockedGameId);
   }
