@@ -182,7 +182,7 @@ function fairSimBullets(keys: unknown): string {
   }
   if (active.has("cant_make_game_no_autopilot")) {
     lines.push(active.has("allow_autopilot_requests")
-      ? "• If a coach logs that they can't make the game, their opponent can request AutoPilot to play both sides, or the game will result in a Fair Sim."
+      ? "• If a coach logs that they can't make the game, their opponent can request AutoPilot to play their opponent's team as a CPU, or the game will result in a Fair Sim."
       : "• If a coach logs that they can't make the game, the game will result in a Fair Sim.");
   } else if (active.has("allow_autopilot_requests")) {
     lines.push("• AutoPilot requests are allowed if a coach can't make the game.");
