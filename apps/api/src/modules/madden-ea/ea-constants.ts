@@ -198,6 +198,15 @@ export type EaLeagueResponse = {
   careerHubInfo: { seasonInfo: EaSeasonInfo; isLeagueAdvancing: boolean };
   teamIdInfoList: Array<{ teamId: number; displayName: string; shortName: string; presentationId: number }>;
   playerCountInfo: { rosterCount: number; freeAgentCount: number; totalCount: number };
+  userAdminHubInfo?: {
+    userInfoMap?: Record<string, {
+      userName?: string;
+      team?: number;
+      teamName?: string;
+      isOwner?: boolean;
+      isCoach?: boolean;
+    }>;
+  };
   success: boolean;
   message: string;
 };

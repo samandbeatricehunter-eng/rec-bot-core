@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractEaEnvelopeRows } from "./ea-datasets.js";
+import { extractEaEnvelopeRows, normalizeImportedEaUsername, formatOwnerWithEaUsername, eaUsernamesFromHub } from "./ea-datasets.js";
 
 const player = (rosterId: number, extra: Record<string, unknown> = {}) => ({
   rosterId,
@@ -61,4 +61,34 @@ test("extractEaEnvelopeRows returns [] for empty / non-row payloads", () => {
   assert.deepEqual(extractEaEnvelopeRows({}, "rosterInfoList"), []);
   assert.deepEqual(extractEaEnvelopeRows({ rosterInfoList: [] }, "rosterInfoList"), []);
   assert.deepEqual(extractEaEnvelopeRows("nope", "rosterInfoList"), []);
+});
+
+test("normalizeImportedEaUsername drops CPU and blank EA slots", () => {
+  assert.equal(normalizeImportedEaUsername(""), null);
+  assert.equal(normalizeImportedEaUsername("  CPU  "), null);
+  assert.equal(normalizeImportedEaUsername("cpu"), null);
+  assert.equal(normalizeImportedEaUsername("snallapa"), "snallapa");
+  assert.equal(normalizeImportedEaUsername(" xX_PSN_Xx "), "xX_PSN_Xx");
+});
+
+test("formatOwnerWithEaUsername puts the console tag in parentheses", () => {
+  assert.equal(formatOwnerWithEaUsername("MrSix", "snallapa"), "MrSix (snallapa)");
+  assert.equal(formatOwnerWithEaUsername("snallapa", "snallapa"), "snallapa");
+  assert.equal(formatOwnerWithEaUsername("MrSix", null), "MrSix");
+  assert.equal(formatOwnerWithEaUsername(null, "snallapa"), "snallapa");
+  assert.equal(formatOwnerWithEaUsername(null, null), null);
+});
+
+test("eaUsernamesFromHub prefers the franchise owner when two users share a team", () => {
+  const names = eaUsernamesFromHub({
+    userAdminHubInfo: {
+      userInfoMap: {
+        "1": { userName: "backup", team: 10, isOwner: false },
+        "2": { userName: "ownerTag", team: 10, isOwner: true },
+        "3": { userName: "CPU", team: 11, isOwner: false },
+      },
+    },
+  });
+  assert.equal(names.get("10"), "ownerTag");
+  assert.equal(names.has("11"), false);
 });

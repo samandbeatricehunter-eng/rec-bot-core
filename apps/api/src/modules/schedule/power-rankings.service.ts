@@ -6,6 +6,7 @@ import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
+import { formatOwnerWithEaUsername } from "../madden-ea/ea-datasets.js";
 
 // Ordinary reads (hub loads, wager-option views, game-channel renders) all hit this same
 // per-league computation; a short TTL means "current week" views share one computation
@@ -279,7 +280,7 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
   }
 
   const [teamsRes, assignmentsRes, latestWeek, playoffSeedsRes] = await Promise.all([
-    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference").eq("league_id", leagueId),
+    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference,ea_username").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
     loadLatestSnapshotWeek(leagueId, currentSeason, completedWeekNumber),
     supabase.from("rec_season_team_seeds")
@@ -294,6 +295,29 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
   const teamById = new Map<string, any>((teamsRes.data ?? []).map((t: any) => [t.id, t]));
   const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r) => r.team_id).filter(Boolean));
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
+  const assignedUserIds = [...new Set([...userIdByTeam.values()].filter(Boolean).map(String))];
+  const usersRes = assignedUserIds.length
+    ? await supabase.from("rec_users").select("id,display_name,username").in("id", assignedUserIds)
+    : { data: [] as Array<{ id: string; display_name: string | null; username: string | null }> };
+  const discordRes = assignedUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", assignedUserIds)
+    : { data: [] as Array<{ user_id: string; username: string | null; global_name: string | null }> };
+  const userById = new Map<string, { display_name?: string | null; username?: string | null }>(
+    (usersRes.data ?? []).map((row: any) => [String(row.id), row]),
+  );
+  const discordByUser = new Map<string, { username?: string | null; global_name?: string | null }>(
+    (discordRes.data ?? []).map((row: any) => [String(row.user_id), row]),
+  );
+  const ownerNameFor = (userId: string | null | undefined) => {
+    if (!userId) return null;
+    const user = userById.get(String(userId));
+    const discord = discordByUser.get(String(userId));
+    const name = String(user?.display_name ?? "").trim()
+      || String(user?.username ?? "").trim()
+      || String(discord?.global_name ?? "").trim()
+      || String(discord?.username ?? "").trim();
+    return name || null;
+  };
   const playoffByTeam = new Map<string, { seed: number | null; made_playoffs: boolean; division_winner: boolean }>(
     (playoffSeedsRes.data ?? []).map((row: any) => [String(row.team_id), row]),
   );
@@ -324,12 +348,18 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
     const playoffMarker = playoff?.made_playoffs
       ? Number(playoff.seed) === 1 ? "Z" : playoff.division_winner ? "Y" : "X"
       : null;
+    const eaUsername = typeof t?.ea_username === "string" && t.ea_username.trim() ? t.ea_username.trim() : null;
+    const assignedUserId = userIdByTeam.get(r.teamId);
+    const ownerName = ownerNameFor(assignedUserId == null ? null : String(assignedUserId));
     return {
       teamId: r.teamId,
       teamName: teamDisplayName(t),
       abbr: t?.display_abbr ?? t?.abbreviation ?? null,
       conference: t?.conference ?? null,
       isHuman: humanTeamIds.has(r.teamId),
+      ownerName,
+      eaUsername,
+      ownerLabel: formatOwnerWithEaUsername(ownerName, eaUsername),
       rank: r.rank,
       score: round(r.score, 3),
       prevRank,

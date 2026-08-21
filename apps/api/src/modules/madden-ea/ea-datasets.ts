@@ -118,6 +118,51 @@ function isRow(row: unknown): row is Json {
 }
 
 /**
+ * Xbox gamertag / PSN from EA team exports (`userName`) and league-hub `userInfoMap`.
+ * Snallabot stores this per team and shows it next to Discord assignments. CPU / blank
+ * slots are not real console names.
+ */
+export function normalizeImportedEaUsername(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.toLowerCase() === "cpu") return null;
+  return trimmed.slice(0, 64);
+}
+
+/** Discord/REC owner name with the imported console tag in parentheses, when they differ. */
+export function formatOwnerWithEaUsername(ownerName: string | null | undefined, eaUsername: string | null | undefined): string | null {
+  const name = ownerName?.trim() || null;
+  const tag = eaUsername?.trim() || null;
+  if (name && tag && name.toLowerCase() !== tag.toLowerCase()) return `${name} (${tag})`;
+  return name ?? tag;
+}
+
+export type EaHubUserInfo = {
+  userName?: unknown;
+  team?: unknown;
+  isOwner?: unknown;
+};
+
+/** Map EA teamId → console gamertag/PSN from league-hub userInfoMap (snallabot's source). */
+export function eaUsernamesFromHub(info: {
+  userAdminHubInfo?: { userInfoMap?: Record<string, EaHubUserInfo> | null } | null;
+}): Map<string, string> {
+  const names = new Map<string, string>();
+  const userInfoMap = info.userAdminHubInfo?.userInfoMap;
+  if (!userInfoMap || typeof userInfoMap !== "object") return names;
+  for (const entry of Object.values(userInfoMap)) {
+    if (!entry || typeof entry !== "object") continue;
+    const teamId = entry.team;
+    const username = normalizeImportedEaUsername(entry.userName);
+    if (teamId == null || username == null) continue;
+    const key = String(teamId);
+    if (!names.has(key) || entry.isOwner === true) names.set(key, username);
+  }
+  return names;
+}
+
+/**
  * Pull player/game rows out of an EA export. Snallabot keeps the companion envelope
  * (`{ rosterInfoList: [...] }`); REC's team-roster fetch used to flatten that into a
  * bare array. `typeof [] === "object"`, so a helper that only looks for `envelopeKey`

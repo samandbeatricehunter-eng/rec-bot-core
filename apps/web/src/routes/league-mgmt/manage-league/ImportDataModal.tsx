@@ -148,6 +148,7 @@ export function ImportDataModal({
         const latest = progress.events[progress.events.length - 1];
         if (latest) {
           if (latest.type === "dataset_start") setBusyLabel(`Importing ${latest.label}…`);
+          if (latest.type === "step") setBusyLabel(latest.detail ? `${latest.label} — ${latest.detail}` : latest.label);
           if (latest.type === "reconciling") setBusyLabel(latest.step);
           if (latest.type === "done") setBusyLabel("Complete!");
           if (latest.type === "error") setBusyLabel("Failed");
@@ -442,7 +443,7 @@ export function ImportDataModal({
                 <>
                   <Card>
                     <h3 style={{ marginTop: 0 }}>Datasets</h3>
-                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below and run one week at a time, starting at the first selected week. Rosters, free agents, teams, and standings are league-wide snapshots. Current week imports only the franchise's current week. Use a range or “All weeks through current” to backfill history.</p>
+                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below and fetch two weeks at a time with every endpoint in parallel. Rosters pull four teams at a time. Rosters, free agents, teams, and standings are league-wide snapshots. Current week imports only the franchise's current week. Use a range or “All weeks through current” to backfill history.</p>
                     <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                       <div className="form-field" style={{ margin: 0, minWidth: 170 }}>
                         <label className="form-label" htmlFor="ea-week-mode">Import for</label>
@@ -524,6 +525,7 @@ export function ImportDataModal({
                         {importProgress.map((event, i) => {
                           if (event.type === "starting") return <ProgressLine key={i} icon="⏳" text={`Starting import — ${event.weeks} week${event.weeks === 1 ? "" : "s"} — ${event.datasets.join(", ")}`} />;
                           if (event.type === "dataset_start") return <ProgressLine key={i} icon="⏳" text={`${event.label} — fetching…`} />;
+                          if (event.type === "step") return <ProgressLine key={i} icon="⏳" text={event.detail ? `${event.label} — ${event.detail}` : event.label} />;
                           if (event.type === "dataset_done") return <ProgressLine key={i} icon="✅" text={`${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (already up to date)" : ""}`} />;
                           if (event.type === "dataset_error") return <ProgressLine key={i} icon="❌" text={`${event.label} — ${event.error}`} isError />;
                           if (event.type === "reconciling") return <ProgressLine key={i} icon="⏳" text={event.step} />;
