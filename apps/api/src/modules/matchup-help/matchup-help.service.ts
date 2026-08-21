@@ -2,6 +2,7 @@
 // a commissioners_inbox case and notifies commissioners; submitting does not touch standings,
 // payouts, or game state. Commissioners resolve Force Win requests from the notification center
 // or through the equivalent Discord commissioner tools.
+import { stageHasScheduledGames } from "@rec/shared";
 import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -57,6 +58,14 @@ export async function submitMatchupHelpRequest(input: {
   const author = await resolveChatAuthor(input.discordId);
   const involvesMe = author.userId != null && (game.data.home_user_id === author.userId || game.data.away_user_id === author.userId);
   if (!involvesMe) throw new ApiError(403, "Only a participant in this matchup can request help.");
+
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason");
+  if (!stageHasScheduledGames(seasonStage, context.rec_leagues.game)) {
+    throw new ApiError(400, "Help requests aren't available during the offseason.");
+  }
+  if (!game.data.home_user_id || !game.data.away_user_id) {
+    throw new ApiError(400, "Force Win and other matchup help requests are only available for human vs human games.");
+  }
 
   const homeTeamName = (Array.isArray(game.data.home_team) ? game.data.home_team[0] : game.data.home_team)?.name ?? "Home";
   const awayTeamName = (Array.isArray(game.data.away_team) ? game.data.away_team[0] : game.data.away_team)?.name ?? "Away";

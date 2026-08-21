@@ -1,12 +1,9 @@
-// "Ready to Advance" button on the weekly matchups channel post (matchups-channel.service.ts).
-// A coach clicks it and the bot walks them through readying up their own game for advance:
-// H2H games ask "have you played yet?" (score self-report if so), CPU games ask "played, or
-// requesting a Force Win?" -- everything here reuses the same identity resolution
-// (getAdvanceWeekGames) the matchups channel and Advance Readiness already use, so "your game"
-// always means the same thing across all three surfaces.
+// Leftover Ready to Advance endpoints. The weekly matchups embed no longer posts that button;
+// these remain so a click on a not-yet-refreshed Discord message still resolves. CPU Force Win
+// is rejected — Force Wins are H2H-only.
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { userIdFromDiscordId, logSchedulingEvent } from "./shared.js";
+import { userIdFromDiscordId } from "./shared.js";
 import { ensureScheduling } from "./matchup-scheduling.service.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 
@@ -86,19 +83,9 @@ export async function reportOwnGameScore(input: { guildId: string; discordId: st
   return { ok: true as const, homeScore, awayScore };
 }
 
-// Lighter-weight Force Win flag for CPU matchups -- reuses the same rec_game_scheduling
-// fw_flagged columns the H2H flow (matchup-scheduling.service.ts's requestForceWin) reads for
-// the matchups-channel status line, but skips the check-in preconditions that only make sense
-// when there's an opposing coach to compare against.
-export async function requestCpuForceWin(input: { guildId: string; discordId: string; gameId: string }) {
-  const { userId, game } = await resolveOwnGame(input.guildId, input.discordId, input.gameId);
-  if (game.isH2h) throw new ApiError(400, "This matchup has a human opponent -- use the Force Win button in the game channel instead.");
-
-  await ensureScheduling(input.gameId);
-  await supabase.from("rec_game_scheduling").update({
-    fw_flagged: true, fw_flagged_for_user_id: userId, fw_flagged_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  }).eq("game_id", input.gameId);
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cpu_fw_requested" });
-  await refreshMatchupsChannelForGame(input.gameId);
-  return { flagged: true as const };
+// CPU Force Win used to be requested from the weekly matchups embed's Ready to Advance
+// button. That button is gone, and Force Wins are H2H-only. Leftover Discord messages may
+// still hit this endpoint, so reject rather than flagging a CPU game.
+export async function requestCpuForceWin(_input: { guildId: string; discordId: string; gameId: string }) {
+  throw new ApiError(400, "Force Wins are only available for human vs human matchups.");
 }

@@ -47,6 +47,9 @@ export function HeroMatchupActions({
   const [scheduling, setScheduling] = useState<SchedulingSnapshot | null>(null);
 
   const isH2h = matchup.matchupType === "h2h";
+  const schedulingInactiveReason = isH2h
+    ? undefined
+    : "Scheduling and Force Win aren't available for bye weeks, the offseason, or CPU matchups.";
   const myPendingProposal = scheduling?.pendingProposal?.proposedByMe ? scheduling.pendingProposal : null;
 
   useEffect(() => {
@@ -152,7 +155,7 @@ export function HeroMatchupActions({
   return <>
     <div className="hub-hero-action-area">
       <div className="hub-hero-action-pills" role="group" aria-label="Your matchup actions">
-        <button type="button" onClick={() => setAvailabilityOpen(true)}>Set Availability</button>
+        <button type="button" disabled={!isH2h} title={schedulingInactiveReason} onClick={() => setAvailabilityOpen(true)}>Set Availability</button>
         {isH2h && <>
           {myPendingProposal ? <>
             <button type="button" onClick={() => setProposeOpen(true)}>Edit Proposal</button>
@@ -168,7 +171,7 @@ export function HeroMatchupActions({
         <button type="button" className="matchup-action" disabled={!boxScoreMode || !onOpenPlayerStats || !matchup.boxScoreSubmissionId || matchup.boxScoreStatus === "denied"} onClick={onOpenPlayerStats}><BarChart3 size={16} /> Player Stats</button>
         <button type="button" className="matchup-action" disabled={!onOpenShareStream} onClick={onOpenShareStream}><Share2 size={16} /> Share Stream</button>
         <button type="button" className="matchup-action" disabled={!onUploadHighlight} onClick={onUploadHighlight}><Film size={16} /> Upload Highlight(s)</button>
-        <button type="button" className="matchup-action" disabled={!onOpenRequestHelp} onClick={onOpenRequestHelp}><LifeBuoy size={16} /> Request Help</button>
+        <button type="button" className="matchup-action" disabled={!isH2h || !onOpenRequestHelp} title={schedulingInactiveReason} onClick={onOpenRequestHelp}><LifeBuoy size={16} /> Request Help</button>
       </div>}
       {notice && <p className="hub-hero-action-notice">{notice}</p>}
       {error && !cantMakeOpen && !violationOpen && !completedOpen && <p className="hub-transfer-status">{error}</p>}

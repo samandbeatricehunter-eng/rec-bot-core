@@ -33,7 +33,7 @@ export function RequestHelpSheet({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!kind) return;
+    if (!kind || matchup.matchupType !== "h2h") return;
     const trimmed = message.trim();
     if (!trimmed) return;
     setBusy(true);
@@ -45,6 +45,14 @@ export function RequestHelpSheet({
       setError(err instanceof Error ? err.message : "Failed to submit request.");
       setBusy(false);
     }
+  }
+
+  if (matchup.matchupType !== "h2h") {
+    return (
+      <Modal title="Request Help" onClose={onClose}>
+        <p>Force Win and other help requests are only available for human vs human matchups.</p>
+      </Modal>
+    );
   }
 
   return (

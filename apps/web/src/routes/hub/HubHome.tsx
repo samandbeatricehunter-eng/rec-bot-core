@@ -1662,7 +1662,7 @@ export function HubHome() {
             <header className="hub-hero-centered-header">
               <p className="hub-eyebrow">{gameLabel(hub.league.game)}</p>
               <h1><span>{hub.league.name}</span><em>–</em><span>{displayLabel(String(hub.league.seasonStage))}</span><em>–</em><span>Week {hub.league.weekNumber}</span></h1>
-              {auth.status === "ready" && heroCurrentGameId && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroCurrentGameId} reloadKey={matchupReloadKey} />}
+              {auth.status === "ready" && heroMatchup?.matchupType === "h2h" && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroMatchup.gameId} reloadKey={matchupReloadKey} />}
             </header>
 
             {heroMatchup ? <div className="hub-hero-matchup-stack">
@@ -1677,7 +1677,7 @@ export function HubHome() {
                 onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
                 onOpenShareStream={() => setShareStreamGame(heroMatchup)}
                 onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
-                onOpenRequestHelp={() => setRequestHelpGame(heroMatchup)}
+                onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
               />}
             </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
 
