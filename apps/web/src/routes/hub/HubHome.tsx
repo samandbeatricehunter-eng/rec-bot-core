@@ -1136,8 +1136,8 @@ export function HubHome() {
     try { setTeamSchedule(await recApi.getTeamSchedule({ guildId: auth.guildId, teamId })); }
     catch (cause) { setTeamScheduleError(cause instanceof Error ? cause.message : "Schedule could not be loaded."); }
   }
-  async function submitPurchase(overrideDetails?: Record<string, unknown>) {
-    if (auth.status !== "ready" || !purchaseType) return;
+  async function submitPurchase(overrideDetails?: Record<string, unknown>): Promise<boolean> {
+    if (auth.status !== "ready" || !purchaseType) return false;
     setPurchaseBusy(true); setPurchaseStatus(null); setPurchaseError(null);
     try {
       const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
@@ -1145,7 +1145,8 @@ export function HubHome() {
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
       setPurchaseDetails({}); setStoreContext(null); await load();
       void loadStoreContext(true);
-    } catch (cause) { setPurchaseError(cause instanceof Error ? cause.message : "Purchase failed."); }
+      return true;
+    } catch (cause) { setPurchaseError(cause instanceof Error ? cause.message : "Purchase failed."); return false; }
     finally { setPurchaseBusy(false); }
   }
 
@@ -1517,7 +1518,7 @@ export function HubHome() {
 
         {purchaseType && !hub.store.products.find((product) => product.type === purchaseType)?.locked && <div className="hub-store-form"><h3>{hub.store.products.find((product) => product.type === purchaseType)?.label}</h3>
 
-          {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} corePointPrice={economyValues.store.coreAttributePoint} nonCorePointPrice={economyValues.store.nonCoreAttributePoint} onSubmit={(allocations, playerName, playerId) => void submitPurchase({ playerId, playerName, allocations })} />}
+          {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} corePointPrice={economyValues.store.coreAttributePoint} nonCorePointPrice={economyValues.store.nonCoreAttributePoint} onSubmit={(allocations, playerName, playerId) => submitPurchase({ playerId, playerName, allocations })} />}
 
           {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
 

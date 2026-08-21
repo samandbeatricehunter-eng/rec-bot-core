@@ -30,7 +30,7 @@ export function AttributePurchaseBuilder({
   excludeDefault?: boolean;
   corePointPrice?: number;
   nonCorePointPrice?: number;
-  onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string, playerId: string) => void;
+  onSubmit: (allocations: Array<{ code: string; points: number }>, playerName: string, playerId: string) => Promise<boolean>;
 }) {
   const [points, setPoints] = useState<Record<string, number>>({});
   const [player, setPlayer] = useState<RosterPlayer | null>(null);
@@ -115,6 +115,19 @@ export function AttributePurchaseBuilder({
 
   const allocations = Object.entries(points).filter(([, pts]) => pts > 0).map(([code, pts]) => ({ code, points: pts }));
   const canSubmit = allocations.length > 0 && Boolean(player) && totalPrice <= wallet && !busy;
+
+  // storeContext.used*/usedByCode refresh from the server after a successful submit, but
+  // this component doesn't unmount between purchases -- without this, the just-submitted
+  // allocation stayed in `points` and got double-counted against the freshly-refreshed
+  // server totals (e.g. spending an entire pool showed as "-<pool size> left").
+  async function handleSubmit() {
+    if (!player) return;
+    const succeeded = await onSubmit(allocations, player.fullName, player.id);
+    if (succeeded) {
+      setPoints({});
+      setPlayer(null);
+    }
+  }
 
   const corePoolCap = storeContext?.coreAttributeGroupCap ?? 0;
   const nonCorePoolCap = storeContext?.nonCoreAttributeCap ?? 0;
@@ -212,7 +225,7 @@ export function AttributePurchaseBuilder({
 
       <div className="attr-builder-total">
         <span>Total: <strong><CoinAmount amount={totalPrice} /></strong> of <CoinAmount amount={wallet} /> available</span>
-        <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, player!.fullName, player!.id)}>
+        <Button variant="primary" disabled={!canSubmit} onClick={() => void handleSubmit()}>
           {busy ? "Submitting…" : `Submit (${allocations.reduce((sum, a) => sum + a.points, 0)} pts)`}
         </Button>
       </div>
