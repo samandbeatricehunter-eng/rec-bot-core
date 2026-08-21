@@ -47,7 +47,7 @@ import "../../../web/src/styles/hub.css";
 import "../../../web/src/styles/league-management.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "records" | "mgmt";
+type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "records" | "mgmt";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
@@ -55,6 +55,7 @@ function viewFromPath(pathname: string): HubView {
   // misrouted to the My Team view instead of League Mgmt.
   if (pathname.includes("/mgmt")) return "mgmt";
   if (pathname.includes("/matchups")) return "matchups";
+  if (pathname.includes("/news")) return "news";
   if (pathname.includes("/team")) return "team";
   if (pathname.includes("/store")) return "store";
   if (pathname.includes("/wagers")) return "wagers";
@@ -140,11 +141,12 @@ class HubErrorBoundary extends Component<
 }
 
 const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records">, string> = {
-  buzz: "buzz", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
+  buzz: "buzz", news: "news", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
 };
 
 function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records"> | null {
   if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
+  if (section === "league" && subTab === "news") return "news";
   if (section === "team") return "team";
   if (section === "store") return "store";
   if (section === "wagers") return "wagers";
@@ -163,6 +165,7 @@ function HubHomeBridge({ view, leagueId }: { view: Exclude<HubView, "mgmt">; lea
   const [searchParams, setSearchParams] = useSearchParams();
   const desired = useMemo(() => {
     if (view === "matchups") return { section: "league", subTab: "matchups" };
+    if (view === "news") return { section: "league", subTab: "news" };
     if (view === "team") return { section: "team", subTab: null as string | null };
     if (view === "store") return { section: "store", subTab: null as string | null };
     if (view === "wagers") return { section: "wagers", subTab: null as string | null };

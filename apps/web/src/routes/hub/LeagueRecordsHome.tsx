@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -15,6 +15,7 @@ type RecordsResponse = Awaited<ReturnType<typeof recApi.getLeagueRecords>>;
 const SCOPE_LABELS: Record<Scope, string> = { game: "Game", season: "Season", career: "Career" };
 
 export function LeagueRecordsHome() {
+  const navigate = useNavigate();
   const { guildId } = useReadyAuth();
   const { currentLeague } = useHubChrome();
   const [scope, setScope] = useState<Scope>("game");
@@ -30,9 +31,7 @@ export function LeagueRecordsHome() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load league records."));
   }, [guildId, scope, postseason, category]);
 
-  const backAction = currentLeague?.id ? (
-    <Link to={`/l/${currentLeague.id}/team`}><Button variant="ghost" size="compact">← Back to My Team</Button></Link>
-  ) : undefined;
+  const backAction = currentLeague?.id ? <Button variant="ghost" size="compact" onClick={() => navigate(-1)}>← Back</Button> : undefined;
 
   return (
     <div className="hub-page">

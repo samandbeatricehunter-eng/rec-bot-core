@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LeagueHistoryResponse, LeagueHistorySeason } from "../../types/api.js";
@@ -171,6 +171,7 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
 }
 
 export function LeagueHistoryHome() {
+  const navigate = useNavigate();
   const { guildId } = useReadyAuth();
   const { currentLeague } = useHubChrome();
   const [history, setHistory] = useState<LeagueHistoryResponse | null>(null);
@@ -187,7 +188,7 @@ export function LeagueHistoryHome() {
   // anymore, see LeagueTopNav.tsx), so a back button matters here in a way it didn't when
   // League History always had its own nav entry. CFB still has the nav entry too, but going
   // back to My Team is a reasonable affordance either way.
-  const backAction = currentLeague?.id ? <Link to={`/l/${currentLeague.id}/team`}><Button variant="ghost" size="compact">← Back to My Team</Button></Link> : undefined;
+  const backAction = currentLeague?.id ? <Button variant="ghost" size="compact" onClick={() => navigate(-1)}>← Back</Button> : undefined;
 
   if (error && !history) {
     return (

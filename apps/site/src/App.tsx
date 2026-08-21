@@ -32,6 +32,14 @@ function LegacyMatchupRedirect() {
   const { leagueId = "" } = useParams();
   return <Navigate replace to={`/l/${leagueId}/buzz`} />;
 }
+function LegacyMyTeamRedirect() {
+  const { leagueId = "" } = useParams();
+  return <Navigate replace to={`/l/${leagueId}/stats`} />;
+}
+function LegacyWagersRedirect() {
+  const { leagueId = "" } = useParams();
+  return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+}
 const AuthCallback = lazy(() => import("./routes/AuthCallback.js").then((m) => ({ default: m.AuthCallback })));
 const OnboardingPromo = lazy(() => import("./routes/OnboardingPromo.js").then((m) => ({ default: m.OnboardingPromo })));
 const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default: m.OpenApp })));
@@ -247,11 +255,12 @@ function Routed() {
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/friends" element={<Friends />} />
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/news" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups/:gameId" element={<LegacyMatchupRedirect />} />
-        <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/team" element={<LegacyMyTeamRedirect />} />
         <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
-        <Route path="/l/:leagueId/wagers" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/wagers" element={<LegacyWagersRedirect />} />
         <Route path="/l/:leagueId/trades" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/roster" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/rules" element={<LeagueHubPage />} />

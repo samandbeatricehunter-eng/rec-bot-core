@@ -3,5 +3,7 @@
 // have no matching file, so callers should pass null/undefined for those and get nothing back.
 export function teamLogoUrl(abbreviation: string | null | undefined): string | null {
   if (!abbreviation) return null;
-  return `/assets/team-logos/${abbreviation.toUpperCase()}.png`;
+  // Version the refreshed 2026 logo set so long-lived browser/CDN caches cannot keep
+  // serving the original assets that used these same filenames.
+  return `/assets/team-logos/${abbreviation.toUpperCase()}.png?v=e3179c1f`;
 }

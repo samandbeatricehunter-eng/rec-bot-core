@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LeagueSettingsDraft } from "../../types/api.js";
@@ -7,6 +8,7 @@ import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Card } from "../../components/ui/Card.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
+import { Button } from "../../components/ui/Button.js";
 
 // Read-only mirror of SettingsHome's generic field renderer — same schema
 // (settings-fields.ts), no edit affordance, open to every league member. Channels,
@@ -23,6 +25,7 @@ function formatValue(field: (typeof SETTINGS_CATEGORIES)[number]["fields"][numbe
 }
 
 export function RulesHome() {
+  const navigate = useNavigate();
   const { guildId } = useReadyAuth();
   const [draft, setDraft] = useState<LeagueSettingsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function RulesHome() {
   if (error && !draft) {
     return (
       <div className="hub-page">
-        <PageHeader title="Rules" subtitle="This league's settings, in read-only form." />
+        <PageHeader title="Rules" subtitle="This league's settings, in read-only form." actions={<Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>} />
         <ErrorState message={error} />
       </div>
     );
@@ -58,7 +61,7 @@ export function RulesHome() {
 
   return (
     <div className="hub-page">
-      <PageHeader title="Rules" subtitle="This league's settings, in read-only form." />
+      <PageHeader title="Rules" subtitle="This league's settings, in read-only form." actions={<Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>} />
 
       {customRules.length > 0 && (
         <Card className="hub-rules-category">

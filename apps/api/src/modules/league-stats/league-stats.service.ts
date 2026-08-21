@@ -20,8 +20,8 @@ const STATS_CACHE_MS = 15_000;
 
 /** Core query, keyed by leagueId directly — reused by the authenticated guildId-based route
  * and by the public demo-league preview (which has no Discord guild/session context). */
-export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamId?: string | null; position?: string | null } = {}): Promise<LeagueStatsResult> {
-  const cacheKey = `${leagueId}:${input.teamId ?? ""}:${input.position ?? ""}`;
+export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamId?: string | null; position?: string | null; scope?: "season" | "career" } = {}): Promise<LeagueStatsResult> {
+  const cacheKey = `${leagueId}:${input.scope ?? "season"}:${input.teamId ?? ""}:${input.position ?? ""}`;
   const cached = statsCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
@@ -33,7 +33,8 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   const teamsResult = await getPgPool().query<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>(
     "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
   );
-  const params: unknown[] = [leagueId, league.season_number];
+  const params: unknown[] = [leagueId];
+  const seasonFilter = input.scope === "career" ? "" : ` and s.season_number=$${params.push(league.season_number)}`;
   let filter = "";
   if (input.teamId) { params.push(input.teamId); filter += ` and p.team_id=$${params.length}`; }
   if (input.position) { params.push(input.position); filter += ` and upper(p.position)=upper($${params.length})`; }
@@ -53,7 +54,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
     `with numeric_stats as materialized (
        select s.player_id,e.key,sum(e.value::numeric) as total
        from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
-       where s.league_id=$1 and s.season_number=$2 and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'
+       where s.league_id=$1${seasonFilter} and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'
        group by s.player_id,e.key
      ), totals as (
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id
@@ -91,7 +92,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   return value;
 }
 
-export async function getLeagueStats(input: { guildId: string; teamId?: string | null; position?: string | null }) {
+export async function getLeagueStats(input: { guildId: string; teamId?: string | null; position?: string | null; scope?: "season" | "career" }) {
   const context = await getCurrentLeagueContext(input.guildId);
   return getLeagueStatsForLeagueId(context.leagueId, input);
 }

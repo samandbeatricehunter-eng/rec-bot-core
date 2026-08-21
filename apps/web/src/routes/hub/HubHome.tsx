@@ -65,12 +65,12 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
 };
 type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "roster" | "openTeams" | "schedules" | "trades";
-type LeagueSubTab = "buzz" | "matchups";
+type LeagueSubTab = "buzz" | "news" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
 const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "roster", "openTeams", "schedules", "trades"]);
 
-const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
+const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "news", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
   if (value && HUB_SECTIONS.has(value as HubSection)) return value as HubSection;
@@ -1229,8 +1229,8 @@ export function HubHome() {
   }
 
   function openSportsbook(tab: WagerPanel["tab"] = "slip") {
-    const game = matchupSchedule?.games.find((item) => item.matchupType === "h2h" && !item.isFinal && !item.involvesMe)
-      ?? matchupSchedule?.games.find((item) => item.matchupType === "h2h" && !item.isFinal)
+    const game = matchupSchedule?.games.find((item) => item.matchupType === "h2h" && !item.isFinal && !item.involvesMe && item.wageringOpen)
+      ?? matchupSchedule?.games.find((item) => item.matchupType === "h2h" && !item.isFinal && item.wageringOpen)
       ?? matchupSchedule?.games[0];
     if (game) void openWager(game, tab);
   }
@@ -1330,6 +1330,7 @@ export function HubHome() {
     );
   }
   const readyGuildId = auth.status === "ready" ? auth.guildId : null;
+  const boxScoreMode = hubChrome.currentLeague?.dataMode === "box_scores";
   const headlines = hub.headlines ?? [];
   const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
@@ -1470,7 +1471,7 @@ export function HubHome() {
       {hub.league.game !== "cfb_27" && financialModalOpen && <Modal title="Financial Profile" onClose={() => setFinancialModalOpen(false)}>
         <FinancialLedger summary={profile.financialSummary} />
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1637,7 +1638,8 @@ export function HubHome() {
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
 
     </section> : section === "roster" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
-      {subTab === "buzz" && <>
+      {(subTab === "buzz" || subTab === "news") && <>
+        {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-rebuilt">
             <header className="hub-hero-centered-header">
@@ -1652,6 +1654,7 @@ export function HubHome() {
               {auth.status === "ready" && <HeroMatchupActions
                 guildId={auth.guildId}
                 matchup={heroMatchup}
+                boxScoreMode={boxScoreMode}
                 onChanged={() => setMatchupReloadKey((value) => value + 1)}
                 onOpenBoxScore={() => setBoxScoreUploadGame(heroMatchup)}
                 onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
@@ -1678,6 +1681,8 @@ export function HubHome() {
                 <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
                 {hub.league.game === "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => setRecruitingBoardOpen(true)}><strong>Recruiting</strong><span>Board &amp; commits</span></button>}
                 {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
                 <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
@@ -1708,7 +1713,8 @@ export function HubHome() {
         <EosAwardVotingBlock />
         <PublicPollsBlock />
         <CommissionerPollsVotingBlock />
-        <>
+        </>}
+        {subTab === "news" && <>
         <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "League News" : "Campus Buzz"}>
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
@@ -1828,7 +1834,7 @@ export function HubHome() {
             </div>
           ) : <p className="hub-empty">League announcements will appear here.</p>}
         </SectionFrame>
-        </>
+        </>}
       </>}
 
       {subTab === "matchups" && (
@@ -1939,9 +1945,9 @@ export function HubHome() {
                       <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>
                     </div>
                     <div className="hub-matchup-rails">
-                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
+                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={!boxScoreMode || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={!boxScoreMode || game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={!boxScoreMode || game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
-                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
+                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={!boxScoreMode || game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={!boxScoreMode || game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={!boxScoreMode || game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                     </div>
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {
@@ -2027,6 +2033,14 @@ export function HubHome() {
         <small>Sportsbook</small>
       </header>
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
+        <label className="form-field hub-wager-game-picker"><span className="form-label">Game</span>
+          <select className="form-select" value={wagerPanel.gameId} onChange={(event) => {
+            const nextGame = matchupSchedule?.games.find((game) => game.gameId === event.target.value);
+            if (nextGame) void openWager(nextGame, wagerPanel.tab);
+          }}>
+            {(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal && !game.involvesMe && game.wageringOpen).map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}</option>)}
+          </select>
+        </label>
         <div className="hub-wager-modal-tabs" role="tablist" aria-label="Sportsbook views">
           <button type="button" role="tab" aria-selected={wagerPanel.tab === "slip"} className={wagerPanel.tab === "slip" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, tab: "slip" })}>Build Wager</button>
           <button type="button" role="tab" aria-selected={wagerPanel.tab === "board"} className={wagerPanel.tab === "board" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, tab: "board" })}>Open Wager Board</button>

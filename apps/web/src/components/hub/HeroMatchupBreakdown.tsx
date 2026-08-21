@@ -6,22 +6,28 @@ function ranked(value: number, rank: number | null, suffix = "", missingRankLabe
   return <><strong>{signed}{value.toFixed(Number.isInteger(value) ? 0 : 1)}</strong><small>{rank == null ? missingRankLabel : `#${rank} in league`}</small></>;
 }
 
-function comparisonRows(team: MatchupTeamBreakdown) {
+function comparisonGroups(team: MatchupTeamBreakdown) {
   return [
+    { label: null, rows: [
     { key: "points-for", label: "Points / game", value: ranked(team.pointsPerGame, team.pointsPerGameRank) },
     { key: "points-allowed", label: "Points allowed / game", value: ranked(team.pointsAllowedPerGame, team.pointsAllowedPerGameRank) },
-    { key: "pass-for", label: "Passing yards / game", value: ranked(team.passingYardsPerGame, team.passingYardsRank) },
-    { key: "pass-allowed", label: "Passing yards allowed / game", value: ranked(team.passingYardsAllowedPerGame, team.passingYardsAllowedRank) },
-    { key: "rush-for", label: "Rushing yards / game", value: ranked(team.rushingYardsPerGame, team.rushingYardsRank) },
-    { key: "rush-allowed", label: "Rushing yards allowed / game", value: ranked(team.rushingYardsAllowedPerGame, team.rushingYardsAllowedRank) },
     { key: "point-diff", label: "Point differential", value: ranked(team.pointDifferential, team.pointDifferentialRank, " signed") },
+    ] },
+    { label: "Offensive", rows: [
+    { key: "pass-for", label: "Passing yards / game", value: ranked(team.passingYardsPerGame, team.passingYardsRank) },
+    { key: "rush-for", label: "Rushing yards / game", value: ranked(team.rushingYardsPerGame, team.rushingYardsRank) },
+    ] },
+    { label: "Defensive", rows: [
+    { key: "pass-allowed", label: "Passing yards allowed / game", value: ranked(team.passingYardsAllowedPerGame, team.passingYardsAllowedRank) },
+    { key: "rush-allowed", label: "Rushing yards allowed / game", value: ranked(team.rushingYardsAllowedPerGame, team.rushingYardsAllowedRank) },
     { key: "turnover-diff", label: "Turnover differential", value: ranked(team.turnoverDifferential, team.turnoverDifferentialRank, " signed") },
+    ] },
   ];
 }
 
 export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: MatchupPreview; wagerOptions?: WagerOptionsResponse | null }) {
-  const awayRows = comparisonRows(preview.away);
-  const homeRows = comparisonRows(preview.home);
+  const awayGroups = comparisonGroups(preview.away);
+  const homeGroups = comparisonGroups(preview.home);
   return <section className="hub-hero-breakdown" aria-label="Matchup stat comparison">
     <div className="hub-hero-breakdown-head">
       <div><small>Away</small><strong>{preview.away.abbr ?? preview.away.teamName}</strong></div>
@@ -29,10 +35,11 @@ export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: Match
       <div><small>Home</small><strong>{preview.home.abbr ?? preview.home.teamName}</strong></div>
     </div>
     <div className="hub-hero-comparison-grid">
-      {awayRows.map((awayRow, index) => <div className="hub-hero-comparison-row" key={awayRow.key}>
-        <div>{awayRow.value}</div>
-        <span>{awayRow.label}</span>
-        <div>{homeRows[index].value}</div>
+      {awayGroups.map((group, groupIndex) => <div className="hub-hero-comparison-group" key={group.label ?? "scoring"}>
+        {group.label ? <h3>{group.label}</h3> : null}
+        {group.rows.map((awayRow, rowIndex) => <div className="hub-hero-comparison-row" key={awayRow.key}>
+          <div>{awayRow.value}</div><span>{awayRow.label}</span><div>{homeGroups[groupIndex].rows[rowIndex].value}</div>
+        </div>)}
       </div>)}
     </div>
     <PositionMatchupAdvantages away={preview.away} home={preview.home} wagerOptions={wagerOptions} />

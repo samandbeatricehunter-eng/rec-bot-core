@@ -312,7 +312,7 @@ export const recApi = {
     return recApiFetch<{ logoUrl: string }>(`/v1/setup/league/logo?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
   },
   getMyLeagueHistory: (guildId: string) => recApiFetch<{ leagues: Array<any> }>(`/v1/users/me/league-history?guildId=${encodeURIComponent(guildId)}`),
-  getLeagueStats: (input: { guildId: string; teamId?: string | null; position?: string | null }) =>
+  getLeagueStats: (input: { guildId: string; teamId?: string | null; position?: string | null; scope?: "season" | "career" }) =>
     recApiFetch<{
       league: { id: string; name: string; game: string; season_number: number };
       teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>;

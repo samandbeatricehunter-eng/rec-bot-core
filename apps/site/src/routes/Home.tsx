@@ -176,11 +176,11 @@ export function HomePage() {
         </header>
         {error ? <p className="site-auth-error">{error}</p> : null}
         {activeClip ? (
-          <div className="site-spotlight-carousel">
+          <div className="site-spotlight-carousel hub-highlight-carousel">
             {spotlight.length > 1 ? (
               <button
                 type="button"
-                className="site-home-carousel-arrow"
+                className="site-home-carousel-arrow hub-highlight-arrow previous"
                 aria-label="Previous clip"
                 onClick={() =>
                   setSpotlightIndex(
@@ -192,13 +192,13 @@ export function HomePage() {
               </button>
             ) : null}
             <article
-              className="site-spotlight-card"
+              className="site-spotlight-card hub-highlight hub-highlight-embed swipe-card-surface"
               onPointerDown={spotlightSwipe.handlers.onPointerDown}
               onPointerMove={spotlightSwipe.handlers.onPointerMove}
               onPointerUp={spotlightSwipe.handlers.onPointerUp}
               onPointerCancel={spotlightSwipe.handlers.onPointerCancel}
             >
-              <div className="site-spotlight-video">
+              <div className="site-spotlight-video hub-video-frame">
                 {activeClip.iframeUrl || activeClip.streamUid ? (
                   <iframe
                     key={activeClip.id}
@@ -233,25 +233,27 @@ export function HomePage() {
                   <p className="site-muted">Clip unavailable.</p>
                 )}
               </div>
-              <div className="site-spotlight-meta">
-                <strong>
-                  {activeClip.matchupLabel ?? activeClip.team?.name ?? activeClip.author.displayName}
-                </strong>
-                <small className="site-spotlight-participants">
-                  {activeClip.matchupParticipants
-                    ? `H2H: @${activeClip.matchupParticipants.away} VS @${activeClip.matchupParticipants.home}`
-                    : `CPU: @${activeClip.author.username ?? activeClip.author.displayName}`}
-                </small>
+              <div className="site-spotlight-meta hub-highlight-meta">
+                <div className="hub-highlight-meta-title">
+                  <strong>
+                    {activeClip.matchupLabel ?? activeClip.team?.name ?? activeClip.author.displayName}
+                  </strong>
+                  <small className="site-spotlight-participants">
+                    {activeClip.matchupParticipants
+                      ? `H2H: @${activeClip.matchupParticipants.away} VS @${activeClip.matchupParticipants.home}`
+                      : `CPU: @${activeClip.author.username ?? activeClip.author.displayName}`}
+                  </small>
+                </div>
                 <span>
                   {activeClip.league.name}
                   {activeClip.weekNumber != null ? ` \u00B7 Week ${activeClip.weekNumber}` : ""}
                   {` \u00B7 ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
                 </span>
               </div>
-              <div className="site-spotlight-reactions">
+              <div className="site-spotlight-reactions hub-highlight-reactions">
                 <button
                   type="button"
-                  className={activeClip.myReaction === "like" ? "is-active" : ""}
+                  className={activeClip.myReaction === "like" ? "is-active active" : ""}
                   disabled={busy}
                   onClick={() => void react("like")}
                 >
@@ -259,7 +261,7 @@ export function HomePage() {
                 </button>
                 <button
                   type="button"
-                  className={activeClip.myReaction === "dislike" ? "is-active" : ""}
+                  className={activeClip.myReaction === "dislike" ? "is-active active" : ""}
                   disabled={busy}
                   onClick={() => void react("dislike")}
                 >
@@ -307,7 +309,7 @@ export function HomePage() {
             {spotlight.length > 1 ? (
               <button
                 type="button"
-                className="site-home-carousel-arrow"
+                className="site-home-carousel-arrow hub-highlight-arrow next"
                 aria-label="Next clip"
                 onClick={() =>
                   setSpotlightIndex((current) => (current + 1) % spotlight.length)

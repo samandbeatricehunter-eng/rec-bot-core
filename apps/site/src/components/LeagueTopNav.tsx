@@ -1,216 +1,42 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
-import {
-  IconBuzz,
-  IconHistory,
-  IconMatchups,
-  IconMenu,
-  IconMgmt,
-  IconRetire,
-  IconRoster,
-  IconRules,
-  IconStats,
-  IconStore,
-  IconTeam,
-  IconWager,
-} from "./icons.js";
-
-function buzzLabelForGame(game: string | null | undefined): string {
-  if (game && game.startsWith("madden")) return "League News";
-  return "Campus Buzz";
-}
+import { IconBuzz, IconHeadlines, IconMatchups, IconMgmt, IconRetire, IconStats } from "./icons.js";
 
 function isActive(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
-// In-page, league-scoped navigation. Sits at the top of the page body on league routes so the
-// global bottom nav (Home/Leagues/Comp/Messages/More) can stay constant everywhere — this is
-// what used to swap onto the bottom bar itself.
 export function LeagueTopNav({ leagueId }: { leagueId: string }) {
   const hub = useHub();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
-
   const isCommissioner = hub.selectedLeague?.isCommissioner ?? false;
-  const game = hub.selectedLeague?.game;
-  const isMadden = game?.startsWith("madden") ?? false;
-
-  // Madden's My Team page (see HubHome.tsx) is a 2x2 button grid that's now the only path to
-  // Trade Center, Roster, and League History — those three drop out of the main bar/menu
-  // entirely for Madden so there's exactly one way to reach them, not two. CFB is unchanged:
-  // it keeps Store in the main bar (no trade concept — recruiting/transfer portal fill that
-  // role) and Roster/League History stay in their existing spots.
-  const items = isMadden
-    ? [
-        { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
-        { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
-        { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
-        { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
-      ]
-    : [
-        { key: "buzz", label: buzzLabelForGame(game), to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
-        { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
-        { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
-        { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
-        { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
-        { key: "roster", label: "Roster", to: `/l/${leagueId}/roster`, icon: <IconRoster /> },
-      ];
+  const items = [
+    { key: "home", label: "League Home", to: `/l/${leagueId}/buzz`, icon: <IconBuzz /> },
+    { key: "news", label: "REC News", to: `/l/${leagueId}/news`, icon: <IconHeadlines /> },
+    { key: "matchups", label: "Matchups", to: `/l/${leagueId}/matchups`, icon: <IconMatchups /> },
+    { key: "stats", label: "Stats", to: `/l/${leagueId}/stats`, icon: <IconStats /> },
+  ];
 
   async function confirmRetire() {
-    setRetireBusy(true);
-    setRetireError(null);
-    try {
-      await hub.retireFromLeague(leagueId);
-      setRetireOpen(false);
-      setMenuOpen(false);
-    } catch (error) {
-      setRetireError(error instanceof Error ? error.message : "Failed to retire.");
-    } finally {
-      setRetireBusy(false);
-    }
+    setRetireBusy(true); setRetireError(null);
+    try { await hub.retireFromLeague(leagueId); setRetireOpen(false); }
+    catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire."); }
+    finally { setRetireBusy(false); }
   }
 
-  return (
-    <>
-      <nav className="site-league-top-nav" aria-label="League">
-        {items.map((item) => {
-          const active = isActive(location.pathname, item.to);
-          return (
-            <NavLink
-              key={item.key}
-              to={item.to}
-              className={["site-league-top-nav-btn", active ? "is-active" : ""].filter(Boolean).join(" ")}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
-        <button
-          type="button"
-          className={["site-league-top-nav-btn", "site-league-top-nav-menu", menuOpen ? "is-active" : ""]
-            .filter(Boolean)
-            .join(" ")}
-          aria-expanded={menuOpen}
-          aria-label="League menu"
-          onClick={() => setMenuOpen((value) => !value)}
-        >
-          <IconMenu />
-          <span>League</span>
-        </button>
-      </nav>
-
-      {menuOpen ? (
-        <div className="site-league-menu" role="dialog" aria-modal="true" aria-label="League menu">
-          <button
-            type="button"
-            className="site-league-menu-backdrop"
-            aria-label="Close menu"
-            onClick={() => setMenuOpen(false)}
-          />
-          <div className="site-league-menu-panel">
-            {!isMadden ? (
-              <NavLink
-                to={`/l/${leagueId}/stats`}
-                role="menuitem"
-                className="site-account-menu-item"
-                onClick={() => setMenuOpen(false)}
-              >
-                <IconStats /> League Stats
-              </NavLink>
-            ) : null}
-            {isMadden ? (
-              <NavLink
-                to={`/l/${leagueId}/store`}
-                role="menuitem"
-                className="site-account-menu-item"
-                onClick={() => setMenuOpen(false)}
-              >
-                <IconStore /> Store
-              </NavLink>
-            ) : null}
-            {!isMadden ? (
-              <NavLink
-                to={`/l/${leagueId}/history`}
-                role="menuitem"
-                className="site-account-menu-item"
-                onClick={() => setMenuOpen(false)}
-              >
-                <IconHistory /> League History
-              </NavLink>
-            ) : null}
-            <NavLink
-              to={`/l/${leagueId}/rules`}
-              role="menuitem"
-              className="site-account-menu-item"
-              onClick={() => setMenuOpen(false)}
-            >
-              <IconRules /> Rules
-            </NavLink>
-            {isCommissioner ? (
-              <NavLink
-                to={`/l/${leagueId}/mgmt`}
-                role="menuitem"
-                className="site-account-menu-item"
-                onClick={() => setMenuOpen(false)}
-              >
-                <IconMgmt /> League Mgmt
-              </NavLink>
-            ) : (
-              <button
-                type="button"
-                role="menuitem"
-                className="site-account-menu-item"
-                onClick={() => {
-                  setRetireError(null);
-                  setRetireOpen(true);
-                }}
-              >
-                <IconRetire /> Retire from league
-              </button>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {retireOpen ? (
-        <div className="site-modal" role="dialog" aria-modal="true" aria-labelledby="retire-title">
-          <button
-            type="button"
-            className="site-modal-backdrop"
-            aria-label="Close"
-            onClick={() => (!retireBusy ? setRetireOpen(false) : undefined)}
-          />
-          <div className="site-modal-panel">
-            <h2 id="retire-title">Retire from league?</h2>
-            <p>Are you sure you want to retire from this league? Your team will become open.</p>
-            {retireError ? <p className="site-auth-error">{retireError}</p> : null}
-            <div className="site-modal-actions">
-              <button
-                type="button"
-                className="site-btn site-btn-ghost"
-                disabled={retireBusy}
-                onClick={() => setRetireOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="site-btn site-btn-primary"
-                disabled={retireBusy}
-                onClick={() => void confirmRetire()}
-              >
-                {retireBusy ? "Retiring..." : "Retire"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
+  return <>
+    <nav className="site-league-top-nav" aria-label="League">
+      {items.map((item) => <NavLink key={item.key} to={item.to} className={["site-league-top-nav-btn", isActive(location.pathname, item.to) ? "is-active" : ""].filter(Boolean).join(" ")}>{item.icon}<span>{item.label}</span></NavLink>)}
+      {isCommissioner ? <NavLink to={`/l/${leagueId}/mgmt`} className={["site-league-top-nav-btn", isActive(location.pathname, `/l/${leagueId}/mgmt`) ? "is-active" : ""].filter(Boolean).join(" ")}><IconMgmt /><span>League Management</span></NavLink>
+        : <button type="button" className="site-league-top-nav-btn" onClick={() => { setRetireError(null); setRetireOpen(true); }}><IconRetire /><span>Retire</span></button>}
+    </nav>
+    {retireOpen ? <div className="site-modal" role="dialog" aria-modal="true" aria-labelledby="retire-title">
+      <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => (!retireBusy ? setRetireOpen(false) : undefined)} />
+      <div className="site-modal-panel"><h2 id="retire-title">Retire from league?</h2><p>Are you sure you want to retire from this league? Your team will become open.</p>{retireError ? <p className="site-auth-error">{retireError}</p> : null}<div className="site-modal-actions"><button type="button" className="site-btn site-btn-ghost" disabled={retireBusy} onClick={() => setRetireOpen(false)}>Cancel</button><button type="button" className="site-btn site-btn-primary" disabled={retireBusy} onClick={() => void confirmRetire()}>{retireBusy ? "Retiring..." : "Retire"}</button></div></div>
+    </div> : null}
+  </>;
 }

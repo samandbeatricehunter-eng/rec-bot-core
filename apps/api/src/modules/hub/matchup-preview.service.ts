@@ -132,7 +132,6 @@ async function aggregateForTeams(
   const wanted = new Set(teamIds.filter(Boolean));
   const map = new Map<string, TeamSeasonAgg>();
   for (const id of wanted) map.set(id, emptyAgg());
-  if (!wanted.size) return map;
 
   const { data, error } = await supabase
     .from("rec_game_results")
@@ -154,7 +153,8 @@ async function aggregateForTeams(
 
   for (const g of uniqueResults.values()) {
     for (const teamId of [g.home_team_id, g.away_team_id] as (string | null)[]) {
-      if (!teamId || !wanted.has(teamId)) continue;
+      if (!teamId) continue;
+      if (!map.has(teamId)) map.set(teamId, emptyAgg());
       const agg = map.get(teamId)!;
       const isHome = teamId === g.home_team_id;
       const pf = isHome ? g.home_score : g.away_score;
@@ -288,6 +288,7 @@ function buildBreakdown(
   isHuman: boolean,
   user: { rating: number; grade: string; rank: number } | null,
   comparison: TeamComparisonStats | null,
+  scoringRanks: { pointsFor: number | null; pointsAgainst: number | null; pointDifferential: number | null },
 ): MatchupTeamBreakdown {
   const gamesPlayed = agg.wins + agg.losses + agg.ties;
   const winPct = gamesPlayed > 0 ? (agg.wins + 0.5 * agg.ties) / gamesPlayed : 0;
@@ -310,11 +311,11 @@ function buildBreakdown(
     ties: agg.ties,
     gamesPlayed,
     pointsPerGame: round(ppg, 1),
-    pointsPerGameRank: comparison?.pointsPerGameRank ?? null,
+    pointsPerGameRank: scoringRanks.pointsFor,
     pointsAllowedPerGame: round(papg, 1),
-    pointsAllowedPerGameRank: comparison?.pointsAllowedPerGameRank ?? null,
+    pointsAllowedPerGameRank: scoringRanks.pointsAgainst,
     pointDifferential: round(agg.pf - agg.pa, 0),
-    pointDifferentialRank: comparison?.pointDifferentialRank ?? null,
+    pointDifferentialRank: scoringRanks.pointDifferential,
     passingYardsPerGame: comparison?.passingYardsPerGame ?? 0,
     passingYardsRank: comparison?.passingYardsRank ?? null,
     passingYardsAllowedPerGame: comparison?.passingYardsAllowedPerGame ?? 0,
@@ -383,8 +384,23 @@ export async function getMatchupPreview(input: {
 
   const homeUser = isHomeHuman ? (ratingByUser.get(game.home_user_id) ?? null) : null;
   const awayUser = isAwayHuman ? (ratingByUser.get(game.away_user_id) ?? null) : null;
-  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeUser, comparisons.get(homeTeam.id) ?? null);
-  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayUser, comparisons.get(awayTeam.id) ?? null);
+  const scoringRows = [...aggs.entries()].filter(([, agg]) => agg.scored > 0).map(([teamId, agg]) => ({
+    teamId,
+    pointsFor: agg.pf / agg.scored,
+    pointsAgainst: agg.pa / agg.scored,
+    pointDifferential: agg.pf - agg.pa,
+  }));
+  const scoringRanksFor = (teamId: string) => {
+    const row = scoringRows.find((item) => item.teamId === teamId);
+    if (!row) return { pointsFor: null, pointsAgainst: null, pointDifferential: null };
+    return {
+      pointsFor: 1 + scoringRows.filter((item) => item.pointsFor > row.pointsFor).length,
+      pointsAgainst: 1 + scoringRows.filter((item) => item.pointsAgainst < row.pointsAgainst).length,
+      pointDifferential: 1 + scoringRows.filter((item) => item.pointDifferential > row.pointDifferential).length,
+    };
+  };
+  const home = buildBreakdown(homeTeam, homeAgg, isHomeHuman, homeUser, comparisons.get(homeTeam.id) ?? null, scoringRanksFor(homeTeam.id));
+  const away = buildBreakdown(awayTeam, awayAgg, isAwayHuman, awayUser, comparisons.get(awayTeam.id) ?? null, scoringRanksFor(awayTeam.id));
 
   const hasSeasonData = home.gamesPlayed > 0 || away.gamesPlayed > 0;
 

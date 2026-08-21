@@ -3675,6 +3675,17 @@ button.poty:disabled {
 .hub-hero-breakdown-head strong { overflow: hidden; text-overflow: ellipsis; font-family: var(--font-display); font-size: clamp(15px, 2vw, 21px); text-transform: uppercase; white-space: nowrap; }
 .hub-hero-breakdown-head > span { color: var(--accent-bright); font-size: 11px; font-weight: 900; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
 .hub-hero-comparison-grid { display: grid; }
+.hub-hero-comparison-group > h3 { margin:0; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.07); background:color-mix(in srgb,var(--accent) 8%,rgba(0,0,0,.18)); color:var(--accent-bright); font-size:11px; letter-spacing:.12em; text-align:center; text-transform:uppercase; }
+.hub-stats-power-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.hub-stats-power-grid article { display:grid; grid-template-columns:auto 1fr; gap:2px 8px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-md); }
+.hub-stats-power-grid article strong { grid-row:1 / 3; color:var(--accent-bright); font-family:var(--font-display); font-size:20px; }
+.hub-stats-power-grid article span { font-weight:800; }
+.hub-stats-power-grid article small { color:var(--text-muted); }
+.hub-league-leader-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; }
+.hub-league-leader-category { min-width:0; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); }
+.hub-league-leader-category h3 { margin:0 0 10px; color:var(--accent-bright); }
+.hub-stats-resource-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; }
+.hub-stats-resource-grid a { padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text-primary); font-weight:800; text-decoration:none; }
 .hub-hero-comparison-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(155px, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 58px; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .hub-hero-comparison-row > div { display: flex; flex-direction: column; min-width: 0; }
 .hub-hero-comparison-row > div:last-child { align-items: flex-end; text-align: right; }
