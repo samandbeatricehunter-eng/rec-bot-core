@@ -5,7 +5,7 @@ import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
-import { InterviewMicIcon, ManageTeamIcon, RecruitingCapIcon, ScheduleIcon, SubmitArticleIcon } from "../../components/hub/QuickActionIcons.js";
+import { InterviewMicIcon, ManageTeamIcon, RecruitingCapIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
@@ -292,8 +292,7 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/Article</strong><span>Media desk</span></button>
         </div>
       </div>
       <div className="hub-my-team-card">
@@ -1392,8 +1391,7 @@ export function HubHome() {
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<SubmitArticleIcon size={16} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Interview/Article</strong><span>Media desk</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => openSportsbook()}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
@@ -1678,8 +1676,7 @@ export function HubHome() {
               <p className="hub-eyebrow">Quick actions</p>
               <div className="hub-gameday-actions hub-quick-actions-row">
                 <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Weekly questions</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("article")}><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/Article</strong><span>Media desk</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
@@ -2068,7 +2065,12 @@ export function HubHome() {
         </> : <div className="hub-peer-board hub-peer-board-tab"><h3>Open Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · <CoinAmount amount={wager.stake} /> · {displayLabel(wager.challengeType)}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>}
       </>}
     </div></Modal>}
-    {mediaModal === "article" && <Modal title="Submit Article" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
+    {mediaModal && <Modal title="Interview/Article" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
+      <div className="rec-matchup-tabs" role="tablist" aria-label="Media submission type">
+        <button type="button" role="tab" aria-selected={mediaModal === "interview"} className={mediaModal === "interview" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("interview"); }}>Interview</button>
+        <button type="button" role="tab" aria-selected={mediaModal === "article"} className={mediaModal === "article" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("article"); }}>Article</button>
+      </div>
+      {mediaModal === "article" && <>
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
         <p className="hub-muted">{mediaPortal.limits.articleSubmitted ? `Already submitted this week (${mediaPortal.limits.articleStatus}).` : `Submit one custom article per week for commissioner review. Pays ${coinsNumber(100)} on approval.`}</p>
@@ -2077,9 +2079,9 @@ export function HubHome() {
         <div className="form-field"><label className="form-label">Image</label><input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => void uploadMediaImage(event.target.files?.[0] ?? null)} />{mediaArticle.imageUrl && <img className="media-image-preview" src={mediaArticle.imageUrl} alt="" />}</div>
         <Button variant="primary" disabled={mediaBusy || mediaPortal.limits.articleSubmitted || !mediaArticle.title.trim() || !mediaArticle.body.trim()} onClick={() => void submitMediaArticle()}>{mediaBusy ? "Submitting..." : "Submit Article"}</Button>
       </>}
-    </div></Modal>}
+      </>}
 
-    {mediaModal === "interview" && <Modal title="Coach Interview" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
+      {mediaModal === "interview" && <>
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
         <p className="hub-muted">{mediaPortal.limits.interviewSubmitted ? `Already submitted this week (${mediaPortal.limits.interviewStatus}).` : `Pick 3 questions and answer them for commissioner review. Pays ${coinsNumber(50)} on approval.`}</p>
@@ -2097,6 +2099,7 @@ export function HubHome() {
         })}
         <label className="media-toggle"><input type="checkbox" checked={tagOpponent} disabled={!mediaPortal.opponent || mediaPortal.limits.interviewSubmitted} onChange={(event) => setTagOpponent(event.target.checked)} /> Tag weekly H2H opponent{mediaPortal.opponent ? ` (${mediaPortal.opponent.teamName})` : " (no H2H this week)"}</label>
         <Button variant="primary" disabled={mediaBusy || mediaPortal.limits.interviewSubmitted || interviewAnswers.some((answer) => !answer.questionId || !answer.answer.trim())} onClick={() => void submitInterviewForm()}>{mediaBusy ? "Submitting..." : "Submit Interview"}</Button>
+      </>}
       </>}
     </div></Modal>}
 
