@@ -41,27 +41,44 @@ test("drops leftover baseline/seeded rows that never got a numeric EA id", () =>
   );
 });
 
-test("keeps unpaid-content placeholders until they appear in the EA save", () => {
+test("drops unmatched legend and custom placeholders — the import is the roster", () => {
   assert.equal(
     shouldRetainPlayerAfterEaReconcile(
       { maddenPlayerId: null, playerSource: "legend", isCustomBuild: false },
       imported,
     ),
-    true,
+    false,
   );
   assert.equal(
     shouldRetainPlayerAfterEaReconcile(
       { maddenPlayerId: "custom:foo", playerSource: "custom_player", isCustomBuild: false },
       imported,
     ),
-    true,
+    false,
   );
 });
 
-test("keeps minted custom-player builds even if their EA id is absent this import", () => {
+test("drops minted custom-player builds whose EA id is absent from this import", () => {
   assert.equal(
     shouldRetainPlayerAfterEaReconcile(
       { maddenPlayerId: "999", playerSource: "custom_player", isCustomBuild: true },
+      imported,
+    ),
+    false,
+  );
+});
+
+test("keeps a custom-player or legend once their numeric EA id is in this import", () => {
+  assert.equal(
+    shouldRetainPlayerAfterEaReconcile(
+      { maddenPlayerId: "100", playerSource: "legend", isCustomBuild: false },
+      imported,
+    ),
+    true,
+  );
+  assert.equal(
+    shouldRetainPlayerAfterEaReconcile(
+      { maddenPlayerId: "200", playerSource: "custom_player", isCustomBuild: true },
       imported,
     ),
     true,

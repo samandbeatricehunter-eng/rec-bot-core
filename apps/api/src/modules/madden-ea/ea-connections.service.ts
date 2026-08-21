@@ -690,8 +690,9 @@ export async function importEaDatasetsWithProgress(
   }
 
   // Fetch rosters before writing so an empty EA response never reconciles against a blank
-  // id list (that would delete every player). We do not wipe the existing roster — each
-  // import upserts/moves/updates, then drops anyone EA no longer lists.
+  // id list (that would delete every player). We do not wipe the existing roster first —
+  // each import upserts/moves/updates, then drops anyone not in this EA payload, including
+  // leftover seeds and placeholders.
   let preloadedRosterRaw: unknown | null = null;
   if (datasets.includes("rosters")) {
     pushProgress(leagueId, { type: "reconciling", step: "Checking EA roster…" });
@@ -1083,10 +1084,10 @@ export async function reconcilePendingPurchasesToImport(leagueId: string): Promi
 
 /**
  * Source-of-truth reconciliation: the EA import defines the league's rosters. Players absent
- * from the imported rows are removed — imported rows themselves already upserted by
- * madden_player_id (ratings, team moves, free-agent flags). Players minted by custom-player
- * builds and unmatched legend/custom placeholders are spared. A hard delete can trip NO ACTION
- * foreign keys (award nominees, fantasy draft picks); those rows fall back to
+ * from the imported rows are removed — including leftover baseline seeds, name placeholders,
+ * and legend/custom rows that have not appeared in this save. Imported rows themselves already
+ * upserted by madden_player_id (ratings, team moves, free-agent flags). A hard delete can trip
+ * NO ACTION foreign keys (award nominees, fantasy draft picks); those rows fall back to
  * roster_status='removed' so they leave the active roster either way.
  */
 async function reconcileRostersToImport(leagueId: string, importedPlayerIds: string[]): Promise<void> {
@@ -1095,20 +1096,15 @@ async function reconcileRostersToImport(leagueId: string, importedPlayerIds: str
     id: string;
     madden_player_id: string | null;
     player_source: string | null;
-    is_custom_build: boolean;
   }>(
-    `select p.id, p.madden_player_id, p.player_source,
-            exists (
-              select 1 from rec_custom_player_builds b
-               where b.league_id=$1 and b.created_player_id = p.id
-            ) as is_custom_build
+    `select p.id, p.madden_player_id, p.player_source
        from rec_players p
       where p.league_id=$1`,
     [leagueId],
   );
   const staleIds = existing.rows
     .filter((row) => !shouldRetainPlayerAfterEaReconcile(
-      { maddenPlayerId: row.madden_player_id, playerSource: row.player_source, isCustomBuild: row.is_custom_build === true },
+      { maddenPlayerId: row.madden_player_id, playerSource: row.player_source, isCustomBuild: false },
       imported,
     ))
     .map((row) => row.id);
