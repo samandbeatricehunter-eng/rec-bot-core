@@ -199,7 +199,7 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
 }
 
-function RankChange({ change }: { change: number | null | undefined }) {
+export function RankChange({ change }: { change: number | null | undefined }) {
   if (change == null) return <span className="hub-rank-change">New</span>;
   if (change === 0) return <span className="hub-rank-change">No change</span>;
   return change > 0

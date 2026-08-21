@@ -21,7 +21,7 @@ import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { LeagueRecordsHome } from "./LeagueRecordsHome.js";
 import { LeagueHistoryHome } from "./LeagueHistoryHome.js";
-import { FinancialLedger } from "./HubHome.js";
+import { FinancialLedger, RankChange } from "./HubHome.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -297,7 +297,7 @@ export function LeagueStatsHome() {
 
   return <div className="hub-section">
     <PageHeader title="Stats" subtitle="League rankings, leaders, and complete player production." />
-    <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · {team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"}</small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}{hub?.powerRankings?.teams?.some((team) => team.playoffMarker) ? <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p> : null}</Card>
+    <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}{hub?.powerRankings?.teams?.some((team) => team.playoffMarker) ? <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p> : null}</Card>
     <LeagueLeadersView guildId={guildId} />
     {leagueId ? <Card><h2 style={{ marginTop: 0 }}>League Resources</h2><div className="hub-stats-resource-grid">{([
       ["stats", "League Stats"], ["records", "League Records"], ["history", "League History"], ["sos", "Strength of Schedule"], ["financial", "Financial Profile"],
