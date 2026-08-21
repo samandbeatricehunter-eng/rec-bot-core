@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Coins, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Coins, UserRound, Wrench } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
+import { RelinkDiscordModal } from "./RelinkDiscordModal.js";
 
 export function TroubleshootModal({
   guildId,
@@ -15,6 +16,7 @@ export function TroubleshootModal({
 }) {
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
+  const [relinkOpen, setRelinkOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -30,6 +32,18 @@ export function TroubleshootModal({
     );
   }
   if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
+  if (relinkOpen) {
+    return (
+      <RelinkDiscordModal
+        guildId={guildId}
+        onClose={() => setRelinkOpen(false)}
+        onDone={(message) => {
+          setRelinkOpen(false);
+          setNotice(message);
+        }}
+      />
+    );
+  }
 
   return (
     <Modal title="Tools" onClose={onClose}>
@@ -46,6 +60,15 @@ export function TroubleshootModal({
           </p>
           <Button variant="secondary" onClick={() => setRepairOpen(true)}>
             <Wrench size={14} /> Open Repair Tool
+          </Button>
+        </CollapsibleSection>
+        <CollapsibleSection title="Relink Discord">
+          <p className="form-hint" style={{ marginTop: 0 }}>
+            If a coach&apos;s Discord was banned or they made a new account, map the new server
+            member onto their existing REC profile. Teams, wallet, and stats stay put.
+          </p>
+          <Button variant="secondary" onClick={() => setRelinkOpen(true)}>
+            <UserRound size={14} /> Open Relink Tool
           </Button>
         </CollapsibleSection>
         <CollapsibleSection title="Close or Refund Wagers">

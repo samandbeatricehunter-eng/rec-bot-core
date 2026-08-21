@@ -408,6 +408,9 @@ export const siteApi = {
   unlinkStreamingAccount(platform: StreamPlatform) {
     return request<StreamingAccountsResponse>("/v1/streaming/accounts/unlink", { platform });
   },
+  unlinkDiscord() {
+    return request<LinkProfileResponse>("/v1/site-auth/link/discord-unlink", {});
+  },
   listStreamingMatchups() {
     return request<{ matchups: StreamingMatchupOption[] }>("/v1/streaming/h2h-matchups", {});
   },
