@@ -157,7 +157,7 @@ export async function getActiveGotwPolls(guildId: string, weekNumber: number) {
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
-    .in("status", ["open", "closed"])
+    .in("status", ["open", "closed", "settled"])
     .order("created_at", { ascending: true });
   if (error) throw new ApiError(500, "We couldn't load active GOTW polls right now. Please try again.", error);
   return data ?? [];
@@ -202,6 +202,11 @@ export async function settleGotwPoll(input: {
   // entry, advance completion) for the same game — settle exactly once so correct-pick
   // payouts never get issued twice.
   if (poll.status === "settled") return { settled: true, payouts: 0, losses: 0 };
+  if (poll.status === "cancelled") return { settled: false, payouts: 0, losses: 0 };
+  if (await isAdministrativeGotwOutcome(poll.game_id)) {
+    await voidGotwPollsForGame({ guildId: input.guildId, gameId: poll.game_id });
+    return { settled: false, payouts: 0, losses: 0 };
+  }
 
   const { data: storedVotes, error: votesErr } = await supabase
     .from("rec_game_of_week_votes")
@@ -363,7 +368,15 @@ export async function settleGotwPoll(input: {
   return { settled: true, payouts, losses };
 }
 
-export async function settleGotwPollsForGame(input: { guildId: string; gameId: string; winningTeamId: string | null }) {
+export async function settleGotwPollsForGame(input: {
+  guildId: string;
+  gameId: string;
+  winningTeamId: string | null;
+  administrativeOutcome?: boolean;
+}) {
+  if (input.administrativeOutcome || (await isAdministrativeGotwOutcome(input.gameId))) {
+    return voidGotwPollsForGame({ guildId: input.guildId, gameId: input.gameId });
+  }
   const context = await getCurrentLeagueContext(input.guildId);
   const { data: polls, error } = await supabase
     .from("rec_game_of_week_polls")
@@ -378,6 +391,161 @@ export async function settleGotwPollsForGame(input: { guildId: string; gameId: s
     settled.push(await settleGotwPoll({ guildId: input.guildId, pollId: poll.id, winningTeamId: input.winningTeamId, voters: [] }));
   }
   return { settledCount: settled.length, settled };
+}
+
+async function isAdministrativeGotwOutcome(gameId: string | null | undefined): Promise<boolean> {
+  if (!gameId) return false;
+  const game = await supabase.from("rec_games").select("advance_outcome_override").eq("id", gameId).maybeSingle();
+  const override = String(game.data?.advance_outcome_override ?? "");
+  return override === "fw";
+}
+
+/** Void GOTW polls for a Force Win so picks are not logged to records or paid out. */
+export async function voidGotwPollsForGame(input: { guildId: string; gameId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const now = new Date().toISOString();
+  const { data: polls, error } = await supabase
+    .from("rec_game_of_week_polls")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("game_id", input.gameId)
+    .in("status", ["open", "closed"]);
+  if (error) throw new ApiError(500, "We couldn't load GOTW polls to void. Please try again.", error);
+  const ids = (polls ?? []).map((poll) => poll.id);
+  if (ids.length) {
+    const cancelled = await supabase
+      .from("rec_game_of_week_polls")
+      .update({ status: "cancelled", closed_at: now, winning_team_id: null, updated_at: now })
+      .in("id", ids);
+    if (cancelled.error) throw new ApiError(500, "We couldn't cancel GOTW voting for this administrative result. Please try again.", cancelled.error);
+  }
+  return { settledCount: 0, settled: [] as Array<{ settled: boolean; payouts: number; losses: number }>, voided: ids.length };
+}
+
+function clampNonNegative(value: number): number {
+  return Math.max(0, value);
+}
+
+/** Undo a GOTW settlement (records + correct-pick payouts) and void the poll. */
+export async function clearLoggedGotwVotes(input: { guildId: string; pollId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const now = new Date().toISOString();
+  const poll = await supabase
+    .from("rec_game_of_week_polls")
+    .select("id,status,season_number,week_number,game_id,away_team_name,home_team_name")
+    .eq("id", input.pollId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (poll.error) throw new ApiError(500, "We couldn't load that GOTW poll. Please try again.", poll.error);
+  if (!poll.data) throw new ApiError(404, "GOTW poll not found.");
+  if (poll.data.status !== "settled") {
+    throw new ApiError(400, "Only a settled GOTW poll has logged votes to clear. Close voting first if the poll is still open.");
+  }
+
+  const votes = await supabase
+    .from("rec_game_of_week_votes")
+    .select("id,user_id,is_correct,is_tie,payout_amount,paid_ledger_id")
+    .eq("poll_id", input.pollId);
+  if (votes.error) throw new ApiError(500, "We couldn't load GOTW votes to clear. Please try again.", votes.error);
+
+  let recordsCleared = 0;
+  let payoutsReversed = 0;
+  for (const vote of votes.data ?? []) {
+    if (!vote.user_id) continue;
+    const loggedWin = vote.is_correct === true;
+    const loggedLoss = vote.is_correct === false;
+    const loggedTie = vote.is_tie === true;
+    if (!loggedWin && !loggedLoss && !loggedTie) continue;
+
+    if (loggedWin || loggedLoss) {
+      const global = await supabase
+        .from("rec_global_gotw_guessing_records")
+        .select("correct_guesses,wrong_guesses")
+        .eq("user_id", vote.user_id)
+        .maybeSingle();
+      if (global.data) {
+        await supabase
+          .from("rec_global_gotw_guessing_records")
+          .update({
+            correct_guesses: clampNonNegative(Number(global.data.correct_guesses ?? 0) - (loggedWin ? 1 : 0)),
+            wrong_guesses: clampNonNegative(Number(global.data.wrong_guesses ?? 0) - (loggedLoss ? 1 : 0)),
+            updated_at: now,
+          })
+          .eq("user_id", vote.user_id);
+      }
+    }
+
+    const league = await supabase
+      .from("rec_league_gotw_guessing_records")
+      .select("wins,losses,ties,current_streak,best_streak")
+      .eq("league_id", context.leagueId)
+      .eq("season_number", poll.data.season_number)
+      .eq("user_id", vote.user_id)
+      .maybeSingle();
+    if (league.data) {
+      const currentStreak = Number(league.data.current_streak ?? 0);
+      const bestStreak = Number(league.data.best_streak ?? 0);
+      const nextStreak = loggedWin ? clampNonNegative(currentStreak - 1) : currentStreak;
+      const nextBest = loggedWin && bestStreak === currentStreak ? Math.max(nextStreak, 0) : bestStreak;
+      await supabase
+        .from("rec_league_gotw_guessing_records")
+        .update({
+          wins: clampNonNegative(Number(league.data.wins ?? 0) - (loggedWin ? 1 : 0)),
+          losses: clampNonNegative(Number(league.data.losses ?? 0) - (loggedLoss ? 1 : 0)),
+          ties: clampNonNegative(Number(league.data.ties ?? 0) - (loggedTie ? 1 : 0)),
+          current_streak: nextStreak,
+          best_streak: nextBest,
+          updated_at: now,
+        })
+        .eq("league_id", context.leagueId)
+        .eq("season_number", poll.data.season_number)
+        .eq("user_id", vote.user_id);
+    }
+    recordsCleared += 1;
+
+    const payout = Number(vote.payout_amount ?? 0);
+    if (payout > 0) {
+      await creditOrBacklog({
+        leagueId: context.leagueId,
+        seasonNumber: poll.data.season_number,
+        userId: vote.user_id,
+        amount: -payout,
+        description: `GOTW vote reversal: ${poll.data.away_team_name} vs ${poll.data.home_team_name} - Wk ${poll.data.week_number}`,
+        transactionType: "gotw_payout_reversal",
+        source: "gotw",
+        sourceReference: { poll_id: input.pollId, week: poll.data.week_number, reversal_of: vote.paid_ledger_id },
+      }).catch((error) => console.error("[ERROR] Failed to reverse GOTW payout (non-fatal):", error));
+      payoutsReversed += 1;
+    }
+  }
+
+  await supabase
+    .from("rec_economy_payout_backlog")
+    .delete()
+    .eq("league_id", context.leagueId)
+    .eq("transaction_type", "gotw_payout")
+    .eq("source", "gotw")
+    .contains("source_reference", { poll_id: input.pollId });
+
+  await supabase
+    .from("rec_game_of_week_votes")
+    .update({
+      is_correct: null,
+      is_tie: false,
+      payout_amount: 0,
+      paid_ledger_id: null,
+      settled_at: null,
+      updated_at: now,
+    })
+    .eq("poll_id", input.pollId);
+
+  const cancelled = await supabase
+    .from("rec_game_of_week_polls")
+    .update({ status: "cancelled", winning_team_id: null, settled_at: null, closed_at: now, updated_at: now })
+    .eq("id", input.pollId);
+  if (cancelled.error) throw new ApiError(500, "We cleared vote records but couldn't void the GOTW poll. Please try again.", cancelled.error);
+
+  return { cleared: true, recordsCleared, payoutsReversed };
 }
 
 export async function getGotwGuessingRecordsForHub(guildId: string) {

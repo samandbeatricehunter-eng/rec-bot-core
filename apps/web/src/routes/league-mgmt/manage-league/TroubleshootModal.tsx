@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Coins, Database, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Coins, Database, Trophy, Wrench } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -8,6 +8,7 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
+import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
 
@@ -24,6 +25,7 @@ export function TroubleshootModal({
 }) {
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
+  const [gotwOpen, setGotwOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -39,6 +41,18 @@ export function TroubleshootModal({
     );
   }
   if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
+  if (gotwOpen) {
+    return (
+      <ManageGotwToolsModal
+        guildId={guildId}
+        onClose={() => setGotwOpen(false)}
+        onDone={(message) => {
+          setGotwOpen(false);
+          setNotice(message);
+        }}
+      />
+    );
+  }
 
   return (
     <Modal title="Tools" onClose={onClose}>
@@ -60,6 +74,15 @@ export function TroubleshootModal({
           </p>
           <Button variant="secondary" onClick={() => setRepairOpen(true)}>
             <Wrench size={14} /> Open Repair Tool
+          </Button>
+        </CollapsibleSection>
+        <CollapsibleSection title="Game of the Week">
+          <p className="form-hint" style={{ marginTop: 0 }}>
+            Close voting when a GOTW started without a stream, or clear logged votes if a Force Win
+            was settled as a real pick.
+          </p>
+          <Button variant="secondary" onClick={() => setGotwOpen(true)}>
+            <Trophy size={14} /> Open GOTW Tools
           </Button>
         </CollapsibleSection>
         <CollapsibleSection title="Close or Refund Wagers">

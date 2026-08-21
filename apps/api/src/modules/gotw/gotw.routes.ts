@@ -3,12 +3,12 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { autoAssignGotwForWeek, clearGotwPollsForWeek, createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
+import { autoAssignGotwForWeek, clearGotwPollsForWeek, clearLoggedGotwVotes, createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
 
 export async function gotwRoutes(app: FastifyInstance) {
   // Commissioner "Assign GOTW" action in League Mgmt — picks a game from the current
-  // week's schedule and creates its poll. Voting/closing happen on the Hub matchup page;
-  // this is creation only.
+  // week's schedule and creates its poll. Close voting and clear logged votes live in
+  // League Tools; this is creation only.
   app.post("/v1/gotw/poll/create", async (request, reply) => {
     try {
       const body = z.object({
@@ -69,6 +69,16 @@ export async function gotwRoutes(app: FastifyInstance) {
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send({ polls: await getActiveGotwPolls(guildId, weekNumber) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/gotw/poll/clear-logged-votes", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await clearLoggedGotwVotes(body));
     } catch (error) {
       return sendError(reply, error);
     }

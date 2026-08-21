@@ -15,20 +15,16 @@ import { MatchupPreview } from "../matchups/MatchupPreview.js";
 type GotwVotingCarouselProps = {
   guildId: string;
   games: HubMatchupGame[];
-  canManageLeague: boolean;
   guessingRecord: GotwGuessingRecordsResponse["mine"] | null | undefined;
   onVote: (pollId: string, selectedTeamId: string) => Promise<void>;
-  onCloseVoting: (pollId: string) => Promise<void>;
   onOpenWager: (game: HubMatchupGame) => void;
 };
 
 export function GotwVotingCarousel({
   guildId,
   games,
-  canManageLeague,
   guessingRecord,
   onVote,
-  onCloseVoting,
   onOpenWager,
 }: GotwVotingCarouselProps) {
   const [index, setIndex] = useState(0);
@@ -90,11 +86,6 @@ export function GotwVotingCarousel({
       title="Game of the Week"
       subtitle={`Week ${game.weekNumber}${games.length > 1 ? ` · Matchup ${activeIndex + 1} of ${games.length}` : ""}`}
       className="hub-gotw-carousel"
-      beforeHeading={canManageLeague && poll.status === "open" ? (
-        <div className="hub-gotw-commissioner-action">
-          <Button variant="tactical" size="compact" onClick={() => void onCloseVoting(poll.pollId)}>Close Voting</Button>
-        </div>
-      ) : undefined}
     >
       <div className={`hub-gotw-carousel-stage${games.length > 1 ? " has-navigation" : ""}`}>
         {games.length > 1 ? <button type="button" className="hub-highlight-arrow previous" aria-label="Previous Game of the Week" onClick={() => move(-1)}><ChevronLeft /></button> : null}

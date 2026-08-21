@@ -396,7 +396,7 @@ function AdvanceReadinessSection() {
 
       <div className="advance-card advance-legacy-manual-control" style={{ marginTop: "var(--space-4)" }}>
         <h2>Game of the Week</h2>
-        <p className="form-hint">Matchups are ranked by the GOTW nomination score (rivalry, parity, quality, recent form). Voting and closing happen on the Hub matchup page.</p>
+        <p className="form-hint">Matchups are ranked by the GOTW nomination score (rivalry, parity, quality, recent form). Close voting or clear logged votes from League Tools.</p>
         <div className="advance-stack">
           {(gotwPolls ?? []).map((poll) => (
             <div key={poll.id} className="advance-inline-row">
