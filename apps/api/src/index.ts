@@ -82,14 +82,14 @@ setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
 }, 60_000).unref();
 
-// Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data on a
-// schedule instead of waiting for a commissioner to click "Import Now," which also keeps each
+// Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data every
+// 4 hours instead of waiting for a commissioner to click "Import Now," which also keeps each
 // connection's session active so EA's ten-day-inactivity refresh_token expiry never gets hit.
 setInterval(() => {
   runAutoImportSweep()
     .then((result) => { if (result.attempted) app.log.info(result, "EA auto-import sweep completed"); })
     .catch((error) => app.log.error({ err: error }, "EA auto-import sweep failed"));
-}, 12 * 60 * 60_000).unref();
+}, 4 * 60 * 60_000).unref();
 
 // One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
 // were written directly in Supabase), backfill open-league embeds once on boot.

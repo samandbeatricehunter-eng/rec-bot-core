@@ -894,6 +894,7 @@ export async function importEaDatasetsWithProgress(
  * of waiting for a commissioner to click "Import Now." Wired into apps/api/src/index.ts on an
  * interval; each connection with auto_import enabled gets refreshed and re-imported in turn. Runs
  * connections sequentially (not in parallel) to stay gentle on both EA's API and this DB.
+ * After a successful pull, Pending Items gets a confirmation of scores, stats, or player movement.
  */
 /** Persists a failed import's error onto the connection row so it's visible outside the live progress stream (e.g. after the commissioner's modal is closed). */
 export async function recordEaImportError(connectionId: string, error: unknown): Promise<void> {
@@ -918,7 +919,12 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
     }
     clearImportProgress(row.league_id);
     try {
+      const { snapshotImportState, describeImportChanges, notifyCommissionersOfAutoImport } = await import("./ea-auto-import-notify.js");
+      const before = await snapshotImportState(row.league_id);
       await importEaDatasetsWithProgress(row.id, row.league_id, { weekScope: "current" });
+      const after = await snapshotImportState(row.league_id);
+      const notes = describeImportChanges(before, after);
+      if (notes.length) await notifyCommissionersOfAutoImport(row.league_id, notes);
       succeeded += 1;
     } catch (error) {
       failed += 1;

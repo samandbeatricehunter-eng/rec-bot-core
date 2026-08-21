@@ -22,6 +22,7 @@ import {
   wipeBaselineRoster,
   type EaDataset,
 } from "./ea-connections.service.js";
+import { auditEaImportData } from "./import-audit.service.js";
 import { EA_DATASETS } from "./ea-datasets.js";
 import { validateWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
@@ -278,6 +279,16 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       );
 
       return reply.send({ ok: true, games: counts.rows[0], results: resultsCount.rows[0], sampleGames: sample.rows });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/import/madden/ea/audit", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send(await auditEaImportData(body.guild_id, body.league_id));
     } catch (error) {
       return sendError(reply, error);
     }

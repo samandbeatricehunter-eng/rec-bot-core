@@ -253,6 +253,21 @@ export const recApi = {
     recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/settings", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.autoImport !== undefined ? { auto_import: input.autoImport } : {}) }) }),
   importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }) =>
     recApiFetch<{ ok: boolean; message: string }>("/v1/import/madden/ea/import-async", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}), ...(input.weekScope ? { week_scope: input.weekScope } : {}) }) }),
+  auditMaddenEaImport: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{
+      leagueId: string;
+      currentWeek: number;
+      seasonStage: string;
+      issueCount: number;
+      weeks: Array<{
+        weekNumber: number;
+        label: string;
+        scheduledGames: number;
+        completedGames: number;
+        unplayedGames: number;
+        issues: Array<{ kind: string; gameId: string | null; label: string }>;
+      }>;
+    }>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ events: EaImportProgressEvent[]; running: boolean }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   /** SSE streaming variant — calls onEvent for each progress event, returns final results. */

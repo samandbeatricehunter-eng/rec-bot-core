@@ -321,7 +321,12 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         />
       )}
       {troubleshootOpen && (
-        <TroubleshootModal guildId={guildId} onClose={() => setTroubleshootOpen(false)} />
+        <TroubleshootModal
+          guildId={guildId}
+          leagueId={summary?.league.id}
+          showImportAudit={isMadden && dataMode === "import"}
+          onClose={() => setTroubleshootOpen(false)}
+        />
       )}
       {reportIssueOpen && (
         <ReportIssueModal guildId={guildId} onClose={() => setReportIssueOpen(false)} />

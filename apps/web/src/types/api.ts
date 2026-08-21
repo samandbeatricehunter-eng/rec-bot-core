@@ -247,6 +247,7 @@ export type CommissionerNotificationType =
   | "game_of_the_year"
   | "legend"
   | "custom_player"
+  | "ea_auto_import"
   | "force_win_request"
   | "autopilot_request"
   | "matchup_issue_report"

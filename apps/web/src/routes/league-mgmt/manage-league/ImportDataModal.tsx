@@ -504,7 +504,7 @@ export function ImportDataModal({
                     <div className="form-field" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
                       <label className="manual-checkbox" style={{ marginTop: 0 }}>
                         <input type="checkbox" checked={autoImport} onChange={(e) => setAutoImport(e.target.checked)} />
-                        <span>Auto-import enabled datasets whenever new data is available</span>
+                        <span>Auto-import every 4 hours when new data is available, and post a Pending Items confirmation of what changed</span>
                       </label>
                     </div>
                     <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>

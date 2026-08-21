@@ -333,6 +333,7 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve Force Win", denyLabel: "Deny" };
     case "autopilot_request":
     case "matchup_issue_report":
+    case "ea_auto_import":
       return { kind: "single", actionLabel: "Mark Handled" };
     default:
       return { kind: "info", message: "This notification type doesn't have a web resolve action yet." };
@@ -386,6 +387,7 @@ async function resolveAction(
       return recApi.reviewForceWinRequest({ guildId, inboxId: notification.id, decision: action, reason: reason || undefined });
     case "autopilot_request":
     case "matchup_issue_report":
+    case "ea_auto_import":
       // No dedicated review table for these — the generic handler resolves by the inbox row's
       // own id (notification.id), not sourceId (which is the matchup's gameId, not unique
       // per request — a game can have more than one pending help request at once).
