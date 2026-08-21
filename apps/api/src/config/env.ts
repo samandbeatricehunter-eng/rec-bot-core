@@ -119,6 +119,19 @@ const EnvSchema = z.object({
     z.string().optional(),
   ),
   EA_REFRESHER_ENABLED: z.string().optional(),
+  // Linked streaming accounts (Twitch EventSub + YouTube/TikTok OAuth). Optional so the
+  // API boots without them; OAuth start / EventSub subscribe fail closed until set.
+  TWITCH_CLIENT_ID: z.string().optional(),
+  TWITCH_CLIENT_SECRET: z.string().optional(),
+  TWITCH_EVENTSUB_SECRET: z.string().optional(),
+  YOUTUBE_CLIENT_ID: z.string().optional(),
+  YOUTUBE_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  // Public HTTPS origin of this API, used as the Twitch/YouTube/TikTok OAuth redirect and
+  // EventSub callback base (e.g. https://api.rec-leagues.com). Falls back to
+  // RAILWAY_PUBLIC_DOMAIN when unset.
+  STREAMING_PUBLIC_API_URL: z.string().url().optional(),
 });
 export const env = EnvSchema.parse(process.env);
 

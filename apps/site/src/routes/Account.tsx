@@ -48,6 +48,23 @@ export function Account() {
   const [takeoverNotice, setTakeoverNotice] = useState<string | null>(null);
   const [takeoverError, setTakeoverError] = useState<string | null>(null);
 
+  function applyLinkedProfile(profile: LinkProfileResponse) {
+    setLinked(profile);
+    if (profile.entitlements) {
+      setEntitlements(profile.entitlements);
+    } else if (!profile.linked) {
+      setEntitlements(null);
+    }
+  }
+
+  async function refreshLinkedProfile() {
+    const profile = await siteApi.getLinkProfile();
+    applyLinkedProfile(profile);
+    if (!profile.entitlements && profile.linked) {
+      setEntitlements(await siteApi.getEntitlements());
+    }
+  }
+
   useEffect(() => {
     if (auth.status !== "signed-in") return;
     let active = true;
@@ -55,17 +72,12 @@ export function Account() {
     setProfileError(null);
     siteApi
       .getLinkProfile()
-      .then((profile) => {
+      .then(async (profile) => {
         if (!active) return;
-        setLinked(profile);
-        if (profile.entitlements) {
-          setEntitlements(profile.entitlements);
-        } else if (profile.linked) {
-          return siteApi.getEntitlements().then((summary) => {
-            if (active) setEntitlements(summary);
-          });
-        } else {
-          setEntitlements(null);
+        applyLinkedProfile(profile);
+        if (!profile.entitlements && profile.linked) {
+          const summary = await siteApi.getEntitlements();
+          if (active) setEntitlements(summary);
         }
       })
       .catch((error) => {
@@ -392,6 +404,9 @@ export function Account() {
             entitlements={entitlements}
             billingBusy={billingBusy}
             billingError={billingError}
+            onLinkedProfileRefresh={() => {
+              void refreshLinkedProfile().catch(() => undefined);
+            }}
             onOpenBilling={() => {
               setBillingBusy(true);
               setBillingError(null);

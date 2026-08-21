@@ -32,6 +32,7 @@ import { scheduleRoutes } from "./modules/schedule/schedule.routes.js";
 import { serverConfigRoutes } from "./modules/server-config/server-config.routes.js";
 import { setupRoutes } from "./modules/setup/setup.routes.js";
 import { streamRoutes } from "./modules/streams/streams.routes.js";
+import { streamingRoutes } from "./modules/streaming/streaming.routes.js";
 import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.routes.js";
 import { teamRequestRoutes } from "./modules/team-requests/team-requests.routes.js";
 import { recruitingBoardRoutes } from "./modules/recruiting-board/recruiting-board.routes.js";
@@ -87,6 +88,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await serverConfigRoutes(app);
   await leagueWeekRoutes(app);
   await streamRoutes(app);
+  await streamingRoutes(app);
   await boxScoreRoutes(app);
   await commissionerChatRoutes(app);
   await leagueChatRoutes(app);

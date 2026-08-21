@@ -3566,16 +3566,94 @@ h1, h2, h3, .site-wordmark {
 .site-account-identity-info p {
   margin: 4px 0 0;
 }
-.site-account-discord-link {
+.site-linked-account-group {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
 }
-.site-account-discord-link .site-btn {
+.site-linked-account-group-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.site-linked-account-group-heading p {
+  margin: 4px 0 0;
+}
+.site-linked-account-list {
+  display: grid;
+  gap: var(--space-3);
+}
+@media (min-width: 720px) {
+  .site-linked-account-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .site-linked-account-list > .site-linked-account-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+.site-linked-account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-4);
+  border: var(--card-border);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 10, 14, 0.35);
+}
+.site-linked-account-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.site-linked-account-card h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.site-linked-account-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.site-linked-account-status.is-linked {
+  color: var(--accent-bright, #9fe7b0);
+}
+.site-linked-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.site-linked-account-username {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.site-linked-account-username-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.site-linked-account-username-row input {
+  flex: 1 1 180px;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  background: rgba(8,10,14,.45);
+  color: inherit;
+}
+.site-modal-panel select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  background: rgba(8,10,14,.45);
+  color: inherit;
 }
 .site-account-identity h2 {
   margin: 0;

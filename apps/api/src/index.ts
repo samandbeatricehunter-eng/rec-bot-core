@@ -11,6 +11,7 @@ import { hasValidInternalApiKey } from "./lib/auth.js";
 import { startChatDatabaseListener } from "./modules/chat/chat-database-listener.js";
 import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/fantasy-draft.service.js";
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
+import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
 import { supabase } from "./lib/supabase.js";
@@ -75,6 +76,10 @@ setInterval(() => {
 // restart-safe polled pattern as the fantasy-draft reminders above.
 setInterval(() => {
   runSchedulingReminderSweep().catch((error) => app.log.error({ err: error }, "Scheduling reminder sweep failed"));
+}, 60_000).unref();
+
+setInterval(() => {
+  runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
 }, 60_000).unref();
 
 // Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data on a

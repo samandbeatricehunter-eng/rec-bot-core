@@ -273,6 +273,13 @@ export async function resolveDiscordAccountHandle(input: {
 }
 
 export async function sendDiscordDirectMessage(discordId: string, content: string): Promise<void> {
+  await sendDiscordDirectMessagePayload(discordId, { content, allowed_mentions: { parse: [] } });
+}
+
+export async function sendDiscordDirectMessagePayload(
+  discordId: string,
+  payload: Record<string, unknown>,
+): Promise<{ id: string } | null> {
   const dm = await discordBotFetch("/users/@me/channels", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -283,9 +290,10 @@ export async function sendDiscordDirectMessage(discordId: string, content: strin
   const sent = await discordBotFetch(`/channels/${channel.id}/messages`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    body: JSON.stringify({ allowed_mentions: { parse: [] }, ...payload }),
   });
   if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
+  return (await sent.json()) as { id: string };
 }
 
 // Generic message post (embeds/components/content) — the REST equivalent of a discord.js

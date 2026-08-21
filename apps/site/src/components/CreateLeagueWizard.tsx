@@ -1310,7 +1310,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 <p className="site-muted">Checking your Discord connection…</p>
               ) : !discordLinked ? (
                 <p className="site-muted">
-                  Your Discord account isn't linked yet — link it from My Account, then come back here (or use League Settings) to connect a server.
+                  Your Discord account isn't linked yet — open{" "}
+                  <a href="/account?tab=linked">My Account → Linked accounts</a>
+                  {" "}to connect Discord, then come back here (or use League Settings) to connect a server.
                 </p>
               ) : discordConnectResult ? (
                 <>
