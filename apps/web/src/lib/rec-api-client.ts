@@ -494,6 +494,8 @@ export const recApi = {
     recApiFetch<{ reopened: true }>("/v1/hub/gotw/reopen", { method: "POST", body: JSON.stringify(input) }),
   cancelGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
     recApiFetch<{ cancelled: true }>("/v1/hub/gotw/cancel", { method: "POST", body: JSON.stringify(input) }),
+  clearLoggedGotwVotes: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<{ cleared: true; recordsCleared: number; payoutsReversed: number }>("/v1/gotw/poll/clear-logged-votes", { method: "POST", body: JSON.stringify(input) }),
   getGotwGuessingRecords: (guildId: string) =>
     recApiFetch<GotwGuessingRecordsResponse>("/v1/hub/gotw/guessing-records", { method: "POST", body: JSON.stringify({ guildId }) }),
   getWagerOptions: (input: { guildId: string; gameId: string }) =>

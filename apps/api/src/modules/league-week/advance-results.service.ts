@@ -856,8 +856,14 @@ export async function completeAdvanceWeek(input: {
     );
 
     // Settle any GOTW poll tied to this game against the real result (idempotent — a no-op
-    // if box-score approval or manual score entry already settled it earlier).
-    await settleGotwPollsForGame({ guildId: input.guildId, gameId: game.data.id, winningTeamId }).catch((err) => {
+    // if box-score approval or manual score entry already settled it earlier). Force Wins and
+    // Fair Sims are administrative, so picks are voided instead of logged to records/payouts.
+    await settleGotwPollsForGame({
+      guildId: input.guildId,
+      gameId: game.data.id,
+      winningTeamId,
+      administrativeOutcome: result.designation === "force_win" || result.designation === "fair_sim",
+    }).catch((err) => {
       console.error("[ERROR] settleGotwPollsForGame failed during advance (non-fatal):", err);
     });
     // Imported/manual scores receive the same result payout as an approved box score. Fair

@@ -1224,12 +1224,6 @@ export function HubHome() {
     setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
   }
 
-  async function closeGotw(pollId: string) {
-    if (auth.status !== "ready" || !matchupSchedule) return;
-    await recApi.closeGameOfWeekVoting({ guildId: auth.guildId, pollId });
-    setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
-  }
-
   async function openWager(game: HubMatchupSchedule["games"][number], tab: WagerPanel["tab"] = "slip") {
     if (auth.status !== "ready") return;
     const label = `${game.awayTeamName} at ${game.homeTeamName}`;
@@ -1725,10 +1719,8 @@ export function HubHome() {
         {auth.status === "ready" && gotwGames.length ? <GotwVotingCarousel
           guildId={auth.guildId}
           games={gotwGames}
-          canManageLeague={hub.canManageLeague}
           guessingRecord={gotwGuessing?.mine}
           onVote={voteGotw}
-          onCloseVoting={closeGotw}
           onOpenWager={(game) => void openWager(game)}
         /> : null}
 
