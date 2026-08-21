@@ -59,6 +59,15 @@ export async function renderMatchupCardPng(gameId: string): Promise<Buffer> {
       const bodyText = await page.locator("body").innerText().catch(() => "(could not read page body)");
       throw new Error(`Matchup card never rendered. Page text: "${bodyText.slice(0, 300)}". Console errors: ${consoleErrors.slice(0, 5).join(" | ") || "(none)"}. Original: ${waitError instanceof Error ? waitError.message : String(waitError)}`);
     }
+    // Card visibility only means the React tree mounted -- team logos are <img> tags that
+    // start fetching after that. Screenshotting immediately left some (or both) crests blank
+    // in Discord. Wait until every logo has finished (load or error); `complete` is true for
+    // both. Zero images is valid (relocated/custom/CFB) and must not hang.
+    await page.waitForFunction(() => {
+      const root = document.querySelector("[data-matchup-render]");
+      if (!root) return false;
+      return Array.from(root.querySelectorAll("img")).every((img) => img.complete);
+    }, { timeout: RENDER_TIMEOUT_MS }).catch(() => undefined);
     return await target.screenshot({ type: "png" });
   } finally {
     await browser.close();
