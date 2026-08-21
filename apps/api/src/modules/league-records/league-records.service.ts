@@ -9,9 +9,11 @@
 // isRegularSeasonWeek/maxSeasonWeek helpers the rest of the app uses for week-type gating —
 // there's no separate "is this week postseason" column to duplicate in SQL.
 import { getPgPool } from "../../db/client.js";
+import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { findServerRoutesForLeague, getCurrentLeagueContext, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { invalidateLeagueStatsCache } from "../league-stats/league-stats.service.js";
 import {
   getStatLabel,
   isRegularSeasonWeek,
@@ -21,6 +23,8 @@ import {
   type LeagueGame,
   type StatPageCategoryKey,
 } from "@rec/shared";
+
+export { importedStatsNeedFinalize } from "./league-records.finalize.js";
 
 export type LeagueRecordsScope = "game" | "season" | "career";
 
@@ -151,11 +155,31 @@ export async function getLeagueRecords(guildId: string, input: { scope: LeagueRe
 const ALL_STAT_KEYS = [...new Set(STAT_PAGE_CATEGORIES.flatMap((c) => statKeysForPageCategory(c.key)))];
 
 /**
+ * After an EA / Companion import that wrote weekly player stats, team stats, or
+ * schedule results: recompute who currently holds each league record, then drop
+ * the hub's short-TTL power-ranking / SOS / user-rating caches so the hero card
+ * and GOTW matchup ranks pick up the new lines immediately.
+ *
+ * Does not pay record-holding bonuses — those only run at end-of-season via
+ * payLeagueRecordHoldingBonuses, and they pay whoever holds the record at that
+ * moment (not whoever set it mid-season and later lost it).
+ */
+export async function finalizeImportedLeagueStats(leagueId: string): Promise<void> {
+  await refreshLeagueRecordHolders(leagueId);
+  invalidateLeagueStatsCache(leagueId);
+  const routes = await findServerRoutesForLeague(leagueId).catch(() => null);
+  const guildIds = new Set<string>([siteOnlyGuildId(leagueId)]);
+  if (routes?.guildId) guildIds.add(routes.guildId);
+  for (const guildId of guildIds) invalidateLeagueComputeCaches(guildId);
+}
+
+/**
  * Recomputes the #1 leader for every stat key, at game+season+career scope and both
  * regular-season/postseason, and upserts rec_league_record_holders — but only replaces an
  * existing holder when the new value is strictly greater (a real broken record), never on a
  * tie or a lower value. Call this after anything that can change the underlying weekly stats:
- * a Madden EA import, or a CFB box-score approval.
+ * a Madden EA / Companion import (player_stats, team_stats, or schedule), or a CFB box-score
+ * approval. Import callers should use finalizeImportedLeagueStats so hub ranks refresh too.
  */
 export async function refreshLeagueRecordHolders(leagueId: string): Promise<void> {
   const leagueResult = await getPgPool().query<{ id: string; game: string; season_number: number }>(
@@ -226,12 +250,14 @@ export async function refreshLeagueRecordHolders(leagueId: string): Promise<void
 const RECORD_HOLDING_BONUS_COINS = 500;
 
 /**
- * Season-end: pays RECORD_HOLDING_BONUS_COINS to whoever currently holds each game/season
- * record (career records aren't season-bound, so they're excluded from the recurring bonus —
- * they only ever get set once, not "held" across seasons). Re-paid every season the same
- * coach still holds a given record, per the confirmed spec: set it in Season 1, still hold it
- * at the end of Season 2, get paid again. Idempotent via rec_league_record_bonus_payouts'
- * unique constraint — safe to call more than once for the same season.
+ * Season-end only: pays RECORD_HOLDING_BONUS_COINS to whoever currently holds each
+ * game/season record. Mid-season imports that set or break a record must not call this —
+ * the bonus is issued at EOS to the current holder, not to whoever first set the mark.
+ * Career records aren't season-bound, so they're excluded from the recurring bonus.
+ * Re-paid every season the same coach still holds a given record, per the confirmed spec:
+ * set it in Season 1, still hold it at the end of Season 2, get paid again. Idempotent via
+ * rec_league_record_bonus_payouts' unique constraint — safe to call more than once for the
+ * same season.
  */
 export async function payLeagueRecordHoldingBonuses(leagueId: string, seasonNumber: number): Promise<{ paid: number; totalCoins: number }> {
   const holders = await getPgPool().query<{

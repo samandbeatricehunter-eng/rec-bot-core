@@ -18,6 +18,15 @@ export type LeagueStatsResult = {
 const statsCache = new Map<string, { value: LeagueStatsResult; expiresAt: number }>();
 const STATS_CACHE_MS = 15_000;
 
+/** Drop cached season/career leaderboards after an import (or any write to weekly stats)
+ * so the next Stats page read isn't serving a 15s-stale snapshot. */
+export function invalidateLeagueStatsCache(leagueId: string): void {
+  const prefix = `${leagueId}:`;
+  for (const key of statsCache.keys()) {
+    if (key.startsWith(prefix)) statsCache.delete(key);
+  }
+}
+
 /** Core query, keyed by leagueId directly — reused by the authenticated guildId-based route
  * and by the public demo-league preview (which has no Discord guild/session context). */
 export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamId?: string | null; position?: string | null; scope?: "season" | "career" } = {}): Promise<LeagueStatsResult> {

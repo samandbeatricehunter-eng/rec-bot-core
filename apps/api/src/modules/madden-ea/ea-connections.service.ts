@@ -683,6 +683,7 @@ export async function importEaDatasetsWithProgress(
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
+  let statsImported = false;
   const importedPlayerIds = new Set<string>();
 
   // Save photo_url mapping before wipe — keyed by madden_player_id and full_name
@@ -770,6 +771,9 @@ export async function importEaDatasetsWithProgress(
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
       const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
       records = ingested.records_stored;
+      if (envelope.endpointKey === "player_stats" || envelope.endpointKey === "team_stats") {
+        statsImported = true;
+      }
     }
     return { dataset, label, records, duplicate: false };
   };
@@ -882,7 +886,11 @@ export async function importEaDatasetsWithProgress(
     }
   }
 
-  // Sync schedule results and trigger wager settlement checks
+  // Sync schedule results and trigger wager settlement checks. Record holders and hub
+  // rank caches refresh whenever weekly player/team stats or the schedule landed — a
+  // stats-only import used to skip this, so League Records and hero/GOTW ranks stayed
+  // stale until the next schedule pull. Record-holding coin bonuses are not paid here;
+  // EOS pays whoever currently holds each record.
   if (scheduleImported) {
     pushProgress(leagueId, { type: "reconciling", step: "Syncing game results…" });
     // Also rebuilds rec_league_user_records/rec_season_user_records/rec_global_user_records
@@ -890,13 +898,6 @@ export async function importEaDatasetsWithProgress(
     // syncCompanionScheduleResultsIntoGameResults itself.
     await syncCompanionScheduleResultsIntoGameResults(leagueId).catch((error) =>
       console.error("[WARN] Failed to sync EA schedule results into rec_game_results (non-fatal):", error));
-    pushProgress(leagueId, { type: "reconciling", step: "Recalculating records…" });
-    try {
-      const { refreshLeagueRecordHolders } = await import("../league-records/league-records.service.js");
-      await refreshLeagueRecordHolders(leagueId);
-    } catch (error) {
-      console.error("[WARN] Failed to refresh league record holders after EA import (non-fatal):", error);
-    }
     // Trigger wager inbox notifications for any wagers that now have results
     try {
       const { listConfirmableWagers } = await import("../wagers/wagers.service.js");
@@ -904,6 +905,15 @@ export async function importEaDatasetsWithProgress(
       if (confirmable.wagers.length > 0) console.log(`[EA] ${confirmable.wagers.length} wager(s) now confirmable after import.`);
     } catch (error) {
       console.error("[WARN] Failed to check confirmable wagers after import (non-fatal):", error);
+    }
+  }
+  if (scheduleImported || statsImported) {
+    pushProgress(leagueId, { type: "reconciling", step: "Recalculating records…" });
+    try {
+      const { finalizeImportedLeagueStats } = await import("../league-records/league-records.service.js");
+      await finalizeImportedLeagueStats(leagueId);
+    } catch (error) {
+      console.error("[WARN] Failed to refresh league record holders after EA import (non-fatal):", error);
     }
   }
   // Process badges/stories for games that now have team_stats from the import.
