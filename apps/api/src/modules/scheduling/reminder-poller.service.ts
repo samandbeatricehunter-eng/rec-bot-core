@@ -8,9 +8,14 @@ import { getGameChannelByGameId } from "../game-channels/game-channels.service.j
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { autoResetSchedulingAfterMissedKickoff, getActiveRuleKeys, postStaleProposalEligibilityNoticeIfAny } from "./matchup-scheduling.service.js";
 import { logSchedulingEvent } from "./shared.js";
+import { hasFailureToScheduleWaitElapsed, isGameChannelQuietHours } from "./scheduling-guardrails.js";
+import { getAvailabilityProfile } from "./availability.service.js";
+
+export { isGameChannelQuietHours } from "./scheduling-guardrails.js";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
+const SCHEDULING_PING_INTERVAL = 4 * HOUR;
 
 type SchedulingRow = {
   game_id: string; league_id: string; status: string; response_started_at: string | null;
@@ -61,14 +66,13 @@ async function postToGameChannel(gameId: string, content: string, mentionUserIds
   }).catch((error) => console.error("[ERROR] scheduling reminder poller: failed to post reminder (non-fatal):", error));
 }
 
-// -- Contact reminders: 2h/4h/8h/12h since the response clock started (= channel creation --
+// -- Contact reminders: 4h/8h/12h since the response clock started (= channel creation --
 // startResponseClock runs right after the channel is made), for whichever side(s) haven't
 // responded yet. "Responded" now includes a plain chat message in the channel (see
 // game-chat.service.ts's ingestDiscordGameChatMessage -> markResponded wiring), not just
-// scheduling-panel actions, so the 2h tier below doubles as the spec's "channel silence" ping
-// without a separate/redundant mechanism. The 12h tier also surfaces "Request AutoPilot"
+// scheduling-panel actions. The 12h tier also surfaces "Request AutoPilot"
 // (neither responded at all in 12h is one of the two AutoPilot trigger conditions).
-async function runContactReminders(hours: 2 | 4 | 8 | 12, type: string, handledThisTick: Set<string>) {
+async function runContactReminders(hours: 4 | 8 | 12, type: string, handledThisTick: Set<string>) {
   const cutoff = new Date(Date.now() - hours * HOUR).toISOString();
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,status,response_started_at,home_responded_at,away_responded_at,scheduled_for")
@@ -154,7 +158,7 @@ async function surfaceAutoPilot(gameId: string, game: Game, type: string, reason
 
 // Most-recent send timestamp for a (game, type) pair -- unlike alreadySent's "has this ever
 // fired" Set (fine for the one-shot reminders above), the recurring schedule-in-system nag needs
-// to know HOW LONG AGO it last fired so it can re-fire every 2h, not just once.
+// to know HOW LONG AGO it last fired so it can re-fire every 4h, not just once.
 async function lastSentAt(gameId: string, type: string): Promise<number | null> {
   const { data, error } = await supabase.from("rec_scheduling_reminders_sent").select("sent_at").eq("game_id", gameId).eq("reminder_type", type).order("sent_at", { ascending: false }).limit(1).maybeSingle();
   if (error) { console.error("[ERROR] scheduling reminder poller: lastSentAt query failed (non-fatal):", error); return null; }
@@ -163,8 +167,8 @@ async function lastSentAt(gameId: string, type: string): Promise<number | null> 
 
 // -- Recurring "schedule in our system" nag: once at least one coach has spoken in the channel
 // (home_responded_at/away_responded_at, now driven by chat messages too -- see
-// game-chat.service.ts) but neither has proposed a time through the system, ping every 2h
-// starting 2h after that first message, repeating until a proposal exists or the game leaves
+// game-chat.service.ts) but neither has proposed a time through the system, ping every 4h
+// starting 4h after that first message, repeating until a proposal exists or the game leaves
 // not_scheduled (any other logged action -- Can't Make Game, a status change, etc. -- moves the
 // status off not_scheduled, which is exactly the stop condition this checks).
 async function runScheduleInSystemNag() {
@@ -197,10 +201,10 @@ async function runScheduleInSystemNag() {
     const firstSpokeMs = Math.min(
       ...[row.home_responded_at, row.away_responded_at].filter((v): v is string => Boolean(v)).map((v) => new Date(v).getTime()),
     );
-    if (!Number.isFinite(firstSpokeMs) || now - firstSpokeMs < 2 * HOUR) continue;
+    if (!Number.isFinite(firstSpokeMs) || now - firstSpokeMs < SCHEDULING_PING_INTERVAL) continue;
 
     const last = await lastSentAt(row.game_id, "schedule_in_system_nag");
-    if (last != null && now - last < 2 * HOUR) continue;
+    if (last != null && now - last < SCHEDULING_PING_INTERVAL) continue;
 
     const mentionIds = [game.home_user_id, game.away_user_id].filter((v): v is string => Boolean(v)).map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
     const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
@@ -213,22 +217,32 @@ async function runScheduleInSystemNag() {
 // -- 8h after one coach has responded/spoken and the other still hasn't, surface a "Request FW
 // for failure to schedule" button to the coach who DID respond -- gated on the league having
 // `failure_to_schedule` active in force_win_rules_* for the current season stage. Reuses the
-// contact_8h query shape (same anchor as the pre-existing 8h contact reminder) rather than a
-// separate scan, since it's the same underlying condition with an extra settings gate.
+// responding coach's first outreach timestamp. Channel creation starts general contact nudges,
+// but it is not proof that either coach tried to schedule.
 async function runFailureToScheduleFwSurface() {
-  const cutoff = new Date(Date.now() - 8 * HOUR).toISOString();
   // Same shim limitation as runScheduleInSystemNag above -- "exactly one side responded" (an
   // and(...)-grouped or() expression) isn't something the shim's .or() can parse, so fetch the
   // broader not-yet-responded-on-both-sides set and filter the XOR condition in JS.
   const { data, error } = await supabase.from("rec_game_scheduling")
     .select("game_id,league_id,home_responded_at,away_responded_at")
-    .not("response_started_at", "is", null)
-    .lte("response_started_at", cutoff)
     .not("status", "in", "(confirmed,completed)")
     .or("home_responded_at.is.null,away_responded_at.is.null");
   if (error) { console.error("[ERROR] scheduling reminder poller: failure-to-schedule FW query failed (non-fatal):", error); return; }
-  const rows = ((data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>)
+  const candidates = ((data ?? []) as Array<{ game_id: string; league_id: string; home_responded_at: string | null; away_responded_at: string | null }>)
     .filter((r) => Boolean(r.home_responded_at) !== Boolean(r.away_responded_at));
+  if (!candidates.length) return;
+
+  // The wait pauses during the NON-responding coach's own local midnight-7AM -- fetch their
+  // profile timezone (defaults inside hasFailureToScheduleWaitElapsed if they have none set).
+  const candidateGames = await loadGamesById(candidates.map((r) => r.game_id));
+  const rows: typeof candidates = [];
+  for (const r of candidates) {
+    const game = candidateGames.get(r.game_id);
+    if (!game) continue;
+    const nonResponderUserId = r.home_responded_at ? game.away_user_id : game.home_user_id;
+    const timeZone = nonResponderUserId ? (await getAvailabilityProfile(nonResponderUserId)).timezone ?? undefined : undefined;
+    if (hasFailureToScheduleWaitElapsed(r.home_responded_at ?? r.away_responded_at, null, timeZone)) rows.push(r);
+  }
   if (!rows.length) return;
 
   const sent = await alreadySent(rows.map((r) => r.game_id), "fw_failure_to_schedule_8h");
@@ -317,7 +331,7 @@ async function runConfirmedGameReminders() {
 // is exactly what catches a genuine no-show opponent, so it can't just stop applying the moment
 // one coach starts streaming solo. game_started_at stands in for scheduled_for as the reference
 // "kickoff happened" moment when there was never a confirmed time.
-async function runCheckinFollowUps() {
+async function runCheckinFollowUps(allowUserPings = true) {
   const { data, error } = await supabase.from("rec_game_scheduling").select("game_id,league_id,status,scheduled_for,game_started_at").in("status", ["confirmed", "live"]);
   if (error) { console.error("[ERROR] scheduling reminder poller: checkin-followup query failed (non-fatal):", error); return; }
   const rows = ((data ?? []) as Array<{ game_id: string; league_id: string; status: string; scheduled_for: string | null; game_started_at: string | null }>)
@@ -347,7 +361,7 @@ async function runCheckinFollowUps() {
     const mentionIds = [game.home_user_id, game.away_user_id].filter((v): v is string => Boolean(v)).map((id) => discordByUser.get(id)).filter((v): v is string => Boolean(v));
     const mentions = mentionIds.map((id) => `<@${id}>`).join(" ");
 
-    if (pastMin >= 30 && pastMin < 35 && checkedIn.length === 0 && !sentFollowup.has(row.game_id)) {
+    if (allowUserPings && pastMin >= 30 && pastMin < 35 && checkedIn.length === 0 && !sentFollowup.has(row.game_id)) {
       await postToGameChannel(row.game_id, `${mentions} — reminder to hit ✅ once you're ready or already loaded in.`, mentionIds);
       await markSent(row.game_id, "game_kickoff_followup_30m");
     }
@@ -361,7 +375,7 @@ async function runCheckinFollowUps() {
       continue;
     }
 
-    if (checkedIn.length === 1 && !sentFw.has(row.game_id)) {
+    if (allowUserPings && checkedIn.length === 1 && !sentFw.has(row.game_id)) {
       const [checkedInUserId] = checkedIn.map((c) => c.user_id);
       const firstCheckinMs = new Date(checkedIn[0]!.checked_in_at).getTime();
       const sinceCheckinMin = (now - firstCheckinMs) / MIN;
@@ -510,20 +524,23 @@ async function runAvailabilityNag() {
 }
 
 export async function runSchedulingReminderSweep() {
+  const allowGameChannelPings = !isGameChannelQuietHours();
   // Highest tier first, sharing one "already handled this tick" set -- a game whose response
   // clock started well in the past (an old game on the first tick after a deploy, or before
   // markResponded had any writer at all) can cross several thresholds at once; this makes sure
   // it only ever gets the one most-urgent reminder per tick instead of one per crossed tier.
-  const contactHandledThisTick = new Set<string>();
-  await runContactReminders(12, "contact_escalate_12h", contactHandledThisTick);
-  await runContactReminders(8, "contact_8h", contactHandledThisTick);
-  await runContactReminders(4, "contact_4h", contactHandledThisTick);
-  await runContactReminders(2, "contact_2h", contactHandledThisTick);
-  await runStaleProposalAutoPilot();
-  await runScheduleInSystemNag();
-  await runFailureToScheduleFwSurface();
-  await runConfirmedGameReminders();
-  await runCheckinFollowUps();
-  await runGameOverPrompt();
+  if (allowGameChannelPings) {
+    const contactHandledThisTick = new Set<string>();
+    await runContactReminders(12, "contact_escalate_12h", contactHandledThisTick);
+    await runContactReminders(8, "contact_8h", contactHandledThisTick);
+    await runContactReminders(4, "contact_4h", contactHandledThisTick);
+    await runStaleProposalAutoPilot();
+    await runScheduleInSystemNag();
+    await runFailureToScheduleFwSurface();
+    await runConfirmedGameReminders();
+    await runGameOverPrompt();
+  }
+  // State maintenance still runs overnight; only its user-facing pings are suppressed.
+  await runCheckinFollowUps(allowGameChannelPings);
   await runAvailabilityNag();
 }

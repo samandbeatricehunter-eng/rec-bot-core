@@ -36,6 +36,7 @@ import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
+import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
   custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
@@ -451,7 +452,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
-    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
+    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
   if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
   const [results, boxScores] = await Promise.all([
@@ -527,6 +528,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       homeScore: resultRow?.home_score ?? null,
       awayScore: resultRow?.away_score ?? null,
       fwFlaggedForUserId: fwFlagByGameId.get(String(game.id)) ?? null,
+      approvedDesignation: game.advance_outcome_override === "fw" ? "force_win" : game.advance_outcome_override === "fs" ? "fair_sim" : null,
     };
   });
 
@@ -687,6 +689,8 @@ export async function setGamePostseasonFlags(input: { guildId: string; gameId: s
 
 export type WeeklyH2hGame = {
   gameId: string;
+  homeUserId: string | null;
+  awayUserId: string | null;
   homeTeamName: string;
   awayTeamName: string;
   status: "missing" | "awaiting_review" | "final";
@@ -735,7 +739,7 @@ export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: s
     } else if (extra?.pendingBoxScoreSubmissionId) {
       status = "awaiting_review";
     }
-    return { gameId: g.id, homeTeamName, awayTeamName, status, result };
+    return { gameId: g.id, homeUserId: g.home_user_id ?? null, awayUserId: g.away_user_id ?? null, homeTeamName, awayTeamName, status, result };
   });
 
   return { weekLabel, games: mapped };
@@ -860,18 +864,38 @@ export async function completeAdvanceWeek(input: {
     // Sims and Force Wins are administrative outcomes, so neither participant is paid.
     if (result.designation !== "fair_sim" && result.designation !== "force_win" && !BOX_SCORE_SOURCES.includes(String(priorResult.data?.source ?? ""))) {
       const payoutConfig = (await getGlobalEconomyConfig()).submissions;
-      for (const [userId, amount, outcomeLabel] of [[winningUserId, payoutConfig.boxScoreWin, "win"], [losingUserId, payoutConfig.boxScoreLoss, "loss"]] as const) {
+      const schedulingMultiplier = await getSchedulingPayoutMultiplier({ gameId: game.data.id, homeUserId, awayUserId });
+      for (const [userId, baseAmount, outcomeLabel] of [[winningUserId, payoutConfig.boxScoreWin, "win"], [losingUserId, payoutConfig.boxScoreLoss, "loss"]] as const) {
         if (!userId || isTie) continue;
         await creditOrBacklog({
           leagueId: context.leagueId,
           seasonNumber,
           userId,
-          amount,
+          amount: baseAmount,
           description: `Game result payout (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
           transactionType: "game_result_payout",
           source: "box_score",
           sourceReference: { gameId: game.data.id, userId, outcome: outcomeLabel },
         });
+        if (schedulingMultiplier === 2) {
+          await creditOrBacklog({
+            leagueId: context.leagueId,
+            seasonNumber,
+            userId,
+            amount: baseAmount,
+            description: `Scheduling completion bonus (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
+            transactionType: "scheduling_bonus_payout",
+            source: "box_score",
+            sourceReference: { gameId: game.data.id, userId },
+          });
+          await topUpOtherWeeklyPayoutsForSchedulingBonus({
+            leagueId: context.leagueId,
+            seasonNumber,
+            weekNumber: game.data.week_number ?? currentWeek,
+            gameId: game.data.id,
+            userId,
+          }).catch((error) => console.error("[ERROR] Failed to top up other weekly payouts for scheduling bonus (non-fatal):", error));
+        }
       }
     }
     if (result.designation === "force_win") {

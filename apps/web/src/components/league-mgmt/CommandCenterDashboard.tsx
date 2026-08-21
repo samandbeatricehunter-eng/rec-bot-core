@@ -225,7 +225,7 @@ function AdvanceReadinessSection() {
       const homeScore = entry?.homeScore ?? (g.homeScore == null ? "" : String(g.homeScore));
       const outcome = deriveOutcome(awayScore, homeScore);
       if (!outcome) return [];
-      return [{ gameId: g.gameId, outcome, homeScore: Number(homeScore), awayScore: Number(awayScore), designation: entry?.designation ?? (g.fwFlaggedForUserId ? "force_win" : "played") }];
+      return [{ gameId: g.gameId, outcome, homeScore: Number(homeScore), awayScore: Number(awayScore), designation: entry?.designation ?? g.approvedDesignation ?? "played" }];
     });
     let progressTimer: number | null = null;
     try {
@@ -364,7 +364,7 @@ function AdvanceReadinessSection() {
                 </div>
               )}
               <div className="advance-game-actions">
-                {g.isH2h && <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? (g.fwFlaggedForUserId ? "force_win" : "played")} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout</option><option value="force_win">Force Win — no payout</option></select></label>}
+                {g.isH2h && <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout</option><option value="force_win">Force Win — no payout</option></select></label>}
                 {/* This league gets its scores from EA import, not box-score submissions — nudging a
                     coach to submit one doesn't apply here (they can't stop a game "missing" a score
                     until the next import runs). The score-entry fields above stay available either way

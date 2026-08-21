@@ -82,6 +82,42 @@ export function formatInstantInZone(iso: string, timeZone: string): string {
   return dtf.format(new Date(iso));
 }
 
+// Real elapsed time between two instants, minus whatever portion of it fell inside
+// [quietStartHour, quietEndHour) local wall-clock time in `timeZone` -- used to pause a
+// no-response wait timer overnight so it doesn't penalize someone for being asleep. Walks day
+// by day rather than solving algebraically since DST means a "day" isn't always 24h; the
+// 400-iteration cap is just a sanity backstop; no wait this checks is ever realistically more
+// than a few days long.
+export function elapsedMsExcludingQuietHours(
+  fromMs: number,
+  toMs: number,
+  timeZone: string,
+  quietStartHour = 0,
+  quietEndHour = 7,
+): number {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return 0;
+  let quietMs = 0;
+  // Walk calendar days (in `timeZone`) starting from fromMs's own local day. Stepping a UTC
+  // cursor by 24h instead of by local calendar day would miss the very next quiet window when
+  // fromMs falls late at night: e.g. fromMs at 11 PM local, cursor+24h lands at 11 PM the NEXT
+  // local day, whose "day" (per instantToZonedParts) is still one calendar day short of the
+  // midnight-7AM window that actually follows fromMs.
+  const startParts = instantToZonedParts(new Date(fromMs), timeZone);
+  let dayCursor = Date.UTC(startParts.year, startParts.month - 1, startParts.day);
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(dayCursor);
+    const year = d.getUTCFullYear(), month = d.getUTCMonth() + 1, day = d.getUTCDate();
+    const quietStart = zonedWallTimeToUtcIana(year, month, day, quietStartHour, 0, timeZone).getTime();
+    if (quietStart >= toMs) break;
+    const quietEnd = zonedWallTimeToUtcIana(year, month, day, quietEndHour, 0, timeZone).getTime();
+    const overlapStart = Math.max(fromMs, quietStart);
+    const overlapEnd = Math.min(toMs, quietEnd);
+    if (overlapEnd > overlapStart) quietMs += overlapEnd - overlapStart;
+    dayCursor += 24 * 60 * 60 * 1000;
+  }
+  return Math.max(0, (toMs - fromMs) - quietMs);
+}
+
 // Inverse: what wall-clock date/time does `instant` show in `timeZone`? Used to walk
 // calendar days in a user's own timezone when generating recurring-availability instants.
 export function instantToZonedParts(instant: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
