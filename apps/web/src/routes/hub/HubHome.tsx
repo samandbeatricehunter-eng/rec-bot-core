@@ -1501,7 +1501,7 @@ export function HubHome() {
             : product.type === "attribute"
               ? "Caps shown after select"
               : cap != null && cap > 0
-                ? `${used}/${cap} purchased`
+                ? `${used}/${cap} ${product.type === "legend" ? "on this team" : "purchased"}`
                 : `${used} purchased · Unlimited`;
           return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setDevUpgradePlayer(null); setDevUpgradeTargetTier(""); setAgeResetPlayer(null); setContractPlayer(null); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
