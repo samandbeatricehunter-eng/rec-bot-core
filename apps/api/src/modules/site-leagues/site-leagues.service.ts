@@ -166,7 +166,7 @@ export async function retireFromSiteLeague(input: {
   if (await isLeagueCommissioner(input.recUserId, input.leagueId)) {
     throw new ApiError(
       403,
-      "Commissioners cannot retire here. Use League Mgmt to resign or transfer.",
+      "Commissioners cannot retire here. Use Settings → Retire in League Management.",
     );
   }
 

@@ -357,6 +357,13 @@ export const recApi = {
     recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   retireFromHub: (guildId: string) =>
     recApiFetch<{ ok: true }>("/v1/hub/retire", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getCommissionerRetireContext: (guildId: string) =>
+    recApiFetch<{
+      isHeadCommissioner: boolean;
+      candidates: Array<{ userId: string; displayName: string; teamName: string | null; role: string }>;
+    }>("/v1/hub/retire/commissioner", { method: "POST", body: JSON.stringify({ guildId }) }),
+  retireAsCommissioner: (input: { guildId: string; transferToUserId?: string | null }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/retire/commissioner/confirm", { method: "POST", body: JSON.stringify(input) }),
   toggleHubHighlightReaction: (input: { guildId: string; highlightId: string; reactionKey: HubReactionKey }) =>
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
   recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>

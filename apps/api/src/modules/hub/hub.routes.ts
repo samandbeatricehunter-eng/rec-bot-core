@@ -32,6 +32,8 @@ import {
   recordHubStreamView,
   recordAnonymousStreamView,
   retireFromHub,
+  getCommissionerRetireContext,
+  retireAsCommissioner,
   reviewMediaSubmission,
   STREAM_VIEWER_COOKIE,
   submitInterview,
@@ -538,6 +540,31 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Retire requires a user session.");
       return reply.send(await retireFromHub(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/retire/commissioner", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Retire requires a user session.");
+      return reply.send(await getCommissionerRetireContext(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/retire/commissioner/confirm", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        transferToUserId: z.string().uuid().optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Retire requires a user session.");
+      return reply.send(await retireAsCommissioner({
+        guildId: body.guildId,
+        discordId: auth.discordId,
+        transferToUserId: body.transferToUserId,
+      }));
     } catch (error) { return sendError(reply, error); }
   });
 }

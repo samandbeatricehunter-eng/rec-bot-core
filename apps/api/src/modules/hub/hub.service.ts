@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase.js";
 import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
-import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, isSiteOnlyGuildId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -39,7 +39,9 @@ import { getGameChannelByGameId } from "../game-channels/game-channels.service.j
 import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat.service.js";
 import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
 import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
+import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
+import { setMemberRole } from "../roles/roles.service.js";
 import { getSchedulingPayoutMultiplier } from "../scheduling/scheduling-bonus.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
@@ -202,7 +204,7 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
     .then(() => true)
     .catch(() => false);
   if (canManageLeague) {
-    throw new ApiError(403, "Commissioners cannot retire here. Use League Mgmt to resign or transfer.");
+    throw new ApiError(403, "Commissioners cannot retire here. Use Settings → Retire in League Management.");
   }
 
   const assignment = await activeAssignment(context.leagueId, userId);
@@ -235,6 +237,184 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
   await clearDiscordTeamIdentityForUsers({ leagueId: context.leagueId, guildId, userIds: [userId] });
   await syncLeagueRecruitingAd(context.leagueId);
 
+  return { ok: true };
+}
+
+export type CommissionerRetireCandidate = {
+  userId: string;
+  displayName: string;
+  teamName: string | null;
+  role: string;
+};
+
+export type CommissionerRetireContext = {
+  isHeadCommissioner: boolean;
+  candidates: CommissionerRetireCandidate[];
+};
+
+function membershipIsHeadRole(role: string | null | undefined) {
+  return role === "commissioner" || role === "head_commissioner";
+}
+
+function isLeagueOwner(ownerUserId: string | null | undefined, userId: string) {
+  return String(ownerUserId ?? "") === userId;
+}
+
+function isHeadCommissionerFor(ownerUserId: string | null | undefined, userId: string, role: string | null) {
+  // The transferable title is league ownership. A full commissioner who isn't the owner
+  // shouldn't be forced (or allowed) to reassign owner_user_id on the way out.
+  if (isLeagueOwner(ownerUserId, userId)) return true;
+  return !ownerUserId && membershipIsHeadRole(role);
+}
+
+async function loadMembershipRole(leagueId: string, userId: string): Promise<string | null> {
+  const membership = await supabase
+    .from("rec_league_memberships")
+    .select("role")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (membership.error) throw new ApiError(500, "We couldn't load your league role. Please try again.", membership.error);
+  return membership.data?.role ? String(membership.data.role) : null;
+}
+
+async function listOtherActiveMembers(leagueId: string, excludingUserId: string): Promise<CommissionerRetireCandidate[]> {
+  const memberships = await supabase
+    .from("rec_league_memberships")
+    .select("user_id,role")
+    .eq("league_id", leagueId)
+    .eq("status", "active")
+    .neq("user_id", excludingUserId);
+  if (memberships.error) throw new ApiError(500, "We couldn't load league members. Please try again.", memberships.error);
+  const rows = memberships.data ?? [];
+  const userIds = rows.map((row: any) => String(row.user_id));
+  if (!userIds.length) return [];
+  const [users, assignments] = await Promise.all([
+    supabase.from("rec_users").select("id,display_name,username").in("id", userIds),
+    supabase
+      .from("rec_team_assignments")
+      .select("user_id,team:rec_teams(name,abbreviation)")
+      .eq("league_id", leagueId)
+      .eq("assignment_status", "active")
+      .is("ended_at", null)
+      .in("user_id", userIds),
+  ]);
+  if (users.error) throw new ApiError(500, "We couldn't load league members. Please try again.", users.error);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments. Please try again.", assignments.error);
+  const userById = new Map<string, { display_name: string | null; username: string | null }>(
+    (users.data ?? []).map((row: any) => [String(row.id), { display_name: row.display_name ?? null, username: row.username ?? null }]),
+  );
+  const teamByUser = new Map<string, string>();
+  for (const row of assignments.data ?? []) {
+    const team = Array.isArray(row.team) ? row.team[0] : row.team;
+    const label = team?.name ?? team?.abbreviation ?? null;
+    if (row.user_id && label) teamByUser.set(String(row.user_id), String(label));
+  }
+  return rows
+    .map((row: any) => {
+      const user = userById.get(String(row.user_id));
+      const displayName = String(user?.username || user?.display_name || "Member");
+      return {
+        userId: String(row.user_id),
+        displayName,
+        teamName: teamByUser.get(String(row.user_id)) ?? null,
+        role: String(row.role ?? "member"),
+      };
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+async function unlinkUserFromLeague(input: { leagueId: string; guildId: string; userId: string }) {
+  const assignment = await activeAssignment(input.leagueId, input.userId);
+  if (assignment) {
+    const updated = await supabase
+      .from("rec_team_assignments")
+      .update({
+        assignment_status: "unlinked",
+        ended_at: new Date().toISOString(),
+        user_id: null,
+      })
+      .eq("id", assignment.id)
+      .is("ended_at", null)
+      .select("id")
+      .maybeSingle();
+    if (updated.error) throw new ApiError(500, "We couldn't retire you from this league. Please try again.", updated.error);
+    if (!updated.data) throw new ApiError(409, "Could not retire from this league. Try again.");
+    await syncScheduleGameUserIdsForTeams(input.leagueId, [assignment.team_id]);
+  }
+
+  const membership = await supabase.from("rec_league_memberships")
+    .delete()
+    .eq("league_id", input.leagueId)
+    .eq("user_id", input.userId);
+  if (membership.error) throw new ApiError(500, "We couldn't remove league access. Please try again.", membership.error);
+
+  await clearDiscordTeamIdentityForUsers({ leagueId: input.leagueId, guildId: input.guildId, userIds: [input.userId] });
+  await syncLeagueRecruitingAd(input.leagueId);
+}
+
+/** Settings → Retire: commissioners leave the league (and Discord) after confirming. Head
+ * commissioners (the league owner) must pick another member to receive that title first. */
+export async function getCommissionerRetireContext(guildId: string, discordId: string): Promise<CommissionerRetireContext> {
+  await assertGuildPermission(guildId, discordId, "co_commissioner");
+  const context = await getCurrentLeagueContext(guildId);
+  const userId = await userIdForDiscord(discordId);
+  const role = await loadMembershipRole(context.leagueId, userId);
+  const isHeadCommissioner = isHeadCommissionerFor(context.rec_leagues.owner_user_id, userId, role);
+  const candidates = await listOtherActiveMembers(context.leagueId, userId);
+  return { isHeadCommissioner, candidates };
+}
+
+export async function retireAsCommissioner(input: {
+  guildId: string;
+  discordId: string;
+  transferToUserId?: string | null;
+}): Promise<{ ok: true }> {
+  await assertGuildPermission(input.guildId, input.discordId, "co_commissioner");
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const role = await loadMembershipRole(context.leagueId, userId);
+  const isHeadCommissioner = isHeadCommissionerFor(context.rec_leagues.owner_user_id, userId, role);
+
+  if (isHeadCommissioner) {
+    const transferToUserId = input.transferToUserId?.trim() || "";
+    if (!transferToUserId) {
+      throw new ApiError(400, "Choose a member to become the new head commissioner before retiring.");
+    }
+    if (transferToUserId === userId) {
+      throw new ApiError(400, "You can't transfer the head commissioner title to yourself.");
+    }
+    const candidates = await listOtherActiveMembers(context.leagueId, userId);
+    const successor = candidates.find((row) => row.userId === transferToUserId);
+    if (!successor) throw new ApiError(404, "That member isn't in this league.");
+
+    const now = new Date().toISOString();
+    const transferred = await supabase
+      .from("rec_leagues")
+      .update({ owner_user_id: transferToUserId, updated_at: now })
+      .eq("id", context.leagueId);
+    if (transferred.error) throw new ApiError(500, "We couldn't transfer the head commissioner title. Please try again.", transferred.error);
+
+    const promoted = await supabase
+      .from("rec_league_memberships")
+      .update({ role: "commissioner", updated_at: now })
+      .eq("league_id", context.leagueId)
+      .eq("user_id", transferToUserId);
+    if (promoted.error) throw new ApiError(500, "Ownership moved, but we couldn't promote the new head commissioner. Please try again.", promoted.error);
+
+    const successorDiscordId = await discordIdForUser(transferToUserId);
+    if (successorDiscordId && !isSiteOnlyGuildId(input.guildId)) {
+      await setMemberRole({
+        guildId: input.guildId,
+        discordId: successorDiscordId,
+        roleKey: "commissioner",
+        actingDiscordId: input.discordId,
+      }).catch((error) => console.error("[ERROR] Failed to grant Discord commissioner role to successor (non-fatal):", error));
+    }
+  }
+
+  await unlinkUserFromLeague({ leagueId: context.leagueId, guildId: input.guildId, userId });
   return { ok: true };
 }
 
