@@ -57,6 +57,8 @@ export type StreamingAccountsResponse = {
     twitch: boolean;
     youtube: boolean;
     tiktokOAuth: boolean;
+    twitchUsername?: boolean;
+    youtubeUsername?: boolean;
     tiktokUsername: boolean;
     publicApi: boolean;
   };
@@ -402,8 +404,11 @@ export const siteApi = {
   startStreamingOAuth(platform: StreamPlatform) {
     return request<{ url: string }>("/v1/streaming/oauth/start", { platform });
   },
+  linkStreamingUsername(platform: StreamPlatform, username: string) {
+    return request<StreamingAccountsResponse>("/v1/streaming/accounts/username", { platform, username });
+  },
   linkTiktokUsername(username: string) {
-    return request<StreamingAccountsResponse>("/v1/streaming/tiktok/username", { username });
+    return this.linkStreamingUsername("tiktok", username);
   },
   unlinkStreamingAccount(platform: StreamPlatform) {
     return request<StreamingAccountsResponse>("/v1/streaming/accounts/unlink", { platform });

@@ -85,22 +85,45 @@ export async function fetchTwitchUser(accessToken: string): Promise<TwitchUser> 
   return user;
 }
 
-export async function helixGetStreams(userIds: string[]): Promise<Array<{ user_id: string; id: string; user_login: string }>> {
-  const ids = [...new Set(userIds.filter(Boolean))];
-  if (!ids.length || !twitchConfigured()) return [];
+export async function helixGetUsersByLogin(logins: string[]): Promise<TwitchUser[]> {
+  const names = [...new Set(logins.map((login) => login.trim().toLowerCase()).filter(Boolean))];
+  if (!names.length || !twitchConfigured()) return [];
   const token = await twitchAppAccessToken();
-  const out: Array<{ user_id: string; id: string; user_login: string }> = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const batch = ids.slice(i, i + 100);
+  const out: TwitchUser[] = [];
+  for (let i = 0; i < names.length; i += 100) {
     const params = new URLSearchParams();
-    for (const id of batch) params.append("user_id", id);
-    const res = await fetch(`${TWITCH_HELIX}/streams?${params.toString()}`, {
+    for (const login of names.slice(i, i + 100)) params.append("login", login);
+    const res = await fetch(`${TWITCH_HELIX}/users?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}`, "Client-Id": env.TWITCH_CLIENT_ID! },
     });
     if (!res.ok) continue;
-    const payload = (await res.json()) as { data?: Array<{ user_id: string; id: string; user_login: string }> };
+    const payload = (await res.json()) as { data?: TwitchUser[] };
     out.push(...(payload.data ?? []));
   }
+  return out;
+}
+
+export async function helixGetStreams(userIds: string[], logins: string[] = []): Promise<Array<{ user_id: string; id: string; user_login: string }>> {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  const names = [...new Set(logins.map((login) => login.trim().toLowerCase()).filter(Boolean))];
+  if ((!ids.length && !names.length) || !twitchConfigured()) return [];
+  const token = await twitchAppAccessToken();
+  const out: Array<{ user_id: string; id: string; user_login: string }> = [];
+  async function fetchBatch(param: "user_id" | "user_login", values: string[]) {
+    for (let i = 0; i < values.length; i += 100) {
+      const batch = values.slice(i, i + 100);
+      const params = new URLSearchParams();
+      for (const value of batch) params.append(param, value);
+      const res = await fetch(`${TWITCH_HELIX}/streams?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}`, "Client-Id": env.TWITCH_CLIENT_ID! },
+      });
+      if (!res.ok) continue;
+      const payload = (await res.json()) as { data?: Array<{ user_id: string; id: string; user_login: string }> };
+      out.push(...(payload.data ?? []));
+    }
+  }
+  await fetchBatch("user_id", ids);
+  await fetchBatch("user_login", names);
   return out;
 }
 

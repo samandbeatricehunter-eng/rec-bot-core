@@ -31,6 +31,38 @@ export function publicStreamUrl(platform: StreamPlatform, login: string, platfor
   return `https://www.tiktok.com/@${handle}/live`;
 }
 
+/** Strip @, path, and profile URLs down to the handle Share Stream / live-poll can use. */
+export function normalizeStreamHandle(platform: StreamPlatform, raw: string): string {
+  let value = String(raw ?? "").trim();
+  if (platform === "youtube") {
+    value = value.replace(/^https?:\/\/(www\.)?youtube\.com\//i, "");
+    value = value.replace(/^(channel|c|user)\//i, "");
+    value = value.replace(/^@/, "").replace(/\/(live|videos|featured|streams)?\/?$/i, "");
+    return value.trim();
+  }
+  if (platform === "twitch") {
+    value = value.replace(/^https?:\/\/(www\.)?twitch\.tv\//i, "");
+  } else {
+    value = value.replace(/^https?:\/\/(www\.)?tiktok\.com\//i, "");
+  }
+  return value.replace(/^@/, "").replace(/\/.*$/, "").trim().toLowerCase();
+}
+
+export function isValidStreamHandle(platform: StreamPlatform, handle: string): boolean {
+  if (platform === "twitch") return /^[a-z0-9_]{3,25}$/.test(handle);
+  if (platform === "youtube") {
+    if (/^UC[A-Za-z0-9_-]{20,}$/.test(handle)) return true;
+    return /^[A-Za-z0-9._-]{3,30}$/.test(handle);
+  }
+  return /^[a-z0-9._]{2,24}$/.test(handle);
+}
+
+export function streamHandleError(platform: StreamPlatform): string {
+  if (platform === "twitch") return "Enter a valid Twitch username (letters, numbers, or underscore).";
+  if (platform === "youtube") return "Enter a valid YouTube handle (letters, numbers, period, hyphen, or underscore).";
+  return "Enter a valid TikTok username (letters, numbers, period, or underscore).";
+}
+
 export function detectStreamPlatform(rawUrl: string): StreamPlatform | "kick" | "other" | null {
   const url = String(rawUrl ?? "").trim().toLowerCase();
   if (!url) return null;
