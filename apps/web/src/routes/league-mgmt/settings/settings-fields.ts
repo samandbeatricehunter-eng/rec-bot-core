@@ -179,9 +179,9 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   // Special-cased in SettingsHome.tsx to render <EosPayoutMaintenance /> instead of the
   // generic field list.
   { key: "eos-payouts", label: "Maintenance", fields: [] },
-  // Special-cased in SettingsHome.tsx to render <FirstTimeSetupHome /> instead of the
-  // generic field list — a fundamentally different UI shape (a whole self-contained
-  // create-league form/wizard, not a SettingsField[] list), so `fields` is unused here.
+  // Special-cased in SettingsHome.tsx — commissioners leave the league from here because the
+  // league top nav only shows Retire for non-commissioner members.
+  { key: "retire", label: "Retire", fields: [] },
   // Special-cased in SettingsHome.tsx to render <DeleteLeagueHome /> instead of the generic
   // field list — a destructive standalone action, not a settings form.
   {

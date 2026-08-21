@@ -18,11 +18,13 @@ import { ModerationSettings } from "./ModerationSettings.js";
 import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
+import { RetireSettings } from "./RetireSettings.js";
 import { SliderSettingsPanel } from "./SliderSettingsPanel.js";
 import { MaddenCompanionSettings } from "./MaddenCompanionSettings.js";
 import { DataModeSettings } from "./DataModeSettings.js";
 
 const EOS_PAYOUTS_KEY = "eos-payouts";
+const RETIRE_KEY = "retire";
 const DELETE_LEAGUE_KEY = "delete-league";
 const PURCHASE_DEADLINE_TYPES = [
   ["custom_player", "Custom Players"], ["legend", "Legends"], ["attribute", "Attributes"],
@@ -182,7 +184,9 @@ export function SettingsHome() {
           </div>
           <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} />
         </>
-      ) : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === DELETE_LEAGUE_KEY ? (
+      ) : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === RETIRE_KEY ? (
+        <RetireSettings />
+      ) : activeCategory === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>
