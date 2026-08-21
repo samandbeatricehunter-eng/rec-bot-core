@@ -1278,6 +1278,7 @@ export const recGameChannels = pgTable("rec_game_channels", {
   awayUserId: uuid("away_user_id").references(() => recUsers.id),
   homeUserId: uuid("home_user_id").references(() => recUsers.id),
   status: text("status").notNull().default("active"),
+  introMessageId: text("intro_message_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()

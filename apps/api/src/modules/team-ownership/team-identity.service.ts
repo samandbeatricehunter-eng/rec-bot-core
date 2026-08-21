@@ -164,6 +164,10 @@ async function applyIdentity(input: {
   const league = await supabase.from("rec_leagues").select("game").eq("id", input.leagueId).maybeSingle();
   const isCfb = league.data?.game === "cfb_27";
   await resyncDiscordNicknames(input.guildId, input.leagueId, input.teamId, updated.data, isCfb);
+  const { refreshGameChannelIntrosForTeam } = await import("../game-channels/game-channels.service.js");
+  await refreshGameChannelIntrosForTeam(input.guildId, input.teamId).catch((error) => {
+    console.error("[ERROR] Failed to refresh game-channel embeds after team identity change (non-fatal):", error);
+  });
   return updated.data;
 }
 

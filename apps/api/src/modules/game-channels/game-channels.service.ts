@@ -3,7 +3,7 @@ import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage, postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
+import { createGuildChannel, deleteGuildChannel, editDiscordMessage, editDiscordMessageWithFile, getBotUserId, listDiscordChannelMessages, postDiscordChannelMessage, postDiscordChannelMessageWithFile, renameGuildChannel } from "../../lib/discord-guild.js";
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
@@ -305,7 +305,45 @@ export async function postDashingNoticeToActiveGameChannels() {
   return { posted };
 }
 
-async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
+async function renderMatchupCardSafely(gameId: string | null | undefined): Promise<Buffer | null> {
+  if (!gameId) return null;
+  return Promise.race([
+    renderMatchupCardPng(gameId),
+    new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Matchup card render timed out (outer 20s safety net)")), 20_000)),
+  ]).catch((error) => {
+    console.error("[ERROR] Failed to render matchup card for game channel (non-fatal):", error);
+    return null;
+  });
+}
+
+function isGameChannelIntroMessage(message: { author?: { id?: string }; attachments?: Array<{ filename?: string }>; embeds?: Array<{ title?: string | null }> }, botUserId: string): boolean {
+  if (message.author?.id !== botUserId) return false;
+  if ((message.attachments ?? []).some((file) => file.filename === "matchup-card.png")) return true;
+  const title = String(message.embeds?.[0]?.title ?? "");
+  return /H2H MATCHUP|GAME OF THE WEEK/i.test(title);
+}
+
+async function findGameChannelIntroMessageId(channelId: string, knownId?: string | null): Promise<string | null> {
+  if (knownId) return knownId;
+  const [botUserId, messages] = await Promise.all([
+    getBotUserId(),
+    listDiscordChannelMessages(channelId, 100),
+  ]);
+  const match = [...messages].reverse().find((message) => isGameChannelIntroMessage(message, botUserId));
+  return match?.id ?? null;
+}
+
+async function postGameChannelIntro(input: {
+  channelId: string;
+  weekNumber: number;
+  game: any;
+  draft: any;
+  ranks: Map<string, any>;
+  discordByUserId: Map<string, string>;
+  isGotw: boolean;
+  pingMentions?: boolean;
+  existingMessageId?: string | null;
+}) {
   const built = buildGameChannelIntroLines(input);
 
   // Best-effort: the game-channel post must go out even if Chromium is unavailable or the
@@ -315,15 +353,7 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
   // timeouts, but if Chromium itself hangs on launch (the classic "no sandbox capability in this
   // container" failure mode) rather than rejecting, nothing inside it can catch that; this makes
   // sure a stuck render can never block the rest of a week's channel creation.
-  const png = input.game.gameId
-    ? await Promise.race([
-        renderMatchupCardPng(input.game.gameId),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Matchup card render timed out (outer 20s safety net)")), 20_000)),
-      ]).catch((error) => {
-        console.error("[ERROR] Failed to render matchup card for game channel (non-fatal):", error);
-        return null;
-      })
-    : null;
+  const png = await renderMatchupCardSafely(input.game.gameId);
 
   // The card image already shows the matchup -- the "Away at Home" text description is only
   // needed as a fallback for when the render didn't come through.
@@ -339,21 +369,33 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
     description: DASHING_NOTICE,
   };
 
+  const ping = input.pingMentions !== false;
   // Coach mentions live ONLY in the message content, not the header embed's description -- an
   // embed mention never triggers a Discord ping/notification, so this is the one place that
-  // needs them for the channel-creation ping to actually fire.
-  const payload = {
-    content: built.mentions.join(" "),
+  // needs them for the channel-creation ping to actually fire. Relocate refreshes must not
+  // re-ping (allowed_mentions empty + no content mentions).
+  const payload: Record<string, unknown> = {
+    content: ping ? built.mentions.join(" ") : "",
     embeds: png ? [{ ...headerEmbed, image: { url: "attachment://matchup-card.png" } }, rulesEmbed] : [headerEmbed, rulesEmbed],
-    allowed_mentions: { users: built.mentionIds },
+    allowed_mentions: ping ? { users: built.mentionIds } : { parse: [] },
   };
+  if (!png) payload.attachments = [];
 
-  if (png) {
-    await postDiscordChannelMessageWithFile(input.channelId, payload, { buffer: png, name: "matchup-card.png" });
-  } else {
-    await postDiscordChannelMessage(input.channelId, payload);
+  const existingMessageId = input.existingMessageId || null;
+  let messageId: string | null = existingMessageId;
+  if (existingMessageId) {
+    const edited = png
+      ? await editDiscordMessageWithFile(input.channelId, existingMessageId, payload, { buffer: png, name: "matchup-card.png" })
+      : await editDiscordMessage(input.channelId, existingMessageId, payload);
+    if (!edited) messageId = null;
   }
-  return built;
+  if (!messageId) {
+    const posted = png
+      ? await postDiscordChannelMessageWithFile(input.channelId, payload, { buffer: png, name: "matchup-card.png" })
+      : await postDiscordChannelMessage(input.channelId, payload);
+    messageId = posted?.id ?? null;
+  }
+  return { ...built, messageId };
 }
 
 type GameChannelContext = Awaited<ReturnType<typeof getCurrentLeagueContext>>;
@@ -416,6 +458,12 @@ async function createChannelsForGames(context: GameChannelContext, guildId: stri
       homeUserId: game.homeUserId,
     });
     const intro = await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser, isGotw: gotwGameIds.has(game.gameId) });
+    if (intro.messageId && gameChannelRow?.id) {
+      await supabase.from("rec_game_channels").update({ intro_message_id: intro.messageId, updated_at: new Date().toISOString() }).eq("id", gameChannelRow.id)
+        .then(({ error }) => {
+          if (error) console.error("[ERROR] Failed to save game-channel intro message id (non-fatal):", error);
+        });
+    }
     if (game.awayUserId && game.homeUserId) {
       await startResponseClock(game.gameId).catch((error) => console.error("[ERROR] Failed to start scheduling response clock (non-fatal):", error));
       await postSchedulingPanel(channel.id, game.gameId);
@@ -557,4 +605,69 @@ export async function repairGameChannelsForCurrentWeek(guildId: string) {
 
   const created = missingGames.length ? await createChannelsForGames(context, guildId, categoryId, week, missingGames) : [];
   return { created, skipped: h2hGames.length - missingGames.length, eligible: h2hGames.length };
+}
+
+/** After a relocate/custom identity change: rename the current-week Discord channel and
+ *  replace the intro matchup-card embed in place (no new pings, channel chat stays). */
+export async function refreshGameChannelIntrosForTeam(guildId: string, teamId: string): Promise<{ refreshed: number }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const channels = await supabase
+    .from("rec_game_channels")
+    .select("id,game_id,discord_channel_id,intro_message_id,away_team_id,home_team_id")
+    .eq("league_id", context.leagueId)
+    .eq("status", "active")
+    .or(`away_team_id.eq.${teamId},home_team_id.eq.${teamId}`);
+  if (channels.error) {
+    console.error("[ERROR] Failed to load game channels for identity refresh (non-fatal):", channels.error);
+    return { refreshed: 0 };
+  }
+  const rows = (channels.data ?? []).filter((row) => row.game_id && row.discord_channel_id);
+  if (!rows.length) return { refreshed: 0 };
+
+  const week = await getAdvanceWeekGames(guildId);
+  const gamesById = new Map((week.games as any[]).map((game) => [game.gameId as string, game]));
+  const [draft, powerRankings, discordByUser] = await Promise.all([
+    bestEffort("game_channels.league_config_draft", () => getLeagueConfigAsDraft(guildId).then((r) => (r as any)?.draft ?? null), { guildId }).then((v) => v ?? null),
+    computePowerRankings(guildId).catch(() => ({ teams: [] })),
+    discordIdsByUserId([...new Set(rows.flatMap((row) => {
+      const game = gamesById.get(String(row.game_id));
+      return game ? [game.awayUserId, game.homeUserId] : [];
+    }).filter(Boolean))] as string[]),
+  ]);
+  const gotwPolls = await supabase.from("rec_game_of_week_polls").select("game_id").eq("league_id", context.leagueId)
+    .eq("season_number", week.seasonNumber).eq("week_number", week.currentWeek).in("status", ["open", "closed"]);
+  const gotwGameIds = new Set((gotwPolls.data ?? []).map((poll: any) => poll.game_id).filter(Boolean));
+  const ranks = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
+
+  let refreshed = 0;
+  for (const row of rows) {
+    const game = gamesById.get(String(row.game_id));
+    if (!game) continue;
+    const channelId = String(row.discord_channel_id);
+    const nextName = `${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
+    await renameGuildChannel(channelId, nextName, "REC team relocated — channel renamed").catch((error) => {
+      console.error(`[WARN] Failed to rename game channel ${channelId} after relocate (non-fatal):`, error);
+    });
+    const existingMessageId = await findGameChannelIntroMessageId(channelId, row.intro_message_id as string | null).catch(() => row.intro_message_id as string | null);
+    try {
+      const intro = await postGameChannelIntro({
+        channelId,
+        weekNumber: week.currentWeek,
+        game,
+        draft,
+        ranks,
+        discordByUserId: discordByUser,
+        isGotw: gotwGameIds.has(game.gameId),
+        pingMentions: false,
+        existingMessageId,
+      });
+      if (intro.messageId && intro.messageId !== row.intro_message_id) {
+        await supabase.from("rec_game_channels").update({ intro_message_id: intro.messageId, updated_at: new Date().toISOString() }).eq("id", row.id);
+      }
+      refreshed += 1;
+    } catch (error) {
+      console.error(`[ERROR] Failed to refresh game-channel intro for ${channelId} after relocate (non-fatal):`, error);
+    }
+  }
+  return { refreshed };
 }
