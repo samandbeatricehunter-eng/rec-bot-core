@@ -14,8 +14,9 @@ type SchedulingRow = {
   response_started_at: string | null; home_responded_at: string | null; away_responded_at: string | null;
 };
 
-// Channel-wide, not per-game -- the handler resolves "your game" itself from the clicking
-// user's discordId (see ready-to-advance.service.ts), so no gameId needs to travel in the id.
+// Historical custom_id for the Ready to Advance button this post used to carry. The weekly
+// embed no longer attaches it; leftover Discord messages may still fire rec:rta:btn until
+// the next in-place edit (which sends components: [] to strip them).
 export const READY_TO_ADVANCE_BUTTON_ID = "rec:rta:btn";
 
 function mentionOrFallback(discordId: string | null | undefined): string {
@@ -60,11 +61,6 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const week = await getAdvanceWeekGames(guildId).catch((error) => { console.error("[ERROR] matchups channel: failed to load week games (non-fatal):", error); return null; });
   if (!week) return;
   const h2hGames = (week.games as any[]).filter((g) => g.isH2h);
-  // A CPU matchup with one human coach (not a full CPU-vs-CPU game, which nobody needs to
-  // ready up for) -- shown in its own block below the H2H list, per-game so a coach can see
-  // which of their weeks still needs a Force Win request or a final score.
-  const humanCpuGames = (week.games as any[]).filter((g) => !g.isH2h && (g.homeUserId || g.awayUserId));
-  if (!h2hGames.length && !humanCpuGames.length) return;
 
   const context = await getCurrentLeagueContext(guildId).catch(() => null);
   if (!context) return;
@@ -72,10 +68,21 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const channelId = String((routes?.routes as any)?.announcements_channel_id ?? (routes?.routes as any)?.matchups_channel_id ?? "");
   if (!channelId) return;
 
-  const gameIds = [...h2hGames, ...humanCpuGames].map((g) => g.gameId);
+  // H2H-only post. If this week has no human matchups, drop any leftover embed (CPU block
+  // and/or Ready to Advance button) rather than leaving a stale message in the channel.
+  if (!h2hGames.length) {
+    const state = await supabase.from("rec_matchups_channel_posts").select("channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
+    if (state.data?.message_id) {
+      await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
+      await supabase.from("rec_matchups_channel_posts").delete().eq("league_id", context.leagueId);
+    }
+    return;
+  }
+
+  const gameIds = h2hGames.map((g) => g.gameId);
   const [scheduling, streams, fairSims] = await Promise.all([
     supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id,response_started_at,home_responded_at,away_responded_at").in("game_id", gameIds),
-    supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", h2hGames.map((g) => g.gameId)).eq("status", "posted").is("ended_at", null),
+    supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", gameIds).eq("status", "posted").is("ended_at", null),
     supabase.from("rec_game_scheduling_events").select("game_id").in("game_id", gameIds).eq("event_type", "commissioner_grant_fs"),
   ]);
   const fairSimGameIds = new Set((fairSims.data ?? []).map((row: any) => String(row.game_id)));
@@ -87,7 +94,7 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
     streamsByGame.set(String(row.game_id), list);
   }
 
-  const userIds = [...new Set([...h2hGames, ...humanCpuGames].flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
+  const userIds = [...new Set(h2hGames.flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
   const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [] as any[] };
   const discordByUser = new Map<string, string>((accounts.data ?? []).map((a: any) => [String(a.user_id), String(a.discord_id)]));
 
@@ -108,30 +115,13 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
     return `${header}\n> ${statusText}${streamLine}`;
   });
 
-  const cpuLines = humanCpuGames.map((g) => {
-    const s = schedulingByGame.get(g.gameId);
-    const isHome = Boolean(g.homeUserId);
-    const coachTeamName = isHome ? g.homeTeamName : g.awayTeamName;
-    const coachUserId = isHome ? g.homeUserId : g.awayUserId;
-    const cpuTeamName = isHome ? g.awayTeamName : g.homeTeamName;
-    const header = `**${coachTeamName}** ${mentionOrFallback(discordByUser.get(coachUserId))} vs **${cpuTeamName}** (CPU)`;
-    const statusText = s?.fw_flagged
-      ? "Requesting Force Win"
-      : g.homeScore != null && g.awayScore != null
-        ? `Final: ${g.awayScore} — ${g.homeScore}`
-        : "Not yet reported";
-    return `${header}\n> ${statusText}`;
-  });
-
   const seasonNumber = week.seasonNumber ?? 1;
   const title = `Season ${seasonNumber}, Week ${week.currentWeek} Matchups`;
-  const description = lines.join("\n\n");
-  const embeds: Array<{ title: string; color: number; description: string }> = [];
-  if (lines.length) embeds.push({ title, color: 0xd9a521, description: description.slice(0, 4096) });
-  if (cpuLines.length) embeds.push({ title: lines.length ? "Human vs CPU" : title, color: 0x6a5120, description: cpuLines.join("\n\n").slice(0, 4096) });
+  // components: [] is required on edit — omitting the field leaves the previous Ready to
+  // Advance button on the Discord message.
   const payload = {
-    embeds,
-    components: [{ type: 1, components: [{ type: 2, style: 1, custom_id: READY_TO_ADVANCE_BUTTON_ID, label: "Ready to Advance", emoji: { name: "✅" } }] }],
+    embeds: [{ title, color: 0xd9a521, description: lines.join("\n\n").slice(0, 4096) }],
+    components: [] as unknown[],
   };
 
   const state = await supabase.from("rec_matchups_channel_posts").select("week_number,channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();

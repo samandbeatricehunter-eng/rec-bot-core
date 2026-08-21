@@ -1,9 +1,7 @@
-// "Ready to Advance" button on the weekly matchups channel post (posted by
-// apps/api/src/modules/scheduling/matchups-channel.service.ts). Walks a coach through readying
-// up their own current-week game: H2H asks "have you played?" (score self-report if so), CPU
-// asks "played, or requesting a Force Win?". Every prompt is ephemeral -- only the resulting
-// state change (score recorded, FW requested) shows up publicly, via the matchups post itself
-// refreshing (server-side, see ready-to-advance.service.ts).
+// Leftover handlers for the Ready to Advance button the weekly matchups embed used to carry.
+// New posts no longer include that button (see matchups-channel.service.ts); these remain so
+// a click on a not-yet-refreshed message still replies instead of hanging. CPU Force Win is
+// rejected by the API.
 import {
   ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, MessageFlags,
   ModalBuilder, ModalSubmitInteraction, TextInputBuilder, TextInputStyle,
@@ -76,14 +74,9 @@ export async function handleReadyToAdvanceButton(interaction: ButtonInteraction)
         await interaction.editReply({ content: `Have you played your game against ${status.opponentLabel} yet?`, components: [row] });
         return;
       }
-      case "cpu_needs_input": {
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${READY_TO_ADVANCE_CUSTOM_IDS.cpuPlayed}${status.gameId}`).setLabel("I played it").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${READY_TO_ADVANCE_CUSTOM_IDS.cpuFw}${status.gameId}`).setLabel("Request Force Win").setStyle(ButtonStyle.Danger),
-        );
-        await interaction.editReply({ content: "Did you play your CPU game, or are you requesting a Force Win?", components: [row] });
+      case "cpu_needs_input":
+        await interaction.editReply({ content: "CPU matchups aren't scheduled and don't use Force Win." });
         return;
-      }
       case "not_linked":
       default:
         await interaction.editReply({ content: NOT_LINKED_NOTE });
