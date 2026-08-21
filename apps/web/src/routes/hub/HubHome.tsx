@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactEle
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
-import { ArrowLeftRight, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { InterviewMicIcon, ManageTeamIcon, RecruitingCapIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
@@ -197,6 +197,14 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   const opponentScore = week.confirmedHomeAway === "home" ? result.awayScore : result.homeScore;
   if (result.isTie || teamScore === opponentScore) return `Tie ${teamScore}-${opponentScore}`;
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
+}
+
+function RankChange({ change }: { change: number | null | undefined }) {
+  if (change == null) return <span className="hub-rank-change">New</span>;
+  if (change === 0) return <span className="hub-rank-change">No change</span>;
+  return change > 0
+    ? <span className="hub-rank-change hub-rank-change-up"><ArrowUp size={12} />{change}</span>
+    : <span className="hub-rank-change hub-rank-change-down"><ArrowDown size={12} />{Math.abs(change)}</span>;
 }
 
 // Shared search + pagination for the ranking-style lists (Power Rankings, User Ratings,
@@ -1447,7 +1455,7 @@ export function HubHome() {
           getSearchText={(team) => team.teamName}
           emptyLabel="Power rankings will appear after the first completed slate."
           renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
           </article>}
         /> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
         {gotwGuessing?.records?.length ? (
@@ -1882,7 +1890,7 @@ export function HubHome() {
                         <div key={conference} className="hub-power-rankings-conference-group">
                           <h4>{conference}</h4>
                           <div className="hub-power-rankings">{teams.map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
                           </article>)}</div>
                         </div>
                       ))}
@@ -1893,7 +1901,7 @@ export function HubHome() {
                       getSearchText={(team) => team.teamName}
                       emptyLabel="Power rankings will appear after the first completed slate."
                       renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                        <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                        <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
                       </article>}
                     />
                   )

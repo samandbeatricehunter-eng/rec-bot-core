@@ -573,6 +573,10 @@ button.poty:disabled {
 .hub-power-rankings article > strong { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--gold); color: var(--text-on-gold); font-family: var(--font-display); }
 .hub-power-rankings span, .hub-power-rankings small { display: block; }
 .hub-power-rankings small { color: var(--text-muted); }
+.hub-rank-change { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; }
+.hub-rank-change-up { color: var(--status-positive); }
+.hub-rank-change-down { color: var(--status-negative); }
+.hub-rank-change svg { flex-shrink: 0; }
 .hub-coach-ratings article > div, .hub-sos-rankings article > div { flex: 1; min-width: 0; }
 .hub-ranking-search { width: 100%; margin-bottom: var(--space-2); }
 .hub-ranking-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--text-xs); color: var(--text-muted); }
@@ -942,7 +946,7 @@ button.poty:disabled {
   border:0;
   border-radius:0;
   background-color:transparent;
-  background-image:url("/assets/hub/badge-normal-v3.png");
+  background-image:url("/assets/hub/badge-normal-v3.webp");
   background-position:center;
   background-repeat:no-repeat;
   background-size:contain;
@@ -989,50 +993,50 @@ button.poty:disabled {
   box-shadow:inset 0 0 0 2px #070808,0 12px 30px rgba(0,0,0,.75);
 }
 .hub-badge-shelf article:hover::after,.hub-badge-shelf article:focus-visible::after,.hub-badge-shelf article:active::after { opacity:1; visibility:visible; transform:none; }
-.hub-badge-shelf .badge-tier-bronze { background-image:url("/assets/hub/badge-bronze-v2.png"); }
-.hub-badge-shelf .badge-tier-silver { background-image:url("/assets/hub/badge-silver-v2.png"); }
-.hub-badge-shelf .badge-tier-gold { background-image:url("/assets/hub/badge-gold-v2.png"); color:#181006; }
-.hub-badge-shelf .badge-tier-needs-work { background-image:url("/assets/hub/badge-needs-work-v2.png"); }
-.hub-badge-shelf .badge-tier-warning { background-image:url("/assets/hub/badge-warning-v2.png"); }
-.hub-badge-shelf .badge-tier-serious-problem { background-image:url("/assets/hub/badge-serious-problem-v2.png"); }
-.hub-badge-shelf .badge-tier-shit-show { background-image:url("/assets/hub/badge-shit-v2.png"); }
+.hub-badge-shelf .badge-tier-bronze { background-image:url("/assets/hub/badge-bronze-v2.webp"); }
+.hub-badge-shelf .badge-tier-silver { background-image:url("/assets/hub/badge-silver-v2.webp"); }
+.hub-badge-shelf .badge-tier-gold { background-image:url("/assets/hub/badge-gold-v2.webp"); color:#181006; }
+.hub-badge-shelf .badge-tier-needs-work { background-image:url("/assets/hub/badge-needs-work-v2.webp"); }
+.hub-badge-shelf .badge-tier-warning { background-image:url("/assets/hub/badge-warning-v2.webp"); }
+.hub-badge-shelf .badge-tier-serious-problem { background-image:url("/assets/hub/badge-serious-problem-v2.webp"); }
+.hub-badge-shelf .badge-tier-shit-show { background-image:url("/assets/hub/badge-shit-v2.webp"); }
 
 .hub-badge-shelf .badge-key-perfect-regular-season {
   background-color:transparent;
-  background-image:url("/assets/badges/perfect-regular-season.png");
+  background-image:url("/assets/badges/perfect-regular-season.webp");
   background-position:center;
   background-repeat:no-repeat;
   background-size:contain;
 }
 
-.hub-badge-shelf .badge-key-prolific-passer { background-image:url("/assets/badges/prolific-passer.png"); }
-.hub-badge-shelf .badge-key-prolific-rusher { background-image:url("/assets/badges/prolific-rusher.png"); }
-.hub-badge-shelf .badge-key-balanced-season { background-image:url("/assets/badges/balanced-season.png"); }
-.hub-badge-shelf .badge-key-fourth-down-menace { background-image:url("/assets/badges/fourth-down-menace.png"); }
-.hub-badge-shelf .badge-key-dawgin-em { background-image:url("/assets/badges/dawg-in-em.png"); }
-.hub-badge-shelf .badge-key-two-point-identity { background-image:url("/assets/badges/two-point-identity.png"); }
-.hub-badge-shelf .badge-key-clock-bleeder { background-image:url("/assets/badges/clock-bleeder.png"); }
+.hub-badge-shelf .badge-key-prolific-passer { background-image:url("/assets/badges/prolific-passer.webp"); }
+.hub-badge-shelf .badge-key-prolific-rusher { background-image:url("/assets/badges/prolific-rusher.webp"); }
+.hub-badge-shelf .badge-key-balanced-season { background-image:url("/assets/badges/balanced-season.webp"); }
+.hub-badge-shelf .badge-key-fourth-down-menace { background-image:url("/assets/badges/fourth-down-menace.webp"); }
+.hub-badge-shelf .badge-key-dawgin-em { background-image:url("/assets/badges/dawg-in-em.webp"); }
+.hub-badge-shelf .badge-key-two-point-identity { background-image:url("/assets/badges/two-point-identity.webp"); }
+.hub-badge-shelf .badge-key-clock-bleeder { background-image:url("/assets/badges/clock-bleeder.webp"); }
 .hub-badge-shelf .badge-key-perfect-regular-season {
-  background-image:url("/assets/badges/perfect-regular-season.png");
+  background-image:url("/assets/badges/perfect-regular-season.webp");
   background-position:center;
   background-repeat:no-repeat;
   background-size:contain;
   color:#161718;
 }
-.hub-badge-shelf .badge-key-winning-season { background-image:url("/assets/badges/winning-season.png"); color:#181818; }
-.hub-badge-shelf .badge-key-return-threat { background-image:url("/assets/badges/return-threat.png"); color:#151719; }
-.hub-badge-shelf .badge-key-veteran-coach { background-image:url("/assets/badges/rec-league-veteran.png"); }
-.hub-badge-shelf .badge-key-fourth-down-legend { background-image:url("/assets/badges/fourth-down-legend.png"); }
-.hub-badge-shelf .badge-key-red-zone-legend { background-image:url("/assets/badges/red-zone-legend.png"); }
-.hub-badge-shelf .badge-key-ground-and-pound-veteran { background-image:url("/assets/badges/run-game-veteran.png"); }
-.hub-badge-shelf .badge-key-air-raid-veteran { background-image:url("/assets/badges/pass-game-veteran.png"); }
-.hub-badge-shelf .badge-key-playoff-winner { background-image:url("/assets/badges/playoff-winner.png"); color:#171717; }
-.hub-badge-shelf .badge-key-dynasty-builder { background-image:url("/assets/badges/dynasty-builder.png"); }
-.hub-badge-shelf .badge-key-super-bowl-champion { background-image:url("/assets/badges/reigning-sb-champ.png"); color:#171717; }
-.hub-badge-shelf .badge-key-conf-champion { background-image:url("/assets/badges/reigning-conference-champ.png"); color:#171717; }
-.hub-badge-shelf .badge-key-div-champion { background-image:url("/assets/badges/divisional-round-winner.png"); color:#171717; }
-.hub-badge-shelf .badge-key-national-champion { background-image:url("/assets/badges/reigning-national-champ.png"); color:#231500; }
-.hub-badge-shelf .badge-key-bowl-winner { background-image:url("/assets/badges/bowl-winner.png"); color:#231500; }
+.hub-badge-shelf .badge-key-winning-season { background-image:url("/assets/badges/winning-season.webp"); color:#181818; }
+.hub-badge-shelf .badge-key-return-threat { background-image:url("/assets/badges/return-threat.webp"); color:#151719; }
+.hub-badge-shelf .badge-key-veteran-coach { background-image:url("/assets/badges/rec-league-veteran.webp"); }
+.hub-badge-shelf .badge-key-fourth-down-legend { background-image:url("/assets/badges/fourth-down-legend.webp"); }
+.hub-badge-shelf .badge-key-red-zone-legend { background-image:url("/assets/badges/red-zone-legend.webp"); }
+.hub-badge-shelf .badge-key-ground-and-pound-veteran { background-image:url("/assets/badges/run-game-veteran.webp"); }
+.hub-badge-shelf .badge-key-air-raid-veteran { background-image:url("/assets/badges/pass-game-veteran.webp"); }
+.hub-badge-shelf .badge-key-playoff-winner { background-image:url("/assets/badges/playoff-winner.webp"); color:#171717; }
+.hub-badge-shelf .badge-key-dynasty-builder { background-image:url("/assets/badges/dynasty-builder.webp"); }
+.hub-badge-shelf .badge-key-super-bowl-champion { background-image:url("/assets/badges/reigning-sb-champ.webp"); color:#171717; }
+.hub-badge-shelf .badge-key-conf-champion { background-image:url("/assets/badges/reigning-conference-champ.webp"); color:#171717; }
+.hub-badge-shelf .badge-key-div-champion { background-image:url("/assets/badges/divisional-round-winner.webp"); color:#171717; }
+.hub-badge-shelf .badge-key-national-champion { background-image:url("/assets/badges/reigning-national-champ.webp"); color:#231500; }
+.hub-badge-shelf .badge-key-bowl-winner { background-image:url("/assets/badges/bowl-winner.webp"); color:#231500; }
 
 /* Baked badge textures are all rendered to the same transparent 960x250 canvas.
    Keep the shelf geometry uniform so no source art can stretch a single badge or
@@ -1133,15 +1137,15 @@ button.poty:disabled {
    against the two-line label next to it). */
 .hub-my-team-btn {
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
-  min-height: 58px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 8px;
+  min-width: 0; min-height: 58px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 8px;
   background: repeating-linear-gradient(115deg, rgba(255,255,255,.02) 0 1px, transparent 1px 4px), linear-gradient(145deg, #1c1d1a, #0a0a09 74%);
   box-shadow: inset 0 0 0 1px #0a0a09, inset 0 0 10px rgba(0,0,0,.6);
   text-align: left; text-decoration: none; cursor: pointer;
   transition: border-color .15s, transform .15s, box-shadow .15s;
 }
 .hub-my-team-btn:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: inset 0 0 0 1px #0a0a09, inset 0 0 10px rgba(0,0,0,.6), 0 0 16px color-mix(in srgb, var(--accent) 25%, transparent); }
-.hub-my-team-btn strong { font-family: var(--font-display); font-size: var(--text-sm); font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--text-primary); }
-.hub-my-team-btn span { font-size: var(--text-xs); color: var(--text-muted); }
+.hub-my-team-btn strong { display: block; overflow-wrap: anywhere; font-family: var(--font-display); font-size: var(--text-sm); font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--text-primary); }
+.hub-my-team-btn span { display: block; overflow-wrap: anywhere; font-size: var(--text-xs); color: var(--text-muted); }
 .hub-subpage-back { margin-bottom: var(--space-3); }
 .hub-modal-pill-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
 .hub-modal-pill { padding: 6px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-raised); color: var(--text-muted); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
@@ -1362,14 +1366,14 @@ button.poty:disabled {
   isolation:isolate; position:relative; display:grid !important; grid-template-columns:1fr !important; grid-template-rows:auto minmax(0,1fr) auto auto !important;
   width:100%; aspect-ratio:2 / 3; min-height:0; padding:clamp(58px,8vw,118px) clamp(34px,5vw,72px) clamp(72px,9vw,132px) !important;
   border:0 !important; border-radius:clamp(18px,2.4vw,34px) !important;
-  background:transparent url("/assets/hub/matchup-h2h-chassis-v1.png") center / 100% 100% no-repeat !important;
+  background:transparent url("/assets/hub/matchup-h2h-chassis-v1.webp") center / 100% 100% no-repeat !important;
   box-shadow:0 22px 54px rgba(0,0,0,.48),0 0 24px color-mix(in srgb, var(--accent) 12%, transparent) !important;
 }
 .hub-matchup-schedule .hub-matchup-card.gotw {
-  background-image:url("/assets/hub/matchup-gotw-chassis-v3.png") !important;
+  background-image:url("/assets/hub/matchup-gotw-chassis-v3.webp") !important;
 }
 .hub-matchup-schedule .hub-matchup-card.cpu {
-  background-image:url("/assets/hub/matchup-chassis-v2.png") !important;
+  background-image:url("/assets/hub/matchup-chassis-v2.webp") !important;
 }
 .hub-matchup-schedule .hub-matchup-card::before { display:none; }
 .hub-matchup-card-head { grid-column:1; width:min(46%,560px); justify-self:center; grid-template-columns:1fr !important; padding:0 !important; border:0; border-radius:0; background:transparent; }
@@ -1554,7 +1558,7 @@ button.poty:disabled {
 .hub-league-tab > .section-frame .section-heading { text-align:center; }
 .hub-league-tab > .section-frame .section-heading > div { margin-inline:auto; }
 .hub-week-picker { display:flex; justify-content:center; }
-.hub-game-reaction-bar { position:relative; display:grid; grid-template-columns:1fr 1fr 1.3fr 1fr 1fr; align-items:stretch; aspect-ratio:2048 / 410; min-height:0; padding:2.6% 3%; border:0; clip-path:none; background:transparent url("/assets/hub/goty-reaction-bar.png") center / 100% 100% no-repeat; box-shadow:none; pointer-events:auto; }
+.hub-game-reaction-bar { position:relative; display:grid; grid-template-columns:1fr 1fr 1.3fr 1fr 1fr; align-items:stretch; aspect-ratio:2048 / 410; min-height:0; padding:2.6% 3%; border:0; clip-path:none; background:transparent url("/assets/hub/goty-reaction-bar.webp") center / 100% 100% no-repeat; box-shadow:none; pointer-events:auto; }
 .hub-game-reaction-bar::before { display:none; }
 .hub-game-reaction-bar button { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; gap:0; border:0; background:transparent; color:#ffe071; cursor:pointer; box-shadow:none; pointer-events:auto; }
 .hub-game-reaction-bar button:first-child { clip-path:polygon(9% 0,100% 0,100% 100%,9% 100%,0 70%,0 30%); }
@@ -1624,7 +1628,7 @@ button.poty:disabled {
   background:color-mix(in srgb, var(--accent) 22%, transparent) !important; box-shadow:inset 0 0 18px rgba(255,225,120,.34) !important;
 }
 .hub-matchup-card:not(.gotw) > .hub-game-reaction-bar,
-.hub-matchup-card:not(.gotw) > .hub-cpu-bottom > .hub-game-reaction-bar { background:transparent url("/assets/hub/goty-reaction-bar.png") center / 100% 100% no-repeat; }
+.hub-matchup-card:not(.gotw) > .hub-cpu-bottom > .hub-game-reaction-bar { background:transparent url("/assets/hub/goty-reaction-bar.webp") center / 100% 100% no-repeat; }
 .hub-matchup-card:not(.gotw) > .hub-stream-sides .hub-team-stream { min-height:42px; }
 
 @media (max-width:700px) {
@@ -1641,7 +1645,7 @@ button.poty:disabled {
    that read as "cut off." Showing the PNG at 100% (not zoomed) keeps its full ring intact
    instead of cropping into it. */
 .hub-nav-toggle {
-  background:#070808 url("/assets/hub/menu-button-render.png") center / 100% 100% no-repeat !important;
+  background:#070808 url("/assets/hub/menu-button-render.webp") center / 100% 100% no-repeat !important;
   border:0 !important;
   box-shadow:none !important;
   overflow:hidden !important;
@@ -1669,7 +1673,7 @@ button.poty:disabled {
   overflow:visible !important;
 }
 .hub-matchup-schedule .hub-matchup-card.gotw { aspect-ratio:972 / 1619; }
-.hub-matchup-schedule .hub-matchup-card.cpu { background-image:url("/assets/hub/matchup-h2h-chassis-v1.png") !important; }
+.hub-matchup-schedule .hub-matchup-card.cpu { background-image:url("/assets/hub/matchup-h2h-chassis-v1.webp") !important; }
 .hub-matchup-card > .hub-matchup-card-head,
 .hub-matchup-card > .hub-matchup-board,
 .hub-matchup-card > .hub-matchup-rails { position:absolute; left:0; right:0; width:auto; margin:0; }
@@ -1809,7 +1813,7 @@ button.poty:disabled {
   padding:0 !important;
   border:0 !important;
   border-radius:50% !important;
-  background:transparent url("/assets/hub/menu-button-render.png") center / contain no-repeat !important;
+  background:transparent url("/assets/hub/menu-button-render.webp") center / contain no-repeat !important;
   box-shadow:0 13px 25px rgba(0,0,0,.62),0 0 14px color-mix(in srgb, var(--accent) 24%, transparent) !important;
   transform:none !important;
   overflow:hidden !important;
@@ -1819,7 +1823,7 @@ button.poty:disabled {
   .hub-page {
     background-image:
       linear-gradient(180deg,rgba(3,8,4,.08),rgba(2,6,3,.24)),
-      url("/assets/hub/field-background.png") !important;
+      url("/assets/hub/field-background.webp") !important;
     background-size:100% auto,100% auto !important;
     background-position:center top,center top !important;
     background-repeat:repeat-y,repeat-y !important;
@@ -1827,7 +1831,7 @@ button.poty:disabled {
   .app-backdrop--hub {
     background-image:
       linear-gradient(180deg,rgba(3,8,4,.04),rgba(2,6,3,.18)),
-      url("/assets/hub/field-background.png") !important;
+      url("/assets/hub/field-background.webp") !important;
     background-size:100% auto,100% auto !important;
     background-position:center top,center top !important;
     background-repeat:repeat-y,repeat-y !important;
@@ -1914,7 +1918,7 @@ button.poty:disabled {
   mix-blend-mode:normal !important;
   background:
     linear-gradient(180deg,rgba(3,8,4,.08),rgba(2,6,3,.28)),
-    url("/assets/hub/field-background.png") center / cover no-repeat !important;
+    url("/assets/hub/field-background.webp") center / cover no-repeat !important;
 }
 .hub-page { background:transparent !important; }
 
@@ -2021,7 +2025,7 @@ button.poty:disabled {
 /* Unified H2H render: stream and reaction frames are part of the chassis bitmap.
    These elements provide only live links, counters and press feedback. */
 .hub-matchup-schedule .hub-matchup-card.h2h:not(.gotw) {
-  background-image:url("/assets/hub/matchup-h2h-chassis-v2.png") !important;
+  background-image:url("/assets/hub/matchup-h2h-chassis-v2.webp") !important;
 }
 .hub-matchup-card.h2h:not(.gotw) > .hub-stream-sides {
   top:73.65% !important;
@@ -2086,7 +2090,7 @@ button.poty:disabled {
    no reaction or secondary stream rail. */
 .hub-matchup-schedule .hub-matchup-card.cpu:not(.gotw) {
   aspect-ratio:1024 / 1220 !important;
-  background-image:url("/assets/hub/matchup-cpu-chassis-v1.png") !important;
+  background-image:url("/assets/hub/matchup-cpu-chassis-v1.webp") !important;
 }
 .hub-matchup-card.cpu:not(.gotw) > .hub-matchup-card-head { height:20.5% !important; }
 .hub-matchup-card.cpu:not(.gotw) > .hub-matchup-card-head strong {
@@ -3439,7 +3443,7 @@ button.poty:disabled {
   background-color: #05070a;
   background-image:
     linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
-    url("/assets/backgrounds/stadium-hero.png");
+    url("/assets/backgrounds/stadium-hero.webp");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;

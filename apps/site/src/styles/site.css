@@ -1641,8 +1641,14 @@ h1, h2, h3, .site-wordmark {
   background: var(--nav-bg);
   /* `overflow-x:auto` makes this element its own scroll container in mobile
      WebKit, which prevents its vertical sticky positioning from following the
-     page scroll. Five league destinations fit without an inner scroller. */
+     page scroll. Five league destinations fit without an inner scroller.
+     `overflow-y: visible` must be explicit: per spec, pairing a non-`visible`
+     overflow-x with an unset overflow-y computes the y-axis to `auto`,
+     silently making this element scrollable-on-y too -- that synthesized
+     scroll container is what caused the sticky nav to jump/creep during
+     mobile scrolling. */
   overflow-x: clip;
+  overflow-y: visible;
   position: sticky;
   top: calc(56px + env(safe-area-inset-top, 0px));
   z-index: 90;
@@ -3417,7 +3423,7 @@ h1, h2, h3, .site-wordmark {
   background-color: #05070a;
   background-image:
     linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
-    url("/assets/backgrounds/stadium-hero.png");
+    url("/assets/backgrounds/stadium-hero.webp");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;

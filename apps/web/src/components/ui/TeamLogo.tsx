@@ -8,5 +8,5 @@ export function TeamLogo({ abbreviation, alt, className }: { abbreviation: strin
   const [failed, setFailed] = useState(false);
   const src = teamLogoUrl(abbreviation);
   if (!src || failed) return null;
-  return <img src={src} alt={alt} className={className ? `team-logo ${className}` : "team-logo"} onError={() => setFailed(true)} />;
+  return <img src={src} alt={alt} className={className ? `team-logo ${className}` : "team-logo"} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
