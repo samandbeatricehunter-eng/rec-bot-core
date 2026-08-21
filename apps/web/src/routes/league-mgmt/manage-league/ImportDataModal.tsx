@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../lib/rec-api-client.js";
+import { useImportStatus } from "../../../lib/import-status-context.js";
+import { ImportProgressLines } from "../../../components/import/ImportProgressLines.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -74,12 +76,20 @@ export function ImportDataModal({
   const [jobs, setJobs] = useState<Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> | null>(null);
   const [importProgress, setImportProgress] = useState<EaImportProgressEvent[]>([]);
   const [leagueName, setLeagueName] = useState<string | null>(null);
+  const importStatus = useImportStatus();
+  const setImportModalOpen = importStatus?.setModalOpen;
 
   // Closing the modal mid-import used to leave the poll loop running forever in the
   // background — it kept hitting getImportProgress every 2s and calling setState on an
   // unmounted component. This flips once on unmount so the loop below can bail out.
   const unmountedRef = useRef(false);
-  useEffect(() => () => { unmountedRef.current = true; }, []);
+  useEffect(() => {
+    setImportModalOpen?.(true);
+    return () => {
+      unmountedRef.current = true;
+      setImportModalOpen?.(false);
+    };
+  }, [setImportModalOpen]);
 
   async function loadStatus() {
     if (!guildId || !leagueId) {
@@ -520,18 +530,7 @@ export function ImportDataModal({
                   {importProgress.length > 0 && (
                     <Card style={{ padding: "var(--space-3)" }}>
                       <h4 style={{ margin: "0 0 var(--space-2)", fontSize: "var(--text-sm)" }}>Import Progress</h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        {importProgress.map((event, i) => {
-                          if (event.type === "starting") return <ProgressLine key={i} icon="⏳" text={`Starting import — ${event.weeks} week${event.weeks === 1 ? "" : "s"} — ${event.datasets.join(", ")}`} />;
-                          if (event.type === "dataset_start") return <ProgressLine key={i} icon="⏳" text={`${event.label} — fetching…`} />;
-                          if (event.type === "dataset_done") return <ProgressLine key={i} icon="✅" text={`${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (already up to date)" : ""}`} />;
-                          if (event.type === "dataset_error") return <ProgressLine key={i} icon="❌" text={`${event.label} — ${event.error}`} isError />;
-                          if (event.type === "reconciling") return <ProgressLine key={i} icon="⏳" text={event.step} />;
-                          if (event.type === "done") return <ProgressLine key={i} icon="✅" text="Import complete!" />;
-                          if (event.type === "error") return <ProgressLine key={i} icon="❌" text={event.error} isError />;
-                          return null;
-                        })}
-                      </div>
+                      <ImportProgressLines events={importProgress} />
                     </Card>
                   )}
 
@@ -602,14 +601,5 @@ export function ImportDataModal({
         </>
       )}
     </Modal>
-  );
-}
-
-function ProgressLine({ icon, text, isError }: { icon: string; text: string; isError?: boolean }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", fontSize: "var(--text-sm)", color: isError ? "var(--error)" : "var(--text-secondary)" }}>
-      <span style={{ flexShrink: 0 }}>{icon}</span>
-      <span style={{ wordBreak: "break-word" }}>{text}</span>
-    </div>
   );
 }

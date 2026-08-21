@@ -33,6 +33,8 @@ import {
   TeamRosterForm,
   TeamScheduleForm,
   UniversalChatDrawer,
+  ImportStatusDrawer,
+  ImportStatusProvider,
 } from "@rec/hub-ui";
 
 import "../../../web/src/styles/tokens.css";
@@ -363,6 +365,7 @@ export function LeagueHubPage() {
           accessToken={accessToken}
         >
           <HubChromeProvider embedded>
+            <ImportStatusProvider>
             <ChatDrawerProvider>
               <LeagueThemeProvider game={gameTheme}>
                 <LeagueTopNav leagueId={leagueId} />
@@ -384,8 +387,10 @@ export function LeagueHubPage() {
                   )}
                 </HubErrorBoundary>
                 <UniversalChatDrawer guildId={context.guildId} discordId={context.discordId} />
+                <ImportStatusDrawer />
               </LeagueThemeProvider>
             </ChatDrawerProvider>
+            </ImportStatusProvider>
           </HubChromeProvider>
         </InjectedAuthProvider>
       </div>

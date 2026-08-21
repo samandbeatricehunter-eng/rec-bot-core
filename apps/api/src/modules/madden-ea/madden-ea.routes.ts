@@ -11,7 +11,7 @@ import {
   importEaDatasets,
   importEaDatasetsWithProgress,
   getImportProgress,
-  clearImportProgress,
+  beginImportProgress,
   pushProgress,
   listEaImportJobs,
   listEaLeagues,
@@ -177,7 +177,7 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       if (getImportProgress(body.league_id).running) {
         throw new ApiError(409, "An import is already running for this league. Wait for it to finish, or reopen Import Data to watch its progress.");
       }
-      clearImportProgress(body.league_id);
+      beginImportProgress(body.league_id, "manual");
 
       // Fire and forget — the import runs in the background
       importEaDatasetsWithProgress(body.connection_id, body.league_id, options).catch((error) => {
