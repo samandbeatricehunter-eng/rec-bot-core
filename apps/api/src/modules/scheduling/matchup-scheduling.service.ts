@@ -618,7 +618,7 @@ export async function resolveCantMakeGame(input: { gameId: string; discordId: st
 
 // Commissioner resolution of an AutoPilot request (resolveCantMakeGame's request_autopilot
 // branch above). AutoPilot itself is advisory/manual today -- there's no mechanical
-// "play both sides" toggle anywhere in the codebase -- so this records the decision and posts a
+// CPU-control toggle anywhere in the codebase -- so this records the decision and posts a
 // public confirmation, same scope as every other FW/FS status flag in this file.
 export async function resolveAutopilotRequest(input: { gameId: string; discordId: string; decision: "grant_autopilot" | "enforce_fs" }) {
   const game = await loadGame(input.gameId);
@@ -628,7 +628,7 @@ export async function resolveAutopilotRequest(input: { gameId: string; discordId
   if (input.decision === "enforce_fs") await closeAdministrativeResult(input.gameId, "fair_sim", input.discordId);
   if (channel?.discord_channel_id) {
     const text = input.decision === "grant_autopilot"
-      ? "✅ AutoPilot **granted** by a commissioner — the opponent may play both sides."
+      ? "✅ AutoPilot **granted** by a commissioner — play the unavailable coach's team as a CPU."
       : "Fair Sim **enforced** by a commissioner — AutoPilot was not granted.";
     await postDiscordChannelMessage(channel.discord_channel_id, { content: text }).catch(() => undefined);
   }

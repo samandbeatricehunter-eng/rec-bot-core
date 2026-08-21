@@ -26,7 +26,7 @@ export type FairSimRuleKey =
 export const FAIR_SIM_RULE_OPTIONS: Array<{ key: FairSimRuleKey; label: string; description: string }> = [
   { key: "scheduling_disagreement", label: "Inability to agree on a time", description: "Coaches can't land on a shared kickoff window." },
   { key: "cant_make_game_no_autopilot", label: "Can't Make Game (no AutoPilot request)", description: "A coach can't make it and doesn't ask for AutoPilot." },
-  { key: "allow_autopilot_requests", label: "Allow AutoPilot requests", description: "A coach who can't make it may ask the opponent to play both sides." },
+  { key: "allow_autopilot_requests", label: "Allow AutoPilot requests", description: "A coach who can't make it may ask the opponent to play that coach's team as a CPU." },
 ];
 
 const FORCE_WIN_KEY_SET = new Set<string>(FORCE_WIN_RULE_OPTIONS.map((o) => o.key));
