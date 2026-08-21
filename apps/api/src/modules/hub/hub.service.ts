@@ -58,6 +58,12 @@ const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 export const STREAM_VIEWER_COOKIE = "rec_stream_viewer";
 
+function matchupLogo(team: { is_relocated?: boolean | null; abbreviation?: string | null; original_abbreviation?: string | null; logo_url?: string | null } | null | undefined, isCfb: boolean) {
+  if (isCfb || !team) return { abbr: null as string | null, logoUrl: null as string | null };
+  if (team.logo_url) return { abbr: null, logoUrl: team.logo_url };
+  return { abbr: team.is_relocated ? team.original_abbreviation ?? team.abbreviation ?? null : team.abbreviation ?? null, logoUrl: null };
+}
+
 // Previously a Context x Category x Template cross-product (300 questions) behind two
 // cascading selects — but each template only ever referenced one of {context}/{category},
 // so the second dropdown filtered the pool without reliably changing the wording the coach
@@ -1416,7 +1422,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     }));
   }
   const gamesQuery = leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: selectedWeek },
-    "id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated),rivalry:rec_league_rivalries(rivalry_name)");
+    "id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated,original_abbreviation,logo_url),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color,is_relocated,original_abbreviation,logo_url),rivalry:rec_league_rivalries(rivalry_name)");
   const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll, powerRankings] = await Promise.all([
     gamesQuery,
     // Was league_id-only (no season scope) -- once a league reached its second season this
@@ -1596,10 +1602,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         awayTeamMascot: mascotName(game.away_team, "Away"),
         homeTeamColor: game.home_team?.primary_color ?? "#FFFFFF",
         awayTeamColor: game.away_team?.primary_color ?? "#FFFFFF",
-        // Logo assets only exist for the 32 standard Madden teams (apps/web/public/assets/
-        // team-logos/{ABBR}.png) — relocated/custom teams and CFB schools have no matching file.
-        homeTeamAbbr: !isCfb && !game.home_team?.is_relocated ? game.home_team?.abbreviation ?? null : null,
-        awayTeamAbbr: !isCfb && !game.away_team?.is_relocated ? game.away_team?.abbreviation ?? null : null,
+        homeTeamAbbr: matchupLogo(game.home_team, isCfb).abbr,
+        awayTeamAbbr: matchupLogo(game.away_team, isCfb).abbr,
+        homeTeamLogoUrl: matchupLogo(game.home_team, isCfb).logoUrl,
+        awayTeamLogoUrl: matchupLogo(game.away_team, isCfb).logoUrl,
         homeTeamRank: rankByTeamId.get(game.home_team?.id)?.rank ?? null,
         awayTeamRank: rankByTeamId.get(game.away_team?.id)?.rank ?? null,
         homeTeamRecord: teamRecordText(game.home_team?.id),

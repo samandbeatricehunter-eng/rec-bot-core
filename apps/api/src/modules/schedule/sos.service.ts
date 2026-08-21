@@ -5,6 +5,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
 const SOS_CACHE_TTL_MS = 60_000;
 
@@ -44,14 +45,7 @@ const round = (n: number, places = 2) => {
 };
 
 function teamDisplayName(t: any): string {
-  const name = (t?.name ?? "").trim();
-  const nick = (t?.display_nick ?? "").trim();
-  if (t?.is_relocated) {
-    if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
-    const combined = `${t?.display_city ?? ""} ${nick}`.trim();
-    if (combined) return combined;
-  }
-  return name || nick || "Team";
+  return formatTeamDisplayName(t) ?? "Team";
 }
 
 function matchupKey(week: number | null | undefined, a: string, b: string): string {

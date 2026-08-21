@@ -6,6 +6,7 @@ import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
 // Ordinary reads (hub loads, wager-option views, game-channel renders) all hit this same
 // per-league computation; a short TTL means "current week" views share one computation
@@ -44,14 +45,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 const round = (n: number, p = 3) => { const f = 10 ** p; return Math.round(n * f) / f; };
 
 function teamDisplayName(t: any): string {
-  const name = (t?.name ?? "").trim();
-  const nick = (t?.display_nick ?? "").trim();
-  if (t?.is_relocated) {
-    if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
-    const combined = `${t?.display_city ?? ""} ${nick}`.trim();
-    if (combined) return combined;
-  }
-  return name || nick || "Team";
+  return formatTeamDisplayName(t) ?? "Team";
 }
 
 type Agg = {

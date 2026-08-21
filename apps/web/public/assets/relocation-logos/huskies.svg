@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
+  <rect width="128" height="128" rx="22" fill="#002868"/>
+  <rect x="22" y="22" width="84" height="84" rx="8" transform="rotate(12 64 64)" fill="#111111" opacity="0.28"/>
+  <text x="64" y="78" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="700" fill="#ffffff">H</text>
+</svg>

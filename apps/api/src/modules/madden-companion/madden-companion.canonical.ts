@@ -66,7 +66,9 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
   );
   if (existing.rows[0]) {
     await client.query(
-      `update rec_teams set madden_team_id=$3, name=coalesce($4,name), abbreviation=coalesce($5,abbreviation),
+      `update rec_teams set madden_team_id=$3,
+       name=case when is_relocated then name else coalesce($4,name) end,
+       abbreviation=coalesce($5,abbreviation),
        conference=coalesce($6,conference), division=coalesce($7,division), updated_at=now() where id=$1 and league_id=$2`,
       [existing.rows[0].id, leagueId, sourceId, name, abbreviation, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"])],
     );

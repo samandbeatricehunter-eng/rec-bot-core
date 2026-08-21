@@ -18,6 +18,7 @@ export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
 export * from "./madden/index.js";
 export * from "./madden-pick-baselines.js";
+export * from "./madden-relocation.js";
 
 export const REC_API_ROUTES = {
   health: "/health",

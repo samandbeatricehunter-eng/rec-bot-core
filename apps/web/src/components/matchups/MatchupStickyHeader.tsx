@@ -19,9 +19,9 @@ export function MatchupStickyHeader({
   return (
     <div className="matchup-sticky-header">
       <span className="matchup-sticky-header__teams">
-        <TeamLogo abbreviation={matchup.awayTeamAbbr} alt={matchup.awayTeamMascot} className="matchup-sticky-header__logo" />
+        <TeamLogo abbreviation={matchup.awayTeamAbbr} logoUrl={matchup.awayTeamLogoUrl} alt={matchup.awayTeamMascot} className="matchup-sticky-header__logo" />
         {matchup.awayTeamName} <span className="matchup-sticky-header__at">@</span> {matchup.homeTeamName}
-        <TeamLogo abbreviation={matchup.homeTeamAbbr} alt={matchup.homeTeamMascot} className="matchup-sticky-header__logo" />
+        <TeamLogo abbreviation={matchup.homeTeamAbbr} logoUrl={matchup.homeTeamLogoUrl} alt={matchup.homeTeamMascot} className="matchup-sticky-header__logo" />
       </span>
       {matchup.isFinal && matchup.homeScore != null && matchup.awayScore != null && (
         <span className="matchup-sticky-header__score">

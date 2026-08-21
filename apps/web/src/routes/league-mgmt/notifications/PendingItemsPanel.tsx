@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   weekly_score_review: "Weekly Scores", wager: "Wager", team_request: "Team Request",
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
   custom_player: "Custom Player",
+  custom_team: "Custom Team",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue", trade: "Trade",
 };
@@ -173,12 +174,17 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
                   {notification.type !== "legend" && notification.type !== "custom_player" && (
                     <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
                   )}
-                  {notification.type === "trade" && (
-                    <TradeDetail
-                      payload={notification.payload}
-                      fallbackTeams={{ proposing: (notification.payload as Record<string, unknown> | null)?.proposingTeam, receiving: (notification.payload as Record<string, unknown> | null)?.receivingTeam }}
+                  {notification.type === "custom_team" && typeof (notification.payload as { logoUrl?: string } | null)?.logoUrl === "string" && (
+                    <img
+                      className="pending-item-logo-preview"
+                      src={(notification.payload as { logoUrl: string }).logoUrl}
+                      alt="Submitted custom team logo"
                     />
                   )}
+                  <TradeDetail
+                    payload={notification.payload}
+                    fallbackTeams={{ proposing: (notification.payload as Record<string, unknown> | null)?.proposingTeam, receiving: (notification.payload as Record<string, unknown> | null)?.receivingTeam }}
+                  />
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>
                 {notification.amount != null && <span className="pending-item-card-amount"><CoinAmount amount={notification.amount} /></span>}

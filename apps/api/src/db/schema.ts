@@ -409,6 +409,7 @@ export const recTeams = pgTable("rec_teams", {
   displayAbbr: text("display_abbr"),
   isRelocated: boolean("is_relocated").notNull().default(false),
   originalAbbreviation: text("original_abbreviation"),
+  logoUrl: text("logo_url"),
   isSchedulePlaceholder: boolean("is_schedule_placeholder").notNull().default(false)
   ,primaryColor: text("primary_color").notNull().default("#FFFFFF")
 });

@@ -476,12 +476,10 @@ export function formatTeamDisplayName(team: {
   const name = team.name?.trim();
   const nick = team.display_nick?.trim();
   if (team.is_relocated) {
-    // Relocated teams store the school/full identity in `name` (CFB: "Hard Knox";
-    // Madden: "Las Vegas Raiders"). Prefer it whenever it differs from the mascot so
-    // custom teams read like their catalog counterparts. Legacy rows with the mascot
-    // in `name` fall back to the "City Nick" combo.
+    const city = team.display_city?.trim() ?? "";
+    if (city && nick) return `${city} ${nick}`.trim();
     if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
-    const combined = `${team.display_city?.trim() ?? ""} ${nick ?? ""}`.trim();
+    const combined = `${city} ${nick}`.trim();
     if (combined) return combined;
   }
   return name || nick || null;
