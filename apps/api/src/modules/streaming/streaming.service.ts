@@ -64,6 +64,13 @@ type StreamingAccountRow = {
   status: string;
 };
 
+type StreamingPromptRow = {
+  id: string;
+  status: string;
+  session_id?: string | null;
+  selected_game_id?: string | null;
+};
+
 function utcDateString(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
@@ -412,7 +419,7 @@ function discordPromptComponents(promptId: string, matchups: StreamingMatchupOpt
 
 async function sendOrReusePromptDm(input: {
   userId: string;
-  prompt: { id: string };
+  prompt: StreamingPromptRow;
   kind: "day_of" | "went_live";
   matchups: StreamingMatchupOption[];
 }) {
@@ -441,7 +448,7 @@ async function createPrompt(input: {
   userId: string;
   kind: "day_of" | "went_live";
   sessionId?: string | null;
-}) {
+}): Promise<StreamingPromptRow | null> {
   const inserted = await supabase.from("rec_streaming_prompts").insert({
     user_id: input.userId,
     prompt_kind: input.kind,
@@ -453,11 +460,11 @@ async function createPrompt(input: {
     if (inserted.error.code === "23505" && input.kind === "day_of") {
       const existing = await supabase.from("rec_streaming_prompts")
         .select("*").eq("user_id", input.userId).eq("prompt_kind", "day_of").eq("prompt_date", utcDateString()).maybeSingle();
-      return existing.data;
+      return (existing.data ?? null) as StreamingPromptRow | null;
     }
     throw new ApiError(500, "Failed to create live-stream prompt.", inserted.error);
   }
-  return inserted.data;
+  return inserted.data as StreamingPromptRow;
 }
 
 export async function handleStreamerWentLive(input: {
@@ -780,14 +787,16 @@ export async function runDayOfStreamingPrompts() {
     .select("user_id")
     .in("user_id", userIds)
     .eq("status", "active");
-  const linkedUsers = [...new Set((linked.data ?? []).map((row: any) => String(row.user_id)))];
+  const linkedUsers = [...new Set(
+    ((linked.data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id),
+  )];
   const already = await supabase
     .from("rec_streaming_prompts")
     .select("user_id")
     .eq("prompt_kind", "day_of")
     .eq("prompt_date", today)
     .in("user_id", linkedUsers);
-  const sent = new Set((already.data ?? []).map((row: any) => String(row.user_id)));
+  const sent = new Set((already.data ?? []).map((row: { user_id?: unknown }) => String(row.user_id)));
 
   for (const userId of linkedUsers) {
     if (sent.has(userId)) continue;
