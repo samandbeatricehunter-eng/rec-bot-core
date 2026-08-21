@@ -18,8 +18,8 @@ const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 //      + W_ENGAGE·engagement + W_CLUTCH·closeClutch  (see weights below, sum to 1.0)
 //   winPct      — official win% (ties = ½)
 //   normPD      — avg point differential / 14, mapped to 0..1
-//   engagement  — share of games reported via an approved box score (rewards
-//                 actually playing/posting over advance-only force-wins)
+//   engagement  — share of games actually played/imported (box score, companion
+//                 import, manual/schedule screenshot) rather than advance-only FWs
 //   closeClutch — full credit if >50% of H2H games are won AND those wins
 //                 average a ≤7-point margin (winning close games vs humans)
 // For Madden leagues, an additional OVR component blends team average OVR and QB OVR
@@ -38,7 +38,7 @@ const W_CLUTCH = 0.0941;
 const W_OVR_MADDEN = 0.15;  // Madden-only: team OVR + QB OVR signal, added on top of the 1.0 base
 const PD_SCALE = 14;
 const CLOSE_MARGIN = 7;
-const BOX_SCORE_SOURCES = new Set(["box_score", "box_score_screenshot"]);
+const PLAYED_SOURCES = new Set(["box_score", "box_score_screenshot", "madden_companion_import", "schedule_screenshot", "manual"]);
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round = (n: number, p = 3) => { const f = 10 ** p; return Math.round(n * f) / f; };
@@ -73,13 +73,13 @@ async function aggregateTeams(leagueId: string, seasonNumber: number): Promise<M
 
   for (const g of data ?? []) {
     const { home_team_id: h, away_team_id: a, home_score: hs, away_score: as_, winning_team_id: w, losing_team_id: l, is_tie, is_user_h2h, source } = g as any;
-    const isBox = BOX_SCORE_SOURCES.has(String(source));
+    const isPlayed = PLAYED_SOURCES.has(String(source));
     const margin = hs != null && as_ != null ? Math.abs(hs - as_) : null;
     for (const teamId of [h, a] as (string | null)[]) {
       if (!teamId) continue;
       const t = get(teamId);
       t.total++;
-      if (isBox) t.boxScoreGames++;
+      if (isPlayed) t.boxScoreGames++;
       if (is_user_h2h) t.h2hGames++;
       if (is_tie) t.ties++;
       else if (w === teamId) { t.wins++; if (is_user_h2h && margin != null) { t.h2hWins++; t.h2hWinMargin += margin; } }

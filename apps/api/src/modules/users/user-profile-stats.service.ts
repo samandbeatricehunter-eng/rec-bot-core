@@ -62,9 +62,12 @@ function pctAvg(sum: number, games: number) {
   return games > 0 ? Math.round(sum / games) : 0;
 }
 
-function jsonNum(raw: unknown, key: string) {
+function jsonMadeAttempts(raw: unknown, key: string): number {
   if (!raw || typeof raw !== "object") return 0;
-  return num((raw as Record<string, unknown>)[key]);
+  const value = (raw as Record<string, unknown>)[key];
+  const match = value != null ? String(value).match(/^(-?\d+)-(-?\d+)$/) : null;
+  if (match) return Number(match[1]) || 0;
+  return num(value);
 }
 
 function computeStreak(rows: Array<{ result: "win" | "loss" | "tie"; sortKey: number }>): string {
@@ -141,8 +144,8 @@ export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
     passingYards += num(row.off_pass_yards);
     rushingYards += num(row.off_rush_yards);
     firstDowns += num(row.off_first_down);
-    fourthDownConversions += jsonNum(row.offensive_stats, "fourth_down_conversions");
-    twoPointConversions += jsonNum(row.offensive_stats, "two_point_conversions");
+    fourthDownConversions += jsonMadeAttempts(row.offensive_stats, "fourth_down_conversions");
+    twoPointConversions += jsonMadeAttempts(row.offensive_stats, "two_point_conversions");
     returnYards += num(row.punt_return_yards) + num(row.kick_return_yards);
     pointsFor += num(row.points_for);
     pointsAgainst += num(row.points_against);

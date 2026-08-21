@@ -386,6 +386,8 @@ const EOS_PAYOUT_DESCRIPTIONS: Record<string, string> = {
   well_disciplined: "Penalties committed per game — lower is better.",
   red_zone_finish_rate: "Percent of red-zone trips that end in a score (touchdown or field goal).",
   rb_workhorse: "Composite of rush attempts, yards per carry, and rushing TDs per game — rewards genuine bell-cow usage, not one big game.",
+  madden_rb_workhorse: "Pays 1,000 coins per user-team rusher with 150+ carries, 1,000+ rush yards, 50+ broken tackles, 250+ yards after contact, and 10+ rush TDs. Import leagues only — box scores do not store those player fields.",
+  king_of_the_swing: "Pays 500 coins per user-team kicker with at least two 50+ yard field-goal attempts, all made. Import leagues only.",
   defense_needs_a_name: "Composite of red-zone defense, takeaways forced, and 3rd/4th-down stop rates — an elite, identity-worthy defense.",
 };
 

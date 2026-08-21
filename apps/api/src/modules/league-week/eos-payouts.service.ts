@@ -1,4 +1,4 @@
-import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress, type RecPayoutTierRule } from "@rec/shared";
+import { isPayoutEligibleForLeague, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress, type RecPayoutTierRule, type RecLeagueDataMode } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -9,6 +9,14 @@ import { qualifyDefenseNickname, getMyDefenseNicknameStatus } from "./defense-ni
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { getLeagueDataMode } from "./data-mode.service.js";
+import {
+  evalTeamStat,
+  evaluateImportPlayerBonus,
+  mergePlayerWeekStats,
+} from "./eos-payouts.eval.js";
+
+export { evalTeamStat, evaluateImportPlayerBonus, mergePlayerWeekStats } from "./eos-payouts.eval.js";
 
 type EosPayoutItem = {
   league_id: string;
@@ -26,153 +34,6 @@ type EosPayoutItem = {
 
 export const TEAM_DEFINITIONS = REC_END_SEASON_PAYOUTS.filter((definition) => definition.scope === "team");
 const RANK_DEFINITION = REC_END_SEASON_PAYOUTS.find((definition) => definition.key === "power_ranking_position");
-
-function num(value: unknown) {
-  return Number(value) || 0;
-}
-
-function jsonNum(raw: unknown, key: string) {
-  if (!raw || typeof raw !== "object") return 0;
-  return num((raw as Record<string, unknown>)[key]);
-}
-
-/** "16:22" -> 982 seconds; a plain jsonNum() would misparse this (strips the colon, giving 1622). */
-function jsonClockSeconds(raw: unknown, key: string): number | null {
-  if (!raw || typeof raw !== "object") return null;
-  const value = (raw as Record<string, unknown>)[key];
-  const m = value != null ? String(value).match(/^(\d+):(\d{2})$/) : null;
-  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
-}
-
-/** "9-12" -> [9, 12]. Falls back to [made-only, null] if the attempts half wasn't recoverable. */
-function jsonMadeAttempts(raw: unknown, key: string): [number, number | null] {
-  if (!raw || typeof raw !== "object") return [0, null];
-  const value = (raw as Record<string, unknown>)[key];
-  const m = value != null ? String(value).match(/^(-?\d+)-(-?\d+)$/) : null;
-  return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [num(value), null];
-}
-
-// A team's per-game-rate composite (rb_workhorse_score, defense_identity_score) is too
-// noisy to trust on a handful of box scores — a single big or bad game swings the whole
-// average. Stepped against a full CFB regular season (12 games across 14 weeks, byes
-// included): >=6 games logged (half a season) is enough of a sample to trust in full;
-// 4-5 games gets a mild discount; 3 or fewer (a game or two) gets a heavy one, since one
-// fluke performance can otherwise carry the whole average.
-function coverageMultiplier(games: number, _game: LeagueGame) {
-  if (games >= 6) return 1;
-  if (games > 3) return 0.75;
-  return 0.4;
-}
-
-export function evalTeamStat(statKey: string, rows: any[], game: LeagueGame) {
-  const games = rows.length;
-  const sum = (key: string) => rows.reduce((total, row) => total + num(row[key]), 0);
-  const jsonSum = (sourceKey: string, key: string) => rows.reduce((total, row) => total + jsonNum(row[sourceKey], key), 0);
-  if (statKey === "points_per_game") return games ? sum("points_for") / games : 0;
-  if (statKey === "points_allowed_per_game") return games ? sum("points_against") / games : 0;
-  // CFB-only: a team's defensive INTs = its opponent's interceptions_thrown, which
-  // recordTeamGameStats already mirrors into this team's defensive_stats JSONB.
-  // Per-game so teams are comparable regardless of how many games are logged.
-  if (statKey === "team_interceptions") return games ? jsonSum("defensive_stats", "interceptions_thrown") / games : 0;
-  // Per-game rates keep teams comparable while box scores are logged at uneven rates.
-  // A team whose opponents' yardage was never parsed reads as 0 for every game; treat
-  // an all-zero season as missing rather than an (impossible) flawless defense.
-  if (statKey === "total_yards_allowed") {
-    const values = rows.map((row) => num(row.yards_allowed));
-    return games && values.some((value) => value > 0) ? values.reduce((total, value) => total + value, 0) / games : Number.POSITIVE_INFINITY;
-  }
-  if (statKey === "turnover_differential") return games ? (sum("generated_turnovers") - sum("turnovers_committed")) / games : 0;
-  if (statKey === "total_offense_yards") {
-    const total = sum("total_yards_gained");
-    const fallback = sum("off_yards_gained");
-    return games ? (total || fallback) / games : 0;
-  }
-  if (statKey === "red_zone_td_rate") {
-    const values = rows.map((row) => row.red_zone_off_percentage).filter((value) => value != null).map(num);
-    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
-  }
-  if (statKey === "red_zone_td_rate_allowed") {
-    const values = rows.map((row) => row.red_zone_def_percentage).filter((value) => value != null).map(num);
-    // No tracked red-zone data must never read as a 0% allowed (perfect) rate — that would
-    // hand teams with missing OCR data the S tier. Report a value that can't qualify instead.
-    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : Number.POSITIVE_INFINITY;
-  }
-  if (statKey === "avg_time_of_possession_seconds") {
-    const values = rows.map((row) => jsonClockSeconds(row.offensive_stats, "time_of_possession")).filter((v): v is number => v != null);
-    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
-  }
-  // Per-game so teams are comparable regardless of games logged. A team whose box scores
-  // never recorded penalties reads as 0 every game; treat an all-zero season as missing
-  // rather than a (suspicious) flawless record.
-  if (statKey === "total_penalties") {
-    const values = rows.map((row) => jsonNum(row.offensive_stats, "penalties"));
-    return games && values.some((value) => value > 0) ? values.reduce((total, value) => total + value, 0) / games : Number.POSITIVE_INFINITY;
-  }
-  if (statKey === "red_zone_td_finish_rate") {
-    const tds = jsonSum("offensive_stats", "red_zone_tds");
-    const fgs = jsonSum("offensive_stats", "red_zone_fgs");
-    return tds + fgs > 0 ? (tds / (tds + fgs)) * 100 : 0;
-  }
-  if (statKey === "rb_workhorse_score") {
-    const attempts = jsonSum("offensive_stats", "off_rush_attempts");
-    const tds = jsonSum("offensive_stats", "off_rush_tds");
-    const yardsPerRushValues = rows.map((row) => jsonNum(row.offensive_stats, "yards_per_rush")).filter((v) => v > 0);
-    const avgYardsPerRush = yardsPerRushValues.length ? yardsPerRushValues.reduce((total, v) => total + v, 0) / yardsPerRushValues.length : 0;
-    if (!games) return 0;
-    // "Workhorse" means carries (usage), not just per-carry efficiency — the old weights
-    // (attempts/games/25 vs avgYardsPerRush*8) made volume nearly worthless: a 28-carry/game
-    // grinder scored ~1 point for that workload while a single 16-yard-per-carry outlier game
-    // scored 130+. Attempts/games is now the dominant term; ypr and TDs still matter but can no
-    // longer let one huge game outscore genuine bell-cow usage. Coverage-penalized below.
-    const raw = (attempts / games) * 2 + avgYardsPerRush * 3 + (tds / games) * 8;
-    return raw * coverageMultiplier(games, game);
-  }
-  if (statKey === "defense_identity_score") {
-    const redZoneDefPct = (() => {
-      const values = rows.map((row) => row.red_zone_def_percentage).filter((value) => value != null).map(num);
-      return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
-    })();
-    const oppIntsThrown = jsonSum("defensive_stats", "interceptions_thrown");
-    const oppFumblesLost = jsonSum("defensive_stats", "fumbles_lost");
-    let oppThirdMade = 0, oppThirdAttempts = 0;
-    for (const row of rows) {
-      const [tm, ta] = jsonMadeAttempts(row.defensive_stats, "third_down_conversions");
-      // A game whose OCR only recovered the makes (no "X-Y" attempts format, e.g. a bare "3")
-      // must be excluded entirely, not just from the attempts side — counting its makes into
-      // the numerator while dropping its attempts from the denominator inflates the opponent's
-      // conversion rate, understating the defense (this silently zeroed real S-tier defenses).
-      if (ta != null) { oppThirdMade += tm; oppThirdAttempts += ta; }
-    }
-    // No recoverable attempts data must never read as a 0% (perfect) allowed rate —
-    // that would reward missing OCR data with the max bonus. Skip the term instead.
-    const oppThirdPct = oppThirdAttempts > 0 ? (oppThirdMade / oppThirdAttempts) * 100 : null;
-
-    // Points/yards allowed give missing OCR data the same "skip the term, don't reward it"
-    // treatment as the rate-based terms above — an all-zero season reads as no data, not a
-    // flawless defense.
-    const pointsAllowedPerGame = games ? sum("points_against") / games : 0;
-    const yardsAllowedValues = rows.map((row) => num(row.yards_allowed));
-    const hasYardsData = yardsAllowedValues.some((value) => value > 0);
-    const yardsAllowedPerGame = games && hasYardsData ? yardsAllowedValues.reduce((total, value) => total + value, 0) / games : null;
-
-    // 0-100 composite (recalibrated 2026-08-05); five terms of 20 points each, replacing the
-    // old four-of-25 split that had no yards/points-allowed signal at all despite those being
-    // core defensive-dominance stats. Takeaway weight increased so 3+ forced turnovers/game
-    // alone can carry most of a tier on its own, per design intent that a high-turnover
-    // defense should be a major driver here. 4th-down stops dropped — too low-sample per game
-    // to reliably carry a fifth of the score. Scales mirror the opp_ppg_allowed (16-28) and
-    // team_def_yards_allowed (300-500) categories so this stays internally consistent with
-    // the rest of the payout ladder.
-    const redZoneTerm = redZoneDefPct > 0 ? Math.min(20, Math.max(0, ((95 - redZoneDefPct) * 20) / 45)) : 0;
-    const takeawayTerm = games ? Math.min(20, ((oppIntsThrown + oppFumblesLost) / games) * 14) : 0;
-    const thirdDownTerm = oppThirdPct != null ? Math.min(20, Math.max(0, 65 - oppThirdPct)) : 0;
-    const pointsAllowedTerm = pointsAllowedPerGame > 0 ? Math.min(20, Math.max(0, (20 * (28 - pointsAllowedPerGame)) / 12)) : 0;
-    const yardsAllowedTerm = yardsAllowedPerGame != null ? Math.min(20, Math.max(0, (20 * (500 - yardsAllowedPerGame)) / 200)) : 0;
-    const raw = redZoneTerm + takeawayTerm + thirdDownTerm + pointsAllowedTerm + yardsAllowedTerm;
-    return raw * coverageMultiplier(games, game);
-  }
-  return 0;
-}
 
 async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber: number, requestedByDiscordId: string) {
   const existing = await supabase
@@ -256,8 +117,8 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
     }));
 }
 
-async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: LeagueGame): Promise<EosPayoutItem[]> {
-  const teamDefinitions = (await getGlobalEconomyConfig()).eos.filter((definition) => definition.scope === "team");
+async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: LeagueGame, dataMode: RecLeagueDataMode): Promise<EosPayoutItem[]> {
+  const teamDefinitions = (await getGlobalEconomyConfig()).eos.filter((definition) => definition.scope === "team" && isPayoutEligibleForLeague(definition, game, dataMode));
   const stats = await supabase
     .from("rec_team_game_stats")
     .select("*")
@@ -277,7 +138,7 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
   const items: EosPayoutItem[] = [];
   for (const [userId, rows] of byUser.entries()) {
     const teamId = rows.find((row) => row.team_id)?.team_id ?? null;
-    for (const definition of teamDefinitions.filter((d) => isPayoutEligibleForGame(d, game))) {
+    for (const definition of teamDefinitions) {
       const value = evalTeamStat(definition.statKey, rows, game);
       const tier = evaluatePayoutTier(value, definition.tiers);
       if (!tier) continue;
@@ -297,6 +158,75 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
     }
   }
   return items;
+}
+
+async function buildPlayerStatItems(leagueId: string, seasonNumber: number, game: LeagueGame, dataMode: RecLeagueDataMode): Promise<EosPayoutItem[]> {
+  const playerDefinitions = (await getGlobalEconomyConfig()).eos.filter((definition) => definition.scope === "player" && isPayoutEligibleForLeague(definition, game, dataMode));
+  if (!playerDefinitions.length) return [];
+
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (assignments.error) throw new ApiError(500, "We couldn't load end-of-season team assignments. Please try again.", assignments.error);
+  const userByTeam = new Map<string, string>((assignments.data ?? []).flatMap((row) => row.team_id && row.user_id ? [[row.team_id, row.user_id] as [string, string]] : []));
+  const teamIds = [...userByTeam.keys()].filter(Boolean) as string[];
+  if (!teamIds.length) return [];
+
+  const stats = await supabase
+    .from("rec_player_weekly_stats")
+    .select("player_id,team_id,position,player_name,stats,week_number")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .lte("week_number", regularSeasonWeeks(game))
+    .in("team_id", teamIds);
+  if (stats.error) throw new ApiError(500, "We couldn't load end-of-season player stats. Please try again.", stats.error);
+
+  const byPlayer = new Map<string, { teamId: string; position: string | null; playerName: string | null; rows: any[] }>();
+  for (const row of stats.data ?? []) {
+    if (!row.player_id || !row.team_id) continue;
+    const current = byPlayer.get(row.player_id) ?? { teamId: row.team_id, position: row.position ?? null, playerName: row.player_name ?? null, rows: [] as any[] };
+    current.rows.push(row);
+    if (row.position) current.position = row.position;
+    byPlayer.set(row.player_id, current);
+  }
+
+  const items: EosPayoutItem[] = [];
+  for (const [playerId, player] of byPlayer.entries()) {
+    const userId = userByTeam.get(player.teamId);
+    if (!userId) continue;
+    const totals = mergePlayerWeekStats(player.rows);
+    for (const definition of playerDefinitions) {
+      const result = evaluateImportPlayerBonus(definition, totals, player.position);
+      if (!result.qualified) continue;
+      const tier = evaluatePayoutTier(result.value, definition.tiers);
+      if (!tier) continue;
+      items.push({
+        league_id: leagueId,
+        user_id: userId,
+        team_id: player.teamId,
+        season_number: seasonNumber,
+        payout_category: "player",
+        payout_key: `eos:${seasonNumber}:${definition.key}:${userId}:${playerId}`,
+        payout_label: `${definition.label} — ${player.playerName ?? "Player"}`,
+        qualified_tier: tier.tier,
+        qualified_value: result.value,
+        amount: tier.amount,
+        metadata: { statKey: definition.statKey, playerId, playerName: player.playerName, position: player.position, ...result.detail },
+      });
+    }
+  }
+  return items;
+}
+
+async function buildEosItems(leagueId: string, seasonNumber: number, game: LeagueGame, dataMode: RecLeagueDataMode): Promise<EosPayoutItem[]> {
+  return [
+    ...await buildPowerRankItems(leagueId, seasonNumber),
+    ...await buildTeamStatItems(leagueId, seasonNumber, game, dataMode),
+    ...await buildPlayerStatItems(leagueId, seasonNumber, game, dataMode),
+  ];
 }
 
 // Shared by the commissioner-triggered `prepareEosPayouts` (which gates on season stage)
@@ -329,7 +259,8 @@ async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, gam
   await payGotwGuessingBonuses(leagueId, seasonNumber).catch((error) =>
     console.error("[ERROR] Failed to pay GOTW guessing bonuses (non-fatal):", error));
 
-  const items = [...await buildPowerRankItems(leagueId, seasonNumber), ...await buildTeamStatItems(leagueId, seasonNumber, game)];
+  const dataMode = await getLeagueDataMode(leagueId);
+  const items = await buildEosItems(leagueId, seasonNumber, game, dataMode);
   if (!(existingIssued.data ?? []).length) {
     await supabase.from("rec_eos_payout_items").delete().eq("batch_id", batch.id).eq("status", "pending");
     if (items.length) {
@@ -407,7 +338,8 @@ export async function wipeAndRerunEosLedger(input: { guildId: string; requestedB
 export async function projectEosPayouts(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
-  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber, context.rec_leagues.game)];
+  const dataMode = await getLeagueDataMode(context.leagueId);
+  const items = await buildEosItems(context.leagueId, seasonNumber, context.rec_leagues.game, dataMode);
   const withDiscord = await attachPayeeDiscordIds(items);
   const totalAmount = withDiscord.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   return {
@@ -440,8 +372,10 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const game = context.rec_leagues.game;
+  const dataMode = await getLeagueDataMode(context.leagueId);
   const payoutDefinitions = (await getGlobalEconomyConfig()).eos;
-  const teamDefinitions = payoutDefinitions.filter((definition) => definition.scope === "team");
+  const teamDefinitions = payoutDefinitions.filter((definition) => definition.scope === "team" && isPayoutEligibleForLeague(definition, game, dataMode));
+  const playerDefinitions = payoutDefinitions.filter((definition) => definition.scope === "player" && isPayoutEligibleForLeague(definition, game, dataMode));
   const rankDefinition = payoutDefinitions.find((definition) => definition.key === "power_ranking_position");
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
@@ -477,7 +411,7 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
 
   const defenseNickname = await bestEffort("eos.defense_nickname_status", () => getMyDefenseNicknameStatus(input.guildId, input.discordId), { guildId: input.guildId }) ?? null;
 
-  const teamStats: EosPayoutProgressCard[] = teamDefinitions.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
+  const teamStats: EosPayoutProgressCard[] = teamDefinitions.map((definition) => {
     const isScoreMetric = definition.statKey === "points_per_game" || definition.statKey === "points_allowed_per_game";
     const sourceRows = isScoreMetric ? scoreRows : rows;
     const hasMetricData = sourceRows.length > 0;
@@ -495,6 +429,52 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
       currentAwardedName: definition.key === "defense_needs_a_name" ? (defenseNickname?.nickname ?? null) : undefined,
     };
   });
+
+  if (playerDefinitions.length && teamId) {
+    const playerRows = await supabase
+      .from("rec_player_weekly_stats")
+      .select("player_id,position,player_name,stats,week_number")
+      .eq("league_id", context.leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("team_id", teamId)
+      .lte("week_number", regularSeasonWeeks(game));
+    if (playerRows.error) throw new ApiError(500, "We couldn't load your player stats right now. Please try again.", playerRows.error);
+    const byPlayer = new Map<string, { position: string | null; playerName: string | null; rows: any[] }>();
+    for (const row of playerRows.data ?? []) {
+      if (!row.player_id) continue;
+      const current = byPlayer.get(row.player_id) ?? { position: row.position ?? null, playerName: row.player_name ?? null, rows: [] as any[] };
+      current.rows.push(row);
+      if (row.position) current.position = row.position;
+      byPlayer.set(row.player_id, current);
+    }
+    for (const definition of playerDefinitions) {
+      let best: { result: ReturnType<typeof evaluateImportPlayerBonus>; name: string | null } | null = null;
+      for (const player of byPlayer.values()) {
+        const result = evaluateImportPlayerBonus(definition, mergePlayerWeekStats(player.rows), player.position);
+        if (!best || result.met > best.result.met || (result.qualified && !best.result.qualified)) {
+          best = { result, name: player.playerName };
+        }
+      }
+      const result = best?.result ?? { qualified: false, value: 0, met: 0, needed: Object.keys(definition.minimums ?? {}).length || 1, detail: {} };
+      const sTier = definition.tiers[0] ?? null;
+      teamStats.push({
+        key: definition.key,
+        label: definition.label,
+        currentValue: result.needed > 1 ? result.met : result.value,
+        progress: result.qualified
+          ? { currentTier: sTier?.tier ?? "S", currentAmount: sTier?.amount ?? 0, nextTier: null, percent: 100 }
+          : {
+            currentTier: null,
+            currentAmount: 0,
+            nextTier: sTier,
+            percent: result.needed > 0 ? Math.min(99, (result.met / result.needed) * 100) : 0,
+          },
+        tiers: definition.tiers,
+        direction: definition.direction,
+        triggerNote: best?.name ? `${definition.triggerNote ?? ""} Currently tracked: ${best.name}.`.trim() : definition.triggerNote,
+      });
+    }
+  }
 
   let ranking: (EosPayoutProgressCard & { rank: number | null }) | null = null;
   if (rankDefinition) {
@@ -708,7 +688,7 @@ async function definitionForItem(item: { payout_category: string; payout_key: st
   const definitions = (await getGlobalEconomyConfig()).eos;
   if (item.payout_category === "ranking") return definitions.find((definition) => definition.key === "power_ranking_position") ?? null;
   const key = String(item.payout_key ?? "").split(":")[2];
-  return definitions.find((definition) => definition.scope === "team" && definition.key === key) ?? null;
+  return definitions.find((definition) => definition.key === key) ?? null;
 }
 
 // Lets a commissioner bump a single line item to a different tier (or clear its payout
