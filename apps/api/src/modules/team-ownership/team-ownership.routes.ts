@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { CreateDefaultTeamsSchema, CustomTeamReplacementSchema, LinkUserToTeamSchema, ResetDefaultTeamsSchema, UnlinkAllTeamsSchema, UnlinkTeamSchema } from "./team-ownership.schemas.js";
-import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, getTeamLinkMatrix, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, releaseMemberTeamLinksOnLeave, resetDefaultTeamsForGuild, syncMemberForGuildJoin, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
+import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, getTeamLinkMatrix, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, releaseMemberTeamLinksOnLeave, relinkLeagueMemberDiscord, resetDefaultTeamsForGuild, syncMemberForGuildJoin, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
 export async function teamOwnershipRoutes(app: FastifyInstance) {
  // Bot-only: called from guildMemberAdd to catch up nickname/role for a member who was
  // approved for a team before actually joining the Discord server.
@@ -30,6 +30,15 @@ export async function teamOwnershipRoutes(app: FastifyInstance) {
    }
  });
  app.get("/v1/team-ownership/:guildId/matrix", async (request, reply) => { try { await requireBotOrUserSession(request, { resolveGuildId: (r: any) => (r.params as { guildId: string }).guildId, permission: "co_commissioner" }); const { guildId } = request.params as { guildId: string }; return reply.send(await getTeamLinkMatrix(guildId)); } catch (error) { return sendError(reply, error); } });
+ app.post("/v1/team-ownership/relink-discord", async (request, reply) => {
+   try {
+     await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+     const body = z.object({ guildId: z.string().min(1), fromDiscordId: z.string().min(1), toDiscordId: z.string().min(1) }).parse(request.body);
+     return reply.send(await relinkLeagueMemberDiscord(body));
+   } catch (error) {
+     return sendError(reply, error);
+   }
+ });
  app.post("/v1/team-ownership/unlink-all", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await unlinkAllTeamsForGuild(UnlinkAllTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/unlink-team", async (request, reply) => { try { const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" }); const input = UnlinkTeamSchema.parse(request.body); if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId; return reply.send(await unlinkTeamForGuild(input)); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/member-left", async (request, reply) => { try { requireInternalApiKey(request); const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body); return reply.send(await releaseMemberTeamLinksOnLeave(body)); } catch (error) { return sendError(reply, error); } });

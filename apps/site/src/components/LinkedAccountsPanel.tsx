@@ -138,6 +138,37 @@ export function LinkedAccountsPanel({
     onDiscordLinked?.();
   }
 
+  async function unlinkDiscordAccount() {
+    if (!window.confirm("Unlink Discord? Your REC profile, teams, wallet, and stats stay. You can link a new Discord afterward.")) return;
+    setDiscordBusy(true);
+    setDiscordError(null);
+    try {
+      await siteApi.unlinkDiscord();
+      onDiscordLinked?.();
+    } catch (err) {
+      setDiscordError(err instanceof Error ? err.message : "Could not unlink Discord.");
+    } finally {
+      setDiscordBusy(false);
+    }
+  }
+
+  async function replaceDiscordAccount() {
+    if (!window.confirm("Replace Discord? You will sign in with the new Discord. Your REC profile, teams, wallet, and stats stay.")) return;
+    setDiscordBusy(true);
+    setDiscordError(null);
+    try {
+      await siteApi.unlinkDiscord();
+      const { error: linkError } = await auth.linkDiscord("/account?tab=linked");
+      if (linkError) {
+        setDiscordError(linkError);
+        setDiscordBusy(false);
+      }
+    } catch (err) {
+      setDiscordError(err instanceof Error ? err.message : "Could not start Discord replace.");
+      setDiscordBusy(false);
+    }
+  }
+
   const configured = payload?.configured;
   const accounts = payload?.accounts ?? [];
   const emailFirst = Boolean(auth.status === "signed-in" && auth.user.email) && !linked.discordUsername;
@@ -175,10 +206,35 @@ export function LinkedAccountsPanel({
           </header>
           <p className="site-muted">
             {linked.discordUsername
-              ? `Connected as ${linked.discordUsername}.`
+              ? `Connected as ${linked.discordUsername}. If this Discord is banned or you made a new account, unlink or replace it — your teams, wallet, and stats stay.`
               : "Not required to use the site, but needed for Discord DMs and league server features."}
           </p>
-          {linked.discordUsername ? null : (
+          {linked.discordUsername && auth.status === "signed-in" && !auth.user.email ? (
+            <p className="site-muted">
+              Add an email login first so you can unlink Discord without losing site access. If you
+              cannot sign in, a commissioner can relink Discord from League Tools.
+            </p>
+          ) : null}
+          {linked.discordUsername ? (
+            <div className="site-linked-account-actions">
+              <button
+                type="button"
+                className="site-btn site-btn-primary"
+                disabled={discordBusy || !auth.status || auth.status !== "signed-in" || !auth.user.email}
+                onClick={() => void replaceDiscordAccount()}
+              >
+                {discordBusy ? "Working…" : "Replace Discord"}
+              </button>
+              <button
+                type="button"
+                className="site-btn site-btn-ghost"
+                disabled={discordBusy || !auth.status || auth.status !== "signed-in" || !auth.user.email}
+                onClick={() => void unlinkDiscordAccount()}
+              >
+                Unlink
+              </button>
+            </div>
+          ) : (
             <div className="site-linked-account-actions">
               <button
                 type="button"

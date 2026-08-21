@@ -8,6 +8,7 @@ import {
   ensureAccountForSession,
   getSiteLinkProfile,
   linkDiscordFromOAuth,
+  unlinkDiscordForSession,
   listLinkCandidates,
   requestIdentityClaimCode,
   setSiteUsername,
@@ -46,6 +47,15 @@ export async function siteAuthRoutes(app: FastifyInstance) {
           email: session.email,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-auth/link/discord-unlink", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      return reply.send(await unlinkDiscordForSession({ authUserId: session.authUserId }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -18,6 +18,9 @@ import {
   syncLifetimePlatinumForUser,
 } from "../subscriptions/entitlements.service.js";
 import { mergeOrphanedBillingIntoCanonicalUser } from "../subscriptions/stripe.service.js";
+import { siteOnlyDiscordId } from "../league-context/league-context.service.js";
+import { isSyntheticDiscordId } from "./discord-identity-ids.js";
+import { transferDiscordIdentity } from "./discord-identity-transfer.js";
 
 const supabaseAuthAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -239,7 +242,25 @@ export async function linkDiscordFromOAuth(input: {
     );
   } else {
     recUserId = await ensureRecUserForAuthUser(input.authUserId, input.email);
-    const insert = await getPgPool().query(
+    const existingForUser = await getPgPool().query(
+      `select discord_id from rec_discord_accounts where user_id = $1`,
+      [recUserId],
+    );
+    const previousDiscordId = (existingForUser.rows as Array<{ discord_id?: string }>)
+      .map((row) => row.discord_id)
+      .filter((id): id is string => Boolean(id))
+      .sort((a, b) => Number(isSyntheticDiscordId(a)) - Number(isSyntheticDiscordId(b)))[0];
+    if (previousDiscordId && previousDiscordId !== discord.discordId) {
+      await transferDiscordIdentity({
+        userId: recUserId,
+        fromDiscordId: previousDiscordId,
+        toDiscordId: discord.discordId,
+        username: discord.username,
+        globalName: discord.globalName,
+        reason: "Site user linked a new Discord account; REC profile and league data stayed on the same user.",
+      });
+    } else {
+      const insert = await getPgPool().query(
       `
         insert into rec_discord_accounts (user_id, discord_id, username, global_name)
         values ($1, $2, $3, $4)
@@ -250,45 +271,46 @@ export async function linkDiscordFromOAuth(input: {
       `,
       [recUserId, discord.discordId, discord.username, discord.globalName],
     );
-    const linkedUserId = (insert.rows[0] as { user_id: string } | undefined)?.user_id;
-    if (linkedUserId && linkedUserId !== recUserId) {
-      // A concurrent sign-in claimed this snowflake between our lookup and this insert. The
-      // person controlling the Discord is the legitimate owner; adopt that profile too.
-      // recUserId was just ensured for this auth user; it's an empty orphan now that the
-      // snowflake's owner profile took over — unbind it FIRST (the partial unique index on
-      // supabase_auth_user_id admits only one row) so the adopted profile can be bound next.
-      // Migrate any billing state that landed on this row first (see mergeOrphanedBillingIntoCanonicalUser).
-      await mergeOrphanedBillingIntoCanonicalUser(recUserId, linkedUserId).catch((error) =>
-        console.error("[ERROR] Failed to merge orphaned billing state during concurrent Discord link (non-fatal):", error),
-      );
-      await getPgPool().query(`update rec_users set supabase_auth_user_id = null, updated_at = now() where id = $1`, [
-        recUserId,
-      ]);
-      await getPgPool().query(`update rec_users set supabase_auth_user_id = $1, updated_at = now() where id = $2`, [
-        input.authUserId,
-        linkedUserId,
-      ]);
-      await getPgPool().query(`delete from rec_site_identity_claims where auth_user_id = $1 or rec_user_id = $2`, [
-        input.authUserId,
-        linkedUserId,
-      ]);
-      await getPgPool().query(
-        `
-          insert into rec_site_identity_claims (auth_user_id, rec_user_id)
-          values ($1, $2)
-        `,
-        [input.authUserId, linkedUserId],
-      );
-      recUserId = linkedUserId;
-    } else {
-      await getPgPool().query(
-        `
-          insert into rec_site_identity_claims (auth_user_id, rec_user_id)
-          values ($1, $2)
-          on conflict (auth_user_id) do nothing
-        `,
-        [input.authUserId, recUserId],
-      );
+      const linkedUserId = (insert.rows[0] as { user_id: string } | undefined)?.user_id;
+      if (linkedUserId && linkedUserId !== recUserId) {
+        // A concurrent sign-in claimed this snowflake between our lookup and this insert. The
+        // person controlling the Discord is the legitimate owner; adopt that profile too.
+        // recUserId was just ensured for this auth user; it's an empty orphan now that the
+        // snowflake's owner profile took over — unbind it FIRST (the partial unique index on
+        // supabase_auth_user_id admits only one row) so the adopted profile can be bound next.
+        // Migrate any billing state that landed on this row first (see mergeOrphanedBillingIntoCanonicalUser).
+        await mergeOrphanedBillingIntoCanonicalUser(recUserId, linkedUserId).catch((error) =>
+          console.error("[ERROR] Failed to merge orphaned billing state during concurrent Discord link (non-fatal):", error),
+        );
+        await getPgPool().query(`update rec_users set supabase_auth_user_id = null, updated_at = now() where id = $1`, [
+          recUserId,
+        ]);
+        await getPgPool().query(`update rec_users set supabase_auth_user_id = $1, updated_at = now() where id = $2`, [
+          input.authUserId,
+          linkedUserId,
+        ]);
+        await getPgPool().query(`delete from rec_site_identity_claims where auth_user_id = $1 or rec_user_id = $2`, [
+          input.authUserId,
+          linkedUserId,
+        ]);
+        await getPgPool().query(
+          `
+            insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+            values ($1, $2)
+          `,
+          [input.authUserId, linkedUserId],
+        );
+        recUserId = linkedUserId;
+      } else {
+        await getPgPool().query(
+          `
+            insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+            values ($1, $2)
+            on conflict (auth_user_id) do nothing
+          `,
+          [input.authUserId, recUserId],
+        );
+      }
     }
   }
 
@@ -339,7 +361,8 @@ export async function getSiteLinkProfile(input: {
         u.username,
         da.username as discord_username,
         da.global_name as discord_global_name,
-        da.avatar_url as discord_avatar_url
+        da.avatar_url as discord_avatar_url,
+        da.discord_id as discord_id
       from rec_users u
       left join rec_discord_accounts da on da.user_id = u.id
       where u.supabase_auth_user_id = $1
@@ -355,6 +378,7 @@ export async function getSiteLinkProfile(input: {
         discord_username: string | null;
         discord_global_name: string | null;
         discord_avatar_url: string | null;
+        discord_id: string | null;
       }
     | undefined;
   if (!row) {
@@ -370,16 +394,62 @@ export async function getSiteLinkProfile(input: {
     };
   }
   const entitlements = await getEntitlementSummary(row.id);
+  const linkedDiscord = row.discord_id && !isSyntheticDiscordId(row.discord_id);
   return {
     linked: true,
     recUserId: row.id,
     displayName: row.display_name ?? null,
     username: row.username ?? null,
-    discordUsername: firstNonEmpty(row.discord_global_name, row.discord_username),
-    avatarUrl: row.discord_avatar_url ?? null,
+    discordUsername: linkedDiscord ? firstNonEmpty(row.discord_global_name, row.discord_username) : null,
+    avatarUrl: linkedDiscord ? row.discord_avatar_url ?? null : null,
     entitlements,
     claimDropdownOpen,
   };
+}
+
+async function unlinkDiscordIdentityFromAuth(authUserId: string, identities: Array<{ provider?: string; id?: string; identity_id?: string }>) {
+  const identity = identities.find((item) => item.provider === "discord");
+  const identityId = identity?.identity_id || identity?.id;
+  if (!identityId) return;
+  const admin = supabaseAuthAdmin.auth.admin as { deleteUserIdentity?: (args: { id: string; identity_id?: string }) => Promise<unknown> };
+  if (typeof admin.deleteUserIdentity === "function") {
+    await admin.deleteUserIdentity({ id: authUserId, identity_id: identityId }).catch((error) => {
+      console.error("[WARN] Failed to delete Discord identity via admin API (non-fatal):", error);
+    });
+    return;
+  }
+  await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${authUserId}/identities/${identityId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, apikey: env.SUPABASE_SERVICE_ROLE_KEY },
+  }).catch((error) => console.error("[WARN] Failed to delete Discord identity (non-fatal):", error));
+}
+
+/** Drop the Discord snowflake from this site account while keeping rec_users (wallet, teams, stats). */
+export async function unlinkDiscordForSession(input: { authUserId: string }): Promise<SiteLinkProfile> {
+  const { data, error } = await supabaseAuthAdmin.auth.admin.getUserById(input.authUserId);
+  if (error || !data.user) throw new ApiError(401, "Could not load auth user for Discord unlink.");
+  const identities = data.user.identities ?? [];
+  const hasEmail = identities.some((item) => item.provider === "email") || Boolean(data.user.email);
+  if (!hasEmail) {
+    throw new ApiError(
+      400,
+      "Add an email login to this account first so you can unlink Discord without losing access. A commissioner can also relink Discord from League Tools.",
+    );
+  }
+  const recUserId = await resolveRecUserIdByAuthUserId(input.authUserId);
+  if (!recUserId) throw new ApiError(404, "No REC profile is linked to this account.");
+  const current = await getPgPool().query(`select discord_id from rec_discord_accounts where user_id = $1`, [recUserId]);
+  const fromId = (current.rows[0] as { discord_id?: string } | undefined)?.discord_id;
+  if (fromId && !isSyntheticDiscordId(fromId)) {
+    await transferDiscordIdentity({
+      userId: recUserId,
+      fromDiscordId: fromId,
+      toDiscordId: siteOnlyDiscordId(recUserId),
+      reason: "User unlinked Discord from My Account; REC profile and league data stayed on the same user.",
+    });
+  }
+  await unlinkDiscordIdentityFromAuth(input.authUserId, identities);
+  return getSiteLinkProfile({ authUserId: input.authUserId });
 }
 
 export async function listLinkCandidates(input: {

@@ -877,6 +877,42 @@ export async function getTeamLinkMatrix(guildId: string) {
   };
 }
 
+/** Commissioner tool: move an existing REC profile from a banned/old Discord to a new guild member. */
+export async function relinkLeagueMemberDiscord(input: {
+  guildId: string;
+  fromDiscordId: string;
+  toDiscordId: string;
+}) {
+  const fromId = String(input.fromDiscordId ?? "").trim();
+  const toId = String(input.toDiscordId ?? "").trim();
+  if (!/^\d{5,}$/.test(fromId) || !/^\d{5,}$/.test(toId)) {
+    throw new ApiError(400, "Pick the currently linked Discord account and the new Discord member.");
+  }
+  if (fromId === toId) throw new ApiError(400, "That member is already the linked Discord account.");
+
+  const members = await listGuildMembers(input.guildId);
+  const nextMember = members.find((member) => member.discordId === toId && !member.isBot);
+  if (!nextMember) throw new ApiError(404, "The new Discord account must already be in this league server.");
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").eq("discord_id", fromId).maybeSingle();
+  if (account.error) throw new ApiError(500, "We couldn't look up that Discord account. Please try again.", account.error);
+  if (!account.data?.user_id) throw new ApiError(404, "That Discord account is not linked to a REC profile.");
+
+  const { transferDiscordIdentity } = await import("../site-auth/discord-identity-transfer.js");
+  const result = await transferDiscordIdentity({
+    userId: account.data.user_id,
+    fromDiscordId: fromId,
+    toDiscordId: toId,
+    username: nextMember.username,
+    globalName: nextMember.displayName,
+    reason: `Commissioner relinked Discord in guild ${input.guildId} so league data stays on the same REC user.`,
+  });
+  await syncMemberForGuildJoin(input.guildId, toId).catch((error) => {
+    console.error("[WARN] Failed to resync nickname/roles after Discord relink (non-fatal):", error);
+  });
+  return { ...result, displayName: nextMember.displayName, username: nextMember.username };
+}
+
 // Guild-free core so the recruiting board (which advertises leagues that may have no linked
 // Discord server yet) can compute the same open-teams set without a guildId to resolve from.
 export async function listOpenTeamsForLeagueId(leagueId: string) {

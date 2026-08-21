@@ -130,6 +130,7 @@ export type LinkedTeamRow = {
   team: { id: string; name: string; abbreviation: string; conference: string | null } | null;
   user: { id: string; display_name: string } | null;
   discordId: string | null;
+  discordAccount?: { username?: string | null; global_name?: string | null } | null;
 };
 export type LinkedTeamsResponse = { linked: LinkedTeamRow[] };
 

@@ -735,6 +735,8 @@ export const recApi = {
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.unlinkTeam, { method: "POST", body: JSON.stringify(input) }),
+  relinkDiscord: (input: { guildId: string; fromDiscordId: string; toDiscordId: string }) =>
+    recApiFetch<{ fromDiscordId: string; toDiscordId: string; displayName: string; username: string }>("/v1/team-ownership/relink-discord", { method: "POST", body: JSON.stringify(input) }),
 
   // Box score review (schedule builder — see TeamScheduleForm.tsx)
   getBoxScoreSubmission: (submissionId: string) =>
