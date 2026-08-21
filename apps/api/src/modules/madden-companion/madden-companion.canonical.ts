@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import { canonicalizeStatPayload, normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
+import { eaScheduleExternalId } from "../madden-ea/ea-weeks.js";
 
 type Json = Record<string, unknown>;
 
@@ -144,7 +145,11 @@ async function applyRosterPlayer(client: PoolClient, leagueId: string, record: N
 
 async function applySchedule(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
   const row = record.rawData;
-  const externalId = record.sourceGameId ?? record.recordKey;
+  const rawScheduleId = record.sourceGameId ?? record.recordKey;
+  const weekNumber = record.weekNumber;
+  const externalId = weekNumber != null && record.sourceGameId
+    ? eaScheduleExternalId(weekNumber, record.sourceGameId)
+    : rawScheduleId;
   const homeSource = text(row, ["homeTeamId", "home_team_id"]);
   const awaySource = text(row, ["awayTeamId", "away_team_id"]);
   const home = await teamId(client, leagueId, homeSource);
@@ -158,6 +163,21 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
   const completed = played === true
     || (played === null && eaStatus !== null && eaStatus > 1)
     || (played === null && eaStatus === null && homeScore !== null && awayScore !== null);
+  const gameId = await resolveImportedGameId(client, {
+    leagueId, weekNumber, homeTeamId: home, awayTeamId: away,
+    scopedExternalId: externalId, legacyExternalId: record.sourceGameId,
+  });
+  if (gameId) {
+    await client.query(
+      `update rec_games set week_number=coalesce($2, week_number), phase=$3,
+         home_team_id=coalesce($4, home_team_id), away_team_id=coalesce($5, away_team_id),
+         home_score=$6, away_score=$7, status=$8, source='madden_companion_export',
+         import_verified=true, external_game_id=$9, updated_at=now()
+       where id=$1`,
+      [gameId, weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+    );
+    return;
+  }
   await client.query(
     `insert into rec_games(league_id,week_number,phase,home_team_id,away_team_id,home_score,away_score,status,source,import_verified,manual_entered,result_payout_eligible,eos_payout_eligible,external_game_id,updated_at)
      values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
@@ -165,8 +185,49 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
        week_number=excluded.week_number,home_team_id=coalesce(excluded.home_team_id,rec_games.home_team_id),
        away_team_id=coalesce(excluded.away_team_id,rec_games.away_team_id),home_score=excluded.home_score,
        away_score=excluded.away_score,status=excluded.status,source='madden_companion_export',import_verified=true,updated_at=now()`,
-    [leagueId, record.weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+    [leagueId, weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
   );
+}
+
+async function resolveImportedGameId(
+  client: PoolClient,
+  input: {
+    leagueId: string;
+    weekNumber: number | null;
+    homeTeamId: string | null;
+    awayTeamId: string | null;
+    scopedExternalId: string | null;
+    legacyExternalId: string | null;
+  },
+): Promise<string | null> {
+  if (input.homeTeamId && input.awayTeamId && input.weekNumber != null) {
+    const matchup = await client.query<{ id: string }>(
+      `select id from rec_games
+        where league_id=$1 and week_number=$2 and home_team_id=$3 and away_team_id=$4
+        limit 1`,
+      [input.leagueId, input.weekNumber, input.homeTeamId, input.awayTeamId],
+    );
+    if (matchup.rows[0]) return matchup.rows[0].id;
+  }
+  if (input.scopedExternalId) {
+    const scoped = await client.query<{ id: string }>(
+      `select id from rec_games where league_id=$1 and external_game_id=$2 limit 1`,
+      [input.leagueId, input.scopedExternalId],
+    );
+    if (scoped.rows[0]) return scoped.rows[0].id;
+  }
+  // Pre-week-scoped imports stored the bare EA scheduleId. Adopt that row only when it already
+  // sits on this week — otherwise week 2 would steal week 1's game.
+  if (input.legacyExternalId && input.weekNumber != null) {
+    const legacy = await client.query<{ id: string }>(
+      `select id from rec_games
+        where league_id=$1 and external_game_id=$2 and week_number=$3
+        limit 1`,
+      [input.leagueId, input.legacyExternalId, input.weekNumber],
+    );
+    if (legacy.rows[0]) return legacy.rows[0].id;
+  }
+  return null;
 }
 
 /**
@@ -221,6 +282,11 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
   // query (League Records, season/career stat totals — all of it silently reads back empty).
   const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0].season_number;
   const category = statCategory(record.rawData, record);
+  const weekNumber = record.weekNumber ?? 0;
+  const sourceWeekIndex = record.sourceWeekIndex ?? (weekNumber > 0 ? weekNumber - 1 : 0);
+  const sourceScheduleId = record.sourceGameId && record.weekNumber != null
+    ? eaScheduleExternalId(record.weekNumber, record.sourceGameId)
+    : (record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`);
   // Two unique indexes can fire here: the business identity
   // (league/season/team/player/category/source_stat/source_schedule) and
   // rec_player_weekly_stats_companion_record_key (one weekly-stats row per companion
@@ -236,33 +302,86 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
       where source_companion_record_id = $1`,
     [canonicalRecordId],
   );
+  // Key format used to omit week, so the same player+game+category from week 2 would
+  // ON CONFLICT onto week 1. Drop any existing row for this player/week/category (including
+  // legacy keys) so the insert below is the single source of truth for that line.
+  await client.query(
+    `delete from rec_player_weekly_stats
+      where league_id=$1 and season_number=$2 and madden_player_id=$3
+        and stat_category=$4 and week_number=$5`,
+    [leagueId, season, record.sourcePlayerId, category, weekNumber],
+  );
   await client.query(
     `insert into rec_player_weekly_stats
        (league_id,season_number,season_stage,week_number,player_id,team_id,madden_player_id,madden_team_id,
         player_name,team_name,position,stat_category,stats,raw_payload,source_stat_id,source_schedule_id,
         source_week_index,source_team_id,source_roster_id,source_type,source_companion_record_id,updated_at)
-     values ($1,$2,$17,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$3,$7,$6,'madden_companion',$16,now())
+     values ($1,$2,$17,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$18,$7,$6,'madden_companion',$16,now())
      on conflict (league_id,season_number,team_id,player_id,madden_player_id,stat_category,source_stat_id,source_schedule_id) do update set
        season_stage=excluded.season_stage,week_number=excluded.week_number,
        player_name=excluded.player_name,team_name=excluded.team_name,position=excluded.position,
-       stats=excluded.stats,raw_payload=excluded.raw_payload,source_companion_record_id=excluded.source_companion_record_id,updated_at=now()`,
-    [leagueId, season, record.weekNumber ?? 0, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
+       stats=excluded.stats,raw_payload=excluded.raw_payload,source_companion_record_id=excluded.source_companion_record_id,
+       source_week_index=excluded.source_week_index,updated_at=now()`,
+    [leagueId, season, weekNumber, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
       player.full_name, team?.name ?? null, player.position, category, JSON.stringify(statPayload(record.rawData)), JSON.stringify(record.rawData),
-      record.recordKey, record.sourceGameId ?? `week:${record.weekNumber ?? "season"}`, canonicalRecordId,
-      seasonStage(record.rawData, record)],
+      record.recordKey, sourceScheduleId, canonicalRecordId,
+      seasonStage(record.rawData, record), sourceWeekIndex],
   );
+}
+
+async function resolveTeamStatsGame(
+  client: PoolClient,
+  input: {
+    leagueId: string;
+    teamId: string;
+    weekNumber: number | null;
+    scopedExternalId: string | null;
+    legacyExternalId: string | null;
+  },
+): Promise<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null } | null> {
+  const columns = "id,home_team_id,away_team_id,home_score,away_score,phase";
+  if (input.scopedExternalId) {
+    const scoped = await client.query<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null }>(
+      `select ${columns} from rec_games where league_id=$1 and external_game_id=$2 limit 1`,
+      [input.leagueId, input.scopedExternalId],
+    );
+    if (scoped.rows[0]) return scoped.rows[0];
+  }
+  if (input.legacyExternalId && input.weekNumber != null) {
+    const legacy = await client.query<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null }>(
+      `select ${columns} from rec_games
+        where league_id=$1 and external_game_id=$2 and week_number=$3
+        limit 1`,
+      [input.leagueId, input.legacyExternalId, input.weekNumber],
+    );
+    if (legacy.rows[0]) return legacy.rows[0];
+  }
+  if (input.weekNumber != null) {
+    const matchup = await client.query<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null }>(
+      `select ${columns} from rec_games
+        where league_id=$1 and week_number=$2 and (home_team_id=$3 or away_team_id=$3)
+        limit 1`,
+      [input.leagueId, input.weekNumber, input.teamId],
+    );
+    if (matchup.rows[0]) return matchup.rows[0];
+  }
+  return null;
 }
 
 async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRecordId: string, seasonKey: string, record: NormalizedCompanionRecord) {
   const row = record.rawData;
   const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
   if (!resolvedTeamId) return;
-  const game = record.sourceGameId
-    ? (await client.query<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number | null; away_score: number | null; phase: string | null }>(
-        "select id,home_team_id,away_team_id,home_score,away_score,phase from rec_games where league_id=$1 and external_game_id=$2 limit 1",
-        [leagueId, record.sourceGameId],
-      )).rows[0]
-    : null;
+  const scopedGameId = record.sourceGameId && record.weekNumber != null
+    ? eaScheduleExternalId(record.weekNumber, record.sourceGameId)
+    : record.sourceGameId;
+  const game = await resolveTeamStatsGame(client, {
+    leagueId,
+    teamId: resolvedTeamId,
+    weekNumber: record.weekNumber,
+    scopedExternalId: scopedGameId,
+    legacyExternalId: record.sourceGameId,
+  });
   const opponentTeamId = game ? (game.home_team_id === resolvedTeamId ? game.away_team_id : game.home_team_id) : null;
   const isHome = game ? game.home_team_id === resolvedTeamId : bool(row, ["isHome", "is_home"]);
   const pointsFor = integer(row, ["pointsFor", "points_for", "score", "teamScore", "team_score"])
@@ -282,6 +401,15 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
   )).rows[0]?.user_id ?? null : null;
   const result = pointsFor === null || pointsAgainst === null ? null : pointsFor > pointsAgainst ? "win" : pointsFor < pointsAgainst ? "loss" : "tie";
   const stats = statPayload(row);
+  await client.query(
+    `update rec_team_game_stats set source_companion_record_id = null where source_companion_record_id = $1`,
+    [canonicalRecordId],
+  );
+  await client.query(
+    `delete from rec_team_game_stats
+      where league_id=$1 and team_id=$2 and week_number=$3 and source_type='madden_companion'`,
+    [leagueId, resolvedTeamId, record.weekNumber ?? 0],
+  );
   await client.query(
     `insert into rec_team_game_stats
        (league_id,season_number,week_number,phase,game_id,submission_id,team_id,opponent_team_id,user_id,opponent_user_id,

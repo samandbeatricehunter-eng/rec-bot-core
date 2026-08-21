@@ -52,7 +52,7 @@ import {
   type EaSessionCache,
   type EaTokenRecord,
 } from "./ea-token-vault.js";
-import { currentWeekFromSeasonInfo, describeEaWeek, type EaStage, type EaWeekRef } from "./ea-weeks.js";
+import { currentWeekFromSeasonInfo, describeEaWeek, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
 export type { EaDataset };
 
@@ -506,8 +506,11 @@ export type EaImportOptions = {
   stage?: EaStage;
   weekIndex?: number;
   /** Explicit week list (specific week or a span expanded by the caller). When present it
-   *  replaces the single stage/weekIndex for weekly datasets; snapshots import once. */
+   *  replaces week_scope / stage / weekIndex for weekly datasets; snapshots import once. */
   weekRefs?: EaWeekRef[];
+  /** When weekRefs is omitted: `current` (default) is only the franchise week; `through_current`
+   *  is every exportable week in that stage up through current. */
+  weekScope?: EaWeekScope;
 };
 
 export type EaImportProgressEvent =
@@ -638,36 +641,20 @@ export async function importEaDatasetsWithProgress(
     );
   }
 
-  // Build the list of weeks to import. When no explicit week is requested (the default),
-  // import ALL weeks up to and including the current week — not just the current week.
-  // EA's schedule/stats exports are per-week, so importing only the current week misses
-  // all previously played games' scores.
+  // Weekly datasets follow the picker: current week, an explicit list, or all weeks through
+  // current. Omitted weekRefs used to expand 0..current, so "Current week" imported history.
   const defaultWeekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
     ? { stageIndex: options.stage, weekIndex: options.weekIndex }
     : seasonInfo
       ? currentWeekFromSeasonInfo({ seasonWeek: seasonInfo.seasonWeek, seasonWeekType: seasonInfo.seasonWeekType })
       : { stageIndex: 1, weekIndex: 0 };
-  // An explicit week list drives weekly datasets; without one, import ALL weeks up to and
-  // including the franchise's current week. This ensures previously played weeks' scores
-  // are captured — EA's schedule export is per-week, so only requesting the current week
-  // misses all completed games.
-  const weeklyRefs = [...(options.weekRefs ?? (() => {
-    const allWeeks: EaWeekRef[] = [];
-    if (defaultWeekRef.stageIndex === 0) {
-      // Preseason: import all preseason weeks up to current
-      for (let i = 0; i <= defaultWeekRef.weekIndex; i++) allWeeks.push({ stageIndex: 0, weekIndex: i });
-    } else {
-      // Regular season + playoffs: import all weeks 0 through current, skipping Pro Bowl
-      for (let i = 0; i <= defaultWeekRef.weekIndex; i++) {
-        if (i !== 21) allWeeks.push({ stageIndex: 1, weekIndex: i });
-      }
-    }
-    return allWeeks;
-  })())].reduce<EaWeekRef[]>((unique, ref) => {
-    const key = `${ref.stageIndex}:${ref.weekIndex}`;
-    if (!unique.some((existing) => `${existing.stageIndex}:${existing.weekIndex}` === key)) unique.push(ref);
-    return unique;
-  }, []);
+  const weeklyRefs = resolveWeeklyImportRefs({
+    weekRefs: options.weekRefs,
+    stage: options.stage,
+    weekIndex: options.weekIndex,
+    weekScope: options.weekScope,
+    current: defaultWeekRef,
+  });
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
@@ -715,15 +702,17 @@ export async function importEaDatasetsWithProgress(
   pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
+    const isWeekly = WEEKLY_DATASETS.has(dataset);
+    const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
+    const scope = isWeekly ? weekDesc.label : "league-wide snapshot";
     const t0 = Date.now();
-    console.log(`[EA] Fetching ${dataset} week ${week.weekIndex}...`);
+    console.log(`[EA] Fetching ${dataset} (${scope})...`);
     const raw = dataset === "rosters" && preloadedRosterRaw && week.stageIndex === defaultWeekRef.stageIndex && week.weekIndex === defaultWeekRef.weekIndex
       ? preloadedRosterRaw
       : await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
-    console.log(`[EA] Fetched ${dataset} week ${week.weekIndex} in ${Date.now() - t0}ms`);
+    console.log(`[EA] Fetched ${dataset} (${scope}) in ${Date.now() - t0}ms`);
 
-    const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
-    const label = weeklyRefs.length > 1
+    const label = isWeekly
       ? `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`
       : EA_DATASET_LABELS[dataset];
 
@@ -923,7 +912,7 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
     }
     clearImportProgress(row.league_id);
     try {
-      await importEaDatasetsWithProgress(row.id, row.league_id, {});
+      await importEaDatasetsWithProgress(row.id, row.league_id, { weekScope: "current" });
       succeeded += 1;
     } catch (error) {
       failed += 1;

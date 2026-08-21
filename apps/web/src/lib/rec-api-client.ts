@@ -251,12 +251,12 @@ export const recApi = {
     recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/bind", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ea_league_id: input.eaLeagueId }) }),
   updateMaddenEaSettings: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; autoImport?: boolean }) =>
     recApiFetch<{ connection: EaConnection }>("/v1/import/madden/ea/settings", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.autoImport !== undefined ? { auto_import: input.autoImport } : {}) }) }),
-  importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }> }) =>
-    recApiFetch<{ ok: boolean; message: string }>("/v1/import/madden/ea/import-async", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}) }) }),
+  importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }) =>
+    recApiFetch<{ ok: boolean; message: string }>("/v1/import/madden/ea/import-async", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}), ...(input.weekScope ? { week_scope: input.weekScope } : {}) }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ events: EaImportProgressEvent[]; running: boolean }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   /** SSE streaming variant — calls onEvent for each progress event, returns final results. */
-  importMaddenEaDatasetsStream: async (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }> }, onEvent: (event: EaImportProgressEvent) => void): Promise<EaImportResult[]> => {
+  importMaddenEaDatasetsStream: async (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }, onEvent: (event: EaImportProgressEvent) => void): Promise<EaImportResult[]> => {
     const response = await fetch(`${apiBaseUrl()}/v1/import/madden/ea/import-stream`, {
       method: "POST",
       headers: {
@@ -264,7 +264,7 @@ export const recApi = {
         ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
         ...(hubGuildId ? { "x-rec-guild-id": hubGuildId } : {}),
       },
-      body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}) }),
+      body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}), ...(input.weekScope ? { week_scope: input.weekScope } : {}) }),
     });
     if (!response.ok) {
       const text = await response.text().catch(() => "");
