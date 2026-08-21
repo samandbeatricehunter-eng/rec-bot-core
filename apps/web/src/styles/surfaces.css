@@ -7,7 +7,7 @@
   background:
     linear-gradient(135deg, rgba(255,255,255,.075), transparent 34%),
     repeating-linear-gradient(115deg,rgba(255,255,255,.016) 0 1px,transparent 1px 4px),
-    color-mix(in srgb, var(--surface, #0c1016) 84%, transparent);
+    color-mix(in srgb, var(--surface, #0c1016) 66%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 48%, rgba(255,255,255,.22));
   border-radius: var(--radius-lg);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.11), inset 0 -20px 45px rgba(0,0,0,.18), 0 18px 40px rgba(0,0,0,.38);

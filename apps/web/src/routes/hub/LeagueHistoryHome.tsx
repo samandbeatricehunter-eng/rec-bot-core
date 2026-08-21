@@ -170,7 +170,7 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
   );
 }
 
-export function LeagueHistoryHome() {
+export function LeagueHistoryHome({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const { guildId } = useReadyAuth();
   const { currentLeague } = useHubChrome();
@@ -193,7 +193,7 @@ export function LeagueHistoryHome() {
   if (error && !history) {
     return (
       <div className="hub-page">
-        <PageHeader title="League History" subtitle="Every completed season, one tab each." actions={backAction} />
+        {!embedded && <PageHeader title="League History" subtitle="Every completed season, one tab each." actions={backAction} />}
         <ErrorState message={error} />
       </div>
     );
@@ -204,7 +204,7 @@ export function LeagueHistoryHome() {
 
   return (
     <div className="hub-page">
-      <PageHeader title="League History" subtitle={history.league.name} actions={backAction} />
+      {!embedded && <PageHeader title="League History" subtitle={history.league.name} actions={backAction} />}
       {history.seasons.length === 0 ? (
         <p className="hub-empty">No completed seasons yet — check back after Season {history.currentSeason} wraps up.</p>
       ) : (

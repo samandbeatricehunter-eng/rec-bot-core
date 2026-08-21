@@ -441,7 +441,7 @@ function EosPayoutProgressPanel() {
   </div>;
 }
 
-function FinancialLedger({ summary }: { summary: any }) {
+export function FinancialLedger({ summary }: { summary: any }) {
   const last30 = summary?.last30Days;
   const league = summary?.league;
   const wagering = summary?.wagering;

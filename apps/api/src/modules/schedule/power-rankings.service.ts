@@ -278,17 +278,25 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       : (await loadPreviousSeasonFinalRankings(leagueId, currentSeason)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame);
   }
 
-  const [teamsRes, assignmentsRes, latestWeek] = await Promise.all([
+  const [teamsRes, assignmentsRes, latestWeek, playoffSeedsRes] = await Promise.all([
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
     loadLatestSnapshotWeek(leagueId, currentSeason, completedWeekNumber),
+    supabase.from("rec_season_team_seeds")
+      .select("team_id,seed,made_playoffs,division_winner")
+      .eq("league_id", leagueId)
+      .eq("season_number", currentSeason),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for power rankings.", assignmentsRes.error);
+  if (playoffSeedsRes.error) throw new ApiError(500, "Failed to load playoff status for power rankings.", playoffSeedsRes.error);
 
   const teamById = new Map<string, any>((teamsRes.data ?? []).map((t: any) => [t.id, t]));
   const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r) => r.team_id).filter(Boolean));
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
+  const playoffByTeam = new Map<string, { seed: number | null; made_playoffs: boolean; division_winner: boolean }>(
+    (playoffSeedsRes.data ?? []).map((row: any) => [String(row.team_id), row]),
+  );
 
   // Prior ranks from the latest snapshot week only — a single fixed-size query instead of
   // downloading the whole season's snapshot history to discard everything but this week.
@@ -312,6 +320,10 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
     const t = teamById.get(r.teamId);
     const prevRank = prevRankByTeam.get(r.teamId) ?? null;
     const agg = recordAgg.get(r.teamId);
+    const playoff = playoffByTeam.get(r.teamId);
+    const playoffMarker = playoff?.made_playoffs
+      ? Number(playoff.seed) === 1 ? "Z" : playoff.division_winner ? "Y" : "X"
+      : null;
     return {
       teamId: r.teamId,
       teamName: teamDisplayName(t),
@@ -325,6 +337,7 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       wins: agg?.wins ?? 0,
       losses: agg?.losses ?? 0,
       ties: agg?.ties ?? 0,
+      playoffMarker,
     };
   });
 

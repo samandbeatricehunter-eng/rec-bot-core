@@ -341,6 +341,94 @@ async function postWeeklyFinalResultsRecap(input: { guildId: string; leagueId: s
   return { posted: true, games: rows.length };
 }
 
+function ordinal(value: number): string {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  return `${value}${value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th"}`;
+}
+
+/** Publishes the Madden playoff race from Week 16 onward. Imported EA seeds are the
+ * authority when available; the stored season seed table remains authoritative once
+ * commissioners lock the bracket. Postseason rounds use the actual next-week schedule,
+ * which naturally preserves NFL reseeding instead of trying to predict future pairings. */
+async function publishMaddenPlayoffPicture(input: {
+  guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; seasonStage: string; game: string;
+}) {
+  if (!input.game.startsWith("madden")) return;
+  const isRaceWeek = input.seasonStage === "regular_season" && input.weekNumber >= 16 && input.weekNumber <= 18;
+  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(input.seasonStage);
+  if (!isRaceWeek && !isPostseason) return;
+
+  const primaryAngle = `playoff_picture_${input.seasonStage}_${input.weekNumber}`;
+  const existing = await supabase.from("rec_game_stories").select("id").eq("league_id", input.leagueId)
+    .eq("season", input.seasonNumber).eq("primary_angle", primaryAngle).limit(1);
+  if (existing.error) throw existing.error;
+  if (existing.data?.length) return;
+
+  const [teams, fixedSeeds, importedSeeds] = await Promise.all([
+    supabase.from("rec_teams").select("id,name,display_nick,display_city,is_relocated,conference").eq("league_id", input.leagueId),
+    supabase.from("rec_season_team_seeds").select("team_id,conference,seed,made_playoffs,division_winner")
+      .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber),
+    supabase.from("rec_team_standings_snapshots").select("team_id,conference_name,playoff_seed,made_playoffs,week_number,updated_at")
+      .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber)
+      .order("week_number", { ascending: false }).order("updated_at", { ascending: false }),
+  ]);
+  if (teams.error || fixedSeeds.error || importedSeeds.error) throw teams.error ?? fixedSeeds.error ?? importedSeeds.error;
+  const teamById = new Map<string, any>((teams.data ?? []).map((team: any) => [String(team.id), team]));
+  const importedByTeam = new Map<string, any>();
+  for (const row of importedSeeds.data ?? []) if (!importedByTeam.has(String(row.team_id))) importedByTeam.set(String(row.team_id), row);
+  const fixedByTeam = new Map<string, any>((fixedSeeds.data ?? []).map((row: any) => [String(row.team_id), row]));
+  const seeded = [...teamById.keys()].map((teamId) => {
+    const fixed = fixedByTeam.get(teamId);
+    const imported = importedByTeam.get(teamId);
+    const team = teamById.get(teamId);
+    const seed = Number(fixed?.seed ?? imported?.playoff_seed ?? 0);
+    const conference = String(fixed?.conference ?? imported?.conference_name ?? team?.conference ?? "").toUpperCase();
+    return { teamId, team, seed, conference, madePlayoffs: Boolean(fixed?.made_playoffs ?? imported?.made_playoffs ?? seed > 0) };
+  }).filter((row) => row.seed > 0 && row.madePlayoffs && (row.conference.includes("AFC") || row.conference.includes("NFC")));
+  const seedLabel = (teamId: string) => {
+    const row = seeded.find((item) => item.teamId === teamId);
+    const team = teamById.get(teamId);
+    const name = formatTeamDisplayName(team) ?? "TBD";
+    return row ? `${name} (${ordinal(row.seed)} Seed - ${row.conference.includes("AFC") ? "AFC" : "NFC"})` : name;
+  };
+
+  const sections: string[] = [];
+  if (seeded.length) {
+    for (const conference of ["AFC", "NFC"]) {
+      const rows = seeded.filter((row) => row.conference.includes(conference)).sort((a, b) => a.seed - b.seed);
+      if (rows.length) sections.push(`**${conference} Playoff Field**\n${rows.map((row) => `${row.seed}. ${seedLabel(row.teamId)}`).join("\n")}`);
+    }
+  }
+
+  if (isRaceWeek && seeded.length) {
+    const projected: string[] = [];
+    for (const conference of ["AFC", "NFC"]) {
+      const rows = seeded.filter((row) => row.conference.includes(conference));
+      const bySeed = new Map(rows.map((row) => [row.seed, row]));
+      const bye = bySeed.get(1);
+      if (bye) projected.push(`• ${seedLabel(bye.teamId)} — first-round bye`);
+      for (const [high, low] of [[2, 7], [3, 6], [4, 5]] as const) {
+        const home = bySeed.get(high); const away = bySeed.get(low);
+        if (home && away) projected.push(`• ${seedLabel(away.teamId)} at ${seedLabel(home.teamId)}`);
+      }
+    }
+    if (projected.length) sections.push(`**Projected Wild Card Matchups**\n${projected.join("\n")}`);
+  } else if (isPostseason) {
+    const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
+    const games = await leagueWeekGamesQuery(supabase, { leagueId: input.leagueId, seasonId, weekNumber: input.weekNumber }, "id,away_team_id,home_team_id");
+    if (games.error) throw games.error;
+    const matchupLines = (games.data ?? []).map((game: any) => `• ${seedLabel(String(game.away_team_id))} at ${seedLabel(String(game.home_team_id))}`);
+    if (matchupLines.length) sections.push(`**${stageLabel(input.seasonStage, input.weekNumber, input.game)} Matchups**\n${matchupLines.join("\n")}`);
+  }
+  if (!sections.length) sections.push("The playoff field is still being finalized. Updated seeds and matchups will appear as soon as the league data confirms them.");
+
+  const headline = isRaceWeek ? `Week ${input.weekNumber} NFL Playoff Picture` : `${stageLabel(input.seasonStage, input.weekNumber, input.game)} Playoff Bracket Update`;
+  const body = `${sections.join("\n\n")}\n\nNFL format: seven teams per conference, the No. 1 seed receives the first-round bye, and each conference is reseeded after every round.`;
+  await publishTransitionStory({ guildId: input.guildId, headline, body, primaryAngle, storyType: "article" });
+  await recordHubAnnouncement({ guildId: input.guildId, title: headline, body });
+}
+
 // Delegates to the shared canonical week->stage mapping instead of hand-rolling a second,
 // independently-drifting copy of it (this one had fallen out of sync with league-stage.ts twice).
 function phaseForWeek(weekNumber: number, game: string | null) {
@@ -844,6 +932,16 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] notifyLeagueMembersOfAdvance failed after advance (non-fatal):", err);
   });
+
+  updateAdvanceProgress(input.advanceRunId, "Publishing the playoff picture and bracket");
+  await publishMaddenPlayoffPicture({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: nextTarget.weekNumber,
+    seasonStage: nextTarget.seasonStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] Madden playoff-picture publishing failed after advance (non-fatal):", err));
 
   // Bowl games / the national championship are automatic GOTW games in CFB leagues —
   // catches any flagged game in the week just advanced INTO that doesn't have a poll yet.

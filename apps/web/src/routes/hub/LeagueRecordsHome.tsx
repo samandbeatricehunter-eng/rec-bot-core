@@ -14,7 +14,7 @@ type RecordsResponse = Awaited<ReturnType<typeof recApi.getLeagueRecords>>;
 
 const SCOPE_LABELS: Record<Scope, string> = { game: "Game", season: "Season", career: "Career" };
 
-export function LeagueRecordsHome() {
+export function LeagueRecordsHome({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const { guildId } = useReadyAuth();
   const { currentLeague } = useHubChrome();
@@ -35,7 +35,7 @@ export function LeagueRecordsHome() {
 
   return (
     <div className="hub-page">
-      <PageHeader title="League Records" subtitle="Statistical bests, by game, season, or career." actions={backAction} />
+      {!embedded && <PageHeader title="League Records" subtitle="Statistical bests, by game, season, or career." actions={backAction} />}
 
       <div className="hub-history-season-tabs">
         {(["game", "season", "career"] as Scope[]).map((s) => (
