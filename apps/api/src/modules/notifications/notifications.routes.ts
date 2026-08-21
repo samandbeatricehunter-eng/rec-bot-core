@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
+import { reviewForceWinRequest } from "../scheduling/matchup-scheduling.service.js";
 import {
   addCaseMemo,
   getCommissionerPendingSummaryForLeague,
@@ -87,6 +88,18 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Marking an item handled requires a user session."));
       return reply.send(await markCommissionerInboxItemHandled({ guildId: body.guildId, inboxId: body.inboxId, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/force-win-review", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), inboxId: z.string().uuid(),
+        decision: z.enum(["approve", "deny"]), reason: z.string().trim().max(500).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Reviewing a Force Win request requires a user session."));
+      return reply.send(await reviewForceWinRequest({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

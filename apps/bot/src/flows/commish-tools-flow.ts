@@ -216,7 +216,7 @@ export async function handleCommishResetStart(interaction: ButtonInteraction) {
     await interaction.editReply({
       content: "🔄 Scheduling reset for this game.",
       components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.resetWipeConfirm}${gameId}`).setLabel("Also wipe channel messages").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.resetWipeConfirm}${gameId}`).setLabel("Wipe scheduling messages").setStyle(ButtonStyle.Danger),
       )],
     });
   } catch (error) {
@@ -231,7 +231,7 @@ export async function handleCommishResetWipeConfirm(interaction: ButtonInteracti
   try {
     await interaction.deferUpdate();
     await recApi.resetScheduling({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, wipeMessages: true });
-    await interaction.editReply({ content: "🔄 Scheduling reset and channel messages wiped.", components: [] });
+    await interaction.editReply({ content: "🔄 Scheduling reset; REC scheduling pings and offer/response messages were wiped. User messages and original embeds were preserved.", components: [] });
   } catch (error) {
     await replyErr(interaction, error);
   }

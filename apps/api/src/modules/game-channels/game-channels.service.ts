@@ -225,6 +225,7 @@ function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draf
   const headerDescription = `${input.game.awayTeamName} at ${input.game.homeTeamName}`;
 
   const rulesFields = [
+    { name: "Double Payout Bonus", value: "Schedule through REC (Propose + Accept), have both coaches check in, and mark the game over when finished. Completing all three steps doubles the normal payout for both the winner and loser.", inline: false },
     { name: "Fair Sim", value: fairSimBullets(fsKeys), inline: false },
     { name: "Force Win", value: forceWinBullets(fwKeys), inline: false },
     { name: "4th Down", value: fourthDownText(input.draft, isPlayoff), inline: false },

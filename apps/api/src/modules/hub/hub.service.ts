@@ -40,6 +40,7 @@ import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat
 import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
 import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
+import { getSchedulingPayoutMultiplier } from "../scheduling/scheduling-bonus.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
 // stream runs longer than that, so anything older is treated as ended for display/watch.
@@ -527,10 +528,26 @@ export async function getHub(guildId: string, discordId: string) {
     supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
     supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
     supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
-    supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout"]),
+    supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout"]),
   ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
-  const weeklyGame = (matchups.games ?? []).find((game: any) => game.involvesMe) ?? null;
-  const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) => String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? ""));
+  const weeklyGame = (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null;
+  const weeklySubmission = weeklyGame ? await supabase.from("rec_box_score_submissions").select("id").eq("game_id", weeklyGame.gameId).eq("status", "approved").limit(1).maybeSingle() : { data: null };
+  const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) => row.transaction_type !== "scheduling_bonus_payout" && (
+    String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? "")
+    || String(row.source_reference?.submissionId ?? "") === String(weeklySubmission.data?.id ?? "")
+  ));
+  // Two ledger rows can exist per game now: the win/loss doubling and the separate top-up for
+  // that week's other actions (see topUpOtherWeeklyPayoutsForSchedulingBonus) -- sum both so
+  // this reflects the full bonus, not just whichever row happened to be inserted first.
+  const weeklyBonusLedgerRows = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "scheduling_bonus_payout"
+    && String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? ""));
+  const schedulingMultiplier = weeklyGame ? await getSchedulingPayoutMultiplier({
+    gameId: weeklyGame.gameId,
+    homeUserId: weeklyGame.homeUserId,
+    awayUserId: weeklyGame.awayUserId,
+  }) : 1;
+  const weeklyGameBasePaid = Number(weeklyGameLedger?.amount ?? 0);
+  const weeklySchedulingBonusPaid = weeklyBonusLedgerRows.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
   const paid = (rows: any[]) => rows.filter((row) => row.status === "issued" || row.status === "approved").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
   const mediaRows = weeklyMedia.data ?? [];
   const interviewRows = mediaRows.filter((row: any) => row.submission_type === "interview");
@@ -541,7 +558,10 @@ export async function getHub(guildId: string, discordId: string) {
     { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
     { key: "highlights", label: "Post up to 2 game highlights", amount: economy.submissions.highlight, current: Math.min(economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
     { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
-    ...(weeklyGame ? [{ key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: Number(weeklyGameLedger?.amount ?? 0), note: "100 for a win, 50 for a loss; Fair Sims and Force Wins pay neither coach" }] : []),
+    ...(weeklyGame ? [
+      { key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: weeklyGameBasePaid, note: `${economy.submissions.boxScoreWin} for a win, ${economy.submissions.boxScoreLoss} for a loss; Fair Sims and Force Wins pay neither coach — and only count as one when it came from real scheduling engagement (checked in while your opponent didn't, proposed a time that got no response in the wait window, etc.), not a unilateral claim` },
+      { key: "scheduling_bonus", label: "Earn the scheduling completion bonus", amount: economy.submissions.boxScoreWin, current: schedulingMultiplier === 2 ? 1 : 0, limit: 1, earned: weeklySchedulingBonusPaid, note: "Schedule through REC, have both coaches check in, and mark the game over; this doubles everything you earned that week — the win/loss payout, plus any interview, article, stream, highlight, and GOTW payout" },
+    ] : []),
   ];
   const weeklyPotential = weeklyItems.reduce((sum, item) => sum + item.amount * item.limit, 0);
   const weeklyEarned = weeklyItems.reduce((sum, item) => sum + item.earned, 0);

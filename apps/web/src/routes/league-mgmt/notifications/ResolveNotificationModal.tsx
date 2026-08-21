@@ -330,6 +330,7 @@ function resolveModeFor(type: string): ResolveMode {
     case "eos_award":
       return { kind: "info", message: "This award poll is missing its poll reference — resolve it from Discord instead." };
     case "force_win_request":
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Approve Force Win", denyLabel: "Deny" };
     case "autopilot_request":
     case "matchup_issue_report":
       return { kind: "single", actionLabel: "Mark Handled" };
@@ -382,6 +383,7 @@ async function resolveAction(
     case "trade":
       return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
+      return recApi.reviewForceWinRequest({ guildId, inboxId: notification.id, decision: action, reason: reason || undefined });
     case "autopilot_request":
     case "matchup_issue_report":
       // No dedicated review table for these — the generic handler resolves by the inbox row's

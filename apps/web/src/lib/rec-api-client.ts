@@ -827,6 +827,8 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/notifications/mark-viewed", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
   markCommissionerInboxItemHandled: (input: { guildId: string; inboxId: string }) =>
     recApiFetch<{ ok: true }>("/v1/notifications/mark-handled", { method: "POST", body: JSON.stringify(input) }),
+  reviewForceWinRequest: (input: { guildId: string; inboxId: string; decision: "approve" | "deny"; reason?: string }) =>
+    recApiFetch<{ reviewed: true; decision: "approve" | "deny"; gameId: string }>("/v1/notifications/force-win-review", { method: "POST", body: JSON.stringify(input) }),
   addCaseMemo: (input: { guildId: string; inboxId: string; memo: string }) =>
     recApiFetch<{ ok: true }>("/v1/notifications/case/memo", { method: "POST", body: JSON.stringify(input) }),
   listCaseEvents: (input: { guildId: string; inboxId: string }) =>

@@ -1,6 +1,7 @@
 // Request Help: Force Win / AutoPilot / Report Matchup Issue. Notification-only — this creates
-// a commissioners_inbox case and notifies commissioners; it does not touch standings, payouts,
-// or game state. A commissioner resolves the actual outcome manually through existing tools.
+// a commissioners_inbox case and notifies commissioners; submitting does not touch standings,
+// payouts, or game state. Commissioners resolve Force Win requests from the notification center
+// or through the equivalent Discord commissioner tools.
 import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";

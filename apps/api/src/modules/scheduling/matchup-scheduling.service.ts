@@ -2,17 +2,20 @@ import { randomUUID } from "node:crypto";
 import { sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getEffectiveAvailability } from "./availability.service.js";
+import { getAvailabilityProfile, getEffectiveAvailability } from "./availability.service.js";
 import { intersectIntervals, scoreOverlapWindows, suggestedKickoffsWithinWindow } from "./overlap.service.js";
 import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { deleteDiscordComponentMessagesForGame, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, purgeDiscordChannelMessages, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { deleteDiscordComponentMessagesForGame, deleteTransientGameSchedulingMessages, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
-import { formatInstantInZone } from "../../lib/timezone.js";
+import { elapsedMsExcludingQuietHours, formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
+import { hasFailureToScheduleWaitElapsed } from "./scheduling-guardrails.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { sendPushToUsers } from "../push/push.service.js";
 
 const HORIZON_HOURS_NO_ADVANCE = 48;
 export type UserFacingStatus =
@@ -608,6 +611,8 @@ export async function resolveCantMakeGame(input: { gameId: string; discordId: st
   if (channel?.discord_channel_id) {
     await postDiscordChannelMessage(channel.discord_channel_id, { content: "Scheduling: opponent granted a Fair Sim for this game." }).catch(() => undefined);
   }
+  await closeAdministrativeResult(input.gameId, "fair_sim");
+  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
   return { choice: input.choice };
 }
 
@@ -620,6 +625,7 @@ export async function resolveAutopilotRequest(input: { gameId: string; discordId
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "autopilot_resolved", payload: { decision: input.decision } });
 
   const channel = await getGameChannelByGameId(input.gameId);
+  if (input.decision === "enforce_fs") await closeAdministrativeResult(input.gameId, "fair_sim", input.discordId);
   if (channel?.discord_channel_id) {
     const text = input.decision === "grant_autopilot"
       ? "✅ AutoPilot **granted** by a commissioner — the opponent may play both sides."
@@ -643,16 +649,20 @@ export async function requestFailureToScheduleForceWin(input: { gameId: string; 
   const active = await getActiveRuleKeys(game.league_id);
   if (!active.forceWin.includes("failure_to_schedule")) throw new ApiError(403, "Force Win for failure to schedule is not enabled for this league.");
 
-  const [scheduling, pendingProposal] = await Promise.all([
+  const [scheduling, pendingProposal, opponentProfile] = await Promise.all([
     supabase.from("rec_game_scheduling").select("response_started_at,home_responded_at,away_responded_at").eq("game_id", input.gameId).maybeSingle(),
     supabase.from("rec_game_time_proposals").select("proposed_by_user_id,created_at").eq("game_id", input.gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    getAvailabilityProfile(opponentId),
   ]);
+  // The opponent's own local midnight-7AM doesn't count toward either wait below -- a proposal
+  // or check-in miss sent right before their bedtime shouldn't quietly cross the 8h threshold
+  // before they've had a normal waking day to see it.
+  const opponentTimeZone = opponentProfile.timezone ?? "America/Chicago";
   const requesterHasStaleUnansweredProposal = pendingProposal.data?.proposed_by_user_id === userId
-    && Date.now() - new Date(pendingProposal.data.created_at).getTime() >= 8 * 60 * 60 * 1000;
+    && elapsedMsExcludingQuietHours(new Date(pendingProposal.data.created_at).getTime(), Date.now(), opponentTimeZone, 0, 7) >= 8 * 60 * 60 * 1000;
   const requesterResponded = userId === game.home_user_id ? scheduling.data?.home_responded_at : scheduling.data?.away_responded_at;
   const opponentResponded = userId === game.home_user_id ? scheduling.data?.away_responded_at : scheduling.data?.home_responded_at;
-  const responseStartedAt = scheduling.data?.response_started_at ? new Date(scheduling.data.response_started_at).getTime() : Number.NaN;
-  const legacyContactEligibility = Boolean(requesterResponded) && !opponentResponded && Number.isFinite(responseStartedAt) && Date.now() - responseStartedAt >= 8 * 60 * 60 * 1000;
+  const legacyContactEligibility = hasFailureToScheduleWaitElapsed(requesterResponded, opponentResponded, opponentTimeZone);
   if (!requesterHasStaleUnansweredProposal && !legacyContactEligibility) throw new ApiError(403, "Only a coach who attempted to schedule and waited 8 hours without a scheduling response can request this Force Win.");
 
   await supabase.from("rec_game_scheduling").update({
@@ -742,7 +752,7 @@ export async function resolveViolationReport(input: { gameId: string; discordId:
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
-    await closeAdministrativeResult(input.gameId, "force_win");
+    await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -815,7 +825,7 @@ export async function resolveDashingReport(input: { gameId: string; discordId: s
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
-    await closeAdministrativeResult(input.gameId, "force_win");
+    await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -840,13 +850,17 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
     }).eq("game_id", gameId),
     supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", gameId).eq("status", "pending"),
     supabase.from("rec_game_kickoff_checkins").delete().eq("game_id", gameId),
+    supabase.from("rec_games").update({
+      advance_outcome_override: null, advance_outcome_marked_by_discord_id: null,
+      advance_outcome_marked_at: null, updated_at: new Date().toISOString(),
+    }).eq("id", gameId),
   ]);
   await logSchedulingEvent({ gameId, userId, eventType });
 
   const channel = await getGameChannelByGameId(gameId);
   if (channel?.discord_channel_id) {
     if (wipeMessages) {
-      await purgeDiscordChannelMessages(channel.discord_channel_id).catch((error) => console.error("[ERROR] Failed to wipe game channel messages (non-fatal):", error));
+      await deleteTransientGameSchedulingMessages(channel.discord_channel_id).catch((error) => console.error("[ERROR] Failed to clean up game scheduling messages (non-fatal):", error));
     }
     await postDiscordChannelMessage(channel.discord_channel_id, { content: channelMessage }).catch(() => undefined);
   }
@@ -960,14 +974,31 @@ export async function getActiveSuspension(userId: string): Promise<{ id: string;
 // themselves, matching how resetScheduling/resolveAutopilotRequest/resolveViolationReport/
 // resolveDashingReport are already gated purely at the route layer.
 
-async function closeAdministrativeResult(gameId: string, status: "force_win" | "fair_sim") {
+async function closeAdministrativeResult(
+  gameId: string,
+  status: "force_win" | "fair_sim",
+  reviewerDiscordId?: string | null,
+) {
+  const now = new Date().toISOString();
   const proposals = await supabase.from("rec_game_time_proposals").select("notice_channel_id,notice_message_id")
     .eq("game_id", gameId).eq("status", "pending");
-  await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() })
+  await supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: now })
     .eq("game_id", gameId).eq("status", "pending");
   await supabase.from("rec_game_scheduling").update({
-    status: "completed", attention_required: false, updated_at: new Date().toISOString(),
+    status: "completed", attention_required: false, updated_at: now,
   }).eq("game_id", gameId);
+  await supabase.from("rec_games").update({
+    advance_outcome_override: status === "force_win" ? "fw" : "fs",
+    advance_outcome_marked_by_discord_id: reviewerDiscordId ?? null,
+    advance_outcome_marked_at: now,
+    updated_at: now,
+  }).eq("id", gameId);
+  if (reviewerDiscordId) {
+    await supabase.from("rec_commissioners_inbox").update({
+      status: "resolved", reviewed_by_discord_id: reviewerDiscordId, reviewed_at: now, updated_at: now,
+    }).eq("source_table", "rec_games").eq("source_id", gameId).eq("status", "pending")
+      .in("queue_type", ["force_win_request", "autopilot_request", "rule_violation_report", "dashing_report"]);
+  }
   await Promise.all((proposals.data ?? []).map((proposal: any) => closeOutProposalNotice(proposal, `Closed — ${status === "force_win" ? "Force Win granted" : "Fair Sim granted"}.`)));
   const channel = await getGameChannelByGameId(gameId);
   if (channel?.discord_channel_id) await deleteDiscordComponentMessagesForGame(channel.discord_channel_id, gameId).catch(() => 0);
@@ -982,7 +1013,7 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
     fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
     attention_required: true, updated_at: new Date().toISOString(),
   }).eq("game_id", input.gameId);
-  await closeAdministrativeResult(input.gameId, "force_win");
+  await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fw", payload: { side: input.side } });
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -994,13 +1025,97 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
 }
 
 export async function grantFairSimCommissioner(input: { gameId: string; discordId: string }) {
-  await closeAdministrativeResult(input.gameId, "fair_sim");
+  await closeAdministrativeResult(input.gameId, "fair_sim", input.discordId);
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fs" });
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {
     await postDiscordChannelMessage(channel.discord_channel_id, { content: "✅ **Fair Sim granted** by a commissioner for this game." }).catch(() => undefined);
   }
   return { granted: true };
+}
+
+export async function reviewForceWinRequest(input: {
+  guildId: string;
+  inboxId: string;
+  reviewerDiscordId: string;
+  decision: "approve" | "deny";
+  reason?: string;
+}) {
+  const reason = input.reason?.trim() ?? "";
+  if (input.decision === "deny" && !reason) throw new ApiError(400, "A denial reason is required.");
+
+  const inbox = await supabase.from("rec_commissioners_inbox")
+    .select("id,league_id,queue_type,status,requester_user_id,source_id,payload")
+    .eq("id", input.inboxId).eq("guild_id", input.guildId).maybeSingle();
+  if (inbox.error) throw new ApiError(500, "Failed to load the Force Win request.", inbox.error);
+  if (!inbox.data || inbox.data.queue_type !== "force_win_request") throw new ApiError(404, "Force Win request not found.");
+  if (inbox.data.status !== "pending") throw new ApiError(409, "This Force Win request has already been reviewed.");
+
+  const payload = (inbox.data.payload ?? {}) as Record<string, unknown>;
+  const gameId = String(inbox.data.source_id ?? payload.gameId ?? "");
+  if (!gameId) throw new ApiError(400, "This Force Win request is missing its matchup.");
+  const game = await loadGame(gameId);
+  const requesterUserId = inbox.data.requester_user_id ? String(inbox.data.requester_user_id) : null;
+  if (!requesterUserId || (requesterUserId !== game.home_user_id && requesterUserId !== game.away_user_id)) {
+    throw new ApiError(409, "The requesting coach is no longer assigned to this matchup.");
+  }
+
+  const requester = await supabase.from("rec_users").select("display_name,username").eq("id", requesterUserId).maybeSingle();
+  const requesterName = String(requester.data?.display_name ?? requester.data?.username ?? "the requesting coach");
+  const now = new Date().toISOString();
+  const reviewerUserId = await userIdFromDiscordId(input.reviewerDiscordId).catch(() => null);
+
+  if (input.decision === "approve") {
+    const scheduling = await supabase.from("rec_game_scheduling").update({
+      fw_flagged: true, fw_flagged_for_user_id: requesterUserId, fw_flagged_at: now,
+      attention_required: true, updated_at: now,
+    }).eq("game_id", gameId);
+    if (scheduling.error) throw new ApiError(500, "Failed to approve the Force Win request.", scheduling.error);
+    const approved = await supabase.from("rec_commissioners_inbox").update({
+      status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: now,
+      review_reason: reason || null, updated_at: now,
+    }).eq("id", input.inboxId).eq("status", "pending").select("id").maybeSingle();
+    if (approved.error) throw new ApiError(500, "Failed to approve the Force Win request.", approved.error);
+    if (!approved.data) throw new ApiError(409, "This Force Win request has already been reviewed.");
+    // The selected FW request remains Approved; any other now-obsolete cases for this game are
+    // merely resolved so a Discord/site action cannot accidentally approve a different request.
+    await closeAdministrativeResult(gameId, "force_win", input.reviewerDiscordId);
+    await logSchedulingEvent({ gameId, userId: reviewerUserId, eventType: "fw_request_reviewed", payload: { decision: "approved", requesterUserId, reason: reason || null } });
+
+    const channel = await getGameChannelByGameId(gameId);
+    if (channel?.discord_channel_id) {
+      await postDiscordChannelMessage(channel.discord_channel_id, {
+        content: `✅ **Force Win approved.** ${requesterName}'s request was approved by a commissioner.`,
+        allowed_mentions: { parse: [] },
+      }).catch(() => undefined);
+    }
+    const title = "Force Win request approved";
+    const body = `Your Force Win request for this matchup was approved.${reason ? ` Commissioner note: ${reason}` : ""}`;
+    void createSiteNotification({ userId: requesterUserId, leagueId: game.league_id, kind: "matchup_help_resolved", title, body, href: `/matchups/${gameId}` })
+      .catch((error) => console.error("[ERROR] Failed to create Force Win approval notification (non-fatal):", error));
+    void sendPushToUsers([requesterUserId], { title, body, url: `/matchups/${gameId}` })
+      .catch((error) => console.error("[ERROR] Failed to send Force Win approval push (non-fatal):", error));
+    await updateSchedulingPanel(gameId).catch(() => undefined);
+    return { reviewed: true as const, decision: "approve" as const, gameId };
+  }
+
+  const denied = await supabase.from("rec_commissioners_inbox").update({
+    status: "denied", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: now,
+    review_reason: reason, updated_at: now,
+  }).eq("id", input.inboxId).eq("status", "pending").select("id").maybeSingle();
+  if (denied.error) throw new ApiError(500, "Failed to deny the Force Win request.", denied.error);
+  if (!denied.data) throw new ApiError(409, "This Force Win request has already been reviewed.");
+
+  const channelMessage = `❌ **Force Win request denied.** The request by **${requesterName}** was denied.\n**Reason:** ${reason}\nThe scheduling system has been reset; both coaches may begin scheduling again.`;
+  await resetSchedulingInternal(gameId, reviewerUserId, "fw_request_denied", channelMessage);
+  await logSchedulingEvent({ gameId, userId: reviewerUserId, eventType: "fw_request_reviewed", payload: { decision: "denied", requesterUserId, reason } });
+  const title = "Force Win request denied — scheduling reset";
+  const body = `Your Force Win request was denied. Reason: ${reason}. The scheduling system has been reset.`;
+  void createSiteNotification({ userId: requesterUserId, leagueId: game.league_id, kind: "matchup_help_resolved", title, body, href: `/matchups/${gameId}` })
+    .catch((error) => console.error("[ERROR] Failed to create Force Win denial notification (non-fatal):", error));
+  void sendPushToUsers([requesterUserId], { title, body, url: `/matchups/${gameId}` })
+    .catch((error) => console.error("[ERROR] Failed to send Force Win denial push (non-fatal):", error));
+  return { reviewed: true as const, decision: "deny" as const, gameId };
 }
 
 // Records a suspension row and immediately Force-Wins the suspended coach's CURRENT game (if

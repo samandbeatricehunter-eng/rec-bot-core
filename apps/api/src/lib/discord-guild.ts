@@ -3,6 +3,9 @@ import { REC_MANAGED_ROLES, classifyGuildRoleNames, type RecManagedRoleKey } fro
 import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
 import { supabase } from "./supabase.js";
+import { isTransientGameSchedulingMessage, type DiscordCleanupMessage } from "../modules/scheduling/scheduling-guardrails.js";
+
+export { isTransientGameSchedulingMessage } from "../modules/scheduling/scheduling-guardrails.js";
 
 // Server-side guild role/permission lookups for the Discord Activity's per-user auth —
 // the bot has a cached discord.js GuildMember for free on every interaction; a browser
@@ -346,6 +349,20 @@ export async function deleteDiscordComponentMessagesForGame(channelId: string, g
   const targets = messages.filter((message) => (message.components ?? []).some((row) =>
     (row.components ?? []).some((component) => component.custom_id?.includes(gameId)),
   ));
+  await Promise.all(targets.map((message) => deleteDiscordMessage(channelId, message.id)));
+  return targets.length;
+}
+
+/** Remove REC's transient pings and scheduling offer/response messages from a game channel,
+ * without touching user chat or the original bot-authored embeds. */
+export async function deleteTransientGameSchedulingMessages(channelId: string): Promise<number> {
+  const [botUserId, res] = await Promise.all([
+    getBotUserId(),
+    discordBotFetch(`/channels/${channelId}/messages?limit=100`),
+  ]);
+  if (!res.ok) return 0;
+  const messages = await res.json() as DiscordCleanupMessage[];
+  const targets = messages.filter((message) => isTransientGameSchedulingMessage(message, botUserId));
   await Promise.all(targets.map((message) => deleteDiscordMessage(channelId, message.id)));
   return targets.length;
 }

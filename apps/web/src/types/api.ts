@@ -387,6 +387,7 @@ export type AdvanceGame = {
   homeScore: number | null;
   awayScore: number | null;
   fwFlaggedForUserId: string | null;
+  approvedDesignation: "fair_sim" | "force_win" | null;
 };
 export type AdvanceWeekGames = {
   league: { id: string; name: string };
