@@ -722,18 +722,22 @@ export async function importEaDatasetsWithProgress(
       records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
       scheduleImported = true;
     } else if (dataset === "rosters") {
-      records = await directWriteRoster(leagueId, raw, false);
+      const roster = await directWriteRoster(leagueId, raw, false);
+      records = roster.records;
       collectImportedPlayerIds(raw, importedPlayerIds);
+      return { dataset, label, records, duplicate: roster.duplicate };
     } else if (dataset === "free_agents") {
-      records = await directWriteRoster(leagueId, raw, true);
+      const roster = await directWriteRoster(leagueId, raw, true);
+      records = roster.records;
       collectImportedPlayerIds(raw, importedPlayerIds);
+      return { dataset, label, records, duplicate: roster.duplicate };
     } else {
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
       const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
       records = ingested.records_stored;
     }
 
-    return { dataset, label, records };
+    return { dataset, label, records, duplicate: false };
   };
 
   // Split datasets into snapshot (no week) and weekly types
@@ -752,8 +756,8 @@ export async function importEaDatasetsWithProgress(
     pushProgress(leagueId, { type: "dataset_start", dataset: "snapshots", label: `Fetching ${snapshotDatasets.map((d) => EA_DATASET_LABELS[d]).join(", ")}…` });
     const runOne = async (dataset: EaDataset) => {
       const result = await importDatasetAtWeek(dataset, defaultWeekRef);
-      results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
-      pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
+      results.push({ dataset, label: result.label, importJobId: null, duplicate: result.duplicate, recordsStored: result.records });
+      pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
     };
     const runSequentially = async (list: EaDataset[]) => {
       for (const dataset of list) {
@@ -777,15 +781,17 @@ export async function importEaDatasetsWithProgress(
   // was very likely the direct cause of both. Fetch one dataset at a time; slower, but every
   // request actually gets EA's full attention instead of contending with 13 others.
   if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
-    for (const week of weeklyRefs) {
+    for (let weekOrdinal = 0; weekOrdinal < weeklyRefs.length; weekOrdinal += 1) {
+      const week = weeklyRefs[weekOrdinal]!;
       const weekLabel = describeEaWeek(week.stageIndex, week.weekIndex).label;
-      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${weekLabel}…` });
+      const weekOf = weeklyRefs.length > 1 ? ` (${weekOrdinal + 1} of ${weeklyRefs.length})` : "";
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${weekLabel}${weekOf}` });
 
       for (const dataset of weeklyDatasets) {
         try {
           const result = await importDatasetAtWeek(dataset, week);
-          results.push({ dataset, label: result.label, importJobId: null, duplicate: false, recordsStored: result.records });
-          pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: false });
+          results.push({ dataset, label: result.label, importJobId: null, duplicate: result.duplicate, recordsStored: result.records });
+          pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
         } catch (error) {
           pushProgress(leagueId, { type: "dataset_error", dataset: String(dataset), label: `${EA_DATASET_LABELS[dataset]} — ${weekLabel}`, error: error instanceof Error ? error.message : String(error) });
         }
