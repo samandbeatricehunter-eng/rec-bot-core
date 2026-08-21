@@ -7,6 +7,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { assertPurchaseDeadlineOpen } from "./purchase-deadlines.js";
+import { countTeamLegendSlots } from "./team-season-caps.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
@@ -25,6 +26,45 @@ const PURCHASE_CONFIG: Partial<Record<RecPurchaseType, { enabled: string; season
 
 // Statuses that count as "active or successful" toward a season cap / all-time metric.
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"] as const;
+
+async function activeTeamIdForUser(leagueId: string, userId: string): Promise<string | null> {
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "We couldn't load your team assignment. Please try again.", assignment.error);
+  return assignment.data?.team_id ? String(assignment.data.team_id) : null;
+}
+
+async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonNumber: number): Promise<number> {
+  const [purchases, roster] = await Promise.all([
+    supabase
+      .from("rec_purchases")
+      .select("team_id,details")
+      .eq("league_id", leagueId)
+      .eq("purchase_type", "legend")
+      .eq("season_number", seasonNumber)
+      .in("status", ACTIVE_STATUSES as unknown as string[]),
+    supabase
+      .from("rec_players")
+      .select("full_name,raw_payload")
+      .eq("league_id", leagueId)
+      .eq("team_id", teamId)
+      .eq("player_source", "legend")
+      .in("roster_status", ["active", "transferred_in"]),
+  ]);
+  if (purchases.error) throw new ApiError(500, "We couldn't check this team's legend cap. Please try again.", purchases.error);
+  if (roster.error) throw new ApiError(500, "We couldn't check this team's legend roster. Please try again.", roster.error);
+  return countTeamLegendSlots({
+    teamId,
+    purchases: purchases.data ?? [],
+    rosterLegends: roster.data ?? [],
+  });
+}
 
 // CFB 27's configured store does not open until Season 2. Madden has no such restriction.
 const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "age_reset", "contract"];
@@ -542,6 +582,9 @@ export async function createPurchaseRequest(input: {
   }
 
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+  const assignmentTeamId = await activeTeamIdForUser(leagueId, userId);
+  const purchaseTeamId =
+    String((details as any).purchasingTeamId ?? (details as any).teamId ?? assignmentTeamId ?? "").trim() || null;
 
   // Every cap here is a count/aggregate over existing rows checked, then a separate insert —
   // two concurrent requests can both pass this check against the same pre-insert snapshot and
@@ -567,6 +610,14 @@ export async function createPurchaseRequest(input: {
         nonCoreGroupCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
         nonCoreOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
       });
+    } else if (input.purchaseType === "legend" && cfg!.seasonCap && purchaseTeamId) {
+      const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
+      if (cap > 0) {
+        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber);
+        if (used >= cap) {
+          throw new ApiError(409, `This team has reached this season's legend cap (${cap}).`);
+        }
+      }
     } else if (cfg!.seasonCap) {
       // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
       const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
@@ -596,6 +647,7 @@ export async function createPurchaseRequest(input: {
       season_id: seasonId,
       season_number: seasonNumber,
       user_id: userId,
+      team_id: purchaseTeamId,
       discord_id: input.discordId,
       purchase_type: input.purchaseType,
       cost: price,
@@ -667,6 +719,14 @@ export async function createPurchaseRequest(input: {
       }
       if (coreGroupCap > 0 && usedCore > coreGroupCap) throw new ApiError(409, `Core attribute points are capped at ${coreGroupCap} total per season — someone else's request just filled it.`);
       if (nonCoreGroupCap > 0 && usedNonCore > nonCoreGroupCap) throw new ApiError(409, `Non-core attribute points are capped at ${nonCoreGroupCap} total per season — someone else's request just filled it.`);
+    } else if (input.purchaseType === "legend" && cfg.seasonCap && purchaseTeamId) {
+      const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
+      if (cap > 0) {
+        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber);
+        if (used > cap) {
+          throw new ApiError(409, `This team has reached this season's legend cap (${cap}) — another request just filled the last slot.`);
+        }
+      }
     } else if (cfg.seasonCap) {
       const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
       if (cap > 0) {
@@ -989,6 +1049,7 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
   const context = await getCurrentLeagueContext(guildId);
   const baseline = await getUserBaselineByDiscordId(discordId);
   const seasonNumber = resolveSeasonNumber(context);
+  const teamId = await activeTeamIdForUser(context.leagueId, baseline.user.id);
 
   const { data, error } = await supabase
     .from("rec_purchases")
@@ -1001,11 +1062,27 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
   const allTimeSuccessful: Record<string, number> = {};
   for (const row of data ?? []) {
     const type = String(row.purchase_type);
+    if (type === "legend") continue;
     if (Number(row.season_number) === seasonNumber && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))) {
       seasonActive[type] = (seasonActive[type] ?? 0) + 1;
     }
     if (row.status === "approved" || row.status === "fulfilled") {
       allTimeSuccessful[type] = (allTimeSuccessful[type] ?? 0) + 1;
+    }
+  }
+  if (teamId) {
+    seasonActive.legend = await countLegendSlotsForTeam(context.leagueId, teamId, seasonNumber);
+  } else {
+    seasonActive.legend = (data ?? []).filter((row) =>
+      String(row.purchase_type) === "legend"
+      && Number(row.season_number) === seasonNumber
+      && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status)),
+    ).length;
+  }
+  for (const row of data ?? []) {
+    if (String(row.purchase_type) !== "legend") continue;
+    if (row.status === "approved" || row.status === "fulfilled") {
+      allTimeSuccessful.legend = (allTimeSuccessful.legend ?? 0) + 1;
     }
   }
 
