@@ -100,6 +100,7 @@ export type TeamManagementSummaryRow = {
   missingBoxScoreCount: number;
   awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
+  eaUsername: string | null;
 };
 
 export type TeamManagementSummary = {

@@ -37,6 +37,8 @@ export type TeamManagementSummaryRow = {
   /** Confirmed H2H regular-season games with a pending box-score submission awaiting review. */
   awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
+  /** Imported EA gamertag/PSN from the last Madden hub import; null for CPU or unimported teams. */
+  eaUsername: string | null;
 };
 
 export type TeamManagementSummary = {
@@ -212,6 +214,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
       missingBoxScoreCount,
       awaitingReviewCount,
       record: { wins, losses, ties },
+      eaUsername: typeof team.ea_username === "string" && team.ea_username.trim() ? team.ea_username.trim() : null,
     };
   });
 
