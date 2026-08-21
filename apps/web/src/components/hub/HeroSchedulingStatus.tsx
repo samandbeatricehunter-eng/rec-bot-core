@@ -50,6 +50,8 @@ export function HeroSchedulingStatus({ guildId, gameId, reloadKey }: { guildId: 
 
   const label = useMemo(() => {
     if (!snapshot) return null;
+    if (snapshot.forceWinState === "approved") return "Force Win Approved";
+    if (snapshot.forceWinState === "requested" || snapshot.fwFlagged) return "Force Win Requested";
     const instant = snapshot.status === "confirmed" ? snapshot.scheduledFor : snapshot.pendingProposal?.proposedFor ?? null;
     if (!instant) return LABELS[snapshot.status] ?? snapshot.status.replace(/_/g, " ");
     const formatted = new Intl.DateTimeFormat(undefined, {
@@ -66,5 +68,5 @@ export function HeroSchedulingStatus({ guildId, gameId, reloadKey }: { guildId: 
   }, [now, snapshot, timeZone]);
 
   if (!snapshot || !label) return null;
-  return <StatusChip className="hub-hero-scheduling-status" status={snapshot.status === "confirmed" ? "approved" : snapshot.status === "not_scheduled" ? "pending" : "info"} label={label} />;
+  return <StatusChip className="hub-hero-scheduling-status" status={snapshot.forceWinState === "approved" ? "approved" : snapshot.status === "confirmed" ? "approved" : snapshot.status === "not_scheduled" || snapshot.forceWinState === "requested" ? "pending" : "info"} label={label} />;
 }

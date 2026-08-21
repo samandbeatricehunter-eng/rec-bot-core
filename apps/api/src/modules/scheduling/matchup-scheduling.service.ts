@@ -1305,15 +1305,21 @@ export async function computeUserFacingStatus(gameId: string): Promise<UserFacin
 // Site matchup-page snapshot: status plus the confirmed time and/or the current pending
 // proposal (if any), so the UI can render Accept/Counter without a separate lookup.
 export async function getMatchupSchedulingSnapshot(gameId: string, viewerUserId?: string | null) {
-  const [status, scheduling, proposal] = await Promise.all([
+  const [status, scheduling, proposal, forceWinEvent] = await Promise.all([
     computeUserFacingStatus(gameId),
     supabase.from("rec_game_scheduling").select("scheduled_for,fw_flagged").eq("game_id", gameId).maybeSingle(),
     supabase.from("rec_game_time_proposals").select("id,proposed_by_user_id,proposed_for").eq("game_id", gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("rec_game_scheduling_events").select("event_type,payload").eq("game_id", gameId).in("event_type", ["fw_requested", "fw_requested_failure_to_schedule", "commissioner_grant_fw", "cant_make_game_grant_fw", "violation_resolved", "dashing_resolved"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
+  const forceWinPayload = (forceWinEvent.data?.payload ?? {}) as Record<string, unknown>;
+  const forceWinApproved = forceWinEvent.data?.event_type === "commissioner_grant_fw"
+    || forceWinEvent.data?.event_type === "cant_make_game_grant_fw"
+    || ((forceWinEvent.data?.event_type === "violation_resolved" || forceWinEvent.data?.event_type === "dashing_resolved") && forceWinPayload.decision === "grant_fw");
   return {
     status,
     scheduledFor: scheduling.data?.scheduled_for ?? null,
     fwFlagged: Boolean(scheduling.data?.fw_flagged),
+    forceWinState: !scheduling.data?.fw_flagged ? null : forceWinApproved ? "approved" : "requested",
     pendingProposal: proposal.data
       ? { id: proposal.data.id, proposedByUserId: proposal.data.proposed_by_user_id, proposedFor: proposal.data.proposed_for, proposedByMe: viewerUserId != null && proposal.data.proposed_by_user_id === viewerUserId }
       : null,

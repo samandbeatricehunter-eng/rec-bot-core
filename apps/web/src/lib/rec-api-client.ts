@@ -449,7 +449,7 @@ export const recApi = {
       bestWindow: { kickoffUtc: string; windowEndUtc: string; score: number } | null; bestKickoffOptions: string[];
     }>("/v1/scheduling/matchup/suggestions", { method: "POST", body: JSON.stringify(input) }),
   getSchedulingMatchupStatus: (input: { guildId: string; gameId: string }) =>
-    recApiFetch<{ status: string; scheduledFor: string | null; fwFlagged: boolean; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string; proposedByMe: boolean } | null }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<{ status: string; scheduledFor: string | null; fwFlagged: boolean; forceWinState: "requested" | "approved" | null; pendingProposal: { id: string; proposedByUserId: string; proposedFor: string; proposedByMe: boolean } | null }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
   proposeSchedulingTime: (input: { guildId: string; gameId: string; proposedForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
     recApiFetch<any>("/v1/scheduling/matchup/propose", { method: "POST", body: JSON.stringify(input) }),
   respondToSchedulingProposal: (input: { guildId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw" | "reject"; counterForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
