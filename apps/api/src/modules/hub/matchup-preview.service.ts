@@ -43,7 +43,9 @@ export type MatchupTeamBreakdown = {
   ties: number;
   gamesPlayed: number;
   pointsPerGame: number;
+  pointsPerGameRank: number | null;
   pointsAllowedPerGame: number;
+  pointsAllowedPerGameRank: number | null;
   pointDifferential: number;
   pointDifferentialRank: number | null;
   passingYardsPerGame: number;
@@ -96,6 +98,8 @@ type TeamSeasonAgg = {
 };
 
 type TeamComparisonStats = {
+  pointsPerGameRank: number | null;
+  pointsAllowedPerGameRank: number | null;
   passingYardsPerGame: number;
   passingYardsRank: number | null;
   passingYardsAllowedPerGame: number;
@@ -207,6 +211,8 @@ async function comparisonStatsForLeague(leagueId: string, seasonNumber: number):
 
   const values = [...totals.entries()].map(([teamId, item]) => ({
     teamId,
+    pointsFor: item.games ? item.pointDiff / item.games : 0,
+    pointsAllowed: 0,
     passFor: item.games ? item.passFor / item.games : 0,
     passAllowed: item.games ? item.passAllowed / item.games : 0,
     rushFor: item.games ? item.rushFor / item.games : 0,
@@ -214,10 +220,25 @@ async function comparisonStatsForLeague(leagueId: string, seasonNumber: number):
     pointDiff: item.pointDiff,
     turnoverDiff: item.turnoverDiff,
   }));
-  const rank = (value: number, key: "passFor" | "passAllowed" | "rushFor" | "rushAllowed" | "pointDiff" | "turnoverDiff", lowerIsBetter = false) =>
+  const points = new Map<string, { for: number; against: number }>();
+  for (const row of unique.values()) {
+    const current = points.get(row.team_id) ?? { for: 0, against: 0 };
+    current.for += Number(row.points_for ?? 0);
+    current.against += Number(row.points_against ?? 0);
+    points.set(row.team_id, current);
+  }
+  for (const item of values) {
+    const teamPoints = points.get(item.teamId) ?? { for: 0, against: 0 };
+    const games = totals.get(item.teamId)?.games ?? 0;
+    item.pointsFor = games ? teamPoints.for / games : 0;
+    item.pointsAllowed = games ? teamPoints.against / games : 0;
+  }
+  const rank = (value: number, key: "pointsFor" | "pointsAllowed" | "passFor" | "passAllowed" | "rushFor" | "rushAllowed" | "pointDiff" | "turnoverDiff", lowerIsBetter = false) =>
     1 + values.filter((item) => lowerIsBetter ? item[key] < value : item[key] > value).length;
 
   return new Map(values.map((item) => [item.teamId, {
+    pointsPerGameRank: rank(item.pointsFor, "pointsFor"),
+    pointsAllowedPerGameRank: rank(item.pointsAllowed, "pointsAllowed", true),
     passingYardsPerGame: round(item.passFor, 1),
     passingYardsRank: rank(item.passFor, "passFor"),
     passingYardsAllowedPerGame: round(item.passAllowed, 1),
@@ -289,7 +310,9 @@ function buildBreakdown(
     ties: agg.ties,
     gamesPlayed,
     pointsPerGame: round(ppg, 1),
+    pointsPerGameRank: comparison?.pointsPerGameRank ?? null,
     pointsAllowedPerGame: round(papg, 1),
+    pointsAllowedPerGameRank: comparison?.pointsAllowedPerGameRank ?? null,
     pointDifferential: round(agg.pf - agg.pa, 0),
     pointDifferentialRank: comparison?.pointDifferentialRank ?? null,
     passingYardsPerGame: comparison?.passingYardsPerGame ?? 0,

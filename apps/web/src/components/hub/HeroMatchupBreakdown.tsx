@@ -8,8 +8,8 @@ function ranked(value: number, rank: number | null, suffix = "", missingRankLabe
 
 function comparisonRows(team: MatchupTeamBreakdown) {
   return [
-    { key: "points-for", label: "Points / game", value: ranked(team.pointsPerGame, null, "", "Season average") },
-    { key: "points-allowed", label: "Points allowed / game", value: ranked(team.pointsAllowedPerGame, null, "", "Season average") },
+    { key: "points-for", label: "Points / game", value: ranked(team.pointsPerGame, team.pointsPerGameRank) },
+    { key: "points-allowed", label: "Points allowed / game", value: ranked(team.pointsAllowedPerGame, team.pointsAllowedPerGameRank) },
     { key: "pass-for", label: "Passing yards / game", value: ranked(team.passingYardsPerGame, team.passingYardsRank) },
     { key: "pass-allowed", label: "Passing yards allowed / game", value: ranked(team.passingYardsAllowedPerGame, team.passingYardsAllowedRank) },
     { key: "rush-for", label: "Rushing yards / game", value: ranked(team.rushingYardsPerGame, team.rushingYardsRank) },

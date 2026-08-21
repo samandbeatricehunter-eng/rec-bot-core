@@ -95,7 +95,7 @@ export type GameWagerOptions = {
     homeOffScore: number;
     awayOffScore: number;
     defEdge: number;
-    units: { key: string; label: string; weight: number; edge: number }[];
+    units: { key: string; label: string; weight: number; edge: number; homeOffenseRating: number; awayDefenseRating: number; awayOffenseRating: number; homeDefenseRating: number }[];
   } | null;
 };
 

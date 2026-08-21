@@ -21,12 +21,15 @@ export function MatchupCard({
   featured = false,
   showReactions = true,
   reactionsBelow = false,
+  passive = false,
   renderMode = "site",
 }: {
   game: HubMatchupGame;
   featured?: boolean;
   showReactions?: boolean;
   reactionsBelow?: boolean;
+  /** Prevent the card surface from triggering navigation or other parent tap behavior. */
+  passive?: boolean;
   /** "discord" strips interactivity (link/reactions/hover) for the Playwright screenshot used in game-channel embeds. */
   renderMode?: "site" | "discord";
 }) {
@@ -133,8 +136,10 @@ export function MatchupCard({
 
   const card = (
     <article
-      className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${isGotw ? " rec-matchup-card--gotw" : ""}${renderMode === "discord" ? " rec-matchup-card--render" : ""}`}
+      className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${isGotw ? " rec-matchup-card--gotw" : ""}${passive ? " rec-matchup-card--passive" : ""}${renderMode === "discord" ? " rec-matchup-card--render" : ""}`}
       data-matchup-render={renderMode === "discord" ? "" : undefined}
+      onClick={passive ? stopCardNav : undefined}
+      onPointerDown={passive ? stopCardNav : undefined}
     >
       <span className="rec-matchup-card__sheen" aria-hidden="true" />
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}

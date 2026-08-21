@@ -724,7 +724,9 @@ export type MatchupTeamBreakdown = {
   ties: number;
   gamesPlayed: number;
   pointsPerGame: number;
+  pointsPerGameRank: number | null;
   pointsAllowedPerGame: number;
+  pointsAllowedPerGameRank: number | null;
   pointDifferential: number;
   pointDifferentialRank: number | null;
   passingYardsPerGame: number;
@@ -776,7 +778,7 @@ export type WagerOptionsResponse = {
     homeOffScore: number;
     awayOffScore: number;
     defEdge: number;
-    units: Array<{ key: string; label: string; weight: number; edge: number }>;
+    units: Array<{ key: string; label: string; weight: number; edge: number; homeOffenseRating: number; awayDefenseRating: number; awayOffenseRating: number; homeDefenseRating: number }>;
   } | null;
 };
 export type RosterPlayer = {

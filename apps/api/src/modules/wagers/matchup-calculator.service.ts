@@ -82,6 +82,10 @@ export type MatchupUnitResult = {
   weight: number;
   /** home offense − away defense for this lane (positive = home wins the lane). */
   edge: number;
+  homeOffenseRating: number;
+  awayDefenseRating: number;
+  awayOffenseRating: number;
+  homeDefenseRating: number;
 };
 
 export type MatchupScores = {
@@ -187,7 +191,16 @@ export function computeMatchupFromRosters(home: MatchupRoster, away: MatchupRost
     const awayEdge = (away[unit.offense] as number) - (home[unit.defense] as number);
     homeOffScore += unit.weight * homeEdge;
     awayOffScore += unit.weight * awayEdge;
-    units.push({ key: unit.key, label: unit.label, weight: unit.weight, edge: Math.round(homeEdge * 10) / 10 });
+    units.push({
+      key: unit.key,
+      label: unit.label,
+      weight: unit.weight,
+      edge: Math.round(homeEdge * 10) / 10,
+      homeOffenseRating: Math.round((home[unit.offense] as number) * 10) / 10,
+      awayDefenseRating: Math.round((away[unit.defense] as number) * 10) / 10,
+      awayOffenseRating: Math.round((away[unit.offense] as number) * 10) / 10,
+      homeDefenseRating: Math.round((home[unit.defense] as number) * 10) / 10,
+    });
   }
   const net = homeOffScore - awayOffScore;
   const homeProb = clamp(0.5 + net / NET_TO_PROB, 0.05, 0.95);
