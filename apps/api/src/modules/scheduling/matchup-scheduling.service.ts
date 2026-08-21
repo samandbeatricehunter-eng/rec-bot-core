@@ -9,7 +9,8 @@ import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.j
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { deleteDiscordComponentMessagesForGame, deleteTransientGameSchedulingMessages, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
-import { findServerRoutesForLeague, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { findServerRoutesForLeague, isSiteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { resolveTeamNick } from "../users/user-profile-stats.service.js";
 import { elapsedMsExcludingQuietHours, formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
@@ -29,6 +30,34 @@ async function loadGame(gameId: string): Promise<Game> {
   if (row.error) throw new ApiError(500, "Failed to load game.", row.error);
   if (!row.data) throw new ApiError(404, "Game not found.");
   return row.data as Game;
+}
+
+type GameTeamNick = { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null };
+
+async function citeGameSide(game: Game, side: "home" | "away"): Promise<{ cite: string; discordId: string | null; teamName: string }> {
+  const userId = side === "home" ? game.home_user_id : game.away_user_id;
+  const [teams, account] = await Promise.all([
+    supabase
+      .from("rec_games")
+      .select(
+        "home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,is_relocated)",
+      )
+      .eq("id", game.id)
+      .maybeSingle(),
+    userId
+      ? supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  const team = (side === "home" ? teams.data?.home_team : teams.data?.away_team) as GameTeamNick | GameTeamNick[] | null | undefined;
+  const teamRow = Array.isArray(team) ? team[0] : team;
+  const teamName = resolveTeamNick(teamRow);
+  const rawDiscordId = account.data?.discord_id ? String(account.data.discord_id) : null;
+  const discordId = rawDiscordId && !isSiteOnlyDiscordId(rawDiscordId) && /^\d{5,}$/.test(rawDiscordId) ? rawDiscordId : null;
+  return {
+    discordId,
+    teamName,
+    cite: discordId ? `<@${discordId}>` : `**${teamName}**`,
+  };
 }
 
 async function getForceWinParticipants(gameId: string, game: Game, requesterId: string, recipientId: string) {
@@ -1016,12 +1045,16 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
   await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fw", payload: { side: input.side } });
 
+  const beneficiary = await citeGameSide(game, input.side);
   const channel = await getGameChannelByGameId(input.gameId);
   if (channel?.discord_channel_id) {
-    await postDiscordChannelMessage(channel.discord_channel_id, { content: `✅ **Force Win granted** by a commissioner to the **${input.side}** side.` }).catch(() => undefined);
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `✅ **Force Win granted** by a commissioner to ${beneficiary.cite}.`,
+      allowed_mentions: beneficiary.discordId ? { users: [beneficiary.discordId] } : { parse: [] },
+    }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
-  return { granted: true, side: input.side };
+  return { granted: true, side: input.side, cite: beneficiary.cite, teamName: beneficiary.teamName };
 }
 
 export async function grantFairSimCommissioner(input: { gameId: string; discordId: string }) {

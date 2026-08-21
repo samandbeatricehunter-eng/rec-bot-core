@@ -92,8 +92,8 @@ export async function handleCommishGrantFwSide(interaction: ButtonInteraction) {
   const { side, gameId } = parseSideAndGameId(idAfter(COMMISH_TOOLS_CUSTOM_IDS.grantFwSide, interaction.customId));
   try {
     await interaction.deferUpdate();
-    await recApi.grantForceWinCommissioner({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, side });
-    await interaction.editReply({ content: `✅ Force Win granted to the ${side} side.`, components: [] });
+    const result = await recApi.grantForceWinCommissioner({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, side });
+    await interaction.editReply({ content: `✅ Force Win granted to ${result.cite}.`, components: [] });
   } catch (error) {
     await replyErr(interaction, error);
   }

@@ -144,7 +144,7 @@ export const recApi = {
   resetScheduling: (input: { guildId: string; discordId: string; gameId: string; wipeMessages?: boolean }) =>
     recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
   grantForceWinCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away" }) =>
-    recFetch<{ granted: true; side: string }>("/v1/scheduling/matchup/commish/grant-fw", { method: "POST", body: JSON.stringify(input) }),
+    recFetch<{ granted: true; side: string; cite: string; teamName: string }>("/v1/scheduling/matchup/commish/grant-fw", { method: "POST", body: JSON.stringify(input) }),
   grantFairSimCommissioner: (input: { guildId: string; discordId: string; gameId: string }) =>
     recFetch<{ granted: true }>("/v1/scheduling/matchup/commish/grant-fs", { method: "POST", body: JSON.stringify(input) }),
   suspendUserCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away"; reason: string; weeks: number }) =>
