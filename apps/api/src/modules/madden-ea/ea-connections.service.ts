@@ -37,6 +37,7 @@ import {
   EA_DATASETS,
   EA_DATASET_LABELS,
   endpointKeyForDataset,
+  extractEaEnvelopeRows,
   parseDatasets,
   toIngestEnvelope,
   WEEKLY_DATASETS,
@@ -58,13 +59,7 @@ const PENDING_AUTH_TTL_MS = 10 * 60 * 1000;
 
 /** Extract rows from EA's export envelope (e.g. { gameScheduleInfoList: [...] }). */
 function extractEaRows(raw: unknown, envelopeKey: string): Array<Record<string, unknown>> {
-  if (!raw || typeof raw !== "object") return [];
-  const container = raw as Record<string, unknown>;
-  const direct = container[envelopeKey];
-  if (Array.isArray(direct)) return direct.filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object");
-  const arrays = Object.values(container).filter((v): v is unknown[] => Array.isArray(v));
-  if (arrays.length === 1) return arrays[0].filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object");
-  return [];
+  return extractEaEnvelopeRows(raw, envelopeKey);
 }
 
 type EaConnectionRow = {
@@ -628,6 +623,12 @@ export async function importEaDatasetsWithProgress(
   const seasonYear = info.careerHubInfo?.seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
   const seasonInfo = info.careerHubInfo?.seasonInfo;
   const teamIdInfoList = info.teamIdInfoList ?? [];
+  if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
+    throw new Error(
+      "EA's league hub returned no teams for this franchise, so the roster import has nothing to fetch. " +
+        "Reconnect from the Import Data window and try again.",
+    );
+  }
 
   // Build the list of weeks to import. When no explicit week is requested (the default),
   // import ALL weeks up to and including the current week — not just the current week.
@@ -691,6 +692,12 @@ export async function importEaDatasetsWithProgress(
     preloadedRosterRaw = await runWithFreshSession((c) => fetchDataset(c, "rosters", eaLeagueId, defaultWeekRef, teamIdInfoList));
     const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
     if (preloadedCount === 0) {
+      const shape = Array.isArray(preloadedRosterRaw)
+        ? `array(len=${preloadedRosterRaw.length})`
+        : preloadedRosterRaw && typeof preloadedRosterRaw === "object"
+          ? `object keys=${Object.keys(preloadedRosterRaw as object).slice(0, 12).join(",")}`
+          : String(preloadedRosterRaw);
+      console.error(`[EA] Empty roster payload shape: ${shape}; teams=${teamIdInfoList.length}`);
       throw new Error(
         "EA returned an empty roster for this franchise. Nothing was wiped. This usually means the EA " +
           "session needs to be reconnected — try again, and reconnect from the Import Data window if it keeps failing.",
@@ -1136,29 +1143,24 @@ async function fetchAllTeamRosters(
   client: ReturnType<typeof createEaClient>,
   eaLeagueId: number,
   teamIdInfoList: Array<{ teamId: number; displayName: string; shortName: string; presentationId: number }>,
-): Promise<unknown> {
+): Promise<{ rosterInfoList: Array<Record<string, unknown>> }> {
+  // Snallabot leaves each team's export in companion envelope shape
+  // (`{ rosterInfoList, success, message }`) and posts them separately. We concatenate every
+  // team's players into one list, but MUST keep that envelope — a bare array is `typeof
+  // "object"` with no `rosterInfoList` key, so extractEaRows / directWriteRoster both
+  // treated a successful fetch as empty and aborted the first import.
   const allRows: Array<Record<string, unknown>> = [];
   for (let index = 0; index < teamIdInfoList.length; index += 1) {
     const team = teamIdInfoList[index]!;
     const raw = await client.getTeamRoster(eaLeagueId, team.teamId, index);
-    const rows = extractRows(raw);
+    const rows = extractEaEnvelopeRows(raw, "rosterInfoList");
     for (const row of rows) {
       if (row.teamId === undefined) row.teamId = team.teamId;
     }
     allRows.push(...rows);
   }
-  return allRows;
-}
-
-function extractRows(raw: unknown): Array<Record<string, unknown>> {
-  if (Array.isArray(raw)) {
-    return raw.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row));
-  }
-  if (!raw || typeof raw !== "object") return [];
-  const container = raw as Record<string, unknown>;
-  const arrays = Object.values(container).filter((value): value is unknown[] => Array.isArray(value));
-  if (arrays.length === 1) return arrays[0].filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row));
-  return [];
+  console.log(`[EA] Combined ${allRows.length} roster player(s) from ${teamIdInfoList.length} team(s).`);
+  return { rosterInfoList: allRows };
 }
 
 export async function disconnectEaConnection(connectionId: string, leagueId: string): Promise<void> {

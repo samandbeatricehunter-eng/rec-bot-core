@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 import { gameResultsApplyKey } from "../official-records/official-records.service.js";
+import { extractEaEnvelopeRows } from "./ea-datasets.js";
 
 type Json = Record<string, unknown>;
 
@@ -39,14 +40,7 @@ function rowHash(row: Json): string {
 
 /** Extract rows from EA's export envelope (e.g. { gameScheduleInfoList: [...] }). */
 function extractRows(raw: unknown, envelopeKey: string): Json[] {
-  if (!raw || typeof raw !== "object") return [];
-  const container = raw as Json;
-  const direct = container[envelopeKey];
-  if (Array.isArray(direct)) return direct.filter((r): r is Json => Boolean(r) && typeof r === "object");
-  // Fallback: find the first array value
-  const arrays = Object.values(container).filter((v): v is unknown[] => Array.isArray(v));
-  if (arrays.length === 1) return arrays[0].filter((r): r is Json => Boolean(r) && typeof r === "object");
-  return [];
+  return extractEaEnvelopeRows(raw, envelopeKey);
 }
 
 // ── Schedule ──
