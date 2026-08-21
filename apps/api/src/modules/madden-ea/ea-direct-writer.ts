@@ -213,22 +213,41 @@ export async function directWriteRoster(
     if (row.raw_hash) existingHashes.set(row.madden_player_id, row.raw_hash);
   }
 
+  const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
+    `select id, madden_team_id from rec_teams where league_id=$1`,
+    [leagueId],
+  );
+  const teamByMaddenId = new Map<string, string>();
+  for (const team of teams.rows) {
+    if (team.madden_team_id == null || team.madden_team_id === "") continue;
+    teamByMaddenId.set(String(team.madden_team_id), team.id);
+  }
+  const teamUuidFor = (maddenTeamId: number | null): string | null => {
+    if (maddenTeamId == null) return null;
+    return teamByMaddenId.get(String(maddenTeamId)) ?? teamByMaddenId.get(String(Number(maddenTeamId))) ?? null;
+  };
+
   for (const row of rawRows) {
     const rosterId = num(row, ["rosterId", "roster_id", "playerId", "player_id"]);
     if (rosterId == null) continue;
 
-    // Hash-based skip: if the raw data hasn't changed, don't rewrite the whole row — but
-    // wipeBaselineRoster() marks every existing player 'removed' before this import runs, so
-    // skipping the row entirely left every unchanged player (the vast majority, since most
-    // players' EA data doesn't move week to week) stuck at roster_status='removed' forever,
-    // never reactivated. Still touch roster_status/is_free_agent/updated_at on a hash match.
+    const teamIdNum = num(row, ["teamId", "team_id"]);
+    // A free_agents-dataset row has no team by definition, even if EA's payload carries a
+    // stale teamId from before the player was cut — never resolve one for a free agent.
+    const teamUuid = !isFreeAgent ? teamUuidFor(teamIdNum) : null;
+
+    // Hash-based skip: if the raw data hasn't changed, don't rewrite the whole row. Still
+    // apply roster_status / is_free_agent / team_id so a trade or cut is reflected even when
+    // the rest of the player blob hashed the same.
     const hash = rowHash(row);
     if (existingHashes.get(String(rosterId)) === hash) {
       skipped += 1;
       await pool.query(
-        `update rec_players set roster_status='active', is_free_agent=$3, updated_at=now()
+        `update rec_players set roster_status='active', is_free_agent=$3,
+           team_id=case when $3 then null else coalesce($4::uuid, rec_players.team_id) end,
+           updated_at=now()
          where league_id=$1 and madden_player_id=$2`,
-        [leagueId, String(rosterId), isFreeAgent],
+        [leagueId, String(rosterId), isFreeAgent, teamUuid],
       );
       continue;
     }
@@ -238,10 +257,6 @@ export async function directWriteRoster(
     const fullName = str(row, ["fullName", "full_name", "displayName", "playerName"])
       ?? ([firstName, lastName].filter(Boolean).join(" ") || `Player ${rosterId}`);
     const position = str(row, ["position", "positionName", "positionAbbr"]);
-    const teamIdNum = num(row, ["teamId", "team_id"]);
-    // A free_agents-dataset row has no team by definition, even if EA's payload carries a
-    // stale teamId from before the player was cut — never resolve one for a free agent.
-    const teamUuid = !isFreeAgent && teamIdNum != null ? await resolveTeamId(pool, leagueId, String(teamIdNum)) : null;
     const overall = num(row, ["playerBestOvr", "overallRating", "overall", "ovrRating", "ovr"]);
     const devTrait = normalizeDevTrait(row.devTrait ?? row.developmentTrait ?? row.dev_trait);
     const jerseyNum = num(row, ["jerseyNum", "jerseyNumber", "jersey_number"]);
