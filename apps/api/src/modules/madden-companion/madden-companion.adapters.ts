@@ -11,6 +11,9 @@ export type NormalizedCompanionRecord = {
   sourcePlayerId: string | null;
   sourceGameId: string | null;
   weekNumber: number | null;
+  /** 0-based EA weekIndex. Distinct from weekNumber, which is the 1-based display week. */
+  sourceWeekIndex: number | null;
+  stageIndex: number | null;
   statCategory: string | null;
   normalizedData: JsonObject;
   rawData: JsonObject;
@@ -102,28 +105,96 @@ function metadata(root: JsonObject, row: JsonObject) {
   // `week` is the 1-based display week REC stores. EA rows only carry the 0-based weekIndex,
   // so prefer an explicit week and never fall back to stageIndex, which is a phase (0/1) and
   // would otherwise be silently written as "week 0"/"week 1".
+  const weekIndexRaw = numberValue(first(row, ["weekIndex", "week_index"]))
+    ?? numberValue(first(root, ["weekIndex", "week_index"]));
   const weekNumber = numberValue(first(row, ["week", "week_number", "weekNumber"]))
-    ?? (() => {
-      const index = numberValue(first(row, ["weekIndex", "week_index"]));
-      return index === null ? null : index + 1;
-    })();
+    ?? numberValue(first(root, ["week", "week_number", "weekNumber"]))
+    ?? (weekIndexRaw === null ? null : weekIndexRaw + 1);
+  const sourceWeekIndex = weekIndexRaw ?? (weekNumber === null ? null : weekNumber - 1);
+  const stageIndex = numberValue(first(row, ["stageIndex", "stage_index"]))
+    ?? numberValue(first(root, ["stageIndex", "stage_index"]));
   const statCategory = scalar(first(row, ["statType", "stat_type", "category", "statCategory", "stat_category"]));
-  return { externalLeagueId, externalSeasonKey: season, sourceTeamId, sourcePlayerId, sourceGameId, weekNumber, statCategory };
+  return {
+    externalLeagueId, externalSeasonKey: season, sourceTeamId, sourcePlayerId, sourceGameId,
+    weekNumber, sourceWeekIndex, stageIndex, statCategory,
+  };
+}
+
+/**
+ * Snallabot keys weekly events as `season{seasonIndex}-week{weekIndex}-{id}` because EA stat
+ * and schedule ids are reused across weeks. REC needs player/category too (those ids are often
+ * 0), so weekly companion rows are season + stage + display week + subject + game + category.
+ */
+function weeklyRecordKey(input: {
+  season: string;
+  stageIndex: number | null;
+  weekNumber: number | null;
+  subject: string;
+  gameId: string | null;
+  category: string | null;
+}): string {
+  const stage = input.stageIndex == null ? "x" : String(input.stageIndex);
+  const week = input.weekNumber == null ? "season" : String(input.weekNumber);
+  return `s${input.season}-st${stage}-w${week}-${input.subject}-${input.gameId ?? "nogame"}-${input.category ?? "all"}`;
 }
 
 function recordKey(endpointKey: MaddenEndpointKey, row: JsonObject, meta: ReturnType<typeof metadata>, index: number): string {
-  const explicit = scalar(first(row, ["id", "recordId", "record_id", "scheduleId", "schedule_id", "gameId", "game_id"]));
-  if (explicit) return explicit;
+  // Do not use a lone `id` / `scheduleId` / `gameId` as the player-stat or team-stat key.
+  // EA week-1 passing/rushing/receiving/defense/kicking/punting rows all carry the same
+  // scheduleId (the game) and often `id: 0`. Companion records unique on
+  // (league, season, endpoint, record_key), so that made every player in the game share
+  // one rec_madden_companion_records row and then crash rec_player_weekly_stats on
+  // rec_player_weekly_stats_companion_record_key.
   if (endpointKey === "league_metadata") return "league";
-  if (endpointKey === "teams" || endpointKey === "standings") return meta.sourceTeamId ?? companionChecksum(row);
-  if (endpointKey === "rosters") return meta.sourcePlayerId ?? companionChecksum(row);
+  if (endpointKey === "teams" || endpointKey === "standings") {
+    return meta.sourceTeamId ?? scalar(first(row, ["id", "recordId", "record_id"])) ?? companionChecksum(row);
+  }
+  if (endpointKey === "rosters") {
+    return meta.sourcePlayerId ?? scalar(first(row, ["id", "recordId", "record_id"])) ?? companionChecksum(row);
+  }
   if (endpointKey === "schedule") {
+    const explicit = scalar(first(row, ["id", "recordId", "record_id", "scheduleId", "schedule_id", "gameId", "game_id", "external_game_id"]));
+    if (explicit) {
+      return weeklyRecordKey({
+        season: meta.externalSeasonKey,
+        stageIndex: meta.stageIndex,
+        weekNumber: meta.weekNumber,
+        subject: "game",
+        gameId: explicit,
+        category: "schedule",
+      });
+    }
     const home = scalar(first(row, ["homeTeamId", "home_team_id", "homeTeam"]));
     const away = scalar(first(row, ["awayTeamId", "away_team_id", "awayTeam"]));
-    return [meta.weekNumber ?? "week", home ?? "home", away ?? "away"].join(":");
+    return weeklyRecordKey({
+      season: meta.externalSeasonKey,
+      stageIndex: meta.stageIndex,
+      weekNumber: meta.weekNumber,
+      subject: `${home ?? "home"}-vs-${away ?? "away"}`,
+      gameId: null,
+      category: "schedule",
+    });
   }
-  if (endpointKey === "player_stats") return [meta.sourcePlayerId ?? "player", meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`, meta.statCategory ?? "all"].join(":");
-  if (endpointKey === "team_stats") return [meta.sourceTeamId ?? "team", meta.sourceGameId ?? `week-${meta.weekNumber ?? "season"}`, meta.statCategory ?? "all"].join(":");
+  if (endpointKey === "player_stats") {
+    return weeklyRecordKey({
+      season: meta.externalSeasonKey,
+      stageIndex: meta.stageIndex,
+      weekNumber: meta.weekNumber,
+      subject: meta.sourcePlayerId ?? "player",
+      gameId: meta.sourceGameId,
+      category: meta.statCategory,
+    });
+  }
+  if (endpointKey === "team_stats") {
+    return weeklyRecordKey({
+      season: meta.externalSeasonKey,
+      stageIndex: meta.stageIndex,
+      weekNumber: meta.weekNumber,
+      subject: meta.sourceTeamId ?? "team",
+      gameId: meta.sourceGameId,
+      category: meta.statCategory,
+    });
+  }
   return `${index}:${companionChecksum(row)}`;
 }
 

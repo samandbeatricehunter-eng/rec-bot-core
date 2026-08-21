@@ -23,7 +23,7 @@ import {
   type EaDataset,
 } from "./ea-connections.service.js";
 import { EA_DATASETS } from "./ea-datasets.js";
-import { validateWeekRef } from "./ea-weeks.js";
+import { validateWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
 const datasetSchema = z.enum(EA_DATASETS as [EaDataset, ...EaDataset[]]);
 
@@ -127,23 +127,31 @@ export async function maddenEaRoutes(app: FastifyInstance) {
     }
   });
 
+  const importBodySchema = z.object({
+    guild_id: z.string().min(1), league_id: z.string().uuid(), connection_id: z.string().uuid(),
+    datasets: z.array(datasetSchema).min(1).optional(),
+    stage: z.union([z.literal(0), z.literal(1)]).optional(),
+    week_index: z.number().int().min(0).max(22).optional(),
+    week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
+    week_scope: z.enum(["current", "through_current"]).optional(),
+  });
+
+  function weekOptionsFromBody(body: z.infer<typeof importBodySchema>) {
+    if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
+    const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+    return { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs, weekScope: body.week_scope as EaWeekScope | undefined };
+  }
+
   // Pull the enabled datasets from EA and run them through the ingest pipeline. Weekly
-  // datasets default to the franchise's current week; pass week_refs to import a specific
-  // week or a span (each entry validated; snapshots import once regardless).
+  // datasets default to the franchise's current week; pass week_refs for a specific week or
+  // span, or week_scope=through_current for every week up through current (snapshots once).
   app.post("/v1/import/madden/ea/import", async (request, reply) => {
     try {
-      const body = z.object({
-        guild_id: z.string().min(1), league_id: z.string().uuid(), connection_id: z.string().uuid(),
-        datasets: z.array(datasetSchema).min(1).optional(),
-        stage: z.union([z.literal(0), z.literal(1)]).optional(),
-        week_index: z.number().int().min(0).max(22).optional(),
-        week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
-      }).parse(request.body);
+      const body = importBodySchema.parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
-      if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
-      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+      const options = weekOptionsFromBody(body);
       try {
-        return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, { datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs }) });
+        return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, options) });
       } catch (importError) {
         await recordEaImportError(body.connection_id, importError);
         throw importError;
@@ -156,16 +164,9 @@ export async function maddenEaRoutes(app: FastifyInstance) {
   // Start an import — runs in background, progress polled via /import-progress.
   app.post("/v1/import/madden/ea/import-async", async (request, reply) => {
     try {
-      const body = z.object({
-        guild_id: z.string().min(1), league_id: z.string().uuid(), connection_id: z.string().uuid(),
-        datasets: z.array(datasetSchema).min(1).optional(),
-        stage: z.union([z.literal(0), z.literal(1)]).optional(),
-        week_index: z.number().int().min(0).max(22).optional(),
-        week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
-      }).parse(request.body);
+      const body = importBodySchema.parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
-      if (body.stage !== undefined && body.week_index !== undefined) validateWeekRef({ stageIndex: body.stage, weekIndex: body.week_index });
-      const weekRefs = body.week_refs?.map((ref) => validateWeekRef({ stageIndex: ref.stage, weekIndex: ref.week_index }));
+      const options = weekOptionsFromBody(body);
 
       // The in-memory progress store used to get wiped unconditionally here, so two calls in
       // close succession (a stuck request retried by the client, two open tabs, or the modal
@@ -178,9 +179,7 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       clearImportProgress(body.league_id);
 
       // Fire and forget — the import runs in the background
-      importEaDatasetsWithProgress(body.connection_id, body.league_id, {
-        datasets: body.datasets, stage: body.stage, weekIndex: body.week_index, weekRefs,
-      }).catch((error) => {
+      importEaDatasetsWithProgress(body.connection_id, body.league_id, options).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });
         void recordEaImportError(body.connection_id, error);

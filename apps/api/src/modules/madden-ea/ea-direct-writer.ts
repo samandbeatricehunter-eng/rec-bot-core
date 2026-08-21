@@ -14,6 +14,7 @@ import { getPgPool } from "../../db/client.js";
 import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
+import { eaScheduleExternalId } from "./ea-weeks.js";
 
 type Json = Record<string, unknown>;
 
@@ -72,35 +73,47 @@ export async function directWriteSchedule(
     const homeUuid = homeTeamId != null ? await resolveTeamId(pool, leagueId, String(homeTeamId)) : null;
     const awayUuid = awayTeamId != null ? await resolveTeamId(pool, leagueId, String(awayTeamId)) : null;
 
-    const externalId = scheduleId != null ? String(scheduleId) : null;
+    const legacyExternalId = scheduleId != null ? String(scheduleId) : null;
+    const externalId = scheduleId != null ? eaScheduleExternalId(displayWeek, scheduleId) : null;
 
-    // A league's default/manually-seeded schedule (source != 'madden_companion_export', its own
-    // synthetic external_game_id) never matches the EA scheduleId on (league_id,
-    // external_game_id) — the upsert below would just create a second, permanently-orphaned
-    // row for the same real matchup, its own external_game_id colliding with nothing. Every
-    // wager, GOTW entry, game channel, etc. from before the first EA import points at that
-    // original row, so adopt it (repoint its external_game_id onto the EA one) instead of
-    // leaving the two to drift as parallel, un-scored duplicates of the same game.
+    // Identity is this week's matchup, not EA's scheduleId. Stat IDs and schedule IDs are
+    // reused across weeks; a bare scheduleId ON CONFLICT would let week 2 overwrite week 1.
+    // Adopt the existing row for this week (seeded or previously imported) and only fall
+    // back to a legacy bare-id row when that row already sits on this week.
     let gameId: string | null = null;
     if (homeUuid && awayUuid) {
       const existing = await pool.query<{ id: string }>(
         `select id from rec_games
            where league_id=$1 and week_number=$2 and home_team_id=$3 and away_team_id=$4
-             and source <> 'madden_companion_export'
            limit 1`,
         [leagueId, displayWeek, homeUuid, awayUuid],
       );
-      if (existing.rows[0]) {
-        gameId = existing.rows[0].id;
-        await pool.query(
-          `update rec_games set home_score=$2, away_score=$3, status=$4, source='madden_companion_export',
-             import_verified=true, external_game_id=$5, updated_at=now()
-           where id=$1`,
-          [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
-        );
-      }
+      if (existing.rows[0]) gameId = existing.rows[0].id;
     }
-    if (!gameId) {
+    if (!gameId && externalId) {
+      const scoped = await pool.query<{ id: string }>(
+        `select id from rec_games where league_id=$1 and external_game_id=$2 limit 1`,
+        [leagueId, externalId],
+      );
+      if (scoped.rows[0]) gameId = scoped.rows[0].id;
+    }
+    if (!gameId && legacyExternalId) {
+      const legacy = await pool.query<{ id: string }>(
+        `select id from rec_games
+           where league_id=$1 and external_game_id=$2 and week_number=$3
+           limit 1`,
+        [leagueId, legacyExternalId, displayWeek],
+      );
+      if (legacy.rows[0]) gameId = legacy.rows[0].id;
+    }
+    if (gameId) {
+      await pool.query(
+        `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
+           import_verified=true, external_game_id=$6, updated_at=now()
+         where id=$1`,
+        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId],
+      );
+    } else {
       const gameRow = await pool.query<{ id: string }>(
         `insert into rec_games
            (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
@@ -114,6 +127,7 @@ export async function directWriteSchedule(
            home_score=excluded.home_score,
            away_score=excluded.away_score,
            status=excluded.status,
+           phase=excluded.phase,
            source='madden_companion_export',
            import_verified=true,
            updated_at=now()

@@ -157,3 +157,64 @@ export function weekSpan(stageIndex: EaStage, fromDisplayWeek: number, toDisplay
   }
   return refs;
 }
+
+/**
+ * How weekly datasets are chosen when the caller does not send an explicit week list.
+ *
+ * - `current` — only the franchise's current week (manual "Current week" and auto-import)
+ * - `through_current` — every exportable week in the current stage up through current
+ */
+export type EaWeekScope = "current" | "through_current";
+
+export function weeksThroughCurrent(current: EaWeekRef): EaWeekRef[] {
+  const ref = validateWeekRef(current);
+  const refs: EaWeekRef[] = [];
+  const max = ref.stageIndex === 0 ? 3 : 22;
+  for (let weekIndex = 0; weekIndex <= ref.weekIndex && weekIndex <= max; weekIndex += 1) {
+    if (ref.stageIndex === 1 && weekIndex === PRO_BOWL_WEEK_INDEX) continue;
+    refs.push({ stageIndex: ref.stageIndex, weekIndex });
+  }
+  return refs;
+}
+
+export function dedupeWeekRefs(refs: EaWeekRef[]): EaWeekRef[] {
+  const unique: EaWeekRef[] = [];
+  for (const ref of refs) {
+    const validated = validateWeekRef(ref);
+    const key = `${validated.stageIndex}:${validated.weekIndex}`;
+    if (!unique.some((existing) => `${existing.stageIndex}:${existing.weekIndex}` === key)) unique.push(validated);
+  }
+  return unique;
+}
+
+/**
+ * Resolves which EA weeks a weekly dataset import should fetch.
+ *
+ * Explicit `weekRefs` always win (specific week or a range). Otherwise a lone stage/weekIndex
+ * is that one week. Otherwise `through_current` expands 0..current in the current stage, and
+ * the default (`current` / omitted) is only the franchise's current week.
+ */
+export function resolveWeeklyImportRefs(input: {
+  weekRefs?: EaWeekRef[] | null;
+  stage?: EaStage;
+  weekIndex?: number;
+  weekScope?: EaWeekScope | null;
+  current: EaWeekRef;
+}): EaWeekRef[] {
+  if (input.weekRefs && input.weekRefs.length > 0) return dedupeWeekRefs(input.weekRefs);
+  if (input.stage !== undefined && input.weekIndex !== undefined) {
+    return [validateWeekRef({ stageIndex: input.stage, weekIndex: input.weekIndex })];
+  }
+  const current = validateWeekRef(input.current);
+  if (input.weekScope === "through_current") return weeksThroughCurrent(current);
+  return [current];
+}
+
+/**
+ * Week-scoped id for rec_games.external_game_id. EA scheduleIds are not unique across weeks
+ * (snallabot: unique key is weekIndex + seasonIndex + id), so a bare scheduleId would let
+ * week 2 ON CONFLICT onto week 1 and erase it.
+ */
+export function eaScheduleExternalId(displayWeek: number, scheduleId: string | number): string {
+  return `ea:w${displayWeek}:${scheduleId}`;
+}
