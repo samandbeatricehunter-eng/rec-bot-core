@@ -13,7 +13,7 @@ import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
-import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { computeLatestPublishedPowerRankings, computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
@@ -510,7 +510,7 @@ export async function getHub(guildId: string, discordId: string) {
     supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
-    bestEffort("hub.power_rankings", () => computePowerRankings(guildId, discordId), { guildId }).then((v) => v ?? null),
+    bestEffort("hub.power_rankings", () => computeLatestPublishedPowerRankings(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.league_sos", () => computeLeagueSos(guildId, discordId), { guildId }).then((v) => v ?? null),
     bestEffort("hub.user_ratings", () => computeUserRatings(guildId, discordId), { guildId }).then((v) => v ?? null),
     // Independent of every other item in this batch — used only after everything below, but

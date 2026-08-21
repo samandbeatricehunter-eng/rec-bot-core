@@ -360,3 +360,13 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
   const { userIdByTeam: _userIdByTeam, ...rest } = base;
   return { ...rest, viewerTeamId };
 }
+
+/** The canonical published weekly board used by Discord: latest stored snapshot compared
+ * with the snapshot immediately before it. Site surfaces use this instead of a live
+ * recalculation so ranks and movement remain identical everywhere. */
+export async function computeLatestPublishedPowerRankings(guildId: string, viewerDiscordId?: string | null) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const latestWeek = await loadLatestSnapshotWeek(context.leagueId, seasonNumber);
+  return computePowerRankings(guildId, viewerDiscordId, latestWeek == null ? {} : { completedWeekNumber: latestWeek });
+}
