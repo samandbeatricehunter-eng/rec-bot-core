@@ -212,7 +212,7 @@ export function LegendPurchasePanel({
                       <span key={attr.key}>{attr.key} {attr.value}</span>
                     ))}
                   </div>
-                  {isMine && <span className="legend-card-status">Your pending purchase</span>}
+                  {isMine && <span className="legend-card-status">{soldEntry?.status === "pending" ? "Your pending purchase" : "Applied"}</span>}
                   {isTaken && <span className="legend-card-status">Already purchased</span>}
                 </button>
               );
