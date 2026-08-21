@@ -408,8 +408,8 @@ function formatPowerRankingMovement(change: number | null | undefined) {
 function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
   const teams: any[] = Array.isArray(rankings?.teams) ? rankings.teams : [];
   const lines = teams.slice(0, 32).map((team) => {
-    const humanMarker = team.isHuman ? " *" : "";
-    return `(${formatPowerRankingMovement(team.change)}) ${team.rank}. ${team.teamName}${humanMarker} (${Number(team.score ?? 0).toFixed(3)})`;
+    const owner = team.ownerLabel ? ` — ${team.ownerLabel}` : team.isHuman ? " *" : "";
+    return `(${formatPowerRankingMovement(team.change)}) ${team.rank}. ${team.teamName}${owner} (${Number(team.score ?? 0).toFixed(3)})`;
   });
   const topHalf = lines.slice(0, 16).join("\n") || "No rankings available.";
   const bottomHalf = lines.slice(16).join("\n");
@@ -419,7 +419,7 @@ function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
     .setDescription(rankings?.hasPreviousWeek ? "Movement is compared to the previous completed week." : "First snapshot for this season.")
     .addFields({ name: "Rankings", value: topHalf.slice(0, 1024), inline: false });
   if (bottomHalf) embed.addFields({ name: "Continued", value: bottomHalf.slice(0, 1024), inline: false });
-  embed.setFooter({ text: "* = linked user team" });
+  embed.setFooter({ text: "Linked users show their name with imported Xbox/PSN tag in parentheses." });
   return embed;
 }
 

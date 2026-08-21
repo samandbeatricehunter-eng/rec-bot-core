@@ -4,6 +4,7 @@ import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
 import { mapEaTeamWeeklyStats } from "./team-stats-map.js";
 import { eaScheduleExternalId } from "../madden-ea/ea-weeks.js";
+import { normalizeImportedEaUsername } from "../madden-ea/ea-datasets.js";
 
 type Json = Record<string, unknown>;
 
@@ -75,12 +76,13 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
     [leagueId, sourceId, abbreviation, name],
   );
   if (existing.rows[0]) {
+    const eaUsername = normalizeImportedEaUsername(text(row, ["userName", "user_name", "gamertag", "gamerTag"]));
     await client.query(
       `update rec_teams set madden_team_id=$3,
        name=case when is_relocated then name else coalesce($4,name) end,
        abbreviation=coalesce($5,abbreviation),
-       conference=coalesce($6,conference), division=coalesce($7,division), updated_at=now() where id=$1 and league_id=$2`,
-      [existing.rows[0].id, leagueId, sourceId, name, abbreviation, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"])],
+       conference=coalesce($6,conference), division=coalesce($7,division), ea_username=$8, updated_at=now() where id=$1 and league_id=$2`,
+      [existing.rows[0].id, leagueId, sourceId, name, abbreviation, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
     );
   }
 }

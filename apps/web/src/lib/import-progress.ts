@@ -25,6 +25,7 @@ export function importProgressLines(events: EaImportProgressEvent[]): ImportProg
       return [{ icon: "⏳", text: `Starting import — ${event.weeks} week${event.weeks === 1 ? "" : "s"} — ${event.datasets.join(", ")}` }];
     }
     if (event.type === "dataset_start") return [{ icon: "⏳", text: `${event.label} — fetching…` }];
+    if (event.type === "step") return [{ icon: "⏳", text: event.detail ? `${event.label} — ${event.detail}` : event.label }];
     if (event.type === "dataset_done") {
       return [{ icon: "✅", text: `${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (already up to date)" : ""}` }];
     }
@@ -72,6 +73,7 @@ export function summarizeImportProgress(events: EaImportProgressEvent[]): {
   if (latest?.type === "dataset_start") currentAction = actionFromLabel(latest.label);
   else if (latest?.type === "dataset_done") currentAction = `Imported ${stripWeek(latest.label)}`;
   else if (latest?.type === "dataset_error") currentAction = `${stripWeek(latest.label)} failed`;
+  else if (latest?.type === "step") currentAction = latest.detail ? `${latest.label} — ${latest.detail}` : latest.label;
   else if (latest?.type === "reconciling") currentAction = latest.step;
   else if (latest?.type === "done") currentAction = "Import complete";
   else if (latest?.type === "error") currentAction = "Import failed";

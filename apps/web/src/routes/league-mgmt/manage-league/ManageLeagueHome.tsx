@@ -80,7 +80,13 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
     if (!summary) return [];
     const q = query.trim().toLowerCase();
     return summary.teams.filter((t) => {
-      if (q && !t.name.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !t.name.toLowerCase().includes(q) &&
+        !(t.eaUsername ?? "").toLowerCase().includes(q) &&
+        !(t.linkedUser?.displayName ?? "").toLowerCase().includes(q) &&
+        !(t.linkedUser?.discordUsername ?? "").toLowerCase().includes(q)
+      ) return false;
       if (conferenceFilter !== "all" && t.conference !== conferenceFilter) return false;
       if (ownership === "linked" && !t.linkedUser) return false;
       if (ownership === "unlinked" && t.linkedUser) return false;
@@ -266,6 +272,11 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                                   {team.linkedUser?.discordId && (
                                     <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
                                       ({team.linkedUser.discordUsername ?? team.linkedUser.displayName ?? team.linkedUser.discordId})
+                                    </span>
+                                  )}
+                                  {team.eaUsername && (
+                                    <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
+                                      (EA Name: {team.eaUsername})
                                     </span>
                                   )}
                                   {team.linkedUser?.role && team.linkedUser.role !== "member" && (

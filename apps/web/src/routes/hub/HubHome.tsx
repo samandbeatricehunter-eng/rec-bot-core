@@ -1888,7 +1888,7 @@ export function HubHome() {
                         <div key={conference} className="hub-power-rankings-conference-group">
                           <h4>{conference}</h4>
                           <div className="hub-power-rankings">{teams.map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
+                            <strong>#{team.rank}</strong><div><span>{team.teamName}{team.ownerLabel ? ` — ${team.ownerLabel}` : ""}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
                           </article>)}</div>
                         </div>
                       ))}
@@ -1896,10 +1896,10 @@ export function HubHome() {
                   ) : (
                     <RankingListSearch
                       items={hub.powerRankings.teams}
-                      getSearchText={(team) => team.teamName}
+                      getSearchText={(team) => `${team.teamName} ${team.ownerLabel ?? ""}`}
                       emptyLabel="Power rankings will appear after the first completed slate."
                       renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                        <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
+                        <strong>#{team.rank}</strong><div><span>{team.teamName}{team.ownerLabel ? ` — ${team.ownerLabel}` : ""}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
                       </article>}
                     />
                   )

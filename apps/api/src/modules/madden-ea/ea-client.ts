@@ -448,6 +448,17 @@ type BlazeRpc = { commandName: string; commandId: number; requestPayload: Record
 const COMPONENT_NAME_FALLBACK = BLAZE_COMPONENT_NAME === "careermode" ? "franchisemode" : "careermode";
 const workingComponentNameByBlazeId = new Map<number, string>();
 
+/** Hung EA sockets used to freeze a whole import; snallabot only retries JSON ERR_TIMEOUT. */
+export const EA_BLAZE_FETCH_TIMEOUT_MS = 45_000;
+
+function isAbortTimeout(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function isTransientEaExportError(errorName: string | undefined): boolean {
+  return errorName === "ERR_TIMEOUT" || errorName === "MCA_ERR_SERVER_ERROR";
+}
+
 async function sendBlazeRpc<T>(
   token: { accessToken: string; console: SystemConsole },
   session: EaSessionCache,
@@ -471,12 +482,19 @@ async function sendBlazeRpc<T>(
         requestPayload: JSON.stringify(rpc.requestPayload),
       }),
     };
-    const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/Process/${session.sessionKey}`, {
-      dispatcher: legacySslAgent,
-      method: "POST",
-      headers: blazeHeaders(token.console),
-      body: JSON.stringify(body),
-    });
+    let response: Awaited<ReturnType<typeof undiciFetch>>;
+    try {
+      response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/Process/${session.sessionKey}`, {
+        dispatcher: legacySslAgent,
+        method: "POST",
+        headers: blazeHeaders(token.console),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(EA_BLAZE_FETCH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (isAbortTimeout(error)) throw new BlazeSessionError(`Process: hung EA socket (${rpc.commandName})`);
+      throw error;
+    }
     const text = await response.text();
     let parsed: unknown;
     try {
@@ -541,12 +559,27 @@ async function sendExport<T>(
 
   const attempt = async (name: string): Promise<T> => {
     for (let i = 0; i < retries; i += 1) {
-      const response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${name}/${session.sessionKey}`, {
-        dispatcher: legacySslAgent,
-        method: "POST",
-        headers: blazeHeaders(token.console),
-        body: JSON.stringify(payload),
-      });
+      let response: Awaited<ReturnType<typeof undiciFetch>>;
+      try {
+        response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${name}/${session.sessionKey}`, {
+          dispatcher: legacySslAgent,
+          method: "POST",
+          headers: blazeHeaders(token.console),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(EA_BLAZE_FETCH_TIMEOUT_MS),
+        });
+      } catch (error) {
+        if (!isAbortTimeout(error)) throw error;
+        if (i >= 4) throw new BlazeSessionError(`${name}: persistent ERR_TIMEOUT — session may be stale`);
+        if (i < retries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** i));
+          continue;
+        }
+        throw new EaAuthError(
+          `EA timed out after ${retries} attempts fetching ${name}.`,
+          "EA's servers are busy. Wait a few minutes and import again.",
+        );
+      }
       const text = await response.text();
       let parsed: unknown;
       try {
@@ -565,10 +598,10 @@ async function sendExport<T>(
           `EA is currently restricting access to ${name}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
         );
       }
-      // EA times out under load far more often than it fails outright; back off and retry.
-      // After 4 timeouts the session may be stale — throw BlazeSessionError so the caller
+      // EA times out / 500s under concurrent load far more often than it fails outright.
+      // After 4 transients the session may be stale — throw BlazeSessionError so the caller
       // re-creates the session and retries.
-      if (errorName === "ERR_TIMEOUT") {
+      if (isTransientEaExportError(errorName)) {
         if (i >= 4) throw new BlazeSessionError(`${name}: persistent ERR_TIMEOUT — session may be stale`);
         if (i < retries - 1) {
           await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** i));

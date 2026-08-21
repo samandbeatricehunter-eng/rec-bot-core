@@ -213,6 +213,7 @@ export type EaImportProgressEvent =
   | { type: "dataset_start"; dataset: string; label: string }
   | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
   | { type: "dataset_error"; dataset: string; label: string; error: string }
+  | { type: "step"; step: number; stepCount: number; label: string; detail?: string }
   | { type: "reconciling"; step: string }
   | { type: "done"; results: EaImportResult[] }
   | { type: "error"; error: string };

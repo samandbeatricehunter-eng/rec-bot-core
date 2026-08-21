@@ -38,11 +38,13 @@ import {
   EA_DATASET_LABELS,
   endpointKeyForDataset,
   extractEaEnvelopeRows,
+  eaUsernamesFromHub,
   parseDatasets,
   toIngestEnvelope,
   WEEKLY_DATASETS,
   type EaDataset,
 } from "./ea-datasets.js";
+import { chunkItems, EA_ROSTER_TEAM_BATCH, EA_WEEKLY_WEEK_BATCH, weeklyWriteOrder } from "./ea-import-batches.js";
 import { directWriteSchedule, directWriteRoster } from "./ea-direct-writer.js";
 import { shouldRetainPlayerAfterEaReconcile } from "./ea-roster-reconcile.js";
 import {
@@ -518,6 +520,7 @@ export type EaImportProgressEvent =
   | { type: "dataset_start"; dataset: string; label: string }
   | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
   | { type: "dataset_error"; dataset: string; label: string; error: string }
+  | { type: "step"; step: number; stepCount: number; label: string; detail?: string }
   | { type: "reconciling"; step: string }
   | { type: "done"; results: EaImportResult[] }
   | { type: "error"; error: string };
@@ -596,6 +599,33 @@ export async function importEaDatasetsWithProgress(
   // If the session dies, recreates it (with token refresh if needed) and retries once.
   let activeSession = session;
   let lastKeepAlive = 0;
+  let refreshInFlight: Promise<void> | null = null;
+  const recreateSession = async () => {
+    if (refreshInFlight) {
+      await refreshInFlight;
+      return;
+    }
+    refreshInFlight = (async () => {
+      await clearSession(row.id);
+      try {
+        activeSession = await createBlazeSession(token.accessToken, token.console);
+      } catch {
+        const { refreshEaToken } = await import("./ea-client.js");
+        const refreshed = await refreshEaToken(token.refreshToken);
+        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
+        await updateSealedToken(row.id, next);
+        token.accessToken = refreshed.accessToken;
+        token.refreshToken = refreshed.refreshToken;
+        token.expiresAt = refreshed.expiresAt;
+        activeSession = await createBlazeSession(refreshed.accessToken, token.console);
+      }
+      await persistSession(row.id, activeSession);
+      lastKeepAlive = Date.now();
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+    await refreshInFlight;
+  };
   const runWithFreshSession = async <T>(operation: (client: ReturnType<typeof createEaClient>) => Promise<T>): Promise<T> => {
     const now = Date.now();
     // Keepalive at most once per 30 seconds to avoid hammering EA
@@ -614,21 +644,7 @@ export async function importEaDatasetsWithProgress(
       const isAuthError = error instanceof EaAuthError;
       if (!isSessionError && !isAuthError) throw error;
       console.warn("[EA] Blaze session stale, recreating:", error instanceof Error ? error.message.slice(0, 200) : error);
-      await clearSession(row.id);
-      try {
-        activeSession = await createBlazeSession(token.accessToken, token.console);
-      } catch {
-        const { refreshEaToken } = await import("./ea-client.js");
-        const refreshed = await refreshEaToken(token.refreshToken);
-        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.id, next);
-        token.accessToken = refreshed.accessToken;
-        token.refreshToken = refreshed.refreshToken;
-        token.expiresAt = refreshed.expiresAt;
-        activeSession = await createBlazeSession(refreshed.accessToken, token.console);
-      }
-      await persistSession(row.id, activeSession);
-      lastKeepAlive = Date.now();
+      await recreateSession();
       const freshClient = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
       return await operation(freshClient);
     }
@@ -639,6 +655,10 @@ export async function importEaDatasetsWithProgress(
   const seasonYear = info.careerHubInfo?.seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
   const seasonInfo = info.careerHubInfo?.seasonInfo;
   const teamIdInfoList = info.teamIdInfoList ?? [];
+  if (info.userAdminHubInfo?.userInfoMap != null) {
+    await persistImportedEaUsernames(leagueId, eaUsernamesFromHub(info)).catch((error) =>
+      console.error("[WARN] Failed to store imported EA gamertags (non-fatal):", error));
+  }
   if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
     throw new Error(
       "EA's league hub returned no teams for this franchise, so the roster import has nothing to fetch. " +
@@ -685,26 +705,74 @@ export async function importEaDatasetsWithProgress(
   // id list (that would delete every player). We do not wipe the existing roster first —
   // each import upserts/moves/updates, then drops anyone not in this EA payload, including
   // leftover seeds and placeholders.
+  const rosterWeekLabel = describeEaWeek(defaultWeekRef.stageIndex, defaultWeekRef.weekIndex).label;
+  const emitRosterTeam = (team: { name: string; index: number; total: number }) => {
+    pushProgress(leagueId, {
+      type: "step",
+      step: team.index + 1,
+      stepCount: team.total,
+      label: `Importing Rosters for ${rosterWeekLabel}`,
+      detail: team.name,
+    });
+  };
+
   let preloadedRosterRaw: unknown | null = null;
-  if (datasets.includes("rosters")) {
+  let preloadedFaRaw: unknown | null = null;
+  if (datasets.includes("rosters") || datasets.includes("free_agents")) {
     pushProgress(leagueId, { type: "reconciling", step: "Checking EA roster…" });
-    preloadedRosterRaw = await runWithFreshSession((c) => fetchDataset(c, "rosters", eaLeagueId, defaultWeekRef, teamIdInfoList));
-    const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
-    if (preloadedCount === 0) {
-      const shape = Array.isArray(preloadedRosterRaw)
-        ? `array(len=${preloadedRosterRaw.length})`
-        : preloadedRosterRaw && typeof preloadedRosterRaw === "object"
-          ? `object keys=${Object.keys(preloadedRosterRaw as object).slice(0, 12).join(",")}`
-          : String(preloadedRosterRaw);
-      console.error(`[EA] Empty roster payload shape: ${shape}; teams=${teamIdInfoList.length}`);
-      throw new Error(
-        "EA returned an empty roster for this franchise. Existing players were left unchanged. This usually means the EA " +
-          "session needs to be reconnected — try again, and reconnect from the Import Data window if it keeps failing.",
-      );
+    const rosterPromise = datasets.includes("rosters")
+      ? runWithFreshSession((c) => fetchDataset(c, "rosters", eaLeagueId, defaultWeekRef, teamIdInfoList, emitRosterTeam))
+      : null;
+    const faPromise = datasets.includes("free_agents")
+      ? runWithFreshSession((c) => fetchDataset(c, "free_agents", eaLeagueId, defaultWeekRef, teamIdInfoList))
+      : null;
+    if (rosterPromise) {
+      preloadedRosterRaw = await rosterPromise;
+      const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
+      if (preloadedCount === 0) {
+        const shape = Array.isArray(preloadedRosterRaw)
+          ? `array(len=${preloadedRosterRaw.length})`
+          : preloadedRosterRaw && typeof preloadedRosterRaw === "object"
+            ? `object keys=${Object.keys(preloadedRosterRaw as object).slice(0, 12).join(",")}`
+            : String(preloadedRosterRaw);
+        console.error(`[EA] Empty roster payload shape: ${shape}; teams=${teamIdInfoList.length}`);
+        throw new Error(
+          "EA returned an empty roster for this franchise. Existing players were left unchanged. This usually means the EA " +
+            "session needs to be reconnected — try again, and reconnect from the Import Data window if it keeps failing.",
+        );
+      }
     }
+    if (faPromise) preloadedFaRaw = await faPromise;
   }
 
   pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
+
+  const writeImportedDataset = async (dataset: EaDataset, raw: unknown, week: EaWeekRef) => {
+    const isWeekly = WEEKLY_DATASETS.has(dataset);
+    const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
+    const label = isWeekly
+      ? `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`
+      : EA_DATASET_LABELS[dataset];
+    let records = 0;
+
+    if (dataset === "schedule") {
+      records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
+      scheduleImported = true;
+    } else if (dataset === "rosters") {
+      const roster = await directWriteRoster(leagueId, raw, false);
+      collectImportedPlayerIds(raw, importedPlayerIds);
+      return { dataset, label, records: roster.records, duplicate: roster.duplicate };
+    } else if (dataset === "free_agents") {
+      const roster = await directWriteRoster(leagueId, raw, true);
+      collectImportedPlayerIds(raw, importedPlayerIds);
+      return { dataset, label, records: roster.records, duplicate: roster.duplicate };
+    } else {
+      const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
+      const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
+      records = ingested.records_stored;
+    }
+    return { dataset, label, records, duplicate: false };
+  };
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
     const isWeekly = WEEKLY_DATASETS.has(dataset);
@@ -714,35 +782,11 @@ export async function importEaDatasetsWithProgress(
     console.log(`[EA] Fetching ${dataset} (${scope})...`);
     const raw = dataset === "rosters" && preloadedRosterRaw && week.stageIndex === defaultWeekRef.stageIndex && week.weekIndex === defaultWeekRef.weekIndex
       ? preloadedRosterRaw
-      : await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList));
+      : dataset === "free_agents" && preloadedFaRaw
+        ? preloadedFaRaw
+        : await runWithFreshSession((c) => fetchDataset(c, dataset, eaLeagueId, week, teamIdInfoList, dataset === "rosters" ? emitRosterTeam : undefined));
     console.log(`[EA] Fetched ${dataset} (${scope}) in ${Date.now() - t0}ms`);
-
-    const label = isWeekly
-      ? `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`
-      : EA_DATASET_LABELS[dataset];
-
-    let records = 0;
-
-    if (dataset === "schedule") {
-      records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
-      scheduleImported = true;
-    } else if (dataset === "rosters") {
-      const roster = await directWriteRoster(leagueId, raw, false);
-      records = roster.records;
-      collectImportedPlayerIds(raw, importedPlayerIds);
-      return { dataset, label, records, duplicate: roster.duplicate };
-    } else if (dataset === "free_agents") {
-      const roster = await directWriteRoster(leagueId, raw, true);
-      records = roster.records;
-      collectImportedPlayerIds(raw, importedPlayerIds);
-      return { dataset, label, records, duplicate: roster.duplicate };
-    } else {
-      const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
-      const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
-      records = ingested.records_stored;
-    }
-
-    return { dataset, label, records, duplicate: false };
+    return writeImportedDataset(dataset, raw, week);
   };
 
   // Split datasets into snapshot (no week) and weekly types
@@ -780,27 +824,61 @@ export async function importEaDatasetsWithProgress(
     ]);
   }
 
-  // Weekly datasets: EA's Blaze API times out and throws server errors (ERR_TIMEOUT,
-  // MCA_ERR_SERVER_ERROR) far more under concurrent load on the same session than it fails
-  // outright — firing every stat type for 2 weeks at once (up to 14 simultaneous requests)
-  // was very likely the direct cause of both. Fetch one dataset at a time; slower, but every
-  // request actually gets EA's full attention instead of contending with 13 others.
+  // Weekly datasets: snallabot fetches two weeks at a time with every endpoint in
+  // parallel (up to 16 Blaze calls). sendExport retries ERR_TIMEOUT / MCA_ERR_SERVER_ERROR
+  // and hung sockets, so matching that batching is safe for a week-1-through-current import.
   if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
-    for (let weekOrdinal = 0; weekOrdinal < weeklyRefs.length; weekOrdinal += 1) {
-      const week = weeklyRefs[weekOrdinal]!;
-      const weekLabel = describeEaWeek(week.stageIndex, week.weekIndex).label;
-      const weekOf = weeklyRefs.length > 1 ? ` (${weekOrdinal + 1} of ${weeklyRefs.length})` : "";
-      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${weekLabel}${weekOf}` });
+    const weekBatches = chunkItems(weeklyRefs, EA_WEEKLY_WEEK_BATCH);
+    let weeksCompleted = 0;
+    for (const weekBatch of weekBatches) {
+      const batchLabel = weekBatch.map((week) => describeEaWeek(week.stageIndex, week.weekIndex).label).join(", ");
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel} (${weeksCompleted + 1}–${weeksCompleted + weekBatch.length} of ${weeklyRefs.length})` });
 
-      for (const dataset of weeklyDatasets) {
-        try {
-          const result = await importDatasetAtWeek(dataset, week);
-          results.push({ dataset, label: result.label, importJobId: null, duplicate: result.duplicate, recordsStored: result.records });
-          pushProgress(leagueId, { type: "dataset_done", dataset: String(dataset), label: result.label, records: result.records, duplicate: result.duplicate });
-        } catch (error) {
-          pushProgress(leagueId, { type: "dataset_error", dataset: String(dataset), label: `${EA_DATASET_LABELS[dataset]} — ${weekLabel}`, error: error instanceof Error ? error.message : String(error) });
+      const fetched = await Promise.all(weekBatch.flatMap((week) => {
+        const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
+        return weeklyDatasets.map(async (dataset) => {
+          try {
+            const raw = await runWithFreshSession((client) =>
+              fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList),
+            );
+            return { week, dataset, raw, ok: true as const };
+          } catch (error) {
+            pushProgress(leagueId, {
+              type: "dataset_error",
+              dataset: String(dataset),
+              label: `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return { week, dataset, raw: null, ok: false as const };
+          }
+        });
+      }));
+
+      for (const [batchIndex, week] of weekBatch.entries()) {
+        const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
+        const weekOrdinal = weeksCompleted + batchIndex;
+        const weekItems = weeklyWriteOrder(
+          fetched.filter((item) => item.ok && item.week.stageIndex === week.stageIndex && item.week.weekIndex === week.weekIndex),
+        );
+        for (const item of weekItems) {
+          if (!item.ok || item.raw === null) continue;
+          try {
+            pushProgress(leagueId, {
+              type: "step",
+              step: weekOrdinal + 1,
+              stepCount: weeklyRefs.length,
+              label: `Saving ${weekDesc.label}`,
+              detail: EA_DATASET_LABELS[item.dataset],
+            });
+            const result = await writeImportedDataset(item.dataset, item.raw, week);
+            results.push({ dataset: item.dataset, label: result.label, importJobId: null, duplicate: result.duplicate, recordsStored: result.records });
+            pushProgress(leagueId, { type: "dataset_done", dataset: String(item.dataset), label: result.label, records: result.records, duplicate: result.duplicate });
+          } catch (error) {
+            pushProgress(leagueId, { type: "dataset_error", dataset: String(item.dataset), label: `${EA_DATASET_LABELS[item.dataset]} — ${weekDesc.label}`, error: error instanceof Error ? error.message : String(error) });
+          }
         }
       }
+      weeksCompleted += weekBatch.length;
     }
   }
 
@@ -1133,6 +1211,7 @@ function fetchDataset(
   eaLeagueId: number,
   week: EaWeekRef,
   teamIdInfoList: Array<{ teamId: number; displayName: string; shortName: string; presentationId: number }>,
+  onRosterTeam?: (info: { name: string; index: number; total: number }) => void,
 ): Promise<unknown> {
   switch (dataset) {
     case "teams": return client.getTeams(eaLeagueId);
@@ -1145,30 +1224,54 @@ function fetchDataset(
     case "kicking": return client.getKickingStats(eaLeagueId, week.stageIndex, week.weekIndex);
     case "punting": return client.getPuntingStats(eaLeagueId, week.stageIndex, week.weekIndex);
     case "team_stats": return client.getTeamStats(eaLeagueId, week.stageIndex, week.weekIndex);
-    case "rosters": return fetchAllTeamRosters(client, eaLeagueId, teamIdInfoList);
+    case "rosters": return fetchAllTeamRosters(client, eaLeagueId, teamIdInfoList, onRosterTeam);
     case "free_agents": return client.getFreeAgents(eaLeagueId);
   }
+}
+
+async function persistImportedEaUsernames(leagueId: string, names: Map<string, string>): Promise<void> {
+  const pool = getPgPool();
+  await pool.query(`update rec_teams set ea_username=null, updated_at=now() where league_id=$1`, [leagueId]);
+  for (const [maddenTeamId, username] of names) {
+    await pool.query(
+      `update rec_teams set ea_username=$3, updated_at=now() where league_id=$1 and madden_team_id=$2`,
+      [leagueId, maddenTeamId, username],
+    );
+  }
+  if (names.size > 0) console.log(`[EA] Stored ${names.size} imported console gamertag(s).`);
 }
 
 async function fetchAllTeamRosters(
   client: ReturnType<typeof createEaClient>,
   eaLeagueId: number,
   teamIdInfoList: Array<{ teamId: number; displayName: string; shortName: string; presentationId: number }>,
+  onTeam?: (info: { name: string; index: number; total: number }) => void,
 ): Promise<{ rosterInfoList: Array<Record<string, unknown>> }> {
   // Snallabot leaves each team's export in companion envelope shape
   // (`{ rosterInfoList, success, message }`) and posts them separately. We concatenate every
   // team's players into one list, but MUST keep that envelope — a bare array is `typeof
   // "object"` with no `rosterInfoList` key, so extractEaRows / directWriteRoster both
   // treated a successful fetch as empty and aborted the first import.
+  // Snallabot pulls 4 team rosters at a time. Sequential 32-team fetches were the slowest
+  // snapshot step; batching here matches that without flooding EA the way an unbounded
+  // Promise.all of every team would.
   const allRows: Array<Record<string, unknown>> = [];
-  for (let index = 0; index < teamIdInfoList.length; index += 1) {
-    const team = teamIdInfoList[index]!;
-    const raw = await client.getTeamRoster(eaLeagueId, team.teamId, index);
-    const rows = extractEaEnvelopeRows(raw, "rosterInfoList");
-    for (const row of rows) {
-      if (row.teamId === undefined) row.teamId = team.teamId;
-    }
-    allRows.push(...rows);
+  const indexed = teamIdInfoList.map((team, index) => ({ team, index }));
+  for (const batch of chunkItems(indexed, EA_ROSTER_TEAM_BATCH)) {
+    const parts = await Promise.all(batch.map(async ({ team, index }) => {
+      onTeam?.({
+        name: team.displayName || team.shortName || `Team ${team.teamId}`,
+        index,
+        total: teamIdInfoList.length,
+      });
+      const raw = await client.getTeamRoster(eaLeagueId, team.teamId, index);
+      const rows = extractEaEnvelopeRows(raw, "rosterInfoList");
+      for (const row of rows) {
+        if (row.teamId === undefined) row.teamId = team.teamId;
+      }
+      return rows;
+    }));
+    for (const rows of parts) allRows.push(...rows);
   }
   console.log(`[EA] Combined ${allRows.length} roster player(s) from ${teamIdInfoList.length} team(s).`);
   return { rosterInfoList: allRows };

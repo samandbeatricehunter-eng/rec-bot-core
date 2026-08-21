@@ -100,6 +100,7 @@ export type TeamManagementSummaryRow = {
   missingBoxScoreCount: number;
   awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
+  eaUsername: string | null;
 };
 
 export type TeamManagementSummary = {
@@ -546,7 +547,7 @@ export type HubResponse = {
   headlines: Array<{ id: string; season: number; week: number | null; season_stage?: string | null; headline: string | null; body: string | null; image_url?: string | null; media_kind?: string | null; author_discord_id?: string | null; primary_angle: string | null; story_type: "headline" | "article" | "game_article"; notes: string[] | null; roundtable: Array<{ speaker: string; role: string; take: string }> | null; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null; commentCount: number; created_at: string }>;
   matchups: WeeklyH2hGamesResponse;
   myTeam: any;
-  powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; conference: string | null; isHuman: boolean; rank: number; score: number; prevRank: number | null; change: number | null; wins: number; losses: number; ties: number; playoffMarker: "X" | "Y" | "Z" | null }> };
+  powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; conference: string | null; isHuman: boolean; ownerName: string | null; eaUsername: string | null; ownerLabel: string | null; rank: number; score: number; prevRank: number | null; change: number | null; wins: number; losses: number; ties: number; playoffMarker: "X" | "Y" | "Z" | null }> };
   sos: null | { totalTeams: number; viewerTeamId: string | null; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; sosFull: number; sosRemaining: number; humanCount: number; cpuCount: number; oppRecord: number }> };
   userRatings: null | { displayAsGrade: boolean; viewerUserId: string | null; users: Array<{ userId: string; displayName: string; teamId: string | null; teamName: string | null; rank: number; rating: number; grade: string; winScore: number; statScore: number; consistencyScore: number }> };
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null; username?: string | null } | null; team: { name: string; abbreviation: string | null } | null; awayTeamName: string | null; homeTeamName: string | null; matchupLabel: "H2H" | "CPU" | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;

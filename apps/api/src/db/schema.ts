@@ -411,7 +411,8 @@ export const recTeams = pgTable("rec_teams", {
   originalAbbreviation: text("original_abbreviation"),
   logoUrl: text("logo_url"),
   isSchedulePlaceholder: boolean("is_schedule_placeholder").notNull().default(false)
-  ,primaryColor: text("primary_color").notNull().default("#FFFFFF")
+  ,primaryColor: text("primary_color").notNull().default("#FFFFFF"),
+  eaUsername: text("ea_username"),
 });
 
 export const recLeagueMemberships = pgTable("rec_league_memberships", {
