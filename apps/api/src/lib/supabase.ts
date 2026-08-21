@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
 import { getPgPool } from "../db/client.js";
 import { env } from "../config/env.js";
+import { serializePgValue } from "./pg-serialize.js";
 
 type QueryResult = {
   data: any;
@@ -103,23 +104,10 @@ function relationKey(alias: string): string {
   return `${alias}_id`;
 }
 
-// node-postgres serializes any JS array as a Postgres array-literal ("{a,b,c}"), regardless
-// of the target column's real type — correct for a native `text[]`/`integer[]` column, but
-// broken for `jsonb` (its parser rejects array-literal syntax as invalid JSON), and this
-// most schema arrays are jsonb and must be JSON-stringified before reaching the driver.
-// Native Postgres array columns are explicitly allowlisted below so they retain the array
-// encoding node-postgres expects.
-const nativeArrayColumns = new Set([
-  "rec_box_score_submissions.extra_discord_message_ids",
-]);
-
-function serializeValue(table: string, column: string, value: unknown): unknown {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value;
-  if (Array.isArray(value) && nativeArrayColumns.has(`${table}.${column}`)) return value;
-  if (Array.isArray(value) || typeof value === "object") return JSON.stringify(value);
-  return value;
-}
+// Array/jsonb encoding for bound parameters lives in pg-serialize.ts — native `text[]`
+// columns must stay JS arrays so node-postgres emits `{a,b,c}`; jsonb arrays must be
+// JSON.stringified. Forgetting a native-array column on that allowlist 500s on upsert
+// (`malformed array literal: "[\"...\"]"`), which is how league settings saves broke.
 
 function emptyResult(data: any = null): QueryResult {
   return { data: data as QueryResult["data"], error: null };
@@ -458,7 +446,7 @@ class PostgresQueryBuilder {
     const values: unknown[] = [];
     const tuples = rows.map((row) => {
       const placeholders = columns.map((column) => {
-        values.push(serializeValue(this.table, column, (row as Record<string, unknown>)[column] ?? null));
+        values.push(serializePgValue(this.table, column, (row as Record<string, unknown>)[column] ?? null));
         return `$${values.length}`;
       });
       return `(${placeholders.join(", ")})`;
@@ -485,7 +473,7 @@ class PostgresQueryBuilder {
     const columns = Object.keys(row).map(assertIdent);
     const values: unknown[] = [];
     const setSql = columns.map((column) => {
-      values.push(serializeValue(this.table, column, row[column]));
+      values.push(serializePgValue(this.table, column, row[column]));
       return `${ident(column)} = $${values.length}`;
     });
     const sql = `UPDATE ${ident(this.table)} SET ${setSql.join(", ")}${this.whereSql(values)}${this.returningSql()}`;
