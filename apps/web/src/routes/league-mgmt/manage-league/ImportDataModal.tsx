@@ -442,7 +442,7 @@ export function ImportDataModal({
                 <>
                   <Card>
                     <h3 style={{ marginTop: 0 }}>Datasets</h3>
-                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below; rosters, free agents, teams, and standings are league-wide snapshots. Current week imports only the franchise's current week. Use a range or “All weeks through current” to backfill history.</p>
+                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below and run one week at a time, starting at the first selected week. Rosters, free agents, teams, and standings are league-wide snapshots. Current week imports only the franchise's current week. Use a range or “All weeks through current” to backfill history.</p>
                     <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                       <div className="form-field" style={{ margin: 0, minWidth: 170 }}>
                         <label className="form-label" htmlFor="ea-week-mode">Import for</label>
@@ -522,9 +522,9 @@ export function ImportDataModal({
                       <h4 style={{ margin: "0 0 var(--space-2)", fontSize: "var(--text-sm)" }}>Import Progress</h4>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         {importProgress.map((event, i) => {
-                          if (event.type === "starting") return <ProgressLine key={i} icon="⏳" text={`Starting import — ${event.datasets.join(", ")}`} />;
+                          if (event.type === "starting") return <ProgressLine key={i} icon="⏳" text={`Starting import — ${event.weeks} week${event.weeks === 1 ? "" : "s"} — ${event.datasets.join(", ")}`} />;
                           if (event.type === "dataset_start") return <ProgressLine key={i} icon="⏳" text={`${event.label} — fetching…`} />;
-                          if (event.type === "dataset_done") return <ProgressLine key={i} icon="✅" text={`${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (no changes)" : ""}`} />;
+                          if (event.type === "dataset_done") return <ProgressLine key={i} icon="✅" text={`${event.label} — ${event.records} record${event.records === 1 ? "" : "s"}${event.duplicate ? " (already up to date)" : ""}`} />;
                           if (event.type === "dataset_error") return <ProgressLine key={i} icon="❌" text={`${event.label} — ${event.error}`} isError />;
                           if (event.type === "reconciling") return <ProgressLine key={i} icon="⏳" text={event.step} />;
                           if (event.type === "done") return <ProgressLine key={i} icon="✅" text="Import complete!" />;
@@ -538,9 +538,9 @@ export function ImportDataModal({
                   {importResults && (
                     <Card>
                       <h3 style={{ marginTop: 0 }}>Last import</h3>
-                      {importResults.map((result) => (
-                        <p key={result.dataset} style={{ margin: "var(--space-1) 0" }}>
-                          {result.label}: {result.recordsStored} record{result.recordsStored === 1 ? "" : "s"}{result.duplicate ? " (duplicate — no changes)" : ""}
+                      {importResults.map((result, i) => (
+                        <p key={`${result.dataset}-${result.label}-${i}`} style={{ margin: "var(--space-1) 0" }}>
+                          {result.label}: {result.recordsStored} record{result.recordsStored === 1 ? "" : "s"}{result.duplicate ? " (already up to date)" : ""}
                         </p>
                       ))}
                     </Card>

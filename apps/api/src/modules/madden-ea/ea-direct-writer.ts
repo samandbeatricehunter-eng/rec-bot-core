@@ -14,6 +14,7 @@ import { getPgPool } from "../../db/client.js";
 import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
+import { rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
 import { eaScheduleExternalId } from "./ea-weeks.js";
 
 type Json = Record<string, unknown>;
@@ -212,7 +213,7 @@ export async function directWriteRoster(
   leagueId: string,
   rawEaData: unknown,
   isFreeAgent: boolean = false,
-): Promise<number> {
+): Promise<RosterWriteResult> {
   const rawRows = extractRows(rawEaData, "rosterInfoList");
   const pool = getPgPool();
   let written = 0;
@@ -411,8 +412,11 @@ export async function directWriteRoster(
     existingHashes.set(String(rosterId), hash);
     written += 1;
   }
-  if (skipped > 0) console.log(`[EA] Roster: ${written} written, ${skipped} skipped (unchanged)`);
-  return written;
+  const result = rosterWriteResult(written, skipped);
+  if (skipped > 0 || written > 0) {
+    console.log(`[EA] Roster: ${result.written} written, ${result.skipped} unchanged (${result.records} total)`);
+  }
+  return result;
 }
 
 function normalizeDevTrait(value: unknown): string | null {
