@@ -6,6 +6,7 @@ export type MatchupsChannelPostState = {
 
 export type MatchupsChannelWritePlan =
   | { action: "edit"; channelId: string; messageId: string }
+  | { action: "replace"; deleteChannelId: string; deleteMessageId: string }
   | { action: "move"; deleteChannelId: string; deleteMessageId: string }
   | { action: "post" };
 
@@ -23,21 +24,37 @@ export function resolveMatchupsChannelId(routes: Record<string, unknown> | null 
   return String(routes?.announcements_channel_id ?? "").trim();
 }
 
-// Week number is intentionally ignored: the same Discord message is edited in place when the
-// league advances, so the channel never accumulates a new copy per week (or per scheduling
-// mutation). A new post only happens when nothing is tracked yet, or the tracked message is
-// in a different channel.
+// Same week + same channel: edit the tracked message so scheduling mutations don't spam
+// a new announcement. A new week (or a channel move) deletes the old board and posts a
+// replacement at the bottom — never leave two "Season N, Week M Matchups" embeds.
 export function planMatchupsChannelWrite(input: {
   stored: MatchupsChannelPostState | null;
   channelId: string;
+  currentWeek: number;
 }): MatchupsChannelWritePlan {
   if (input.stored?.message_id && input.stored.channel_id === input.channelId) {
-    return { action: "edit", channelId: input.channelId, messageId: input.stored.message_id };
+    if (input.stored.week_number === input.currentWeek) {
+      return { action: "edit", channelId: input.channelId, messageId: input.stored.message_id };
+    }
+    return { action: "replace", deleteChannelId: input.stored.channel_id, deleteMessageId: input.stored.message_id };
   }
   if (input.stored?.message_id) {
     return { action: "move", deleteChannelId: input.stored.channel_id, deleteMessageId: input.stored.message_id };
   }
   return { action: "post" };
+}
+
+// Discord's channel history is newest-first. Prefer the tracked id when it is still in
+// the channel; otherwise keep the newest leftover board so we edit that instead of posting
+// another copy.
+export function chooseMatchupsKeepId(input: {
+  existingIdsNewestFirst: string[];
+  preferredId: string | null;
+}): string | null {
+  if (input.preferredId && input.existingIdsNewestFirst.includes(input.preferredId)) {
+    return input.preferredId;
+  }
+  return input.existingIdsNewestFirst[0] ?? null;
 }
 
 export function planAfterMatchupsEditAttempt(result: "edited" | "missing" | "failed"): "done" | "post" | "abort" {
