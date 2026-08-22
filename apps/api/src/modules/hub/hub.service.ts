@@ -2033,7 +2033,7 @@ export async function shareHubMatchupStream(input: {
   const game = await supabase
     .from("rec_games")
     .select(
-      "id,week_number,season_stage,home_user_id,away_user_id,home_team_id,away_team_id",
+      "id,week_number,phase,home_user_id,away_user_id,home_team_id,away_team_id",
     )
     .eq("id", input.gameId)
     .eq("league_id", context.leagueId)

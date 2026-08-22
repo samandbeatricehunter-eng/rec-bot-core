@@ -91,6 +91,21 @@ export async function directWriteSchedule(
       );
       if (existing.rows[0]) gameId = existing.rows[0].id;
     }
+    // One side unresolved (e.g. Cardinals seeded as ARI/"Arizona Cardinals" while EA sends
+    // AZ/"Cardinals") must not insert a second orphan row. Adopt the leftover seeded matchup
+    // for this week involving the team we could resolve, then write scores onto it.
+    if (!gameId && ((homeUuid && !awayUuid) || (!homeUuid && awayUuid))) {
+      const resolved = homeUuid ?? awayUuid;
+      const candidates = await pool.query<{ id: string; external_game_id: string | null }>(
+        `select id, external_game_id from rec_games
+           where league_id=$1 and week_number=$2 and (home_team_id=$3 or away_team_id=$3)
+           order by (coalesce(external_game_id, '') not like 'ea:%') desc, created_at asc`,
+        [leagueId, displayWeek, resolved],
+      );
+      const seeded = candidates.rows.find((row) => !String(row.external_game_id ?? "").startsWith("ea:"))
+        ?? (candidates.rows.length === 1 ? candidates.rows[0] : null);
+      if (seeded) gameId = seeded.id;
+    }
     if (!gameId && externalId) {
       const scoped = await pool.query<{ id: string }>(
         `select id from rec_games where league_id=$1 and external_game_id=$2 limit 1`,
