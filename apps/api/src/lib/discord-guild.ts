@@ -75,13 +75,17 @@ function auditReason(reason: string): string {
   return encodeURIComponent(reason.slice(0, 480));
 }
 
-export async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
+async function discordBotFetchOnce(path: string, init?: RequestInit): Promise<Response> {
   if (!env.DISCORD_TOKEN) throw new ApiError(500, "DISCORD_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
     ...init,
     signal: init?.signal ?? AbortSignal.timeout(15_000),
     headers: { Authorization: `Bot ${env.DISCORD_TOKEN}`, ...(init?.headers ?? {}) },
   });
+}
+
+export async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
+  return retryAfterRateLimit(() => discordBotFetchOnce(path, init));
 }
 
 /** Whether the bot has actually joined this guild yet — distinct from "is this guild linked
@@ -308,7 +312,7 @@ export async function sendDiscordDirectMessagePayload(
 export async function postDiscordChannelMessage(channelId: string, payload: Record<string, unknown>): Promise<({ id: string } & Record<string, any>) | null> {
   const path = `/channels/${channelId}/messages`;
   const init: RequestInit = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
-  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  const sent = await discordBotFetch(path, init);
   if (!sent.ok) {
     // A silent null return here used to leave callers with no way to tell "Discord rejected
     // this payload" (e.g. an embed over the 6000-char total limit) from "nothing needed to
@@ -336,7 +340,7 @@ export async function postDiscordChannelMessageWithFile(
   form.set("payload_json", JSON.stringify(payload));
   form.set("files[0]", new Blob([new Uint8Array(file.buffer)], { type: file.contentType ?? "image/png" }), file.name);
   const init: RequestInit = { method: "POST", body: form };
-  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  const sent = await discordBotFetch(path, init);
   if (!sent.ok) {
     const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected postDiscordChannelMessageWithFile to channel ${channelId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
@@ -378,7 +382,7 @@ export async function editDiscordMessageWithFile(
   }));
   form.set("files[0]", new Blob([new Uint8Array(file.buffer)], { type: file.contentType ?? "image/png" }), file.name);
   const init: RequestInit = { method: "PATCH", body: form };
-  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  const sent = await discordBotFetch(path, init);
   if (!sent.ok) {
     const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected editDiscordMessageWithFile on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
@@ -434,7 +438,7 @@ export async function deleteTransientGameSchedulingMessages(channelId: string): 
 export async function editDiscordMessage(channelId: string, messageId: string, payload: Record<string, unknown>): Promise<boolean> {
   const path = `/channels/${channelId}/messages/${messageId}`;
   const init: RequestInit = { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
-  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
+  const sent = await discordBotFetch(path, init);
   if (!sent.ok) {
     const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected editDiscordMessage on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
@@ -513,19 +517,22 @@ function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T |
   return entry && entry.expiresAt + STALE_AUTH_CACHE_MS > Date.now() ? entry.value : undefined;
 }
 
-// A single retry wasn't enough — a burst of concurrent hub loads across guilds (e.g. right
-// after a deploy, with every in-memory cache cold) could draw two 429s in a row from
-// Discord and still surface as a hard 503. Retries up to 3 times, honoring Discord's
-// requested backoff each time, before giving up. `init` is re-sent as-is on retry (needed for
-// POSTs like postDiscordChannelMessage; GET callers below omit it).
-async function retryAfterRateLimit(path: string, response: Response, init?: RequestInit, attempt = 1): Promise<Response> {
-  if (response.status !== 429 || attempt > 3) return response;
+// Nickname resync and hub loads can draw several 429s in a row from Discord's per-route
+// buckets. Honor retry_after (JSON body or Retry-After header) up to 5 times, capping each
+// wait at 20s so a pathological backoff can't pin an HTTP handler for minutes.
+export function discordRetryDelayMs(retryAfterSeconds: number): number {
+  const seconds = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds : 1;
+  return Math.min(20_000, Math.max(100, Math.ceil(seconds * 1000)));
+}
+
+async function retryAfterRateLimit(doFetch: () => Promise<Response>, attempt = 1, maxAttempts = 5): Promise<Response> {
+  const response = await doFetch();
+  if (response.status !== 429 || attempt >= maxAttempts) return response;
   const payload = await response.clone().json().catch(() => ({})) as { retry_after?: number };
   const headerSeconds = Number(response.headers.get("retry-after") ?? 0);
-  const delayMs = Math.min(5_000, Math.max(100, Math.ceil(Number(payload.retry_after ?? headerSeconds ?? 1) * 1000)));
+  const delayMs = discordRetryDelayMs(Number(payload.retry_after ?? headerSeconds));
   await new Promise((resolve) => setTimeout(resolve, delayMs));
-  const retried = await discordBotFetch(path, init);
-  return retryAfterRateLimit(path, retried, init, attempt + 1);
+  return retryAfterRateLimit(doFetch, attempt + 1, maxAttempts);
 }
 
 // Clears a channel's recent history the same way the bot's purgeChannelMessages does —
@@ -581,7 +588,7 @@ async function getGuildRoles(guildId: string): Promise<Map<string, { name: strin
   if (active) return active;
   const pending = (async () => {
     const path = `/guilds/${guildId}/roles`;
-    const res = await retryAfterRateLimit(path, await discordBotFetch(path));
+    const res = await discordBotFetch(path);
     if (!res.ok) {
       const stale = staleCacheValue(roleListCache, guildId);
       if (res.status === 429 && stale) return stale;
@@ -657,7 +664,7 @@ async function getMemberRoleIds(guildId: string, discordId: string): Promise<str
   if (active) return active;
   const pending = (async () => {
     const path = `/guilds/${guildId}/members/${discordId}`;
-    const res = await retryAfterRateLimit(path, await discordBotFetch(path));
+    const res = await discordBotFetch(path);
     if (res.status === 404) {
       toCache(memberRoleIdsCache, cacheKey, null);
       return null;
@@ -925,6 +932,9 @@ export async function setGuildMemberNickname(guildId: string, discordId: string,
     // and "bot's role sits below the target's" (also 50013, but fixable by reordering roles)
     // into the same unreadable message. Distinguishing them requires the real payload.
     const body = await bestEffort("discord.parse_error_body", () => res.json(), { guildId, userId: discordId }) as { code?: number; message?: string } | null | undefined;
+    if (body?.code === 50013) {
+      throw new Error("Discord won't let the bot change this nickname (Missing Permissions, code 50013). The member is likely the server owner or holds a role at or above the bot.");
+    }
     const detail = body?.message ? `${body.message}${body.code != null ? ` (Discord code ${body.code})` : ""}` : `HTTP ${res.status}`;
     throw new Error(`Failed to update nickname: ${detail}`);
   }

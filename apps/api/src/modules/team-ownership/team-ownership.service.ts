@@ -10,6 +10,7 @@ import { syncScheduleGameUserIdsForLeague, syncScheduleGameUserIdsForTeams } fro
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, postDiscordChannelMessage, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
+import { isHeadCommissionerAssignment, parseAssignmentAuthority, type AssignableRoleKey } from "./assignment-authority.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
@@ -379,7 +380,8 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
 
   const discordByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account.discord_id]));
   const linkedUsers = (linkedResult.data ?? []).map((row: any) => {
-    const authority = String(row.notes ?? "Authority: member").replace("Authority: ", "") as "member" | "co_commissioner" | "commissioner";
+    const roleKey = parseAssignmentAuthority(row.notes);
+    const authority = roleKey === "compCommittee" ? "co_commissioner" : roleKey;
     const isDiscordOnly = !row.user?.supabase_auth_user_id;
     return {
       userId: row.user_id,
@@ -660,7 +662,7 @@ function isRealDiscordSnowflake(discordId: string | null | undefined): boolean {
 }
 
 function managedRoleKeysForAuthority(authority: string | null | undefined): AssignableRoleKey[] {
-  const key = authorityToRoleKey(authority);
+  const key = parseAssignmentAuthority(authority);
   if (key === "commissioner") return ["member", "compCommittee", "commissioner"];
   if (key === "compCommittee") return ["member", "compCommittee"];
   return ["member"];
@@ -771,9 +773,10 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
 }> {
   const { league } = await getCurrentLeagueForGuild(guildId);
   const isCfb = league.game === "cfb_27";
+  const ownerUserId = typeof league.owner_user_id === "string" ? league.owner_user_id : null;
   const assignments = await supabase
     .from("rec_team_assignments")
-    .select("user_id,team:rec_teams(name,display_nick,is_relocated)")
+    .select("user_id,notes,team:rec_teams(name,display_nick,is_relocated)")
     .eq("league_id", league.id)
     .eq("assignment_status", "active")
     .is("ended_at", null);
@@ -790,13 +793,17 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   const failed: Array<{ discordId: string; nickname: string; reason: string }> = [];
   const skipped: Array<{ discordId: string; reason: string }> = [];
 
-  // Ran fully serial before — one Discord API round trip at a time, so a league with 100+
-  // members could take minutes for what's a single synchronous HTTP request. Each member is
-  // independent, so a small bounded batch runs concurrently instead; setGuildMemberNickname's
-  // own rate-limit retry handles any 429s a burst provokes.
-  await mapWithConcurrency(assignments.data ?? [], 5, async (row: any) => {
+  // Discord's member-nickname PATCH bucket is shared across the guild — five concurrent
+  // patches stampede it and the rest of the league 429s. One at a time, with discordBotFetch
+  // retrying 429s, is slower but actually completes. Head commissioner is skipped: Discord
+  // never lets a bot rename the guild owner, and the commish role usually sits at/above the bot.
+  await mapWithConcurrency(assignments.data ?? [], 1, async (row: any) => {
     const discordId = discordIdByUser.get(row.user_id);
     if (!discordId) { skipped.push({ discordId: String(row.user_id), reason: "No linked Discord account." }); return; }
+    if (isHeadCommissionerAssignment({ notes: row.notes, userId: row.user_id, ownerUserId })) {
+      skipped.push({ discordId, reason: "Head commissioner — Discord does not let the bot change this nickname." });
+      return;
+    }
     const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
     if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); return; }
     const nickname = shortTeamNickname(team, isCfb);
@@ -809,14 +816,6 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   });
 
   return { synced, failed, skipped };
-}
-
-type AssignableRoleKey = "member" | "compCommittee" | "commissioner";
-
-function authorityToRoleKey(authority: string | null | undefined): AssignableRoleKey {
-  if (authority === "commissioner") return "commissioner";
-  if (authority === "co_commissioner") return "compCommittee";
-  return "member";
 }
 
 /** Bulk fix for a Discord server that previously hosted a different REC league (or whose
@@ -854,8 +853,7 @@ export async function reconcileGuildRolesForGuild(guildId: string): Promise<{
   for (const row of assignments.data ?? []) {
     const discordId = discordIdByUser.get(row.user_id);
     if (!discordId) continue;
-    const authority = String(row.notes ?? "").replace("Authority: ", "");
-    expectedRoleKeyByDiscordId.set(discordId, authorityToRoleKey(authority));
+    expectedRoleKeyByDiscordId.set(discordId, parseAssignmentAuthority(row.notes));
   }
 
   const [members, roleIdByKeyEntries] = await Promise.all([
