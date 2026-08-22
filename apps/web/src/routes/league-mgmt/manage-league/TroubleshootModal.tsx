@@ -137,7 +137,7 @@ function ImportAuditPanel({ guildId, leagueId }: { guildId: string; leagueId: st
   return (
     <div>
       <p className="form-hint" style={{ marginTop: 0 }}>
-        Check every week through the current week for missing scores, official results, team stats, or player stats that may not have landed from EA.
+        Check every week through the current week for missing scores, official results, team stats, or player stats that may not have landed from EA. Madden regular-season weeks have at most 16 games (fewer when teams are on bye).
       </p>
       <Button variant="secondary" disabled={busy} onClick={() => void runAudit()}>
         <Database size={14} /> {busy ? "Auditing…" : "Run Import Audit"}

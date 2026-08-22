@@ -159,5 +159,25 @@ export async function transferDiscordIdentity(input: {
     source: "manual_admin_entry",
   }).catch((error) => console.error("[WARN] Failed to audit Discord relink (non-fatal):", error));
 
+  // Site "Replace Discord" and commissioner relink used to only rewrite DB IDs.
+  // Discord itself still had Member/Co-Commish/team nick on the old snowflake.
+  try {
+    const { resyncDiscordGuildIdentityAfterTransfer } = await import(
+      "../team-ownership/team-ownership.service.js"
+    );
+    await resyncDiscordGuildIdentityAfterTransfer({
+      userId: input.userId,
+      fromDiscordId: input.fromDiscordId,
+      toDiscordId: input.toDiscordId,
+    });
+  } catch (error) {
+    console.warn("[discord-identity-transfer] guild role/nick resync failed", {
+      userId: input.userId,
+      fromDiscordId: input.fromDiscordId,
+      toDiscordId: input.toDiscordId,
+      error,
+    });
+  }
+
   return { fromDiscordId: input.fromDiscordId, toDiscordId: input.toDiscordId };
 }
