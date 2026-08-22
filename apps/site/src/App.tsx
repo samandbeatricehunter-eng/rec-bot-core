@@ -26,7 +26,7 @@ const DiscordGuildPicker = lazy(() => import("./routes/DiscordGuildPicker.js").t
 const DiscordGuildTokenPopup = lazy(() => import("./routes/DiscordGuildTokenPopup.js").then((m) => ({ default: m.DiscordGuildTokenPopup })));
 function LegacyCommissionerInboxRedirect() {
   const { leagueId = "" } = useParams();
-  return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
+  return <Navigate replace to={`/l/${leagueId}/mgmt/notifications`} />;
 }
 function LegacyMatchupRedirect() {
   const { leagueId = "" } = useParams();

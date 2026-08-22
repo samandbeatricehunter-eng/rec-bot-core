@@ -27,9 +27,9 @@ function formatCandidate(player: {
 }
 
 // Single-build review UI — approve/reject only, the submitted identity and ratings are
-// applied as-is (commissioners cannot alter attribute values or details). Shared by the
-// full Settings > Purchases queue (every pending build at once) and CustomPlayerReviewModal
-// (one build, opened straight from a Pending Items notification).
+// applied as-is (commissioners cannot alter attribute values or details). Used by
+// CustomPlayerReviewModal (opened from a Notifications pending item). Settings only
+// configures whether custom players are enabled; it does not host this review queue.
 function CustomPlayerBuildRow({
   guildId,
   build,
@@ -201,8 +201,7 @@ export function CustomPlayerReviewQueue({ guildId }: { guildId: string }) {
   </Card>;
 }
 
-// Opened straight from a Pending Items notification click (matching how Legend purchases
-// already show their details inline) instead of navigating away to Settings > Purchases.
+// Opened from a Notifications pending-item click instead of living under Settings.
 export function CustomPlayerReviewModal({ guildId, buildId, onClose, onResolved }: { guildId: string; buildId: string; onClose: () => void; onResolved: () => void }) {
   const [build, setBuild] = useState<any | null | undefined>(undefined);
   const [note, setNote] = useState("");

@@ -11,10 +11,10 @@ import { publishTransitionStory } from "../hub/story-publishing.js";
 import { deleteStreamVideosForHighlights, maybeCreateWeeklyPayoutReview, migrateMirroredHighlightsToStream } from "../media/media.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
-import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
-import { fetchTrustedRemoteMedia } from "../../lib/remote-media.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { fetchTrustedRemoteMedia } from "../../lib/remote-media.js";
+import { deriveStreamMatchupContext } from "../streams/streams.service.js";
 
 const HIGHLIGHT_BUCKET = "rec-highlights";
 
@@ -148,20 +148,35 @@ export async function getHighlightReviewDetail(input: { guildId: string; reviewI
   if (review.error) throw new ApiError(500, "Failed to load highlight review.", review.error);
   if (!review.data) throw new ApiError(404, "Highlight review not found.");
 
+  // Nested `game:rec_games(..., home_team:rec_teams(...))` selects do not hydrate in this
+  // project's Postgres shim (relations are one-level, keyed by `${alias}_id`). Load the
+  // post, then resolve team names the same way stream reviews do.
   const post = await supabase
     .from("rec_highlight_posts")
-    .select(
-      "id,week_number,season_stage,cloudflare_stream_uid,storage_provider,playback_url,message_url,user:rec_users(display_name,username),game:rec_games(id,week_number,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,abbreviation,is_relocated))",
-    )
+    .select("id,week_number,season_number,season_stage,cloudflare_stream_uid,storage_provider,playback_url,message_url,user_id,game_id")
     .eq("id", review.data.highlight_post_id)
     .maybeSingle();
   if (post.error) throw new ApiError(500, "Failed to load highlight.", post.error);
   if (!post.data) throw new ApiError(404, "Highlight post not found.");
 
-  const game: any = Array.isArray(post.data.game) ? post.data.game[0] : post.data.game;
-  const homeTeam: any = game ? (Array.isArray(game.home_team) ? game.home_team[0] : game.home_team) : null;
-  const awayTeam: any = game ? (Array.isArray(game.away_team) ? game.away_team[0] : game.away_team) : null;
-  const submitter: any = Array.isArray(post.data.user) ? post.data.user[0] : post.data.user;
+  let gameId = post.data.game_id ? String(post.data.game_id) : null;
+  if (!gameId && post.data.user_id) {
+    const seasonNumber = Number(post.data.season_number ?? context.rec_leagues.season_number ?? 1);
+    const weekNumber = Number(post.data.week_number ?? 1);
+    const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+    const fallback = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber }, "id")
+      .or(`home_user_id.eq.${post.data.user_id},away_user_id.eq.${post.data.user_id}`)
+      .limit(1)
+      .maybeSingle();
+    if (!fallback.error && fallback.data?.id) gameId = String(fallback.data.id);
+  }
+
+  const [submitter, matchup] = await Promise.all([
+    post.data.user_id
+      ? supabase.from("rec_users").select("display_name,username").eq("id", post.data.user_id).maybeSingle()
+      : Promise.resolve({ data: null as { display_name?: string | null; username?: string | null } | null }),
+    gameId ? deriveStreamMatchupContext(context.leagueId, gameId) : Promise.resolve(null),
+  ]);
 
   return {
     streamUid: post.data.cloudflare_stream_uid ?? null,
@@ -169,12 +184,12 @@ export async function getHighlightReviewDetail(input: { guildId: string; reviewI
     messageUrl: post.data.message_url ?? null,
     weekNumber: post.data.week_number,
     seasonStage: post.data.season_stage,
-    submittedByName: submitter?.display_name ?? submitter?.username ?? null,
-    matchup: game
+    submittedByName: submitter.data?.display_name ?? submitter.data?.username ?? null,
+    matchup: matchup
       ? {
-          weekNumber: game.week_number,
-          homeTeamName: formatTeamDisplayName(homeTeam),
-          awayTeamName: formatTeamDisplayName(awayTeam),
+          weekNumber: post.data.week_number,
+          homeTeamName: matchup.homeTeamName,
+          awayTeamName: matchup.awayTeamName,
         }
       : null,
   };

@@ -175,7 +175,7 @@ function HighlightReviewPreview({ guildId, reviewId }: { guildId: string; review
     <div className="highlight-review-preview">
       {detail.matchup ? (
         <p style={{ fontWeight: 600 }}>
-          Week {detail.matchup.weekNumber ?? "?"} — {detail.matchup.awayTeamName ?? "?"} @ {detail.matchup.homeTeamName ?? "?"}
+          Week {detail.matchup.weekNumber ?? detail.weekNumber ?? "?"} — {detail.matchup.awayTeamName || "Away"} @ {detail.matchup.homeTeamName || "Home"}
         </p>
       ) : (
         <p className="form-hint">No matchup on record for this highlight (Week {detail.weekNumber ?? "?"}).</p>

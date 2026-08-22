@@ -1261,12 +1261,12 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         kind: "box_score_denied",
         title,
         body: reason,
-        href: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
+        href: `/l/${sub.league_id}/mgmt/notifications`,
       }).catch((error) => console.error("[WARN] Failed to create denial site notification:", error));
       bestEffortVoid("push.box_score_denied", sendPushToUser(sub.submitted_by_user_id, {
         title,
         body: reason,
-        url: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
+        url: `/l/${sub.league_id}/mgmt/notifications`,
       }), { leagueId: sub.league_id, userId: sub.submitted_by_user_id });
     }
 

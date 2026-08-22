@@ -508,27 +508,33 @@ function ScheduleWeekList({
       const eligibleForActions =
         week.alreadyConfirmed && !week.isBye && Boolean(week.gameId) &&
         (currentWeek == null || week.weekNumber <= currentWeek);
+      const highlightCount = highlightCounts?.[week.weekNumber] ?? 0;
       const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
-      const missingHighlight = eligibleForActions && (highlightCounts?.[week.weekNumber] ?? 0) < 2;
+      const missingHighlight = eligibleForActions && highlightCount < 2;
       return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
-      <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-      {week.alreadyConfirmed ? <>
-        <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
-        <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
-        {resultLabel ? <b className="hub-final-score">{resultLabel}</b> : <span className="hub-muted">Not yet played</span>}
-      </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
-      {(onUploadBoxScore && missingBoxScore) || (onUploadHighlight && missingHighlight) ? (
-        <div className="hub-schedule-week-actions">
-          {onUploadBoxScore && missingBoxScore && (
-            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadBoxScore(week)}>Box Score</button>
-          )}
-          {onUploadHighlight && missingHighlight && (
-            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>
-              Highlight(s) <span className="hub-schedule-highlight-count">{highlightCounts?.[week.weekNumber] ?? 0}/2</span>
-            </button>
-          )}
-        </div>
-      ) : null}
+      <div className="hub-schedule-week-info">
+        <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
+        {week.alreadyConfirmed ? <>
+          <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
+          <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
+          {resultLabel ? <b className="hub-final-score">{resultLabel}</b> : <span className="hub-muted">Not yet played</span>}
+        </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
+      </div>
+      <div className="hub-schedule-week-aside">
+        {onUploadHighlight ? <span className="hub-schedule-highlight-chip">Highlights {highlightCount}/2</span> : null}
+        {(onUploadBoxScore && missingBoxScore) || (onUploadHighlight && missingHighlight) ? (
+          <div className="hub-schedule-week-actions">
+            {onUploadBoxScore && missingBoxScore && (
+              <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadBoxScore(week)}>Box Score</button>
+            )}
+            {onUploadHighlight && missingHighlight && (
+              <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>
+                Upload
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
     </article>;
     })}
   </div>;

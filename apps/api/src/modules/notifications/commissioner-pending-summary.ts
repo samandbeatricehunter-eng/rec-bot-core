@@ -148,8 +148,8 @@ export async function notifyLeagueCommissionersOfPendingItem(leagueId: string): 
         leagueName: league.league_name,
         gameLabel: gameLabelFor(league.game),
       }),
-      body: "Tap to open the Commissioner’s Office.",
-      url: `/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`,
+      body: "Tap to open League Management → Notifications.",
+      url: `/l/${leagueId}/mgmt/notifications`,
     });
   } catch (error) {
     console.error("[WARN] Failed to push-notify league commissioners of pending item (non-fatal):", error);

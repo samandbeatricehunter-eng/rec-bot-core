@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import type { ChatMessageRow } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -22,8 +21,8 @@ import { Composer } from "../../../components/chat/Composer.js";
 // the drawer's Commissioner Chat at the same time is one poll/realtime cycle, not two.
 //
 // Two presentations of this same component:
-  //   - Standalone (/league-mgmt/commissioner-chat): full Messages/Polls tabs.
-  //   - `embedded` (CommandCenterDashboard drawer): Polls only.
+  //   - Standalone Messages/Polls (legacy; the hub route now redirects to Notifications).
+  //   - `embedded`: Polls only. Commissioner chat itself lives in the Universal Chat Drawer.
   // Payouts and Team Requests have moved to the Awaiting Review panel (CommandCenterDashboard).
 export function CommissionerChatHome({ embedded = false }: { embedded?: boolean } = {}) {
   const { guildId, discordId } = useReadyAuth();
@@ -195,12 +194,6 @@ export function CommissionerChatHome({ embedded = false }: { embedded?: boolean 
             {topics && topics.length === 0 && <p style={{ color: "var(--text-secondary)" }}>No polls yet.</p>}
           </div>
         </div>
-      )}
-
-      {embedded && (
-        <p className="form-hint" style={{ marginTop: "var(--space-3)" }}>
-          <Link to="/league-mgmt/commissioner-chat">Open full Commissioner's Office</Link> for messages and polls.
-        </p>
       )}
 
       {showPollComposer && (
