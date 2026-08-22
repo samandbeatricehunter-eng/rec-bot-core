@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Coins, Database, Trophy, UserRound, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Coins, Database, Tag, Trophy, Users, Wrench } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -9,9 +9,10 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
-import { RelinkDiscordModal } from "./RelinkDiscordModal.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
+type ResyncResult = Awaited<ReturnType<typeof recApi.resyncNicknames>>;
+type ReconcileResult = Awaited<ReturnType<typeof recApi.reconcileRoles>>;
 
 export function TroubleshootModal({
   guildId,
@@ -27,7 +28,6 @@ export function TroubleshootModal({
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
   const [gotwOpen, setGotwOpen] = useState(false);
-  const [relinkOpen, setRelinkOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -55,18 +55,6 @@ export function TroubleshootModal({
       />
     );
   }
-  if (relinkOpen) {
-    return (
-      <RelinkDiscordModal
-        guildId={guildId}
-        onClose={() => setRelinkOpen(false)}
-        onDone={(message) => {
-          setRelinkOpen(false);
-          setNotice(message);
-        }}
-      />
-    );
-  }
 
   return (
     <Modal title="Tools" onClose={onClose}>
@@ -81,6 +69,9 @@ export function TroubleshootModal({
             <ImportAuditPanel guildId={guildId} leagueId={leagueId} />
           </CollapsibleSection>
         )}
+        <CollapsibleSection title="Discord Roles & Nicknames" defaultOpen>
+          <DiscordRolesPanel guildId={guildId} />
+        </CollapsibleSection>
         <CollapsibleSection title="Repair Game Channels">
           <p className="form-hint" style={{ marginTop: 0 }}>
             Wipe and recreate Discord game channels for the current week. Use this if channels
@@ -99,21 +90,100 @@ export function TroubleshootModal({
             <Trophy size={14} /> Open GOTW Tools
           </Button>
         </CollapsibleSection>
-        <CollapsibleSection title="Relink Discord">
-          <p className="form-hint" style={{ marginTop: 0 }}>
-            If a coach&apos;s Discord was banned or they made a new account, map the new server
-            member onto their existing REC profile. Teams, wallet, and stats stay put.
-          </p>
-          <Button variant="secondary" onClick={() => setRelinkOpen(true)}>
-            <UserRound size={14} /> Open Relink Tool
-          </Button>
-        </CollapsibleSection>
         <CollapsibleSection title="Close or Refund Wagers">
           <p className="form-hint" style={{ marginTop: 0 }}>Select a game to close new wagering and/or cancel and refund its open wagers.</p>
           <Button variant="secondary" onClick={() => setWagersOpen(true)}><Coins size={14} /> Open Wager Tool</Button>
         </CollapsibleSection>
       </div>
     </Modal>
+  );
+}
+
+function DiscordRolesPanel({ guildId }: { guildId: string }) {
+  const [resyncBusy, setResyncBusy] = useState(false);
+  const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resyncResult, setResyncResult] = useState<ResyncResult | null>(null);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+
+  async function resyncNicknames() {
+    setResyncBusy(true);
+    setResyncResult(null);
+    setError(null);
+    try {
+      setResyncResult(await recApi.resyncNicknames(guildId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to resync nicknames.");
+    } finally {
+      setResyncBusy(false);
+    }
+  }
+
+  async function reconcileRoles() {
+    setReconcileBusy(true);
+    setReconcileResult(null);
+    setError(null);
+    try {
+      setReconcileResult(await recApi.reconcileRoles(guildId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to reconcile roles.");
+    } finally {
+      setReconcileBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        After a coach replaces Discord on My Account, or if nicknames/roles drifted, force-set every
+        linked member&apos;s server nickname to their team and grant the Member / Co-Commish /
+        Commissioner role that matches their current assignment.
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <Button variant="secondary" disabled={resyncBusy} onClick={() => void resyncNicknames()}>
+          <Tag size={14} /> {resyncBusy ? "Syncing…" : "Resync Nicknames"}
+        </Button>
+        <Button variant="secondary" disabled={reconcileBusy} onClick={() => void reconcileRoles()}>
+          <Users size={14} /> {reconcileBusy ? "Reconciling…" : "Reconcile Roles"}
+        </Button>
+      </div>
+      {error && <ErrorState message={error} />}
+      {resyncResult && (
+        <div style={{ marginTop: "var(--space-3)" }}>
+          <p className="form-hint" style={{ margin: 0 }}>
+            Nicknames: <strong>{resyncResult.synced.length}</strong> updated, <strong>{resyncResult.failed.length}</strong> failed, <strong>{resyncResult.skipped.length}</strong> skipped.
+          </p>
+          {resyncResult.failed.length > 0 && (
+            <ul style={{ color: "var(--danger, #e05252)", margin: "8px 0 0" }}>
+              {resyncResult.failed.map((row) => (
+                <li key={row.discordId}>&lt;@{row.discordId}&gt; → &quot;{row.nickname}&quot;: {row.reason}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {reconcileResult && (
+        <div style={{ marginTop: "var(--space-3)" }}>
+          <p className="form-hint" style={{ margin: 0 }}>
+            Roles: <strong>{reconcileResult.corrected.length}</strong> corrected, <strong>{reconcileResult.alreadyCorrect}</strong> already correct, <strong>{reconcileResult.failed.length}</strong> failed.
+          </p>
+          {reconcileResult.corrected.length > 0 && (
+            <ul style={{ margin: "8px 0 0" }}>
+              {reconcileResult.corrected.map((row) => (
+                <li key={row.discordId}>&lt;@{row.discordId}&gt;: {row.from.length ? row.from.join(", ") : "none"} → {row.to ?? "none"}</li>
+              ))}
+            </ul>
+          )}
+          {reconcileResult.failed.length > 0 && (
+            <ul style={{ color: "var(--danger, #e05252)", margin: "8px 0 0" }}>
+              {reconcileResult.failed.map((row) => (
+                <li key={row.discordId}>&lt;@{row.discordId}&gt;: {row.reason}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
