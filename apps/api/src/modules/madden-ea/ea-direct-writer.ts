@@ -14,7 +14,7 @@ import { getPgPool } from "../../db/client.js";
 import { gameResultsApplyKey } from "../official-records/official-records.service.js";
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
-import { rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
+import { rosterUnchangedWrite, rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
 import { eaScheduleExternalId } from "./ea-weeks.js";
 
 type Json = Record<string, unknown>;
@@ -57,6 +57,17 @@ export async function directWriteSchedule(
   const rawRows = extractRows(rawEaData, "gameScheduleInfoList");
   const pool = getPgPool();
   let written = 0;
+  const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
+    `select id, madden_team_id from rec_teams where league_id=$1`,
+    [leagueId],
+  );
+  const teamByMaddenId = rosterTeamMap(teams.rows);
+  const assignments = await pool.query<{ team_id: string; user_id: string }>(
+    `select team_id, user_id from rec_team_assignments
+      where league_id=$1 and assignment_status='active' and ended_at is null`,
+    [leagueId],
+  );
+  const userByTeam = new Map(assignments.rows.map((row) => [row.team_id, row.user_id]));
 
   for (const row of rawRows) {
     const homeTeamId = num(row, ["homeTeamId", "home_team_id"]);
@@ -70,9 +81,8 @@ export async function directWriteSchedule(
     // Determine if game is completed
     const completed = played || (status !== null && status > 1);
 
-    // Resolve team UUIDs from EA numeric IDs
-    const homeUuid = homeTeamId != null ? await resolveTeamId(pool, leagueId, String(homeTeamId)) : null;
-    const awayUuid = awayTeamId != null ? await resolveTeamId(pool, leagueId, String(awayTeamId)) : null;
+    const homeUuid = homeTeamId != null ? teamUuidFromMap(teamByMaddenId, String(homeTeamId)) : null;
+    const awayUuid = awayTeamId != null ? teamUuidFromMap(teamByMaddenId, String(awayTeamId)) : null;
 
     const legacyExternalId = scheduleId != null ? String(scheduleId) : null;
     const externalId = scheduleId != null ? eaScheduleExternalId(displayWeek, scheduleId) : null;
@@ -163,12 +173,6 @@ export async function directWriteSchedule(
       // row written here has null home_user_id/away_user_id, which is invisible to W/L record
       // aggregation (rebuildLeagueOfficialRecords etc. key off these columns, not team_id) —
       // silently dropping every EA-direct-imported game from everyone's record.
-      const userRows = await pool.query<{ team_id: string; user_id: string }>(
-        `select team_id, user_id from rec_team_assignments
-           where league_id=$1 and assignment_status='active' and ended_at is null and team_id = any($2::uuid[])`,
-        [leagueId, [homeUuid, awayUuid]],
-      );
-      const userByTeam = new Map(userRows.rows.map((r) => [r.team_id, r.user_id]));
       const homeUserId = userByTeam.get(homeUuid) ?? null;
       const awayUserId = userByTeam.get(awayUuid) ?? null;
       // Shared dedup key (also used by box score, manual entry, and week-advance) so this
@@ -206,20 +210,17 @@ export async function directWriteSchedule(
   return written;
 }
 
-async function resolveTeamId(pool: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<{ id: string }> }> }, leagueId: string, maddenTeamId: string): Promise<string | null> {
-  // Try exact madden_team_id match first
-  const result = await pool.query(
-    `select id from rec_teams where league_id=$1 and madden_team_id=$2 limit 1`,
-    [leagueId, maddenTeamId],
-  );
-  if (result.rows[0]) return result.rows[0].id;
+function rosterTeamMap(rows: Array<{ id: string; madden_team_id: string | null }>): Map<string, string> {
+  const teamByMaddenId = new Map<string, string>();
+  for (const team of rows) {
+    if (team.madden_team_id == null || team.madden_team_id === "") continue;
+    teamByMaddenId.set(String(team.madden_team_id), team.id);
+  }
+  return teamByMaddenId;
+}
 
-  // Fallback: try matching by the numeric ID cast to text (in case madden_team_id is stored differently)
-  const fallback = await pool.query(
-    `select id from rec_teams where league_id=$1 and (madden_team_id::text = $2 or madden_team_id::text = $2::int::text) limit 1`,
-    [leagueId, maddenTeamId],
-  );
-  return fallback.rows[0]?.id ?? null;
+function teamUuidFromMap(teamByMaddenId: Map<string, string>, maddenTeamId: string): string | null {
+  return teamByMaddenId.get(maddenTeamId) ?? teamByMaddenId.get(String(Number(maddenTeamId))) ?? null;
 }
 
 // ── Roster ──
@@ -235,14 +236,18 @@ export async function directWriteRoster(
   let skipped = 0;
 
   // Pre-fetch existing player hashes so we can skip unchanged rows
-  const existingHashes = new Map<string, string>();
+  const existingByEaId = new Map<string, { hash: string; teamId: string | null; isFreeAgent: boolean }>();
   const existingNumericEaIds = new Set<string>();
-  const existing = await pool.query<{ madden_player_id: string; raw_hash: string }>(
-    `select madden_player_id, raw_hash from rec_players where league_id=$1 and madden_player_id is not null`,
+  const existing = await pool.query<{ madden_player_id: string; raw_hash: string | null; team_id: string | null; is_free_agent: boolean | null }>(
+    `select madden_player_id, raw_hash, team_id, is_free_agent from rec_players where league_id=$1 and madden_player_id is not null`,
     [leagueId],
   );
   for (const row of existing.rows) {
-    if (row.raw_hash) existingHashes.set(row.madden_player_id, row.raw_hash);
+    existingByEaId.set(row.madden_player_id, {
+      hash: row.raw_hash ?? "",
+      teamId: row.team_id,
+      isFreeAgent: Boolean(row.is_free_agent),
+    });
     if (isNumericEaPlayerId(row.madden_player_id)) existingNumericEaIds.add(row.madden_player_id);
   }
 
@@ -250,14 +255,10 @@ export async function directWriteRoster(
     `select id, madden_team_id from rec_teams where league_id=$1`,
     [leagueId],
   );
-  const teamByMaddenId = new Map<string, string>();
-  for (const team of teams.rows) {
-    if (team.madden_team_id == null || team.madden_team_id === "") continue;
-    teamByMaddenId.set(String(team.madden_team_id), team.id);
-  }
+  const teamByMaddenId = rosterTeamMap(teams.rows);
   const teamUuidFor = (maddenTeamId: number | null): string | null => {
     if (maddenTeamId == null) return null;
-    return teamByMaddenId.get(String(maddenTeamId)) ?? teamByMaddenId.get(String(Number(maddenTeamId))) ?? null;
+    return teamUuidFromMap(teamByMaddenId, String(maddenTeamId));
   };
 
   for (const row of rawRows) {
@@ -273,7 +274,16 @@ export async function directWriteRoster(
     // apply roster_status / is_free_agent / team_id so a trade or cut is reflected even when
     // the rest of the player blob hashed the same.
     const hash = rowHash(row);
-    if (existingHashes.get(String(rosterId)) === hash) {
+    const skipAction = rosterUnchangedWrite(existingByEaId.get(String(rosterId)), {
+      hash,
+      teamId: isFreeAgent ? null : teamUuid,
+      isFreeAgent,
+    });
+    if (skipAction === "skip") {
+      skipped += 1;
+      continue;
+    }
+    if (skipAction === "status") {
       skipped += 1;
       await pool.query(
         `update rec_players set roster_status='active', is_free_agent=$3,
@@ -424,7 +434,7 @@ export async function directWriteRoster(
       ],
     );
     existingNumericEaIds.add(String(rosterId));
-    existingHashes.set(String(rosterId), hash);
+    existingByEaId.set(String(rosterId), { hash, teamId: isFreeAgent ? null : teamUuid, isFreeAgent });
     written += 1;
   }
   const result = rosterWriteResult(written, skipped);

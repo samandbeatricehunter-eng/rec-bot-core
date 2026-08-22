@@ -95,7 +95,7 @@ async function loadPerformanceTagNotes(gameId: string, winnerTeamId: string | nu
   return { notes, headline: bestStandout?.text ?? null };
 }
 
-export async function processGameIntelligence(sub: SubmissionRow): Promise<void> {
+export async function processGameIntelligence(sub: SubmissionRow, options?: { postToDiscord?: boolean }): Promise<void> {
   const gameId = sub.game_id ?? null;
   const leagueGame = await loadLeagueGame(sub.league_id);
 
@@ -153,7 +153,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       story_type: "game_article",
       roundtable: buildRoundtableDiscussion({ headline: story.headline, body: story.body, notes: [...story.notes, ...performanceNotes.notes] }),
     }).select("id").single();
-    if (!inserted.error && inserted.data?.id) {
+    if (!inserted.error && inserted.data?.id && options?.postToDiscord !== false) {
       await postGeneratedHeadlineToDiscord({ leagueId: sub.league_id, storyId: inserted.data.id, headline, body: story.body });
     }
   }

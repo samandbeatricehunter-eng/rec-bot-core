@@ -1,6 +1,6 @@
 /** Snallabot fetches two weeks of weekly stats at once (all endpoints in parallel), then
  *  the next two. Same shape here so a 6-week import is a handful of EA rounds instead of
- *  48 serial calls. */
+ *  48 serial calls. The importer fetches the next pair while the current pair is writing. */
 export const EA_WEEKLY_WEEK_BATCH = 2;
 
 /** Snallabot pulls team rosters in groups of 4. Sequential 32-team fetches were the
