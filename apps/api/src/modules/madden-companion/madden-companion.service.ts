@@ -363,9 +363,14 @@ export async function syncCompanionScheduleResultsIntoGameResults(leagueId: stri
           losing_team_id, is_user_h2h, is_cpu_game, is_tie, is_playoff, source, records_apply_key, created_at, updated_at)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'madden_companion_import',$21,now(),now())
        on conflict (records_apply_key) do update set
+         season_number=excluded.season_number,
+         week_number=excluded.week_number,
+         game_id=coalesce(excluded.game_id, rec_game_results.game_id),
+         external_game_id=coalesce(excluded.external_game_id, rec_game_results.external_game_id),
          home_user_id=excluded.home_user_id, away_user_id=excluded.away_user_id,
          home_score=excluded.home_score, away_score=excluded.away_score, winning_user_id=excluded.winning_user_id,
          losing_user_id=excluded.losing_user_id, winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
+         is_user_h2h=excluded.is_user_h2h, is_cpu_game=excluded.is_cpu_game,
          is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()
        where rec_game_results.source = 'madden_companion_import'`,
       [
