@@ -1,6 +1,7 @@
 import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { mergeAdvanceResultRows, pickAdvanceResultForGame } from "./advance-result-lookup.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
@@ -455,13 +456,21 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
   if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
-  const [results, boxScores] = await Promise.all([
+  const weekGameIds = (games ?? []).map((game: any) => String(game.id)).filter(Boolean);
+  const [results, resultsByGameId, boxScores] = await Promise.all([
     supabase
       .from("rec_game_results")
-      .select("id,external_game_id,home_team_id,away_team_id,source,home_score,away_score")
+      .select("id,game_id,external_game_id,home_team_id,away_team_id,source,home_score,away_score,season_number")
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
       .eq("week_number", weekNumber),
+    weekGameIds.length
+      ? supabase
+        .from("rec_game_results")
+        .select("id,game_id,external_game_id,home_team_id,away_team_id,source,home_score,away_score,season_number")
+        .eq("league_id", context.leagueId)
+        .in("game_id", weekGameIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
     supabase
       .from("rec_box_score_submissions")
       .select("id,game_id,status")
@@ -472,7 +481,9 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   ]);
 
   if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
+  if (resultsByGameId.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", resultsByGameId.error);
   if (boxScores.error) throw new ApiError(500, "We couldn't load box score submissions right now. Please try again.", boxScores.error);
+  const weekResults = mergeAdvanceResultRows(results.data, resultsByGameId.data);
 
   // Live assignments — schedule seed often writes null home_user_id/away_user_id before
   // coaches claim teams. Game channels (and advance H2H filtering) must not treat those
@@ -487,9 +498,6 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
 
   const boxScoreGameIds = new Set((boxScores.data ?? []).map((row) => String(row.game_id)).filter(Boolean));
-  const resultByMatchup = new Map<string, { source: string | null; home_score: number | null; away_score: number | null }>(
-    (results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, { source: row.source ?? null, home_score: row.home_score ?? null, away_score: row.away_score ?? null }]),
-  );
 
   // Force Win is a manual-apply label only (see scheduling/matchup-scheduling.service.ts) --
   // this just surfaces which matchups were flagged so the commissioner knows to apply one
@@ -502,7 +510,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
 
   const mapped = (games ?? []).map((game: any) => {
     const hasBoxScore = boxScoreGameIds.has(String(game.id));
-    const resultRow = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
+    const resultRow = pickAdvanceResultForGame(game, weekResults, seasonNumber);
     const existingSource = resultRow?.source ?? null;
     const hasOfficialResult = existingSource != null && RESOLVED_RESULT_SOURCES.includes(String(existingSource));
     const needsInput = !hasBoxScore && !hasOfficialResult;

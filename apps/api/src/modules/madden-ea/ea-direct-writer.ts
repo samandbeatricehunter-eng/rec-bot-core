@@ -15,7 +15,7 @@ import { gameResultsApplyKey } from "../official-records/official-records.servic
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
 import { rosterUnchangedWrite, rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
-import { eaScheduleExternalId } from "./ea-weeks.js";
+import { eaScheduleExternalId, persistedImportedScores } from "./ea-weeks.js";
 
 type Json = Record<string, unknown>;
 
@@ -57,6 +57,14 @@ export async function directWriteSchedule(
   const rawRows = extractRows(rawEaData, "gameScheduleInfoList");
   const pool = getPgPool();
   let written = 0;
+  const league = await pool.query<{ season_number: number | null }>(
+    `select season_number from rec_leagues where id=$1`,
+    [leagueId],
+  );
+  // Advance Readiness, season records, and awards all filter rec_game_results by this
+  // league's season_number. Writing null (or 0) here makes imported scores invisible even
+  // though rec_games itself is fully scored.
+  const seasonNumber = league.rows[0]?.season_number ?? 1;
   const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
     `select id, madden_team_id from rec_teams where league_id=$1`,
     [leagueId],
@@ -132,12 +140,13 @@ export async function directWriteSchedule(
       );
       if (legacy.rows[0]) gameId = legacy.rows[0].id;
     }
+    const storedScores = persistedImportedScores(completed, homeScore, awayScore);
     if (gameId) {
       await pool.query(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
            import_verified=true, external_game_id=$6, updated_at=now()
          where id=$1`,
-        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId],
+        [gameId, storedScores.homeScore, storedScores.awayScore, completed ? "completed" : "scheduled", phase, externalId],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
@@ -158,7 +167,7 @@ export async function directWriteSchedule(
            import_verified=true,
            updated_at=now()
          returning id`,
-        [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
+        [leagueId, displayWeek, phase, homeUuid, awayUuid, storedScores.homeScore, storedScores.awayScore,
          completed ? "completed" : "scheduled", externalId],
       );
       gameId = gameRow.rows[0]?.id ?? null;
@@ -175,33 +184,40 @@ export async function directWriteSchedule(
       // silently dropping every EA-direct-imported game from everyone's record.
       const homeUserId = userByTeam.get(homeUuid) ?? null;
       const awayUserId = userByTeam.get(awayUuid) ?? null;
+      const isUserH2h = Boolean(homeUserId && awayUserId);
       // Shared dedup key (also used by box score, manual entry, and week-advance) so this
       // same game never gets double-counted in official records if it's later re-confirmed
       // through a different source — an EA-only ad hoc key here used to let that happen.
       const applyKey = gameResultsApplyKey({
-        gameId, leagueId, seasonNumber: 0, weekNumber: displayWeek, homeTeamId: homeUuid, awayTeamId: awayUuid,
+        gameId, leagueId, seasonNumber, weekNumber: displayWeek, homeTeamId: homeUuid, awayTeamId: awayUuid,
       });
       await pool.query(
         `insert into rec_game_results
-           (league_id, game_id, season_number, week_number, game_type, home_team_id, away_team_id,
+           (league_id, game_id, season_number, week_number, game_type, external_game_id, home_team_id, away_team_id,
             home_user_id, away_user_id, home_score, away_score, winning_user_id, losing_user_id,
-            winning_team_id, losing_team_id, is_tie, is_playoff, source,
+            winning_team_id, losing_team_id, is_user_h2h, is_cpu_game, is_tie, is_playoff, source,
             records_apply_key, created_at, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'madden_companion_import',$18,now(),now())
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'madden_companion_import',$21,now(),now())
          on conflict (records_apply_key) do update set
+           season_number=excluded.season_number,
+           week_number=excluded.week_number,
+           game_id=coalesce(excluded.game_id, rec_game_results.game_id),
+           external_game_id=coalesce(excluded.external_game_id, rec_game_results.external_game_id),
            home_user_id=excluded.home_user_id, away_user_id=excluded.away_user_id,
            home_score=excluded.home_score, away_score=excluded.away_score,
            winning_user_id=excluded.winning_user_id, losing_user_id=excluded.losing_user_id,
            winning_team_id=excluded.winning_team_id, losing_team_id=excluded.losing_team_id,
-           is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()`,
+           is_user_h2h=excluded.is_user_h2h, is_cpu_game=excluded.is_cpu_game,
+           is_tie=excluded.is_tie, source='madden_companion_import', updated_at=now()
+         where rec_game_results.source = 'madden_companion_import'`,
         [
-          leagueId, gameId, null, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
-          homeUuid, awayUuid, homeUserId, awayUserId, homeScore, awayScore,
+          leagueId, gameId, seasonNumber, displayWeek, phase === "playoffs" ? "postseason" : "regular_season",
+          externalId, homeUuid, awayUuid, homeUserId, awayUserId, homeScore, awayScore,
           isTie ? null : homeWon ? homeUserId : awayUserId,
           isTie ? null : homeWon ? awayUserId : homeUserId,
           isTie ? null : homeWon ? homeUuid : awayUuid,
           isTie ? null : homeWon ? awayUuid : homeUuid,
-          isTie, phase === "playoffs", applyKey,
+          isUserH2h, !isUserH2h, isTie, phase === "playoffs", applyKey,
         ],
       );
     }
