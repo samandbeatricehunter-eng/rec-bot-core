@@ -29,7 +29,7 @@ export function TeamOwnershipTable() {
     } catch (e) { setError(e instanceof Error ? e.message : "Failed to update team."); } finally { setBusy(null); }
   }
   return <div>
-    <PageHeader title="Teams" subtitle="Assign each team directly. New links receive the Member role by default; change authority under Roles." />
+    <PageHeader title="Teams" subtitle="Assign each team directly. New links receive the Member role by default; change Member/Co-Commish in Tools." />
     {error && <ErrorState message={error} />}{!matrix && !error && <LoadingState />}
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
       {conferences.map(([conference, teams]) => <Card key={conference}>

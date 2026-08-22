@@ -437,7 +437,7 @@ export async function unlinkDiscordForSession(input: { authUserId: string }): Pr
   if (!hasEmail) {
     throw new ApiError(
       400,
-      "Add an email login to this account first so you can unlink Discord without losing access. A commissioner can also relink Discord from League Tools.",
+      "Add an email login to this account first so you can unlink Discord without losing access.",
     );
   }
   const recUserId = await resolveRecUserIdByAuthUserId(input.authUserId);

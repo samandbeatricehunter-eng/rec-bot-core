@@ -235,8 +235,7 @@ export function LinkedAccountsPanel({
           </p>
           {linked.discordUsername && auth.status === "signed-in" && !auth.user.email ? (
             <p className="site-muted">
-              Add an email login first so you can unlink Discord without losing site access. If you
-              cannot sign in, a commissioner can relink Discord from League Tools.
+              Add an email login first so you can unlink Discord without losing site access.
             </p>
           ) : null}
           {linked.discordUsername ? (
