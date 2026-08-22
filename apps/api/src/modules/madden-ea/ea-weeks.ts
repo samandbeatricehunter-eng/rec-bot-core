@@ -218,3 +218,14 @@ export function resolveWeeklyImportRefs(input: {
 export function eaScheduleExternalId(displayWeek: number, scheduleId: string | number): string {
   return `ea:w${displayWeek}:${scheduleId}`;
 }
+
+/** EA lists unplayed games as 0-0. Persist null until the game is actually completed so
+ *  GOTW / readiness treat them as unscored rather than a final 0-0. */
+export function persistedImportedScores(
+  completed: boolean,
+  homeScore: number | null,
+  awayScore: number | null,
+): { homeScore: number | null; awayScore: number | null } {
+  if (!completed) return { homeScore: null, awayScore: null };
+  return { homeScore, awayScore };
+}

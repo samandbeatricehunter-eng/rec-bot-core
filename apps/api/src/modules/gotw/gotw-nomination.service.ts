@@ -140,9 +140,14 @@ async function recentGotwTeamIds(leagueId: string, seasonNumber: number, weekNum
 /**
  * Score and rank every eligible H2H matchup in a week. Eligibility: both teams assigned,
  * both users linked (via live team assignments — not the stale home_user_id/away_user_id
- * snapshotted at schedule seed), and the game is not already completed. The highest score
- * is flagged `recommended`; ties break on home-team name for stable ordering.
+ * snapshotted at schedule seed), and the game is not already completed. EA writes 0-0 onto
+ * unplayed imported rows, so scores are not used as a played/unplayed signal.
  */
+export function isUnplayedGotwScheduleGame(status: string | null | undefined): boolean {
+  const value = String(status ?? "");
+  return value !== "completed" && value !== "final";
+}
+
 export async function scoreWeekGotwCandidates(guildId: string, weekNumber: number): Promise<GotwCandidate[]> {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
@@ -176,7 +181,7 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
     const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null;
     const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null;
     return g.home_team_id && g.away_team_id && homeUserId && awayUserId
-      && g.status !== "completed" && g.status !== "final" && g.home_score == null && g.away_score == null;
+      && isUnplayedGotwScheduleGame(g.status);
   }).map((g) => ({
     ...g,
     home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,

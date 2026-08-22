@@ -15,7 +15,7 @@ import { gameResultsApplyKey } from "../official-records/official-records.servic
 import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
 import { rosterUnchangedWrite, rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
-import { eaScheduleExternalId } from "./ea-weeks.js";
+import { eaScheduleExternalId, persistedImportedScores } from "./ea-weeks.js";
 
 type Json = Record<string, unknown>;
 
@@ -140,12 +140,13 @@ export async function directWriteSchedule(
       );
       if (legacy.rows[0]) gameId = legacy.rows[0].id;
     }
+    const storedScores = persistedImportedScores(completed, homeScore, awayScore);
     if (gameId) {
       await pool.query(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
            import_verified=true, external_game_id=$6, updated_at=now()
          where id=$1`,
-        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId],
+        [gameId, storedScores.homeScore, storedScores.awayScore, completed ? "completed" : "scheduled", phase, externalId],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
@@ -166,7 +167,7 @@ export async function directWriteSchedule(
            import_verified=true,
            updated_at=now()
          returning id`,
-        [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
+        [leagueId, displayWeek, phase, homeUuid, awayUuid, storedScores.homeScore, storedScores.awayScore,
          completed ? "completed" : "scheduled", externalId],
       );
       gameId = gameRow.rows[0]?.id ?? null;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   eaScheduleExternalId,
+  persistedImportedScores,
   resolveWeeklyImportRefs,
   validateWeekRef,
   weeksThroughCurrent,
@@ -68,4 +69,10 @@ test("invalid explicit refs are rejected", () => {
 test("schedule external ids are week-scoped", () => {
   assert.equal(eaScheduleExternalId(1, 555), "ea:w1:555");
   assert.notEqual(eaScheduleExternalId(1, 555), eaScheduleExternalId(2, 555));
+});
+
+test("unplayed EA games do not persist 0-0 as a final score", () => {
+  assert.deepEqual(persistedImportedScores(false, 0, 0), { homeScore: null, awayScore: null });
+  assert.deepEqual(persistedImportedScores(true, 24, 17), { homeScore: 24, awayScore: 17 });
+  assert.deepEqual(persistedImportedScores(true, 0, 0), { homeScore: 0, awayScore: 0 });
 });
