@@ -12,6 +12,7 @@
 //   EA apart from a Companion App push.
 
 import { getPgPool } from "../../db/client.js";
+import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import type { CompanionConnection } from "../madden-companion/madden-companion.service.js";
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
@@ -831,21 +832,22 @@ export async function importEaDatasetsWithProgress(
   // Weekly datasets: snallabot fetches two weeks at a time with every endpoint in
   // parallel (up to 16 Blaze calls). sendExport retries ERR_TIMEOUT / MCA_ERR_SERVER_ERROR
   // and hung sockets, so matching that batching is safe for a week-1-through-current import.
+  // Writes used to wait until the whole batch finished fetching, then run serially — EA sat
+  // idle during Postgres. Fetch the next two weeks while the current batch is writing.
   if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
     const weekBatches = chunkItems(weeklyRefs, EA_WEEKLY_WEEK_BATCH);
-    let weeksCompleted = 0;
-    for (const weekBatch of weekBatches) {
+    type WeekFetchItem = { week: EaWeekRef; dataset: EaDataset; raw: unknown; ok: boolean };
+    const fetchWeekBatch = async (weekBatch: EaWeekRef[]): Promise<WeekFetchItem[]> => {
       const batchLabel = weekBatch.map((week) => describeEaWeek(week.stageIndex, week.weekIndex).label).join(", ");
-      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel} (${weeksCompleted + 1}–${weeksCompleted + weekBatch.length} of ${weeklyRefs.length})` });
-
-      const fetched = await Promise.all(weekBatch.flatMap((week) => {
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel}` });
+      return Promise.all(weekBatch.flatMap((week) => {
         const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
         return weeklyDatasets.map(async (dataset) => {
           try {
             const raw = await runWithFreshSession((client) =>
               fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList),
             );
-            return { week, dataset, raw, ok: true as const };
+            return { week, dataset, raw, ok: true };
           } catch (error) {
             pushProgress(leagueId, {
               type: "dataset_error",
@@ -853,19 +855,20 @@ export async function importEaDatasetsWithProgress(
               label: `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`,
               error: error instanceof Error ? error.message : String(error),
             });
-            return { week, dataset, raw: null, ok: false as const };
+            return { week, dataset, raw: null, ok: false };
           }
         });
       }));
-
+    };
+    const persistWeekBatch = async (weekBatch: EaWeekRef[], fetched: WeekFetchItem[], weeksCompleted: number) => {
       for (const [batchIndex, week] of weekBatch.entries()) {
         const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
         const weekOrdinal = weeksCompleted + batchIndex;
         const weekItems = weeklyWriteOrder(
           fetched.filter((item) => item.ok && item.week.stageIndex === week.stageIndex && item.week.weekIndex === week.weekIndex),
         );
-        for (const item of weekItems) {
-          if (!item.ok || item.raw === null) continue;
+        const writeOne = async (item: WeekFetchItem) => {
+          if (!item.ok || item.raw === null) return;
           try {
             pushProgress(leagueId, {
               type: "step",
@@ -880,9 +883,21 @@ export async function importEaDatasetsWithProgress(
           } catch (error) {
             pushProgress(leagueId, { type: "dataset_error", dataset: String(item.dataset), label: `${EA_DATASET_LABELS[item.dataset]} — ${weekDesc.label}`, error: error instanceof Error ? error.message : String(error) });
           }
-        }
+        };
+        // Stats ingest takes an advisory lock per connection, so these stay serial. The
+        // speedup is fetching the next week pair from EA while this batch writes.
+        for (const item of weekItems) await writeOne(item);
       }
-      weeksCompleted += weekBatch.length;
+    };
+
+    let nextFetched = weekBatches.length ? fetchWeekBatch(weekBatches[0]!) : Promise.resolve([] as WeekFetchItem[]);
+    let weeksCompleted = 0;
+    for (let index = 0; index < weekBatches.length; index += 1) {
+      const fetched = await nextFetched;
+      const upcoming = weekBatches[index + 1];
+      nextFetched = upcoming ? fetchWeekBatch(upcoming) : Promise.resolve([] as WeekFetchItem[]);
+      await persistWeekBatch(weekBatches[index]!, fetched, weeksCompleted);
+      weeksCompleted += weekBatches[index]!.length;
     }
   }
 
@@ -921,22 +936,27 @@ export async function importEaDatasetsWithProgress(
     pushProgress(leagueId, { type: "reconciling", step: "Processing headlines…" });
     const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
     const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
+    const headlineGames: Array<{ id: string; weekNumber: number }> = [];
     for (const weekNumber of affectedWeeks) {
       const weekGames = await getPgPool().query<{ id: string }>(
         `select g.id from rec_games g where g.league_id=$1 and g.week_number=$2`,
         [leagueId, weekNumber],
       );
-      for (const game of weekGames.rows) {
-        await processGameIntelligence({
-          id: `ea-import-${game.id}`,
-          league_id: leagueId,
-          season_number: seasonNumber,
-          week_number: weekNumber,
-          game_id: game.id,
-        }).catch((error) =>
-          console.error(`[WARN] Badge processing failed for game ${game.id} (non-fatal):`, error));
-      }
+      for (const game of weekGames.rows) headlineGames.push({ id: game.id, weekNumber });
     }
+    // Stories still land in the hub; Discord posting is a backfill. Snallabot never waits
+    // on a headlines channel during export — posting every game here made through-current
+    // imports stall for minutes after EA was already done.
+    await mapWithConcurrency(headlineGames, 6, async (game) => {
+      await processGameIntelligence({
+        id: `ea-import-${game.id}`,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        week_number: game.weekNumber,
+        game_id: game.id,
+      }, { postToDiscord: false }).catch((error) =>
+        console.error(`[WARN] Badge processing failed for game ${game.id} (non-fatal):`, error));
+    });
   }
   // Cross-reference DB rosters with this import: drop players EA no longer lists.
   // Moves and rating updates already happened in directWriteRoster (upsert by EA id).
