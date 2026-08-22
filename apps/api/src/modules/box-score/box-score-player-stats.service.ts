@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { invalidateLeagueStatsCache } from "../league-stats/league-stats.service.js";
 
 // The two continuous-stat categories a team box score can attribute to a single player with
 // real confidence — passing and rushing. Receiving/kicking/punting aren't broken out
@@ -171,6 +172,7 @@ async function assignStatLinesToPlayer(input: {
     updated_at: now,
   });
   if (inserted.error) throw new ApiError(500, "We couldn't assign stats to that player. Please try again.", inserted.error);
+  invalidateLeagueStatsCache(input.context.leagueId);
   return { tagId };
 }
 
@@ -263,6 +265,7 @@ export async function assignBoxScoreStatAllocations(input: {
   }));
   const inserted = await supabase.from("rec_game_performance_tags").insert(rows);
   if (inserted.error) throw new ApiError(500, "We couldn't save player stat allocations. Please try again.", inserted.error);
+  invalidateLeagueStatsCache(context.leagueId);
   return { tagIds: rows.map((row) => row.id) };
 }
 

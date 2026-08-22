@@ -129,6 +129,11 @@ const PASSING: StatDefinition[] = [
     valueType: "yards", unit: "yards", aliases: ["passLong", "longestPass", "longPass", "passLongest"] }),
   d({ canonicalKey: "passer_rating", label: "Passer Rating", shortLabel: "Rtg", scope: "player", side: "offense", category: "passing", aggregate: "weighted_average",
     valueType: "number", precision: 1, aliases: ["passerRating", "qbRating", "rating"], usedFor: ["award", "leaderboard"] }),
+  d({ canonicalKey: "qbr", label: "QBR", shortLabel: "QBR", scope: "player", side: "offense", category: "passing", aggregate: "derived",
+    valueType: "number", precision: 1, derived: true,
+    formula: "NFL passer rating. Import: EA passerRating (weekly) or recomputed from imported passing totals (season/career). Box score / manual: same formula from that mode's passing counting stats.",
+    dependencies: ["pass_attempts", "pass_completions", "pass_yards", "pass_tds", "interceptions_thrown"],
+    aliases: ["QBR", "totalQbr", "espnQbr"], usedFor: ["award", "leaderboard"] }),
   // derived
   d({ canonicalKey: "completion_pct", label: "Completion Percentage", shortLabel: "Cmp%", scope: "player", side: "offense", category: "passing", aggregate: "derived",
     valueType: "percentage", derived: true, formula: "pass_completions / pass_attempts * 100", dependencies: ["pass_completions", "pass_attempts"], usedFor: ["challenge", "award"] }),
@@ -433,6 +438,27 @@ export function statKeysForPageCategory(key: StatPageCategoryKey): string[] {
   const entry = STAT_PAGE_CATEGORIES.find((c) => c.key === key);
   if (!entry || !entry.categories.length) return [];
   return statKeysForCategories(entry.categories as StatCategory[]);
+}
+
+/** Box-score column order for the Stats page, including derived rates like QBR. */
+const PAGE_CATEGORY_DISPLAY_KEYS: Record<StatPageCategoryKey, string[] | null> = {
+  passing: ["pass_completions", "pass_attempts", "pass_yards", "pass_tds", "interceptions_thrown", "qbr", "sacks_taken", "pass_long", "completion_pct", "yards_per_attempt"],
+  rushing: ["rush_attempts", "rush_yards", "rush_tds", "yards_per_carry", "rush_long", "broken_tackles", "rush_yards_after_contact", "rushing_fumbles"],
+  receiving: ["receptions", "receiving_yards", "receiving_tds", "yards_per_reception", "receiving_long", "rec_yards_after_catch", "receiving_drops"],
+  blocking: null,
+  defense: null,
+  special_teams: null,
+};
+
+export function displayStatKeysForPageCategory(key: StatPageCategoryKey): string[] {
+  return PAGE_CATEGORY_DISPLAY_KEYS[key] ?? statKeysForPageCategory(key);
+}
+
+/** Record-board keys: passing uses QBR instead of a summed weekly passer rating. */
+export function recordStatKeysForPageCategory(key: StatPageCategoryKey): string[] {
+  const keys = statKeysForPageCategory(key).filter((statKey) => statKey !== "passer_rating");
+  if (key === "passing") return ["qbr", ...keys];
+  return keys;
 }
 
 /** Best single stat to rank/sort a page category by — prefers the canonical "headline" stat. */

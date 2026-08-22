@@ -355,7 +355,7 @@ export const recApi = {
       teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>;
       positions: string[];
       players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; photoUrl: string | null; devTrait: string | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
-      leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
+      leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; photoUrl: string | null; value: number; rank: number }>>;
     }>("/v1/hub/league-stats", { method: "POST", body: JSON.stringify(input) }),
   getLeagueTeamStats: (guildId: string) =>
     recApiFetch<{
@@ -369,7 +369,25 @@ export const recApi = {
       records: Array<{
         statKey: string;
         label: string;
-        leaders: Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; weekNumber: number | null; seasonNumber: number | null; rank: number }>;
+        leaders: Array<{
+          playerId: string;
+          playerName: string;
+          position: string | null;
+          photoUrl: string | null;
+          teamName: string | null;
+          teamAbbreviation: string | null;
+          userName: string | null;
+          value: number;
+          weekNumber: number | null;
+          seasonNumber: number | null;
+          rank: number;
+          opponentTeamName: string | null;
+          opponentTeamAbbreviation: string | null;
+          opponentUserName: string | null;
+          result: string | null;
+          pointsFor: number | null;
+          pointsAgainst: number | null;
+        }>;
       }>;
     }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input) }),
   getHub: (guildId: string) =>

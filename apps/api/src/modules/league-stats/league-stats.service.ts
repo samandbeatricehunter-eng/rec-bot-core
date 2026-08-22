@@ -1,6 +1,9 @@
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { getLeagueDataMode } from "../league-week/data-mode.service.js";
+import { attachDerivedPlayerStats } from "@rec/shared";
+import { PLAYER_PHOTO_LATERAL, playerWeeklyCellsSql } from "./player-stat-source.js";
 
 export type LeagueStatsResult = {
   league: { id: string; name: string; game: string; season_number: number };
@@ -42,45 +45,62 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   const teamsResult = await getPgPool().query<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>(
     "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
   );
+  const dataMode = await getLeagueDataMode(leagueId);
   const params: unknown[] = [leagueId];
   const seasonFilter = input.scope === "career" ? "" : ` and s.season_number=$${params.push(league.season_number)}`;
   let filter = "";
   if (input.teamId) { params.push(input.teamId); filter += ` and p.team_id=$${params.length}`; }
   if (input.position) { params.push(input.position); filter += ` and upper(p.position)=upper($${params.length})`; }
+  const cells = playerWeeklyCellsSql(dataMode, { leagueParam: "$1", extraWhere: seasonFilter });
 
-  // Single query: the numeric_stats CTE (a full scan + jsonb_each_text expansion of every
-  // weekly stat cell for the season) used to be duplicated verbatim across two separate round
-  // trips — one for the player table, one for the leaderboard. Marking it `materialized` and
-  // referencing it from both the (filtered) players CTE and the (unfiltered, always
-  // league-wide) leaders CTE computes it exactly once per call.
-  //
-  // No column cap on player stats — every numeric stat total for every player comes back, and
-  // the client picks which columns to actually render based on the selected category/position
-  // (see statKeysForPageCategory / statCategoriesForPosition in @rec/shared). Capping to "top 16
-  // most frequent" server-side used to silently drop a real stat just because it was rare across
-  // the currently-filtered player set.
+  // Single query: the numeric_stats CTE (a full scan of every weekly stat cell for the season,
+  // from EA weekly stats or box-score/manual performance tags depending on data_mode) is
+  // materialized and reused for both the player table and the leaderboard.
   const combined = await getPgPool().query<{ players: Array<Record<string, unknown>>; leaders: Record<string, unknown> }>(
-    `with numeric_stats as materialized (
-       select s.player_id,e.key,sum(e.value::numeric) as total
-       from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
-       where s.league_id=$1${seasonFilter} and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'
-       group by s.player_id,e.key
+    `with cells as materialized (
+       ${cells}
+     ), numeric_stats as materialized (
+       select player_id, key, sum(value) as total
+         from cells
+        where player_id is not null
+        group by player_id, key
      ), totals as (
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id
+     ), player_identity as (
+       select p.id, p.full_name, p.position, p.jersey_number, p.photo_url, p.dev_trait, p.team_id, p.madden_player_id
+         from rec_players p
+        where p.league_id=$1 and coalesce(p.roster_status,'active')='active'
+       union all
+       select w.id, w.player_name, w.position, null::int, null::text, null::text, w.team_id, null::text
+         from rec_watched_players w
+        where w.league_id=$1 and w.is_active
+          and exists (select 1 from numeric_stats n where n.player_id = w.id)
+          and not exists (
+            select 1 from rec_players rp
+             where rp.league_id=$1 and rp.team_id = w.team_id and lower(rp.full_name) = lower(w.player_name)
+          )
      ), player_rows as (
-       select p.id,p.full_name as "fullName",p.position,p.jersey_number as "jerseyNumber",p.photo_url as "photoUrl",
+       select p.id,p.full_name as "fullName",p.position,p.jersey_number as "jerseyNumber",
+              coalesce(nullif(p.photo_url,''), baseline.photo_url) as "photoUrl",
               p.dev_trait as "devTrait",p.team_id as "teamId",t.name as "teamName",t.abbreviation as "teamAbbreviation",
               coalesce(x.stats,'{}'::jsonb) as stats
-         from rec_players p left join rec_teams t on t.id=p.team_id left join totals x on x.player_id=p.id
-        where p.league_id=$1 and coalesce(p.roster_status,'active')='active' ${filter}
+         from player_identity p
+         left join rec_teams t on t.id=p.team_id
+         left join totals x on x.player_id=p.id
+         ${PLAYER_PHOTO_LATERAL}
+        where true ${filter}
         order by t.name nulls last,p.position,p.full_name limit 1000
      ), ranked as (
        select n.*,row_number() over(partition by n.key order by n.total desc,p.full_name) as rank,
-              p.full_name,p.position,t.name as team_name,t.abbreviation as team_abbreviation
-       from numeric_stats n join rec_players p on p.id=n.player_id left join rec_teams t on t.id=p.team_id
+              p.full_name,p.position,t.name as team_name,t.abbreviation as team_abbreviation,
+              coalesce(nullif(p.photo_url,''), baseline.photo_url) as photo_url
+       from numeric_stats n
+       join player_identity p on p.id=n.player_id
+       left join rec_teams t on t.id=p.team_id
+       ${PLAYER_PHOTO_LATERAL}
      ), leader_rows as (
        select key,jsonb_agg(jsonb_build_object('playerId',player_id,'playerName',full_name,'position',position,
-         'teamName',team_name,'teamAbbreviation',team_abbreviation,'value',total,'rank',rank) order by rank) as leaders
+         'teamName',team_name,'teamAbbreviation',team_abbreviation,'photoUrl',photo_url,'value',total,'rank',rank) order by rank) as leaders
        from ranked where rank<=5 group by key
      )
      select
@@ -89,13 +109,37 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
     params,
   );
   const row = combined.rows[0] ?? { players: [], leaders: {} };
-  const players = row.players ?? [];
+  const players = (row.players ?? []).map((player: any) => ({
+    ...player,
+    stats: attachDerivedPlayerStats(
+      Object.fromEntries(
+        Object.entries((player.stats ?? {}) as Record<string, unknown>).map(([key, value]) => [key, Number(value)]),
+      ),
+    ),
+  }));
+  const leaders = { ...(row.leaders ?? {}) } as Record<string, unknown>;
+  delete leaders.passer_rating;
+  const qbrLeaders = [...players]
+    .filter((player: any) => Number(player.stats?.qbr) > 0)
+    .sort((a: any, b: any) => Number(b.stats.qbr) - Number(a.stats.qbr))
+    .slice(0, 5)
+    .map((player: any, index: number) => ({
+      playerId: player.id,
+      playerName: player.fullName,
+      position: player.position,
+      teamName: player.teamName,
+      teamAbbreviation: player.teamAbbreviation,
+      photoUrl: player.photoUrl,
+      value: player.stats.qbr,
+      rank: index + 1,
+    }));
+  if (qbrLeaders.length) leaders.qbr = qbrLeaders;
   const value: LeagueStatsResult = {
     league,
     teams: teamsResult.rows,
     positions: [...new Set(players.map((p: any) => p.position).filter(Boolean))].sort(),
     players,
-    leaders: row.leaders ?? {},
+    leaders,
   };
   statsCache.set(cacheKey, { value, expiresAt: Date.now() + STATS_CACHE_MS });
   return value;
