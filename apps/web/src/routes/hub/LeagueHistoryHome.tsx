@@ -43,9 +43,9 @@ function WeeklyResults({ weeklyResults }: { weeklyResults: LeagueHistorySeason["
             </div>
             {week.matchups.map((m, i) => (
               <div key={i} className="hub-history-table-row">
-                <span>{m.awayTeam}{m.isTie ? "" : m.winner === m.awayTeam ? " ✓" : ""}</span>
-                <span>{m.homeTeam}{m.isTie ? "" : m.winner === m.homeTeam ? " ✓" : ""}</span>
-                <span>{m.awayScore ?? "—"}-{m.homeScore ?? "—"}{m.isTie ? " (T)" : ""}{m.isPlayoff ? " · Playoff" : ""}</span>
+                <span data-label="Away">{m.awayTeam}{m.isTie ? "" : m.winner === m.awayTeam ? " ✓" : ""}</span>
+                <span data-label="Home">{m.homeTeam}{m.isTie ? "" : m.winner === m.homeTeam ? " ✓" : ""}</span>
+                <span data-label="Result">{m.awayScore ?? "—"}-{m.homeScore ?? "—"}{m.isTie ? " (T)" : ""}{m.isPlayoff ? " · Playoff" : ""}</span>
               </div>
             ))}
           </div>
@@ -55,9 +55,9 @@ function WeeklyResults({ weeklyResults }: { weeklyResults: LeagueHistorySeason["
               <div className="hub-history-table">
                 {week.powerRankingShifts.map((s) => (
                   <div key={s.teamName} className="hub-history-table-row hub-history-top25-row">
-                    <span>#{s.newRank}</span>
-                    <span>{s.teamName}{s.previousRank != null ? ` (was #${s.previousRank})` : ""}</span>
-                    <span>{shiftLabel(s.delta)}</span>
+                    <span data-label="Rank">#{s.newRank}</span>
+                    <span data-label="Team">{s.teamName}{s.previousRank != null ? ` (was #${s.previousRank})` : ""}</span>
+                    <span data-label="Change">{shiftLabel(s.delta)}</span>
                   </div>
                 ))}
               </div>
@@ -89,11 +89,11 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
             </div>
             {season.teamRecords.map((row) => (
               <div key={row.userId} className="hub-history-table-row">
-                <span>{row.coachName}</span>
-                <span>{row.teamName}{row.abbr ? ` (${row.abbr})` : ""}</span>
-                <span>{row.ties > 0 ? `${row.wins}-${row.losses}-${row.ties}` : `${row.wins}-${row.losses}`}</span>
-                <span>{row.pointsFor}</span>
-                <span>{row.pointsAgainst}</span>
+                <span data-label="Coach">{row.coachName}</span>
+                <span data-label="Team">{row.teamName}{row.abbr ? ` (${row.abbr})` : ""}</span>
+                <span data-label="Record">{row.ties > 0 ? `${row.wins}-${row.losses}-${row.ties}` : `${row.wins}-${row.losses}`}</span>
+                <span data-label="PF">{row.pointsFor}</span>
+                <span data-label="PA">{row.pointsAgainst}</span>
               </div>
             ))}
           </div>
@@ -113,8 +113,8 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
           <div className="hub-history-table">
             {season.bowlWinners.map((bowl, i) => (
               <div key={`${bowl.bowlName}-${i}`} className="hub-history-table-row hub-history-bowl-row">
-                <span>{bowl.bowlName ?? "Bowl Game"}</span>
-                <span>{bowl.winner ?? "—"} def. {bowl.loser ?? "—"}{bowl.score ? ` (${bowl.score})` : ""}</span>
+                <span data-label="Bowl">{bowl.bowlName ?? "Bowl Game"}</span>
+                <span data-label="Result">{bowl.winner ?? "—"} def. {bowl.loser ?? "—"}{bowl.score ? ` (${bowl.score})` : ""}</span>
               </div>
             ))}
           </div>
@@ -127,8 +127,8 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
           <div className="hub-history-table">
             {season.postseasonGames.map((g, i) => (
               <div key={i} className="hub-history-table-row hub-history-bowl-row">
-                <span>{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}{g.bowlName ? ` · ${g.bowlName}` : g.postseasonRound ? ` · ${g.postseasonRound}` : ""}</span>
-                <span>{g.awayTeam} {g.awayScore ?? "—"} @ {g.homeTeam} {g.homeScore ?? "—"}{g.winner ? ` — ${g.winner} won` : ""}</span>
+                <span data-label="Game">{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}{g.bowlName ? ` · ${g.bowlName}` : g.postseasonRound ? ` · ${g.postseasonRound}` : ""}</span>
+                <span data-label="Result">{g.awayTeam} {g.awayScore ?? "—"} @ {g.homeTeam} {g.homeScore ?? "—"}{g.winner ? ` — ${g.winner} won` : ""}</span>
               </div>
             ))}
           </div>
@@ -141,8 +141,8 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
           <div className="hub-history-table">
             {season.finalTop25.map((row) => (
               <div key={row.rank} className="hub-history-table-row hub-history-top25-row">
-                <span>#{row.rank}</span>
-                <span>{row.teamName}{row.conferenceChampion ? " · Conf. Champion" : ""}</span>
+                <span data-label="Rank">#{row.rank}</span>
+                <span data-label="Team">{row.teamName}{row.conferenceChampion ? " · Conf. Champion" : ""}</span>
               </div>
             ))}
           </div>

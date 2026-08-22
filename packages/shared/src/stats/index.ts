@@ -3,6 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export * from "./stat-definitions.js";
+export * from "./derived-stats.js";
+export * from "./tagged-stat-keys.js";
 
 import {
   STAT_DEFINITIONS,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  displayStatKeysForPageCategory,
   formatStatValue,
   getStatLabel,
   getStatShortLabel,
@@ -7,8 +8,8 @@ import {
   primaryStatKeyForPageCategory,
   statCategoriesForPosition,
   statKeysForCategories,
-  statKeysForPageCategory,
   STAT_PAGE_CATEGORIES,
+  type StatCategory,
   type StatPageCategoryKey,
 } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
@@ -19,6 +20,7 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
+import { PlayerAvatar } from "../../components/hub/PlayerAvatar.js";
 import { LeagueRecordsHome } from "./LeagueRecordsHome.js";
 import { LeagueHistoryHome } from "./LeagueHistoryHome.js";
 import { FinancialLedger, RankChange } from "./HubHome.js";
@@ -39,15 +41,27 @@ function fallbackColumnsForPlayers(players: StatsPlayer[]): string[] {
   return [...frequency].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([key]) => key);
 }
 
+const CATEGORY_TO_PAGE: Partial<Record<StatCategory, StatPageCategoryKey>> = {
+  passing: "passing",
+  rushing: "rushing",
+  receiving: "receiving",
+  defense: "defense",
+  kicking: "special_teams",
+  punting: "special_teams",
+  returns: "special_teams",
+};
+
 function columnsForPosition(position: string, players: StatsPlayer[]): string[] {
   if (!position) return fallbackColumnsForPlayers(players);
-  const categories = statCategoriesForPosition(position);
-  const keys = statKeysForCategories(categories);
-  return keys.length ? keys : fallbackColumnsForPlayers(players);
+  const pageKeys = [...new Set(statCategoriesForPosition(position).map((category) => CATEGORY_TO_PAGE[category]).filter((key): key is StatPageCategoryKey => Boolean(key)))];
+  const keys = [...new Set(pageKeys.flatMap((key) => displayStatKeysForPageCategory(key)))];
+  if (keys.length) return keys;
+  const fallback = statKeysForCategories(statCategoriesForPosition(position));
+  return fallback.length ? fallback : fallbackColumnsForPlayers(players);
 }
 
 function columnsForPageCategory(categoryKey: StatPageCategoryKey, players: StatsPlayer[]): string[] {
-  const keys = statKeysForPageCategory(categoryKey);
+  const keys = displayStatKeysForPageCategory(categoryKey);
   return keys.length ? keys : fallbackColumnsForPlayers(players);
 }
 
@@ -56,36 +70,25 @@ function statColumnLabel(key: string): string {
   return short === key ? label(key) : short;
 }
 
-function playerAvatar(player: { photoUrl: string | null; position: string | null }) {
-  return player.photoUrl ? (
-    <img src={player.photoUrl} alt="" loading="lazy" className="rec-stat-player-card-avatar" />
-  ) : (
-    <span className="rec-stat-player-card-avatar-fallback">{player.position ?? "—"}</span>
-  );
-}
-
-/** One player's stat line as a card: identity header + a horizontally-scrolling strip of stat
- * chips. Chosen over a wide table because a table's columns wrap into unreadable multi-line
- * headers once more than a handful of stats are shown at mobile widths — a scrollable strip
- * degrades to "swipe sideways" instead. */
+/** Identity row + a wrapping labeled stat grid (readable on mobile without sideways scrolling). */
 function PlayerStatCard({ player, columns, rank, onOpen }: { player: StatsPlayer; columns: string[]; rank?: number; onOpen: () => void }) {
   return (
     <div className="rec-stat-player-card">
       <div className="rec-stat-player-card-head">
         {rank != null && <span className="rec-stat-player-card-rank">#{rank}</span>}
         <button type="button" onClick={onOpen}>
-          {playerAvatar(player)}
+          <PlayerAvatar photoUrl={player.photoUrl} alt="" className="rec-stat-player-card-avatar" />
           <span style={{ minWidth: 0 }}>
             <span className="rec-stat-player-card-name" style={{ display: "block" }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</span>
             <span className="rec-stat-player-card-meta">{player.teamAbbreviation ?? player.teamName ?? "Free Agent"} · {player.position ?? "—"}</span>
           </span>
         </button>
       </div>
-      <div className="rec-stat-chip-row">
+      <div className="rec-stat-grid">
         {columns.map((key) => (
-          <div key={key} className="rec-stat-chip" title={getStatLabel(key)}>
-            <div className="rec-stat-chip-label">{statColumnLabel(key)}</div>
-            <div className="rec-stat-chip-value">{formatStatValue(key, player.stats[key] ?? 0)}</div>
+          <div key={key} className="rec-stat-cell" title={getStatLabel(key)}>
+            <div className="rec-stat-cell-label">{statColumnLabel(key)}</div>
+            <div className="rec-stat-cell-value">{formatStatValue(key, player.stats[key] ?? 0)}</div>
           </div>
         ))}
       </div>
@@ -100,13 +103,7 @@ function PlayerStatsModal({ player, onClose }: { player: StatsPlayer; onClose: (
   return (
     <Modal title={player.fullName} onClose={onClose}>
       <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-        {player.photoUrl ? (
-          <img src={player.photoUrl} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
-        ) : (
-          <div style={{ width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2, #222)", fontWeight: 700 }}>
-            {player.position ?? "—"}
-          </div>
-        )}
+        <PlayerAvatar photoUrl={player.photoUrl} alt="" className="rec-stat-player-modal-avatar" />
         <div>
           <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</p>
           <p className="hub-muted" style={{ margin: 0 }}>{player.position ?? "—"} · {player.teamAbbreviation ?? player.teamName ?? "Free Agent"}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</p>
@@ -218,17 +215,6 @@ function TeamStatsView({ guildId, scope }: { guildId: string; scope: "season" | 
   </Card>;
 }
 
-const LEADER_CATEGORY_STAT: Record<StatPageCategoryKey, string | null> = {
-  passing: "pass_yards",
-  rushing: "rush_yards",
-  receiving: "receiving_yards",
-  blocking: null,
-  defense: "tackles",
-  special_teams: "fg_made",
-};
-
-/** "League Leaders" — one card per category, top 5 players ranked by that category's headline
- * stat, each with a short horizontal stat line pulled from their full season totals. */
 function LeagueLeadersView({ guildId }: { guildId: string }) {
   const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
   const { data, error } = useLeagueStats(guildId);
@@ -240,6 +226,7 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
   const leaderCategories = [
     { label: "Passing Yards", key: "pass_yards", category: "passing" as StatPageCategoryKey },
+    { label: "QBR", key: "qbr", category: "passing" as StatPageCategoryKey },
     { label: "Rushing Yards", key: "rush_yards", category: "rushing" as StatPageCategoryKey },
     { label: "Receiving Yards", key: "receiving_yards", category: "receiving" as StatPageCategoryKey },
     { label: "Interceptions", key: "interceptions", category: "defense" as StatPageCategoryKey },
@@ -249,9 +236,9 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
     {leaderCategories.map((cat) => {
       const primaryKey = cat.key;
       const leaders = primaryKey ? data.leaders[primaryKey] ?? [] : [];
-      const columns = [primaryKey];
+      const columns = displayStatKeysForPageCategory(cat.category).slice(0, 6);
       return (
-        <section key={cat.key} className="hub-league-leader-category">
+        <section key={`${cat.category}-${cat.key}`} className="hub-league-leader-category">
           <h3>{cat.label}</h3>
           {!primaryKey || !leaders.length ? (
             <p className="form-hint">No approved or imported stats are available for this category yet.</p>
@@ -265,13 +252,14 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
                   <div key={leader.playerId} className="rec-stat-player-card">
                     <div className="rec-stat-player-card-head">
                       <span className="rec-stat-player-card-rank">#{leader.rank}</span>
+                      <PlayerAvatar photoUrl={leader.photoUrl} alt="" className="rec-stat-player-card-avatar" />
                       <span style={{ minWidth: 0 }}>
                         <span className="rec-stat-player-card-name" style={{ display: "block" }}>{leader.playerName}</span>
                         <span className="rec-stat-player-card-meta">{leader.teamAbbreviation ?? leader.teamName ?? "Free Agent"} · {leader.position ?? "—"}</span>
                       </span>
                     </div>
-                    <div className="rec-stat-chip-row">
-                      <div className="rec-stat-chip"><div className="rec-stat-chip-label">{statColumnLabel(primaryKey)}</div><div className="rec-stat-chip-value">{formatStatValue(primaryKey, leader.value)}</div></div>
+                    <div className="rec-stat-grid">
+                      <div className="rec-stat-cell"><div className="rec-stat-cell-label">{statColumnLabel(primaryKey)}</div><div className="rec-stat-cell-value">{formatStatValue(primaryKey, leader.value)}</div></div>
                     </div>
                   </div>
                 );

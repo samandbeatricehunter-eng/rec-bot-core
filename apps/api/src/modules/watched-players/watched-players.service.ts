@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getBoxScoreUploadEligibility } from "../box-score/box-score.service.js";
+import { invalidateLeagueStatsCache } from "../league-stats/league-stats.service.js";
 
 export const CLASS_YEARS = ["freshman", "sophomore", "junior", "senior"] as const;
 export type ClassYear = (typeof CLASS_YEARS)[number];
@@ -149,6 +150,7 @@ export async function submitPlayerStatLine(input: {
   const line = await supabase.from("rec_player_stat_lines").upsert({ id: randomUUID(), submission_id: submissionId, category: input.category, stats, raw_values: rawValues, updated_at: now }, { onConflict: "submission_id,category" });
   if (line.error) throw new ApiError(500, "Failed to save the stat category.", line.error);
   await supabase.from("rec_player_stat_audit").insert({ submission_id: submissionId, action: "stat_line_submitted", actor_discord_id: input.discordId, new_value: { category: input.category, stats } });
+  invalidateLeagueStatsCache(context.leagueId);
 
   return { playerId: playerId!, tagId, submissionId, teamId: eligibility.teamId, gameId: eligibility.gameId };
 }
@@ -231,6 +233,7 @@ export async function updatePlayerStatSubmission(input: { guildId: string; id: s
   const updated = await supabase.from("rec_player_stat_submissions").update(patch).eq("id", input.id); if (updated.error) throw new ApiError(500,"Failed to update player-stat submission.",updated.error);
   if (input.lines) for (const line of input.lines) { const saved = await supabase.from("rec_player_stat_lines").upsert({ submission_id: input.id, category: line.category, stats: line.stats, raw_values: Object.fromEntries(Object.entries(line.stats).map(([key,value])=>[key,String(value)])), updated_at: now }, { onConflict: "submission_id,category" }); if(saved.error) throw new ApiError(500,"Failed to update stat line.",saved.error); }
   await supabase.from("rec_player_stat_audit").insert({ submission_id: input.id, action: "commissioner_updated", actor_discord_id: input.actorDiscordId, previous_value: existing, new_value: input });
+  invalidateLeagueStatsCache(existing.league_id);
   return { updated: true };
 }
 
