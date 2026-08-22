@@ -1,12 +1,35 @@
-// Weekly "Matchups" channel: one embed per league per week, edited in place as scheduling
-// state changes, listing every H2H matchup with both coaches tagged and a live status per row.
+// Weekly "Matchups" channel: one embed per league. Same-week scheduling updates edit that
+// message in place. A week advance deletes leftover boards and posts a single replacement.
 // Distinct from game-announcement.service.ts (one embed per GAME in the announcements channel)
 // and matchup-scheduling.service.ts's Scheduling panel (one embed per game channel) -- this is
 // the single league-wide "here's the whole week" view.
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage, editDiscordMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
+import { getPgPool } from "../../db/client.js";
+import {
+  postDiscordChannelMessage,
+  tryEditDiscordMessage,
+  deleteDiscordMessage,
+  listDiscordChannelMessages,
+  getBotUserId,
+} from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import {
+  chooseMatchupsKeepId,
+  isWeeklyMatchupsEmbedTitle,
+  planAfterMatchupsEditAttempt,
+  planMatchupsChannelWrite,
+  resolveMatchupsChannelId,
+} from "./matchups-channel-plan.js";
+
+export {
+  isWeeklyMatchupsEmbedTitle,
+  planAfterMatchupsEditAttempt,
+  planMatchupsChannelWrite,
+  resolveMatchupsChannelId,
+  WEEKLY_MATCHUPS_EMBED_TITLE_RE,
+} from "./matchups-channel-plan.js";
+export type { MatchupsChannelPostState, MatchupsChannelWritePlan } from "./matchups-channel-plan.js";
 
 type SchedulingRow = {
   game_id: string; status: string; scheduled_for: string | null;
@@ -50,12 +73,63 @@ function statusLineFor(input: {
   return "Not scheduled";
 }
 
-// NOTE: the very first post for a new week (before rec_matchups_channel_posts has a row) has a
-// narrow race if two different scheduling mutations for two different games in the same league
-// fire within the same instant -- both could read "no existing post" and both post a fresh
-// message, leaving a stray duplicate. Once a row exists, all further calls safely edit in place.
-// Accepted as a low-severity edge case (a cosmetic duplicate, not broken data) rather than adding
-// full cross-request locking for this feature.
+async function persistMatchupsChannelPost(input: {
+  leagueId: string;
+  weekNumber: number;
+  channelId: string;
+  messageId: string;
+}): Promise<void> {
+  // onConflict must be explicit -- this project's Postgres-shim client does NOT default a
+  // bare .upsert() to the table's primary key. Without it the first insert sticks forever
+  // (`ON CONFLICT DO NOTHING`) and every later refresh posts a brand-new Discord message
+  // because the tracked message_id/week never move forward.
+  const { error } = await supabase.from("rec_matchups_channel_posts").upsert({
+    league_id: input.leagueId,
+    week_number: input.weekNumber,
+    channel_id: input.channelId,
+    message_id: input.messageId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "league_id" });
+  if (error) console.error("[ERROR] matchups channel: failed to persist post row (non-fatal):", error);
+}
+
+async function listMatchupsEmbedIds(channelId: string): Promise<string[]> {
+  const [botUserId, messages] = await Promise.all([
+    getBotUserId(),
+    listDiscordChannelMessages(channelId, 100),
+  ]);
+  return messages
+    .filter((message) => message.author?.id === botUserId && isWeeklyMatchupsEmbedTitle(message.embeds?.[0]?.title))
+    .map((message) => message.id);
+}
+
+async function deleteMatchupsMessages(channelId: string, messageIds: string[]): Promise<void> {
+  await Promise.all(messageIds.map((messageId) => deleteDiscordMessage(channelId, messageId).catch(() => undefined)));
+}
+
+async function sweepDuplicateMatchupsMessages(channelId: string, keepMessageId: string | null): Promise<void> {
+  try {
+    const extras = (await listMatchupsEmbedIds(channelId)).filter((messageId) => messageId !== keepMessageId);
+    await deleteMatchupsMessages(channelId, extras);
+  } catch (error) {
+    console.error("[ERROR] matchups channel: failed to sweep duplicate posts (non-fatal):", error);
+  }
+}
+
+async function withMatchupsChannelLock<T>(leagueId: string, fn: () => Promise<T>): Promise<T> {
+  const client = await getPgPool().connect();
+  try {
+    await client.query("select pg_advisory_lock(hashtext($1))", [`matchups-channel:${leagueId}`]);
+    return await fn();
+  } finally {
+    try {
+      await client.query("select pg_advisory_unlock(hashtext($1))", [`matchups-channel:${leagueId}`]);
+    } finally {
+      client.release();
+    }
+  }
+}
+
 export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const { getAdvanceWeekGames } = await import("../league-week/advance-results.service.js");
   const week = await getAdvanceWeekGames(guildId).catch((error) => { console.error("[ERROR] matchups channel: failed to load week games (non-fatal):", error); return null; });
@@ -65,17 +139,20 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const context = await getCurrentLeagueContext(guildId).catch(() => null);
   if (!context) return;
   const routes = await findServerRoutesForLeague(context.leagueId).catch(() => null);
-  const channelId = String((routes?.routes as any)?.announcements_channel_id ?? (routes?.routes as any)?.matchups_channel_id ?? "");
+  const channelId = resolveMatchupsChannelId(routes?.routes as Record<string, unknown> | null);
   if (!channelId) return;
 
   // H2H-only post. If this week has no human matchups, drop any leftover embed (CPU block
   // and/or Ready to Advance button) rather than leaving a stale message in the channel.
   if (!h2hGames.length) {
-    const state = await supabase.from("rec_matchups_channel_posts").select("channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
-    if (state.data?.message_id) {
-      await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
-      await supabase.from("rec_matchups_channel_posts").delete().eq("league_id", context.leagueId);
-    }
+    await withMatchupsChannelLock(context.leagueId, async () => {
+      const state = await supabase.from("rec_matchups_channel_posts").select("channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
+      if (state.data?.message_id) {
+        await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
+        await supabase.from("rec_matchups_channel_posts").delete().eq("league_id", context.leagueId);
+      }
+      await sweepDuplicateMatchupsMessages(channelId, null);
+    });
     return;
   }
 
@@ -124,21 +201,45 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
     components: [] as unknown[],
   };
 
-  const state = await supabase.from("rec_matchups_channel_posts").select("week_number,channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
-
-  if (state.data && state.data.week_number === week.currentWeek && state.data.channel_id === channelId) {
-    const edited = await editDiscordMessage(channelId, state.data.message_id, payload).catch(() => false);
-    if (edited) return;
-  }
-  if (state.data?.message_id) {
-    await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
-  }
-  const posted = await postDiscordChannelMessage(channelId, payload).catch((error) => { console.error("[ERROR] matchups channel: failed to post (non-fatal):", error); return null; });
-  if (posted?.id) {
-    await supabase.from("rec_matchups_channel_posts").upsert({
-      league_id: context.leagueId, week_number: week.currentWeek, channel_id: channelId, message_id: posted.id, updated_at: new Date().toISOString(),
+  await withMatchupsChannelLock(context.leagueId, async () => {
+    const state = await supabase.from("rec_matchups_channel_posts").select("week_number,channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
+    const stored = state.data?.message_id
+      ? { week_number: Number(state.data.week_number), channel_id: String(state.data.channel_id), message_id: String(state.data.message_id) }
+      : null;
+    const plan = planMatchupsChannelWrite({ stored, channelId, currentWeek: week.currentWeek });
+    const existingIds = await listMatchupsEmbedIds(channelId).catch((error) => {
+      console.error("[ERROR] matchups channel: failed to list existing posts (non-fatal):", error);
+      return [] as string[];
     });
-  }
+
+    if (plan.action === "edit") {
+      const keepId = chooseMatchupsKeepId({ existingIdsNewestFirst: existingIds, preferredId: plan.messageId }) ?? plan.messageId;
+      const edited = await tryEditDiscordMessage(channelId, keepId, payload);
+      const next = planAfterMatchupsEditAttempt(edited);
+      if (next === "done") {
+        await persistMatchupsChannelPost({ leagueId: context.leagueId, weekNumber: week.currentWeek, channelId, messageId: keepId });
+        const extras = existingIds.filter((messageId) => messageId !== keepId);
+        if (plan.messageId !== keepId) extras.push(plan.messageId);
+        await deleteMatchupsMessages(channelId, extras);
+        return;
+      }
+      if (next === "abort") return;
+    } else if (plan.action === "move") {
+      await deleteDiscordMessage(plan.deleteChannelId, plan.deleteMessageId).catch(() => undefined);
+    } else if (plan.action === "replace" && !existingIds.includes(plan.deleteMessageId)) {
+      await deleteDiscordMessage(plan.deleteChannelId, plan.deleteMessageId).catch(() => undefined);
+    }
+
+    // Week change, first post, channel move, or a 404 on the tracked message: delete every
+    // leftover "Season N, Week M Matchups" embed, then post exactly one replacement.
+    await deleteMatchupsMessages(channelId, existingIds);
+
+    const posted = await postDiscordChannelMessage(channelId, payload).catch((error) => { console.error("[ERROR] matchups channel: failed to post (non-fatal):", error); return null; });
+    if (posted?.id) {
+      await persistMatchupsChannelPost({ leagueId: context.leagueId, weekNumber: week.currentWeek, channelId, messageId: posted.id });
+      await sweepDuplicateMatchupsMessages(channelId, posted.id);
+    }
+  });
 }
 
 // Live-refresh entry point for scheduling mutations, which only have a gameId on hand.

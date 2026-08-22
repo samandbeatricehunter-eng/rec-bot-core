@@ -431,19 +431,32 @@ export async function deleteTransientGameSchedulingMessages(channelId: string): 
   return targets.length;
 }
 
+export type DiscordEditAttempt = "edited" | "missing" | "failed";
+
 /** Edit a previously posted bot message (embeds/components/content) via REST. Used to keep
  * live status embeds (e.g. the fantasy-draft check-in board) in sync when a change comes
  * from a non-gateway source like the website. Returns false on any non-OK response (a
  * deleted/expired message is non-fatal to the caller). */
 export async function editDiscordMessage(channelId: string, messageId: string, payload: Record<string, unknown>): Promise<boolean> {
+  return (await tryEditDiscordMessage(channelId, messageId, payload)) === "edited";
+}
+
+/** Same REST edit as `editDiscordMessage`, but callers that must not fall through to a
+ * duplicate POST (weekly matchups board, recruiting ads) need to tell "message is gone,
+ * safe to recreate" apart from a 429/5xx where the original is still in the channel. */
+export async function tryEditDiscordMessage(channelId: string, messageId: string, payload: Record<string, unknown>): Promise<DiscordEditAttempt> {
   const path = `/channels/${channelId}/messages/${messageId}`;
   const init: RequestInit = { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
-  const sent = await discordBotFetch(path, init);
-  if (!sent.ok) {
+  try {
+    const sent = await discordBotFetch(path, init);
+    if (sent.ok) return "edited";
     const body = await bestEffort("discord.parse_error_body", () => sent.clone().json(), { entityId: channelId }) as { code?: number; message?: string } | null | undefined;
     console.error(`[WARN] Discord rejected editDiscordMessage on channel ${channelId} message ${messageId} (${sent.status}): ${body?.message ?? "unknown error"}${body?.code != null ? ` (code ${body.code})` : ""}`);
+    return sent.status === 404 ? "missing" : "failed";
+  } catch (error) {
+    console.error(`[WARN] Discord editDiscordMessage threw on channel ${channelId} message ${messageId}:`, error);
+    return "failed";
   }
-  return sent.ok;
 }
 
 export async function banDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
