@@ -180,7 +180,7 @@ function DiscordRolesPanel({ guildId }: { guildId: string }) {
       <p className="form-hint" style={{ marginTop: 0 }}>
         Promote or demote linked coaches between Member and Co-Commish. After a Discord swap, run
         Reconcile Roles and Resync Nicknames so the new account gets the right Discord role and team nick.
-        Resync skips the head commissioner — Discord does not let the bot change that nickname.
+        Resync skips the head commissioner. Co-Commish nicks keep the (Co-Commish) suffix.
       </p>
       {error && <ErrorState message={error} />}
       {!members && !error && <LoadingState label="Loading linked coaches…" />}

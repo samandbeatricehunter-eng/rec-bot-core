@@ -10,7 +10,7 @@ import { syncScheduleGameUserIdsForLeague, syncScheduleGameUserIdsForTeams } fro
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, postDiscordChannelMessage, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
-import { isHeadCommissionerAssignment, parseAssignmentAuthority, type AssignableRoleKey } from "./assignment-authority.js";
+import { isHeadCommissionerAssignment, parseAssignmentAuthority, buildManagedTeamNickname, type AssignableRoleKey } from "./assignment-authority.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
@@ -717,7 +717,7 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
     const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
     if (!team) continue;
     byGuild.set(guildId, {
-      authority: String(row.notes ?? "").replace(/^Authority:\s*/i, ""),
+      authority: String(row.notes ?? ""),
       team,
       isCfb: gameByLeague.get(row.league_id) === "cfb_27",
     });
@@ -750,7 +750,7 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
       await setGuildMemberNickname(
         guildId,
         input.toDiscordId,
-        shortTeamNickname(spec.team, spec.isCfb),
+        buildManagedTeamNickname(shortTeamNickname(spec.team, spec.isCfb), spec.authority),
         "REC Discord account replaced — nickname set to current team",
       ).catch((error) => console.error(`[WARN] Failed to set nickname on new Discord ${input.toDiscordId} in ${guildId} (non-fatal):`, error));
     }
@@ -759,9 +759,8 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
 }
 
 /** Retroactive bulk fix — every currently-linked member's nickname gets force-set to their
- * team name, regardless of whether the original linkUserToTeam/join-catch-up call silently
- * failed. Unlike those best-effort call sites, failures here are reported per-user instead of
- * swallowed, since "the bot isn't touching nicknames at all" needs a real reason (most likely:
+ * team name plus the Co-Commish/Commissioner suffix the bot uses on link. Failures here are
+ * reported per-user instead of swallowed, since "the bot isn't touching nicknames at all" needs a real reason (most likely:
  * the bot's own role sits below the target member's highest role in the server's role list —
  * Discord blocks nickname/role changes on anyone positioned at or above the acting bot
  * regardless of the bot having Administrator, and never allows renaming the server owner at
@@ -806,7 +805,7 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
     }
     const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
     if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); return; }
-    const nickname = shortTeamNickname(team, isCfb);
+    const nickname = buildManagedTeamNickname(shortTeamNickname(team, isCfb), row.notes);
     try {
       await setGuildMemberNickname(guildId, discordId, nickname, "REC nickname resync (retroactive)");
       synced.push({ discordId, nickname });
