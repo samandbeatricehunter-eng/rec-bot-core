@@ -2,6 +2,7 @@ import type { RecManagedRoleKey } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { addMemberRole, ensureManagedRoleId, listGuildMembers, removeMemberRole, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildManagedTeamNickname } from "../team-ownership/assignment-authority.js";
 
 export async function listRoleMgmtMembers(guildId: string) {
