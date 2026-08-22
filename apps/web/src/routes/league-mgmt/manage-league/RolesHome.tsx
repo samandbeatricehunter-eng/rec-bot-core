@@ -24,7 +24,7 @@ export function RolesHome() {
     try { await recApi.setMemberRole({ guildId, discordId: member.discordId, roleKey }); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Failed to change role."); } finally { setBusy(null); }
   }
-  return <div><PageHeader title="Roles" subtitle="Linked users grouped by their current REC role. Changes save immediately. Use Tools to resync nicknames or reconcile Discord roles." />
+  return <div><PageHeader title="Roles" subtitle="Linked users grouped by their current REC role. Changes save immediately. Role changes, nickname resync, and Discord reconcile also live under Tools." />
     {error && <ErrorState message={error} />}{!members && !error && <LoadingState />}
     <div style={{ display: "grid", gap: "var(--space-4)" }}>{groups.map(([role, rows]) => <Card key={role}><h3 style={{ marginTop: 0 }}>{LABELS[role]} ({rows.length})</h3>
       <div style={{ display: "grid", gap: "var(--space-3)" }}>{rows.map((member) => <div key={member.discordId} className="inline-admin-row">
