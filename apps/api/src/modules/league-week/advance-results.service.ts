@@ -855,6 +855,19 @@ export async function completeAdvanceWeek(input: {
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
 
+    // Keep rec_games in sync so Hub matchups / import audit see the same scores as official
+    // results. Advance used to write rec_game_results only, leaving rec_games scheduled with
+    // null scores — weeks looked "missing" even after the commissioner confirmed them.
+    const gameUpdate = await supabase.from("rec_games").update({
+      home_score: homeScore,
+      away_score: awayScore,
+      status: "completed",
+      updated_at: now,
+    }).eq("id", game.data.id);
+    if (gameUpdate.error) {
+      console.error("[ERROR] Failed to stamp rec_games scores during advance (non-fatal):", gameUpdate.error);
+    }
+
     // Settle any GOTW poll tied to this game against the real result (idempotent — a no-op
     // if box-score approval or manual score entry already settled it earlier). Force Wins are
     // predetermined, so those polls are voided instead of logged to records/payouts. Fair Sims

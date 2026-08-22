@@ -654,6 +654,108 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
   return { synced: true };
 }
 
+function isRealDiscordSnowflake(discordId: string | null | undefined): boolean {
+  const value = String(discordId ?? "");
+  return /^\d{5,}$/.test(value) && !isSiteOnlyDiscordId(value);
+}
+
+function managedRoleKeysForAuthority(authority: string | null | undefined): AssignableRoleKey[] {
+  const key = authorityToRoleKey(authority);
+  if (key === "commissioner") return ["member", "compCommittee", "commissioner"];
+  if (key === "compCommittee") return ["member", "compCommittee"];
+  return ["member"];
+}
+
+/**
+ * After a Discord snowflake swap (My Account replace, unlink, or commissioner relink),
+ * strip REC managed roles/nickname from the old id and apply the current team assignment
+ * to the new id across every linked league server.
+ */
+export async function resyncDiscordGuildIdentityAfterTransfer(input: {
+  userId: string;
+  fromDiscordId: string;
+  toDiscordId: string;
+}): Promise<{ guilds: number }> {
+  const fromReal = isRealDiscordSnowflake(input.fromDiscordId);
+  const toReal = isRealDiscordSnowflake(input.toDiscordId);
+  if (!fromReal && !toReal) return { guilds: 0 };
+
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("league_id,notes,team:rec_teams(name,display_nick,is_relocated)")
+    .eq("user_id", input.userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (assignments.error) {
+    throw new ApiError(500, "We couldn't load team assignments for Discord role sync. Please try again.", assignments.error);
+  }
+  const rows = assignments.data ?? [];
+  if (!rows.length) return { guilds: 0 };
+
+  const leagueIds = [...new Set(rows.map((row) => row.league_id).filter(Boolean))];
+  const [links, leagues] = await Promise.all([
+    supabase.from("rec_server_league_links").select("league_id,server:rec_discord_servers(guild_id)").in("league_id", leagueIds).eq("is_primary", true),
+    supabase.from("rec_leagues").select("id,game").in("id", leagueIds),
+  ]);
+  if (links.error) throw new ApiError(500, "We couldn't load league Discord servers for role sync. Please try again.", links.error);
+  if (leagues.error) throw new ApiError(500, "We couldn't load leagues for Discord role sync. Please try again.", leagues.error);
+
+  const guildByLeague = new Map<string, string>();
+  for (const link of links.data ?? []) {
+    const server = Array.isArray((link as any).server) ? (link as any).server[0] : (link as any).server;
+    const guildId = server?.guild_id ? String(server.guild_id) : "";
+    if (guildId) guildByLeague.set(String(link.league_id), guildId);
+  }
+  const gameByLeague = new Map((leagues.data ?? []).map((row) => [row.id, String(row.game ?? "")]));
+
+  const byGuild = new Map<string, { authority: string; team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null }; isCfb: boolean }>();
+  for (const row of rows) {
+    const guildId = guildByLeague.get(row.league_id);
+    if (!guildId) continue;
+    const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
+    if (!team) continue;
+    byGuild.set(guildId, {
+      authority: String(row.notes ?? "").replace(/^Authority:\s*/i, ""),
+      team,
+      isCfb: gameByLeague.get(row.league_id) === "cfb_27",
+    });
+  }
+
+  for (const [guildId, spec] of byGuild) {
+    const roleIds = await Promise.all(
+      (["member", "compCommittee", "commissioner", "discordOnly"] as const).map(async (key) => {
+        const roleId = await bestEffort("discord.ensure_managed_role", () => ensureManagedRoleId(guildId, key), { guildId });
+        return [key, roleId] as const;
+      }),
+    );
+    const roleIdByKey = new Map(roleIds);
+    if (fromReal) {
+      for (const [, roleId] of roleIdByKey) {
+        if (!roleId) continue;
+        await removeMemberRole(guildId, input.fromDiscordId, roleId, "REC Discord account replaced — clearing managed role on previous account")
+          .catch((error) => console.error(`[WARN] Failed to clear managed role on previous Discord ${input.fromDiscordId} in ${guildId} (non-fatal):`, error));
+      }
+      await setGuildMemberNickname(guildId, input.fromDiscordId, "", "REC Discord account replaced — clearing nickname on previous account")
+        .catch((error) => console.error(`[WARN] Failed to clear nickname on previous Discord ${input.fromDiscordId} in ${guildId} (non-fatal):`, error));
+    }
+    if (toReal) {
+      for (const key of managedRoleKeysForAuthority(spec.authority)) {
+        const roleId = roleIdByKey.get(key);
+        if (!roleId) continue;
+        await addMemberRole(guildId, input.toDiscordId, roleId, "REC Discord account replaced — applying current team role")
+          .catch((error) => console.error(`[WARN] Failed to add managed role on new Discord ${input.toDiscordId} in ${guildId} (non-fatal):`, error));
+      }
+      await setGuildMemberNickname(
+        guildId,
+        input.toDiscordId,
+        shortTeamNickname(spec.team, spec.isCfb),
+        "REC Discord account replaced — nickname set to current team",
+      ).catch((error) => console.error(`[WARN] Failed to set nickname on new Discord ${input.toDiscordId} in ${guildId} (non-fatal):`, error));
+    }
+  }
+  return { guilds: byGuild.size };
+}
+
 /** Retroactive bulk fix — every currently-linked member's nickname gets force-set to their
  * team name, regardless of whether the original linkUserToTeam/join-catch-up call silently
  * failed. Unlike those best-effort call sites, failures here are reported per-user instead of
@@ -906,9 +1008,6 @@ export async function relinkLeagueMemberDiscord(input: {
     username: nextMember.username,
     globalName: nextMember.displayName,
     reason: `Commissioner relinked Discord in guild ${input.guildId} so league data stays on the same REC user.`,
-  });
-  await syncMemberForGuildJoin(input.guildId, toId).catch((error) => {
-    console.error("[WARN] Failed to resync nickname/roles after Discord relink (non-fatal):", error);
   });
   return { ...result, displayName: nextMember.displayName, username: nextMember.username };
 }

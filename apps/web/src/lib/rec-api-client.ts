@@ -176,7 +176,14 @@ async function recApiFetchNetwork<T>(path: string, init?: RequestInit): Promise<
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`REC API request failed: ${response.status} ${body}`);
+    let apiError: string | null = null;
+    try {
+      const parsed = JSON.parse(body) as { error?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) apiError = parsed.error.trim();
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(apiError ?? `REC API request failed: ${response.status} ${body}`);
   }
   return response.json() as Promise<T>;
 }

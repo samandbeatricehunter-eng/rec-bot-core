@@ -3,6 +3,7 @@ import { canonicalizeStatPayload, normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
 import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
 import { mapEaTeamWeeklyStats } from "./team-stats-map.js";
+import { abbreviationMatchValues, preferredRecAbbreviation } from "./team-identity.js";
 import { eaScheduleExternalId } from "../madden-ea/ea-weeks.js";
 import { normalizeImportedEaUsername } from "../madden-ea/ea-datasets.js";
 
@@ -71,18 +72,35 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
   if (!sourceId) return;
   const name = text(row, ["displayName", "display_name", "fullName", "full_name", "name", "teamName", "team_name"]);
   const abbreviation = text(row, ["abbrName", "abbr_name", "abbreviation", "abbr", "teamAbbr"]);
+  const nickName = text(row, ["nickName", "nick_name", "nick"]);
+  const cityName = text(row, ["cityName", "city_name", "city", "displayCity", "display_city"]);
+  const cityNick = cityName && (nickName || name) ? `${cityName} ${nickName || name}` : null;
+  const abbrAliases = abbreviationMatchValues(abbreviation);
+  const storedAbbr = preferredRecAbbreviation(abbreviation);
   const existing = await client.query<{ id: string }>(
-    `select id from rec_teams where league_id=$1 and (madden_team_id=$2 or ($3::text is not null and abbreviation=$3) or ($4::text is not null and name=$4)) order by (madden_team_id=$2) desc limit 1`,
-    [leagueId, sourceId, abbreviation, name],
+    `select id from rec_teams
+      where league_id=$1 and (
+        madden_team_id=$2
+        or ($3::text is not null and upper(abbreviation) = any($6::text[]))
+        or ($4::text is not null and lower(name) = lower($4))
+        or ($5::text is not null and (
+             lower(name) = lower($5)
+             or lower(name) like '% ' || lower($5)
+             or lower(coalesce(display_nick, '')) = lower($5)
+           ))
+        or ($7::text is not null and lower(name) = lower($7))
+      )
+      order by (madden_team_id=$2) desc
+      limit 1`,
+    [leagueId, sourceId, abbreviation, name, nickName || name, abbrAliases, cityNick],
   );
   if (existing.rows[0]) {
     const eaUsername = normalizeImportedEaUsername(text(row, ["userName", "user_name", "gamertag", "gamerTag"]));
     await client.query(
       `update rec_teams set madden_team_id=$3,
-       name=case when is_relocated then name else coalesce($4,name) end,
-       abbreviation=coalesce($5,abbreviation),
-       conference=coalesce($6,conference), division=coalesce($7,division), ea_username=$8, updated_at=now() where id=$1 and league_id=$2`,
-      [existing.rows[0].id, leagueId, sourceId, name, abbreviation, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
+       abbreviation=coalesce(abbreviation, $4),
+       conference=coalesce($5,conference), division=coalesce($6,division), ea_username=$7, updated_at=now() where id=$1 and league_id=$2`,
+      [existing.rows[0].id, leagueId, sourceId, storedAbbr, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
     );
   }
 }

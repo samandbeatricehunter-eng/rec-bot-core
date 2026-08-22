@@ -36,6 +36,8 @@ export type ImportAuditGame = {
   home_score: number | null;
   away_score: number | null;
   phase: string | null;
+  home_team_id?: string | null;
+  away_team_id?: string | null;
   home_team_name: string;
   away_team_name: string;
   has_score: boolean;
@@ -43,6 +45,11 @@ export type ImportAuditGame = {
   team_stat_rows: number;
   week_has_player_stats: boolean;
 };
+
+function gameHasBothTeams(row: ImportAuditGame) {
+  if (row.home_team_id === null || row.away_team_id === null) return false;
+  return true;
+}
 
 function gameIsCompleted(row: ImportAuditGame) {
   const status = String(row.status ?? "").toLowerCase();
@@ -66,6 +73,7 @@ export function buildImportAuditWeeks(input: {
     byWeek.set(week, []);
   }
   for (const game of input.games) {
+    if (!gameHasBothTeams(game)) continue;
     const list = byWeek.get(game.week_number);
     if (list) list.push(game);
   }

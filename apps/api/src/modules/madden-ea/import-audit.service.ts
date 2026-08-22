@@ -26,6 +26,8 @@ export async function auditEaImportData(guildId: string, leagueId: string): Prom
         g.home_score,
         g.away_score,
         g.phase,
+        g.home_team_id,
+        g.away_team_id,
         coalesce(nullif(trim(concat_ws(' ', ht.display_city, ht.display_nick)), ''), ht.name, 'Home') as home_team_name,
         coalesce(nullif(trim(concat_ws(' ', at.display_city, at.display_nick)), ''), at.name, 'Away') as away_team_name,
         (g.home_score is not null and g.away_score is not null) as has_score,
@@ -52,6 +54,8 @@ export async function auditEaImportData(guildId: string, leagueId: string): Prom
       where g.league_id = $1
         and g.week_number between 1 and $2
         and g.week_number <> 22
+        and g.home_team_id is not null
+        and g.away_team_id is not null
         and (
           ($3::boolean and coalesce(g.phase, 'preseason') = 'preseason')
           or (not $3::boolean and coalesce(g.phase, 'regular_season') <> 'preseason')

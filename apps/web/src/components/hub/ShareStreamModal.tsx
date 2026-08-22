@@ -67,28 +67,27 @@ export function ShareStreamModal({
             {busy ? "Sharing…" : `Post my ${preferred.platform} stream`}
           </Button>
         </div>
-      ) : (
-        <div className="form-field">
-          <label className="form-label" htmlFor="share-stream-url">Stream URL</label>
-          <input
-            id="share-stream-url"
-            className="form-input"
-            type="url"
-            placeholder="https://twitch.tv/yourchannel"
-            value={url}
-            disabled={busy}
-            onChange={(event) => setUrl(event.target.value)}
-          />
-          <p className="form-hint">
-            Posts to this league&apos;s Discord streams channel (if linked), a {buzzLabel} Chat notice,
-            and the Live Games board — plus a payout review if you&apos;re eligible this week.
-            Link Twitch, YouTube, or TikTok under My Account → Linked accounts to skip pasting a URL.
-          </p>
-          <Button variant="primary" onClick={() => void handleSubmit(false)} disabled={!url.trim() || busy}>
-            {busy ? "Sharing…" : "Share Stream"}
-          </Button>
-        </div>
-      )}
+      ) : null}
+      <div className="form-field">
+        <label className="form-label" htmlFor="share-stream-url">Stream URL</label>
+        <input
+          id="share-stream-url"
+          className="form-input"
+          type="url"
+          placeholder="https://twitch.tv/yourchannel"
+          value={url}
+          disabled={busy}
+          onChange={(event) => setUrl(event.target.value)}
+        />
+        <p className="form-hint">
+          {preferred
+            ? "Or paste a different stream URL."
+            : `Posts to this league's Discord streams channel (if linked), a ${buzzLabel} Chat notice, and the Live Games board — plus a payout review if you're eligible this week. Link Twitch, YouTube, or TikTok under My Account → Linked accounts to skip pasting a URL.`}
+        </p>
+        <Button variant="primary" onClick={() => void handleSubmit(false)} disabled={!url.trim() || busy}>
+          {busy ? "Sharing…" : "Share Stream"}
+        </Button>
+      </div>
     </Modal>
   );
 }
