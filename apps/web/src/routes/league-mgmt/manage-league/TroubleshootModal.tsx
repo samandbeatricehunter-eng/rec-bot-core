@@ -180,6 +180,7 @@ function DiscordRolesPanel({ guildId }: { guildId: string }) {
       <p className="form-hint" style={{ marginTop: 0 }}>
         Promote or demote linked coaches between Member and Co-Commish. After a Discord swap, run
         Reconcile Roles and Resync Nicknames so the new account gets the right Discord role and team nick.
+        Resync skips the head commissioner — Discord does not let the bot change that nickname.
       </p>
       {error && <ErrorState message={error} />}
       {!members && !error && <LoadingState label="Loading linked coaches…" />}
@@ -233,6 +234,13 @@ function DiscordRolesPanel({ guildId }: { guildId: string }) {
           <p className="form-hint" style={{ margin: 0 }}>
             Nicknames: <strong>{resyncResult.synced.length}</strong> updated, <strong>{resyncResult.failed.length}</strong> failed, <strong>{resyncResult.skipped.length}</strong> skipped.
           </p>
+          {resyncResult.skipped.length > 0 && (
+            <ul style={{ color: "var(--text-secondary)", margin: "8px 0 0" }}>
+              {resyncResult.skipped.map((row) => (
+                <li key={row.discordId}>&lt;@{row.discordId}&gt;: {row.reason}</li>
+              ))}
+            </ul>
+          )}
           {resyncResult.failed.length > 0 && (
             <ul style={{ color: "var(--danger, #e05252)", margin: "8px 0 0" }}>
               {resyncResult.failed.map((row) => (
