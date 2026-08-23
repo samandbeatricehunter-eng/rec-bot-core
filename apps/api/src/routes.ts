@@ -5,6 +5,7 @@ import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { promoCodeRoutes } from "./modules/promo-codes/promo-codes.routes.js";
 import { rankingsRoutes } from "./modules/rankings/rankings.routes.js";
 import { compRoutes } from "./modules/comp/comp.routes.js";
+import { tournamentRoutes } from "./modules/tournaments/tournaments.routes.js";
 import { moderationRoutes } from "./modules/moderation/moderation.routes.js";
 import { activeCheckRoutes } from "./modules/active-checks/active-checks.routes.js";
 import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
@@ -138,5 +139,6 @@ export async function registerRoutes(app: FastifyInstance) {
   await promoCodeRoutes(app);
   await rankingsRoutes(app);
   await compRoutes(app);
+  await tournamentRoutes(app);
   await moderationRoutes(app);
 }

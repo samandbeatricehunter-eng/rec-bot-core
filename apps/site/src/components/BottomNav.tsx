@@ -24,6 +24,7 @@ export type BottomNavLayout = "bottom" | "sidebar";
 
 function isActivePath(pathname: string, to: string) {
   if (to === "/home") return pathname === "/home" || pathname === "/";
+  if (to === "/tournaments") return pathname === "/tournaments" || pathname.startsWith("/tournaments/") || pathname === "/comp" || pathname.startsWith("/comp/");
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
@@ -34,7 +35,7 @@ function globalItems(unreadMessages: number): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-    { key: "comp", label: "Comp (BETA)", to: "/comp", icon: <IconComp /> },
+    { key: "comp", label: "Tournaments", to: "/tournaments", icon: <IconComp /> },
     { key: "messages", label: "Messages", to: "/inbox", icon: <IconInbox />, badge: unreadMessages },
     {
       key: "account",
@@ -71,7 +72,7 @@ export function BottomNav({ layout = "bottom" }: { layout?: BottomNavLayout }) {
     }
   }
 
-  const showLabelsAlways = layout === "sidebar";
+  const showLabelsAlways = true;
   const navClass = layout === "sidebar" ? "site-sidebar-nav" : "site-bottom-nav";
   const btnClass = layout === "sidebar" ? "site-sidebar-nav-btn" : "site-bottom-nav-btn";
 

@@ -14,7 +14,7 @@ type StandingsState = { demo: boolean; phaseLabel?: string; standings: Array<{ t
 type DraftPlayer = { id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> };
 
 const mainLinks = [
-  [Home, "Home"], [Globe2, "Leagues"], [Trophy, "Comp (BETA)"], [MessageSquare, "Messages"], [UserRound, "My Account"],
+  [Home, "Home"], [Globe2, "Leagues"], [Trophy, "Tournaments"], [MessageSquare, "Messages"], [UserRound, "My Account"],
 ] as const;
 
 const draftColumns = ["SPD", "ACC", "STR", "AGI", "AWR", "JMP", "INJ", "STA", "TOU", "THP", "TUP", "SAC", "MAC", "DAC", "CAT", "CIT", "SPC", "CAR", "BTK", "COD", "TKL", "POW", "BSH", "MCV", "ZCV", "PBK", "RBK"];

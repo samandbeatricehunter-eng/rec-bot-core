@@ -1,4 +1,4 @@
-import { CFB_27_TEAMS, stageLabel } from "@rec/shared";
+import { CFB_27_TEAMS, stageHasScheduledGames, stageLabel } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
@@ -56,6 +56,13 @@ export type SiteLeagueSummary = {
   discordBotEnabled: boolean;
   /** Discord guild id, or a site-only synthetic id when the league has no Discord server. */
   guildId: string;
+  maxMembers: number;
+  memberCount: number;
+  seasonStage: string;
+  seasonStageLabel: string;
+  currentWeek: number | null;
+  matchupKind: "h2h" | "cpu" | "bye" | "offseason" | "none";
+  matchupLabel: string;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -164,8 +171,95 @@ export async function listMySiteLeagues(input: {
       commissionerRole,
       discordBotEnabled: Boolean(row.discord_bot_enabled),
       guildId: row.guild_id ?? siteOnlyGuildId(row.id),
+      maxMembers: 32,
+      memberCount: 0,
+      seasonStage: "regular_season",
+      seasonStageLabel: "Week 1",
+      currentWeek: null,
+      matchupKind: "none",
+      matchupLabel: "No matchup",
     };
   });
+
+  if (leagues.length) {
+    const extra = await getPgPool().query(
+      `
+        select
+          l.id,
+          coalesce(l.max_members, 32)::int as max_members,
+          l.season_stage,
+          l.current_week,
+          l.game,
+          (
+            select count(distinct user_id)::int
+            from (
+              select ta.user_id
+              from rec_team_assignments ta
+              where ta.league_id = l.id
+                and ta.assignment_status = 'active'
+                and ta.ended_at is null
+                and ta.user_id is not null
+              union
+              select m.user_id
+              from rec_league_memberships m
+              where m.league_id = l.id
+            ) members
+          ) as member_count,
+          ta.team_id,
+          g.id as game_id,
+          g.home_team_id,
+          g.away_team_id,
+          g.home_user_id,
+          g.away_user_id,
+          home_t.name as home_team_name,
+          away_t.name as away_team_name
+        from rec_leagues l
+        left join rec_team_assignments ta
+          on ta.league_id = l.id
+          and ta.user_id = $2
+          and ta.assignment_status = 'active'
+          and ta.ended_at is null
+        left join rec_games g
+          on g.league_id = l.id
+          and g.week_number = l.current_week
+          and ta.team_id is not null
+          and (g.home_team_id = ta.team_id or g.away_team_id = ta.team_id)
+        left join rec_teams home_t on home_t.id = g.home_team_id
+        left join rec_teams away_t on away_t.id = g.away_team_id
+        where l.id = any($1::uuid[])
+      `,
+      [leagues.map((league) => league.id), input.recUserId],
+    );
+    const byId = new Map(extra.rows.map((row) => [String(row.id), row]));
+    for (const league of leagues) {
+      const row = byId.get(league.id);
+      if (!row) continue;
+      const game = String(row.game ?? league.game);
+      const stage = String(row.season_stage ?? "regular_season");
+      const week = row.current_week == null ? null : Number(row.current_week);
+      league.maxMembers = Number(row.max_members ?? 32);
+      league.memberCount = Number(row.member_count ?? 0);
+      league.seasonStage = stage;
+      league.currentWeek = week;
+      league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
+      if (!stageHasScheduledGames(stage, game)) {
+        league.matchupKind = "offseason";
+        league.matchupLabel = "Offseason";
+      } else if (!row.team_id) {
+        league.matchupKind = "none";
+        league.matchupLabel = "No team assigned";
+      } else if (!row.game_id) {
+        league.matchupKind = "bye";
+        league.matchupLabel = "Bye week";
+      } else {
+        const isHome = String(row.home_team_id) === String(row.team_id);
+        const opponent = isHome ? String(row.away_team_name ?? "Opponent") : String(row.home_team_name ?? "Opponent");
+        const h2h = Boolean(row.home_user_id) && Boolean(row.away_user_id);
+        league.matchupKind = h2h ? "h2h" : "cpu";
+        league.matchupLabel = `${isHome ? "vs" : "@"} ${opponent}`;
+      }
+    }
+  }
 
   leagues.sort((a, b) => a.name.localeCompare(b.name));
   return { leagues };
