@@ -345,6 +345,13 @@ export type SiteLeagueSummary = {
   discordBotEnabled: boolean;
   /** Discord guild id, or a site-only synthetic id when the league has no Discord server. */
   guildId?: string | null;
+  maxMembers?: number;
+  memberCount?: number;
+  seasonStage?: string;
+  seasonStageLabel?: string;
+  currentWeek?: number | null;
+  matchupKind?: "h2h" | "cpu" | "bye" | "offseason" | "none";
+  matchupLabel?: string;
 };
 
 export type SiteLeagueTickerItem = {
@@ -1134,6 +1141,39 @@ export const siteApi = {
   listPowerRankings(input: { game: string; scope: "dynasty" | "comp" }) {
     return request<{ rankings: PowerRankingRow[]; asOf: string | null }>("/v1/rankings/list", input);
   },
+  listTournaments() {
+    return request<{ tournaments: SiteTournamentSummary[]; isAdmin: boolean }>("/v1/tournaments/list", {});
+  },
+  getTournament(tournamentId: string) {
+    return request<SiteTournamentDetail & { isAdmin: boolean }>("/v1/tournaments/get", { tournamentId });
+  },
+  createTournament(input: {
+    title: string;
+    description?: string | null;
+    game: "madden_26" | "madden_27" | "cfb_27";
+    bracketType: string;
+    payoutScope: "winner" | "final_two" | "final_four";
+    winnerCoins: number;
+    runnerUpCoins?: number;
+    semifinalistCoins?: number;
+  }) {
+    return request<{ tournament: SiteTournamentSummary }>("/v1/tournaments/create", input);
+  },
+  cancelTournament(tournamentId: string) {
+    return request<{ ok: true }>("/v1/tournaments/cancel", { tournamentId });
+  },
+  lockTournament(tournamentId: string) {
+    return request<SiteTournamentDetail>("/v1/tournaments/lock", { tournamentId });
+  },
+  joinTournament(tournamentId: string) {
+    return request<SiteTournamentDetail>("/v1/tournaments/join", { tournamentId });
+  },
+  leaveTournament(tournamentId: string) {
+    return request<SiteTournamentDetail>("/v1/tournaments/leave", { tournamentId });
+  },
+  reportTournamentWinner(input: { tournamentId: string; matchId: string; winnerUserId: string }) {
+    return request<SiteTournamentDetail>("/v1/tournaments/report-winner", input);
+  },
   listCompUsers(input: { page?: number } = {}) {
     return request<{ users: CompUserSummary[]; page: number; pageSize: number; total: number }>(
       "/v1/comp/users/list",
@@ -1360,6 +1400,45 @@ export type PublicLeagueHistory = {
   league: { name: string; game: string | null };
   currentSeason: number;
   seasons: PublicLeagueHistorySeason[];
+};
+
+export type SiteTournamentSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  game: string;
+  bracketType: string;
+  bracketLabel: string;
+  bracketSize: number | null;
+  payoutScope: "winner" | "final_two" | "final_four";
+  winnerCoins: number;
+  runnerUpCoins: number;
+  semifinalistCoins: number;
+  status: string;
+  startsAt: string | null;
+  createdAt: string;
+  lockedAt: string | null;
+  completedAt: string | null;
+  payoutsIssuedAt: string | null;
+  entrantCount: number;
+  joined: boolean;
+};
+
+export type SiteTournamentDetail = {
+  tournament: SiteTournamentSummary;
+  entrants: Array<{ userId: string; seed: number | null; displayName: string; isYou: boolean }>;
+  matches: Array<{
+    id: string;
+    key: string;
+    side: "winners" | "losers" | "grand_final";
+    round: number;
+    slot: number;
+    status: string;
+    playerA: { userId: string; displayName: string } | null;
+    playerB: { userId: string; displayName: string } | null;
+    winnerUserId: string | null;
+    winnerDisplayName: string | null;
+  }>;
 };
 
 export type CompUserSummary = {

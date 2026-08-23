@@ -6,24 +6,16 @@ import {
   type PowerRankingRow,
 } from "../lib/site-api.js";
 
-type CompTab = "rankings" | "queue" | "tournaments" | "live" | "users";
+import { TournamentsPanel } from "./TournamentsPanel.js";
+
+type CompTab = "tournaments" | "rankings" | "queue" | "users";
 
 const TABS: Array<{ id: CompTab; label: string }> = [
+  { id: "tournaments", label: "Tournaments" },
   { id: "rankings", label: "Rankings" },
   { id: "queue", label: "Matchup Queue" },
-  { id: "tournaments", label: "Tournaments" },
-  { id: "live", label: "Live Games" },
   { id: "users", label: "Users" },
 ];
-
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="site-page-card">
-      <h2>{title}</h2>
-      <p className="site-muted">Coming soon — this ships with the H2H Comp matchmaking queue.</p>
-    </div>
-  );
-}
 
 function movementLabel(row: PowerRankingRow): string {
   if (row.previousRank == null) return "NEW";
@@ -551,11 +543,11 @@ function UsersTab() {
 }
 
 export function CompPage() {
-  const [tab, setTab] = useState<CompTab>("rankings");
+  const [tab, setTab] = useState<CompTab>("tournaments");
 
   return (
     <div className="site-page">
-      <div className="site-hero-switcher" role="tablist" aria-label="Comp sections" style={{ margin: "0 auto var(--space-4)" }}>
+      <div className="site-hero-switcher" role="tablist" aria-label="Tournaments sections" style={{ margin: "0 auto var(--space-4)" }}>
         {TABS.map((item) => (
           <button
             key={item.id}
@@ -570,10 +562,9 @@ export function CompPage() {
         ))}
       </div>
 
+      {tab === "tournaments" ? <TournamentsPanel /> : null}
       {tab === "rankings" ? <RankingsTab /> : null}
       {tab === "queue" ? <MatchupQueueTab /> : null}
-      {tab === "tournaments" ? <ComingSoon title="Tournaments" /> : null}
-      {tab === "live" ? <ComingSoon title="Live Games" /> : null}
       {tab === "users" ? <UsersTab /> : null}
     </div>
   );

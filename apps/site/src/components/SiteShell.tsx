@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav.js";
 import { DesktopSidebar } from "./DesktopSidebar.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
-import { LeagueSelector } from "./LeagueSelector.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { SiteFooter } from "./SiteFooter.js";
@@ -49,7 +48,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </main>
 
       <div className="site-chrome-stack site-chrome-stack-mobile">
-        <LeagueSelector />
         <BottomNav />
       </div>
 

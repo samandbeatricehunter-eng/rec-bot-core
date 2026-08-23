@@ -41,6 +41,7 @@ export function HeroCard({
   card: SiteHomeCard | null;
 }) {
   const [tab, setTab] = useState<HeroTab>("profile");
+  const [expanded, setExpanded] = useState(false);
   const [careerGames, setCareerGames] = useState<CareerGame[] | null>(null);
   const [gamesLoading, setGamesLoading] = useState(false);
 
@@ -59,7 +60,21 @@ export function HeroCard({
   const perf = card?.performanceRecord;
 
   return (
-    <section className="site-home-hero">
+    <section className={["site-home-hero", expanded ? "is-expanded" : "is-collapsed"].join(" ")}>
+      <button
+        type="button"
+        className="site-home-hero-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span>
+          <strong>{card?.username ? `@${card.username}` : displayName}</strong>
+          <small>{card?.globalRecord?.text ?? "0-0"} · {card?.leaguesActivity?.activeLeagues ?? 0} leagues</small>
+        </span>
+        <span className="site-home-hero-toggle-label">{expanded ? "Hide profile" : "Show profile"}</span>
+      </button>
+      {expanded ? (
+        <>
       <div className="site-hero-switcher" role="tablist" aria-label="Hero card view">
         <button type="button" role="tab" aria-selected={tab === "profile"} className={tab === "profile" ? "is-active" : ""} onClick={() => openTab("profile")}>
           {card?.username ? `@${card.username}` : "Profile"}
@@ -161,6 +176,8 @@ export function HeroCard({
             <p className="site-muted">No box-score career stats logged yet.</p>
           )}
         </div>
+      ) : null}
+        </>
       ) : null}
     </section>
   );

@@ -249,7 +249,8 @@ function Routed() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/discord-guild-picker" element={<DiscordGuildPicker />} />
-        <Route path="/comp" element={<CompPage />} />
+        <Route path="/tournaments" element={<CompPage />} />
+        <Route path="/comp" element={<Navigate replace to="/tournaments" />} />
         <Route path="/account" element={<Account />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/inbox" element={<Inbox />} />

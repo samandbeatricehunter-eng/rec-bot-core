@@ -9,6 +9,7 @@ export * from "./cfb-team-colors.generated.js";
 export * from "./cfb-rivalries.generated.js";
 export * from "./conferences.js";
 export * from "./league-stage.js";
+export * from "./tournaments.js";
 export * from "./discord-roles.js";
 export * from "./discord-identity.js";
 export * from "./nfl-schedules.js";
