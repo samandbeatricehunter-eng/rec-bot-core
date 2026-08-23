@@ -55,6 +55,7 @@ import {
 } from "./tournament-lottery.service.js";
 import {
   addTournamentUser,
+  approveTournamentMatchResult,
   cancelTournament,
   createTournament,
   getTournamentDetail,
@@ -62,10 +63,12 @@ import {
   leaveTournament,
   listMyTournamentHome,
   listTournamentHighlights,
+  listTournamentMatchReviewQueue,
   listTournamentRounds,
   listTournamentTicker,
   listTournaments,
   lockTournamentBracket,
+  rejectTournamentMatchResult,
   reportTournamentWinner,
   resolveKnownGamerTag,
   reviewTournamentHighlight,
@@ -263,7 +266,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
         tournamentId: z.string().uuid(),
         matchId: z.string().uuid(),
         winnerUserId: z.string().uuid(),
-        resultMethod: z.enum(["final_screenshot", "concede"]),
+        resultMethod: z.enum(["final_screenshot", "concede", "opponent_quit"]),
         screenshotUrl: z.string().url(),
         concededByUserId: z.string().uuid().optional().nullable(),
         playerAScore: z.number().int().min(0).max(200).optional().nullable(),
@@ -673,6 +676,37 @@ export async function tournamentRoutes(app: FastifyInstance) {
       await requireSiteAdmin(request);
       const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(await importLibraryRosters(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/matches/review-queue", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      return reply.send(await listTournamentMatchReviewQueue());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/matches/approve", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const admin = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await approveTournamentMatchResult({ recUserId: admin.recUserId, matchId: body.matchId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/matches/reject", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const admin = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await rejectTournamentMatchResult({ recUserId: admin.recUserId, matchId: body.matchId }));
     } catch (error) {
       return sendError(reply, error);
     }

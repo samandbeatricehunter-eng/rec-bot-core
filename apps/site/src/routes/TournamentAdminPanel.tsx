@@ -9,10 +9,94 @@ import {
   type SiteRosterLibrary,
   type SiteTournamentDetail,
   type SiteTournamentHighlight,
+  type SiteTournamentMatchReview,
   type SiteTournamentSummary,
   type SiteTournamentTeamOption,
 } from "../lib/site-api.js";
 import { CreateTournamentForm, gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
+
+function resultMethodLabel(method: string | null): string {
+  if (method === "concede") return "Opponent conceded";
+  if (method === "opponent_quit") return "Opponent quit out";
+  if (method === "final_screenshot") return "Final score screenshot";
+  return "Result";
+}
+
+function MatchReviewQueue() {
+  const [queue, setQueue] = useState<SiteTournamentMatchReview[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reload() {
+    const result = await siteApi.listTournamentMatchReviewQueue();
+    setQueue(result.queue);
+  }
+
+  useEffect(() => { void reload(); }, []);
+
+  async function act(matchId: string, run: () => Promise<unknown>) {
+    setBusyId(matchId);
+    setError(null);
+    try {
+      await run();
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That action failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (!queue.length) return null;
+
+  return (
+    <div className="site-tournament-review-queue">
+      <h3>Match Results — Awaiting Review ({queue.length})</h3>
+      {error ? <p className="site-auth-error">{error}</p> : null}
+      <ul className="site-tournament-review-list">
+        {queue.map((item) => {
+          const winner = item.winnerUserId === item.playerA.userId ? item.playerA : item.playerB;
+          const loser = item.winnerUserId === item.playerA.userId ? item.playerB : item.playerA;
+          return (
+            <li key={item.matchId} className="site-tournament-review-card">
+              <div>
+                <strong>{item.tournamentTitle}</strong>
+                <span className="site-muted"> · {item.playerA.displayName}{item.playerA.teamName ? ` (${item.playerA.teamName})` : ""} vs {item.playerB.displayName}{item.playerB.teamName ? ` (${item.playerB.teamName})` : ""}</span>
+              </div>
+              <p className="site-muted">
+                {resultMethodLabel(item.resultMethod)} — <strong>{winner.displayName}</strong> won
+                {item.playerAScore != null && item.playerBScore != null ? ` (${item.playerAScore}–${item.playerBScore})` : ""}
+                {item.resultMethod !== "final_screenshot" ? ` · ${loser.displayName} ${item.resultMethod === "concede" ? "conceded" : "quit out"}` : ""}
+                {" · submitted "}{new Date(item.submittedAt).toLocaleString()}
+              </p>
+              {item.screenshotUrl ? (
+                <a href={item.screenshotUrl} target="_blank" rel="noreferrer">
+                  <img src={item.screenshotUrl} alt="Submitted result screenshot" className="site-tournament-review-screenshot" />
+                </a>
+              ) : null}
+              <div className="site-profile-actions">
+                <button
+                  className="site-btn site-btn-primary"
+                  disabled={busyId === item.matchId}
+                  onClick={() => void act(item.matchId, () => siteApi.approveTournamentMatchResult(item.matchId))}
+                >
+                  Approve
+                </button>
+                <button
+                  className="site-btn site-btn-danger"
+                  disabled={busyId === item.matchId}
+                  onClick={() => void act(item.matchId, () => siteApi.rejectTournamentMatchResult(item.matchId))}
+                >
+                  Reject
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 function RosterLibraryEaImport({ libraryId }: { libraryId: string }) {
   const [connection, setConnection] = useState<SiteLibraryEaConnection | null>(null);
@@ -455,6 +539,7 @@ export function TournamentAdminPanel() {
     <div className="site-billing-panel site-tournament-admin">
       <p className="site-muted">Create events here, then approve registrations, fill the field, and control registration / event status.</p>
       {error ? <p className="site-auth-error">{error}</p> : null}
+      <MatchReviewQueue />
       <RosterLibraryAdmin />
       <CreateTournamentForm onCreated={(id) => {
         setSelectedId(id);

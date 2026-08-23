@@ -784,13 +784,44 @@ async function maybeCompleteTournament(tournamentId: string) {
   );
 }
 
+// Shared by the admin-direct path (reportTournamentWinner when isAdmin) and
+// approveTournamentMatchResult: applies an already-decided result -- bracket advance, wager
+// settlement, global records, byes, tournament completion, Discord sync.
+async function finalizeTournamentMatch(input: {
+  tournamentId: string;
+  match: MatchRow;
+  winnerUserId: string;
+  playerAScore: number | null;
+  playerBScore: number | null;
+}) {
+  const { tournamentId, match, winnerUserId, playerAScore, playerBScore } = input;
+  const loserId = otherPlayer(match, winnerUserId);
+  if (loserId) {
+    const winnerScore = winnerUserId === match.player_a_user_id ? playerAScore : playerBScore;
+    const loserScore = winnerUserId === match.player_a_user_id ? playerBScore : playerAScore;
+    await applyGlobalRecords(winnerUserId, loserId, winnerScore, loserScore);
+  }
+  await settleTournamentMatchWagers(match.id);
+  if (match.feeds_winner_match_id && match.feeds_winner_slot) {
+    await placePlayer(match.feeds_winner_match_id, match.feeds_winner_slot, winnerUserId);
+    await refreshMatchReadiness(match.feeds_winner_match_id);
+  }
+  if (loserId && match.feeds_loser_match_id && match.feeds_loser_slot) {
+    await placePlayer(match.feeds_loser_match_id, match.feeds_loser_slot, loserId);
+    await refreshMatchReadiness(match.feeds_loser_match_id);
+  }
+  await resolveByes(tournamentId);
+  await maybeCompleteTournament(tournamentId);
+  notifyDiscord(tournamentId);
+}
+
 export async function reportTournamentWinner(input: {
   recUserId: string;
   isAdmin: boolean;
   tournamentId: string;
   matchId: string;
   winnerUserId: string;
-  resultMethod: "final_screenshot" | "concede";
+  resultMethod: "final_screenshot" | "concede" | "opponent_quit";
   screenshotUrl: string;
   concededByUserId?: string | null;
   playerAScore?: number | null;
@@ -802,7 +833,7 @@ export async function reportTournamentWinner(input: {
   if (tournament.status !== "locked") throw new ApiError(409, "Results can only be recorded on a locked bracket.");
   const screenshotUrl = input.screenshotUrl.trim();
   if (!/^https?:\/\//i.test(screenshotUrl)) {
-    throw new ApiError(400, "Upload a screenshot of the final score or the concession.");
+    throw new ApiError(400, "Upload a screenshot of the final score, the concession, or the quit-out screen.");
   }
   const result = await getPgPool().query(
     `select * from rec_site_tournament_matches where id = $1 and tournament_id = $2`,
@@ -811,6 +842,7 @@ export async function reportTournamentWinner(input: {
   const match = result.rows[0] as MatchRow | undefined;
   if (!match) throw new ApiError(404, "Match not found.");
   if (match.status === "complete" || match.status === "bye") throw new ApiError(409, "That match is already decided.");
+  if (match.status === "pending_review") throw new ApiError(409, "A result for this match is already awaiting admin review.");
   const players = [match.player_a_user_id, match.player_b_user_id];
   if (!players.includes(input.winnerUserId)) throw new ApiError(400, "Winner must be one of the two players.");
   if (!match.player_a_user_id || !match.player_b_user_id) {
@@ -819,16 +851,15 @@ export async function reportTournamentWinner(input: {
   const inMatch = input.recUserId === match.player_a_user_id || input.recUserId === match.player_b_user_id;
   if (!input.isAdmin && !inMatch) throw new ApiError(403, "Only a player in this match or a site admin can report it.");
   let concededBy = input.concededByUserId ?? null;
-  if (input.resultMethod === "concede") {
+  if (input.resultMethod === "concede" || input.resultMethod === "opponent_quit") {
     concededBy = concededBy || otherPlayer(match, input.winnerUserId);
     if (!concededBy || !players.includes(concededBy) || concededBy === input.winnerUserId) {
-      throw new ApiError(400, "Concession must come from the player who lost.");
+      throw new ApiError(400, input.resultMethod === "concede" ? "Concession must come from the player who lost." : "The quit-out must be attributed to the player who lost.");
     }
   } else {
     concededBy = null;
   }
 
-  const loserId = otherPlayer(match, input.winnerUserId);
   const playerAScore = input.playerAScore == null || !Number.isFinite(Number(input.playerAScore))
     ? null
     : Math.max(0, Math.trunc(Number(input.playerAScore)));
@@ -836,34 +867,106 @@ export async function reportTournamentWinner(input: {
     ? null
     : Math.max(0, Math.trunc(Number(input.playerBScore)));
   const boxScore = normalizeTournamentBoxScore(input.boxScore);
+
+  // Admin-submitted results are already trusted and apply immediately, exactly as before.
+  // Player-submitted results now hold in pending_review until an admin approves them --
+  // nothing (bracket, wagers, records) advances until then.
+  const nextStatus = input.isAdmin ? "complete" : "pending_review";
   await getPgPool().query(
     `
       update rec_site_tournament_matches
-      set winner_user_id = $2, status = 'complete', result_method = $3, screenshot_url = $4,
-          conceded_by_user_id = $5, player_a_score = $6, player_b_score = $7, betting_open = false,
-          box_score = $8::jsonb
+      set winner_user_id = $2, status = $3, result_method = $4, screenshot_url = $5,
+          conceded_by_user_id = $6, player_a_score = $7, player_b_score = $8, betting_open = false,
+          box_score = $9::jsonb, submitted_by_user_id = $10, submitted_at = now()
       where id = $1
     `,
-    [match.id, input.winnerUserId, input.resultMethod, screenshotUrl, concededBy, playerAScore, playerBScore, boxScore ? JSON.stringify(boxScore) : null],
+    [match.id, input.winnerUserId, nextStatus, input.resultMethod, screenshotUrl, concededBy, playerAScore, playerBScore,
+      boxScore ? JSON.stringify(boxScore) : null, input.recUserId],
   );
-  if (loserId) {
-    const winnerScore = input.winnerUserId === match.player_a_user_id ? playerAScore : playerBScore;
-    const loserScore = input.winnerUserId === match.player_a_user_id ? playerBScore : playerAScore;
-    await applyGlobalRecords(input.winnerUserId, loserId, winnerScore, loserScore);
+
+  if (input.isAdmin) {
+    await finalizeTournamentMatch({ tournamentId: input.tournamentId, match, winnerUserId: input.winnerUserId, playerAScore, playerBScore });
   }
-  await settleTournamentMatchWagers(match.id);
-  if (match.feeds_winner_match_id && match.feeds_winner_slot) {
-    await placePlayer(match.feeds_winner_match_id, match.feeds_winner_slot, input.winnerUserId);
-    await refreshMatchReadiness(match.feeds_winner_match_id);
-  }
-  if (loserId && match.feeds_loser_match_id && match.feeds_loser_slot) {
-    await placePlayer(match.feeds_loser_match_id, match.feeds_loser_slot, loserId);
-    await refreshMatchReadiness(match.feeds_loser_match_id);
-  }
-  await resolveByes(input.tournamentId);
-  await maybeCompleteTournament(input.tournamentId);
-  notifyDiscord(input.tournamentId);
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });
+}
+
+// Admin's review queue: every match currently awaiting approval, across all tournaments, with
+// enough context (screenshot, matchup, submitted result) to decide without leaving the page.
+export async function listTournamentMatchReviewQueue() {
+  const result = await getPgPool().query(
+    `
+      select m.id, m.tournament_id, m.winner_user_id, m.result_method, m.screenshot_url,
+        m.conceded_by_user_id, m.player_a_score, m.player_b_score, m.submitted_at,
+        t.title as tournament_title,
+        a.username as a_username, a.display_name as a_display_name,
+        b.username as b_username, b.display_name as b_display_name,
+        ea.team_name as a_team_name, eb.team_name as b_team_name,
+        m.player_a_user_id, m.player_b_user_id
+      from rec_site_tournament_matches m
+      inner join rec_site_tournaments t on t.id = m.tournament_id
+      left join rec_users a on a.id = m.player_a_user_id
+      left join rec_users b on b.id = m.player_b_user_id
+      left join rec_site_tournament_entrants ea on ea.tournament_id = m.tournament_id and ea.user_id = m.player_a_user_id
+      left join rec_site_tournament_entrants eb on eb.tournament_id = m.tournament_id and eb.user_id = m.player_b_user_id
+      where m.status = 'pending_review'
+      order by m.submitted_at asc
+    `,
+  );
+  return {
+    queue: result.rows.map((row: any) => ({
+      matchId: row.id,
+      tournamentId: row.tournament_id,
+      tournamentTitle: row.tournament_title,
+      playerA: { userId: row.player_a_user_id, displayName: playerLabel({ username: row.a_username, display_name: row.a_display_name }), teamName: row.a_team_name ?? null },
+      playerB: { userId: row.player_b_user_id, displayName: playerLabel({ username: row.b_username, display_name: row.b_display_name }), teamName: row.b_team_name ?? null },
+      winnerUserId: row.winner_user_id,
+      resultMethod: row.result_method,
+      screenshotUrl: row.screenshot_url,
+      concededByUserId: row.conceded_by_user_id,
+      playerAScore: row.player_a_score,
+      playerBScore: row.player_b_score,
+      submittedAt: row.submitted_at,
+    })),
+  };
+}
+
+export async function approveTournamentMatchResult(input: { recUserId: string; matchId: string }) {
+  const result = await getPgPool().query(`select * from rec_site_tournament_matches where id = $1`, [input.matchId]);
+  const match = result.rows[0] as MatchRow | undefined;
+  if (!match) throw new ApiError(404, "Match not found.");
+  if (match.status !== "pending_review") throw new ApiError(409, "This match has no result awaiting review.");
+  if (!match.winner_user_id) throw new ApiError(409, "No submitted result to approve.");
+  await getPgPool().query(
+    `update rec_site_tournament_matches set status = 'complete', reviewed_by_user_id = $2, reviewed_at = now() where id = $1`,
+    [match.id, input.recUserId],
+  );
+  await finalizeTournamentMatch({
+    tournamentId: match.tournament_id,
+    match,
+    winnerUserId: match.winner_user_id,
+    playerAScore: match.player_a_score,
+    playerBScore: match.player_b_score,
+  });
+  return { ok: true as const };
+}
+
+export async function rejectTournamentMatchResult(input: { recUserId: string; matchId: string }) {
+  const result = await getPgPool().query(`select * from rec_site_tournament_matches where id = $1`, [input.matchId]);
+  const match = result.rows[0] as MatchRow | undefined;
+  if (!match) throw new ApiError(404, "Match not found.");
+  if (match.status !== "pending_review") throw new ApiError(409, "This match has no result awaiting review.");
+  await getPgPool().query(
+    `
+      update rec_site_tournament_matches
+      set status = 'ready', winner_user_id = null, result_method = null, screenshot_url = null,
+          conceded_by_user_id = null, player_a_score = null, player_b_score = null, box_score = null,
+          betting_open = true, submitted_by_user_id = null, submitted_at = null,
+          reviewed_by_user_id = $2, reviewed_at = now()
+      where id = $1
+    `,
+    [match.id, input.recUserId],
+  );
+  return { ok: true as const };
 }
 
 export async function listTournamentTicker() {

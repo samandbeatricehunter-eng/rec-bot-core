@@ -1219,7 +1219,7 @@ export const siteApi = {
     tournamentId: string;
     matchId: string;
     winnerUserId: string;
-    resultMethod: "final_screenshot" | "concede";
+    resultMethod: "final_screenshot" | "concede" | "opponent_quit";
     screenshotUrl: string;
     concededByUserId?: string | null;
     playerAScore?: number | null;
@@ -1227,6 +1227,15 @@ export const siteApi = {
     boxScore?: SiteTournamentBoxScore | null;
   }) {
     return request<SiteTournamentDetail>("/v1/tournaments/report-winner", input);
+  },
+  listTournamentMatchReviewQueue() {
+    return request<{ queue: SiteTournamentMatchReview[] }>("/v1/tournaments/matches/review-queue", {});
+  },
+  approveTournamentMatchResult(matchId: string) {
+    return request<{ ok: true }>("/v1/tournaments/matches/approve", { matchId });
+  },
+  rejectTournamentMatchResult(matchId: string) {
+    return request<{ ok: true }>("/v1/tournaments/matches/reject", { matchId });
   },
   setTournamentRegistrationOpen(tournamentId: string, open: boolean) {
     return request<{ ok: true; registrationPaused: boolean }>("/v1/tournaments/registration-open", { tournamentId, open });
@@ -1727,6 +1736,21 @@ export type SiteTournamentPlayer = {
   teamAbbr?: string | null;
   teamName?: string | null;
   isHome?: boolean;
+};
+
+export type SiteTournamentMatchReview = {
+  matchId: string;
+  tournamentId: string;
+  tournamentTitle: string;
+  playerA: { userId: string | null; displayName: string; teamName: string | null };
+  playerB: { userId: string | null; displayName: string; teamName: string | null };
+  winnerUserId: string | null;
+  resultMethod: "final_screenshot" | "concede" | "opponent_quit" | null;
+  screenshotUrl: string | null;
+  concededByUserId: string | null;
+  playerAScore: number | null;
+  playerBScore: number | null;
+  submittedAt: string;
 };
 
 export type SiteTournamentDetail = {

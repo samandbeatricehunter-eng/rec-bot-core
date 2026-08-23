@@ -50,7 +50,7 @@ function TournamentBracket({
   onReport: (input: {
     matchId: string;
     winnerUserId: string;
-    resultMethod: "final_screenshot" | "concede";
+    resultMethod: "final_screenshot" | "concede" | "opponent_quit";
     file: File;
     playerAScore: number | null;
     playerBScore: number | null;
@@ -125,9 +125,11 @@ function TournamentBracket({
                       Stream: <a href={match.streamUrl} target="_blank" rel="noreferrer">{match.streamUrl}</a>
                     </p>
                   ) : null}
-                  {match.winnerDisplayName ? (
+                  {match.status === "pending_review" ? (
+                    <em>Result submitted — awaiting admin review.</em>
+                  ) : match.winnerDisplayName ? (
                     <em>
-                      {match.status === "bye" ? "Bye: " : match.resultMethod === "concede" ? "Concede: " : "Final: "}
+                      {match.status === "bye" ? "Bye: " : match.resultMethod === "concede" ? "Concede: " : match.resultMethod === "opponent_quit" ? "Opponent quit: " : "Final: "}
                       {match.winnerDisplayName} won
                       {match.playerAScore != null && match.playerBScore != null ? ` (${match.playerAScore}–${match.playerBScore})` : ""}
                     </em>
@@ -180,7 +182,7 @@ function MatchUploads({
   canReport: boolean;
   onReport: (input: {
     winnerUserId: string;
-    resultMethod: "final_screenshot" | "concede";
+    resultMethod: "final_screenshot" | "concede" | "opponent_quit";
     file: File;
     playerAScore: number | null;
     playerBScore: number | null;
@@ -189,7 +191,7 @@ function MatchUploads({
   onSaveStream: (url: string) => void;
   onUploadHighlight: (file: File) => void;
 }) {
-  const [method, setMethod] = useState<"final_screenshot" | "concede">("final_screenshot");
+  const [method, setMethod] = useState<"final_screenshot" | "concede" | "opponent_quit">("final_screenshot");
   const [winnerUserId, setWinnerUserId] = useState(match.playerA?.userId ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [homeScore, setHomeScore] = useState("");
@@ -229,11 +231,12 @@ function MatchUploads({
             <span>Result</span>
             <select className="site-select" value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
               <option value="final_screenshot">Final score screenshot</option>
-              <option value="concede">Player conceded</option>
+              <option value="concede">Opponent conceded</option>
+              <option value="opponent_quit">Opponent quit out</option>
             </select>
           </label>
           <label className="site-field">
-            <span>{method === "concede" ? "Winner (other player conceded)" : "Winner"}</span>
+            <span>{method === "concede" ? "Winner (other player conceded)" : method === "opponent_quit" ? "Winner (other player quit out)" : "Winner"}</span>
             <select className="site-select" value={winnerUserId} onChange={(event) => setWinnerUserId(event.target.value)}>
               {match.playerA ? <option value={match.playerA.userId}>{match.playerA.displayName}</option> : null}
               {match.playerB ? <option value={match.playerB.userId}>{match.playerB.displayName}</option> : null}
