@@ -31,6 +31,37 @@ export async function syncTournamentDiscordAnnouncements(tournamentId: string): 
   if (!row) return;
   const meta = { size: bracketSizeFor(row.bracket_type) };
 
+  // Team assignments are only meaningful to show once a team is actually settled -- lottery-draft
+  // tournaments assign teams later via the draw, so entrants have no team yet during registration.
+  let teamsField: { name: string; value: string; inline: boolean } | null = null;
+  if (row.claim_order_mode !== "lottery") {
+    const entrants = await getPgPool().query(
+      `
+        select coalesce(nullif(u.display_name, ''), u.username) as display_name, e.team_name
+        from rec_site_tournament_entrants e
+        inner join rec_users u on u.id = e.user_id
+        where e.tournament_id = $1 and e.entry_status <> 'removed' and e.team_name is not null
+        order by e.joined_at
+      `,
+      [tournamentId],
+    );
+    if (entrants.rows.length) {
+      const lines = entrants.rows.map((r: { display_name: string | null; team_name: string }) => `${r.display_name ?? "Unknown"} — ${r.team_name}`);
+      let value = lines.join("\n");
+      if (value.length > 1024) {
+        let shown = 0;
+        let total = 0;
+        for (const line of lines) {
+          if (total + line.length + 1 > 900) break;
+          total += line.length + 1;
+          shown += 1;
+        }
+        value = `${lines.slice(0, shown).join("\n")}\n…and ${lines.length - shown} more`;
+      }
+      teamsField = { name: "Teams", value, inline: false };
+    }
+  }
+
   const guilds = await getPgPool().query(
     `
       select distinct ds.guild_id, sr.announcements_channel_id
@@ -60,6 +91,7 @@ export async function syncTournamentDiscordAnnouncements(tournamentId: string): 
         { name: "Participants", value: `${row.approved_count}/${meta.size ?? "—"}`, inline: true },
         { name: "Payout", value: payoutBlurb(row), inline: false },
         { name: "Schedule", value: scheduleLine, inline: false },
+        ...(teamsField ? [teamsField] : []),
       ],
     }],
     components: [{
