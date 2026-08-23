@@ -2987,6 +2987,107 @@ h1, h2, h3, .site-wordmark {
   align-items: center;
   gap: 8px;
 }
+
+/* —— Tournament admin panel: consistent card sections instead of bare headings/lists —— */
+.site-tournament-admin > .site-field,
+.site-tournament-admin-header,
+.site-tournament-admin-section {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+.site-tournament-admin-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.site-tournament-admin-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 16px;
+}
+.site-tournament-admin-header-title a {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.site-tournament-status-badge {
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent-bright, var(--accent));
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.site-tournament-admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.site-tournament-admin-section > h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.site-tournament-entrant-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.site-tournament-admin .site-tournament-entrant-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 10, 14, 0.4);
+}
+.site-tournament-entrant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.site-tournament-entrant-team {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+.site-tournament-entrant-list .site-profile-actions {
+  margin: 0;
+}
+.site-tournament-user-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.site-tournament-user-search-results button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(8, 10, 14, 0.4);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.site-tournament-user-search-results button.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-bright, var(--accent));
+}
 .site-tournament-roster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

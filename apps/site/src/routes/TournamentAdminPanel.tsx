@@ -558,118 +558,139 @@ export function TournamentAdminPanel() {
       </label>
       {row ? (
         <>
-          <p>
-            <Link to={`/tournaments/${row.id}`}>{row.title}</Link>
-            <span className="site-muted"> · {gameLabel(row.game)} · {row.approvedCount}/{row.bracketSize ?? "—"} approved · {row.pendingCount} pending</span>
-          </p>
-          <p className="site-muted">{payoutLine(row)} · {row.countdown.label}</p>
-          <div className="site-profile-actions">
-            <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentRegistrationOpen(row.id, row.registrationPaused || !row.registrationOpen))}>
-              {row.registrationOpen ? "Close registration" : "Reopen registration"}
-            </button>
-            <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEventOpen(row.id, row.eventPaused))}>
-              {row.eventPaused ? "Reopen tournament" : "Close tournament"}
-            </button>
-            {row.status === "open" ? (
-              <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.lockTournament(row.id))}>
-                Lock bracket
+          <div className="site-tournament-admin-header">
+            <div className="site-tournament-admin-header-title">
+              <Link to={`/tournaments/${row.id}`}>{row.title}</Link>
+              <span className="site-tournament-status-badge">{statusLabel(row.status)}</span>
+            </div>
+            <p className="site-muted" style={{ margin: 0 }}>
+              {gameLabel(row.game)} · {row.approvedCount}/{row.bracketSize ?? "—"} approved · {row.pendingCount} pending
+            </p>
+            <p className="site-muted" style={{ margin: 0 }}>{payoutLine(row)} · {row.countdown.label}</p>
+            <div className="site-profile-actions">
+              <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentRegistrationOpen(row.id, row.registrationPaused || !row.registrationOpen))}>
+                {row.registrationOpen ? "Close registration" : "Reopen registration"}
               </button>
-            ) : null}
-            {row.status === "open" || row.status === "locked" ? (
-              <button className="site-btn site-btn-danger" disabled={busy} onClick={() => void act(() => siteApi.cancelTournament(row.id))}>
-                Cancel
+              <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEventOpen(row.id, row.eventPaused))}>
+                {row.eventPaused ? "Reopen tournament" : "Close tournament"}
               </button>
-            ) : null}
+              {row.status === "open" ? (
+                <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.lockTournament(row.id))}>
+                  Lock bracket
+                </button>
+              ) : null}
+              {row.status === "open" || row.status === "locked" ? (
+                <button className="site-btn site-btn-danger" disabled={busy} onClick={() => void act(() => siteApi.cancelTournament(row.id))}>
+                  Cancel
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {row.scheduleMode === "per_round" ? <TournamentRoundScheduler tournamentId={row.id} /> : null}
 
-          <h3>Pending registration</h3>
-          {pending.length ? (
-            <ul className="site-tournament-entrants">
-              {pending.map((entrant) => (
-                <li key={entrant.userId}>
-                  {entrant.displayName}{entrant.teamName ? ` · ${entrant.teamName}` : ""}
-                  <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "approved" }))}>
-                    Approve
-                  </button>
-                  <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "removed" }))}>
-                    Remove
+          <div className="site-tournament-admin-section">
+            <h3>Pending registration</h3>
+            {pending.length ? (
+              <ul className="site-tournament-entrant-list">
+                {pending.map((entrant) => (
+                  <li key={entrant.userId}>
+                    <span className="site-tournament-entrant-info">
+                      <strong>{entrant.displayName}</strong>
+                      {entrant.teamName ? <span className="site-tournament-entrant-team">{entrant.teamName}</span> : null}
+                    </span>
+                    <div className="site-profile-actions">
+                      <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "approved" }))}>
+                        Approve
+                      </button>
+                      <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "removed" }))}>
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="site-muted">No pending registrations.</p>
+            )}
+          </div>
+
+          <div className="site-tournament-admin-section">
+            <h3>Field</h3>
+            {approved.length ? (
+              <ul className="site-tournament-entrant-list">
+                {approved.map((entrant) => (
+                  <li key={entrant.userId}>
+                    <span className="site-tournament-entrant-info">
+                      <strong>{entrant.seed ? `#${entrant.seed} ` : ""}{entrant.displayName}</strong>
+                      {entrant.teamName ? <span className="site-tournament-entrant-team">{entrant.teamName}</span> : null}
+                    </span>
+                    <div className="site-profile-actions">
+                      <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "removed" }))}>
+                        Remove from field
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="site-muted">Nobody is approved yet.</p>
+            )}
+          </div>
+
+          <div className="site-tournament-admin-section">
+            <h3>Manually add a user</h3>
+            <label className="site-field">
+              <span>Search users</span>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Username" />
+            </label>
+            <ul className="site-tournament-user-search-results">
+              {users.map((user) => (
+                <li key={user.id}>
+                  <button type="button" className={addUserId === user.id ? "is-active" : ""} onClick={() => setAddUserId(user.id)}>
+                    @{user.username || user.displayName}
                   </button>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="site-muted">No pending registrations.</p>
-          )}
-
-          <h3>Field</h3>
-          {approved.length ? (
-            <ul className="site-tournament-entrants">
-              {approved.map((entrant) => (
-                <li key={entrant.userId}>
-                  {entrant.seed ? `#${entrant.seed} ` : ""}
-                  {entrant.displayName}{entrant.teamName ? ` · ${entrant.teamName}` : ""}
-                  <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.setTournamentEntryStatus({ tournamentId: row.id, userId: entrant.userId, entryStatus: "removed" }))}>
-                    Remove from field
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="site-muted">Nobody is approved yet.</p>
-          )}
-
-          <h3>Manually add a user</h3>
-          <label className="site-field">
-            <span>Search users</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Username" />
-          </label>
-          <ul className="site-account-notif-list">
-            {users.map((user) => (
-              <li key={user.id}>
-                <button type="button" className={addUserId === user.id ? "is-active" : ""} onClick={() => setAddUserId(user.id)}>
-                  @{user.username || user.displayName}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="site-account-stat-grid site-tournament-create-grid">
-            <label className="site-field">
-              <span>Team</span>
-              <select className="site-select" value={addTeam} onChange={(event) => setAddTeam(event.target.value)}>
-                <option value="">Select a team…</option>
-                {teams
-                  .filter((team) => row.teamSelectionMode !== "claim_pool" || !claimedTeams.includes(team.abbr) || team.abbr === addTeam)
-                  .map((team) => (
-                    <option key={team.abbr} value={team.abbr}>{team.name} ({team.abbr})</option>
-                  ))}
-              </select>
-            </label>
-            <label className="site-field">
-              <span>Gamertag</span>
-              <input value={addTag} onChange={(event) => setAddTag(event.target.value)} maxLength={32} />
-            </label>
-          </div>
-          <div className="site-profile-actions">
-            <button
-              className="site-btn site-btn-ghost"
-              disabled={busy || !addUserId || !addTeam || addTag.trim().length < 2}
-              onClick={() => void act(() => siteApi.addTournamentUser({ tournamentId: row.id, userId: addUserId, teamAbbr: addTeam, gamerTag: addTag, into: "registration" }))}
-            >
-              Add to registration
-            </button>
-            <button
-              className="site-btn site-btn-primary"
-              disabled={busy || !addUserId || !addTeam || addTag.trim().length < 2}
-              onClick={() => void act(() => siteApi.addTournamentUser({ tournamentId: row.id, userId: addUserId, teamAbbr: addTeam, gamerTag: addTag, into: "tournament" }))}
-            >
-              Add to field
-            </button>
+            <div className="site-account-stat-grid site-tournament-create-grid">
+              <label className="site-field">
+                <span>Team</span>
+                <select className="site-select" value={addTeam} onChange={(event) => setAddTeam(event.target.value)}>
+                  <option value="">Select a team…</option>
+                  {teams
+                    .filter((team) => row.teamSelectionMode !== "claim_pool" || !claimedTeams.includes(team.abbr) || team.abbr === addTeam)
+                    .map((team) => (
+                      <option key={team.abbr} value={team.abbr}>{team.name} ({team.abbr})</option>
+                    ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Gamertag</span>
+                <input value={addTag} onChange={(event) => setAddTag(event.target.value)} maxLength={32} />
+              </label>
+            </div>
+            <div className="site-profile-actions">
+              <button
+                className="site-btn site-btn-ghost"
+                disabled={busy || !addUserId || !addTeam || addTag.trim().length < 2}
+                onClick={() => void act(() => siteApi.addTournamentUser({ tournamentId: row.id, userId: addUserId, teamAbbr: addTeam, gamerTag: addTag, into: "registration" }))}
+              >
+                Add to registration
+              </button>
+              <button
+                className="site-btn site-btn-primary"
+                disabled={busy || !addUserId || !addTeam || addTag.trim().length < 2}
+                onClick={() => void act(() => siteApi.addTournamentUser({ tournamentId: row.id, userId: addUserId, teamAbbr: addTeam, gamerTag: addTag, into: "tournament" }))}
+              >
+                Add to field
+              </button>
+            </div>
           </div>
 
-          <h3>Highlight queue</h3>
-          {highlightQueue.length ? (
+          <div className="site-tournament-admin-section">
+            <h3>Highlight queue</h3>
+            {highlightQueue.length ? (
             <ul className="site-tournament-highlights">
               {highlightQueue.map((item) => (
                 <li key={item.id} className="site-tournament-highlight-card">
@@ -694,8 +715,9 @@ export function TournamentAdminPanel() {
               ))}
             </ul>
           ) : (
-            <p className="site-muted">No pending highlights.</p>
-          )}
+              <p className="site-muted">No pending highlights.</p>
+            )}
+          </div>
         </>
       ) : (
         <p className="site-muted">Select a tournament to manage the roster.</p>
