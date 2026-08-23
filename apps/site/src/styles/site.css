@@ -2948,13 +2948,20 @@ h1, h2, h3, .site-wordmark {
 .site-tournament-wagers,
 .site-tournament-rosters,
 .site-tournament-lottery,
-.site-tournament-roster-admin {
+.site-tournament-roster-admin,
+.site-tournament-round-scheduler {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+.site-tournament-round-scheduler li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .site-tournament-roster-grid {
   display: grid;

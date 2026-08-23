@@ -113,6 +113,7 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
   const [rosterLibraryId, setRosterLibraryId] = useState<string>("");
   const [teamSelectionMode, setTeamSelectionMode] = useState<"typed" | "claim_pool">("typed");
   const [claimOrderMode, setClaimOrderMode] = useState<"first_come" | "lottery">("first_come");
+  const [scheduleMode, setScheduleMode] = useState<"single_kickoff" | "per_round">("single_kickoff");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +152,7 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
         rosterLibraryId: rosterLibraryId || null,
         teamSelectionMode,
         claimOrderMode: teamSelectionMode === "claim_pool" ? claimOrderMode : null,
+        scheduleMode,
       });
       setTitle("");
       setDescription("");
@@ -232,8 +234,15 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
           <input type="datetime-local" value={closesAt} onChange={(event) => setClosesAt(event.target.value)} required />
         </label>
         <label className="site-field">
-          <span>Kickoff</span>
+          <span>{scheduleMode === "per_round" ? "First round starts around" : "Kickoff"}</span>
           <input type="datetime-local" value={kickoffAt} onChange={(event) => setKickoffAt(event.target.value)} required />
+        </label>
+        <label className="site-field">
+          <span>Schedule</span>
+          <select className="site-select" value={scheduleMode} onChange={(event) => setScheduleMode(event.target.value as typeof scheduleMode)}>
+            <option value="single_kickoff">Run-through (one kickoff time)</option>
+            <option value="per_round">Scheduled phases (assign each round its own day/time)</option>
+          </select>
         </label>
         <label className="site-field">
           <span>Schedule timezone</span>
@@ -259,7 +268,7 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
             value={teamSelectionMode}
             onChange={(event) => setTeamSelectionMode(event.target.value as typeof teamSelectionMode)}
           >
-            <option value="typed">Typed (duplicates allowed)</option>
+            <option value="typed">Open pick (duplicates allowed)</option>
             <option value="claim_pool">Claim from pool (one team per entrant)</option>
           </select>
         </label>

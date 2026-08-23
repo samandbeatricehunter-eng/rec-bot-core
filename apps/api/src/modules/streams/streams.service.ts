@@ -260,9 +260,12 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
 
+  // One compliance row per (league, season, week, user) -- a second stream post the same week
+  // (correcting a mistake, or a different game) must refresh that row, not 500 on the unique
+  // constraint.
   const streamLog = await supabase
     .from("rec_stream_compliance_logs")
-    .insert({
+    .upsert({
       league_id: context.leagueId,
       season_number: seasonNumber,
       week_number: weekNumber,
@@ -280,7 +283,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
         submissionType: input.submissionType ?? null,
         content: input.content ?? null
       }
-    })
+    }, { onConflict: "league_id,season_number,week_number,user_id" })
     .select("*")
     .single();
 

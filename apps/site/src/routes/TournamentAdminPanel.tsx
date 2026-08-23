@@ -3,21 +3,207 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   siteApi,
   type AdminUserSummary,
+  type SiteLibraryEaConnection,
+  type SiteLibraryEaFranchise,
+  type SiteLibraryEaPersona,
   type SiteRosterLibrary,
   type SiteTournamentDetail,
   type SiteTournamentHighlight,
   type SiteTournamentSummary,
+  type SiteTournamentTeamOption,
 } from "../lib/site-api.js";
 import { CreateTournamentForm, gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
+
+function RosterLibraryEaImport({ libraryId }: { libraryId: string }) {
+  const [connection, setConnection] = useState<SiteLibraryEaConnection | null>(null);
+  const [loginUrl, setLoginUrl] = useState<string | null>(null);
+  const [pastedCode, setPastedCode] = useState("");
+  const [pendingAuthId, setPendingAuthId] = useState<string | null>(null);
+  const [personas, setPersonas] = useState<SiteLibraryEaPersona[]>([]);
+  const [franchises, setFranchises] = useState<SiteLibraryEaFranchise[]>([]);
+  const [showFranchises, setShowFranchises] = useState(false);
+  const [importReport, setImportReport] = useState<{ imported: number; skipped: Array<{ team: string; reason: string }> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reload() {
+    const result = await siteApi.getLibraryEaConnectionStatus(libraryId);
+    setConnection(result.connection);
+  }
+
+  useEffect(() => {
+    setLoginUrl(null);
+    setPastedCode("");
+    setPendingAuthId(null);
+    setPersonas([]);
+    setFranchises([]);
+    setShowFranchises(false);
+    setImportReport(null);
+    setError(null);
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryId]);
+
+  async function act(run: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await run();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="site-tournament-roster-import">
+      {error ? <p className="site-auth-error">{error}</p> : null}
+
+      {!connection ? (
+        <>
+          <p className="site-muted">Connect to EA the same way you would for a league, then pick a franchise to pull rosters from.</p>
+          {!loginUrl ? (
+            <button
+              className="site-btn site-btn-primary"
+              disabled={busy}
+              onClick={() => void act(async () => {
+                const result = await siteApi.beginLibraryEaLogin(libraryId);
+                setLoginUrl(result.loginUrl);
+              })}
+            >
+              Connect EA account
+            </button>
+          ) : !pendingAuthId ? (
+            <>
+              <p>
+                <a href={loginUrl} target="_blank" rel="noreferrer">Open EA login</a> — after logging in, EA will
+                redirect to a blank/error page. Copy that page's full URL and paste it below.
+              </p>
+              <label className="site-field">
+                <span>Redirect URL</span>
+                <input value={pastedCode} onChange={(event) => setPastedCode(event.target.value)} placeholder="http://127.0.0.1/success?code=..." />
+              </label>
+              <button
+                className="site-btn site-btn-primary"
+                disabled={busy || pastedCode.trim().length < 5}
+                onClick={() => void act(async () => {
+                  const result = await siteApi.submitLibraryEaCode({ libraryId, pasted: pastedCode });
+                  setPendingAuthId(result.pendingAuthId);
+                  setPersonas(result.personas);
+                })}
+              >
+                Submit
+              </button>
+            </>
+          ) : (
+            <>
+              <p>Pick the gamertag to import from:</p>
+              <ul className="site-account-notif-list">
+                {personas.map((persona) => (
+                  <li key={persona.personaId}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void act(async () => {
+                        const result = await siteApi.selectLibraryEaPersona({ libraryId, pendingAuthId, personaId: persona.personaId });
+                        setConnection(result);
+                        setLoginUrl(null);
+                        setPendingAuthId(null);
+                      })}
+                    >
+                      {persona.displayName} ({persona.console})
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      ) : !connection.eaLeagueId ? (
+        <>
+          <p className="site-muted">Connected as {connection.personaDisplayName}. Pick a franchise.</p>
+          {!showFranchises ? (
+            <button
+              className="site-btn site-btn-primary"
+              disabled={busy}
+              onClick={() => void act(async () => {
+                const result = await siteApi.listLibraryEaLeagues(libraryId);
+                setFranchises(result.leagues);
+                setShowFranchises(true);
+              })}
+            >
+              List franchises
+            </button>
+          ) : (
+            <ul className="site-account-notif-list">
+              {franchises.map((franchise) => (
+                <li key={franchise.leagueId}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void act(async () => {
+                      const result = await siteApi.bindLibraryEaLeague({ libraryId, eaLeagueId: franchise.leagueId });
+                      setConnection(result);
+                      setShowFranchises(false);
+                    })}
+                  >
+                    {franchise.leagueName} — {franchise.userTeamName} ({franchise.seasonText})
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="site-muted">
+            Connected as {connection.personaDisplayName} → {connection.eaLeagueName ?? connection.eaLeagueId}
+            {connection.lastImportAt ? ` · last imported ${new Date(connection.lastImportAt).toLocaleString()}` : ""}
+          </p>
+          <div className="site-profile-actions">
+            <button
+              className="site-btn site-btn-primary"
+              disabled={busy}
+              onClick={() => void act(async () => {
+                const result = await siteApi.importLibraryRosters(libraryId);
+                setImportReport(result);
+              })}
+            >
+              {busy ? "Importing…" : "Import rosters"}
+            </button>
+            <button
+              className="site-btn site-btn-ghost"
+              disabled={busy}
+              onClick={() => void act(async () => {
+                setShowFranchises(false);
+                const result = await siteApi.listLibraryEaLeagues(libraryId);
+                setFranchises(result.leagues);
+                setShowFranchises(true);
+                setConnection({ ...connection, eaLeagueId: null });
+              })}
+            >
+              Change franchise
+            </button>
+          </div>
+          {importReport ? (
+            <p className="site-muted">
+              Imported {importReport.imported} players.
+              {importReport.skipped.length ? ` Skipped teams: ${importReport.skipped.map((s) => `${s.team} (${s.reason})`).join("; ")}` : ""}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
 
 function RosterLibraryAdmin() {
   const [libraries, setLibraries] = useState<SiteRosterLibrary[]>([]);
   const [game, setGame] = useState<"madden_26" | "madden_27" | "cfb_27">("madden_27");
   const [newName, setNewName] = useState("");
   const [selectedId, setSelectedId] = useState("");
-  const [csvText, setCsvText] = useState("");
   const [cloneName, setCloneName] = useState("");
-  const [importReport, setImportReport] = useState<{ imported: number; skipped: Array<{ row: number; reason: string }> } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,23 +268,9 @@ function RosterLibraryAdmin() {
       </ul>
 
       {selectedId ? (
-        <div className="site-tournament-roster-import">
-          <label className="site-field">
-            <span>Paste CSV (Team, Name, Position, Jersey, OVR + any other columns)</span>
-            <textarea rows={6} value={csvText} onChange={(event) => setCsvText(event.target.value)} />
-          </label>
+        <>
+          <RosterLibraryEaImport libraryId={selectedId} />
           <div className="site-profile-actions">
-            <button
-              className="site-btn site-btn-primary"
-              disabled={busy || csvText.trim().length < 2}
-              onClick={() => void act(async () => {
-                const result = await siteApi.importRosterLibraryCsv({ libraryId: selectedId, csvText });
-                setImportReport(result);
-                setCsvText("");
-              })}
-            >
-              Import CSV
-            </button>
             <button
               className="site-btn site-btn-ghost"
               disabled={busy}
@@ -130,14 +302,68 @@ function RosterLibraryAdmin() {
           >
             Clone library
           </button>
-          {importReport ? (
-            <p className="site-muted">
-              Imported {importReport.imported} players.
-              {importReport.skipped.length ? ` Skipped ${importReport.skipped.length}: ${importReport.skipped.slice(0, 5).map((s) => `row ${s.row} (${s.reason})`).join("; ")}${importReport.skipped.length > 5 ? "…" : ""}` : ""}
-            </p>
-          ) : null}
-        </div>
+        </>
       ) : null}
+    </div>
+  );
+}
+
+function roundLabel(bracketSide: "winners" | "losers" | "grand_final", round: number): string {
+  if (bracketSide === "grand_final") return "Grand Final";
+  return `${bracketSide === "winners" ? "Winners" : "Losers"} Round ${round}`;
+}
+
+function TournamentRoundScheduler({ tournamentId }: { tournamentId: string }) {
+  const [rounds, setRounds] = useState<Array<{ bracketSide: "winners" | "losers" | "grand_final"; round: number; scheduledAt: string | null }>>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reload() {
+    const result = await siteApi.listTournamentRounds(tournamentId);
+    setRounds(result.rounds);
+  }
+
+  useEffect(() => { void reload(); }, [tournamentId]);
+
+  if (!rounds.length) return null;
+
+  const key = (r: { bracketSide: string; round: number }) => `${r.bracketSide}:${r.round}`;
+
+  return (
+    <div className="site-tournament-round-scheduler">
+      <h3>Round schedule</h3>
+      {error ? <p className="site-auth-error">{error}</p> : null}
+      <ul className="site-account-notif-list">
+        {rounds.map((round) => (
+          <li key={key(round)}>
+            <span>{roundLabel(round.bracketSide, round.round)}</span>
+            {round.scheduledAt ? <span className="site-muted"> · {new Date(round.scheduledAt).toLocaleString()}</span> : null}
+            <input
+              type="datetime-local"
+              value={drafts[key(round)] ?? ""}
+              onChange={(event) => setDrafts((prev) => ({ ...prev, [key(round)]: event.target.value }))}
+            />
+            <button
+              className="site-btn site-btn-ghost"
+              disabled={busy || !drafts[key(round)]}
+              onClick={() => {
+                setBusy(true);
+                setError(null);
+                siteApi.setTournamentRoundSchedule({
+                  tournamentId, bracketSide: round.bracketSide, round: round.round,
+                  scheduledAt: new Date(drafts[key(round)]).toISOString(),
+                })
+                  .then((result) => setRounds(result.rounds))
+                  .catch((err) => setError(err instanceof Error ? err.message : "Could not save that round's time."))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Save
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -147,6 +373,8 @@ export function TournamentAdminPanel() {
   const [list, setList] = useState<SiteTournamentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [detail, setDetail] = useState<SiteTournamentDetail | null>(null);
+  const [teams, setTeams] = useState<SiteTournamentTeamOption[]>([]);
+  const [claimedTeams, setClaimedTeams] = useState<string[]>([]);
   const [highlights, setHighlights] = useState<SiteTournamentHighlight[]>([]);
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -164,7 +392,9 @@ export function TournamentAdminPanel() {
 
   async function loadDetail(id: string) {
     const next = await siteApi.getTournament(id);
-    setDetail({ tournament: next.tournament, entrants: next.entrants, matches: next.matches });
+    setDetail({ tournament: next.tournament, entrants: next.entrants, matches: next.matches, claimedTeams: next.claimedTeams });
+    setTeams(next.teams);
+    setClaimedTeams(next.claimedTeams ?? []);
     const clips = await siteApi.listTournamentHighlights(id);
     setHighlights(clips.highlights);
   }
@@ -187,6 +417,9 @@ export function TournamentAdminPanel() {
 
   useEffect(() => {
     if (!selectedId) return;
+    setAddUserId("");
+    setAddTeam("");
+    setAddTag("");
     loadDetail(selectedId).catch((err) => setError(err instanceof Error ? err.message : "Could not load tournament."));
   }, [selectedId]);
 
@@ -264,6 +497,8 @@ export function TournamentAdminPanel() {
             ) : null}
           </div>
 
+          {row.scheduleMode === "per_round" ? <TournamentRoundScheduler tournamentId={row.id} /> : null}
+
           <h3>Pending registration</h3>
           {pending.length ? (
             <ul className="site-tournament-entrants">
@@ -316,8 +551,15 @@ export function TournamentAdminPanel() {
           </ul>
           <div className="site-account-stat-grid site-tournament-create-grid">
             <label className="site-field">
-              <span>Team abbr</span>
-              <input value={addTeam} onChange={(event) => setAddTeam(event.target.value.toUpperCase())} maxLength={8} />
+              <span>Team</span>
+              <select className="site-select" value={addTeam} onChange={(event) => setAddTeam(event.target.value)}>
+                <option value="">Select a team…</option>
+                {teams
+                  .filter((team) => row.teamSelectionMode !== "claim_pool" || !claimedTeams.includes(team.abbr) || team.abbr === addTeam)
+                  .map((team) => (
+                    <option key={team.abbr} value={team.abbr}>{team.name} ({team.abbr})</option>
+                  ))}
+              </select>
             </label>
             <label className="site-field">
               <span>Gamertag</span>

@@ -21,7 +21,7 @@ type Json = Record<string, unknown>;
 
 // ── Helpers ──
 
-function num(row: Json, keys: string[]): number | null {
+export function num(row: Json, keys: string[]): number | null {
   for (const key of keys) {
     const val = row[key];
     if (typeof val === "number" && Number.isFinite(val)) return val;
@@ -29,7 +29,7 @@ function num(row: Json, keys: string[]): number | null {
   return null;
 }
 
-function str(row: Json, keys: string[]): string | null {
+export function str(row: Json, keys: string[]): string | null {
   for (const key of keys) {
     const val = row[key];
     if (typeof val === "string" && val.trim()) return val.trim();
@@ -45,6 +45,37 @@ function rowHash(row: Json): string {
 function extractRows(raw: unknown, envelopeKey: string): Json[] {
   return extractEaEnvelopeRows(raw, envelopeKey);
 }
+
+// Map EA's camelCase rating fields to the snake_case keys the roster page expects.
+// Five of these are shorter than the "obvious" guess — accelRating/awareRating/
+// jumpRating/toughRating/catchRating, not accelerationRating/awarenessRating/
+// jumpingRating/toughnessRating/catchingRating — confirmed against a live raw_payload
+// export, where the guessed names simply don't exist so those five attributes were
+// silently missing from every imported player's attributes JSONB.
+export const EA_RATING_TO_SNAKE: Record<string, string> = {
+  speedRating: "speed", accelRating: "acceleration", strengthRating: "strength",
+  agilityRating: "agility", awareRating: "awareness", jumpRating: "jumping",
+  injuryRating: "injury", staminaRating: "stamina", toughRating: "toughness",
+  throwPowerRating: "throw_power", throwUnderPressureRating: "throw_under_pressure",
+  throwAccShortRating: "throw_accuracy_short", throwAccMidRating: "throw_accuracy_mid",
+  throwAccDeepRating: "throw_accuracy_deep", throwOnRunRating: "throw_on_the_run",
+  playActionRating: "play_action", catchRating: "catching", specCatchRating: "spectacular_catch",
+  cITRating: "catch_in_traffic", routeRunShortRating: "route_running_short",
+  routeRunMedRating: "route_running_medium", routeRunDeepRating: "route_running_deep",
+  releaseRating: "release", carryRating: "carrying", breakTackleRating: "break_tackle",
+  truckRating: "trucking", changeOfDirectionRating: "change_of_direction",
+  bCVRating: "bc_vision", stiffArmRating: "stiff_arm", spinMoveRating: "spin_move",
+  jukeMoveRating: "juke_move", breakSackRating: "break_sack", tackleRating: "tackle",
+  powerMovesRating: "power_moves", finesseMovesRating: "finesse_moves",
+  blockShedRating: "block_shedding", pursuitRating: "pursuit",
+  playRecRating: "play_recognition", manCoverRating: "man_coverage",
+  zoneCoverRating: "zone_coverage", hitPowerRating: "hit_power", pressRating: "press",
+  runBlockRating: "run_block", passBlockRating: "pass_block", impactBlockRating: "impact_blocking",
+  runBlockPowerRating: "run_block_power", runBlockFinesseRating: "run_block_finesse",
+  passBlockPowerRating: "pass_block_power", passBlockFinesseRating: "pass_block_finesse",
+  leadBlockRating: "lead_block", kickPowerRating: "kick_power",
+  kickAccRating: "kick_accuracy", kickRetRating: "kick_return",
+};
 
 // ── Schedule ──
 
@@ -324,36 +355,6 @@ export async function directWriteRoster(
     const hometownCity = str(row, ["homeTown", "hometownCity", "hometown_city"]);
     const birthYear = num(row, ["birthYear", "birth_year"]);
 
-    // Map EA's camelCase rating fields to the snake_case keys the roster page expects.
-    // Five of these are shorter than the "obvious" guess — accelRating/awareRating/
-    // jumpRating/toughRating/catchRating, not accelerationRating/awarenessRating/
-    // jumpingRating/toughnessRating/catchingRating — confirmed against a live raw_payload
-    // export, where the guessed names simply don't exist so those five attributes were
-    // silently missing from every imported player's attributes JSONB.
-    const EA_RATING_TO_SNAKE: Record<string, string> = {
-      speedRating: "speed", accelRating: "acceleration", strengthRating: "strength",
-      agilityRating: "agility", awareRating: "awareness", jumpRating: "jumping",
-      injuryRating: "injury", staminaRating: "stamina", toughRating: "toughness",
-      throwPowerRating: "throw_power", throwUnderPressureRating: "throw_under_pressure",
-      throwAccShortRating: "throw_accuracy_short", throwAccMidRating: "throw_accuracy_mid",
-      throwAccDeepRating: "throw_accuracy_deep", throwOnRunRating: "throw_on_the_run",
-      playActionRating: "play_action", catchRating: "catching", specCatchRating: "spectacular_catch",
-      cITRating: "catch_in_traffic", routeRunShortRating: "route_running_short",
-      routeRunMedRating: "route_running_medium", routeRunDeepRating: "route_running_deep",
-      releaseRating: "release", carryRating: "carrying", breakTackleRating: "break_tackle",
-      truckRating: "trucking", changeOfDirectionRating: "change_of_direction",
-      bCVRating: "bc_vision", stiffArmRating: "stiff_arm", spinMoveRating: "spin_move",
-      jukeMoveRating: "juke_move", breakSackRating: "break_sack", tackleRating: "tackle",
-      powerMovesRating: "power_moves", finesseMovesRating: "finesse_moves",
-      blockShedRating: "block_shedding", pursuitRating: "pursuit",
-      playRecRating: "play_recognition", manCoverRating: "man_coverage",
-      zoneCoverRating: "zone_coverage", hitPowerRating: "hit_power", pressRating: "press",
-      runBlockRating: "run_block", passBlockRating: "pass_block", impactBlockRating: "impact_blocking",
-      runBlockPowerRating: "run_block_power", runBlockFinesseRating: "run_block_finesse",
-      passBlockPowerRating: "pass_block_power", passBlockFinesseRating: "pass_block_finesse",
-      leadBlockRating: "lead_block", kickPowerRating: "kick_power",
-      kickAccRating: "kick_accuracy", kickRetRating: "kick_return",
-    };
     const attrs: Record<string, number> = {};
     for (const [key, val] of Object.entries(row)) {
       if (typeof val === "number" && EA_RATING_TO_SNAKE[key]) {

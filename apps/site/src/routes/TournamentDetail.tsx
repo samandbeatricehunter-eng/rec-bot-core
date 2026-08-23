@@ -117,6 +117,9 @@ function TournamentBracket({
                       <small> Away</small>
                     </strong>
                   </div>
+                  {match.scheduledAt ? (
+                    <p className="site-muted">Scheduled for {new Date(match.scheduledAt).toLocaleString()}</p>
+                  ) : null}
                   {match.streamUrl ? (
                     <p className="site-muted">
                       Stream: <a href={match.streamUrl} target="_blank" rel="noreferrer">{match.streamUrl}</a>

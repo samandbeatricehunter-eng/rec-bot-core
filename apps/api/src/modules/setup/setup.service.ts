@@ -352,6 +352,15 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     throw new ApiError(500, "We couldn't save the league configuration. Please try again.", configuration.error);
   }
 
+  // Only one row per league may be is_primary (enforced by a partial unique index) -- demote any
+  // existing primary link before inserting this one, so a repeated/duplicate setup call can't
+  // leave two, which broke every downstream .maybeSingle() lookup of a league's primary server.
+  await supabase
+    .from("rec_server_league_links")
+    .update({ is_primary: false })
+    .eq("league_id", league.data.id)
+    .eq("is_primary", true);
+
   const link = await supabase
     .from("rec_server_league_links")
     .insert({

@@ -37,6 +37,15 @@ import {
   setRosterLibraryBaseline,
 } from "./roster-libraries.service.js";
 import {
+  beginLibraryEaLogin,
+  bindLibraryEaLeague,
+  getLibraryEaConnectionStatus,
+  importLibraryRosters,
+  listLibraryEaLeagues,
+  selectLibraryEaPersona,
+  submitLibraryEaCode,
+} from "./roster-library-ea.service.js";
+import {
   assignLotteryTeam,
   getTournamentLottery,
   pickLotteryTeam,
@@ -53,6 +62,7 @@ import {
   leaveTournament,
   listMyTournamentHome,
   listTournamentHighlights,
+  listTournamentRounds,
   listTournamentTicker,
   listTournaments,
   lockTournamentBracket,
@@ -64,6 +74,7 @@ import {
   setTournamentMatchBetting,
   setTournamentMatchStream,
   setTournamentRegistrationOpen,
+  setTournamentRoundSchedule,
   tournamentTeamsForGame,
 } from "./tournaments.service.js";
 
@@ -160,6 +171,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
         rosterLibraryId: z.string().uuid().optional().nullable(),
         teamSelectionMode: z.enum(["typed", "claim_pool"]).optional(),
         claimOrderMode: z.enum(["first_come", "lottery"]).optional().nullable(),
+        scheduleMode: z.enum(["single_kickoff", "per_round"]).optional(),
       }).parse(request.body ?? {});
       return reply.send(await createTournament({
         recUserId: user.recUserId,
@@ -179,6 +191,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
         rosterLibraryId: body.rosterLibraryId,
         teamSelectionMode: body.teamSelectionMode,
         claimOrderMode: body.claimOrderMode,
+        scheduleMode: body.scheduleMode,
       }));
     } catch (error) {
       return sendError(reply, error);
@@ -583,6 +596,108 @@ export async function tournamentRoutes(app: FastifyInstance) {
       await requireSiteAdmin(request);
       const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(await deleteRosterLibrary(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/login", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await beginLibraryEaLogin(body.libraryId, user.recUserId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/code", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ libraryId: z.string().uuid(), pasted: z.string().min(1) }).parse(request.body ?? {});
+      return reply.send(await submitLibraryEaCode(body.libraryId, user.recUserId, body.pasted));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/persona", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        libraryId: z.string().uuid(),
+        pendingAuthId: z.string().uuid(),
+        personaId: z.number(),
+      }).parse(request.body ?? {});
+      return reply.send(await selectLibraryEaPersona(body.libraryId, user.recUserId, body.pendingAuthId, body.personaId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/status", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await getLibraryEaConnectionStatus(body.libraryId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/leagues", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send({ leagues: await listLibraryEaLeagues(body.libraryId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/bind", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ libraryId: z.string().uuid(), eaLeagueId: z.number() }).parse(request.body ?? {});
+      return reply.send(await bindLibraryEaLeague(body.libraryId, body.eaLeagueId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/ea/import", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await importLibraryRosters(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/rounds/list", async (request, reply) => {
+    try {
+      await identity(request);
+      const body = z.object({ tournamentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await listTournamentRounds(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/rounds/schedule", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        bracketSide: z.enum(["winners", "losers", "grand_final"]),
+        round: z.number().int().min(1),
+        scheduledAt: z.string().min(1),
+      }).parse(request.body ?? {});
+      return reply.send(await setTournamentRoundSchedule(body));
     } catch (error) {
       return sendError(reply, error);
     }

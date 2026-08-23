@@ -5,14 +5,14 @@ import { ApiError } from "../../lib/errors.js";
 const GAME = ["madden_26", "madden_27", "cfb_27"] as const;
 type Game = (typeof GAME)[number];
 
-function teamCatalogFor(game: string) {
+export function teamCatalogFor(game: string) {
   if (game === "cfb_27") {
     return CFB_27_TEAMS.filter((t) => !t.isSchedulePlaceholder).map((t) => ({ abbr: t.abbreviation, name: t.name }));
   }
   return NFL_TEAMS.map((t) => ({ abbr: t.abbreviation, name: t.name }));
 }
 
-function resolveTeamLoose(game: string, rawValue: string): { abbr: string; name: string } | null {
+export function resolveTeamLoose(game: string, rawValue: string): { abbr: string; name: string } | null {
   const value = rawValue.trim().toUpperCase();
   if (!value) return null;
   const catalog = teamCatalogFor(game);

@@ -1173,8 +1173,21 @@ export const siteApi = {
     rosterLibraryId?: string | null;
     teamSelectionMode?: "typed" | "claim_pool";
     claimOrderMode?: "first_come" | "lottery" | null;
+    scheduleMode?: "single_kickoff" | "per_round";
   }) {
     return request<{ tournament: SiteTournamentSummary }>("/v1/tournaments/create", input);
+  },
+  listTournamentRounds(tournamentId: string) {
+    return request<{ rounds: Array<{ bracketSide: "winners" | "losers" | "grand_final"; round: number; scheduledAt: string | null }> }>(
+      "/v1/tournaments/rounds/list",
+      { tournamentId },
+    );
+  },
+  setTournamentRoundSchedule(input: { tournamentId: string; bracketSide: "winners" | "losers" | "grand_final"; round: number; scheduledAt: string }) {
+    return request<{ rounds: Array<{ bracketSide: "winners" | "losers" | "grand_final"; round: number; scheduledAt: string | null }> }>(
+      "/v1/tournaments/rounds/schedule",
+      input,
+    );
   },
   cancelTournament(tournamentId: string) {
     return request<{ ok: true }>("/v1/tournaments/cancel", { tournamentId });
@@ -1309,6 +1322,27 @@ export const siteApi = {
   },
   importRosterLibraryCsv(input: { libraryId: string; csvText: string }) {
     return request<{ imported: number; skipped: Array<{ row: number; reason: string }> }>("/v1/tournaments/roster-libraries/import", input);
+  },
+  beginLibraryEaLogin(libraryId: string) {
+    return request<{ loginUrl: string; expiresInSeconds: number }>("/v1/tournaments/roster-libraries/ea/login", { libraryId });
+  },
+  submitLibraryEaCode(input: { libraryId: string; pasted: string }) {
+    return request<{ pendingAuthId: string; personas: SiteLibraryEaPersona[] }>("/v1/tournaments/roster-libraries/ea/code", input);
+  },
+  selectLibraryEaPersona(input: { libraryId: string; pendingAuthId: string; personaId: number }) {
+    return request<SiteLibraryEaConnection>("/v1/tournaments/roster-libraries/ea/persona", input);
+  },
+  getLibraryEaConnectionStatus(libraryId: string) {
+    return request<{ connection: SiteLibraryEaConnection | null }>("/v1/tournaments/roster-libraries/ea/status", { libraryId });
+  },
+  listLibraryEaLeagues(libraryId: string) {
+    return request<{ leagues: SiteLibraryEaFranchise[] }>("/v1/tournaments/roster-libraries/ea/leagues", { libraryId });
+  },
+  bindLibraryEaLeague(input: { libraryId: string; eaLeagueId: number }) {
+    return request<SiteLibraryEaConnection>("/v1/tournaments/roster-libraries/ea/bind", input);
+  },
+  importLibraryRosters(libraryId: string) {
+    return request<{ imported: number; skipped: Array<{ team: string; reason: string }> }>("/v1/tournaments/roster-libraries/ea/import", { libraryId });
   },
   cloneRosterLibrary(input: { libraryId: string; newName: string }) {
     return request<{ libraryId: string }>("/v1/tournaments/roster-libraries/clone", input);
@@ -1608,6 +1642,7 @@ export type SiteTournamentSummary = {
   rosterLibraryId: string | null;
   teamSelectionMode: "typed" | "claim_pool";
   claimOrderMode: "first_come" | "lottery" | null;
+  scheduleMode: "single_kickoff" | "per_round";
 };
 
 export type SiteTournamentTeamOption = {
@@ -1640,6 +1675,38 @@ export type SiteRosterLibraryTeam = {
   abbr: string;
   name: string;
   players: SiteRosterLibraryPlayer[];
+};
+
+export type SiteLibraryEaPersona = {
+  personaId: number;
+  displayName: string;
+  name: string;
+  namespaceName: string;
+  console: string;
+};
+
+export type SiteLibraryEaConnection = {
+  id: string;
+  libraryId: string;
+  console: string;
+  personaDisplayName: string | null;
+  eaLeagueId: string | null;
+  eaLeagueName: string | null;
+  eaSeasonYear: number | null;
+  status: string;
+  lastError: string | null;
+  lastImportAt: string | null;
+  createdAt: string;
+};
+
+export type SiteLibraryEaFranchise = {
+  leagueId: number;
+  leagueName: string;
+  calendarYear: number;
+  numMembers: number;
+  userTeamId: number;
+  userTeamName: string;
+  seasonText: string;
 };
 
 export type SiteTournamentLottery = {
@@ -1681,6 +1748,7 @@ export type SiteTournamentDetail = {
     side: "winners" | "losers" | "grand_final";
     round: number;
     slot: number;
+    scheduledAt: string | null;
     status: string;
     homeMustStream: boolean;
     resultMethod: string | null;

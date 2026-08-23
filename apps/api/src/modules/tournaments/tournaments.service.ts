@@ -13,6 +13,7 @@ import {
 } from "@rec/shared";
 import type { PoolClient } from "pg";
 import { getPgPool } from "../../db/client.js";
+import { syncTournamentDiscordAnnouncements } from "./tournament-discord.service.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { listTournamentStreamHighlights } from "./tournaments-media.service.js";
@@ -25,6 +26,13 @@ import type { TournamentBoxScore } from "./tournaments-odds.js";
 
 const GAME = ["madden_26", "madden_27", "cfb_27"] as const;
 type Game = (typeof GAME)[number];
+
+// Discord announcement fanout is a display-only side effect -- never let it block or fail the
+// mutation it's attached to.
+function notifyDiscord(tournamentId: string) {
+  void syncTournamentDiscordAnnouncements(tournamentId).catch((error) =>
+    console.error("[ERROR] tournament announcement sync failed (non-fatal):", error));
+}
 
 type TournamentRow = {
   id: string;
@@ -55,6 +63,7 @@ type TournamentRow = {
   roster_library_id: string | null;
   team_selection_mode: "typed" | "claim_pool";
   claim_order_mode: "first_come" | "lottery" | null;
+  schedule_mode: "single_kickoff" | "per_round";
   entrant_count?: number;
   approved_count?: number;
   pending_count?: number;
@@ -194,6 +203,7 @@ function publicTournament(row: TournamentRow, extra: {
     rosterLibraryId: row.roster_library_id,
     teamSelectionMode: row.team_selection_mode ?? "typed",
     claimOrderMode: row.claim_order_mode ?? null,
+    scheduleMode: row.schedule_mode ?? "single_kickoff",
   };
 }
 
@@ -324,6 +334,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
       side: row.bracket_side,
       round: Number(row.round),
       slot: Number(row.slot),
+      scheduledAt: row.scheduled_at ?? null,
       status: row.status,
       homeMustStream: true,
       resultMethod: row.result_method ?? null,
@@ -377,6 +388,7 @@ export async function createTournament(input: {
   rosterLibraryId?: string | null;
   teamSelectionMode?: "typed" | "claim_pool";
   claimOrderMode?: "first_come" | "lottery" | null;
+  scheduleMode?: "single_kickoff" | "per_round";
 }) {
   const meta = tournamentBracketType(input.bracketType);
   if (!meta) throw new ApiError(400, "Unknown bracket type.");
@@ -402,14 +414,15 @@ export async function createTournament(input: {
     throw new ApiError(400, "Pick first-come or lottery for how claimed teams are ordered.");
   }
   const claimOrderMode = teamSelectionMode === "claim_pool" ? input.claimOrderMode ?? null : null;
+  const scheduleMode = input.scheduleMode ?? "single_kickoff";
   const rules = parseTournamentRules(input.rules, input.game);
   const result = await getPgPool().query(
     `
       insert into rec_site_tournaments
         (title, description, game, bracket_type, payout_scope, winner_coins, runner_up_coins, semifinalist_coins,
          status, created_by_user_id, registration_opens_at, registration_closes_at, kickoff_at, starts_at, rules, timezone,
-         roster_library_id, team_selection_mode, claim_order_mode)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $10, $11, $12, $12, $13::jsonb, $14, $15, $16, $17)
+         roster_library_id, team_selection_mode, claim_order_mode, schedule_mode)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $10, $11, $12, $12, $13::jsonb, $14, $15, $16, $17, $18)
       returning *
     `,
     [
@@ -430,10 +443,12 @@ export async function createTournament(input: {
       input.rosterLibraryId || null,
       teamSelectionMode,
       claimOrderMode,
+      scheduleMode,
     ],
   );
   const tournament = publicTournament(result.rows[0] as TournamentRow, { entrantCount: 0 });
   await announceTournament(tournament);
+  notifyDiscord(tournament.id);
   return { tournament };
 }
 
@@ -444,6 +459,7 @@ export async function cancelTournament(input: { tournamentId: string }) {
     `update rec_site_tournaments set status = 'cancelled', updated_at = now() where id = $1`,
     [input.tournamentId],
   );
+  notifyDiscord(input.tournamentId);
   return { ok: true as const };
 }
 
@@ -500,6 +516,7 @@ export async function joinTournament(input: {
     throw error;
   }
   await rememberGamerTag(input.recUserId, gamerTag);
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail(input);
 }
 
@@ -540,6 +557,7 @@ export async function leaveTournament(input: { recUserId: string; tournamentId: 
   if (!deleted.rows[0]) {
     throw new ApiError(409, "Approved entries can only be removed by an admin.");
   }
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail(input);
 }
 
@@ -683,6 +701,7 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
   }
   await resolveByes(input.tournamentId);
   await maybeCompleteTournament(input.tournamentId);
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail({ recUserId: tournament.created_by_user_id, tournamentId: input.tournamentId });
 }
 
@@ -835,6 +854,7 @@ export async function reportTournamentWinner(input: {
   }
   await resolveByes(input.tournamentId);
   await maybeCompleteTournament(input.tournamentId);
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });
 }
 
@@ -970,6 +990,7 @@ export async function setTournamentRegistrationOpen(input: { tournamentId: strin
       [input.tournamentId],
     );
   }
+  notifyDiscord(input.tournamentId);
   return { ok: true as const, registrationPaused: !input.open };
 }
 
@@ -982,7 +1003,68 @@ export async function setTournamentEventOpen(input: { tournamentId: string; open
     `update rec_site_tournaments set event_paused = $2, updated_at = now() where id = $1`,
     [input.tournamentId, !input.open],
   );
+  notifyDiscord(input.tournamentId);
   return { ok: true as const, eventPaused: !input.open };
+}
+
+// Round-by-round scheduling only makes sense once the bracket exists -- round counts vary by
+// size/style (a double-elim losers bracket has more rounds than its winners bracket), so this
+// is set as a follow-up admin action after lockTournamentBracket generates every match row,
+// rather than predicted at creation time.
+export async function listTournamentRounds(input: { tournamentId: string }) {
+  const matches = await getPgPool().query(
+    `select distinct bracket_side, round from rec_site_tournament_matches where tournament_id = $1 order by bracket_side, round`,
+    [input.tournamentId],
+  );
+  const schedules = await getPgPool().query(
+    `select bracket_side, round, scheduled_at from rec_site_tournament_round_schedules where tournament_id = $1`,
+    [input.tournamentId],
+  );
+  const scheduledByKey = new Map(schedules.rows.map((row) => [`${row.bracket_side}:${row.round}`, row.scheduled_at]));
+  return {
+    rounds: matches.rows.map((row) => ({
+      bracketSide: row.bracket_side as string,
+      round: Number(row.round),
+      scheduledAt: scheduledByKey.get(`${row.bracket_side}:${row.round}`) ?? null,
+    })),
+  };
+}
+
+export async function setTournamentRoundSchedule(input: {
+  tournamentId: string;
+  bracketSide: "winners" | "losers" | "grand_final";
+  round: number;
+  scheduledAt: string;
+}) {
+  const tournament = await loadTournament(input.tournamentId);
+  if (tournament.schedule_mode !== "per_round") {
+    throw new ApiError(409, "This tournament isn't using per-round scheduling.");
+  }
+  const scheduledAt = new Date(input.scheduledAt);
+  if (Number.isNaN(scheduledAt.getTime())) throw new ApiError(400, "Enter a valid date/time.");
+  const client = await getPgPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `
+        insert into rec_site_tournament_round_schedules (tournament_id, bracket_side, round, scheduled_at)
+        values ($1, $2, $3, $4)
+        on conflict (tournament_id, bracket_side, round) do update set scheduled_at = excluded.scheduled_at, updated_at = now()
+      `,
+      [input.tournamentId, input.bracketSide, input.round, scheduledAt.toISOString()],
+    );
+    await client.query(
+      `update rec_site_tournament_matches set scheduled_at = $4 where tournament_id = $1 and bracket_side = $2 and round = $3`,
+      [input.tournamentId, input.bracketSide, input.round, scheduledAt.toISOString()],
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+  return listTournamentRounds({ tournamentId: input.tournamentId });
 }
 
 export async function addTournamentUser(input: {
@@ -1048,6 +1130,7 @@ export async function addTournamentUser(input: {
     await upsert(getPgPool());
   }
   await rememberGamerTag(input.userId, gamerTag);
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });
 }
 
@@ -1088,6 +1171,7 @@ export async function setTournamentEntryStatus(input: {
       [input.tournamentId, input.userId],
     );
   }
+  notifyDiscord(input.tournamentId);
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });
 }
 
