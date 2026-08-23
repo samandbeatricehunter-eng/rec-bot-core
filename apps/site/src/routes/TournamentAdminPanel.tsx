@@ -1,7 +1,146 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { siteApi, type AdminUserSummary, type SiteTournamentDetail, type SiteTournamentHighlight, type SiteTournamentSummary } from "../lib/site-api.js";
+import {
+  siteApi,
+  type AdminUserSummary,
+  type SiteRosterLibrary,
+  type SiteTournamentDetail,
+  type SiteTournamentHighlight,
+  type SiteTournamentSummary,
+} from "../lib/site-api.js";
 import { CreateTournamentForm, gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
+
+function RosterLibraryAdmin() {
+  const [libraries, setLibraries] = useState<SiteRosterLibrary[]>([]);
+  const [game, setGame] = useState<"madden_26" | "madden_27" | "cfb_27">("madden_27");
+  const [newName, setNewName] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [cloneName, setCloneName] = useState("");
+  const [importReport, setImportReport] = useState<{ imported: number; skipped: Array<{ row: number; reason: string }> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reload() {
+    const result = await siteApi.listRosterLibraries();
+    setLibraries(result.libraries);
+  }
+
+  useEffect(() => { void reload(); }, []);
+
+  async function act(run: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await run();
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="site-tournament-roster-admin">
+      <h3>Roster libraries</h3>
+      {error ? <p className="site-auth-error">{error}</p> : null}
+      <div className="site-account-stat-grid site-tournament-create-grid">
+        <label className="site-field">
+          <span>Game</span>
+          <select className="site-select" value={game} onChange={(event) => setGame(event.target.value as typeof game)}>
+            <option value="madden_27">Madden 27</option>
+            <option value="cfb_27">CFB 27</option>
+            <option value="madden_26">Madden 26</option>
+          </select>
+        </label>
+        <label className="site-field">
+          <span>New library name</span>
+          <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g. M27 Baseline" />
+        </label>
+      </div>
+      <button
+        className="site-btn site-btn-primary"
+        disabled={busy || newName.trim().length < 2}
+        onClick={() => void act(async () => {
+          const result = await siteApi.createRosterLibrary({ game, name: newName.trim() });
+          setNewName("");
+          setSelectedId(result.library.id);
+        })}
+      >
+        Create library
+      </button>
+
+      <ul className="site-account-notif-list">
+        {libraries.map((library) => (
+          <li key={library.id}>
+            <button type="button" className={selectedId === library.id ? "is-active" : ""} onClick={() => setSelectedId(library.id)}>
+              {library.name}{library.isBaseline ? " ★" : ""} · {gameLabel(library.game)} · {library.playerCount ?? 0} players
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {selectedId ? (
+        <div className="site-tournament-roster-import">
+          <label className="site-field">
+            <span>Paste CSV (Team, Name, Position, Jersey, OVR + any other columns)</span>
+            <textarea rows={6} value={csvText} onChange={(event) => setCsvText(event.target.value)} />
+          </label>
+          <div className="site-profile-actions">
+            <button
+              className="site-btn site-btn-primary"
+              disabled={busy || csvText.trim().length < 2}
+              onClick={() => void act(async () => {
+                const result = await siteApi.importRosterLibraryCsv({ libraryId: selectedId, csvText });
+                setImportReport(result);
+                setCsvText("");
+              })}
+            >
+              Import CSV
+            </button>
+            <button
+              className="site-btn site-btn-ghost"
+              disabled={busy}
+              onClick={() => void act(() => siteApi.setRosterLibraryBaseline({ libraryId: selectedId, isBaseline: true }))}
+            >
+              Mark as baseline
+            </button>
+            <button
+              className="site-btn site-btn-danger"
+              disabled={busy}
+              onClick={() => void act(() => siteApi.deleteRosterLibrary(selectedId))}
+            >
+              Delete
+            </button>
+          </div>
+          <div className="site-account-stat-grid site-tournament-create-grid">
+            <label className="site-field">
+              <span>Clone as new library named</span>
+              <input value={cloneName} onChange={(event) => setCloneName(event.target.value)} placeholder="e.g. M27 Baseline" />
+            </label>
+          </div>
+          <button
+            className="site-btn site-btn-ghost"
+            disabled={busy || cloneName.trim().length < 2}
+            onClick={() => void act(async () => {
+              await siteApi.cloneRosterLibrary({ libraryId: selectedId, newName: cloneName.trim() });
+              setCloneName("");
+            })}
+          >
+            Clone library
+          </button>
+          {importReport ? (
+            <p className="site-muted">
+              Imported {importReport.imported} players.
+              {importReport.skipped.length ? ` Skipped ${importReport.skipped.length}: ${importReport.skipped.slice(0, 5).map((s) => `row ${s.row} (${s.reason})`).join("; ")}${importReport.skipped.length > 5 ? "…" : ""}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function TournamentAdminPanel() {
   const navigate = useNavigate();
@@ -83,6 +222,7 @@ export function TournamentAdminPanel() {
     <div className="site-billing-panel site-tournament-admin">
       <p className="site-muted">Create events here, then approve registrations, fill the field, and control registration / event status.</p>
       {error ? <p className="site-auth-error">{error}</p> : null}
+      <RosterLibraryAdmin />
       <CreateTournamentForm onCreated={(id) => {
         setSelectedId(id);
         navigate(`/tournaments/${id}`);

@@ -11,6 +11,8 @@ import {
   type SiteTournamentWagerOptions,
 } from "../lib/site-api.js";
 import { gameLabel, payoutLine } from "./Tournaments.js";
+import { TournamentRosterSection } from "./TournamentRosterSection.js";
+import { TournamentLotteryPanel } from "./TournamentLotteryPanel.js";
 
 async function readVideoDurationSeconds(file: File): Promise<number> {
   const objectUrl = URL.createObjectURL(file);
@@ -484,7 +486,7 @@ export function TournamentDetailPage() {
 
   async function reload() {
     const next = await siteApi.getTournament(tournamentId);
-    setDetail({ tournament: next.tournament, entrants: next.entrants, matches: next.matches });
+    setDetail({ tournament: next.tournament, entrants: next.entrants, matches: next.matches, claimedTeams: next.claimedTeams });
     setIsAdmin(next.isAdmin);
     setKnownGamerTag(next.knownGamerTag);
     setTeams(next.teams);
@@ -526,7 +528,9 @@ export function TournamentDetailPage() {
     }
   }
 
+  const claimedTeams = new Set(detail?.claimedTeams ?? []);
   const filteredTeams = teams.filter((team) => {
+    if (detail?.tournament.teamSelectionMode === "claim_pool" && claimedTeams.has(team.abbr)) return false;
     const query = teamQuery.trim().toLowerCase();
     if (!query) return true;
     return `${team.name} ${team.abbr} ${team.conference}`.toLowerCase().includes(query);
@@ -606,32 +610,44 @@ export function TournamentDetailPage() {
           className="site-tournament-register"
           onSubmit={(event) => {
             event.preventDefault();
-            void act(() => siteApi.joinTournament({ tournamentId: row.id, teamAbbr, gamerTag }));
+            void act(() => siteApi.joinTournament({
+              tournamentId: row.id,
+              teamAbbr: row.claimOrderMode === "lottery" ? null : teamAbbr,
+              gamerTag,
+            }));
           }}
         >
           <h3>Register</h3>
           <p className="site-muted">
-            {row.game === "cfb_27"
-              ? "Pick the college team you will use for the entire tournament. Duplicates are allowed."
-              : "Pick 1 of the 32 NFL teams you will use for the entire tournament. Duplicates are allowed."}
+            {row.claimOrderMode === "lottery"
+              ? "Register now and you'll pick (or be drawn) a team once the lottery draft runs."
+              : row.teamSelectionMode === "claim_pool"
+                ? "Claim one of the remaining teams — once picked, it's off the board for everyone else."
+                : row.game === "cfb_27"
+                  ? "Pick the college team you will use for the entire tournament. Duplicates are allowed."
+                  : "Pick 1 of the 32 NFL teams you will use for the entire tournament. Duplicates are allowed."}
           </p>
-          {teams.length > 40 ? (
-            <label className="site-field">
-              <span>Filter teams</span>
-              <input value={teamQuery} onChange={(event) => setTeamQuery(event.target.value)} placeholder="Search" />
-            </label>
+          {row.claimOrderMode !== "lottery" ? (
+            <>
+              {teams.length > 40 ? (
+                <label className="site-field">
+                  <span>Filter teams</span>
+                  <input value={teamQuery} onChange={(event) => setTeamQuery(event.target.value)} placeholder="Search" />
+                </label>
+              ) : null}
+              <label className="site-field">
+                <span>Your team</span>
+                <select className="site-select" value={teamAbbr} onChange={(event) => setTeamAbbr(event.target.value)} required>
+                  <option value="">Select a team…</option>
+                  {filteredTeams.map((team) => (
+                    <option key={team.abbr} value={team.abbr}>
+                      {team.name} ({team.abbr})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           ) : null}
-          <label className="site-field">
-            <span>Your team</span>
-            <select className="site-select" value={teamAbbr} onChange={(event) => setTeamAbbr(event.target.value)} required>
-              <option value="">Select a team…</option>
-              {filteredTeams.map((team) => (
-                <option key={team.abbr} value={team.abbr}>
-                  {team.name} ({team.abbr})
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="site-field">
             <span>{needsGamerTag ? "Gamertag / PSN / EA name" : "Confirm gamertag / PSN / EA name"}</span>
             <input
@@ -643,11 +659,19 @@ export function TournamentDetailPage() {
               placeholder={needsGamerTag ? "Required — we don’t have one on file" : "From your league import"}
             />
           </label>
-          <button className="site-btn site-btn-primary" type="submit" disabled={busy || !teamAbbr || gamerTag.trim().length < 2}>
+          <button
+            className="site-btn site-btn-primary"
+            type="submit"
+            disabled={busy || (row.claimOrderMode !== "lottery" && !teamAbbr) || gamerTag.trim().length < 2}
+          >
             {busy ? "Joining…" : "Request to join"}
           </button>
         </form>
       ) : null}
+      {row.claimOrderMode === "lottery" ? (
+        <TournamentLotteryPanel tournamentId={row.id} isAdmin={isAdmin} currentUserId={you?.userId ?? null} onChanged={() => void reload()} />
+      ) : null}
+      {row.rosterLibraryId ? <TournamentRosterSection libraryId={row.rosterLibraryId} /> : null}
       <div className="site-account-tabs" role="tablist" aria-label="Tournament sections">
         <button type="button" className="site-account-tab-arrow" aria-hidden="true" tabIndex={-1}>‹</button>
         <div className="site-account-tab-track">

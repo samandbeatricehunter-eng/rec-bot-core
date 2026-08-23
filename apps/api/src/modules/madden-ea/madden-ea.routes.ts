@@ -174,8 +174,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       // reopening after being closed mid-import — see ImportDataModal.tsx) could both pass
       // this point and run importEaDatasetsWithProgress concurrently against the same league.
       // A running import for this league blocks a new one instead.
-      if (getImportProgress(body.league_id).running) {
-        throw new ApiError(409, "An import is already running for this league. Wait for it to finish, or reopen Import Data to watch its progress.");
+      const inFlight = getImportProgress(body.league_id);
+      if (inFlight.running) {
+        const runningWeek = inFlight.weekLabel ? ` for ${inFlight.weekLabel}` : "";
+        throw new ApiError(409, `An import is already running${runningWeek} for this league. Wait for it to finish, or reopen Import Data to watch its progress.`);
       }
       beginImportProgress(body.league_id, "manual");
 

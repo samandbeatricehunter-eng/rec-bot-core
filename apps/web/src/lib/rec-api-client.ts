@@ -230,13 +230,13 @@ export type EaImportResult = {
 };
 
 export type EaImportProgressEvent =
-  | { type: "starting"; datasets: string[]; weeks: number }
+  | { type: "starting"; datasets: string[]; weeks: number; weekLabel: string }
   | { type: "dataset_start"; dataset: string; label: string }
   | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
   | { type: "dataset_error"; dataset: string; label: string; error: string }
   | { type: "step"; step: number; stepCount: number; label: string; detail?: string }
   | { type: "reconciling"; step: string }
-  | { type: "done"; results: EaImportResult[] }
+  | { type: "done"; results: EaImportResult[]; weekLabel: string | null }
   | { type: "error"; error: string };
 
 export const recApi = {
@@ -291,7 +291,7 @@ export const recApi = {
       }>;
     }>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
-    recApiFetch<{ events: EaImportProgressEvent[]; running: boolean; source: "manual" | "auto" | null }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+    recApiFetch<{ events: EaImportProgressEvent[]; running: boolean; source: "manual" | "auto" | null; weekLabel: string | null }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   /** SSE streaming variant — calls onEvent for each progress event, returns final results. */
   importMaddenEaDatasetsStream: async (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }, onEvent: (event: EaImportProgressEvent) => void): Promise<EaImportResult[]> => {
     const response = await fetch(`${apiBaseUrl()}/v1/import/madden/ea/import-stream`, {

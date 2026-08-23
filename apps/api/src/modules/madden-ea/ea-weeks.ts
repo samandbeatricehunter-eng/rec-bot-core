@@ -177,6 +177,21 @@ export function weeksThroughCurrent(current: EaWeekRef): EaWeekRef[] {
   return refs;
 }
 
+/**
+ * Human label describing the full set of weeks an import request targets, e.g. "Week 9" for a
+ * single week, "Week 1 – Week 9" for a span/"through current", or a fallback when no weekly
+ * data was requested at all. Used so the in-flight/completed import UI can tell a commissioner
+ * which week actually ran instead of only showing that during a transient progress line.
+ */
+export function describeWeekRefsLabel(refs: EaWeekRef[]): string {
+  if (refs.length === 0) return "no weekly data";
+  const sorted = [...refs].sort((a, b) => a.stageIndex - b.stageIndex || a.weekIndex - b.weekIndex);
+  const first = describeEaWeek(sorted[0]!.stageIndex, sorted[0]!.weekIndex);
+  if (sorted.length === 1) return first.label;
+  const last = describeEaWeek(sorted[sorted.length - 1]!.stageIndex, sorted[sorted.length - 1]!.weekIndex);
+  return `${first.label} – ${last.label}`;
+}
+
 export function dedupeWeekRefs(refs: EaWeekRef[]): EaWeekRef[] {
   const unique: EaWeekRef[] = [];
   for (const ref of refs) {

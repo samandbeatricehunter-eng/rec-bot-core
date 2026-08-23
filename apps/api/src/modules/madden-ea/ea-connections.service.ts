@@ -55,7 +55,7 @@ import {
   type EaSessionCache,
   type EaTokenRecord,
 } from "./ea-token-vault.js";
-import { currentWeekFromSeasonInfo, describeEaWeek, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
+import { currentWeekFromSeasonInfo, describeEaWeek, describeWeekRefsLabel, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
 export type { EaDataset };
 
@@ -517,35 +517,47 @@ export type EaImportOptions = {
 };
 
 export type EaImportProgressEvent =
-  | { type: "starting"; datasets: string[]; weeks: number }
+  | { type: "starting"; datasets: string[]; weeks: number; weekLabel: string }
   | { type: "dataset_start"; dataset: string; label: string }
   | { type: "dataset_done"; dataset: string; label: string; records: number; duplicate: boolean }
   | { type: "dataset_error"; dataset: string; label: string; error: string }
   | { type: "step"; step: number; stepCount: number; label: string; detail?: string }
   | { type: "reconciling"; step: string }
-  | { type: "done"; results: EaImportResult[] }
+  | { type: "done"; results: EaImportResult[]; weekLabel: string | null }
   | { type: "error"; error: string };
 
 // In-memory progress store keyed by leagueId — the import writes events here,
-// the frontend polls them via /v1/import/madden/ea/import-progress.
+// the frontend polls them via /v1/import/madden/ea/import-progress. `weekLabel` is set once
+// importEaDatasetsWithProgress resolves which EA week(s) this specific request targets (it
+// starts null — "current week" isn't known until the franchise's season info comes back —
+// see setImportProgressWeek), so a caller can tell "the import running right now is for Week
+// 9" before deciding whether to submit a Week 8 request on top of it.
 type ImportProgressSource = "manual" | "auto";
-const importProgressStore = new Map<string, { events: EaImportProgressEvent[]; startedAt: number; source: ImportProgressSource }>();
+type ImportProgressEntry = { events: EaImportProgressEvent[]; startedAt: number; source: ImportProgressSource; weekLabel: string | null };
+const importProgressStore = new Map<string, ImportProgressEntry>();
 
 export function pushProgress(leagueId: string, event: EaImportProgressEvent) {
-  const entry = importProgressStore.get(leagueId) ?? { events: [], startedAt: Date.now(), source: "manual" as const };
+  const entry = importProgressStore.get(leagueId) ?? { events: [], startedAt: Date.now(), source: "manual" as const, weekLabel: null };
   entry.events.push(event);
   importProgressStore.set(leagueId, entry);
 }
 
-export function getImportProgress(leagueId: string): { events: EaImportProgressEvent[]; running: boolean; source: ImportProgressSource | null } {
+export function getImportProgress(leagueId: string): { events: EaImportProgressEvent[]; running: boolean; source: ImportProgressSource | null; weekLabel: string | null } {
   const entry = importProgressStore.get(leagueId);
-  if (!entry) return { events: [], running: false, source: null };
+  if (!entry) return { events: [], running: false, source: null, weekLabel: null };
   const done = entry.events.some((e) => e.type === "done" || e.type === "error");
-  return { events: entry.events, running: !done, source: entry.source };
+  return { events: entry.events, running: !done, source: entry.source, weekLabel: entry.weekLabel };
 }
 
 export function beginImportProgress(leagueId: string, source: ImportProgressSource) {
-  importProgressStore.set(leagueId, { events: [], startedAt: Date.now(), source });
+  importProgressStore.set(leagueId, { events: [], startedAt: Date.now(), source, weekLabel: null });
+}
+
+/** Records which EA week(s) this in-flight import actually targets, once known (see the
+ *  comment on importProgressStore above). */
+export function setImportProgressWeek(leagueId: string, weekLabel: string) {
+  const entry = importProgressStore.get(leagueId);
+  if (entry) entry.weekLabel = weekLabel;
 }
 
 export function clearImportProgress(leagueId: string) {
@@ -681,6 +693,12 @@ export async function importEaDatasetsWithProgress(
     weekScope: options.weekScope,
     current: defaultWeekRef,
   });
+  // Now that the requested week(s) are resolved (including "current", which only becomes
+  // concrete once the franchise's season info is in), record them on the progress entry so a
+  // reader (e.g. the Import Data modal, or the auto-sweep skipping a league with one already
+  // running) can tell which week this specific import is for.
+  const weekLabel = describeWeekRefsLabel(weeklyRefs);
+  setImportProgressWeek(leagueId, weekLabel);
 
   const results: EaImportResult[] = [];
   let scheduleImported = false;
@@ -747,7 +765,7 @@ export async function importEaDatasetsWithProgress(
     if (faPromise) preloadedFaRaw = await faPromise;
   }
 
-  pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length });
+  pushProgress(leagueId, { type: "starting", datasets: datasets.map(String), weeks: weeklyRefs.length, weekLabel });
 
   const writeImportedDataset = async (dataset: EaDataset, raw: unknown, week: EaWeekRef) => {
     const isWeekly = WEEKLY_DATASETS.has(dataset);
@@ -997,7 +1015,7 @@ export async function importEaDatasetsWithProgress(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
     [connectionId],
   );
-  pushProgress(leagueId, { type: "done", results });
+  pushProgress(leagueId, { type: "done", results, weekLabel });
   return results;
 }
 
@@ -1026,8 +1044,9 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
   let succeeded = 0;
   let failed = 0;
   for (const row of rows.rows) {
-    if (getImportProgress(row.league_id).running) {
-      console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — an import is already running.`);
+    const inFlight = getImportProgress(row.league_id);
+    if (inFlight.running) {
+      console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — an import is already running${inFlight.weekLabel ? ` for ${inFlight.weekLabel}` : ""}.`);
       continue;
     }
     beginImportProgress(row.league_id, "auto");

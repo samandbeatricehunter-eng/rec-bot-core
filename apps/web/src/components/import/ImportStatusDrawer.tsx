@@ -65,8 +65,8 @@ export function ImportStatusDrawer() {
   const weekPart = summary.weekLabel ? `, ${summary.weekLabel}` : "";
   const title = summary.finished
     ? summary.failed
-      ? "Import Status — Failed"
-      : "Import Status — Complete"
+      ? `Import Status — Failed${weekPart}`
+      : `Import Status — Complete${weekPart}`
     : `Import Status — Step ${summary.step} of ${summary.total}${weekPart}`;
 
   return createPortal(

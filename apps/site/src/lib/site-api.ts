@@ -1170,6 +1170,9 @@ export const siteApi = {
     kickoffAt: string;
     timezone?: string;
     rules: TournamentRules;
+    rosterLibraryId?: string | null;
+    teamSelectionMode?: "typed" | "claim_pool";
+    claimOrderMode?: "first_come" | "lottery" | null;
   }) {
     return request<{ tournament: SiteTournamentSummary }>("/v1/tournaments/create", input);
   },
@@ -1179,7 +1182,7 @@ export const siteApi = {
   lockTournament(tournamentId: string) {
     return request<SiteTournamentDetail>("/v1/tournaments/lock", { tournamentId });
   },
-  joinTournament(input: { tournamentId: string; teamAbbr: string; gamerTag: string }) {
+  joinTournament(input: { tournamentId: string; teamAbbr?: string | null; gamerTag: string }) {
     return request<SiteTournamentDetail>("/v1/tournaments/join", input);
   },
   leaveTournament(tournamentId: string) {
@@ -1294,6 +1297,45 @@ export const siteApi = {
   },
   setTournamentMatchBetting(input: { tournamentId: string; matchId: string; open: boolean }) {
     return request<{ ok: true; bettingOpen: boolean }>("/v1/tournaments/wagers/betting-open", input);
+  },
+  listRosterLibraries(game?: "madden_26" | "madden_27" | "cfb_27") {
+    return request<{ libraries: SiteRosterLibrary[] }>("/v1/tournaments/roster-libraries/list", { game });
+  },
+  getRosterLibrary(libraryId: string) {
+    return request<{ library: SiteRosterLibrary; teams: SiteRosterLibraryTeam[] }>("/v1/tournaments/roster-libraries/get", { libraryId });
+  },
+  createRosterLibrary(input: { game: "madden_26" | "madden_27" | "cfb_27"; name: string; sourceNote?: string | null }) {
+    return request<{ library: SiteRosterLibrary }>("/v1/tournaments/roster-libraries/create", input);
+  },
+  importRosterLibraryCsv(input: { libraryId: string; csvText: string }) {
+    return request<{ imported: number; skipped: Array<{ row: number; reason: string }> }>("/v1/tournaments/roster-libraries/import", input);
+  },
+  cloneRosterLibrary(input: { libraryId: string; newName: string }) {
+    return request<{ libraryId: string }>("/v1/tournaments/roster-libraries/clone", input);
+  },
+  setRosterLibraryBaseline(input: { libraryId: string; isBaseline: boolean }) {
+    return request<{ ok: true }>("/v1/tournaments/roster-libraries/set-baseline", input);
+  },
+  deleteRosterLibrary(libraryId: string) {
+    return request<{ ok: true }>("/v1/tournaments/roster-libraries/delete", { libraryId });
+  },
+  getTournamentLottery(tournamentId: string) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/get", { tournamentId });
+  },
+  scheduleTournamentLottery(input: { tournamentId: string; scheduledAt: string }) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/schedule", input);
+  },
+  runTournamentLotteryNow(tournamentId: string) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/run-now", { tournamentId });
+  },
+  pickLotteryTeam(input: { tournamentId: string; teamAbbr: string; gamerTag: string }) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/pick", input);
+  },
+  assignLotteryTeam(input: { tournamentId: string; userId: string; teamAbbr: string; gamerTag: string }) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/assign", input);
+  },
+  skipLotteryPick(tournamentId: string) {
+    return request<SiteTournamentLottery>("/v1/tournaments/lottery/skip", { tournamentId });
   },
   listCompUsers(input: { page?: number } = {}) {
     return request<{ users: CompUserSummary[]; page: number; pageSize: number; total: number }>(
@@ -1563,12 +1605,53 @@ export type SiteTournamentSummary = {
   joined: boolean;
   joinedStatus: "pending" | "approved" | null;
   championDisplayName: string | null;
+  rosterLibraryId: string | null;
+  teamSelectionMode: "typed" | "claim_pool";
+  claimOrderMode: "first_come" | "lottery" | null;
 };
 
 export type SiteTournamentTeamOption = {
   abbr: string;
   name: string;
   conference: string;
+};
+
+export type SiteRosterLibrary = {
+  id: string;
+  game: string;
+  name: string;
+  isBaseline: boolean;
+  sourceNote: string | null;
+  playerCount?: number;
+  teamCount?: number;
+  createdAt: string;
+};
+
+export type SiteRosterLibraryPlayer = {
+  id: string;
+  fullName: string;
+  position: string | null;
+  jerseyNumber: number | null;
+  overallRating: number | null;
+  attributes: Record<string, string>;
+};
+
+export type SiteRosterLibraryTeam = {
+  abbr: string;
+  name: string;
+  players: SiteRosterLibraryPlayer[];
+};
+
+export type SiteTournamentLottery = {
+  status: "not_scheduled" | "scheduled" | "drawing" | "picking" | "open_pool" | "completed";
+  tournamentTitle: string;
+  scheduledAt?: string | null;
+  drawOrder?: Array<{ userId: string; displayName: string }>;
+  currentPosition?: number | null;
+  currentUserId?: string | null;
+  currentPickDeadlineAt?: string | null;
+  openPoolDeadlineAt?: string | null;
+  skipped?: Array<{ userId: string; resolved: boolean }>;
 };
 
 export type SiteTournamentPlayer = {
@@ -1581,6 +1664,7 @@ export type SiteTournamentPlayer = {
 
 export type SiteTournamentDetail = {
   tournament: SiteTournamentSummary;
+  claimedTeams?: string[];
   entrants: Array<{
     userId: string;
     seed: number | null;

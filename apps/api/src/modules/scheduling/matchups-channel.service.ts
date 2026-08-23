@@ -4,6 +4,7 @@
 // and matchup-scheduling.service.ts's Scheduling panel (one embed per game channel) -- this is
 // the single league-wide "here's the whole week" view.
 import { supabase } from "../../lib/supabase.js";
+import { getPgPool } from "../../db/client.js";
 import { postDiscordChannelMessage, editDiscordMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -50,12 +51,12 @@ function statusLineFor(input: {
   return "Not scheduled";
 }
 
-// NOTE: the very first post for a new week (before rec_matchups_channel_posts has a row) has a
-// narrow race if two different scheduling mutations for two different games in the same league
-// fire within the same instant -- both could read "no existing post" and both post a fresh
-// message, leaving a stray duplicate. Once a row exists, all further calls safely edit in place.
-// Accepted as a low-severity edge case (a cosmetic duplicate, not broken data) rather than adding
-// full cross-request locking for this feature.
+// The check-then-act sequence below (read the tracked message id, decide edit-vs-recreate, write
+// the new state back) races whenever two scheduling mutations for two different games in the same
+// league fire close together -- both can read the same stale state and both fall through to
+// delete+repost, leaving an orphaned duplicate the DB (single row per league) can only track one
+// of. Serialized per league with a pg advisory lock, same pattern as cfp-bracket.service.ts and
+// team-schedule-transaction.service.ts, so only one caller at a time can read-decide-write.
 export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const { getAdvanceWeekGames } = await import("../league-week/advance-results.service.js");
   const week = await getAdvanceWeekGames(guildId).catch((error) => { console.error("[ERROR] matchups channel: failed to load week games (non-fatal):", error); return null; });
@@ -68,76 +69,97 @@ export async function refreshMatchupsChannel(guildId: string): Promise<void> {
   const channelId = String((routes?.routes as any)?.announcements_channel_id ?? (routes?.routes as any)?.matchups_channel_id ?? "");
   if (!channelId) return;
 
-  // H2H-only post. If this week has no human matchups, drop any leftover embed (CPU block
-  // and/or Ready to Advance button) rather than leaving a stale message in the channel.
-  if (!h2hGames.length) {
-    const state = await supabase.from("rec_matchups_channel_posts").select("channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
-    if (state.data?.message_id) {
-      await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
-      await supabase.from("rec_matchups_channel_posts").delete().eq("league_id", context.leagueId);
+  const client = await getPgPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`matchups-channel:${context.leagueId}`]);
+
+    // H2H-only post. If this week has no human matchups, drop any leftover embed (CPU block
+    // and/or Ready to Advance button) rather than leaving a stale message in the channel.
+    if (!h2hGames.length) {
+      const state = await client.query(`select channel_id,message_id from rec_matchups_channel_posts where league_id=$1`, [context.leagueId]);
+      const row = state.rows[0] as { channel_id: string; message_id: string } | undefined;
+      if (row?.message_id) {
+        await deleteDiscordMessage(row.channel_id, row.message_id).catch(() => undefined);
+        await client.query(`delete from rec_matchups_channel_posts where league_id=$1`, [context.leagueId]);
+      }
+      await client.query("commit");
+      return;
     }
-    return;
-  }
 
-  const gameIds = h2hGames.map((g) => g.gameId);
-  const [scheduling, streams, fairSims] = await Promise.all([
-    supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id,response_started_at,home_responded_at,away_responded_at").in("game_id", gameIds),
-    supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", gameIds).eq("status", "posted").is("ended_at", null),
-    supabase.from("rec_game_scheduling_events").select("game_id").in("game_id", gameIds).eq("event_type", "commissioner_grant_fs"),
-  ]);
-  const fairSimGameIds = new Set((fairSims.data ?? []).map((row: any) => String(row.game_id)));
-  const schedulingByGame = new Map<string, SchedulingRow>((scheduling.data ?? []).map((r: any) => [String(r.game_id), r]));
-  const streamsByGame = new Map<string, Array<{ team_id: string | null; message_url: string }>>();
-  for (const row of (streams.data ?? []) as any[]) {
-    const list = streamsByGame.get(String(row.game_id)) ?? [];
-    list.push({ team_id: row.team_id ? String(row.team_id) : null, message_url: row.message_url });
-    streamsByGame.set(String(row.game_id), list);
-  }
+    const gameIds = h2hGames.map((g) => g.gameId);
+    const [scheduling, streams, fairSims] = await Promise.all([
+      supabase.from("rec_game_scheduling").select("game_id,status,scheduled_for,fw_flagged,fw_flagged_for_user_id,proposed_by_user_id,response_started_at,home_responded_at,away_responded_at").in("game_id", gameIds),
+      supabase.from("rec_stream_compliance_logs").select("game_id,team_id,message_url").in("game_id", gameIds).eq("status", "posted").is("ended_at", null),
+      supabase.from("rec_game_scheduling_events").select("game_id").in("game_id", gameIds).eq("event_type", "commissioner_grant_fs"),
+    ]);
+    const fairSimGameIds = new Set((fairSims.data ?? []).map((row: any) => String(row.game_id)));
+    const schedulingByGame = new Map<string, SchedulingRow>((scheduling.data ?? []).map((r: any) => [String(r.game_id), r]));
+    const streamsByGame = new Map<string, Array<{ team_id: string | null; message_url: string }>>();
+    for (const row of (streams.data ?? []) as any[]) {
+      const list = streamsByGame.get(String(row.game_id)) ?? [];
+      list.push({ team_id: row.team_id ? String(row.team_id) : null, message_url: row.message_url });
+      streamsByGame.set(String(row.game_id), list);
+    }
 
-  const userIds = [...new Set(h2hGames.flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
-  const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [] as any[] };
-  const discordByUser = new Map<string, string>((accounts.data ?? []).map((a: any) => [String(a.user_id), String(a.discord_id)]));
+    const userIds = [...new Set(h2hGames.flatMap((g) => [g.homeUserId, g.awayUserId]).filter((v): v is string => Boolean(v)))];
+    const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [] as any[] };
+    const discordByUser = new Map<string, string>((accounts.data ?? []).map((a: any) => [String(a.user_id), String(a.discord_id)]));
 
-  const lines = h2hGames.map((g) => {
-    const s = schedulingByGame.get(g.gameId);
-    const statusText = statusLineFor({ s, homeScore: g.homeScore, awayScore: g.awayScore, discordByUser, fairSim: fairSimGameIds.has(g.gameId) });
-    const header = `**${g.awayTeamName}** ${mentionOrFallback(discordByUser.get(g.awayUserId))} VS **${g.homeTeamName}** ${mentionOrFallback(discordByUser.get(g.homeUserId))}`;
+    const lines = h2hGames.map((g) => {
+      const s = schedulingByGame.get(g.gameId);
+      const statusText = statusLineFor({ s, homeScore: g.homeScore, awayScore: g.awayScore, discordByUser, fairSim: fairSimGameIds.has(g.gameId) });
+      const header = `**${g.awayTeamName}** ${mentionOrFallback(discordByUser.get(g.awayUserId))} VS **${g.homeTeamName}** ${mentionOrFallback(discordByUser.get(g.homeUserId))}`;
 
-    const streamEntries = streamsByGame.get(g.gameId) ?? [];
-    const awayStream = streamEntries.find((entry) => entry.team_id === g.awayTeamId);
-    const homeStream = streamEntries.find((entry) => entry.team_id === g.homeTeamId);
-    const streamLinks = [
-      awayStream ? `[${g.awayTeamName} Stream](${awayStream.message_url})` : null,
-      homeStream ? `[${g.homeTeamName} Stream](${homeStream.message_url})` : null,
-    ].filter((v): v is string => Boolean(v));
+      const streamEntries = streamsByGame.get(g.gameId) ?? [];
+      const awayStream = streamEntries.find((entry) => entry.team_id === g.awayTeamId);
+      const homeStream = streamEntries.find((entry) => entry.team_id === g.homeTeamId);
+      const streamLinks = [
+        awayStream ? `[${g.awayTeamName} Stream](${awayStream.message_url})` : null,
+        homeStream ? `[${g.homeTeamName} Stream](${homeStream.message_url})` : null,
+      ].filter((v): v is string => Boolean(v));
 
-    const streamLine = streamLinks.length ? `\n> ${streamLinks.join("  •  ")}` : "";
-    return `${header}\n> ${statusText}${streamLine}`;
-  });
-
-  const seasonNumber = week.seasonNumber ?? 1;
-  const title = `Season ${seasonNumber}, Week ${week.currentWeek} Matchups`;
-  // components: [] is required on edit — omitting the field leaves the previous Ready to
-  // Advance button on the Discord message.
-  const payload = {
-    embeds: [{ title, color: 0xd9a521, description: lines.join("\n\n").slice(0, 4096) }],
-    components: [] as unknown[],
-  };
-
-  const state = await supabase.from("rec_matchups_channel_posts").select("week_number,channel_id,message_id").eq("league_id", context.leagueId).maybeSingle();
-
-  if (state.data && state.data.week_number === week.currentWeek && state.data.channel_id === channelId) {
-    const edited = await editDiscordMessage(channelId, state.data.message_id, payload).catch(() => false);
-    if (edited) return;
-  }
-  if (state.data?.message_id) {
-    await deleteDiscordMessage(state.data.channel_id, state.data.message_id).catch(() => undefined);
-  }
-  const posted = await postDiscordChannelMessage(channelId, payload).catch((error) => { console.error("[ERROR] matchups channel: failed to post (non-fatal):", error); return null; });
-  if (posted?.id) {
-    await supabase.from("rec_matchups_channel_posts").upsert({
-      league_id: context.leagueId, week_number: week.currentWeek, channel_id: channelId, message_id: posted.id, updated_at: new Date().toISOString(),
+      const streamLine = streamLinks.length ? `\n> ${streamLinks.join("  •  ")}` : "";
+      return `${header}\n> ${statusText}${streamLine}`;
     });
+
+    const seasonNumber = week.seasonNumber ?? 1;
+    const title = `Season ${seasonNumber}, Week ${week.currentWeek} Matchups`;
+    // components: [] is required on edit — omitting the field leaves the previous Ready to
+    // Advance button on the Discord message.
+    const payload = {
+      embeds: [{ title, color: 0xd9a521, description: lines.join("\n\n").slice(0, 4096) }],
+      components: [] as unknown[],
+    };
+
+    const state = await client.query(`select week_number,channel_id,message_id from rec_matchups_channel_posts where league_id=$1`, [context.leagueId]);
+    const row = state.rows[0] as { week_number: number; channel_id: string; message_id: string } | undefined;
+
+    if (row && row.week_number === week.currentWeek && row.channel_id === channelId) {
+      const edited = await editDiscordMessage(channelId, row.message_id, payload).catch(() => false);
+      if (edited) {
+        await client.query("commit");
+        return;
+      }
+    }
+    if (row?.message_id) {
+      await deleteDiscordMessage(row.channel_id, row.message_id).catch(() => undefined);
+    }
+    const posted = await postDiscordChannelMessage(channelId, payload).catch((error) => { console.error("[ERROR] matchups channel: failed to post (non-fatal):", error); return null; });
+    if (posted?.id) {
+      await client.query(
+        `insert into rec_matchups_channel_posts(league_id,week_number,channel_id,message_id,updated_at)
+         values($1,$2,$3,$4,now())
+         on conflict(league_id) do update set week_number=excluded.week_number,channel_id=excluded.channel_id,message_id=excluded.message_id,updated_at=now()`,
+        [context.leagueId, week.currentWeek, channelId, posted.id],
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
   }
 }
 

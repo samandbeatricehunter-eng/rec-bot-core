@@ -13,6 +13,7 @@ import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
+import { runTournamentLotterySweep } from "./modules/tournaments/tournament-lottery.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -80,6 +81,12 @@ setInterval(() => {
 
 setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
+}, 60_000).unref();
+
+// Tournament lottery draft: T-30/10/1min reminders, auto-run at the scheduled time, per-pick
+// deadline auto-skip, and open-pool auto-assignment -- same restart-safe polled pattern.
+setInterval(() => {
+  runTournamentLotterySweep().catch((error) => app.log.error({ err: error }, "Tournament lottery sweep failed"));
 }, 60_000).unref();
 
 // Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data every

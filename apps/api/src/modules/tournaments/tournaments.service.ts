@@ -11,6 +11,7 @@ import {
   type TournamentPayoutScope,
   type TournamentRules,
 } from "@rec/shared";
+import type { PoolClient } from "pg";
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -51,6 +52,9 @@ type TournamentRow = {
   registration_paused: boolean;
   event_paused: boolean;
   timezone: string | null;
+  roster_library_id: string | null;
+  team_selection_mode: "typed" | "claim_pool";
+  claim_order_mode: "first_come" | "lottery" | null;
   entrant_count?: number;
   approved_count?: number;
   pending_count?: number;
@@ -187,6 +191,9 @@ function publicTournament(row: TournamentRow, extra: {
     joined: extra.joined ?? false,
     joinedStatus: extra.joinedStatus ?? null,
     championDisplayName: extra.championDisplayName ?? null,
+    rosterLibraryId: row.roster_library_id,
+    teamSelectionMode: row.team_selection_mode ?? "typed",
+    claimOrderMode: row.claim_order_mode ?? null,
   };
 }
 
@@ -298,6 +305,9 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
     }),
     knownGamerTag,
     teams: teamCatalog(tournament.game),
+    claimedTeams: tournament.team_selection_mode === "claim_pool"
+      ? rows.filter((row) => row.team_abbr).map((row) => row.team_abbr as string)
+      : [],
     entrants: rows.map((row) => ({
       userId: row.user_id,
       seed: row.seed,
@@ -364,6 +374,9 @@ export async function createTournament(input: {
   kickoffAt: string;
   rules: TournamentRules;
   timezone?: string | null;
+  rosterLibraryId?: string | null;
+  teamSelectionMode?: "typed" | "claim_pool";
+  claimOrderMode?: "first_come" | "lottery" | null;
 }) {
   const meta = tournamentBracketType(input.bracketType);
   if (!meta) throw new ApiError(400, "Unknown bracket type.");
@@ -384,13 +397,19 @@ export async function createTournament(input: {
   }
   if (closes.getTime() <= opens.getTime()) throw new ApiError(400, "Registration must close after it opens.");
   if (kickoff.getTime() < closes.getTime()) throw new ApiError(400, "Kickoff must be at or after registration closes.");
+  const teamSelectionMode = input.teamSelectionMode ?? "typed";
+  if (teamSelectionMode === "claim_pool" && !input.claimOrderMode) {
+    throw new ApiError(400, "Pick first-come or lottery for how claimed teams are ordered.");
+  }
+  const claimOrderMode = teamSelectionMode === "claim_pool" ? input.claimOrderMode ?? null : null;
   const rules = parseTournamentRules(input.rules, input.game);
   const result = await getPgPool().query(
     `
       insert into rec_site_tournaments
         (title, description, game, bracket_type, payout_scope, winner_coins, runner_up_coins, semifinalist_coins,
-         status, created_by_user_id, registration_opens_at, registration_closes_at, kickoff_at, starts_at, rules, timezone)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $10, $11, $12, $12, $13::jsonb, $14)
+         status, created_by_user_id, registration_opens_at, registration_closes_at, kickoff_at, starts_at, rules, timezone,
+         roster_library_id, team_selection_mode, claim_order_mode)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $10, $11, $12, $12, $13::jsonb, $14, $15, $16, $17)
       returning *
     `,
     [
@@ -408,6 +427,9 @@ export async function createTournament(input: {
       kickoff.toISOString(),
       JSON.stringify(rules),
       input.timezone?.trim() || "America/Chicago",
+      input.rosterLibraryId || null,
+      teamSelectionMode,
+      claimOrderMode,
     ],
   );
   const tournament = publicTournament(result.rows[0] as TournamentRow, { entrantCount: 0 });
@@ -428,7 +450,7 @@ export async function cancelTournament(input: { tournamentId: string }) {
 export async function joinTournament(input: {
   recUserId: string;
   tournamentId: string;
-  teamAbbr: string;
+  teamAbbr?: string | null;
   gamerTag: string;
 }) {
   const tournament = await loadTournament(input.tournamentId);
@@ -442,20 +464,36 @@ export async function joinTournament(input: {
   if (tournament.registration_closes_at && new Date(tournament.registration_closes_at).getTime() <= now) {
     throw new ApiError(409, "Registration is closed.");
   }
-  const team = resolveTeam(tournament.game, input.teamAbbr);
+  // Lottery-draft tournaments assign teams later, once the draw order runs -- register without one.
+  const isLottery = tournament.claim_order_mode === "lottery";
+  if (!isLottery && !input.teamAbbr) throw new ApiError(400, "Pick a team.");
+  const team = isLottery && !input.teamAbbr ? null : resolveTeam(tournament.game, input.teamAbbr ?? "");
   const gamerTag = input.gamerTag.trim();
   if (gamerTag.length < 2 || gamerTag.length > 32) {
     throw new ApiError(400, "Enter the gamertag / PSN / EA name you will play under.");
   }
   try {
-    await getPgPool().query(
-      `
-        insert into rec_site_tournament_entrants
-          (tournament_id, user_id, team_abbr, team_name, gamer_tag, entry_status)
-        values ($1, $2, $3, $4, $5, 'pending')
-      `,
-      [input.tournamentId, input.recUserId, team.abbr, team.name, gamerTag],
-    );
+    if (tournament.team_selection_mode === "claim_pool" && team) {
+      await withClaimedTeamCheck(tournament.id, team.abbr, async (client) => {
+        await client.query(
+          `
+            insert into rec_site_tournament_entrants
+              (tournament_id, user_id, team_abbr, team_name, gamer_tag, entry_status)
+            values ($1, $2, $3, $4, $5, 'pending')
+          `,
+          [input.tournamentId, input.recUserId, team.abbr, team.name, gamerTag],
+        );
+      });
+    } else {
+      await getPgPool().query(
+        `
+          insert into rec_site_tournament_entrants
+            (tournament_id, user_id, team_abbr, team_name, gamer_tag, entry_status)
+          values ($1, $2, $3, $4, $5, 'pending')
+        `,
+        [input.tournamentId, input.recUserId, team?.abbr ?? null, team?.name ?? null, gamerTag],
+      );
+    }
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "23505") throw new ApiError(409, "You are already registered for this tournament.");
@@ -463,6 +501,33 @@ export async function joinTournament(input: {
   }
   await rememberGamerTag(input.recUserId, gamerTag);
   return getTournamentDetail(input);
+}
+
+// Pool-depletion check for claim_pool tournaments: serialized per (tournament, team) so two
+// entrants racing to claim the same team can't both succeed, same advisory-lock idiom used for
+// the matchups-channel post race.
+async function withClaimedTeamCheck(
+  tournamentId: string,
+  teamAbbr: string,
+  mutate: (client: PoolClient) => Promise<void>,
+) {
+  const client = await getPgPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`tournament-claim:${tournamentId}`]);
+    const existing = await client.query(
+      `select 1 from rec_site_tournament_entrants where tournament_id = $1 and team_abbr = $2 and entry_status <> 'removed'`,
+      [tournamentId, teamAbbr],
+    );
+    if (existing.rows[0]) throw new ApiError(409, "That team has already been claimed.");
+    await mutate(client);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function leaveTournament(input: { recUserId: string; tournamentId: string }) {
@@ -951,27 +1016,36 @@ export async function addTournamentUser(input: {
     }
   }
   const existing = await getPgPool().query(
-    `select entry_status from rec_site_tournament_entrants where tournament_id = $1 and user_id = $2`,
+    `select entry_status, team_abbr from rec_site_tournament_entrants where tournament_id = $1 and user_id = $2`,
     [input.tournamentId, input.userId],
   );
-  if (existing.rows[0]) {
-    await getPgPool().query(
-      `
-        update rec_site_tournament_entrants
-        set entry_status = $3, team_abbr = $4, team_name = $5, gamer_tag = $6
-        where tournament_id = $1 and user_id = $2
-      `,
-      [input.tournamentId, input.userId, status, team.abbr, team.name, gamerTag],
-    );
+  const upsert = async (client: Pick<PoolClient, "query">) => {
+    if (existing.rows[0]) {
+      await client.query(
+        `
+          update rec_site_tournament_entrants
+          set entry_status = $3, team_abbr = $4, team_name = $5, gamer_tag = $6
+          where tournament_id = $1 and user_id = $2
+        `,
+        [input.tournamentId, input.userId, status, team.abbr, team.name, gamerTag],
+      );
+    } else {
+      await client.query(
+        `
+          insert into rec_site_tournament_entrants
+            (tournament_id, user_id, team_abbr, team_name, gamer_tag, entry_status)
+          values ($1, $2, $3, $4, $5, $6)
+        `,
+        [input.tournamentId, input.userId, team.abbr, team.name, gamerTag, status],
+      );
+    }
+  };
+  // Admin re-assigning the SAME user to the SAME team they already hold isn't a new claim.
+  const isSameTeam = existing.rows[0]?.team_abbr === team.abbr;
+  if (tournament.team_selection_mode === "claim_pool" && !isSameTeam) {
+    await withClaimedTeamCheck(tournament.id, team.abbr, (client) => upsert(client));
   } else {
-    await getPgPool().query(
-      `
-        insert into rec_site_tournament_entrants
-          (tournament_id, user_id, team_abbr, team_name, gamer_tag, entry_status)
-        values ($1, $2, $3, $4, $5, $6)
-      `,
-      [input.tournamentId, input.userId, team.abbr, team.name, gamerTag, status],
-    );
+    await upsert(getPgPool());
   }
   await rememberGamerTag(input.userId, gamerTag);
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });

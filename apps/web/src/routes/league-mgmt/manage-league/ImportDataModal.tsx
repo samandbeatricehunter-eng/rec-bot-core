@@ -73,6 +73,12 @@ export function ImportDataModal({
   const [pendingAuthId, setPendingAuthId] = useState<string | null>(null);
   const [franchises, setFranchises] = useState<EaFranchise[] | null>(null);
   const [importResults, setImportResults] = useState<EaImportResult[] | null>(null);
+  const [importResultsWeekLabel, setImportResultsWeekLabel] = useState<string | null>(null);
+  // Which week an already-running import (started before this modal instance existed) is
+  // actually for — shown next to the busy label so a commissioner who opens the modal mid-sweep
+  // isn't left staring at "Import already in progress…" with no idea whether it matches what
+  // they're about to ask for.
+  const [inFlightWeekLabel, setInFlightWeekLabel] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> | null>(null);
   const [importProgress, setImportProgress] = useState<EaImportProgressEvent[]>([]);
   const [leagueName, setLeagueName] = useState<string | null>(null);
@@ -125,7 +131,19 @@ export function ImportDataModal({
         // "Import Now" enabled, which would fire a second concurrent import of this league.
         const inFlight = await recApi.getImportProgress({ guildId, leagueId }).catch(() => null);
         if (inFlight?.running) {
-          setBusy(true); setBusyLabel("Import already in progress…"); setImportProgress(inFlight.events);
+          setInFlightWeekLabel(inFlight.weekLabel);
+          setBusy(true);
+          setBusyLabel(inFlight.weekLabel ? `Import already in progress for ${inFlight.weekLabel}…` : "Import already in progress…");
+          setImportProgress(inFlight.events);
+          // Attaching here means someone else's request (the auto-sweep, another tab, a prior
+          // mount) is already running — surface which week it's for so a commissioner about to
+          // request a specific week doesn't assume it's theirs, since the button below stays
+          // disabled until it finishes.
+          setNotice(
+            inFlight.weekLabel
+              ? `An import for ${inFlight.weekLabel} is currently running for this league. If that isn't the week you meant to import, wait for it to finish — starting a new import is blocked until it completes.`
+              : "An import is currently running for this league. Wait for it to finish before starting another.",
+          );
           void pollImportProgress();
         }
       } else {
@@ -170,11 +188,13 @@ export function ImportDataModal({
           const errorEvent = progress.events.find((e) => e.type === "error") as any;
           if (doneEvent?.results) {
             setImportResults(doneEvent.results);
-            setNotice("Import finished.");
+            setImportResultsWeekLabel(doneEvent.weekLabel ?? null);
+            setNotice(doneEvent.weekLabel ? `Import finished for ${doneEvent.weekLabel}.` : "Import finished.");
             showImportNotification(doneEvent.results);
           } else if (errorEvent) {
             setError(errorEvent.error);
           }
+          setInFlightWeekLabel(null);
         }
       } catch {
         consecutiveErrors += 1;
@@ -276,7 +296,7 @@ export function ImportDataModal({
 
   async function runImport() {
     if (!connection || busy) return;
-    setBusy(true); setBusyLabel("Starting import…"); setError(null); setImportResults(null); setImportProgress([]);
+    setBusy(true); setBusyLabel("Starting import…"); setError(null); setImportResults(null); setImportResultsWeekLabel(null); setImportProgress([]);
     try {
       const weekRefs =
         weekMode === "week"
@@ -537,7 +557,7 @@ export function ImportDataModal({
 
                   {importResults && (
                     <Card>
-                      <h3 style={{ marginTop: 0 }}>Last import</h3>
+                      <h3 style={{ marginTop: 0 }}>Last import{importResultsWeekLabel ? ` — ${importResultsWeekLabel}` : ""}</h3>
                       {importResults.map((result, i) => (
                         <p key={`${result.dataset}-${result.label}-${i}`} style={{ margin: "var(--space-1) 0" }}>
                           {result.label}: {result.recordsStored} record{result.recordsStored === 1 ? "" : "s"}{result.duplicate ? " (already up to date)" : ""}

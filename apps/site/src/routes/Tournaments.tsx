@@ -13,6 +13,7 @@ import {
 } from "@rec/shared";
 import {
   siteApi,
+  type SiteRosterLibrary,
   type SiteTournamentSummary,
 } from "../lib/site-api.js";
 
@@ -108,12 +109,25 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
   const [closesAt, setClosesAt] = useState(windowDefaults.closes);
   const [kickoffAt, setKickoffAt] = useState(windowDefaults.kickoff);
   const [rules, setRules] = useState<TournamentRules>(defaultTournamentRules("madden_27"));
+  const [rosterLibraries, setRosterLibraries] = useState<SiteRosterLibrary[]>([]);
+  const [rosterLibraryId, setRosterLibraryId] = useState<string>("");
+  const [teamSelectionMode, setTeamSelectionMode] = useState<"typed" | "claim_pool">("typed");
+  const [claimOrderMode, setClaimOrderMode] = useState<"first_come" | "lottery">("first_come");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    siteApi.listRosterLibraries(game).then((result) => {
+      if (!cancelled) setRosterLibraries(result.libraries);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [game]);
 
   function changeGame(next: typeof game) {
     setGame(next);
     setRules(defaultTournamentRules(next));
+    setRosterLibraryId("");
   }
 
   async function submit() {
@@ -134,6 +148,9 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
         kickoffAt: isoFromZonedLocal(kickoffAt, timezone),
         timezone,
         rules,
+        rosterLibraryId: rosterLibraryId || null,
+        teamSelectionMode,
+        claimOrderMode: teamSelectionMode === "claim_pool" ? claimOrderMode : null,
       });
       setTitle("");
       setDescription("");
@@ -226,6 +243,39 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
             ))}
           </select>
         </label>
+        <label className="site-field">
+          <span>Roster library</span>
+          <select className="site-select" value={rosterLibraryId} onChange={(event) => setRosterLibraryId(event.target.value)}>
+            <option value="">No roster library</option>
+            {rosterLibraries.map((library) => (
+              <option key={library.id} value={library.id}>{library.name}{library.isBaseline ? " (baseline)" : ""}</option>
+            ))}
+          </select>
+        </label>
+        <label className="site-field">
+          <span>Team selection</span>
+          <select
+            className="site-select"
+            value={teamSelectionMode}
+            onChange={(event) => setTeamSelectionMode(event.target.value as typeof teamSelectionMode)}
+          >
+            <option value="typed">Typed (duplicates allowed)</option>
+            <option value="claim_pool">Claim from pool (one team per entrant)</option>
+          </select>
+        </label>
+        {teamSelectionMode === "claim_pool" ? (
+          <label className="site-field">
+            <span>Claim order</span>
+            <select
+              className="site-select"
+              value={claimOrderMode}
+              onChange={(event) => setClaimOrderMode(event.target.value as typeof claimOrderMode)}
+            >
+              <option value="first_come">First come, first served</option>
+              <option value="lottery">Scheduled lottery draft</option>
+            </select>
+          </label>
+        ) : null}
         <label className="site-field">
           <span>Quarter length</span>
           <select className="site-select" value={String(rules.quarterLengthMinutes)} onChange={(event) => setRules((current) => ({ ...current, quarterLengthMinutes: Number(event.target.value) }))}>

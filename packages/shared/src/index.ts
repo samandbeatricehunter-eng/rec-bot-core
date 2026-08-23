@@ -105,3 +105,4 @@ export * from "./custom-player-renders.js";
 export * from "./dev-trait.js";
 export * from "./player-builder/index.js";
 export * from "./trades/trade-value-model.js";
+export * from "./random.js";

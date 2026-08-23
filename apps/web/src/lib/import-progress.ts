@@ -61,11 +61,17 @@ export function summarizeImportProgress(events: EaImportProgressEvent[]): {
       ? Math.min(Math.max(completed + 1, 1), Math.max(total, 1))
       : 0;
 
-  let weekLabel: string | null = null;
-  for (const event of events) {
-    if (event.type !== "dataset_start" && event.type !== "dataset_done" && event.type !== "dataset_error") continue;
-    const match = event.label.match(WEEK_IN_LABEL);
-    if (match) weekLabel = match[1];
+  // The server now reports which week(s) this specific request targets on the "starting" (and
+  // later "done") event, so prefer that authoritative label over guessing from a per-dataset
+  // label — it's also the only source of truth when none of the selected datasets are weekly
+  // (rosters/teams/standings-only imports never had a week-shaped label to scrape).
+  let weekLabel: string | null = starting?.weekLabel ?? null;
+  if (!weekLabel) {
+    for (const event of events) {
+      if (event.type !== "dataset_start" && event.type !== "dataset_done" && event.type !== "dataset_error") continue;
+      const match = event.label.match(WEEK_IN_LABEL);
+      if (match) weekLabel = match[1];
+    }
   }
 
   const latest = events[events.length - 1];

@@ -2945,13 +2945,56 @@ h1, h2, h3, .site-wordmark {
   padding-left: 18px;
 }
 .site-tournament-register,
-.site-tournament-wagers {
+.site-tournament-wagers,
+.site-tournament-rosters,
+.site-tournament-lottery,
+.site-tournament-roster-admin {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+.site-tournament-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.site-tournament-roster-team {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.site-tournament-roster-players {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.site-tournament-lottery-order {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.site-tournament-lottery-order li.is-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+.site-tournament-lottery-pick,
+.site-tournament-lottery-assign,
+.site-tournament-lottery-admin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.site-tournament-roster-import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
 }
 .site-tournament-home-list {
   list-style: none;

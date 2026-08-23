@@ -28,6 +28,23 @@ import {
   placeTournamentWager,
 } from "./tournaments-wagers.service.js";
 import {
+  cloneRosterLibrary,
+  createRosterLibrary,
+  deleteRosterLibrary,
+  getRosterLibrary,
+  importRosterLibraryCsv,
+  listRosterLibraries,
+  setRosterLibraryBaseline,
+} from "./roster-libraries.service.js";
+import {
+  assignLotteryTeam,
+  getTournamentLottery,
+  pickLotteryTeam,
+  runTournamentLotteryNow,
+  scheduleTournamentLottery,
+  skipLotteryPick,
+} from "./tournament-lottery.service.js";
+import {
   addTournamentUser,
   cancelTournament,
   createTournament,
@@ -140,6 +157,9 @@ export async function tournamentRoutes(app: FastifyInstance) {
         kickoffAt: z.string().min(1),
         timezone: z.string().trim().min(1).max(64).optional(),
         rules: rulesSchema,
+        rosterLibraryId: z.string().uuid().optional().nullable(),
+        teamSelectionMode: z.enum(["typed", "claim_pool"]).optional(),
+        claimOrderMode: z.enum(["first_come", "lottery"]).optional().nullable(),
       }).parse(request.body ?? {});
       return reply.send(await createTournament({
         recUserId: user.recUserId,
@@ -156,6 +176,9 @@ export async function tournamentRoutes(app: FastifyInstance) {
         kickoffAt: body.kickoffAt,
         timezone: body.timezone,
         rules: parseTournamentRules(body.rules, body.game),
+        rosterLibraryId: body.rosterLibraryId,
+        teamSelectionMode: body.teamSelectionMode,
+        claimOrderMode: body.claimOrderMode,
       }));
     } catch (error) {
       return sendError(reply, error);
@@ -187,7 +210,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       const { recUserId } = await identity(request);
       const body = z.object({
         tournamentId: z.string().uuid(),
-        teamAbbr: z.string().trim().min(1).max(8),
+        teamAbbr: z.string().trim().min(1).max(8).optional().nullable(),
         gamerTag: z.string().trim().min(2).max(32),
       }).parse(request.body ?? {});
       return reply.send(await joinTournament({ recUserId, ...body }));
@@ -475,6 +498,164 @@ export async function tournamentRoutes(app: FastifyInstance) {
         open: z.boolean(),
       }).parse(request.body ?? {});
       return reply.send(await setTournamentMatchBetting(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/list", async (request, reply) => {
+    try {
+      await identity(request);
+      const body = z.object({ game: gameSchema.optional() }).parse(request.body ?? {});
+      return reply.send(await listRosterLibraries({ game: body.game }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/get", async (request, reply) => {
+    try {
+      await identity(request);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await getRosterLibrary(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/create", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        game: gameSchema,
+        name: z.string().trim().min(2).max(80),
+        sourceNote: z.string().trim().max(300).optional().nullable(),
+      }).parse(request.body ?? {});
+      return reply.send(await createRosterLibrary({ recUserId: user.recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/import", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({
+        libraryId: z.string().uuid(),
+        csvText: z.string().min(1).max(3_000_000),
+      }).parse(request.body ?? {});
+      return reply.send(await importRosterLibraryCsv(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/clone", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        libraryId: z.string().uuid(),
+        newName: z.string().trim().min(2).max(80),
+      }).parse(request.body ?? {});
+      return reply.send(await cloneRosterLibrary({ recUserId: user.recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/set-baseline", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({
+        libraryId: z.string().uuid(),
+        isBaseline: z.boolean(),
+      }).parse(request.body ?? {});
+      return reply.send(await setRosterLibraryBaseline(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/roster-libraries/delete", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ libraryId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await deleteRosterLibrary(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/get", async (request, reply) => {
+    try {
+      await identity(request);
+      const body = z.object({ tournamentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await getTournamentLottery(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/schedule", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        scheduledAt: z.string().min(1),
+      }).parse(request.body ?? {});
+      return reply.send(await scheduleTournamentLottery(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/run-now", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ tournamentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await runTournamentLotteryNow(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/pick", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        teamAbbr: z.string().trim().min(1).max(8),
+        gamerTag: z.string().trim().min(2).max(32),
+      }).parse(request.body ?? {});
+      return reply.send(await pickLotteryTeam({ recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/assign", async (request, reply) => {
+    try {
+      const session = await requireSiteAdmin(request);
+      const admin = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        userId: z.string().uuid(),
+        teamAbbr: z.string().trim().min(1).max(8),
+        gamerTag: z.string().trim().min(2).max(32),
+      }).parse(request.body ?? {});
+      return reply.send(await assignLotteryTeam({ adminRecUserId: admin.recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/lottery/skip", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ tournamentId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await skipLotteryPick(body));
     } catch (error) {
       return sendError(reply, error);
     }
