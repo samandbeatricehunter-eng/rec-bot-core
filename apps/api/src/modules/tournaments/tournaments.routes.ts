@@ -17,8 +17,17 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import { persistUploadedImageBuffer } from "../box-score/box-score.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
 import {
+  createTournamentHighlightDirectUpload,
+  getTournamentHighlightUploadStatus,
+  markTournamentHighlightUploadReceived,
+} from "./tournaments-media.service.js";
+import {
   acceptTournamentWager,
-  addTournamentHighlight,
+  getTournamentMatchWagerOptions,
+  listTournamentWagers,
+  placeTournamentWager,
+} from "./tournaments-wagers.service.js";
+import {
   addTournamentUser,
   cancelTournament,
   createTournament,
@@ -29,9 +38,7 @@ import {
   listTournamentHighlights,
   listTournamentTicker,
   listTournaments,
-  listTournamentWagers,
   lockTournamentBracket,
-  placeTournamentWager,
   reportTournamentWinner,
   resolveKnownGamerTag,
   reviewTournamentHighlight,
@@ -99,7 +106,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
   app.post("/v1/tournaments/list", async (request, reply) => {
     try {
       const { recUserId, isAdmin } = await identity(request);
-      return reply.send({ ...(await listTournaments({ recUserId })), isAdmin });
+      return reply.send({ ...(await listTournaments({ recUserId, isAdmin })), isAdmin });
     } catch (error) {
       return sendError(reply, error);
     }
@@ -225,6 +232,24 @@ export async function tournamentRoutes(app: FastifyInstance) {
         concededByUserId: z.string().uuid().optional().nullable(),
         playerAScore: z.number().int().min(0).max(200).optional().nullable(),
         playerBScore: z.number().int().min(0).max(200).optional().nullable(),
+        boxScore: z.object({
+          home: z.object({
+            totalYards: z.number().optional().nullable(),
+            rushYards: z.number().optional().nullable(),
+            passYards: z.number().optional().nullable(),
+            turnovers: z.number().optional().nullable(),
+            redzoneOff: z.number().optional().nullable(),
+            redzoneDef: z.number().optional().nullable(),
+          }).optional().nullable(),
+          away: z.object({
+            totalYards: z.number().optional().nullable(),
+            rushYards: z.number().optional().nullable(),
+            passYards: z.number().optional().nullable(),
+            turnovers: z.number().optional().nullable(),
+            redzoneOff: z.number().optional().nullable(),
+            redzoneDef: z.number().optional().nullable(),
+          }).optional().nullable(),
+        }).optional().nullable(),
       }).parse(request.body ?? {});
       return reply.send(await reportTournamentWinner({
         recUserId,
@@ -237,6 +262,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
         concededByUserId: body.concededByUserId,
         playerAScore: body.playerAScore,
         playerBScore: body.playerBScore,
+        boxScore: body.boxScore,
       }));
     } catch (error) {
       return sendError(reply, error);
@@ -328,15 +354,41 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/v1/tournaments/highlights/add", async (request, reply) => {
+  app.post("/v1/tournaments/highlights/direct-upload", async (request, reply) => {
     try {
       const { recUserId, isAdmin } = await identity(request);
       const body = z.object({
         tournamentId: z.string().uuid(),
         matchId: z.string().uuid(),
-        url: z.string().url(),
+        fileName: z.string().trim().max(120).optional().nullable(),
       }).parse(request.body ?? {});
-      return reply.send(await addTournamentHighlight({ recUserId, isAdmin, ...body }));
+      return reply.send(await createTournamentHighlightDirectUpload({ recUserId, isAdmin, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/highlights/upload-received", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        highlightId: z.string().uuid(),
+      }).parse(request.body ?? {});
+      return reply.send(await markTournamentHighlightUploadReceived({ recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/highlights/status", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        highlightId: z.string().uuid(),
+      }).parse(request.body ?? {});
+      return reply.send(await getTournamentHighlightUploadStatus({ recUserId, ...body }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -351,6 +403,19 @@ export async function tournamentRoutes(app: FastifyInstance) {
         status: z.enum(["approved", "rejected"]),
       }).parse(request.body ?? {});
       return reply.send(await reviewTournamentHighlight({ recUserId: user.recUserId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/wagers/options", async (request, reply) => {
+    try {
+      await identity(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        matchId: z.string().uuid(),
+      }).parse(request.body ?? {});
+      return reply.send(await getTournamentMatchWagerOptions(body));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -375,9 +440,15 @@ export async function tournamentRoutes(app: FastifyInstance) {
       const body = z.object({
         tournamentId: z.string().uuid(),
         matchId: z.string().uuid(),
-        market: z.enum(["house", "h2h"]),
-        pickUserId: z.string().uuid(),
-        stake: z.number().int().min(10).max(10_000),
+        wagerKind: z.enum(["house", "peer"]),
+        marketKey: z.string().min(1),
+        pick: z.string().min(1),
+        stake: z.number().int().min(10).max(50_000),
+        isParlay: z.boolean().optional(),
+        legs: z.array(z.object({
+          marketKey: z.string().min(1),
+          pick: z.string().min(1),
+        })).max(3).optional(),
       }).parse(request.body ?? {});
       return reply.send(await placeTournamentWager({ recUserId, ...body }));
     } catch (error) {

@@ -1208,6 +1208,7 @@ export const siteApi = {
     concededByUserId?: string | null;
     playerAScore?: number | null;
     playerBScore?: number | null;
+    boxScore?: SiteTournamentBoxScore | null;
   }) {
     return request<SiteTournamentDetail>("/v1/tournaments/report-winner", input);
   },
@@ -1239,25 +1240,52 @@ export const siteApi = {
   listTournamentHighlights(tournamentId: string) {
     return request<{ highlights: SiteTournamentHighlight[] }>("/v1/tournaments/highlights/list", { tournamentId });
   },
-  addTournamentHighlight(input: { tournamentId: string; matchId: string; url: string }) {
-    return request<{ highlights: SiteTournamentHighlight[] }>("/v1/tournaments/highlights/add", input);
+  createTournamentHighlightDirectUpload(input: { tournamentId: string; matchId: string; fileName?: string }) {
+    return request<{
+      highlightId: string;
+      uploadURL: string;
+      streamUid: string;
+      maxDurationSeconds: number;
+      maxHeight: number;
+    }>("/v1/tournaments/highlights/direct-upload", input);
+  },
+  markTournamentHighlightUploadReceived(input: { tournamentId: string; highlightId: string }) {
+    return request<{ highlightId: string; mediaStatus: string }>(
+      "/v1/tournaments/highlights/upload-received",
+      input,
+    );
+  },
+  getTournamentHighlightUploadStatus(input: { tournamentId: string; highlightId: string }) {
+    return request<{
+      highlightId: string;
+      mediaStatus: string;
+      playbackUrl: string | null;
+      streamUid: string | null;
+      iframeUrl: string | null;
+      failureReason?: string | null;
+    }>("/v1/tournaments/highlights/status", input);
   },
   reviewTournamentHighlight(highlightId: string, status: "approved" | "rejected") {
     return request<{ highlights: SiteTournamentHighlight[] }>("/v1/tournaments/highlights/review", { highlightId, status });
   },
+  getTournamentWagerOptions(input: { tournamentId: string; matchId: string }) {
+    return request<SiteTournamentWagerOptions>("/v1/tournaments/wagers/options", input);
+  },
   listTournamentWagers(tournamentId: string, matchId?: string) {
     return request<{
       wagers: SiteTournamentWager[];
-      caps: { house: number; h2h: number };
-      houseOdds: number;
+      caps: { house: number; peer: number; h2h?: number };
     }>("/v1/tournaments/wagers/list", { tournamentId, matchId });
   },
   placeTournamentWager(input: {
     tournamentId: string;
     matchId: string;
-    market: "house" | "h2h";
-    pickUserId: string;
+    wagerKind: "house" | "peer";
+    marketKey: string;
+    pick: string;
     stake: number;
+    isParlay?: boolean;
+    legs?: Array<{ marketKey: string; pick: string }>;
   }) {
     return request<{ wagers: SiteTournamentWager[] }>("/v1/tournaments/wagers/place", input);
   },
@@ -1534,6 +1562,7 @@ export type SiteTournamentSummary = {
   pendingCount: number;
   joined: boolean;
   joinedStatus: "pending" | "approved" | null;
+  championDisplayName: string | null;
 };
 
 export type SiteTournamentTeamOption = {
@@ -1576,6 +1605,7 @@ export type SiteTournamentDetail = {
     playerAScore: number | null;
     playerBScore: number | null;
     bettingOpen: boolean;
+    boxScore: SiteTournamentBoxScore | null;
     playerA: SiteTournamentPlayer | null;
     playerB: SiteTournamentPlayer | null;
     winnerUserId: string | null;
@@ -1590,30 +1620,81 @@ export type SiteTournamentHomeCard = {
   match: { id: string; status: string; homeMustStream: boolean } | null;
 };
 
+export type SiteTournamentBoxScore = {
+  home?: {
+    totalYards?: number | null;
+    rushYards?: number | null;
+    passYards?: number | null;
+    turnovers?: number | null;
+    redzoneOff?: number | null;
+    redzoneDef?: number | null;
+  } | null;
+  away?: {
+    totalYards?: number | null;
+    rushYards?: number | null;
+    passYards?: number | null;
+    turnovers?: number | null;
+    redzoneOff?: number | null;
+    redzoneDef?: number | null;
+  } | null;
+};
+
 export type SiteTournamentHighlight = {
   id: string;
   matchId: string;
   userId: string;
-  url: string;
+  url: string | null;
+  playbackUrl: string | null;
+  iframeUrl: string | null;
+  streamUid: string | null;
   status: "pending" | "approved" | "rejected";
+  mediaStatus: "pending" | "uploading" | "processing" | "ready" | "failed";
   createdAt: string;
   displayName: string;
+  teamName: string | null;
+  tournamentTitle: string;
+  matchupLabel: string;
+  label: string;
   isYou: boolean;
 };
 
 export type SiteTournamentWager = {
   id: string;
   matchId: string;
-  market: "house" | "h2h";
+  wagerKind: "house" | "peer";
+  market: "house" | "peer" | "h2h";
+  marketKey: string;
+  pick: string;
+  pickUserId: string | null;
+  line: number | null;
+  odds: number | null;
   stake: number;
+  potentialPayout: number;
+  isParlay: boolean;
   status: string;
   userId: string;
   userDisplayName: string;
-  pickUserId: string;
   pickDisplayName: string;
   acceptedByUserId: string | null;
   acceptedDisplayName: string | null;
   payoutAmount: number;
+};
+
+export type SiteTournamentWagerOptions = {
+  matchId: string;
+  homeUserId: string;
+  awayUserId: string;
+  homeLabel: string;
+  awayLabel: string;
+  bettingOpen: boolean;
+  markets: Array<{
+    market: string;
+    label: string;
+    kind: string;
+    line: number | null;
+    unit?: string;
+    sides: Array<{ pick: string; label: string; odds: number }>;
+  }>;
 };
 
 export type CompUserSummary = {

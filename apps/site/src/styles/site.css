@@ -2984,7 +2984,42 @@ h1, h2, h3, .site-wordmark {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+}
+.site-tournament-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+.site-tournament-highlight-card iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 10px;
+  background: #000;
+}
+.site-tournament-wager-markets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.site-tournament-wager-markets button {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.site-tournament-wager-markets button.is-active {
+  border-color: var(--accent);
+  color: var(--accent-bright, var(--accent));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .site-tournament-admin .site-tournament-entrants li {
   display: flex;

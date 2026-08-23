@@ -2,8 +2,6 @@ import {
   CFB_27_TEAMS,
   NFL_TEAMS,
   TOURNAMENT_HIGHLIGHT_COINS,
-  TOURNAMENT_HOUSE_ODDS,
-  TOURNAMENT_WAGER_CAPS,
   formatTournamentPlayerName,
   generateTournamentBracket,
   parseTournamentRules,
@@ -16,6 +14,13 @@ import {
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { listTournamentStreamHighlights } from "./tournaments-media.service.js";
+import {
+  normalizeTournamentBoxScore,
+  refundTournamentMatchWagers,
+  settleTournamentMatchWagers,
+} from "./tournaments-wagers.service.js";
+import type { TournamentBoxScore } from "./tournaments-odds.js";
 
 const GAME = ["madden_26", "madden_27", "cfb_27"] as const;
 type Game = (typeof GAME)[number];
@@ -85,6 +90,7 @@ type MatchRow = {
   player_a_score: number | null;
   player_b_score: number | null;
   betting_open: boolean;
+  box_score: unknown;
 };
 
 function playerLabel(row: {
@@ -128,6 +134,7 @@ function publicTournament(row: TournamentRow, extra: {
   entrantCount?: number;
   approvedCount?: number;
   pendingCount?: number;
+  championDisplayName?: string | null;
 } = {}) {
   const meta = tournamentBracketType(row.bracket_type);
   const rules = parseTournamentRules(row.rules, row.game);
@@ -179,10 +186,11 @@ function publicTournament(row: TournamentRow, extra: {
     pendingCount: extra.pendingCount ?? Number(row.pending_count ?? 0),
     joined: extra.joined ?? false,
     joinedStatus: extra.joinedStatus ?? null,
+    championDisplayName: extra.championDisplayName ?? null,
   };
 }
 
-export async function listTournaments(input: { recUserId: string }) {
+export async function listTournaments(input: { recUserId: string; isAdmin?: boolean }) {
   const result = await getPgPool().query(
     `
       select t.*,
@@ -197,14 +205,25 @@ export async function listTournaments(input: { recUserId: string }) {
           select e.entry_status from rec_site_tournament_entrants e
           where e.tournament_id = t.id and e.user_id = $1 and e.entry_status <> 'removed'
           limit 1
-        ) as joined_status
+        ) as joined_status,
+        (
+          select coalesce(nullif(u.display_name, ''), u.username)
+          from rec_site_tournament_matches m
+          inner join rec_users u on u.id = m.winner_user_id
+          where m.tournament_id = t.id
+            and m.status = 'complete'
+            and m.winner_user_id is not null
+            and m.feeds_winner_match_id is null
+          order by case m.bracket_side when 'grand_final' then 0 else 1 end, m.round desc
+          limit 1
+        ) as champion_name
       from rec_site_tournaments t
-      where t.status <> 'cancelled'
+      where ($2::boolean or t.status <> 'draft')
       order by
-        case t.status when 'open' then 0 when 'locked' then 1 when 'draft' then 2 else 3 end,
+        case t.status when 'open' then 0 when 'locked' then 1 when 'draft' then 2 when 'complete' then 3 else 4 end,
         t.created_at desc
     `,
-    [input.recUserId],
+    [input.recUserId, Boolean(input.isAdmin)],
   );
   return {
     tournaments: result.rows.map((row) =>
@@ -214,6 +233,7 @@ export async function listTournaments(input: { recUserId: string }) {
         entrantCount: Number(row.approved_count ?? row.entrant_count ?? 0),
         approvedCount: Number(row.approved_count ?? 0),
         pendingCount: Number(row.pending_count ?? 0),
+        championDisplayName: row.champion_name ?? null,
       }),
     ),
   };
@@ -262,6 +282,9 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
   const approved = rows.filter((row) => row.entry_status === "approved");
   const pending = rows.filter((row) => row.entry_status === "pending");
   const knownGamerTag = await resolveKnownGamerTag(input.recUserId);
+  const championRow = matches.rows.find((row) =>
+    row.status === "complete" && row.winner_user_id && !row.feeds_winner_match_id,
+  );
   return {
     tournament: publicTournament(tournament, {
       joined: Boolean(mine),
@@ -269,6 +292,9 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
       entrantCount: approved.length,
       approvedCount: approved.length,
       pendingCount: pending.length,
+      championDisplayName: championRow
+        ? playerLabel({ username: championRow.w_username, display_name: championRow.w_display_name })
+        : null,
     }),
     knownGamerTag,
     teams: teamCatalog(tournament.game),
@@ -318,6 +344,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
       playerAScore: row.player_a_score ?? null,
       playerBScore: row.player_b_score ?? null,
       bettingOpen: row.betting_open !== false,
+      boxScore: normalizeTournamentBoxScore(row.box_score),
     })),
   };
 }
@@ -676,6 +703,7 @@ export async function reportTournamentWinner(input: {
   concededByUserId?: string | null;
   playerAScore?: number | null;
   playerBScore?: number | null;
+  boxScore?: TournamentBoxScore | null;
 }) {
   const tournament = await loadTournament(input.tournamentId);
   if (tournament.event_paused) throw new ApiError(409, "This tournament is closed.");
@@ -715,21 +743,23 @@ export async function reportTournamentWinner(input: {
   const playerBScore = input.playerBScore == null || !Number.isFinite(Number(input.playerBScore))
     ? null
     : Math.max(0, Math.trunc(Number(input.playerBScore)));
+  const boxScore = normalizeTournamentBoxScore(input.boxScore);
   await getPgPool().query(
     `
       update rec_site_tournament_matches
       set winner_user_id = $2, status = 'complete', result_method = $3, screenshot_url = $4,
-          conceded_by_user_id = $5, player_a_score = $6, player_b_score = $7, betting_open = false
+          conceded_by_user_id = $5, player_a_score = $6, player_b_score = $7, betting_open = false,
+          box_score = $8::jsonb
       where id = $1
     `,
-    [match.id, input.winnerUserId, input.resultMethod, screenshotUrl, concededBy, playerAScore, playerBScore],
+    [match.id, input.winnerUserId, input.resultMethod, screenshotUrl, concededBy, playerAScore, playerBScore, boxScore ? JSON.stringify(boxScore) : null],
   );
   if (loserId) {
     const winnerScore = input.winnerUserId === match.player_a_user_id ? playerAScore : playerBScore;
     const loserScore = input.winnerUserId === match.player_a_user_id ? playerBScore : playerAScore;
     await applyGlobalRecords(input.winnerUserId, loserId, winnerScore, loserScore);
   }
-  await settleMatchWagers(match.id, input.winnerUserId);
+  await settleTournamentMatchWagers(match.id);
   if (match.feeds_winner_match_id && match.feeds_winner_slot) {
     await placePlayer(match.feeds_winner_match_id, match.feeds_winner_slot, input.winnerUserId);
     await refreshMatchReadiness(match.feeds_winner_match_id);
@@ -1018,7 +1048,7 @@ async function forfeitUserMatches(tournamentId: string, userId: string) {
       await placePlayer(match.feeds_winner_match_id, match.feeds_winner_slot, winner);
       await refreshMatchReadiness(match.feeds_winner_match_id);
     }
-    await refundMatchWagers(match.id, "Match forfeited.");
+    await refundTournamentMatchWagers(match.id, "Match forfeited.");
   }
   await resolveByes(tournamentId);
 }
@@ -1190,56 +1220,7 @@ export async function setTournamentMatchStream(input: {
 }
 
 export async function listTournamentHighlights(input: { tournamentId: string; recUserId: string; isAdmin: boolean }) {
-  const rows = await getPgPool().query(
-    `
-      select h.id, h.match_id, h.user_id, h.url, h.status, h.created_at, u.username, u.display_name, e.gamer_tag
-      from rec_site_tournament_highlights h
-      inner join rec_users u on u.id = h.user_id
-      left join rec_site_tournament_entrants e
-        on e.tournament_id = h.tournament_id and e.user_id = h.user_id
-      where h.tournament_id = $1
-        and (h.status = 'approved' or h.user_id = $2 or $3)
-      order by h.created_at desc
-    `,
-    [input.tournamentId, input.recUserId, input.isAdmin],
-  );
-  return {
-    highlights: rows.rows.map((row) => ({
-      id: row.id,
-      matchId: row.match_id,
-      userId: row.user_id,
-      url: row.url,
-      status: row.status,
-      createdAt: row.created_at,
-      displayName: playerLabel({ username: row.username, display_name: row.display_name, gamer_tag: row.gamer_tag }),
-      isYou: row.user_id === input.recUserId,
-    })),
-  };
-}
-
-export async function addTournamentHighlight(input: {
-  recUserId: string;
-  isAdmin: boolean;
-  tournamentId: string;
-  matchId: string;
-  url: string;
-}) {
-  const match = await loadMatch(input.tournamentId, input.matchId);
-  assertMatchParticipant(match, input.recUserId, input.isAdmin);
-  const url = requireHttpUrl(input.url, "highlight link");
-  const count = await getPgPool().query(
-    `select count(*)::int as n from rec_site_tournament_highlights where match_id = $1 and user_id = $2 and status <> 'rejected'`,
-    [match.id, input.recUserId],
-  );
-  if (Number(count.rows[0]?.n ?? 0) >= 2) throw new ApiError(409, "Each player can submit 2 highlights per match.");
-  await getPgPool().query(
-    `
-      insert into rec_site_tournament_highlights (tournament_id, match_id, user_id, url, status)
-      values ($1, $2, $3, $4, 'pending')
-    `,
-    [input.tournamentId, match.id, input.recUserId, url],
-  );
-  return listTournamentHighlights({ tournamentId: input.tournamentId, recUserId: input.recUserId, isAdmin: input.isAdmin });
+  return listTournamentStreamHighlights(input);
 }
 
 export async function reviewTournamentHighlight(input: {
@@ -1251,9 +1232,19 @@ export async function reviewTournamentHighlight(input: {
     `select * from rec_site_tournament_highlights where id = $1`,
     [input.highlightId],
   );
-  const row = result.rows[0] as { id: string; user_id: string; tournament_id: string; status: string; payout_issued_at: string | null } | undefined;
+  const row = result.rows[0] as {
+    id: string;
+    user_id: string;
+    tournament_id: string;
+    status: string;
+    media_status: string | null;
+    payout_issued_at: string | null;
+  } | undefined;
   if (!row) throw new ApiError(404, "Highlight not found.");
   if (row.status !== "pending") throw new ApiError(409, "That highlight was already reviewed.");
+  if (input.status === "approved" && row.media_status !== "ready") {
+    throw new ApiError(409, "Wait until the clip finishes encoding before approving it.");
+  }
   await getPgPool().query(
     `update rec_site_tournament_highlights set status = $2, payout_issued_at = case when $2 = 'approved' then now() else payout_issued_at end where id = $1`,
     [row.id, input.status],
@@ -1274,157 +1265,6 @@ export async function reviewTournamentHighlight(input: {
   return listTournamentHighlights({ tournamentId: row.tournament_id, recUserId: input.recUserId, isAdmin: true });
 }
 
-async function debitWallet(userId: string, amount: number, description: string, extra: Record<string, unknown>) {
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: userId,
-    p_amount: -amount,
-    p_league_id: null,
-    p_description: description,
-    p_transaction_type: "tournament_wager",
-    p_source: "site_tournament",
-    p_source_reference: extra,
-    p_allow_negative: false,
-  });
-  if (ledger.error) throw new ApiError(400, ledger.error.message || "Could not hold that wager stake.");
-}
-
-async function creditWallet(userId: string, amount: number, description: string, extra: Record<string, unknown>) {
-  if (amount <= 0) return;
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: userId,
-    p_amount: amount,
-    p_league_id: null,
-    p_description: description,
-    p_transaction_type: "tournament_wager",
-    p_source: "site_tournament",
-    p_source_reference: extra,
-    p_allow_negative: false,
-  });
-  if (ledger.error) throw new ApiError(500, "Failed to settle the wager.", ledger.error);
-}
-
-export async function listTournamentWagers(input: { tournamentId: string; matchId?: string }) {
-  const result = await getPgPool().query(
-    `
-      select w.*,
-        u.username as user_username, u.display_name as user_display_name,
-        p.username as pick_username, p.display_name as pick_display_name,
-        a.username as accepted_username, a.display_name as accepted_display_name
-      from rec_site_tournament_wagers w
-      inner join rec_users u on u.id = w.user_id
-      inner join rec_users p on p.id = w.pick_user_id
-      left join rec_users a on a.id = w.accepted_by_user_id
-      where w.tournament_id = $1
-        and ($2::uuid is null or w.match_id = $2)
-      order by w.created_at desc
-    `,
-    [input.tournamentId, input.matchId ?? null],
-  );
-  return {
-    wagers: result.rows.map((row) => ({
-      id: row.id,
-      matchId: row.match_id,
-      market: row.market,
-      stake: Number(row.stake),
-      status: row.status,
-      userId: row.user_id,
-      userDisplayName: playerLabel({ username: row.user_username, display_name: row.user_display_name }),
-      pickUserId: row.pick_user_id,
-      pickDisplayName: playerLabel({ username: row.pick_username, display_name: row.pick_display_name }),
-      acceptedByUserId: row.accepted_by_user_id,
-      acceptedDisplayName: row.accepted_by_user_id
-        ? playerLabel({ username: row.accepted_username, display_name: row.accepted_display_name })
-        : null,
-      payoutAmount: Number(row.payout_amount ?? 0),
-    })),
-    caps: TOURNAMENT_WAGER_CAPS,
-    houseOdds: TOURNAMENT_HOUSE_ODDS,
-  };
-}
-
-export async function placeTournamentWager(input: {
-  recUserId: string;
-  tournamentId: string;
-  matchId: string;
-  market: "house" | "h2h";
-  pickUserId: string;
-  stake: number;
-}) {
-  const tournament = await loadTournament(input.tournamentId);
-  if (tournament.event_paused) throw new ApiError(409, "This tournament is closed.");
-  const match = await loadMatch(input.tournamentId, input.matchId);
-  if (match.status === "complete" || match.status === "bye") throw new ApiError(409, "Betting is closed on a finished match.");
-  if (match.betting_open === false) throw new ApiError(409, "Betting is closed on this match.");
-  if (!match.player_a_user_id || !match.player_b_user_id) throw new ApiError(409, "Both players must be set before betting.");
-  if (input.recUserId === match.player_a_user_id || input.recUserId === match.player_b_user_id) {
-    throw new ApiError(403, "You cannot bet on your own tournament games.");
-  }
-  if (input.pickUserId !== match.player_a_user_id && input.pickUserId !== match.player_b_user_id) {
-    throw new ApiError(400, "Pick one of the two players in this match.");
-  }
-  const cap = input.market === "house" ? TOURNAMENT_WAGER_CAPS.house : TOURNAMENT_WAGER_CAPS.h2h;
-  const stake = Math.trunc(input.stake);
-  if (!Number.isFinite(stake) || stake < 10 || stake > cap) {
-    throw new ApiError(400, `${input.market === "house" ? "House" : "H2H"} bets must be 10–${cap} coins.`);
-  }
-  const existing = await getPgPool().query(
-    `
-      select id from rec_site_tournament_wagers
-      where match_id = $1 and user_id = $2 and market = $3 and status in ('open', 'accepted')
-    `,
-    [match.id, input.recUserId, input.market],
-  );
-  if (existing.rows[0]) throw new ApiError(409, "You already have a wager on this match.");
-  const status = input.market === "house" ? "accepted" : "open";
-  const inserted = await getPgPool().query(
-    `
-      insert into rec_site_tournament_wagers
-        (tournament_id, match_id, user_id, market, pick_user_id, stake, status)
-      values ($1, $2, $3, $4, $5, $6, $7)
-      returning id
-    `,
-    [input.tournamentId, match.id, input.recUserId, input.market, input.pickUserId, stake, status],
-  );
-  await debitWallet(input.recUserId, stake, `Tournament ${input.market} wager`, {
-    wagerId: inserted.rows[0].id,
-    matchId: match.id,
-  });
-  return listTournamentWagers({ tournamentId: input.tournamentId, matchId: match.id });
-}
-
-export async function acceptTournamentWager(input: { recUserId: string; wagerId: string }) {
-  const result = await getPgPool().query(`select * from rec_site_tournament_wagers where id = $1`, [input.wagerId]);
-  const wager = result.rows[0] as {
-    id: string;
-    tournament_id: string;
-    match_id: string;
-    user_id: string;
-    market: string;
-    pick_user_id: string;
-    stake: number;
-    status: string;
-  } | undefined;
-  if (!wager) throw new ApiError(404, "Wager not found.");
-  if (wager.market !== "h2h" || wager.status !== "open") throw new ApiError(409, "That wager is not open to accept.");
-  if (wager.user_id === input.recUserId) throw new ApiError(400, "You cannot accept your own wager.");
-  const match = await loadMatch(wager.tournament_id, wager.match_id);
-  if (input.recUserId === match.player_a_user_id || input.recUserId === match.player_b_user_id) {
-    throw new ApiError(403, "You cannot bet on your own tournament games.");
-  }
-  if (match.betting_open === false || match.status === "complete" || match.status === "bye") {
-    throw new ApiError(409, "Betting is closed on this match.");
-  }
-  await debitWallet(input.recUserId, Number(wager.stake), "Tournament H2H wager", {
-    wagerId: wager.id,
-    matchId: wager.match_id,
-  });
-  await getPgPool().query(
-    `update rec_site_tournament_wagers set status = 'accepted', accepted_by_user_id = $2 where id = $1`,
-    [wager.id, input.recUserId],
-  );
-  return listTournamentWagers({ tournamentId: wager.tournament_id, matchId: wager.match_id });
-}
-
 export async function setTournamentMatchBetting(input: { tournamentId: string; matchId: string; open: boolean }) {
   const match = await loadMatch(input.tournamentId, input.matchId);
   if (match.status === "complete" || match.status === "bye") throw new ApiError(409, "Finished matches stay closed.");
@@ -1432,68 +1272,3 @@ export async function setTournamentMatchBetting(input: { tournamentId: string; m
   return { ok: true as const, bettingOpen: input.open };
 }
 
-async function settleMatchWagers(matchId: string, winnerUserId: string) {
-  const result = await getPgPool().query(
-    `select * from rec_site_tournament_wagers where match_id = $1 and status in ('open', 'accepted')`,
-    [matchId],
-  );
-  for (const wager of result.rows as Array<{
-    id: string;
-    user_id: string;
-    market: string;
-    pick_user_id: string;
-    stake: number;
-    status: string;
-    accepted_by_user_id: string | null;
-  }>) {
-    if (wager.market === "h2h" && wager.status === "open") {
-      await creditWallet(wager.user_id, Number(wager.stake), "Unmatched tournament wager refunded", { wagerId: wager.id });
-      await getPgPool().query(
-        `update rec_site_tournament_wagers set status = 'refunded', settled_at = now() where id = $1`,
-        [wager.id],
-      );
-      continue;
-    }
-    const stake = Number(wager.stake);
-    if (wager.market === "house") {
-      const won = wager.pick_user_id === winnerUserId;
-      const payout = won ? Math.max(stake, Math.floor(stake * TOURNAMENT_HOUSE_ODDS)) : 0;
-      if (payout) await creditWallet(wager.user_id, payout, "Tournament house wager won", { wagerId: wager.id });
-      await getPgPool().query(
-        `update rec_site_tournament_wagers set status = 'settled', payout_amount = $2, settled_at = now() where id = $1`,
-        [wager.id, payout],
-      );
-      continue;
-    }
-    const proposerWon = wager.pick_user_id === winnerUserId;
-    const winnerId = proposerWon ? wager.user_id : wager.accepted_by_user_id;
-    const payout = stake * 2;
-    if (winnerId) await creditWallet(winnerId, payout, "Tournament H2H wager won", { wagerId: wager.id });
-    await getPgPool().query(
-      `update rec_site_tournament_wagers set status = 'settled', payout_amount = $2, settled_at = now() where id = $1`,
-      [wager.id, winnerId ? payout : 0],
-    );
-  }
-}
-
-async function refundMatchWagers(matchId: string, reason: string) {
-  const result = await getPgPool().query(
-    `select * from rec_site_tournament_wagers where match_id = $1 and status in ('open', 'accepted')`,
-    [matchId],
-  );
-  for (const wager of result.rows as Array<{
-    id: string;
-    user_id: string;
-    accepted_by_user_id: string | null;
-    stake: number;
-  }>) {
-    await creditWallet(wager.user_id, Number(wager.stake), reason, { wagerId: wager.id });
-    if (wager.accepted_by_user_id) {
-      await creditWallet(wager.accepted_by_user_id, Number(wager.stake), reason, { wagerId: wager.id });
-    }
-    await getPgPool().query(
-      `update rec_site_tournament_wagers set status = 'refunded', settled_at = now() where id = $1`,
-      [wager.id],
-    );
-  }
-}

@@ -1,14 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { TOURNAMENT_HIGHLIGHT_COINS, TOURNAMENT_REQUIRED_RULES } from "@rec/shared";
+import { TOURNAMENT_HIGHLIGHT_COINS, TOURNAMENT_REQUIRED_RULES, americanFromDecimal } from "@rec/shared";
 import {
   siteApi,
+  type SiteTournamentBoxScore,
   type SiteTournamentDetail,
   type SiteTournamentHighlight,
   type SiteTournamentTeamOption,
   type SiteTournamentWager,
+  type SiteTournamentWagerOptions,
 } from "../lib/site-api.js";
 import { gameLabel, payoutLine } from "./Tournaments.js";
+
+async function readVideoDurationSeconds(file: File): Promise<number> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => resolve(Number(video.duration) || 0);
+      video.onerror = () => reject(new Error(`Could not read duration for ${file.name}.`));
+      video.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function TournamentBracket({
   detail,
@@ -17,7 +34,7 @@ function TournamentBracket({
   recUserId,
   onReport,
   onSaveStream,
-  onAddHighlight,
+  onUploadHighlight,
   onPlaceWager,
   onAcceptWager,
   onToggleBetting,
@@ -35,10 +52,19 @@ function TournamentBracket({
     file: File;
     playerAScore: number | null;
     playerBScore: number | null;
+    boxScore: SiteTournamentBoxScore | null;
   }) => void;
   onSaveStream: (matchId: string, streamUrl: string) => void;
-  onAddHighlight: (matchId: string, url: string) => void;
-  onPlaceWager: (input: { matchId: string; market: "house" | "h2h"; pickUserId: string; stake: number }) => void;
+  onUploadHighlight: (matchId: string, file: File) => void;
+  onPlaceWager: (input: {
+    matchId: string;
+    wagerKind: "house" | "peer";
+    marketKey: string;
+    pick: string;
+    stake: number;
+    isParlay?: boolean;
+    legs?: Array<{ marketKey: string; pick: string }>;
+  }) => void;
   onAcceptWager: (wagerId: string) => void;
   onToggleBetting: (matchId: string, open: boolean) => void;
 }) {
@@ -108,13 +134,14 @@ function TournamentBracket({
                       canReport={canReport}
                       onReport={(input) => onReport({ matchId: match.id, ...input })}
                       onSaveStream={(url) => onSaveStream(match.id, url)}
-                      onAddHighlight={(url) => onAddHighlight(match.id, url)}
+                      onUploadHighlight={(file) => onUploadHighlight(match.id, file)}
                     />
                   ) : !match.winnerDisplayName ? (
                     <em>{match.status === "ready" ? "Waiting on a screenshot result" : "Waiting on players"}</em>
                   ) : null}
                   {match.playerA && match.playerB && match.status !== "bye" ? (
                     <MatchWagers
+                      tournamentId={detail.tournament.id}
                       match={match}
                       wagers={matchWagers}
                       busy={busy}
@@ -141,7 +168,7 @@ function MatchUploads({
   canReport,
   onReport,
   onSaveStream,
-  onAddHighlight,
+  onUploadHighlight,
 }: {
   match: SiteTournamentDetail["matches"][number];
   busy: boolean;
@@ -152,9 +179,10 @@ function MatchUploads({
     file: File;
     playerAScore: number | null;
     playerBScore: number | null;
+    boxScore: SiteTournamentBoxScore | null;
   }) => void;
   onSaveStream: (url: string) => void;
-  onAddHighlight: (url: string) => void;
+  onUploadHighlight: (file: File) => void;
 }) {
   const [method, setMethod] = useState<"final_screenshot" | "concede">("final_screenshot");
   const [winnerUserId, setWinnerUserId] = useState(match.playerA?.userId ?? "");
@@ -162,7 +190,21 @@ function MatchUploads({
   const [homeScore, setHomeScore] = useState("");
   const [awayScore, setAwayScore] = useState("");
   const [streamUrl, setStreamUrl] = useState(match.streamUrl ?? "");
-  const [highlightUrl, setHighlightUrl] = useState("");
+  const [homeYards, setHomeYards] = useState("");
+  const [awayYards, setAwayYards] = useState("");
+  const [homeRush, setHomeRush] = useState("");
+  const [awayRush, setAwayRush] = useState("");
+  const [homePass, setHomePass] = useState("");
+  const [awayPass, setAwayPass] = useState("");
+  const [homeTo, setHomeTo] = useState("");
+  const [awayTo, setAwayTo] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function num(value: string): number | null {
+    if (value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
 
   return (
     <div className="site-tournament-report">
@@ -201,6 +243,24 @@ function MatchUploads({
             <input type="number" min={0} value={awayScore} onChange={(event) => setAwayScore(event.target.value)} />
           </label>
           <label className="site-field">
+            <span>Home yards / rush / pass / TO</span>
+            <div className="site-tournament-create-grid site-account-stat-grid">
+              <input type="number" min={0} placeholder="Yds" value={homeYards} onChange={(event) => setHomeYards(event.target.value)} />
+              <input type="number" min={0} placeholder="Rush" value={homeRush} onChange={(event) => setHomeRush(event.target.value)} />
+              <input type="number" min={0} placeholder="Pass" value={homePass} onChange={(event) => setHomePass(event.target.value)} />
+              <input type="number" min={0} placeholder="TO" value={homeTo} onChange={(event) => setHomeTo(event.target.value)} />
+            </div>
+          </label>
+          <label className="site-field">
+            <span>Away yards / rush / pass / TO</span>
+            <div className="site-tournament-create-grid site-account-stat-grid">
+              <input type="number" min={0} placeholder="Yds" value={awayYards} onChange={(event) => setAwayYards(event.target.value)} />
+              <input type="number" min={0} placeholder="Rush" value={awayRush} onChange={(event) => setAwayRush(event.target.value)} />
+              <input type="number" min={0} placeholder="Pass" value={awayPass} onChange={(event) => setAwayPass(event.target.value)} />
+              <input type="number" min={0} placeholder="TO" value={awayTo} onChange={(event) => setAwayTo(event.target.value)} />
+            </div>
+          </label>
+          <label className="site-field">
             <span>Required screenshot</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </label>
@@ -210,12 +270,16 @@ function MatchUploads({
             disabled={busy || !file || !winnerUserId}
             onClick={() => {
               if (!file) return;
+              const home = { totalYards: num(homeYards), rushYards: num(homeRush), passYards: num(homePass), turnovers: num(homeTo) };
+              const away = { totalYards: num(awayYards), rushYards: num(awayRush), passYards: num(awayPass), turnovers: num(awayTo) };
+              const hasBox = Object.values(home).some((value) => value != null) || Object.values(away).some((value) => value != null);
               onReport({
                 winnerUserId,
                 resultMethod: method,
                 file,
                 playerAScore: homeScore === "" ? null : Number(homeScore),
                 playerBScore: awayScore === "" ? null : Number(awayScore),
+                boxScore: hasBox ? { home, away } : null,
               });
             }}
           >
@@ -224,17 +288,27 @@ function MatchUploads({
         </>
       ) : null}
       <label className="site-field">
-        <span>Highlight clip URL (up to 2, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
-        <input value={highlightUrl} onChange={(event) => setHighlightUrl(event.target.value)} placeholder="https://" />
+        <span>Highlight clip (up to 2 videos, ≤45s, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
+        <input
+          type="file"
+          accept="video/*"
+          disabled={busy}
+          onChange={(event) => {
+            const next = event.target.files?.[0];
+            event.target.value = "";
+            if (!next) return;
+            setNotice(`Uploading ${next.name}…`);
+            onUploadHighlight(next);
+          }}
+        />
       </label>
-      <button type="button" className="site-btn site-btn-ghost" disabled={busy || !highlightUrl.trim()} onClick={() => { onAddHighlight(highlightUrl); setHighlightUrl(""); }}>
-        Submit highlight
-      </button>
+      {notice ? <p className="site-muted">{notice}</p> : null}
     </div>
   );
 }
 
 function MatchWagers({
+  tournamentId,
   match,
   wagers,
   busy,
@@ -244,59 +318,145 @@ function MatchWagers({
   onAccept,
   onToggleBetting,
 }: {
+  tournamentId: string;
   match: SiteTournamentDetail["matches"][number];
   wagers: SiteTournamentWager[];
   busy: boolean;
   isAdmin: boolean;
   youId: string | null;
-  onPlace: (input: { market: "house" | "h2h"; pickUserId: string; stake: number }) => void;
+  onPlace: (input: {
+    wagerKind: "house" | "peer";
+    marketKey: string;
+    pick: string;
+    stake: number;
+    isParlay?: boolean;
+    legs?: Array<{ marketKey: string; pick: string }>;
+  }) => void;
   onAccept: (wagerId: string) => void;
   onToggleBetting: (open: boolean) => void;
 }) {
   const inMatch = youId === match.playerA?.userId || youId === match.playerB?.userId;
-  const [market, setMarket] = useState<"house" | "h2h">("house");
-  const [pickUserId, setPickUserId] = useState(match.playerA?.userId ?? "");
+  const [options, setOptions] = useState<SiteTournamentWagerOptions | null>(null);
+  const [mode, setMode] = useState<"house" | "parlay" | "peer">("house");
+  const [market, setMarket] = useState("");
+  const [pick, setPick] = useState("");
   const [stake, setStake] = useState("50");
+  const [parlay, setParlay] = useState<Array<{ marketKey: string; pick: string; label: string }>>([]);
+
+  useEffect(() => {
+    let active = true;
+    siteApi.getTournamentWagerOptions({ tournamentId, matchId: match.id })
+      .then((next) => {
+        if (!active) return;
+        setOptions(next);
+        const first = next.markets[0];
+        setMarket(first?.market ?? "");
+        setPick(first?.sides[0]?.pick ?? "");
+      })
+      .catch(() => {
+        if (active) setOptions(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tournamentId, match.id]);
+
   if (inMatch) return <p className="site-muted">Players in this match cannot bet it.</p>;
+  const selected = options?.markets.find((item) => item.market === market) ?? options?.markets[0] ?? null;
+  const visibleMarkets = (options?.markets ?? []).filter((item) => (
+    mode !== "parlay" || !["moneyline", "spread", "total_points"].includes(item.market)
+  ));
 
   return (
     <div className="site-tournament-wagers">
-      <h5>Wagers {match.bettingOpen ? "" : "· closed"}</h5>
+      <h5>Sportsbook {match.bettingOpen ? "" : "· closed"}</h5>
       {isAdmin ? (
         <button type="button" className="site-btn site-btn-ghost" disabled={busy || match.status === "complete"} onClick={() => onToggleBetting(!match.bettingOpen)}>
           {match.bettingOpen ? "Close betting" : "Open betting"}
         </button>
       ) : null}
-      {match.bettingOpen && match.status !== "complete" ? (
+      {match.bettingOpen && match.status !== "complete" && options ? (
         <div className="site-tournament-report">
-          <label className="site-field">
-            <span>Market</span>
-            <select className="site-select" value={market} onChange={(event) => setMarket(event.target.value as typeof market)}>
-              <option value="house">House (max 500)</option>
-              <option value="h2h">H2H challenge (max 1000)</option>
-            </select>
-          </label>
-          <label className="site-field">
-            <span>Pick</span>
-            <select className="site-select" value={pickUserId} onChange={(event) => setPickUserId(event.target.value)}>
-              {match.playerA ? <option value={match.playerA.userId}>{match.playerA.displayName}</option> : null}
-              {match.playerB ? <option value={match.playerB.userId}>{match.playerB.displayName}</option> : null}
-            </select>
-          </label>
+          <div className="site-tournament-wager-markets">
+            <button type="button" className={mode === "house" ? "is-active" : ""} onClick={() => setMode("house")}>House</button>
+            <button type="button" className={mode === "parlay" ? "is-active" : ""} onClick={() => setMode("parlay")}>3-pick parlay</button>
+            <button type="button" className={mode === "peer" ? "is-active" : ""} onClick={() => setMode("peer")}>Peer</button>
+          </div>
+          {mode === "parlay" ? <p className="site-muted">Choose exactly three different stat-line Over/Under picks from this match.</p> : null}
+          <div className="site-tournament-wager-markets">
+            {visibleMarkets.map((item) => (
+              <button
+                key={item.market}
+                type="button"
+                className={item.market === market ? "is-active" : ""}
+                onClick={() => {
+                  setMarket(item.market);
+                  setPick(item.sides[0]?.pick ?? "");
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {selected ? (
+            <div className="site-tournament-wager-markets">
+              {selected.sides.map((side) => (
+                <button
+                  key={side.pick}
+                  type="button"
+                  className={side.pick === pick ? "is-active" : ""}
+                  onClick={() => setPick(side.pick)}
+                >
+                  {side.label} · {americanFromDecimal(side.odds)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {mode === "parlay" ? (
+            <>
+              <button
+                type="button"
+                className="site-btn site-btn-ghost"
+                disabled={parlay.length >= 3 || !market || !pick}
+                onClick={() => {
+                  const label = `${selected?.label ?? market}: ${selected?.sides.find((side) => side.pick === pick)?.label ?? pick}`;
+                  setParlay([...parlay.filter((leg) => leg.marketKey !== market), { marketKey: market, pick, label }].slice(0, 3));
+                }}
+              >
+                Add selection · {parlay.length}/3
+              </button>
+              <ul className="site-tournament-entrants">
+                {parlay.map((leg) => <li key={leg.marketKey}>{leg.label}</li>)}
+              </ul>
+            </>
+          ) : null}
           <label className="site-field">
             <span>Stake</span>
             <input type="number" min={10} value={stake} onChange={(event) => setStake(event.target.value)} />
           </label>
-          <button type="button" className="site-btn site-btn-primary" disabled={busy || !pickUserId} onClick={() => onPlace({ market, pickUserId, stake: Number(stake) })}>
-            Place bet
+          <button
+            type="button"
+            className="site-btn site-btn-primary"
+            disabled={busy || !market || !pick || (mode === "parlay" && parlay.length !== 3)}
+            onClick={() => {
+              if (mode === "parlay") {
+                onPlace({ wagerKind: "house", marketKey: "parlay", pick: "parlay", stake: Number(stake), isParlay: true, legs: parlay });
+                return;
+              }
+              onPlace({ wagerKind: mode === "peer" ? "peer" : "house", marketKey: market, pick, stake: Number(stake) });
+            }}
+          >
+            {mode === "peer" ? "Post peer wager" : mode === "parlay" ? "Place 3-pick parlay" : "Place bet"}
           </button>
         </div>
       ) : null}
       <ul className="site-tournament-entrants">
         {wagers.map((wager) => (
           <li key={wager.id}>
-            {wager.market === "house" ? "House" : "H2H"} · {wager.userDisplayName} on {wager.pickDisplayName} · {wager.stake} coins · {wager.status}
-            {wager.status === "open" && wager.market === "h2h" && wager.userId !== youId ? (
+            {wager.isParlay ? "Parlay" : wager.wagerKind === "peer" ? "Peer" : "House"}
+            {" · "}{wager.userDisplayName} on {wager.pickDisplayName}
+            {" · "}{wager.stake} coins · {wager.status}
+            {wager.status === "open" && wager.wagerKind === "peer" && wager.userId !== youId ? (
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => onAccept(wager.id)}>Accept opposite side</button>
             ) : null}
           </li>
@@ -398,6 +558,7 @@ export function TournamentDetailPage() {
       </header>
       {error ? <p className="site-auth-error">{error}</p> : null}
       {row.description ? <p>{row.description}</p> : null}
+      {row.championDisplayName ? <p>Champion: {row.championDisplayName}</p> : null}
       <p className="site-muted">
         {gameLabel(row.game)} · {row.bracketLabel} · {row.approvedCount}/{row.bracketSize ?? "—"} approved
         {row.pendingCount ? ` · ${row.pendingCount} pending` : ""} · {payoutLine(row)}
@@ -501,14 +662,17 @@ export function TournamentDetailPage() {
           {visibleHighlights.length ? (
             <ul className="site-tournament-highlights">
               {visibleHighlights.map((item) => (
-                <li key={item.id}>
-                  <a href={item.url} target="_blank" rel="noreferrer">{item.displayName}</a>
-                  <span className="site-muted"> · {item.status}</span>
+                <li key={item.id} className="site-tournament-highlight-card">
+                  <strong>{item.label}</strong>
+                  <span className="site-muted">{item.displayName} · {item.status}{item.mediaStatus !== "ready" ? ` · ${item.mediaStatus}` : ""}</span>
+                  {item.iframeUrl && (item.status === "approved" || item.isYou || isAdmin) && item.mediaStatus === "ready" ? (
+                    <iframe title={item.label} src={item.iframeUrl} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+                  ) : null}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="site-muted">No highlights yet. Players can add up to two clip links per match.</p>
+            <p className="site-muted">No highlights yet. Players can upload up to two 45-second clips per match.</p>
           )}
         </section>
       ) : (
@@ -542,7 +706,22 @@ export function TournamentDetailPage() {
             recUserId={you?.userId ?? null}
             wagers={wagers}
             onSaveStream={(matchId, streamUrl) => void act(() => siteApi.setTournamentMatchStream({ tournamentId: row.id, matchId, streamUrl }))}
-            onAddHighlight={(matchId, url) => void act(() => siteApi.addTournamentHighlight({ tournamentId: row.id, matchId, url }))}
+            onUploadHighlight={(matchId, file) => void act(async () => {
+              const duration = await readVideoDurationSeconds(file);
+              if (duration > 45) throw new Error(`${file.name} is ${Math.ceil(duration)}s. Crop to 45 seconds or less and try again.`);
+              const direct = await siteApi.createTournamentHighlightDirectUpload({ tournamentId: row.id, matchId, fileName: file.name });
+              const form = new FormData();
+              form.append("file", file);
+              const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+              if (!uploaded.ok) throw new Error(`Cloudflare upload failed for ${file.name} (${uploaded.status}).`);
+              await siteApi.markTournamentHighlightUploadReceived({ tournamentId: row.id, highlightId: direct.highlightId });
+              for (let attempt = 0; attempt < 20; attempt += 1) {
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                const status = await siteApi.getTournamentHighlightUploadStatus({ tournamentId: row.id, highlightId: direct.highlightId });
+                if (status.mediaStatus === "ready") return;
+                if (status.mediaStatus === "failed") throw new Error(status.failureReason ?? `${file.name} was rejected. Crop to 45 seconds or less and try again.`);
+              }
+            })}
             onPlaceWager={(input) => void act(() => siteApi.placeTournamentWager({ tournamentId: row.id, ...input }))}
             onAcceptWager={(wagerId) => void act(() => siteApi.acceptTournamentWager(wagerId))}
             onToggleBetting={(matchId, open) => void act(() => siteApi.setTournamentMatchBetting({ tournamentId: row.id, matchId, open }))}
@@ -557,6 +736,7 @@ export function TournamentDetailPage() {
                 screenshotUrl: uploaded.url,
                 playerAScore: input.playerAScore,
                 playerBScore: input.playerBScore,
+                boxScore: input.boxScore,
                 concededByUserId: input.resultMethod === "concede"
                   ? (match?.playerA?.userId === input.winnerUserId ? match?.playerB?.userId : match?.playerA?.userId) ?? null
                   : null,
