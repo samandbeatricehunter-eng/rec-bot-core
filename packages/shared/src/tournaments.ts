@@ -266,3 +266,211 @@ export function tournamentRoundLabel(side: TournamentBracketSide, round: number,
   if (remaining === 3) return `${prefix}Quarterfinals`;
   return `${prefix}Round ${round}`;
 }
+
+export const TOURNAMENT_PLAYSTYLES = [
+  { key: "simulation", label: "Simulation" },
+  { key: "competitive", label: "Competitive" },
+  { key: "arcade", label: "Arcade" },
+] as const;
+
+export const TOURNAMENT_INJURY_OPTIONS = [
+  { key: "on_standard", label: "On (standard)" },
+  { key: "on_reduced", label: "On (reduced)" },
+  { key: "off", label: "Off" },
+] as const;
+
+export type TournamentPlaystyle = (typeof TOURNAMENT_PLAYSTYLES)[number]["key"];
+export type TournamentInjuryPolicy = (typeof TOURNAMENT_INJURY_OPTIONS)[number]["key"];
+
+export type TournamentRules = {
+  quarterLengthMinutes: number;
+  difficulty: string;
+  acceleratedClockEnabled: boolean;
+  acceleratedClockMinimumSeconds: number;
+  injuries: TournamentInjuryPolicy;
+  fatigueEnabled: boolean;
+  playstyle: TournamentPlaystyle;
+  wearAndTearEnabled: boolean;
+};
+
+export const TOURNAMENT_REQUIRED_RULES = [
+  "The home player must stream the game live.",
+  "A screenshot of the final score — or of a concession — must be taken and submitted with the result.",
+  "Saving the stream (VOD) is strongly recommended so any dispute can be reviewed.",
+] as const;
+
+export function tournamentDifficultyOptions(game: string): Array<{ key: string; label: string }> {
+  if (game === "cfb_27") {
+    return [
+      { key: "freshman", label: "Freshman" },
+      { key: "varsity", label: "Varsity" },
+      { key: "all_american", label: "All-American" },
+      { key: "heisman", label: "Heisman" },
+    ];
+  }
+  return [
+    { key: "rookie", label: "Rookie" },
+    { key: "pro", label: "Pro" },
+    { key: "all_pro", label: "All-Pro" },
+    { key: "all_madden", label: "All-Madden" },
+  ];
+}
+
+export function defaultTournamentRules(game: string): TournamentRules {
+  const cfb = game === "cfb_27";
+  return {
+    quarterLengthMinutes: 6,
+    difficulty: cfb ? "heisman" : "all_madden",
+    acceleratedClockEnabled: true,
+    acceleratedClockMinimumSeconds: 15,
+    injuries: "off",
+    fatigueEnabled: false,
+    playstyle: "competitive",
+    wearAndTearEnabled: false,
+  };
+}
+
+export function parseTournamentRules(value: unknown, game: string): TournamentRules {
+  const fallback = defaultTournamentRules(game);
+  if (!value || typeof value !== "object") return fallback;
+  const row = value as Record<string, unknown>;
+  const difficulties = new Set(tournamentDifficultyOptions(game).map((item) => item.key));
+  const playstyle = TOURNAMENT_PLAYSTYLES.some((item) => item.key === row.playstyle)
+    ? (row.playstyle as TournamentPlaystyle)
+    : fallback.playstyle;
+  const injuries = TOURNAMENT_INJURY_OPTIONS.some((item) => item.key === row.injuries)
+    ? (row.injuries as TournamentInjuryPolicy)
+    : fallback.injuries;
+  const quarter = Number(row.quarterLengthMinutes);
+  const clockMin = Number(row.acceleratedClockMinimumSeconds);
+  return {
+    quarterLengthMinutes: Number.isFinite(quarter) ? Math.min(15, Math.max(4, Math.trunc(quarter))) : fallback.quarterLengthMinutes,
+    difficulty: difficulties.has(String(row.difficulty ?? "")) ? String(row.difficulty) : fallback.difficulty,
+    acceleratedClockEnabled: Boolean(row.acceleratedClockEnabled),
+    acceleratedClockMinimumSeconds: Number.isFinite(clockMin) ? Math.min(25, Math.max(10, Math.trunc(clockMin))) : fallback.acceleratedClockMinimumSeconds,
+    injuries,
+    fatigueEnabled: Boolean(row.fatigueEnabled),
+    playstyle,
+    wearAndTearEnabled: Boolean(row.wearAndTearEnabled),
+  };
+}
+
+export function tournamentRulesSummary(rules: TournamentRules, game: string): string {
+  const difficulty = tournamentDifficultyOptions(game).find((item) => item.key === rules.difficulty)?.label ?? rules.difficulty;
+  const playstyle = TOURNAMENT_PLAYSTYLES.find((item) => item.key === rules.playstyle)?.label ?? rules.playstyle;
+  const injuries = TOURNAMENT_INJURY_OPTIONS.find((item) => item.key === rules.injuries)?.label ?? rules.injuries;
+  const clock = rules.acceleratedClockEnabled
+    ? `Accel clock on (${rules.acceleratedClockMinimumSeconds}s)`
+    : "Accel clock off";
+  const bits = [
+    `${rules.quarterLengthMinutes}-min quarters`,
+    difficulty,
+    playstyle,
+    clock,
+    `Injuries ${injuries.toLowerCase()}`,
+    rules.fatigueEnabled ? "Fatigue on" : "Fatigue off",
+  ];
+  if (game === "cfb_27") bits.push(rules.wearAndTearEnabled ? "Wear & tear on" : "Wear & tear off");
+  return bits.join(" · ");
+}
+
+export function formatTournamentPlayerName(
+  username: string | null | undefined,
+  displayName: string | null | undefined,
+  gamerTag: string | null | undefined,
+): string {
+  const site = username ? `@${username}` : displayName?.trim() || "REC Member";
+  const tag = gamerTag?.trim();
+  return tag ? `${site} (${tag})` : site;
+}
+
+export function formatCountdown(ms: number): string {
+  if (ms <= 0) return "now";
+  const totalMinutes = Math.floor(ms / 60_000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${Math.max(1, minutes)}m`;
+}
+
+export type TournamentCountdownPhase = "opens" | "registration" | "kickoff" | "live" | "complete";
+
+export function tournamentCountdown(input: {
+  status: string;
+  registrationOpensAt: string | null;
+  registrationClosesAt: string | null;
+  kickoffAt: string | null;
+  entrantCount: number;
+  bracketSize: number | null;
+  registrationPaused?: boolean;
+  eventPaused?: boolean;
+  now?: Date;
+}): { phase: TournamentCountdownPhase; label: string; targetAt: string | null } {
+  const now = input.now ?? new Date();
+  if (input.status === "complete" || input.status === "cancelled") {
+    return { phase: "complete", label: input.status === "cancelled" ? "Cancelled" : "Complete", targetAt: null };
+  }
+  if (input.eventPaused) {
+    return { phase: "live", label: "Paused", targetAt: null };
+  }
+  if (input.status === "locked") {
+    if (input.kickoffAt && new Date(input.kickoffAt).getTime() > now.getTime()) {
+      return {
+        phase: "kickoff",
+        label: `Kickoff in ${formatCountdown(new Date(input.kickoffAt).getTime() - now.getTime())}`,
+        targetAt: input.kickoffAt,
+      };
+    }
+    return { phase: "live", label: "Live", targetAt: null };
+  }
+  const full = Boolean(input.bracketSize && input.entrantCount >= input.bracketSize);
+  if (input.registrationOpensAt && new Date(input.registrationOpensAt).getTime() > now.getTime()) {
+    return {
+      phase: "opens",
+      label: `Registration opens in ${formatCountdown(new Date(input.registrationOpensAt).getTime() - now.getTime())}`,
+      targetAt: input.registrationOpensAt,
+    };
+  }
+  const closesAt = input.registrationClosesAt ? new Date(input.registrationClosesAt) : null;
+  const stillRegistering = !input.registrationPaused && !full && (!closesAt || closesAt.getTime() > now.getTime());
+  if (stillRegistering && (closesAt || !input.registrationPaused)) {
+    if (closesAt && closesAt.getTime() > now.getTime()) {
+      return {
+        phase: "registration",
+        label: `Registration closes in ${formatCountdown(closesAt.getTime() - now.getTime())}`,
+        targetAt: input.registrationClosesAt,
+      };
+    }
+    if (!closesAt) {
+      return { phase: "registration", label: "Registration open", targetAt: null };
+    }
+  }
+  if (input.kickoffAt) {
+    const kickoff = new Date(input.kickoffAt).getTime();
+    if (kickoff > now.getTime()) {
+      return {
+        phase: "kickoff",
+        label: `${full ? "Bracket full · " : "Registration closed · "}kickoff in ${formatCountdown(kickoff - now.getTime())}`,
+        targetAt: input.kickoffAt,
+      };
+    }
+  }
+  return { phase: "kickoff", label: full ? "Bracket full · ready to lock" : "Registration closed · ready to lock", targetAt: input.kickoffAt };
+}
+
+export const TOURNAMENT_HIGHLIGHT_COINS = 250;
+export const TOURNAMENT_HOUSE_ODDS = 1.9;
+export const TOURNAMENT_WAGER_CAPS = { house: 500, h2h: 1000 } as const;
+
+export const TOURNAMENT_TIMEZONES = [
+  { value: "America/New_York", label: "Eastern" },
+  { value: "America/Chicago", label: "Central" },
+  { value: "America/Denver", label: "Mountain" },
+  { value: "America/Phoenix", label: "Arizona" },
+  { value: "America/Los_Angeles", label: "Pacific" },
+  { value: "America/Anchorage", label: "Alaska" },
+  { value: "Pacific/Honolulu", label: "Hawaii" },
+  { value: "UTC", label: "UTC" },
+] as const;

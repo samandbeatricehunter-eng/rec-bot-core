@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
+import { TournamentAdminPanel } from "./TournamentAdminPanel.js";
 import { startImpersonation } from "../lib/impersonation.js";
 import {
   siteApi,
@@ -17,12 +18,13 @@ import {
   type PromoCodeEffectType,
 } from "../lib/site-api.js";
 
-type AdminTab = "stats" | "ticker" | "leagues" | "impersonate" | "promo-codes" | "economy" | "discord" | "errors";
+type AdminTab = "stats" | "ticker" | "leagues" | "tournaments" | "impersonate" | "promo-codes" | "economy" | "discord" | "errors";
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "stats", label: "Stats" },
   { id: "ticker", label: "Ticker" },
   { id: "leagues", label: "Leagues" },
+  { id: "tournaments", label: "Tournaments" },
   { id: "impersonate", label: "View As" },
   { id: "promo-codes", label: "Promo Codes" },
   { id: "economy", label: "Economy Values" },
@@ -1435,6 +1437,7 @@ export function AdminPage() {
       {tab === "stats" ? <StatsPanel /> : null}
       {tab === "ticker" ? <TickerPanel /> : null}
       {tab === "leagues" ? <LeaguesPanel /> : null}
+      {tab === "tournaments" ? <TournamentAdminPanel /> : null}
       {tab === "impersonate" ? <ImpersonatePanel /> : null}
       {tab === "promo-codes" ? <PromoCodesPanel /> : null}
       {tab === "economy" ? <EconomyValuesPanel /> : null}

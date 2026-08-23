@@ -11,6 +11,7 @@ import {
   type SiteAnnouncement,
   type SiteHomeCard,
   type SiteLeagueSummary,
+  type SiteTournamentHomeCard,
   type SpotlightItem,
 } from "../lib/site-api.js";
 
@@ -30,6 +31,58 @@ function leagueMeta(league: SiteLeagueSummary) {
   }
   if (league.matchupLabel) bits.push(league.matchupLabel);
   return bits.join(" · ");
+}
+
+function MyTournamentCards() {
+  const [cards, setCards] = useState<SiteTournamentHomeCard[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    siteApi.listMyTournaments()
+      .then((result) => {
+        if (active) setCards(result.cards);
+      })
+      .catch(() => {
+        if (active) setCards([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!cards.length) return null;
+
+  return (
+    <section className="site-home-panel site-home-tournaments">
+      <header className="site-home-panel-head">
+        <p>Your brackets</p>
+        <h2>Tournaments</h2>
+      </header>
+      <ul className="site-tournament-home-list">
+        {cards.map((card) => (
+          <li key={card.tournament.id}>
+            <Link className="site-tournament-home-card" to={`/tournaments/${card.tournament.id}`}>
+              <strong>{card.tournament.title}</strong>
+              <span>{card.tournament.countdown.label}</span>
+              <div className="site-tournament-home-matchup">
+                <div>
+                  <em>{card.you?.teamName ?? "Your team"}</em>
+                  <span>{card.you?.displayName ?? "You"}</span>
+                  <small>{card.you?.record ?? "0-0"}</small>
+                </div>
+                <span>vs</span>
+                <div>
+                  <em>{card.opponent?.teamName ?? "Opponent"}</em>
+                  <span>{card.opponent?.displayName ?? (card.tournament.status === "open" ? "Waiting on bracket" : "TBD")}</span>
+                  <small>{card.opponent?.record ?? "—"}</small>
+                </div>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function MyLeaguesByGame() {
@@ -261,6 +314,8 @@ export function HomePage() {
   return (
     <div className="site-home">
       <HeroCard displayName={displayName} card={card} />
+
+      <MyTournamentCards />
 
       <section className="site-home-panel site-home-leagues">
         <header className="site-home-panel-head">

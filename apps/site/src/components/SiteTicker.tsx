@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { americanFromDecimal } from "@rec/shared";
+import { americanFromDecimal, tournamentCountdown } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
-import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../lib/site-api.js";
+import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem, type SiteTournamentSummary } from "../lib/site-api.js";
 
 const LEAGUE_POLL_MS = 60_000;
 const ANNOUNCEMENT_POLL_MS = 5 * 60_000;
+const TOURNAMENT_POLL_MS = 30_000;
 
 // Logo assets only exist for the 32 standard Madden teams (apps/web/public/assets/team-logos,
 // mirrored onto the site's own public/assets at build time) -- null abbreviation (CFB schools,
@@ -63,28 +64,63 @@ function useLeagueTickerSegments(leagueId: string): ReactNode[] {
 
 function useAnnouncementSegments(): ReactNode[] {
   const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([]);
+  const [tournaments, setTournaments] = useState<SiteTournamentSummary[]>([]);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let cancelled = false;
-    function load() {
+    function loadAnnouncements() {
       siteApi
         .listSiteAnnouncements()
         .then((res) => { if (!cancelled) setAnnouncements(res.announcements); })
         .catch(() => { if (!cancelled) setAnnouncements([]); });
     }
-    load();
-    const refreshWhenVisible = () => { if (document.visibilityState === "visible") load(); };
-    const interval = window.setInterval(refreshWhenVisible, ANNOUNCEMENT_POLL_MS);
+    function loadTournaments() {
+      siteApi
+        .listTournamentTicker()
+        .then((res) => { if (!cancelled) setTournaments(res.items); })
+        .catch(() => { if (!cancelled) setTournaments([]); });
+    }
+    loadAnnouncements();
+    loadTournaments();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      loadAnnouncements();
+      loadTournaments();
+    };
+    const announcementInterval = window.setInterval(refreshWhenVisible, ANNOUNCEMENT_POLL_MS);
+    const tournamentInterval = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadTournaments();
+    }, TOURNAMENT_POLL_MS);
+    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
     window.addEventListener("focus", refreshWhenVisible);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearInterval(announcementInterval);
+      window.clearInterval(tournamentInterval);
+      window.clearInterval(tick);
       window.removeEventListener("focus", refreshWhenVisible);
     };
   }, []);
 
-  if (announcements.length === 0) return ["Welcome to REC Leagues."];
-  return announcements.map((a) => (a.body ? `${a.title} — ${a.body}` : a.title));
+  const tournamentLines = tournaments.map((item) => {
+    const live = tournamentCountdown({
+      status: item.status,
+      registrationOpensAt: item.registrationOpensAt,
+      registrationClosesAt: item.registrationClosesAt,
+      kickoffAt: item.kickoffAt,
+      entrantCount: item.approvedCount ?? item.entrantCount,
+      bracketSize: item.bracketSize,
+      registrationPaused: item.registrationPaused,
+      eventPaused: item.eventPaused,
+      now: new Date(now),
+    });
+    return `${item.title} — ${live.label} · ${item.approvedCount ?? item.entrantCount}/${item.bracketSize ?? "—"} · ${item.bracketLabel}`;
+  });
+  const announcementLines = announcements.map((a) => (a.body ? `${a.title} — ${a.body}` : a.title));
+  const segments = [...tournamentLines, ...announcementLines];
+  if (segments.length === 0) return ["Welcome to REC Leagues."];
+  return segments;
 }
 
 function TickerTrack({ segments }: { segments: ReactNode[] }) {
