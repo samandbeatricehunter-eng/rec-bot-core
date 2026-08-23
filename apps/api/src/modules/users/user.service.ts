@@ -220,6 +220,70 @@ export async function transferSavings(discordId: string, amount: number, directi
   };
 }
 
+// Other active members of the caller's current league, for the "send coins" recipient picker.
+export async function listWalletTransferRecipients(guildId: string, excludeUserId: string) {
+  const context = await findCurrentLeagueContext(guildId);
+  if (!context?.leagueId) throw new ApiError(404, "No active league for this server.");
+  const memberships = await supabase
+    .from("rec_league_memberships")
+    .select("user_id, user:rec_users(id,display_name,username)")
+    .eq("league_id", context.leagueId)
+    .eq("status", "active")
+    .neq("user_id", excludeUserId);
+  if (memberships.error) throw new ApiError(500, "We couldn't load league members. Please try again.", memberships.error);
+  return {
+    recipients: (memberships.data ?? [])
+      .map((row: any) => ({ userId: row.user_id, displayName: row.user?.display_name || row.user?.username || "Member" }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  };
+}
+
+// Peer-to-peer coin transfer within the same league. Atomic single-RPC 2-party move (unlike
+// wager settlement's two separate add_to_wallet calls) so a mid-transfer crash can't leave the
+// sender debited with no matching credit.
+export async function sendWalletCoins(input: { discordId: string; guildId: string; recipientUserId: string; amount: number; note?: string | null }) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new ApiError(400, "Amount must be a positive number.");
+  const amountInt = Math.floor(input.amount);
+
+  const baseline = await getUserBaselineByDiscordId(input.discordId);
+  await assertSiteAccountForEconomy(baseline.user.id);
+  if (input.recipientUserId === baseline.user.id) throw new ApiError(400, "You can't send coins to yourself.");
+
+  const context = await findCurrentLeagueContext(input.guildId);
+  if (!context?.leagueId) throw new ApiError(404, "No active league for this server.");
+  const recipientMembership = await supabase
+    .from("rec_league_memberships")
+    .select("user_id")
+    .eq("league_id", context.leagueId)
+    .eq("user_id", input.recipientUserId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (recipientMembership.error) throw new ApiError(500, "We couldn't verify that recipient. Please try again.", recipientMembership.error);
+  if (!recipientMembership.data) throw new ApiError(400, "That recipient isn't an active member of this league.");
+
+  const sourceReference = { transferId: `${baseline.user.id}:${input.recipientUserId}:${Date.now()}` };
+  const { error } = await supabase.rpc("transfer_wallet_to_user", {
+    p_sender_user_id: baseline.user.id,
+    p_recipient_user_id: input.recipientUserId,
+    p_amount: amountInt,
+    p_league_id: context.leagueId,
+    p_description: input.note?.trim() || null,
+    p_source_reference: sourceReference,
+  });
+  if (error) {
+    if ((error as { code?: string }).code === "REC02") throw new ApiError(400, "Insufficient wallet balance.");
+    throw new ApiError(500, "We couldn't send those coins. Please try again.", error);
+  }
+
+  const updated = await supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", baseline.user.id).single();
+  return {
+    sent: amountInt,
+    recipientUserId: input.recipientUserId,
+    wallet_balance: updated.data?.wallet_balance ?? 0,
+    savings_balance: updated.data?.savings_balance ?? 0,
+  };
+}
+
 export async function getRecentTransactionsByUserId(userId: string, limit = 25, leagueId?: string) {
   let query = supabase
     .from("rec_dollar_ledger")

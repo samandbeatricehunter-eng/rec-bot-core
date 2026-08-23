@@ -13,7 +13,7 @@ import {
 } from "@rec/shared";
 import type { PoolClient } from "pg";
 import { getPgPool } from "../../db/client.js";
-import { syncTournamentDiscordAnnouncements } from "./tournament-discord.service.js";
+import { announceTournamentEveryone, syncTournamentDiscordAnnouncements } from "./tournament-discord.service.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { listTournamentStreamHighlights } from "./tournaments-media.service.js";
@@ -449,6 +449,14 @@ export async function createTournament(input: {
   const tournament = publicTournament(result.rows[0] as TournamentRow, { entrantCount: 0 });
   await announceTournament(tournament);
   notifyDiscord(tournament.id);
+  // Registration opens immediately unless the admin scheduled it for later -- the sweep in
+  // index.ts (runTournamentRegistrationAnnounceSweep) catches the scheduled-for-later case once
+  // registrationOpensAt actually arrives.
+  if (new Date(tournament.registrationOpensAt ?? 0).getTime() <= Date.now()) {
+    await getPgPool().query(`update rec_site_tournaments set registration_open_announced_at = now() where id = $1`, [tournament.id]);
+    void announceTournamentEveryone(tournament.id, "created").catch((error) =>
+      console.error("[ERROR] tournament @everyone announcement failed (non-fatal):", error));
+  }
   return { tournament };
 }
 
@@ -991,6 +999,11 @@ export async function setTournamentRegistrationOpen(input: { tournamentId: strin
     );
   }
   notifyDiscord(input.tournamentId);
+  if (input.open) {
+    await getPgPool().query(`update rec_site_tournaments set registration_open_announced_at = now() where id = $1`, [input.tournamentId]);
+    void announceTournamentEveryone(input.tournamentId, "registration_open").catch((error) =>
+      console.error("[ERROR] tournament @everyone announcement failed (non-fatal):", error));
+  }
   return { ok: true as const, registrationPaused: !input.open };
 }
 

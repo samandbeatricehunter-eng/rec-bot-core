@@ -14,6 +14,7 @@ import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
 import { runTournamentLotterySweep } from "./modules/tournaments/tournament-lottery.service.js";
+import { runTournamentRegistrationAnnounceSweep } from "./modules/tournaments/tournament-discord.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -87,6 +88,12 @@ setInterval(() => {
 // deadline auto-skip, and open-pool auto-assignment -- same restart-safe polled pattern.
 setInterval(() => {
   runTournamentLotterySweep().catch((error) => app.log.error({ err: error }, "Tournament lottery sweep failed"));
+}, 60_000).unref();
+
+// Fires the @everyone "registration is open" ping once a tournament's scheduled
+// registrationOpensAt actually arrives, for tournaments created with a future open time.
+setInterval(() => {
+  runTournamentRegistrationAnnounceSweep().catch((error) => app.log.error({ err: error }, "Tournament registration announce sweep failed"));
 }, 60_000).unref();
 
 // Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data every

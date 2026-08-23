@@ -143,20 +143,52 @@ export function ManageFundsModal({
   onTransferred: () => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"transfer" | "transactions">("transfer");
+  const [tab, setTab] = useState<"transfer" | "send" | "transactions">("transfer");
   const [transactions, setTransactions] = useState<Transaction[] | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
   const [direction, setDirection] = useState<"to_savings" | "from_savings">("to_savings");
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<Array<{ userId: string; displayName: string }> | null>(null);
+  const [recipientsError, setRecipientsError] = useState<string | null>(null);
+  const [recipientId, setRecipientId] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
+  const [sendNote, setSendNote] = useState("");
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendStatus, setSendStatus] = useState<string | null>(null);
 
-  function selectTab(next: "transfer" | "transactions") {
+  function selectTab(next: "transfer" | "send" | "transactions") {
     setTab(next);
     if (next === "transactions" && transactions === null && !txError) {
       recApi.getMyRecentTransactions({ guildId, limit: 50 })
         .then((result) => setTransactions(result.transactions))
         .catch((err) => setTxError(err instanceof Error ? err.message : "Failed to load transactions."));
+    }
+    if (next === "send" && recipients === null && !recipientsError) {
+      recApi.listWalletTransferRecipients({ guildId })
+        .then((result) => setRecipients(result.recipients))
+        .catch((err) => setRecipientsError(err instanceof Error ? err.message : "Failed to load league members."));
+    }
+  }
+
+  async function submitSend() {
+    const value = Number(sendAmount);
+    if (!recipientId) { setSendStatus("Pick a recipient."); return; }
+    if (!Number.isFinite(value) || value <= 0) { setSendStatus("Enter a positive amount."); return; }
+    setSendBusy(true);
+    setSendStatus(null);
+    try {
+      const result = await recApi.sendWalletCoins({ guildId, recipientUserId: recipientId, amount: value, note: sendNote.trim() || null });
+      setSendStatus(`Sent. Your wallet is now ${coinsNumber(result.wallet_balance)}.`);
+      setSendAmount("");
+      setSendNote("");
+      setTransactions(null);
+      onTransferred();
+    } catch (err) {
+      setSendStatus(err instanceof Error ? err.message : "Send failed.");
+    } finally {
+      setSendBusy(false);
     }
   }
 
@@ -185,6 +217,7 @@ export function ManageFundsModal({
     <div className="hub-funds-modal">
       <div className="hub-funds-switcher" role="tablist" aria-label="Manage funds view">
         <button type="button" role="tab" aria-selected={tab === "transfer"} className={tab === "transfer" ? "active" : ""} onClick={() => selectTab("transfer")}>Transfer Funds</button>
+        <button type="button" role="tab" aria-selected={tab === "send"} className={tab === "send" ? "active" : ""} onClick={() => selectTab("send")}>Send Coins</button>
         <button type="button" role="tab" aria-selected={tab === "transactions"} className={tab === "transactions" ? "active" : ""} onClick={() => selectTab("transactions")}>Transactions</button>
       </div>
 
@@ -203,6 +236,29 @@ export function ManageFundsModal({
         </label>
         {status && <p className="hub-transfer-status">{status}</p>}
         <Button variant="primary" disabled={busy || !amount} onClick={() => void submitTransfer()}>{busy ? "Transferring…" : "Transfer"}</Button>
+      </> : tab === "send" ? <>
+        <div className="hub-funds-balances">
+          <div><span>Wallet</span><strong><CoinAmount amount={wallet} /></strong></div>
+        </div>
+        {recipientsError ? <p className="hub-empty">{recipientsError}</p> : (
+          <label className="form-field">
+            <span className="form-label">Send to</span>
+            <select className="form-input" value={recipientId} onChange={(event) => setRecipientId(event.target.value)}>
+              <option value="">{recipients === null ? "Loading…" : "Select a league member…"}</option>
+              {(recipients ?? []).map((r) => <option key={r.userId} value={r.userId}>{r.displayName}</option>)}
+            </select>
+          </label>
+        )}
+        <label className="form-field">
+          <span className="form-label">Amount</span>
+          <input className="form-input" type="number" min="0.01" step="0.01" max={wallet} value={sendAmount} onChange={(event) => setSendAmount(event.target.value)} placeholder="Amount" />
+        </label>
+        <label className="form-field">
+          <span className="form-label">Note (optional)</span>
+          <input className="form-input" type="text" maxLength={140} value={sendNote} onChange={(event) => setSendNote(event.target.value)} placeholder="What's this for?" />
+        </label>
+        {sendStatus && <p className="hub-transfer-status">{sendStatus}</p>}
+        <Button variant="primary" disabled={sendBusy || !recipientId || !sendAmount} onClick={() => void submitSend()}>{sendBusy ? "Sending…" : "Send"}</Button>
       </> : txError ? <p className="hub-empty">{txError}</p>
         : transactions === null ? <p className="hub-empty">Loading…</p>
         : transactions.length === 0 ? <p className="hub-empty">No transactions yet.</p>

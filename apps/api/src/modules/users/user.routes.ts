@@ -8,6 +8,8 @@ import {
   getUserBaselineByDiscordId,
   getUserMenuProfileByDiscordId,
   getWalletByDiscordId,
+  listWalletTransferRecipients,
+  sendWalletCoins,
   transferSavings,
   getUserSnapshot,
   getUserScheduleByDiscordId,
@@ -29,6 +31,28 @@ export async function userRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
       if (auth.mode !== "user") throw new Error("The self-service transfer route requires a user session.");
       return reply.send(await transferSavings(auth.discordId, input.amount, input.direction));
+    } catch (error) { return sendError(reply, error); }
+  });
+  app.post("/v1/users/me/wallet/transfer-recipients", async (request, reply) => {
+    try {
+      const input = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("A user session is required.");
+      const baseline = await getUserBaselineByDiscordId(auth.discordId);
+      return reply.send(await listWalletTransferRecipients(input.guildId, baseline.user.id));
+    } catch (error) { return sendError(reply, error); }
+  });
+  app.post("/v1/users/me/wallet/send", async (request, reply) => {
+    try {
+      const input = z.object({
+        guildId: z.string().min(1),
+        recipientUserId: z.string().uuid(),
+        amount: z.number().positive(),
+        note: z.string().trim().max(140).optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("The self-service send-coins route requires a user session.");
+      return reply.send(await sendWalletCoins({ discordId: auth.discordId, guildId: input.guildId, recipientUserId: input.recipientUserId, amount: input.amount, note: input.note }));
     } catch (error) { return sendError(reply, error); }
   });
   app.get("/v1/users/:discordId/baseline", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; return reply.send(await getUserBaselineByDiscordId(discordId)); } catch (error) { return sendError(reply, error); }});
