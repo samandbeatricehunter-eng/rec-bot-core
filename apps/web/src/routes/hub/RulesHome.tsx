@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LeagueSettingsDraft } from "../../types/api.js";
-import { SETTINGS_CATEGORIES } from "../league-mgmt/settings/settings-fields.js";
+import { SETTINGS_CATEGORIES, settingsCategoryNavLabel } from "../league-mgmt/settings/settings-fields.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Card } from "../../components/ui/Card.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
@@ -14,7 +14,7 @@ import { Button } from "../../components/ui/Button.js";
 // (settings-fields.ts), no edit affordance, open to every league member. Channels,
 // moderation, and the maintenance/first-time-setup tabs aren't "rules" a member needs to
 // read, so those categories are skipped here.
-const HIDDEN_CATEGORY_KEYS = new Set(["channels", "moderation", "eos-payouts", "first-time-setup"]);
+const HIDDEN_CATEGORY_KEYS = new Set(["channels", "integrations", "moderation", "eos-payouts", "first-time-setup", "retire", "delete-league", "play_call"]);
 
 function formatValue(field: (typeof SETTINGS_CATEGORIES)[number]["fields"][number], draft: LeagueSettingsDraft) {
   const value = draft[field.key];
@@ -87,7 +87,7 @@ export function RulesHome() {
         if (!fields.length) return null;
         return (
           <Card key={category.key} className="hub-rules-category">
-            <h3>{category.label}</h3>
+            <h3>{settingsCategoryNavLabel(category, game)}</h3>
             {fields.map((field) => (
               <div key={field.key} className="hub-rules-row">
                 <span className="hub-rules-label">{field.label}</span>

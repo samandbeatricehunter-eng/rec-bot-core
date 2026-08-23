@@ -144,7 +144,7 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     recipients.delete(input.discordId);
     if (!recipients.size) return;
     const author = authorDisplayName ?? "A commissioner";
-    const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nOpen the league on the REC site, go to **League Management**, then **Commissioner's Office** to reply.`;
+    const message = `**${author}** mentioned you in commissioner chat:\n\n${trimmed.slice(0, 1200)}\n\nOpen the league on the REC site and use the chat drawer (Commissioner Chat) to reply.`;
     await Promise.allSettled([...recipients].map((discordId) => sendDiscordDirectMessage(discordId, message)));
   })().catch((notifyError) => console.error("[ERROR] Failed to send commissioner-chat mention DMs (non-fatal):", notifyError));
   const sentMessage = { ...data, author_display_name: authorDisplayName };
@@ -248,7 +248,7 @@ export async function createChatTopic(input: {
       const mentionable = await getMentionableCommissioners(input.guildId);
       const recipients = mentionable.members.map((m) => m.discordId).filter((id) => id !== input.discordId);
       if (!recipients.length) return;
-      const message = `A new commissioner poll needs your vote: **${title}**\n\nOpen League Management → Commissioner's Office to vote.`;
+      const message = `A new commissioner poll needs your vote: **${title}**\n\nOpen League Management to vote — pending commissioner polls appear at the top of the command center.`;
       await Promise.allSettled(recipients.map((discordId) => sendDiscordDirectMessage(discordId, message)));
     })().catch((err) => console.error("[ERROR] Failed to notify commissioners of new poll (non-fatal):", err));
   }

@@ -183,6 +183,7 @@ export function mergePlayerWeekStats(rows: Array<{ stats?: Record<string, unknow
 }
 
 export type ImportPlayerBonusResult = {
+  eligible: boolean;
   qualified: boolean;
   value: number;
   met: number;
@@ -190,16 +191,22 @@ export type ImportPlayerBonusResult = {
   detail: Record<string, number>;
 };
 
-export function evaluateImportPlayerBonus(definition: RecEndSeasonPayoutDefinition, stats: Record<string, number>, position: string | null): ImportPlayerBonusResult {
+export function playerEligibleForImportBonus(definition: RecEndSeasonPayoutDefinition, position: string | null | undefined): boolean {
   const allowed = (definition.eligiblePositions ?? []).map((item) => item.toUpperCase());
-  if (allowed.length && !allowed.includes(String(position ?? "").toUpperCase())) {
-    return { qualified: false, value: 0, met: 0, needed: Object.keys(definition.minimums ?? {}).length, detail: {} };
+  if (!allowed.length) return true;
+  return allowed.includes(String(position ?? "").toUpperCase());
+}
+
+export function evaluateImportPlayerBonus(definition: RecEndSeasonPayoutDefinition, stats: Record<string, number>, position: string | null): ImportPlayerBonusResult {
+  const needed = Object.keys(definition.minimums ?? {}).length || 1;
+  if (!playerEligibleForImportBonus(definition, position)) {
+    return { eligible: false, qualified: false, value: 0, met: 0, needed, detail: {} };
   }
   if (definition.key === "king_of_the_swing") {
     const att = stats.fg_50_attempts ?? 0;
     const made = stats.fg_50_made ?? 0;
     const qualified = att >= 2 && made === att;
-    return { qualified, value: qualified ? 1 : 0, met: qualified ? 1 : att >= 2 && made > 0 ? 0 : 0, needed: 1, detail: { fg_50_attempts: att, fg_50_made: made } };
+    return { eligible: true, qualified, value: qualified ? 1 : 0, met: qualified ? 1 : 0, needed: 1, detail: { fg_50_attempts: att, fg_50_made: made } };
   }
   const minimums = definition.minimums ?? {};
   const keys = Object.keys(minimums);
@@ -211,6 +218,21 @@ export function evaluateImportPlayerBonus(definition: RecEndSeasonPayoutDefiniti
     if (current >= (minimums[key] ?? 0)) met += 1;
   }
   const qualified = keys.length > 0 && met === keys.length;
-  return { qualified, value: qualified ? 1 : 0, met, needed: keys.length, detail };
+  return { eligible: true, qualified, value: qualified ? 1 : 0, met, needed: keys.length, detail };
+}
+
+export function pickTrackedImportPlayer(
+  definition: RecEndSeasonPayoutDefinition,
+  players: Array<{ position: string | null; playerName: string | null; stats: Record<string, number> }>,
+): { result: ImportPlayerBonusResult; name: string | null } | null {
+  let best: { result: ImportPlayerBonusResult; name: string | null } | null = null;
+  for (const player of players) {
+    const result = evaluateImportPlayerBonus(definition, player.stats, player.position);
+    if (!result.eligible) continue;
+    if (!best || result.met > best.result.met || (result.qualified && !best.result.qualified)) {
+      best = { result, name: player.playerName };
+    }
+  }
+  return best;
 }
 

@@ -16,8 +16,17 @@ const FAIR_SIM_OPTIONS = FAIR_SIM_RULE_OPTIONS.map((o) => ({ value: o.key, label
 // the ~11 *_channel_id fields — channel routing saves through a different API path entirely
 // (apps/api/src/modules/server-config/), not updateLeagueConfig, matching how the Discord
 // flow itself separates them (see apps/bot/src/flows/league-setup.ts's saveChannelEditIfNeeded).
+// Pending reviews (custom players, box scores, payouts) live in Notifications, not Settings.
 
 export type SettingsFieldType = "toggle" | "number" | "text" | "textarea" | "enum" | "multiselect";
+
+export type SettingsNavGroup = "discord" | "league" | "ops";
+
+export const SETTINGS_NAV_GROUPS: { key: SettingsNavGroup; label: string }[] = [
+  { key: "discord", label: "Discord" },
+  { key: "league", label: "League" },
+  { key: "ops", label: "Operations" },
+];
 
 export type SettingsField = {
   key: string;
@@ -37,31 +46,28 @@ export type SettingsField = {
   gameFilter?: (game: string) => boolean;
 };
 
-export type SettingsCategory = { key: string; label: string; fields: SettingsField[] };
+export type SettingsCategory = {
+  key: string;
+  label: string;
+  fields: SettingsField[];
+  group: SettingsNavGroup;
+  // Hidden from the tab strip (fields still save). Used to merge Play Call into Rules.
+  navHidden?: boolean;
+};
 
 const notCfb = (game: string) => game !== "cfb_27";
 const isCfb = (game: string) => game === "cfb_27";
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
-  { key: "channels", label: "Channels", fields: [] },
-  { key: "integrations", label: "Integrations", fields: [] },
-  { key: "moderation", label: "Bans & Restrictions", fields: [] },
-  {
-    key: "features",
-    label: "Features",
-    fields: [
-      { key: "forceWinRulesRegular", label: "Force Win Rules — Regular Season", type: "multiselect", options: FORCE_WIN_OPTIONS, hint: "When any of these apply, a coach can request (or a commissioner can grant) a Force Win." },
-      { key: "forceWinRulesPostseason", label: "Force Win Rules — Postseason", type: "multiselect", options: FORCE_WIN_OPTIONS },
-      { key: "fairSimRulesRegular", label: "Fair Sim Rules — Regular Season", type: "multiselect", options: FAIR_SIM_OPTIONS, hint: "When any of these apply, the game is settled as a Fair Sim instead of played." },
-      { key: "fairSimRulesPostseason", label: "Fair Sim Rules — Postseason", type: "multiselect", options: FAIR_SIM_OPTIONS },
-    ],
-  },
+  { key: "channels", label: "Channels", group: "discord", fields: [] },
+  { key: "integrations", label: "Integrations", group: "discord", fields: [] },
   {
     key: "purchases",
     label: "Economy",
+    group: "league",
     fields: [
       { key: "coinEconomyEnabled", label: "Coin Economy Enabled", type: "toggle", hint: "Master switch — turning this off disables every purchase type below." },
-      { key: "customPlayersEnabled", label: "Custom Players Enabled", type: "toggle", dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
+      { key: "customPlayersEnabled", label: "Custom Players Enabled", type: "toggle", dependsOn: (d) => Boolean(d.coinEconomyEnabled), hint: "Pending custom player builds are reviewed from Notifications, not this page." },
       { key: "customPlayersSeasonCap", label: "Custom Players Season Cap", type: "number", min: 0, max: 5, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.customPlayersEnabled), resetTo: 0 },
       { key: "legendsEnabled", label: "Legends Enabled", type: "toggle", dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
       { key: "legendsSeasonCap", label: "Legends Season Cap", type: "number", min: 0, max: 5, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.legendsEnabled), resetTo: 0 },
@@ -80,7 +86,12 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: "rules",
     label: "Rules & Policies",
+    group: "league",
     fields: [
+      { key: "forceWinRulesRegular", label: "Force Win Rules — Regular Season", type: "multiselect", options: FORCE_WIN_OPTIONS, hint: "When any of these apply, a coach can request (or a commissioner can grant) a Force Win." },
+      { key: "forceWinRulesPostseason", label: "Force Win Rules — Postseason", type: "multiselect", options: FORCE_WIN_OPTIONS },
+      { key: "fairSimRulesRegular", label: "Fair Sim Rules — Regular Season", type: "multiselect", options: FAIR_SIM_OPTIONS, hint: "When any of these apply, the game is settled as a Fair Sim instead of played." },
+      { key: "fairSimRulesPostseason", label: "Fair Sim Rules — Postseason", type: "multiselect", options: FAIR_SIM_OPTIONS },
       { key: "regularSeasonStreamingRequirement", label: "Regular Season Streaming", type: "enum", options: [{ value: "required", label: "Required" }, { value: "recommended", label: "Recommended" }, { value: "disabled", label: "Disabled" }] },
       { key: "regularSeasonStreamingSide", label: "Regular Season Streaming Side", type: "enum", options: [{ value: "home", label: "Home" }, { value: "away", label: "Away" }, { value: "either", label: "Either" }, { value: "both", label: "Both" }] },
       { key: "postseasonStreamingRequirement", label: "Postseason Streaming", type: "enum", options: [{ value: "required", label: "Required" }, { value: "recommended", label: "Recommended" }, { value: "disabled", label: "Disabled" }] },
@@ -108,6 +119,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: "gameplay",
     label: "Gameplay",
+    group: "league",
     fields: [
       { key: "slidersAdjusted", label: "Custom Sliders Enabled", type: "toggle", hint: "When enabled, choose a sourced community template or enter every slider value below." },
       { key: "difficulty", label: "Difficulty", type: "enum", gameFilter: notCfb, options: [{ value: "rookie", label: "Rookie" }, { value: "pro", label: "Pro" }, { value: "all_pro", label: "All-Pro" }, { value: "all_madden", label: "All-Madden" }] },
@@ -122,11 +134,15 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { key: "salaryCapEnabled", label: "Salary Cap Enabled", type: "toggle", gameFilter: notCfb },
       { key: "tradeDeadlineEnabled", label: "Trade Deadline Enabled", type: "toggle", gameFilter: notCfb },
       { key: "abilitiesEnabled", label: "Abilities Enabled", type: "toggle" },
+      { key: "ballHawk", label: "Ball Hawk", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
+      { key: "heatSeeker", label: "Heat Seeker", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
+      { key: "switchAssist", label: "Switch Assist", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
     ],
   },
   {
     key: "franchise",
-    label: "Dynasty / Franchise",
+    label: "Franchise",
+    group: "league",
     fields: [
       { key: "dynastyType", label: "Dynasty Type", type: "enum", gameFilter: isCfb, options: [{ value: "real", label: "Real Rosters" }, { value: "mixed", label: "Mixed (Team Builder Allowed)" }] },
       { key: "recruitingDifficulty", label: "Recruiting Difficulty", type: "enum", gameFilter: isCfb, options: [{ value: "easy", label: "Easy" }, { value: "normal", label: "Normal" }, { value: "hard", label: "Hard" }] },
@@ -157,14 +173,14 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { key: "coachModeCpuManageBudgetEnabled", label: "Coach Mode: CPU Manages Budget", type: "toggle", gameFilter: isCfb, dependsOn: (d) => Boolean(d.coachModeEnabled), resetTo: false },
       { key: "coachModeCpuManageStaffEnabled", label: "Coach Mode: CPU Manages Staff", type: "toggle", gameFilter: isCfb, dependsOn: (d) => Boolean(d.coachModeEnabled), resetTo: false },
       { key: "coachModeCpuManageFacilitiesEnabled", label: "Coach Mode: CPU Manages Facilities", type: "toggle", gameFilter: isCfb, dependsOn: (d) => Boolean(d.coachModeEnabled), resetTo: false },
-      { key: "ballHawk", label: "Ball Hawk", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
-      { key: "heatSeeker", label: "Heat Seeker", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
-      { key: "switchAssist", label: "Switch Assist", type: "enum", options: [{ value: "on", label: "On" }, { value: "off", label: "Off" }, { value: "keep_individual", label: "Keep Individual" }] },
     ],
   },
+  { key: "moderation", label: "Bans & Restrictions", group: "league", fields: [] },
   {
     key: "play_call",
     label: "Play Call Settings",
+    group: "league",
+    navHidden: true,
     fields: [
       { key: "offensivePlayCallLimitsEnabled", label: "Offensive Play Call Limits Enabled", type: "toggle" },
       { key: "offensivePlayCallLimit", label: "Offensive Play Call Limit", type: "number", min: 1, max: 50, dependsOn: (d) => Boolean(d.offensivePlayCallLimitsEnabled), resetTo: null },
@@ -178,15 +194,31 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   // Special-cased in SettingsHome.tsx to render <EosPayoutMaintenance /> instead of the
   // generic field list.
-  { key: "eos-payouts", label: "Maintenance", fields: [] },
+  { key: "eos-payouts", label: "Maintenance", group: "ops", fields: [] },
   // Special-cased in SettingsHome.tsx — commissioners leave the league from here because the
   // league top nav only shows Retire for non-commissioner members.
-  { key: "retire", label: "Retire", fields: [] },
+  { key: "retire", label: "Retire", group: "ops", fields: [] },
   // Special-cased in SettingsHome.tsx to render <DeleteLeagueHome /> instead of the generic
   // field list — a destructive standalone action, not a settings form.
-  {
-    key: "delete-league",
-    label: "Delete League",
-    fields: [],
-  },
+  { key: "delete-league", label: "Delete League", group: "ops", fields: [] },
 ];
+
+const MERGED_INTO_RULES = new Set(["features", "play_call"]);
+
+export function resolveSettingsCategoryKey(key: string | null): string {
+  if (!key) return SETTINGS_CATEGORIES.find((c) => !c.navHidden)?.key ?? "channels";
+  if (MERGED_INTO_RULES.has(key)) return "rules";
+  if (SETTINGS_CATEGORIES.some((c) => c.key === key && !c.navHidden)) return key;
+  return SETTINGS_CATEGORIES.find((c) => !c.navHidden)?.key ?? "channels";
+}
+
+export function settingsCategoryNavLabel(category: SettingsCategory, game: string): string {
+  if (category.key === "franchise") return isCfb(game) ? "Dynasty" : "Franchise";
+  return category.label;
+}
+
+export function isSettingsCategoryVisible(category: SettingsCategory, game: string): boolean {
+  if (category.navHidden) return false;
+  if (category.fields.length === 0) return true;
+  return category.fields.some((field) => !field.gameFilter || field.gameFilter(game));
+}

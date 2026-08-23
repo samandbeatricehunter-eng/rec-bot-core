@@ -1310,7 +1310,7 @@ async function notifyCommissionersOfStaleWagers(input: {
   if (!userIds.length) return;
   const league = await supabase.from("rec_leagues").select("name").eq("id", input.leagueId).maybeSingle();
   const leagueName = league.data?.name ?? "your league";
-  const href = `/l/${input.leagueId}/mgmt/commissioner-chat?officeTab=payouts`;
+  const href = `/l/${input.leagueId}/mgmt/notifications`;
 
   if (input.reminders.length) {
     const count = input.reminders.length;

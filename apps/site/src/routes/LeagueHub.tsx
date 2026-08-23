@@ -1,5 +1,5 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
-import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-api.js";
@@ -8,7 +8,6 @@ import { IconBack } from "../components/icons.js";
 import { LeagueTopNav } from "../components/LeagueTopNav.js";
 import {
   ChatDrawerProvider,
-  CommissionerChatHome,
   CfpPostseasonManager,
   FantasyDraftBoardPage,
   DeleteLeagueHome,
@@ -35,6 +34,8 @@ import {
   UniversalChatDrawer,
   ImportStatusDrawer,
   ImportStatusProvider,
+  HighlightUploadDrawer,
+  HighlightUploadProvider,
 } from "@rec/hub-ui";
 
 import "../../../web/src/styles/tokens.css";
@@ -223,6 +224,7 @@ function HubMgmtRoutes() {
     <Routes>
       <Route index element={<LeagueMgmtHome />} />
       <Route path="notifications" element={<MgmtSubPage><NotificationsHome /></MgmtSubPage>} />
+      <Route path="commissioner-chat" element={<Navigate replace to="../notifications" />} />
       <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
@@ -241,7 +243,6 @@ function HubMgmtRoutes() {
           </MgmtSubPage>
         }
       />
-      <Route path="commissioner-chat" element={<MgmtSubPage><CommissionerChatHome /></MgmtSubPage>} />
       <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
       <Route path="recruiting" element={<MgmtSubPage><RecruitingHome /></MgmtSubPage>} />
       <Route path="*" element={<LeagueMgmtHome />} />
@@ -401,6 +402,7 @@ export function LeagueHubPage() {
         >
           <HubChromeProvider embedded>
             <ImportStatusProvider>
+            <HighlightUploadProvider>
             <ChatDrawerProvider>
               <LeagueThemeProvider game={gameTheme}>
                 <LeagueTopNav leagueId={leagueId} />
@@ -423,8 +425,10 @@ export function LeagueHubPage() {
                 </HubErrorBoundary>
                 <UniversalChatDrawer guildId={context.guildId} discordId={context.discordId} />
                 <ImportStatusDrawer />
+                <HighlightUploadDrawer />
               </LeagueThemeProvider>
             </ChatDrawerProvider>
+            </HighlightUploadProvider>
             </ImportStatusProvider>
           </HubChromeProvider>
         </InjectedAuthProvider>

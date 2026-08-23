@@ -83,8 +83,8 @@ function TradeDetail({ payload, fallbackTeams }: { payload: CommissionerNotifica
 }
 
 // The guts of the commissioner pending-items workflow (category filters, list, review
-// modals) — extracted so it can be embedded both as its own League Mgmt page
-// (NotificationsHome.tsx) and inline as a tab in the Commissioner's Office chat window.
+// modals) — used by NotificationsHome. Custom-player review opens CustomPlayerReviewModal
+// here rather than sending commissioners to Settings.
 export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);

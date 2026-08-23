@@ -14,9 +14,10 @@ import {
   evalTeamStat,
   evaluateImportPlayerBonus,
   mergePlayerWeekStats,
+  pickTrackedImportPlayer,
 } from "./eos-payouts.eval.js";
 
-export { evalTeamStat, evaluateImportPlayerBonus, mergePlayerWeekStats } from "./eos-payouts.eval.js";
+export { evalTeamStat, evaluateImportPlayerBonus, mergePlayerWeekStats, pickTrackedImportPlayer } from "./eos-payouts.eval.js";
 
 type EosPayoutItem = {
   league_id: string;
@@ -452,14 +453,15 @@ export async function getMyEosPayoutProgress(input: { guildId: string; discordId
       byPlayer.set(row.player_id, current);
     }
     for (const definition of playerDefinitions) {
-      let best: { result: ReturnType<typeof evaluateImportPlayerBonus>; name: string | null } | null = null;
-      for (const player of byPlayer.values()) {
-        const result = evaluateImportPlayerBonus(definition, mergePlayerWeekStats(player.rows), player.position);
-        if (!best || result.met > best.result.met || (result.qualified && !best.result.qualified)) {
-          best = { result, name: player.playerName };
-        }
-      }
-      const result = best?.result ?? { qualified: false, value: 0, met: 0, needed: Object.keys(definition.minimums ?? {}).length || 1, detail: {} };
+      const best = pickTrackedImportPlayer(
+        definition,
+        [...byPlayer.values()].map((player) => ({
+          position: player.position,
+          playerName: player.playerName,
+          stats: mergePlayerWeekStats(player.rows),
+        })),
+      );
+      const result = best?.result ?? { eligible: false, qualified: false, value: 0, met: 0, needed: Object.keys(definition.minimums ?? {}).length || 1, detail: {} };
       const sTier = definition.tiers[0] ?? null;
       teamStats.push({
         key: definition.key,

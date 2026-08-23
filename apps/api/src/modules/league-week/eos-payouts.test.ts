@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { REC_END_SEASON_PAYOUTS } from "@rec/shared";
-import { evalTeamStat, evaluateImportPlayerBonus, mergePlayerWeekStats } from "./eos-payouts.eval.js";
+import { evalTeamStat, evaluateImportPlayerBonus, mergePlayerWeekStats, pickTrackedImportPlayer } from "./eos-payouts.eval.js";
 
 test("Madden import team INTs read defIntsRec stored as team_interceptions", () => {
   const rows = [
@@ -23,12 +23,33 @@ test("Madden RB workhorse requires every EA rushing threshold", () => {
     rush_attempts: 150, rush_yards: 1000, broken_tackles: 49, rush_yards_after_contact: 250, rush_tds: 10,
   }, "HB");
   assert.equal(short.qualified, false);
+  assert.equal(short.eligible, true);
   assert.equal(short.met, 4);
   const full = evaluateImportPlayerBonus(definition, {
     rush_attempts: 150, rush_yards: 1000, broken_tackles: 50, rush_yards_after_contact: 250, rush_tds: 10,
   }, "HB");
   assert.equal(full.qualified, true);
   assert.equal(evaluateImportPlayerBonus(definition, full.detail, "WR").qualified, false);
+  assert.equal(evaluateImportPlayerBonus(definition, full.detail, "WR").eligible, false);
+});
+
+test("EOS player bonuses never track a defensive player as the workhorse or kicker", () => {
+  const workhorse = REC_END_SEASON_PAYOUTS.find((item) => item.key === "madden_rb_workhorse")!;
+  const swing = REC_END_SEASON_PAYOUTS.find((item) => item.key === "king_of_the_swing")!;
+  const tracked = pickTrackedImportPlayer(workhorse, [
+    { position: "CB", playerName: "Christian Gonzalez", stats: { rush_attempts: 0, rush_yards: 0, broken_tackles: 0, rush_yards_after_contact: 0, rush_tds: 0 } },
+    { position: "HB", playerName: "Breece Hall", stats: { rush_attempts: 80, rush_yards: 400, broken_tackles: 20, rush_yards_after_contact: 100, rush_tds: 4 } },
+    { position: "WR", playerName: "Garrett Wilson", stats: { rush_attempts: 12, rush_yards: 90, broken_tackles: 2, rush_yards_after_contact: 10, rush_tds: 1 } },
+  ]);
+  assert.equal(tracked?.name, "Breece Hall");
+  assert.equal(tracked?.result.met, 0);
+  assert.equal(pickTrackedImportPlayer(workhorse, [
+    { position: "CB", playerName: "Christian Gonzalez", stats: {} },
+  ]), null);
+  assert.equal(pickTrackedImportPlayer(swing, [
+    { position: "CB", playerName: "Christian Gonzalez", stats: { fg_50_attempts: 0, fg_50_made: 0 } },
+    { position: "K", playerName: "Harrison Butker", stats: { fg_50_attempts: 1, fg_50_made: 1 } },
+  ])?.name, "Harrison Butker");
 });
 
 test("King of the Swing requires two-plus 50 yard attempts at 100 percent", () => {

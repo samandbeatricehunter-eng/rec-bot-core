@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LeagueSettingsDraft } from "../../../types/api.js";
-import { SETTINGS_CATEGORIES } from "./settings-fields.js";
+import { SETTINGS_CATEGORIES, SETTINGS_NAV_GROUPS, isSettingsCategoryVisible, resolveSettingsCategoryKey, settingsCategoryNavLabel } from "./settings-fields.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -15,7 +15,6 @@ import { WagerMaintenance } from "./WagerMaintenance.js";
 import { TransactionMaintenance } from "./TransactionMaintenance.js";
 import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
 import { ModerationSettings } from "./ModerationSettings.js";
-import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 import { CoreAttributePicker } from "./CoreAttributePicker.js";
 import { DeleteLeagueHome } from "../delete-league/DeleteLeagueHome.js";
 import { RetireSettings } from "./RetireSettings.js";
@@ -51,14 +50,10 @@ export function SettingsHome() {
   const [draft, setDraft] = useState<LeagueSettingsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
-  // Deep-linked here from the commissioner Pending Items panel (custom-player review has no
-  // generic approve/deny modal, so that click navigates straight to Settings > Purchases) —
-  // without reading this, the link landed on whatever category is first in the list, which
-  // looked from the Pending Items side like the click had done nothing at all.
+  // Create-league wizard deep-links to ?category=gameplay (and older links may still use
+  // features/play_call, which now live under Rules). Pending reviews do not deep-link here.
   const requestedCategory = searchParams.get("category");
-  const [activeCategory, setActiveCategory] = useState(
-    requestedCategory && SETTINGS_CATEGORIES.some((c) => c.key === requestedCategory) ? requestedCategory : SETTINGS_CATEGORIES[0].key,
-  );
+  const [activeCategory, setActiveCategory] = useState(resolveSettingsCategoryKey(requestedCategory));
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [newNonCoreCode, setNewNonCoreCode] = useState("");
@@ -121,7 +116,8 @@ export function SettingsHome() {
   if (!draft) return <LoadingState />;
 
   const game = String(draft.game ?? "");
-  const category = SETTINGS_CATEGORIES.find((c) => c.key === activeCategory) ?? SETTINGS_CATEGORIES[0];
+  const visibleNavCategories = SETTINGS_CATEGORIES.filter((c) => isSettingsCategoryVisible(c, game));
+  const category = visibleNavCategories.find((c) => c.key === activeCategory) ?? visibleNavCategories[0] ?? SETTINGS_CATEGORIES[0];
   const playCallFields = SETTINGS_CATEGORIES.find((c) => c.key === "play_call")?.fields ?? [];
   const visibleFields = [...category.fields, ...(category.key === "rules" ? playCallFields : [])].filter((f) => !f.gameFilter || f.gameFilter(game));
   const coreAttributes = Array.isArray(draft.coreAttributes) ? draft.coreAttributes.map(String) : [];
@@ -166,15 +162,26 @@ export function SettingsHome() {
         </div>
       </Card>
 
-      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-        {SETTINGS_CATEGORIES.filter((c) => c.key !== "play_call").map((c) => (
-          <Button key={c.key} variant={c.key === activeCategory ? "primary" : "secondary"} onClick={() => setActiveCategory(c.key)}>
-            {c.label}
-          </Button>
-        ))}
-      </div>
+      <nav className="settings-nav" aria-label="Settings sections">
+        {SETTINGS_NAV_GROUPS.map((group) => {
+          const tabs = visibleNavCategories.filter((c) => c.group === group.key);
+          if (tabs.length === 0) return null;
+          return (
+            <div className="settings-nav-group" key={group.key}>
+              <p className="settings-nav-group-label">{group.label}</p>
+              <div className="settings-nav-group-tabs">
+                {tabs.map((c) => (
+                  <Button key={c.key} variant={c.key === category.key ? "primary" : "secondary"} onClick={() => setActiveCategory(c.key)}>
+                    {settingsCategoryNavLabel(c, game)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "integrations" ? (
+      {category.key === "channels" ? <ChannelSettings /> : category.key === "integrations" ? (
         <>
           <DataModeSettings game={game} dataMode={String(draft.dataMode ?? "box_scores")} onChange={(next) => setField("dataMode", next)} />
           <div style={{ margin: "var(--space-3) 0 var(--space-4)" }}>
@@ -182,11 +189,11 @@ export function SettingsHome() {
               {saving ? "Saving…" : "Save Settings"}
             </Button>
           </div>
-          <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} />
+          {game.startsWith("madden_") ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : null}
         </>
-      ) : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance /><CfbRosterMaintenance /></> : activeCategory === RETIRE_KEY ? (
+      ) : category.key === "moderation" ? <ModerationSettings /> : category.key === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance />{game === "cfb_27" ? <CfbRosterMaintenance /> : null}</> : category.key === RETIRE_KEY ? (
         <RetireSettings />
-      ) : activeCategory === DELETE_LEAGUE_KEY ? (
+      ) : category.key === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />
       ) : (
         <>
@@ -279,7 +286,7 @@ export function SettingsHome() {
                 </div>
               );
             })}
-            {activeCategory === "rules" ? <div className="form-field">
+            {category.key === "rules" ? <div className="form-field">
               <label className="form-label">Custom league rules</label>
               <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view and the REC Guide. Use the arrows to reorder rules.</p>
               {customRules.map((rule, index) => <div key={rule.id} style={{ border: "1px solid var(--card-border)", borderRadius: "var(--radius-md)", padding: "var(--space-2)", marginBottom: "var(--space-2)", background: "rgba(255,255,255,0.02)" }}>
@@ -324,7 +331,7 @@ export function SettingsHome() {
                 </div>
               </div>
             </div> : null}
-            {activeCategory === "purchases" && Boolean(draft.attributePurchasesEnabled) ? (
+            {category.key === "purchases" && Boolean(draft.attributePurchasesEnabled) ? (
               <div className="form-field">
                 <CoreAttributePicker
                   value={coreAttributes}
@@ -413,7 +420,7 @@ export function SettingsHome() {
                 </> : null}
               </div>
             ) : null}
-            {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
+            {category.key === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
               <div className="form-field">
                 <label className="form-label">Purchase deadlines</label>
                 <p className="form-hint">Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season.</p>
@@ -436,8 +443,6 @@ export function SettingsHome() {
               </div>
             ) : null}
           </Card>
-
-          {activeCategory === "purchases" && Boolean(draft.customPlayersEnabled) ? <CustomPlayerReviewQueue guildId={guildId} /> : null}
 
           <div style={{ marginTop: "var(--space-4)" }}>
             <Button variant="primary" onClick={handleSave} disabled={saving}>
