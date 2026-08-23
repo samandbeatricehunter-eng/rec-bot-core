@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dices } from "lucide-react";
-import { CFB_27_TEAMS, REC_ARCHETYPE_DEFAULT_DEV_TRAIT_INDEX, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_DEV_TRAITS, canonicalReplacementPosition, cardBuildsForPosition, evaluateRecCustomPlayerBuild, getRecArchetypeTemplates, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, listCustomPlayerRendersFor, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
+import { CFB_27_TEAMS, REC_ARCHETYPE_DEFAULT_DEV_TRAIT_INDEX, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_DEV_TRAITS, canonicalReplacementPosition, cardBuildsForPosition, effectiveRecAttributeFloor, evaluateRecCustomPlayerBuild, getRecArchetypeTemplates, getRecAttributeDisplayName, getRecEditableAttributes, getRecNetDevelopmentCost, listCustomPlayerRendersFor, sortRecAttributeCodes, type RecGameFamily, type RecPackageTier } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Button } from "../ui/Button.js";
 import { CoinAmount } from "../ui/CoinAmount.js";
@@ -25,7 +25,16 @@ function groupEditableAttributes(editable: readonly string[]): Array<{ label: st
 function baselineAttributes(game: RecGameFamily, position: string, tier: RecPackageTier, archetypeKey: string): Record<string, number> {
   if (game === "MADDEN" && archetypeKey) {
     const template = getRecArchetypeTemplates(position, tier).find((row) => row.archetypeKey === archetypeKey);
-    if (template) return { ...template.attributes };
+    // A template's own real-player value becomes the floor, but real players routinely sit
+    // below 35 in stats outside their role -- clamp so the form never pre-fills (and the user
+    // never unknowingly submits) a rating the server's 35 floor would reject.
+    if (template) {
+      const clamped: Record<string, number> = {};
+      for (const code of Object.keys(template.attributes)) {
+        clamped[code] = effectiveRecAttributeFloor(template.attributes, code);
+      }
+      return clamped;
+    }
   }
   const result: Record<string, number> = {};
   for (const code of getRecEditableAttributes(game, position, "")) result[code] = REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;

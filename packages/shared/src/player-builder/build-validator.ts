@@ -14,6 +14,7 @@ import {
   evaluateRecArchetypeIdentity,
   getRecAllAttributeCodes,
   getRecArchetypeCostMultiplier,
+  REC_ARCHETYPE_COST_MULTIPLIERS,
   type RecGameFamily,
   type RecPackageTier,
 } from "./archetypes.js";
@@ -78,6 +79,16 @@ export const REC_PACKAGE_RULES: Readonly<Record<RecPackageTier, RecPackageRules>
 // this floor comes out of the package's budget before the user allocates anything further
 // (cost is derived from the final value, so pre-filling to this floor already "spends" it).
 export const REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR = 35;
+
+/** An archetype template's own real-player attribute value becomes that attribute's floor, but
+ *  real players routinely sit well under 35 in stats outside their role (a pocket-passer QB's
+ *  route running, a corner's run block) -- clamp every template-derived floor to never go below
+ *  the site-wide REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR so a custom build can't inherit a below-floor
+ *  starting value it never explicitly chose and can never raise. */
+export function effectiveRecAttributeFloor(floorMap: Readonly<Record<string, number>> | null | undefined, attribute: string): number {
+  const templateFloor = floorMap?.[attribute];
+  return Math.max(templateFloor ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR);
+}
 
 // Power positions live and die on strength/blocking/tackling, not speed/agility/change of
 // direction — the per-attribute position-weight and high-impact multipliers already make those
@@ -440,7 +451,7 @@ export function calculateRecBuildAttributeCostAboveFloor(
   return editable.reduce((total, attribute) => {
     const raw = attributes[attribute];
     const rating = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-    const floor = floorMap[attribute] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
+    const floor = effectiveRecAttributeFloor(floorMap, attribute);
     return total + calculateRecAttributeCostAboveFloor(input.game, input.position, input.archetypeKey, attribute, floor, rating);
   }, 0);
 }
@@ -483,6 +494,24 @@ export function evaluateRecAttributeCeiling(
   };
 }
 
+// The flat per-tier highImpactAttributeCap was every archetype's ceiling regardless of whether
+// the attribute was actually that archetype's thing — a pocket-passer QB could run Speed up to
+// the same cap as a scrambler. Scale the cap's headroom above the floor by the same
+// primary/secondary/otherPositionRelevant/irrelevant relevance already used for CP cost, so an
+// archetype only gets full run-up-to-the-cap room on the attributes that define it.
+export function archetypeScaledHighImpactCap(
+  game: RecGameFamily,
+  position: string,
+  archetypeKey: string,
+  attribute: string,
+  cap: number
+): number {
+  const relevanceMultiplier = getRecArchetypeCostMultiplier(game, position, archetypeKey, attribute);
+  const scale = relevanceMultiplier / REC_ARCHETYPE_COST_MULTIPLIERS.primary;
+  const headroom = cap - REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
+  return Math.round(REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR + headroom * scale);
+}
+
 function validateHighImpactAttributes(
   input: RecBuildEvaluationInput,
   floorMap: Readonly<Record<string, number>> | null
@@ -503,7 +532,8 @@ function validateHighImpactAttributes(
     const rating =
       typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : 0;
     const floor = floorMap?.[attribute] ?? 0;
-    if (rating <= packageRules.highImpactAttributeCap || rating <= floor) continue;
+    const cap = archetypeScaledHighImpactCap(input.game, input.position, input.archetypeKey, attribute, packageRules.highImpactAttributeCap);
+    if (rating <= cap || rating <= floor) continue;
 
     const ceiling = evaluateRecAttributeCeiling(attribute, rating, attributes);
     // Distinct from the ATTRIBUTE_FLOOR_REQUIRED message: this one is about the package's
@@ -516,17 +546,17 @@ function validateHighImpactAttributes(
           `${ceiling.deficientAttributes.map((entry) => entry.attribute.toUpperCase()).join(", ")} ` +
           `${ceiling.deficientAttributes.length === 1 ? "must reach" : "must each reach"} ` +
           `at least ${ceiling.requiredFloor}.`
-        : ` Lower ${attribute.toUpperCase()} to ${packageRules.highImpactAttributeCap} or below.`;
+        : ` Lower ${attribute.toUpperCase()} to ${cap} or below.`;
     violations.push({
       code: "PACKAGE_ATTRIBUTE_CAP",
       attribute,
       requestedRating: rating,
       current: rating,
-      required: packageRules.highImpactAttributeCap,
+      required: cap,
       message:
         `${attribute.toUpperCase()} ${rating} exceeds the Tier ` +
         `${input.packageTier} high-impact cap of ` +
-        `${packageRules.highImpactAttributeCap}.${path}`,
+        `${cap} for this archetype.${path}`,
     });
   }
 
@@ -650,7 +680,7 @@ export function evaluateRecCustomPlayerBuild(
     for (const attribute of editable) {
       const raw = attributes[attribute];
       const rating = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-      const floor = floorMap ? (floorMap[attribute] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR) : REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR;
+      const floor = effectiveRecAttributeFloor(floorMap, attribute);
       if (rating < floor) {
         violations.push({
           code: "INVALID_RATING",

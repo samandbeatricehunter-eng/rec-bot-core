@@ -11,6 +11,8 @@ import {
 import { getRecAllAttributeCodes, type RecGameFamily, type RecPackageTier } from "./archetypes.js";
 import { getRecArchetypeBonusCp, getRecArchetypeTemplate } from "./archetype-templates.js";
 import {
+  archetypeScaledHighImpactCap,
+  effectiveRecAttributeFloor,
   evaluateRecAttributeCeiling,
   getRecEffectiveAttributeMultiplier,
   getRecEffectiveCreationPoints,
@@ -62,8 +64,10 @@ function quickClusterOk(position: string, attributes: RecPlayerAttributes): bool
 }
 
 function raiseIsLegal(
+  game: RecGameFamily,
   packageTier: RecPackageTier,
   position: string,
+  archetypeKey: string,
   attribute: string,
   nextRating: number,
   attributes: RecPlayerAttributes,
@@ -71,7 +75,7 @@ function raiseIsLegal(
   const packageRules = REC_PACKAGE_RULES[packageTier];
   if (
     attribute in REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS &&
-    nextRating > packageRules.highImpactAttributeCap
+    nextRating > archetypeScaledHighImpactCap(game, position, archetypeKey, attribute, packageRules.highImpactAttributeCap)
   ) {
     return false;
   }
@@ -102,7 +106,16 @@ export function allocateRecOptimalCpForOvr(
     ? getRecArchetypeBonusCp(position, input.packageTier)
     : getRecEffectiveCreationPoints(position, input.packageTier);
   const pool = getRecAllAttributeCodes();
-  const attributes: RecPlayerAttributes = template ? { ...template.attributes } : {};
+  // Non-template (CFB, or MADDEN with no curated archetype) builds still climb from an empty
+  // seed the same way they always have -- the greedy loop below charges real CP for every point
+  // raised, including 1-35, which is how this test helper's budget accounting has always worked
+  // and matches getRecEffectiveCreationPoints (no separate pre-paid-floor budget for that path).
+  // Only the template path needs the ≥35 clamp: a template's own attribute value becomes the
+  // floor and is never charged for, so an unclamped sub-35 template value would seed (and let
+  // the final build keep) a rating the real evaluator's floor check should have rejected.
+  const attributes: RecPlayerAttributes = template
+    ? Object.fromEntries(pool.map((attribute) => [attribute, effectiveRecAttributeFloor(template.attributes, attribute)]))
+    : {};
   let spent = 0;
 
   for (let safety = 0; safety < 20_000; safety += 1) {
@@ -116,7 +129,7 @@ export function allocateRecOptimalCpForOvr(
       const cost = marginalPointCost(input.game, position, input.archetypeKey, attribute, nextRating);
       if (spent + cost > effectiveCreationPoints) continue;
 
-      if (raiseIsLegal(input.packageTier, position, attribute, nextRating, attributes)) {
+      if (raiseIsLegal(input.game, input.packageTier, position, input.archetypeKey, attribute, nextRating, attributes)) {
         candidates.push({ attribute, nextRating, cost });
         continue;
       }
@@ -125,7 +138,7 @@ export function allocateRecOptimalCpForOvr(
       if (!ceiling.applicable || ceiling.deficientAttributes.length === 0) continue;
       if (
         attribute in REC_HIGH_IMPACT_ATTRIBUTE_MULTIPLIERS &&
-        nextRating > REC_PACKAGE_RULES[input.packageTier].highImpactAttributeCap
+        nextRating > archetypeScaledHighImpactCap(input.game, position, input.archetypeKey, attribute, REC_PACKAGE_RULES[input.packageTier].highImpactAttributeCap)
       ) {
         continue;
       }
@@ -137,7 +150,7 @@ export function allocateRecOptimalCpForOvr(
         const supportNext = supportCurrent + 1;
         const supportCost = marginalPointCost(input.game, position, input.archetypeKey, supportAttr, supportNext);
         if (spent + supportCost > effectiveCreationPoints) continue;
-        if (!raiseIsLegal(input.packageTier, position, supportAttr, supportNext, attributes)) continue;
+        if (!raiseIsLegal(input.game, input.packageTier, position, input.archetypeKey, supportAttr, supportNext, attributes)) continue;
         candidates.push({ attribute: supportAttr, nextRating: supportNext, cost: supportCost });
       }
     }
