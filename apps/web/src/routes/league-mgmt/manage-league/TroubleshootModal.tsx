@@ -11,6 +11,7 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
+import { ResetSpendCapModal } from "./ResetSpendCapModal.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
 type ResyncResult = Awaited<ReturnType<typeof recApi.resyncNicknames>>;
@@ -37,6 +38,7 @@ export function TroubleshootModal({
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
   const [gotwOpen, setGotwOpen] = useState(false);
+  const [resetCapOpen, setResetCapOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -52,6 +54,7 @@ export function TroubleshootModal({
     );
   }
   if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
+  if (resetCapOpen) return <ResetSpendCapModal guildId={guildId} onClose={() => setResetCapOpen(false)} onDone={(message) => { setResetCapOpen(false); setNotice(message); }} />;
   if (gotwOpen) {
     return (
       <ManageGotwToolsModal
@@ -107,6 +110,15 @@ export function TroubleshootModal({
           <CollapsibleSection title="Close or Refund Wagers">
             <p className="form-hint" style={{ marginTop: 0 }}>Select a game to close new wagering and/or cancel and refund its open wagers.</p>
             <Button variant="secondary" onClick={() => setWagersOpen(true)}><Coins size={14} /> Open Wager Tool</Button>
+          </CollapsibleSection>
+        </ToolGroup>
+        <ToolGroup label="Economy">
+          <CollapsibleSection title="Reset Spend Cap">
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Reset how much a player (or everyone) has spent toward this season's core/non-core attribute
+              cap, so they can spend a fresh budget.
+            </p>
+            <Button variant="secondary" onClick={() => setResetCapOpen(true)}><Coins size={14} /> Open Reset Tool</Button>
           </CollapsibleSection>
         </ToolGroup>
       </div>

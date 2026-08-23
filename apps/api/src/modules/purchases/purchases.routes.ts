@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listLegendReplacementCandidates, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
+import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listLegendReplacementCandidates, listPendingPurchases, resetAttributeCapSpend, reviewPurchase } from "./purchases.service.js";
+import { getUserBaselineByDiscordId } from "../users/user.service.js";
 
 // Player trait purchases have been retired app-wide — no longer accepted here.
 const PurchaseTypeSchema = z.enum([
@@ -63,6 +64,27 @@ export async function purchaseRoutes(app: FastifyInstance) {
       const leagueId = canonicalLeagueId ?? body.leagueId;
       if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
       return reply.send(await reviewPurchase({ ...body, leagueId: leagueId ?? undefined }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/purchases/reset-attribute-cap", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        categories: z.array(z.enum(["core", "non_core"])).min(1),
+        userIds: z.array(z.string().uuid()).optional(),
+      }).parse(request.body ?? {});
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "This tool is available on the REC website only.");
+      const baseline = await getUserBaselineByDiscordId(auth.discordId);
+      return reply.send(await resetAttributeCapSpend({
+        guildId: body.guildId,
+        categories: body.categories,
+        userIds: body.userIds,
+        resetByUserId: baseline.user.id,
+      }));
     } catch (error) {
       return sendError(reply, error);
     }

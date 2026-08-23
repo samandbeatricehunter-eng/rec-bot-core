@@ -346,6 +346,66 @@ function normalizeAttributeAllocations(details: Record<string, unknown>, cfgRow:
 // Enforce points-per-user-per-season caps. Every cap is additive, not either/or: a purchase
 // must clear BOTH its own attribute's individual cap (override, else the group default) AND
 // its group's pooled total. 0 on any cap ⇒ that particular constraint is unlimited.
+const ATTRIBUTE_CAP_CATEGORIES = ["core", "non_core"] as const;
+type AttributeCapCategory = (typeof ATTRIBUTE_CAP_CATEGORIES)[number];
+
+async function loadAttributeCapResetCutoffs(
+  leagueId: string,
+  userId: string,
+  seasonNumber: number,
+): Promise<Record<AttributeCapCategory, string | null>> {
+  const rows = await supabase
+    .from("rec_attribute_cap_resets")
+    .select("category,reset_at")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("season_number", seasonNumber);
+  if (rows.error) throw new ApiError(500, "We couldn't check attribute cap resets. Please try again.", rows.error);
+  const cutoffs: Record<AttributeCapCategory, string | null> = { core: null, non_core: null };
+  for (const row of (rows.data ?? []) as Array<{ category: AttributeCapCategory; reset_at: string }>) {
+    cutoffs[row.category] = row.reset_at;
+  }
+  return cutoffs;
+}
+
+/** Sums this season's active attribute-purchase points per code/core, excluding any allocation
+ *  whose purchase predates a commissioner reset for that category (rec_attribute_cap_resets) --
+ *  a reset doesn't touch the purchase rows themselves (the player keeps whatever attribute
+ *  changes already applied), it just moves the cap-counting cutoff forward. */
+async function loadUsedAttributePoints(leagueId: string, userId: string, seasonNumber: number) {
+  const [rows, cutoffs] = await Promise.all([
+    supabase
+      .from("rec_purchases")
+      .select("details,created_at")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .eq("purchase_type", "attribute")
+      .eq("season_number", seasonNumber)
+      .in("status", ACTIVE_STATUSES as unknown as string[]),
+    loadAttributeCapResetCutoffs(leagueId, userId, seasonNumber),
+  ]);
+  if (rows.error) throw new ApiError(500, "We couldn't check attribute purchase limits. Please try again.", rows.error);
+
+  const usedByCode: Record<string, number> = {};
+  const usedCoreByCode: Record<string, number> = {};
+  const usedNonCoreByCode: Record<string, number> = {};
+  let usedCore = 0;
+  let usedNonCore = 0;
+  for (const row of rows.data ?? []) {
+    const allocs = ((row as any).details?.allocations as any[]) ?? [];
+    const createdAt = (row as any).created_at as string;
+    for (const a of allocs) {
+      const cutoff = a.core ? cutoffs.core : cutoffs.non_core;
+      if (cutoff && createdAt <= cutoff) continue;
+      const pts = Math.max(0, Number(a.points) || 0);
+      usedByCode[a.code] = (usedByCode[a.code] ?? 0) + pts;
+      if (a.core) { usedCoreByCode[a.code] = (usedCoreByCode[a.code] ?? 0) + pts; usedCore += pts; }
+      else { usedNonCoreByCode[a.code] = (usedNonCoreByCode[a.code] ?? 0) + pts; usedNonCore += pts; }
+    }
+  }
+  return { usedByCode, usedCoreByCode, usedNonCoreByCode, usedCore, usedNonCore };
+}
+
 async function enforceAttributeCaps(args: {
   leagueId: string;
   userId: string;
@@ -357,28 +417,7 @@ async function enforceAttributeCaps(args: {
   nonCoreGroupCap: number;
   nonCoreOverrides: Record<string, number>;
 }) {
-  const existing = await supabase
-    .from("rec_purchases")
-    .select("details")
-    .eq("league_id", args.leagueId)
-    .eq("user_id", args.userId)
-    .eq("purchase_type", "attribute")
-    .eq("season_number", args.seasonNumber)
-    .in("status", ACTIVE_STATUSES as unknown as string[]);
-  if (existing.error) throw new ApiError(500, "We couldn't check attribute purchase limits. Please try again.", existing.error);
-
-  const usedByCode: Record<string, number> = {};
-  let usedCore = 0;
-  let usedNonCore = 0;
-  for (const row of existing.data ?? []) {
-    const allocs = ((row as any).details?.allocations as any[]) ?? [];
-    for (const a of allocs) {
-      const pts = Math.max(0, Number(a.points) || 0);
-      usedByCode[a.code] = (usedByCode[a.code] ?? 0) + pts;
-      if (a.core) usedCore += pts;
-      else usedNonCore += pts;
-    }
-  }
+  const { usedByCode, usedCore, usedNonCore } = await loadUsedAttributePoints(args.leagueId, args.userId, args.seasonNumber);
 
   let requestedCore = 0;
   let requestedNonCore = 0;
@@ -693,19 +732,7 @@ export async function createPurchaseRequest(input: {
         }
       }
     } else if (input.purchaseType === "attribute") {
-      const rows = await supabase.from("rec_purchases").select("details")
-        .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "attribute").eq("season_number", seasonNumber)
-        .in("status", ACTIVE_STATUSES as unknown as string[]);
-      if (rows.error) throw new ApiError(500, "We couldn't verify attribute purchase limits. Please try again.", rows.error);
-      const usedByCode: Record<string, number> = {};
-      let usedCore = 0, usedNonCore = 0;
-      for (const row of rows.data ?? []) {
-        for (const a of ((row as any).details?.allocations as any[]) ?? []) {
-          const pts = Math.max(0, Number(a.points) || 0);
-          usedByCode[a.code] = (usedByCode[a.code] ?? 0) + pts;
-          if (a.core) usedCore += pts; else usedNonCore += pts;
-        }
-      }
+      const { usedByCode, usedCore, usedNonCore } = await loadUsedAttributePoints(leagueId, userId, seasonNumber);
       const coreOverrides = (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {};
       const nonCoreOverrides = (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {};
       const defaultCoreCap = Number(cfgRow.core_attribute_purchases_season_cap ?? 0);
@@ -1117,31 +1144,10 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
   if (config.error) throw new ApiError(500, "We couldn't load store settings. Please try again.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
 
-  const [existingAttrs, counts] = await Promise.all([
-    supabase
-      .from("rec_purchases")
-      .select("details")
-      .eq("league_id", context.leagueId)
-      .eq("user_id", baseline.user.id)
-      .eq("purchase_type", "attribute")
-      .eq("season_number", seasonNumber)
-      .in("status", ACTIVE_STATUSES as unknown as string[]),
+  const [{ usedCoreByCode, usedNonCoreByCode, usedCore, usedNonCore }, counts] = await Promise.all([
+    loadUsedAttributePoints(context.leagueId, baseline.user.id, seasonNumber),
     getUserPurchaseCounts(discordId, guildId),
   ]);
-  if (existingAttrs.error) throw new ApiError(500, "We couldn't load attribute purchase history. Please try again.", existingAttrs.error);
-
-  const usedCoreByCode: Record<string, number> = {};
-  const usedNonCoreByCode: Record<string, number> = {};
-  let usedCore = 0;
-  let usedNonCore = 0;
-  for (const row of existingAttrs.data ?? []) {
-    const allocs = ((row as any).details?.allocations as any[]) ?? [];
-    for (const a of allocs) {
-      const pts = Math.max(0, Number(a.points) || 0);
-      if (a.core) { usedCoreByCode[a.code] = (usedCoreByCode[a.code] ?? 0) + pts; usedCore += pts; }
-      else { usedNonCoreByCode[a.code] = (usedNonCoreByCode[a.code] ?? 0) + pts; usedNonCore += pts; }
-    }
-  }
 
   const seasonCaps: Partial<Record<RecPurchaseType, number>> = {};
   for (const [type, column] of Object.entries(SEASON_CAP_COLUMNS)) {
@@ -1165,4 +1171,47 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
     seasonCaps,
     seasonActive: counts.seasonActive,
   };
+}
+
+// Commissioner tool (Tools > Reset Spend Cap): resets how much a user (or every active league
+// member) has spent toward their season's core/non-core attribute cap. Doesn't touch existing
+// purchase rows or the attribute changes they already applied to a player -- it just moves the
+// cap-counting cutoff forward, freeing up a fresh season's worth of budget.
+export async function resetAttributeCapSpend(input: {
+  guildId: string;
+  categories: Array<"core" | "non_core">;
+  userIds?: string[];
+  resetByUserId: string;
+}) {
+  if (!input.categories.length) throw new ApiError(400, "Pick core, non-core, or both.");
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+
+  let targetUserIds = input.userIds ?? [];
+  if (!targetUserIds.length) {
+    const members = await supabase
+      .from("rec_league_memberships")
+      .select("user_id")
+      .eq("league_id", context.leagueId)
+      .eq("status", "active");
+    if (members.error) throw new ApiError(500, "We couldn't load league members. Please try again.", members.error);
+    targetUserIds = (members.data ?? []).map((row: any) => row.user_id);
+  }
+  if (!targetUserIds.length) return { userCount: 0, resetCount: 0 };
+
+  const rows = targetUserIds.flatMap((userId) =>
+    input.categories.map((category) => ({
+      league_id: context.leagueId,
+      user_id: userId,
+      season_number: seasonNumber,
+      category,
+      reset_at: new Date().toISOString(),
+      reset_by_user_id: input.resetByUserId,
+    })));
+  const upserted = await supabase
+    .from("rec_attribute_cap_resets")
+    .upsert(rows, { onConflict: "league_id,user_id,season_number,category" });
+  if (upserted.error) throw new ApiError(500, "We couldn't reset the spend cap. Please try again.", upserted.error);
+
+  return { userCount: targetUserIds.length, resetCount: rows.length, seasonNumber };
 }

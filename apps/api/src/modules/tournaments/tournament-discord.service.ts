@@ -33,27 +33,6 @@ async function resolveAnnouncementGuilds(game: string): Promise<Array<{ guild_id
   return guilds.rows;
 }
 
-// One-off @everyone ping, separate from the tracked/edited-in-place registration embed --
-// pinging by editing that message wouldn't renotify anyone (Discord doesn't renotify on edits),
-// and permanently prefixing the tracked embed's content with "@everyone" would leave stale ping
-// text sitting on it through every later edit.
-export async function announceTournamentEveryone(tournamentId: string, kind: "created" | "registration_open"): Promise<void> {
-  const tournament = await getPgPool().query(`select id, title, game from rec_site_tournaments where id = $1`, [tournamentId]);
-  const row = tournament.rows[0];
-  if (!row) return;
-  const guilds = await resolveAnnouncementGuilds(row.game);
-  if (!guilds.length) return;
-  const href = `${env.SITE_PUBLIC_URL}/tournaments/${row.id}`;
-  const text = kind === "created"
-    ? `📣 @everyone New tournament: **${row.title}** — registration is open! ${href}`
-    : `📣 @everyone Registration is now open for **${row.title}**! ${href}`;
-  const payload = { content: text, allowed_mentions: { parse: ["everyone"] } };
-  for (const guild of guilds) {
-    await postDiscordChannelMessage(guild.announcements_channel_id, payload).catch((error) =>
-      console.error("[ERROR] tournament @everyone announcement: failed to post (non-fatal):", error));
-  }
-}
-
 // Catches tournaments created with a future registrationOpensAt -- createTournament only fires
 // the "just opened" @everyone ping immediately when registration is already open at creation
 // time; this sweep fires it once that scheduled moment actually arrives.
@@ -68,12 +47,15 @@ export async function runTournamentRegistrationAnnounceSweep(): Promise<void> {
   );
   for (const row of due.rows as Array<{ id: string }>) {
     await getPgPool().query(`update rec_site_tournaments set registration_open_announced_at = now() where id = $1`, [row.id]);
-    await announceTournamentEveryone(row.id, "registration_open").catch((error) =>
+    await syncTournamentDiscordAnnouncements(row.id, { pingEveryone: "registration_open" }).catch((error) =>
       console.error("[ERROR] tournament @everyone announcement sweep failed (non-fatal):", error));
   }
 }
 
-export async function syncTournamentDiscordAnnouncements(tournamentId: string): Promise<void> {
+export async function syncTournamentDiscordAnnouncements(
+  tournamentId: string,
+  options: { pingEveryone?: "created" | "registration_open" } = {},
+): Promise<void> {
   const tournament = await getPgPool().query(
     `
       select t.*,
@@ -124,7 +106,16 @@ export async function syncTournamentDiscordAnnouncements(tournamentId: string): 
   const firstRoundLine = row.schedule_mode === "per_round"
     ? "Rounds scheduled individually (see the tournament page)"
     : `<t:${Math.floor(new Date(row.kickoff_at).getTime() / 1000)}:F>`;
+  // pingEveryone makes this SAME message the @everyone ping -- carrying the full embed rather
+  // than a bare separate one-line ping, so the notification people actually see has every
+  // detail instead of just a title and a link.
+  const pingText = options.pingEveryone === "created"
+    ? `📣 @everyone New tournament: **${row.title}** — registration is open!`
+    : options.pingEveryone === "registration_open"
+      ? `📣 @everyone Registration is now open for **${row.title}**!`
+      : undefined;
   const payload = {
+    ...(pingText ? { content: pingText, allowed_mentions: { parse: ["everyone"] } } : {}),
     embeds: [{
       title: row.title,
       description: row.description || undefined,

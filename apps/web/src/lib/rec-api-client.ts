@@ -786,6 +786,8 @@ export const recApi = {
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
+  resetAttributeCapSpend: (input: { guildId: string; categories: Array<"core" | "non_core">; userIds?: string[] }) =>
+    recApiFetch<{ userCount: number; resetCount: number; seasonNumber?: number }>("/v1/purchases/reset-attribute-cap", { method: "POST", body: JSON.stringify(input) }),
   listHubLegends: (guildId: string) =>
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>
