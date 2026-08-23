@@ -506,7 +506,10 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
     .eq("cloudflare_stream_uid", uid)
     .maybeSingle();
   if (row.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", row.error);
-  if (!row.data) return { ok: true, matched: false };
+  if (!row.data) {
+    const { applyTournamentStreamWebhook } = await import("../tournaments/tournaments-media.service.js");
+    return applyTournamentStreamWebhook(body);
+  }
 
   const state = String(body.status?.state ?? "").toLowerCase();
   const now = new Date().toISOString();

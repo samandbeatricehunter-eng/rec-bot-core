@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { siteApi, type AdminUserSummary, type SiteTournamentDetail, type SiteTournamentHighlight, type SiteTournamentSummary } from "../lib/site-api.js";
-import { gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
+import { CreateTournamentForm, gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
 
 export function TournamentAdminPanel() {
+  const navigate = useNavigate();
   const [list, setList] = useState<SiteTournamentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [detail, setDetail] = useState<SiteTournamentDetail | null>(null);
@@ -80,8 +81,12 @@ export function TournamentAdminPanel() {
 
   return (
     <div className="site-billing-panel site-tournament-admin">
-      <p className="site-muted">Approve registrations, fill the field, and control registration / event status.</p>
+      <p className="site-muted">Create events here, then approve registrations, fill the field, and control registration / event status.</p>
       {error ? <p className="site-auth-error">{error}</p> : null}
+      <CreateTournamentForm onCreated={(id) => {
+        setSelectedId(id);
+        navigate(`/tournaments/${id}`);
+      }} />
       <label className="site-field">
         <span>Tournament</span>
         <select className="site-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
@@ -198,16 +203,26 @@ export function TournamentAdminPanel() {
 
           <h3>Highlight queue</h3>
           {highlightQueue.length ? (
-            <ul className="site-tournament-entrants">
+            <ul className="site-tournament-highlights">
               {highlightQueue.map((item) => (
-                <li key={item.id}>
-                  {item.displayName} · <a href={item.url} target="_blank" rel="noreferrer">clip</a>
-                  <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.reviewTournamentHighlight(item.id, "approved"))}>
-                    Approve +250
-                  </button>
-                  <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.reviewTournamentHighlight(item.id, "rejected"))}>
-                    Reject
-                  </button>
+                <li key={item.id} className="site-tournament-highlight-card">
+                  <strong>{item.label}</strong>
+                  <span className="site-muted">{item.displayName} · {item.mediaStatus}</span>
+                  {item.iframeUrl && item.mediaStatus === "ready" ? (
+                    <iframe title={item.label} src={item.iframeUrl} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+                  ) : null}
+                  <div className="site-profile-actions">
+                    <button
+                      className="site-btn site-btn-primary"
+                      disabled={busy || item.mediaStatus !== "ready"}
+                      onClick={() => void act(() => siteApi.reviewTournamentHighlight(item.id, "approved"))}
+                    >
+                      Approve +250
+                    </button>
+                    <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.reviewTournamentHighlight(item.id, "rejected"))}>
+                      Reject
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

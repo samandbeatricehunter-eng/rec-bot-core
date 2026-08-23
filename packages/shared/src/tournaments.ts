@@ -461,8 +461,8 @@ export function tournamentCountdown(input: {
 }
 
 export const TOURNAMENT_HIGHLIGHT_COINS = 250;
-export const TOURNAMENT_HOUSE_ODDS = 1.9;
-export const TOURNAMENT_WAGER_CAPS = { house: 500, h2h: 1000 } as const;
+export const TOURNAMENT_HOUSE_ODDS = 1.91;
+export const TOURNAMENT_WAGER_CAPS = { house: 1000, peer: 5000, h2h: 5000 } as const;
 
 export const TOURNAMENT_TIMEZONES = [
   { value: "America/New_York", label: "Eastern" },

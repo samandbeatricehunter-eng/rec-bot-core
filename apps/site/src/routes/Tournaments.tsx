@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   TOURNAMENT_BRACKET_TYPES,
   TOURNAMENT_INJURY_OPTIONS,
@@ -93,7 +93,7 @@ function defaultWindow(timeZone: string) {
   };
 }
 
-function CreateTournamentForm({ onCreated }: { onCreated: (id: string) => void }) {
+export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) => void }) {
   const [timezone, setTimezone] = useState<string>("America/Chicago");
   const windowDefaults = useMemo(() => defaultWindow(timezone), [timezone]);
   const [title, setTitle] = useState("");
@@ -305,9 +305,8 @@ function CreateTournamentForm({ onCreated }: { onCreated: (id: string) => void }
 }
 
 export function TournamentsPage() {
-  const navigate = useNavigate();
+  const [tab, setTab] = useState<"open" | "past">("open");
   const [list, setList] = useState<SiteTournamentSummary[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -317,7 +316,6 @@ export function TournamentsPage() {
       .then((result) => {
         if (!active) return;
         setList(result.tournaments);
-        setIsAdmin(result.isAdmin);
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "Could not load tournaments.");
@@ -330,53 +328,45 @@ export function TournamentsPage() {
     };
   }, []);
 
-  const active = list.filter((row) => row.status === "open" || row.status === "locked");
-  const past = list.filter((row) => row.status !== "open" && row.status !== "locked");
+  const open = list.filter((row) => row.status === "open" || row.status === "locked");
+  const past = list.filter((row) => row.status === "complete" || row.status === "cancelled");
+  const shown = tab === "open" ? open : past;
 
   return (
     <div className="site-page-card site-tournaments">
       <header className="site-section-heading">
         <h2>Tournaments</h2>
-        <p>Site-hosted brackets with coin prizes. Home players stream. Screenshot the final score or a concession.</p>
+        <p>Open brackets you can join or watch. Past events keep their brackets, rules, and highlights.</p>
       </header>
       {error ? <p className="site-auth-error">{error}</p> : null}
-      {isAdmin ? <CreateTournamentForm onCreated={(id) => navigate(`/tournaments/${id}`)} /> : null}
+      <div className="site-account-tabs" role="tablist" aria-label="Tournament lists">
+        <button type="button" className="site-account-tab-arrow" aria-hidden="true" tabIndex={-1}>‹</button>
+        <div className="site-account-tab-track">
+          <button type="button" className={tab === "open" ? "is-active" : ""} onClick={() => setTab("open")}>Open</button>
+          <button type="button" className={tab === "past" ? "is-active" : ""} onClick={() => setTab("past")}>Past</button>
+        </div>
+        <button type="button" className="site-account-tab-arrow" aria-hidden="true" tabIndex={-1}>›</button>
+      </div>
       {loading ? (
         <p className="site-muted">Loading tournaments…</p>
-      ) : !active.length && !past.length ? (
-        <p className="site-muted">No tournaments are posted yet.</p>
+      ) : !shown.length ? (
+        <p className="site-muted">{tab === "open" ? "No open tournaments right now." : "No past tournaments yet."}</p>
       ) : (
-        <>
-          {active.length ? (
-            <section className="site-tournament-card-grid">
-              {active.map((row) => (
-                <Link key={row.id} className="site-tournament-card" to={`/tournaments/${row.id}`}>
-                  <strong>{row.title}</strong>
-                  <span>{gameLabel(row.game)} · {statusLabel(row.status)} · {row.bracketLabel}</span>
-                  <span>{row.entrantCount}/{row.bracketSize ?? "—"} registered · {payoutLine(row)}</span>
-                  <span className="site-tournament-card-count">{row.countdown.label}</span>
-                </Link>
-              ))}
-            </section>
-          ) : (
-            <p className="site-muted">No active tournaments right now.</p>
-          )}
-          {past.length ? (
-            <section>
-              <h3>Past events</h3>
-              <ul className="site-tournament-list">
-                {past.map((row) => (
-                  <li key={row.id}>
-                    <Link to={`/tournaments/${row.id}`}>
-                      <strong>{row.title}</strong>
-                      <span>{statusLabel(row.status)} · {row.bracketLabel}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </>
+        <section className="site-tournament-card-grid">
+          {shown.map((row) => (
+            <Link key={row.id} className="site-tournament-card" to={`/tournaments/${row.id}`}>
+              <strong>{row.title}</strong>
+              <span>{gameLabel(row.game)} · {statusLabel(row.status)} · {row.bracketLabel}</span>
+              <span>{row.entrantCount}/{row.bracketSize ?? "—"} registered · {payoutLine(row)}</span>
+              {tab === "past" && row.championDisplayName ? <span>Champion: {row.championDisplayName}</span> : null}
+              {tab === "past" && row.completedAt ? (
+                <span>Completed {new Date(row.completedAt).toLocaleDateString()}</span>
+              ) : null}
+              {tab === "past" ? <span>{row.rulesSummary}</span> : null}
+              <span className="site-tournament-card-count">{row.countdown.label}</span>
+            </Link>
+          ))}
+        </section>
       )}
     </div>
   );
