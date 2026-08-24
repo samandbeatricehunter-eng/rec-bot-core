@@ -3763,9 +3763,10 @@ button.poty:disabled {
 .hub-stats-power-grid article strong { grid-row:1 / 3; color:var(--accent-bright); font-family:var(--font-display); font-size:20px; }
 .hub-stats-power-grid article span { font-weight:800; }
 .hub-stats-power-grid article small { color:var(--text-muted); }
-.hub-league-leader-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; }
-.hub-league-leader-category { min-width:0; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); }
-.hub-league-leader-category h3 { margin:0 0 10px; color:var(--accent-bright); }
+.hub-league-leader-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; align-items:start; }
+.hub-league-leader-category { min-width:0; padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:color-mix(in srgb,var(--surface) 70%,black 10%); display:flex; flex-direction:column; gap:10px; }
+.hub-league-leader-category h3 { margin:0; color:var(--text-primary); font-family:var(--font-display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; text-align:center; padding-bottom:10px; border-bottom:1px solid var(--border); }
+.hub-league-leader-category .rec-stat-card-list { gap:8px; }
 .hub-stats-resource-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
 .hub-stats-resource-grid button { padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:rgba(5,7,10,.32); color:var(--text-primary); font:inherit; font-weight:800; text-align:left; cursor:pointer; }
 .hub-stats-resource-grid button.active { border-color:var(--accent-bright); background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent-bright); }
@@ -4826,6 +4827,16 @@ details.fantasy-draft-checkin .fantasy-draft-checkin-status { margin-top: var(--
 .rec-stat-chip { flex-shrink:0; min-width:64px; padding:6px 10px; border:1px solid var(--card-border); border-radius:8px; text-align:center; }
 .rec-stat-chip-label { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); white-space:nowrap; }
 .rec-stat-chip-value { font-weight:700; white-space:nowrap; }
+
+/* League Leaders cards get a bit more presence than the dense stats-table cards elsewhere on
+   this page -- bigger avatar, clearer rank badge, headline stat given room to breathe. */
+.hub-league-leader-category .rec-stat-player-card { border-radius:10px; padding:10px 12px; background:color-mix(in srgb,var(--surface) 85%,black 8%); box-shadow:0 2px 6px -3px rgba(0,0,0,.5); }
+.hub-league-leader-category .rec-stat-player-card-avatar,
+.hub-league-leader-category .rec-stat-player-card-avatar-fallback { width:40px; height:40px; font-size:12px; }
+.hub-league-leader-category .rec-stat-player-card-rank { display:inline-flex; align-items:center; justify-content:center; min-width:20px; }
+.hub-league-leader-category .rec-stat-chip-row { overflow-x:visible; }
+.hub-league-leader-category .rec-stat-chip { border:0; padding:0; min-width:0; text-align:left; }
+.hub-league-leader-category .rec-stat-chip-value { font-family:var(--font-display); font-size:15px; color:var(--accent-bright); }
 .rec-stats-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:var(--space-4); }
 
 @media (max-width: 640px) {

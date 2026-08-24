@@ -19,6 +19,7 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
+import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 import { LeagueRecordsHome } from "./LeagueRecordsHome.js";
 import { LeagueHistoryHome } from "./LeagueHistoryHome.js";
 import { FinancialLedger, RankChange } from "./HubHome.js";
@@ -56,11 +57,14 @@ function statColumnLabel(key: string): string {
   return short === key ? label(key) : short;
 }
 
-function playerAvatar(player: { photoUrl: string | null; position: string | null }) {
-  return player.photoUrl ? (
-    <img src={player.photoUrl} alt="" loading="lazy" className="rec-stat-player-card-avatar" />
-  ) : (
-    <span className="rec-stat-player-card-avatar-fallback">{player.position ?? "—"}</span>
+function PlayerAvatar({ player }: { player: { photoUrl: string | null; position: string | null } }) {
+  return (
+    <PlayerPhoto
+      photoUrl={player.photoUrl}
+      loading="lazy"
+      className="rec-stat-player-card-avatar"
+      fallback={<span className="rec-stat-player-card-avatar-fallback">{player.position ?? "—"}</span>}
+    />
   );
 }
 
@@ -74,7 +78,7 @@ function PlayerStatCard({ player, columns, rank, onOpen }: { player: StatsPlayer
       <div className="rec-stat-player-card-head">
         {rank != null && <span className="rec-stat-player-card-rank">#{rank}</span>}
         <button type="button" onClick={onOpen}>
-          {playerAvatar(player)}
+          <PlayerAvatar player={player} />
           <span style={{ minWidth: 0 }}>
             <span className="rec-stat-player-card-name" style={{ display: "block" }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</span>
             <span className="rec-stat-player-card-meta">{player.teamAbbreviation ?? player.teamName ?? "Free Agent"} · {player.position ?? "—"}</span>
@@ -93,6 +97,20 @@ function PlayerStatCard({ player, columns, rank, onOpen }: { player: StatsPlayer
   );
 }
 
+function ModalPlayerAvatar({ player }: { player: { photoUrl: string | null; position: string | null } }) {
+  return (
+    <PlayerPhoto
+      photoUrl={player.photoUrl}
+      style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+      fallback={
+        <div style={{ width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2, #222)", fontWeight: 700, flexShrink: 0 }}>
+          {player.position ?? "—"}
+        </div>
+      }
+    />
+  );
+}
+
 /** Bio + every recorded stat for one player — mirrors the Draft Room's player card, minus the
  * attributes/abilities tabs (this page is about production, not ratings). */
 function PlayerStatsModal({ player, onClose }: { player: StatsPlayer; onClose: () => void }) {
@@ -100,13 +118,7 @@ function PlayerStatsModal({ player, onClose }: { player: StatsPlayer; onClose: (
   return (
     <Modal title={player.fullName} onClose={onClose}>
       <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-        {player.photoUrl ? (
-          <img src={player.photoUrl} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
-        ) : (
-          <div style={{ width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2, #222)", fontWeight: 700 }}>
-            {player.position ?? "—"}
-          </div>
-        )}
+        <ModalPlayerAvatar player={player} />
         <div>
           <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</p>
           <p className="hub-muted" style={{ margin: 0 }}>{player.position ?? "—"} · {player.teamAbbreviation ?? player.teamName ?? "Free Agent"}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</p>

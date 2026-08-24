@@ -1,6 +1,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { MADDEN_ATTRIBUTE_DEFINITIONS, normalizeMaddenDevTrait } from "@rec/shared";
 import { ATTRIBUTE_KEY_TO_CODE, attributeLabel } from "../../lib/attribute-columns.js";
+import { PlayerPhoto } from "./PlayerPhoto.js";
 
 export type PlayerCardAbility = { name: string; description?: string };
 
@@ -193,16 +194,19 @@ export function PlayerCard({
             </div>
 
             <div className="rec-player-card-photo">
-              {player.photoUrl ? (
-                <img src={player.photoUrl} alt="" loading="lazy" decoding="async" />
-              ) : (
-                <img
-                  className="rec-player-card-photo-silhouette"
-                  src="/assets/player-cards/player-silhouette.svg"
-                  alt=""
-                  aria-hidden="true"
-                />
-              )}
+              <PlayerPhoto
+                photoUrl={player.photoUrl}
+                loading="lazy"
+                decoding="async"
+                fallback={
+                  <img
+                    className="rec-player-card-photo-silhouette"
+                    src="/assets/player-cards/player-silhouette.svg"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                }
+              />
             </div>
 
             <div className="rec-player-card-nameplate">

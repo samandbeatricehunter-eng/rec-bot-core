@@ -12,6 +12,7 @@ import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { RosterPoolEditor } from "./RosterPoolEditor.js";
+import { PlayerPhoto } from "../../../components/hub/PlayerPhoto.js";
 
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";
@@ -82,9 +83,13 @@ function HeadshotCell({ guildId, player, onUploaded }: { guildId: string; player
   return (
     <Td>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        {player.photoUrl
-          ? <img src={player.photoUrl} alt={player.fullName} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} loading="lazy" />
-          : <div style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+        <PlayerPhoto
+          photoUrl={player.photoUrl}
+          alt={player.fullName}
+          loading="lazy"
+          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }}
+          fallback={<div style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+        />
         <div>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={(event) => { void handleFile(event.target.files?.[0]); event.target.value = ""; }} />
           <Button size="compact" disabled={busy} onClick={() => fileInputRef.current?.click()}>{busy ? "Uploading…" : player.photoUrl ? "Replace" : "Add headshot"}</Button>

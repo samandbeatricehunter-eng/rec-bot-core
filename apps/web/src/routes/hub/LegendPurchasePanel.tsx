@@ -29,6 +29,7 @@ import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
+import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 
 type LegendTier = "legend" | "immortal";
 
@@ -203,7 +204,12 @@ export function LegendPurchasePanel({
                   disabled={isTaken}
                   onClick={() => setActiveLegend(legend)}
                 >
-                  {legend.photo_url ? <img className="legend-card-photo" src={legend.photo_url} alt="" loading="lazy" /> : <div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
+                  <PlayerPhoto
+                    photoUrl={legend.photo_url}
+                    loading="lazy"
+                    className="legend-card-photo"
+                    fallback={<div className="legend-card-photo legend-card-photo-empty">{legend.position}</div>}
+                  />
                   <strong className="legend-card-name">{legend.name}</strong>
                   {legend.catalog_group === "notable_addition" && <span className="legend-card-status">New addition</span>}
                   <span className="legend-card-meta">{legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.est_ovr ?? "?"} OVR</span>
@@ -283,7 +289,11 @@ function LegendDetailModal({
   return (
     <Modal title={legend.name} onClose={onClose}>
       <div className="legend-detail-header">
-        {legend.photo_url ? <img className="legend-detail-photo" src={legend.photo_url} alt="" /> : <div className="legend-detail-photo legend-card-photo-empty">{legend.position}</div>}
+        <PlayerPhoto
+          photoUrl={legend.photo_url}
+          className="legend-detail-photo"
+          fallback={<div className="legend-detail-photo legend-card-photo-empty">{legend.position}</div>}
+        />
         <p className="hub-muted" style={{ marginTop: 0 }}>
           {legend.legend_tier === "immortal" ? "Immortal" : "Legend"} · {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
         </p>

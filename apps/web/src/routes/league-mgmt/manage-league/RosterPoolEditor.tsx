@@ -11,6 +11,7 @@ import { Modal } from "../../../components/ui/Modal.js";
 import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { PlayerPhoto } from "../../../components/hub/PlayerPhoto.js";
 
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";
@@ -141,9 +142,13 @@ export function RosterPoolEditor() {
                 <tr key={player.id}>
                   <Td>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                      {player.photoUrl
-                        ? <img src={player.photoUrl} alt={player.fullName} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} loading="lazy" />
-                        : <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+                      <PlayerPhoto
+                        photoUrl={player.photoUrl}
+                        alt={player.fullName}
+                        loading="lazy"
+                        style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }}
+                        fallback={<div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+                      />
                       <strong>{player.fullName}</strong>
                     </div>
                   </Td>
@@ -180,9 +185,13 @@ export function RosterPoolEditor() {
                   <tr key={player.id}>
                     <Td>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                        {player.photoUrl
-                          ? <img src={player.photoUrl} alt={player.fullName} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} loading="lazy" />
-                          : <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+                        <PlayerPhoto
+                          photoUrl={player.photoUrl}
+                          alt={player.fullName}
+                          loading="lazy"
+                          style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }}
+                          fallback={<div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px dashed var(--border)", color: "var(--text-muted)", fontSize: 12 }}>{player.position}</div>}
+                        />
                         <strong>{player.fullName}</strong>
                       </div>
                     </Td>

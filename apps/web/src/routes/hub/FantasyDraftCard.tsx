@@ -19,6 +19,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
+import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 
 const POSITION_GROUP_ORDER = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "LOLB", "MLB", "ROLB", "CB", "FS", "SS", "K", "P"];
 const DRAFT_POSITIONS = [...REC_CUSTOM_PLAYER_POSITIONS, "K", "P"] as const;
@@ -761,11 +762,12 @@ function PlayerCardModal({ player, isOnBoard, canDraft, draftLabel, busy, onTogg
   return (
     <Modal title={player.name} onClose={onClose} panelClassName="fantasy-draft-player-card">
       <div className="fantasy-draft-player-card-header">
-        {player.photoUrl ? (
-          <img className="fantasy-draft-player-card-photo" src={player.photoUrl} alt={player.name} />
-        ) : (
-          <div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>
-        )}
+        <PlayerPhoto
+          photoUrl={player.photoUrl}
+          alt={player.name}
+          className="fantasy-draft-player-card-photo"
+          fallback={<div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+        />
         <div className="fantasy-draft-player-card-bio">
           <p className="fantasy-draft-player-card-position">{player.position} #{player.jerseyNumber ?? "—"} · {player.overallRating ?? "—"} OVR</p>
           {player.devTrait && <p className="fantasy-draft-player-card-devtrait">{player.devTrait.replaceAll("_", " ")}</p>}
@@ -954,7 +956,12 @@ function DraftPoolTable({ guildId, pool, busy, isCommissioner, status, onWrapupT
                 <tr key={player.id}>
                   <td className="fantasy-draft-pool-table-name-col">
                     <button type="button" className="fantasy-draft-player-name-btn" onClick={() => onOpenPlayer(player)}>
-                      {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt="" loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                      <PlayerPhoto
+                        photoUrl={player.photoUrl}
+                        loading="lazy"
+                        className="fantasy-draft-player-photo"
+                        fallback={<div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                      />
                       <span>
                         <strong>{player.name}</strong>
                         <small>{player.position}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</small>
@@ -1059,7 +1066,13 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
               }}
               renderContent={(player) => (
                 <div className="fantasy-draft-player-identity">
-                  {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                  <PlayerPhoto
+                    photoUrl={player.photoUrl}
+                    alt={player.name}
+                    loading="lazy"
+                    className="fantasy-draft-player-photo"
+                    fallback={<div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                  />
                   <div>
                     <strong>{player.name}</strong>
                     <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>
@@ -1079,7 +1092,13 @@ function BoardRosterSplit({ boardPlayers, myRoster, busy, onReorder }: {
               {visibleRoster.map((player) => (
                 <div key={player.id} className="fantasy-draft-roster-row">
                   <div className="fantasy-draft-player-identity">
-                    {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt={player.name} loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                    <PlayerPhoto
+                      photoUrl={player.photoUrl}
+                      alt={player.name}
+                      loading="lazy"
+                      className="fantasy-draft-player-photo"
+                      fallback={<div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                    />
                     <div>
                       <strong>{player.name}</strong>
                       <small>{player.position} · {player.overallRating ?? "—"} OVR{player.jerseyNumber != null ? ` · #${player.jerseyNumber}` : ""}</small>

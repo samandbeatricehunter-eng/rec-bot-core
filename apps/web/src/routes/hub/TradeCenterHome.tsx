@@ -10,6 +10,7 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
+import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
@@ -75,11 +76,12 @@ function TradePlayerCardModal({ player, isSelected, onToggle, onClose }: {
   return (
     <Modal title={player.fullName} onClose={onClose} panelClassName="fantasy-draft-player-card">
       <div className="fantasy-draft-player-card-header">
-        {player.photoUrl ? (
-          <img className="fantasy-draft-player-card-photo" src={player.photoUrl} alt={player.fullName} />
-        ) : (
-          <div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>
-        )}
+        <PlayerPhoto
+          photoUrl={player.photoUrl}
+          alt={player.fullName}
+          className="fantasy-draft-player-card-photo"
+          fallback={<div className="fantasy-draft-player-card-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+        />
         <div className="fantasy-draft-player-card-bio">
           <p className="fantasy-draft-player-card-position">{player.position} · {player.overallRating ?? "—"} OVR</p>
           {player.devTrait && <p className="fantasy-draft-player-card-devtrait">{player.devTrait.replaceAll("_", " ")}</p>}
@@ -229,7 +231,12 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
                   <tr key={player.id}>
                     <td className="fantasy-draft-pool-table-name-col">
                       <button type="button" className="fantasy-draft-player-name-btn" onClick={() => setOpenPlayer(player)}>
-                        {player.photoUrl ? <img className="fantasy-draft-player-photo" src={player.photoUrl} alt="" loading="lazy" /> : <div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                        <PlayerPhoto
+                          photoUrl={player.photoUrl}
+                          loading="lazy"
+                          className="fantasy-draft-player-photo"
+                          fallback={<div className="fantasy-draft-player-photo fantasy-draft-player-photo-empty">{player.position}</div>}
+                        />
                         <span><strong>{player.fullName}</strong><small>{player.position}</small></span>
                       </button>
                     </td>
