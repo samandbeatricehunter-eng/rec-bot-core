@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LinkedTeamRow, HubMatchupSchedule } from "../../../types/api.js";
@@ -35,7 +35,7 @@ function useThisWeekGames(guildId: string) {
     }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load games."); });
     return () => { cancelled = true; };
   }, [guildId]);
-  const games = useMemo(() => (schedule?.games ?? []).filter((game) => game.matchupType === "h2h"), [schedule]);
+  const games = schedule?.games ?? [];
   return { games, error };
 }
 
