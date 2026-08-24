@@ -552,13 +552,26 @@ async function sendBlazeDirectAction<T>(
   commandName: string,
   payload: Record<string, unknown>,
 ): Promise<T> {
+  // First live test of the bare export shape (no auth data at all) got back a genuine HTTP-style
+  // "401 Request not authorized" (XML, distinct from every prior generic Process-envelope error)
+  // -- real evidence the direct URL path is a real, distinct, auth-checked endpoint, just missing
+  // credentials exports apparently don't need to supply. Flattened (not envelope-wrapped, unlike
+  // sendBlazeRpc) auth fields onto the payload as the next hypothesis.
+  const auth = calculateMessageAuthData(session.blazeId, session.requestId);
+  const body = {
+    ...payload,
+    messageAuthData: auth,
+    messageExpirationTime: Math.floor(Date.now() / 1000),
+    deviceId: MACHINE_KEY,
+    ipAddress: "127.0.0.1",
+  };
   let response: Awaited<ReturnType<typeof undiciFetch>>;
   try {
     response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${commandName}/${session.sessionKey}`, {
       dispatcher: legacySslAgent,
       method: "POST",
       headers: blazeHeaders(token.console),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(EA_BLAZE_FETCH_TIMEOUT_MS),
     });
   } catch (error) {
@@ -570,6 +583,11 @@ async function sendBlazeDirectAction<T>(
   try {
     parsed = JSON.parse(stripControlCharacters(text));
   } catch {
+    // EA's gateway itself (as opposed to the Blaze app-level JSON error envelope) rejects with
+    // plain XML, e.g. <error><errorcode>401</errorcode><errormessage>...</errormessage></error>.
+    const xmlMessage = /<errormessage>([^<]*)<\/errormessage>/i.exec(text)?.[1]?.trim();
+    const xmlCode = /<errorcode>([^<]*)<\/errorcode>/i.exec(text)?.[1]?.trim();
+    if (xmlMessage) throw new BlazeSessionError(`${commandName}: ${xmlCode ? `${xmlCode} ` : ""}${xmlMessage}`);
     throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
   }
   if (parsed && typeof parsed === "object" && "error" in parsed) {
