@@ -13,6 +13,7 @@ import {
   eaRemoveAdmin,
   eaSubmitCareerResponse,
   eaToggleAutoPilot,
+  listForceableMatches,
 } from "./ea-admin-actions.service.js";
 
 // Every action here is a live write into a commissioner's Madden franchise via EA's Blaze API
@@ -30,6 +31,16 @@ const teamBody = baseBody.extend({ team_id: z.string().uuid() });
 const gameBody = baseBody.extend({ game_id: z.string().uuid() });
 
 export async function eaAdminActionRoutes(app: FastifyInstance) {
+  app.post("/v1/madden/ea/admin/forceable-matches", async (request, reply) => {
+    try {
+      const body = baseBody.parse(request.body);
+      await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
+      return reply.send({ matches: await listForceableMatches(body.league_id) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/madden/ea/admin/advance", async (request, reply) => {
     try {
       const body = baseBody.parse(request.body);

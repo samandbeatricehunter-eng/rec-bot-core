@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { LinkedTeamRow, HubMatchupSchedule } from "../../../types/api.js";
+import type { LinkedTeamRow } from "../../../types/api.js";
 import { Button } from "../../../components/ui/Button.js";
 
 // Live writes into a commissioner's Madden franchise via EA's Blaze API -- there's no sandbox,
@@ -25,18 +25,22 @@ function useLinkedTeams(guildId: string) {
   return { teams, error };
 }
 
-function useThisWeekGames(guildId: string) {
-  const [schedule, setSchedule] = useState<HubMatchupSchedule | null>(null);
+// Only games REC has actually imported from EA can have a result forced -- Force Win/Clear
+// Result need an EA scheduleId, which only exists once a matchup has been pulled from EA
+// (dedicated endpoint, not the hub's matchup schedule, which shows every scheduled game
+// regardless of import status and would let a commish pick one that's guaranteed to fail).
+function useForceableGames(guildId: string, leagueId: string) {
+  const [games, setGames] = useState<Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string }>>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    recApi.getHubMatchupSchedule({ guildId, weekNumber: null }).then((result) => {
-      if (!cancelled) setSchedule(result);
-    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load games."); });
+    recApi.eaAdminListForceableMatches({ guildId, leagueId }).then((result) => {
+      if (!cancelled) { setGames(result.matches); setLoaded(true); }
+    }).catch((cause) => { if (!cancelled) { setError(cause instanceof Error ? cause.message : "Could not load games."); setLoaded(true); } });
     return () => { cancelled = true; };
-  }, [guildId]);
-  const games = schedule?.games ?? [];
-  return { games, error };
+  }, [guildId, leagueId]);
+  return { games, loaded, error };
 }
 
 function TeamActionPanel({
@@ -90,7 +94,7 @@ function TeamActionPanel({
 type ForceChoice = "home" | "away" | "clear";
 
 function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
-  const { games, error: loadError } = useThisWeekGames(guildId);
+  const { games, loaded, error: loadError } = useForceableGames(guildId, leagueId);
   const [gameId, setGameId] = useState("");
   const [choice, setChoice] = useState<ForceChoice | "">("");
   const [busy, setBusy] = useState(false);
@@ -127,8 +131,10 @@ function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: st
         <span className="form-label">Matchup</span>
         <select className="form-input" value={gameId} disabled={busy || !games.length}
           onChange={(event) => { setGameId(event.target.value); setChoice(""); }}>
-          <option value="">{games.length ? "Select a matchup" : "Loading matchups…"}</option>
-          {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}</option>)}
+          <option value="">
+            {games.length ? "Select a matchup" : loaded ? "No EA-imported games yet" : "Loading matchups…"}
+          </option>
+          {games.map((game) => <option key={game.gameId} value={game.gameId}>Week {game.weekNumber} — {game.awayTeamName} at {game.homeTeamName}</option>)}
         </select>
       </label>
       {selectedGame && (

@@ -121,6 +121,32 @@ async function loadGameEaRef(leagueId: string, gameId: string): Promise<GameEaRe
   };
 }
 
+export type ForceableMatch = { gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string };
+
+/** Games this league has actually imported from EA -- the only ones Force Win/Clear Result can
+ *  target, since loadGameEaRef needs an EA scheduleId parsed out of external_game_id. Scoped
+ *  separately from the hub's matchup schedule (which shows every scheduled game regardless of
+ *  import status) so the Tools-menu picker can't offer a matchup that's guaranteed to 409. */
+export async function listForceableMatches(leagueId: string): Promise<ForceableMatch[]> {
+  const result = await getPgPool().query<{ id: string; week_number: number; away_name: string | null; home_name: string | null }>(
+    `select g.id, g.week_number,
+            coalesce(at.display_city || ' ' || at.display_nick, at.name) as away_name,
+            coalesce(ht.display_city || ' ' || ht.display_nick, ht.name) as home_name
+       from rec_games g
+       left join rec_teams at on at.id = g.away_team_id
+       left join rec_teams ht on ht.id = g.home_team_id
+      where g.league_id=$1 and g.external_game_id like 'ea:%'
+      order by g.week_number desc, away_name asc`,
+    [leagueId],
+  );
+  return result.rows.map((row) => ({
+    gameId: row.id,
+    weekNumber: Number(row.week_number),
+    awayTeamName: row.away_name ?? "TBD",
+    homeTeamName: row.home_name ?? "TBD",
+  }));
+}
+
 // ── Public actions ──
 
 export async function eaSubmitCareerResponse(leagueId: string, ctx: AuditContext) {

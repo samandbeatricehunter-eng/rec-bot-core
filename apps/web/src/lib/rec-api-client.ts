@@ -342,6 +342,10 @@ export const recApi = {
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/backfill-scores", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   eaAdminAdvance: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/advance", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  eaAdminListForceableMatches: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ matches: Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string }> }>(
+      "/v1/madden/ea/admin/forceable-matches", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },
+    ),
   eaAdminClearCapPenalties: (input: { guildId: string; leagueId: string; teamId: string }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/clear-cap-penalties", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
   eaAdminBootUser: (input: { guildId: string; leagueId: string; teamId: string }) =>
