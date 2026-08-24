@@ -13,7 +13,7 @@ import {
   verifyStreamWebhookSignature,
 } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
@@ -104,12 +104,64 @@ async function postHighlightToDiscord(input: {
     const sent = await postDiscordChannelMessage(channelId, contentLines ? { content: contentLines, embeds: [embed] } : { embeds: [embed] });
     if (sent?.id) {
       await supabase.from("rec_highlight_posts").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", input.highlightId);
+      // The clip usually reaches "ready to stream" (what triggers this whole function) well
+      // before Cloudflare finishes muxing the on-demand MP4 download the 3 quick retries above
+      // were checking for -- so most highlights post with the text fallback even though a
+      // playable native video is only ~10-30s away. Keep polling in the background and swap
+      // the message over to the real video the moment it's ready, instead of leaving every
+      // highlight stuck with a "Watch the clip" link.
+      if (!directVideoUrl && input.streamUid) {
+        void backfillDirectVideoIntoMessage({
+          channelId, messageId: sent.id, streamUid: input.streamUid,
+          content, embed, watchUrl,
+        });
+      }
       return { posted: true };
     }
     return { posted: false };
   } catch (err) {
     console.error("[ERROR] Failed to post highlight to Discord (non-fatal):", err);
     return { posted: false };
+  }
+}
+
+// Every 5s for up to 2 minutes -- Cloudflare's on-demand MP4 mux is usually done well inside
+// that window even for a highlight near the max allowed duration; if it still isn't ready by
+// then the message just keeps its "Watch the clip" fallback rather than polling forever.
+const DIRECT_VIDEO_BACKFILL_ATTEMPTS = 24;
+const DIRECT_VIDEO_BACKFILL_INTERVAL_MS = 5_000;
+
+async function backfillDirectVideoIntoMessage(input: {
+  channelId: string;
+  messageId: string;
+  streamUid: string;
+  content: string | undefined;
+  embed: Record<string, unknown>;
+  watchUrl: string | null;
+}): Promise<void> {
+  for (let attempt = 0; attempt < DIRECT_VIDEO_BACKFILL_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, DIRECT_VIDEO_BACKFILL_INTERVAL_MS));
+    let download: { url: string; ready: boolean };
+    try {
+      download = await enableStreamDownload(input.streamUid);
+    } catch (error) {
+      console.error(`[WARN] Direct-video backfill poll failed for ${input.streamUid} (non-fatal, will retry):`, error);
+      continue;
+    }
+    if (!download.ready) continue;
+
+    // Drop the "Watch the clip" line now that the message content itself will be the native
+    // playable video -- same shape postHighlightToDiscord builds on its first-try success path.
+    const readyEmbed = {
+      ...input.embed,
+      description: String((input.embed as { description?: string }).description ?? "")
+        .split("\n").filter((line) => !line.startsWith("[Watch the clip]")).join("\n"),
+    };
+    const contentLines = [input.content, download.url].filter(Boolean).join("\n");
+    await editDiscordMessage(input.channelId, input.messageId, { content: contentLines, embeds: [readyEmbed] }).catch((error) => {
+      console.error(`[WARN] Failed to edit highlight message with the ready direct video (non-fatal):`, error);
+    });
+    return;
   }
 }
 
