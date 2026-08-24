@@ -14,6 +14,7 @@ export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
 export { CfpPostseasonManager } from "../../../apps/web/src/routes/league-mgmt/manage-league/CfpPostseasonManager.js";
+export { NflPlayoffBracket } from "../../../apps/web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
 export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
 export { TeamRosterForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.js";
 export { RosterPoolEditor } from "../../../apps/web/src/routes/league-mgmt/manage-league/RosterPoolEditor.js";

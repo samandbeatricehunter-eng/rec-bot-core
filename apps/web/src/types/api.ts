@@ -1019,6 +1019,45 @@ export type CfpPostseasonState = {
   }>;
 };
 
+export type NflTeamSummary = {
+  teamId: string;
+  name: string;
+  abbreviation: string | null;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  conference: string;
+  division: string;
+};
+
+export type NflPlayoffMatchup = {
+  conference: string;
+  homeSeed: number;
+  awaySeed: number;
+  homeTeam: NflTeamSummary;
+  awayTeam: NflTeamSummary;
+  gameId: string | null;
+  status: "projected" | "scheduled" | "completed";
+  homeScore: number | null;
+  awayScore: number | null;
+  winnerTeamId: string | null;
+};
+
+export type NflPlayoffPicture = {
+  league: { leagueId: string; game: string; currentWeek: number; seasonStage: string };
+  showBracket: boolean;
+  isLiveProjection: boolean;
+  conferences: Array<{
+    conference: string;
+    divisions: Array<{
+      division: string;
+      teams: Array<{ teamId: string; team: NflTeamSummary; wins: number; losses: number; ties: number; pf: number; pa: number; isDivisionWinner: boolean; seed: number | null }>;
+    }>;
+    seeds: Array<{ seed: number; teamId: string; team: NflTeamSummary; isDivisionWinner: boolean }>;
+  }>;
+  rounds: Array<{ round: "wild_card" | "divisional" | "conference_championship" | "super_bowl"; matchups: NflPlayoffMatchup[] }>;
+  champion: NflTeamSummary | null;
+};
+
 export type LegendCatalogEntry = {
   id: string;
   name: string;

@@ -258,6 +258,7 @@ export type TeamSummary = {
   name: string;
   abbreviation: string | null;
   logoUrl: string | null;
+  primaryColor: string | null;
   conference: string;
   division: string;
 };
@@ -313,7 +314,7 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
   const standings = await computeNflStandings(leagueId, seasonNumber);
 
   const teamsResult = await getPgPool().query(
-    `select id,name,abbreviation,conference,division,display_city,display_nick,display_abbr,is_relocated,logo_url
+    `select id,name,abbreviation,conference,division,display_city,display_nick,display_abbr,is_relocated,logo_url,primary_color
      from rec_teams where league_id=$1`,
     [leagueId],
   );
@@ -325,13 +326,14 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
         name: formatTeamDisplayName(row) ?? "Team",
         abbreviation: row.display_abbr ?? row.abbreviation ?? null,
         logoUrl: row.logo_url ?? null,
+        primaryColor: row.primary_color ?? null,
         conference: String(row.conference ?? ""),
         division: String(row.division ?? ""),
       },
     ]),
   );
   const teamSummary = (teamId: string): TeamSummary =>
-    teamSummaryById.get(teamId) ?? { teamId, name: "Team", abbreviation: null, logoUrl: null, conference: "", division: "" };
+    teamSummaryById.get(teamId) ?? { teamId, name: "Team", abbreviation: null, logoUrl: null, primaryColor: null, conference: "", division: "" };
 
   const showBracket = currentWeek >= NFL_PLAYOFF_PICTURE_START_WEEK;
   const isLiveProjection = currentWeek < ROUND_WEEK.wild_card;

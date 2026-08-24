@@ -18,6 +18,7 @@ import {
   LeagueThemeProvider,
   LinkTeamForm,
   ManageLeagueHome,
+  NflPlayoffBracket,
   NotificationsHome,
   PlayerStatsReview,
   PublishingHome,
@@ -48,6 +49,7 @@ import "../../../web/src/styles/icons.css";
 import "../../../web/src/styles/football-components.css";
 import "../../../web/src/styles/hub.css";
 import "../../../web/src/styles/league-management.css";
+import "../../../web/src/styles/nfl-playoff-bracket.css";
 import "../../../web/src/styles/responsive.css";
 
 type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "records" | "mgmt";
@@ -229,6 +231,7 @@ function HubMgmtRoutes() {
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
       <Route path="manage-league/postseason" element={<MgmtSubPage><CfpPostseasonManager /></MgmtSubPage>} />
+      <Route path="manage-league/playoff-bracket" element={<MgmtSubPage><NflPlayoffBracket /></MgmtSubPage>} />
       <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
       <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />
       <Route path="manage-league/rosters" element={<MgmtSubPage><ManageLeagueHome mode="roster" /></MgmtSubPage>} />
