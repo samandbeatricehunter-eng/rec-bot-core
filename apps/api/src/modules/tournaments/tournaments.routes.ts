@@ -54,6 +54,12 @@ import {
   skipLotteryPick,
 } from "./tournament-lottery.service.js";
 import {
+  proposeTime as proposeMatchSchedulingTime,
+  requestReschedule as requestMatchReschedule,
+  resetMatchScheduling,
+  respondToProposal as respondToMatchSchedulingProposal,
+} from "./tournament-match-scheduling.service.js";
+import {
   addTournamentUser,
   approveTournamentMatchResult,
   cancelTournament,
@@ -732,6 +738,53 @@ export async function tournamentRoutes(app: FastifyInstance) {
         scheduledAt: z.string().min(1),
       }).parse(request.body ?? {});
       return reply.send(await setTournamentRoundSchedule(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Self-serve match scheduling (propose/accept/counter) -- site-only, participant-gated inside
+  // the service functions themselves, same pattern as the league's matchup scheduling routes.
+  app.post("/v1/tournaments/scheduling/propose", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid(), proposedForUtc: z.string().min(1) }).parse(request.body ?? {});
+      return reply.send(await proposeMatchSchedulingTime({ matchId: body.matchId, recUserId, proposedForUtc: body.proposedForUtc }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/respond", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({
+        matchId: z.string().uuid(),
+        proposalId: z.string().uuid(),
+        action: z.enum(["accept", "counter", "withdraw", "reject"]),
+        counterForUtc: z.string().min(1).optional(),
+      }).parse(request.body ?? {});
+      return reply.send(await respondToMatchSchedulingProposal({ ...body, recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/request-reschedule", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await requestMatchReschedule({ matchId: body.matchId, recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/reset", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await resetMatchScheduling(body.matchId));
     } catch (error) {
       return sendError(reply, error);
     }

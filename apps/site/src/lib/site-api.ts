@@ -1189,6 +1189,23 @@ export const siteApi = {
       input,
     );
   },
+  proposeTournamentMatchTime(input: { matchId: string; proposedForUtc: string }) {
+    return request<{ id: string; status: string }>("/v1/tournaments/scheduling/propose", input);
+  },
+  respondToTournamentMatchProposal(input: {
+    matchId: string;
+    proposalId: string;
+    action: "accept" | "counter" | "withdraw" | "reject";
+    counterForUtc?: string;
+  }) {
+    return request<{ status: string }>("/v1/tournaments/scheduling/respond", input);
+  },
+  requestTournamentMatchReschedule(matchId: string) {
+    return request<{ status: string }>("/v1/tournaments/scheduling/request-reschedule", { matchId });
+  },
+  resetTournamentMatchScheduling(matchId: string) {
+    return request<{ status: string }>("/v1/tournaments/scheduling/reset", { matchId });
+  },
   cancelTournament(tournamentId: string) {
     return request<{ ok: true }>("/v1/tournaments/cancel", { tournamentId });
   },
@@ -1786,7 +1803,14 @@ export type SiteTournamentDetail = {
     playerB: SiteTournamentPlayer | null;
     winnerUserId: string | null;
     winnerDisplayName: string | null;
+    scheduling: SiteTournamentMatchScheduling | null;
   }>;
+};
+
+export type SiteTournamentMatchScheduling = {
+  status: "not_scheduled" | "proposed" | "confirmed" | "reschedule_requested";
+  scheduledFor: string | null;
+  pendingProposal: { id: string; proposedByUserId: string; proposedFor: string } | null;
 };
 
 export type SiteTournamentHomeCard = {

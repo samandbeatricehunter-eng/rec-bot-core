@@ -14,6 +14,7 @@ import {
 import type { PoolClient } from "pg";
 import { getPgPool } from "../../db/client.js";
 import { syncTournamentDiscordAnnouncements } from "./tournament-discord.service.js";
+import { loadTournamentSchedulingSnapshots } from "./tournament-match-scheduling.service.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { listTournamentStreamHighlights } from "./tournaments-media.service.js";
@@ -258,7 +259,7 @@ export async function listTournaments(input: { recUserId: string; isAdmin?: bool
 
 export async function getTournamentDetail(input: { recUserId: string; tournamentId: string }) {
   const tournament = await loadTournament(input.tournamentId);
-  const [entrants, matches] = await Promise.all([
+  const [entrants, matches, schedulingSnapshots] = await Promise.all([
     getPgPool().query(
       `
         select e.user_id, e.seed, e.joined_at, e.team_abbr, e.team_name, e.gamer_tag, e.entry_status, u.username, u.display_name
@@ -293,6 +294,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
       `,
       [input.tournamentId],
     ),
+    loadTournamentSchedulingSnapshots(input.tournamentId),
   ]);
   const rows = entrants.rows as EntrantRow[];
   const mine = rows.find((row) => row.user_id === input.recUserId);
@@ -337,6 +339,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
       scheduledAt: row.scheduled_at ?? null,
       status: row.status,
       homeMustStream: true,
+      scheduling: schedulingSnapshots.get(row.id) ?? null,
       resultMethod: row.result_method ?? null,
       screenshotUrl: row.screenshot_url ?? null,
       playerA: row.player_a_user_id

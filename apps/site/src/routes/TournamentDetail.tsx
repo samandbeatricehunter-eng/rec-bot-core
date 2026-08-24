@@ -13,6 +13,7 @@ import {
 import { gameLabel, payoutLine } from "./Tournaments.js";
 import { TournamentRosterSection } from "./TournamentRosterSection.js";
 import { TournamentLotteryPanel } from "./TournamentLotteryPanel.js";
+import { TournamentMatchScheduling } from "./TournamentMatchScheduling.js";
 
 async function readVideoDurationSeconds(file: File): Promise<number> {
   const objectUrl = URL.createObjectURL(file);
@@ -40,6 +41,9 @@ function TournamentBracket({
   onPlaceWager,
   onAcceptWager,
   onToggleBetting,
+  onProposeTime,
+  onRespondToProposal,
+  onRequestReschedule,
   wagers,
 }: {
   detail: SiteTournamentDetail;
@@ -47,6 +51,9 @@ function TournamentBracket({
   busy: boolean;
   recUserId: string | null;
   wagers: SiteTournamentWager[];
+  onProposeTime: (matchId: string, proposedForUtc: string) => void;
+  onRespondToProposal: (matchId: string, proposalId: string, action: "accept" | "counter" | "withdraw" | "reject", counterForUtc?: string) => void;
+  onRequestReschedule: (matchId: string) => void;
   onReport: (input: {
     matchId: string;
     winnerUserId: string;
@@ -133,6 +140,16 @@ function TournamentBracket({
                       {match.winnerDisplayName} won
                       {match.playerAScore != null && match.playerBScore != null ? ` (${match.playerAScore}–${match.playerBScore})` : ""}
                     </em>
+                  ) : null}
+                  {inMatch && youId && match.status === "ready" && !match.winnerDisplayName ? (
+                    <TournamentMatchScheduling
+                      match={match}
+                      youId={youId}
+                      busy={busy}
+                      onPropose={(proposedForUtc) => onProposeTime(match.id, proposedForUtc)}
+                      onRespond={(proposalId, action, counterForUtc) => onRespondToProposal(match.id, proposalId, action, counterForUtc)}
+                      onRequestReschedule={() => onRequestReschedule(match.id)}
+                    />
                   ) : null}
                   {(inMatch || isAdmin) && match.status !== "bye" ? (
                     <MatchUploads
@@ -755,6 +772,9 @@ export function TournamentDetailPage() {
             onPlaceWager={(input) => void act(() => siteApi.placeTournamentWager({ tournamentId: row.id, ...input }))}
             onAcceptWager={(wagerId) => void act(() => siteApi.acceptTournamentWager(wagerId))}
             onToggleBetting={(matchId, open) => void act(() => siteApi.setTournamentMatchBetting({ tournamentId: row.id, matchId, open }))}
+            onProposeTime={(matchId, proposedForUtc) => void act(() => siteApi.proposeTournamentMatchTime({ matchId, proposedForUtc }))}
+            onRespondToProposal={(matchId, proposalId, action, counterForUtc) => void act(() => siteApi.respondToTournamentMatchProposal({ matchId, proposalId, action, counterForUtc }))}
+            onRequestReschedule={(matchId) => void act(() => siteApi.requestTournamentMatchReschedule(matchId))}
             onReport={(input) => void act(async () => {
               const uploaded = await siteApi.uploadTournamentScreenshot(input.file);
               const match = detail.matches.find((item) => item.id === input.matchId);
