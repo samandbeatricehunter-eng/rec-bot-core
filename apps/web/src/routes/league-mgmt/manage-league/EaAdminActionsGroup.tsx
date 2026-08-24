@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, Ban, RotateCcw, Bot } from "lucide-react";
+import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LinkedTeamRow, HubMatchupSchedule } from "../../../types/api.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -87,29 +87,27 @@ function TeamActionPanel({
   );
 }
 
-function GameActionPanel({
-  guildId, leagueId, description, buttonLabel, icon, run,
-}: {
-  guildId: string;
-  leagueId: string;
-  description: string;
-  buttonLabel: string;
-  icon: React.ReactNode;
-  run: (gameId: string) => Promise<unknown>;
-}) {
+type ForceChoice = "home" | "away" | "clear";
+
+function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
   const { games, error: loadError } = useThisWeekGames(guildId);
   const [gameId, setGameId] = useState("");
+  const [choice, setChoice] = useState<ForceChoice | "">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
+  const selectedGame = games.find((game) => game.gameId === gameId) ?? null;
+
   async function submit() {
-    if (!gameId) return;
+    if (!gameId || !choice) return;
     setBusy(true);
     setError(null);
     setDone(null);
     try {
-      await run(gameId);
+      if (choice === "home") await recApi.eaAdminForceHomeWin({ guildId, leagueId, gameId });
+      else if (choice === "away") await recApi.eaAdminForceAwayWin({ guildId, leagueId, gameId });
+      else await recApi.eaAdminClearForcedResult({ guildId, leagueId, gameId });
       setDone("Sent to EA.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "EA rejected this action.");
@@ -120,17 +118,35 @@ function GameActionPanel({
 
   return (
     <div>
-      <p className="form-hint" style={{ marginTop: 0 }}>{description}</p>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Pick a matchup, then force the result for one side or clear a previously forced result —
+        changes the actual game outcome in the franchise. Also fires automatically whenever a
+        Force Win or Fair Sim is granted for this matchup, from Discord or the site.
+      </p>
       <label className="form-field">
         <span className="form-label">Matchup</span>
-        <select className="form-input" value={gameId} disabled={busy || !games.length} onChange={(event) => setGameId(event.target.value)}>
+        <select className="form-input" value={gameId} disabled={busy || !games.length}
+          onChange={(event) => { setGameId(event.target.value); setChoice(""); }}>
           <option value="">{games.length ? "Select a matchup" : "Loading matchups…"}</option>
           {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}</option>)}
         </select>
       </label>
+      {selectedGame && (
+        <label className="form-field">
+          <span className="form-label">Result</span>
+          <select className="form-input" value={choice} disabled={busy} onChange={(event) => setChoice(event.target.value as ForceChoice)}>
+            <option value="">Select a result</option>
+            <option value="home">Force win — {selectedGame.homeTeamName}</option>
+            <option value="away">Force win — {selectedGame.awayTeamName}</option>
+            <option value="clear">Clear forced result</option>
+          </select>
+        </label>
+      )}
       {(loadError || error) && <p className="hub-transfer-status">{loadError ?? error}</p>}
       {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
-      <Button variant="secondary" disabled={busy || !gameId} onClick={() => void submit()}>{icon} {busy ? "Sending…" : buttonLabel}</Button>
+      <Button variant="secondary" disabled={busy || !gameId || !choice} onClick={() => void submit()}>
+        <Swords size={14} /> {busy ? "Sending…" : "Apply Result"}
+      </Button>
     </div>
   );
 }
@@ -242,23 +258,6 @@ export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props:
       description="Revokes a team's owner's in-game commissioner/admin status. Also fires automatically when they're demoted from Co-Commish."
       run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />,
   },
-  {
-    key: "force-home", title: "Force Home Win",
-    render: (p) => <GameActionPanel {...p} icon={<Swords size={14} />} buttonLabel="Force Home Win"
-      description="Forces the home team to win this matchup in-game. Also fires automatically whenever a Force Win is granted for the home side, from Discord or the site."
-      run={(gameId) => recApi.eaAdminForceHomeWin({ ...p, gameId })} />,
-  },
-  {
-    key: "force-away", title: "Force Away Win",
-    render: (p) => <GameActionPanel {...p} icon={<Swords size={14} />} buttonLabel="Force Away Win"
-      description="Forces the away team to win this matchup in-game. Also fires automatically whenever a Force Win is granted for the away side, from Discord or the site."
-      run={(gameId) => recApi.eaAdminForceAwayWin({ ...p, gameId })} />,
-  },
-  {
-    key: "clear-forced", title: "Clear Forced Result",
-    render: (p) => <GameActionPanel {...p} icon={<Ban size={14} />} buttonLabel="Clear Forced Result"
-      description="Clears any forced result for this matchup in-game. Also fires automatically whenever a Fair Sim is granted, from Discord or the site."
-      run={(gameId) => recApi.eaAdminClearForcedResult({ ...p, gameId })} />,
-  },
+  { key: "force-result", title: "Force Win / Clear Result", render: (p) => <ForceResultPanel {...p} /> },
   { key: "autopilot", title: "Toggle AutoPilot", render: (p) => <AutoPilotPanel {...p} /> },
 ];
