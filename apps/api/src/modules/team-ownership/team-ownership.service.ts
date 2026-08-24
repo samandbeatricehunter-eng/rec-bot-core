@@ -1106,6 +1106,10 @@ export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; di
     await syncScheduleGameUserIdsForTeams(league.id, teamIds);
     await announceMemberTeamDeparture({ guildId: input.guildId, discordId: input.discordId, teamIds }).catch((error) =>
       console.error("[WARN] Failed to post team-departure announcement (non-fatal):", error));
+    const { eaBootUser } = await import("../madden-ea/ea-admin-actions.service.js");
+    await Promise.all(teamIds.map((teamId) =>
+      eaBootUser(league.id, teamId, { source: "auto", actingDiscordId: input.discordId })
+        .catch((error) => console.error("[WARN] Failed to trigger EA BootUser for departed member (non-fatal):", error))));
   }
 
   // Reject any pending/approved requests this member still has — same team-freeing effect, and

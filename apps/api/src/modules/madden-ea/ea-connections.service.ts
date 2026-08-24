@@ -40,6 +40,7 @@ import {
   endpointKeyForDataset,
   extractEaEnvelopeRows,
   eaUsernamesFromHub,
+  eaOwnerUserIdsFromHub,
   parseDatasets,
   toIngestEnvelope,
   WEEKLY_DATASETS,
@@ -242,6 +243,72 @@ async function loadDirectSyncConnection(leagueId: string): Promise<CompanionConn
     [leagueId],
   );
   return result.rows[0] ?? null;
+}
+
+async function loadEaConnectionByLeague(leagueId: string): Promise<EaConnectionRow | null> {
+  const result = await getPgPool().query<EaConnectionRow>(
+    `select * from rec_ea_connections where league_id=$1 and status='active'`,
+    [leagueId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/**
+ * Bootstraps a working EA Blaze client for a league (reusing a cached session when possible,
+ * refreshing the token/session on the same ERR_SYSTEM/ERR_TIMEOUT and BlazeSessionError
+ * conditions importEaDatasetsWithProgress already retries on) and runs `operation` against it,
+ * retrying once if the session turns out to be stale. Returns `null` if the league has no
+ * active EA connection or no bound franchise — callers decide whether that's fatal.
+ */
+export async function withEaAdminSession<T>(
+  leagueId: string,
+  operation: (client: ReturnType<typeof createEaClient>, eaLeagueId: number) => Promise<T>,
+): Promise<T | null> {
+  requireEaImportConfigured();
+  const row = await loadEaConnectionByLeague(leagueId);
+  if (!row || !row.ea_league_id) return null;
+
+  const token = await refreshedToken(row);
+  let session: EaSessionCache;
+  const cached = await cachedSession(row);
+  if (cached) {
+    session = cached;
+  } else {
+    try {
+      session = await createBlazeSession(token.accessToken, token.console);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("ERR_SYSTEM") || message.includes("ERR_TIMEOUT")) {
+        const { refreshEaToken } = await import("./ea-client.js");
+        const refreshed = await refreshEaToken(token.refreshToken);
+        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
+        await updateSealedToken(row.id, next);
+        token.accessToken = refreshed.accessToken;
+        token.refreshToken = refreshed.refreshToken;
+        token.expiresAt = refreshed.expiresAt;
+        session = await createBlazeSession(refreshed.accessToken, token.console);
+      } else {
+        throw error;
+      }
+    }
+    await persistSession(row.id, session);
+  }
+
+  const eaLeagueId = Number(row.ea_league_id);
+  const run = async (activeSession: EaSessionCache) => {
+    const client = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
+    return operation(client, eaLeagueId);
+  };
+  try {
+    return await run(session);
+  } catch (error) {
+    if (!(error instanceof BlazeSessionError) && !(error instanceof EaAuthError)) throw error;
+    console.warn("[EA] Blaze session stale during admin action, recreating:", error instanceof Error ? error.message.slice(0, 200) : error);
+    await clearSession(row.id);
+    const fresh = await createBlazeSession(token.accessToken, token.console);
+    await persistSession(row.id, fresh);
+    return await run(fresh);
+  }
 }
 
 async function ensureDirectSyncConnection(leagueId: string, createdByUserId: string): Promise<CompanionConnection> {
@@ -671,6 +738,8 @@ export async function importEaDatasetsWithProgress(
   if (info.userAdminHubInfo?.userInfoMap != null) {
     await persistImportedEaUsernames(leagueId, eaUsernamesFromHub(info)).catch((error) =>
       console.error("[WARN] Failed to store imported EA gamertags (non-fatal):", error));
+    await persistImportedEaOwnerUserIds(leagueId, eaOwnerUserIdsFromHub(info)).catch((error) =>
+      console.error("[WARN] Failed to store imported EA owner user ids (non-fatal):", error));
   }
   if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
     throw new Error(
@@ -1288,6 +1357,18 @@ async function persistImportedEaUsernames(leagueId: string, names: Map<string, s
     );
   }
   if (names.size > 0) console.log(`[EA] Stored ${names.size} imported console gamertag(s).`);
+}
+
+async function persistImportedEaOwnerUserIds(leagueId: string, owners: Map<string, string>): Promise<void> {
+  const pool = getPgPool();
+  await pool.query(`update rec_teams set ea_owner_user_id=null, updated_at=now() where league_id=$1`, [leagueId]);
+  for (const [maddenTeamId, eaUserId] of owners) {
+    await pool.query(
+      `update rec_teams set ea_owner_user_id=$3, updated_at=now() where league_id=$1 and madden_team_id=$2`,
+      [leagueId, maddenTeamId, eaUserId],
+    );
+  }
+  if (owners.size > 0) console.log(`[EA] Stored ${owners.size} imported EA owner user id(s).`);
 }
 
 async function fetchAllTeamRosters(

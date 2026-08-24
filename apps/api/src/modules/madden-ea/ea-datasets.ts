@@ -163,6 +163,29 @@ export function eaUsernamesFromHub(info: {
 }
 
 /**
+ * Map EA teamId → EA user id from league-hub userInfoMap. The map is keyed by the EA user id
+ * itself (e.g. `{ "1": { userName: "backup", team: 10 }, "2": { userName: "ownerTag", team: 10,
+ * isOwner: true } }`) — this is the id the write-side Blaze admin commands (BootUser, AddAdmin,
+ * ToggleAutoPilot, etc.) need as their target user, distinct from the gamertag captured by
+ * eaUsernamesFromHub above.
+ */
+export function eaOwnerUserIdsFromHub(info: {
+  userAdminHubInfo?: { userInfoMap?: Record<string, EaHubUserInfo> | null } | null;
+}): Map<string, string> {
+  const owners = new Map<string, string>();
+  const userInfoMap = info.userAdminHubInfo?.userInfoMap;
+  if (!userInfoMap || typeof userInfoMap !== "object") return owners;
+  for (const [eaUserId, entry] of Object.entries(userInfoMap)) {
+    if (!entry || typeof entry !== "object") continue;
+    const teamId = entry.team;
+    if (teamId == null) continue;
+    const key = String(teamId);
+    if (!owners.has(key) || entry.isOwner === true) owners.set(key, eaUserId);
+  }
+  return owners;
+}
+
+/**
  * Pull player/game rows out of an EA export. Snallabot keeps the companion envelope
  * (`{ rosterInfoList: [...] }`); REC's team-roster fetch used to flatten that into a
  * bare array. `typeof [] === "object"`, so a helper that only looks for `envelopeKey`

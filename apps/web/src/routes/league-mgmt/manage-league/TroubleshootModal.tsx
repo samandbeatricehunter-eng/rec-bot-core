@@ -12,6 +12,7 @@ import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
 import { ResetSpendCapModal } from "./ResetSpendCapModal.js";
+import { EA_ADMIN_TOOLS } from "./EaAdminActionsGroup.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
 type ResyncResult = Awaited<ReturnType<typeof recApi.resyncNicknames>>;
@@ -121,6 +122,19 @@ export function TroubleshootModal({
             <Button variant="secondary" onClick={() => setResetCapOpen(true)}><Coins size={14} /> Open Reset Tool</Button>
           </CollapsibleSection>
         </ToolGroup>
+        {leagueId && (
+          <ToolGroup label="In-Game Admin">
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              These fire live against EA's Blaze API and change the actual Madden franchise — there's no
+              undo. Most also fire automatically as a side effect of the matching Discord/site action.
+            </p>
+            {EA_ADMIN_TOOLS.map((tool) => (
+              <CollapsibleSection key={tool.key} title={tool.title}>
+                {tool.render({ guildId, leagueId })}
+              </CollapsibleSection>
+            ))}
+          </ToolGroup>
+        )}
       </div>
     </Modal>
   );

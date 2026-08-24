@@ -43,12 +43,18 @@ async function persistManagedRole(guildId: string, discordId: string, roleKey: R
   if (account.error) throw new ApiError(500, "Failed to resolve the linked Discord account.", account.error);
   if (!account.data?.user_id) return;
   const authority = roleKey === "compCommittee" ? "co_commissioner" : roleKey;
+
+  const priorMembership = await supabase.from("rec_league_memberships")
+    .select("role").eq("league_id", context.leagueId).eq("user_id", account.data.user_id).maybeSingle();
+  const priorRole = priorMembership.data?.role ?? null;
+
   const updated = await supabase.from("rec_team_assignments")
     .update({ notes: `Authority: ${authority}`, updated_at: new Date().toISOString() })
     .eq("league_id", context.leagueId)
     .eq("user_id", account.data.user_id)
     .eq("assignment_status", "active")
-    .is("ended_at", null);
+    .is("ended_at", null)
+    .select("team_id");
   if (updated.error) throw new ApiError(500, "Failed to synchronize the site league role.", updated.error);
 
   // rec_league_memberships.role is what the site (apps/site) reads for commissioner status —
@@ -60,6 +66,18 @@ async function persistManagedRole(guildId: string, discordId: string, roleKey: R
       .eq("league_id", context.leagueId)
       .eq("user_id", account.data.user_id);
     if (membership.error) throw new ApiError(500, "Failed to synchronize the site league membership role.", membership.error);
+  }
+
+  // Mirror the co-commish change into the actual Madden franchise via EA's Blaze API. Best
+  // effort — a Discord/site role change must never fail just because EA rejected the admin call.
+  const teamId = updated.data?.[0]?.team_id;
+  const becameCoCommish = authority === "co_commissioner" && priorRole !== "co_commissioner";
+  const leftCoCommish = priorRole === "co_commissioner" && authority !== "co_commissioner";
+  if (teamId && (becameCoCommish || leftCoCommish)) {
+    const { eaAddAdmin, eaRemoveAdmin } = await import("../madden-ea/ea-admin-actions.service.js");
+    const action = becameCoCommish ? eaAddAdmin : eaRemoveAdmin;
+    await action(context.leagueId, teamId, { source: "auto" })
+      .catch((error) => console.error("[WARN] Failed to sync EA in-game admin status (non-fatal):", error));
   }
 }
 

@@ -340,6 +340,24 @@ export const recApi = {
     recApiFetch<{ ok: boolean; wiped: number }>("/v1/import/madden/ea/wipe-roster", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   backfillEaScores: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/backfill-scores", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  eaAdminAdvance: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/advance", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  eaAdminClearCapPenalties: (input: { guildId: string; leagueId: string; teamId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/clear-cap-penalties", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
+  eaAdminBootUser: (input: { guildId: string; leagueId: string; teamId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/boot-user", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
+  eaAdminAddAdmin: (input: { guildId: string; leagueId: string; teamId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/add-admin", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
+  eaAdminRemoveAdmin: (input: { guildId: string; leagueId: string; teamId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/remove-admin", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
+  eaAdminForceHomeWin: (input: { guildId: string; leagueId: string; gameId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/force-home-win", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, game_id: input.gameId }) }),
+  eaAdminForceAwayWin: (input: { guildId: string; leagueId: string; gameId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/force-away-win", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, game_id: input.gameId }) }),
+  eaAdminClearForcedResult: (input: { guildId: string; leagueId: string; gameId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/clear-forced-result", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, game_id: input.gameId }) }),
+  eaAdminToggleAutoPilot: (input: { guildId: string; leagueId: string; teamId: string; weeks: number }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/toggle-autopilot", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId, weeks: input.weeks }) }),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}", cacheTtlMs: 60_000 }),
   sendLeagueReport: (input: { guildId: string; message: string }) =>
     recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),

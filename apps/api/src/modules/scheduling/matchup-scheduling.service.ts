@@ -555,7 +555,7 @@ export async function markCantMakeGame(input: { gameId: string; discordId: strin
       attention_required: true, updated_at: new Date().toISOString(),
     }).eq("game_id", input.gameId);
     await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "cant_make_game_grant_fw" });
-    await closeAdministrativeResult(input.gameId, "force_win");
+    await closeAdministrativeResult(input.gameId, "force_win", null, userId === game.home_user_id ? "away" : "home");
 
     const routes = await findServerRoutesForLeague(game.league_id);
     const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
@@ -645,16 +645,47 @@ export async function resolveCantMakeGame(input: { gameId: string; discordId: st
   return { choice: input.choice };
 }
 
+// Records the grant (rec_autopilot_grants, 1 week default -- Samuel: "autopilot requests thru
+// the scheduling system should default to 1 week") and triggers EA's in-game ToggleAutoPilot for
+// the original requester's team. EA itself expires the in-game autopilot after the given week
+// count, so this is a record, not a scheduler. Best-effort -- a grant must still succeed even if
+// EA rejects the in-game call.
+async function grantAutopilotInGame(gameId: string, game: { league_id: string; home_user_id: string | null; away_user_id: string | null }, reviewerDiscordId: string, source: "discord" | "site") {
+  const inbox = await supabase.from("rec_commissioners_inbox")
+    .select("requester_user_id").eq("source_table", "rec_games").eq("source_id", gameId)
+    .eq("queue_type", "autopilot_request").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const requesterUserId = inbox.data?.requester_user_id ?? null;
+  if (!requesterUserId || (requesterUserId !== game.home_user_id && requesterUserId !== game.away_user_id)) return;
+
+  const weeks = 1;
+  await supabase.from("rec_autopilot_grants").insert({
+    league_id: game.league_id, game_id: gameId, user_id: requesterUserId, weeks, source,
+    granted_by_user_id: await userIdFromDiscordId(reviewerDiscordId).catch(() => null),
+  }).select("id").maybeSingle().then((result) => {
+    if (result.error) console.error("[WARN] Failed to record autopilot grant (non-fatal):", result.error);
+  });
+
+  const assignment = await supabase.from("rec_team_assignments")
+    .select("team_id").eq("league_id", game.league_id).eq("user_id", requesterUserId)
+    .eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  const teamId = assignment.data?.team_id;
+  if (!teamId) return;
+  const { eaToggleAutoPilot } = await import("../madden-ea/ea-admin-actions.service.js");
+  await eaToggleAutoPilot(game.league_id, teamId, weeks, { source: "auto", actingDiscordId: reviewerDiscordId })
+    .catch((error) => console.error("[WARN] Failed to trigger EA ToggleAutoPilot (non-fatal):", error));
+}
+
 // Commissioner resolution of an AutoPilot request (resolveCantMakeGame's request_autopilot
 // branch above). AutoPilot itself is advisory/manual today -- there's no mechanical
 // CPU-control toggle anywhere in the codebase -- so this records the decision and posts a
 // public confirmation, same scope as every other FW/FS status flag in this file.
-export async function resolveAutopilotRequest(input: { gameId: string; discordId: string; decision: "grant_autopilot" | "enforce_fs" }) {
+export async function resolveAutopilotRequest(input: { gameId: string; discordId: string; decision: "grant_autopilot" | "enforce_fs"; source?: "discord" | "site" }) {
   const game = await loadGame(input.gameId);
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "autopilot_resolved", payload: { decision: input.decision } });
 
   const channel = await getGameChannelByGameId(input.gameId);
   if (input.decision === "enforce_fs") await closeAdministrativeResult(input.gameId, "fair_sim", input.discordId);
+  if (input.decision === "grant_autopilot") await grantAutopilotInGame(input.gameId, game, input.discordId, input.source ?? "discord");
   if (channel?.discord_channel_id) {
     const text = input.decision === "grant_autopilot"
       ? "✅ AutoPilot **granted** by a commissioner — play the unavailable coach's team as a CPU."
@@ -781,7 +812,8 @@ export async function resolveViolationReport(input: { gameId: string; discordId:
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
-    await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
+    const side = beneficiaryId === game.home_user_id ? "home" : beneficiaryId === game.away_user_id ? "away" : null;
+    await closeAdministrativeResult(input.gameId, "force_win", input.discordId, side);
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -854,7 +886,8 @@ export async function resolveDashingReport(input: { gameId: string; discordId: s
         attention_required: true, updated_at: new Date().toISOString(),
       }).eq("game_id", input.gameId);
     }
-    await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
+    const side = beneficiaryId === game.home_user_id ? "home" : beneficiaryId === game.away_user_id ? "away" : null;
+    await closeAdministrativeResult(input.gameId, "force_win", input.discordId, side);
   }
 
   const channel = await getGameChannelByGameId(input.gameId);
@@ -1007,6 +1040,7 @@ async function closeAdministrativeResult(
   gameId: string,
   status: "force_win" | "fair_sim",
   reviewerDiscordId?: string | null,
+  side?: "home" | "away" | null,
 ) {
   const now = new Date().toISOString();
   const proposals = await supabase.from("rec_game_time_proposals").select("notice_channel_id,notice_message_id")
@@ -1032,6 +1066,24 @@ async function closeAdministrativeResult(
   const channel = await getGameChannelByGameId(gameId);
   if (channel?.discord_channel_id) await deleteDiscordComponentMessagesForGame(channel.discord_channel_id, gameId).catch(() => 0);
   await refreshMatchupsChannelForGame(gameId);
+
+  // Mirror this FW/FS status onto the actual Madden franchise via EA's Blaze API. Best effort --
+  // covers both Discord and site since every FW/FS grant path already funnels through here.
+  const gameRow = await supabase.from("rec_games").select("league_id").eq("id", gameId).maybeSingle();
+  const leagueId = gameRow.data?.league_id;
+  if (leagueId) {
+    const { eaForceHomeWin, eaForceAwayWin, eaForceNoWin } = await import("../madden-ea/ea-admin-actions.service.js");
+    const eaCtx = { source: "auto" as const, actingDiscordId: reviewerDiscordId ?? null };
+    if (status === "fair_sim") {
+      await eaForceNoWin(leagueId, gameId, eaCtx).catch((error) => console.error("[WARN] Failed to clear EA forced result for Fair Sim (non-fatal):", error));
+    } else if (side === "home") {
+      await eaForceHomeWin(leagueId, gameId, eaCtx).catch((error) => console.error("[WARN] Failed to trigger EA Force Home Win (non-fatal):", error));
+    } else if (side === "away") {
+      await eaForceAwayWin(leagueId, gameId, eaCtx).catch((error) => console.error("[WARN] Failed to trigger EA Force Away Win (non-fatal):", error));
+    } else {
+      console.warn(`[EA] Force Win closed for game ${gameId} with no resolvable side -- skipping in-game trigger.`);
+    }
+  }
 }
 
 export async function grantForceWinCommissioner(input: { gameId: string; discordId: string; side: "home" | "away" }) {
@@ -1042,7 +1094,7 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
     fw_flagged: true, fw_flagged_for_user_id: beneficiaryId, fw_flagged_at: new Date().toISOString(),
     attention_required: true, updated_at: new Date().toISOString(),
   }).eq("game_id", input.gameId);
-  await closeAdministrativeResult(input.gameId, "force_win", input.discordId);
+  await closeAdministrativeResult(input.gameId, "force_win", input.discordId, input.side);
   await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_fw", payload: { side: input.side } });
 
   const beneficiary = await citeGameSide(game, input.side);
@@ -1112,7 +1164,8 @@ export async function reviewForceWinRequest(input: {
     if (!approved.data) throw new ApiError(409, "This Force Win request has already been reviewed.");
     // The selected FW request remains Approved; any other now-obsolete cases for this game are
     // merely resolved so a Discord/site action cannot accidentally approve a different request.
-    await closeAdministrativeResult(gameId, "force_win", input.reviewerDiscordId);
+    const side = requesterUserId === game.home_user_id ? "home" : "away";
+    await closeAdministrativeResult(gameId, "force_win", input.reviewerDiscordId, side);
     await logSchedulingEvent({ gameId, userId: reviewerUserId, eventType: "fw_request_reviewed", payload: { decision: "approved", requesterUserId, reason: reason || null } });
 
     const channel = await getGameChannelByGameId(gameId);

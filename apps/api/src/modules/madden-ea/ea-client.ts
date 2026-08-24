@@ -652,6 +652,16 @@ export type EaClient = {
   getTeamStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
   getTeamRoster(leagueId: number, teamId: number, teamIndex: number): Promise<unknown>;
   getFreeAgents(leagueId: number): Promise<unknown>;
+  // ── In-game admin actions (write-side; commandId is always 0 for these) ──
+  submitCareerResponse(leagueId: number): Promise<unknown>;
+  clearCapPenalties(leagueId: number, teamId: number): Promise<unknown>;
+  bootUser(leagueId: number, userId: string): Promise<unknown>;
+  addAdmin(leagueId: number, userId: string): Promise<unknown>;
+  removeAdmin(leagueId: number, userId: string): Promise<unknown>;
+  forceHomeWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
+  forceAwayWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
+  forceNoWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
+  toggleAutoPilot(leagueId: number, userId: string, weeks: number): Promise<unknown>;
 };
 
 export function createEaClient(
@@ -724,5 +734,23 @@ export function createEaClient(
         returnFreeAgents: true,
         teamId: 0,
       }),
+    submitCareerResponse: (leagueId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_Career_SubmitResponse", commandId: 0, requestPayload: { leagueId } }),
+    clearCapPenalties: (leagueId, teamId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ClearCapPenalties", commandId: 0, requestPayload: { leagueId, teamId } }),
+    bootUser: (leagueId, userId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_BootUser", commandId: 0, requestPayload: { leagueId, userId } }),
+    addAdmin: (leagueId, userId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_AddAdmin", commandId: 0, requestPayload: { leagueId, userId } }),
+    removeAdmin: (leagueId, userId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_RemoveAdmin", commandId: 0, requestPayload: { leagueId, userId } }),
+    forceHomeWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceHomeWin", commandId: 0, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex } }),
+    forceAwayWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceAwayWin", commandId: 0, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex } }),
+    forceNoWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceNoWin", commandId: 0, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex } }),
+    toggleAutoPilot: (leagueId, userId, weeks) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ToggleAutoPilot", commandId: 0, requestPayload: { leagueId, userId, weeks } }),
   };
 }
