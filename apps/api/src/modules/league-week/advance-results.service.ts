@@ -977,6 +977,17 @@ export async function completeAdvanceWeek(input: {
     console.error("[ERROR] notifyLeagueMembersOfAdvance failed after advance (non-fatal):", err);
   });
 
+  if (String(context.rec_leagues.game ?? "").startsWith("madden")) {
+    const { syncMaddenStandingsAndBracket } = await import("../standings/nfl-standings.service.js");
+    const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+    await syncMaddenStandingsAndBracket({
+      leagueId: context.leagueId,
+      seasonNumber,
+      seasonId,
+      seasonStage: nextTarget.seasonStage,
+    }).catch((err) => console.error("[ERROR] NFL standings/bracket sync failed after advance (non-fatal):", err));
+  }
+
   updateAdvanceProgress(input.advanceRunId, "Publishing the playoff picture and bracket");
   await publishMaddenPlayoffPicture({
     guildId: input.guildId,

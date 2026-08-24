@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeNflStandings } from "./nfl-standings.service.js";
 
 export type NflRound = "wild_card" | "divisional" | "conference_championship" | "super_bowl";
@@ -249,4 +250,188 @@ export async function syncAllNflBracketRounds(input: { leagueId: string; seasonN
   for (const round of NFL_ROUNDS) {
     await syncNflBracketRound({ ...input, round });
   }
+}
+
+export type TeamSummary = {
+  teamId: string;
+  name: string;
+  abbreviation: string | null;
+  logoUrl: string | null;
+  conference: string;
+  division: string;
+};
+
+export type NflPlayoffMatchup = {
+  conference: string;
+  homeSeed: number;
+  awaySeed: number;
+  homeTeam: TeamSummary;
+  awayTeam: TeamSummary;
+  gameId: string | null;
+  status: "projected" | "scheduled" | "completed";
+  homeScore: number | null;
+  awayScore: number | null;
+  winnerTeamId: string | null;
+};
+
+export type NflPlayoffPicture = {
+  league: { leagueId: string; game: string; currentWeek: number; seasonStage: string };
+  showBracket: boolean;
+  isLiveProjection: boolean;
+  conferences: Array<{
+    conference: string;
+    divisions: Array<{ division: string; teams: Array<{ teamId: string; team: TeamSummary; wins: number; losses: number; ties: number; pf: number; pa: number; isDivisionWinner: boolean; seed: number | null }> }>;
+    seeds: Array<{ seed: number; teamId: string; team: TeamSummary; isDivisionWinner: boolean }>;
+  }>;
+  rounds: Array<{ round: NflRound; matchups: NflPlayoffMatchup[] }>;
+  champion: TeamSummary | null;
+};
+
+/** "If it advanced by chalk" fallback winner for a not-yet-decided matchup: the better
+ *  (numerically lower) seed. Only used to keep the live-projection view showing a full
+ *  bracket through to a champion before real games exist -- real results always override
+ *  this the moment a round's games are actually played. */
+function chalkWinner(matchup: RoundMatchup): AliveSeed {
+  return matchup.homeSeed <= matchup.awaySeed
+    ? { seed: matchup.homeSeed, teamId: matchup.homeTeamId, conference: matchup.conference }
+    : { seed: matchup.awaySeed, teamId: matchup.awayTeamId, conference: matchup.conference };
+}
+
+/** Full read-model: current standings + all 4 rounds, matchups resolved from real completed
+ *  games where they exist and live-projected (chalk winners) for any round not yet locked. */
+export async function getNflPlayoffPicture(leagueId: string, seasonNumber: number): Promise<NflPlayoffPicture> {
+  const leagueRow = await getPgPool().query(
+    `select game,current_week,season_stage from rec_leagues where id=$1`,
+    [leagueId],
+  );
+  const league = leagueRow.rows[0] as { game: string; current_week: number; season_stage: string } | undefined;
+  const currentWeek = Number(league?.current_week ?? 0);
+  const seasonStage = String(league?.season_stage ?? "regular_season");
+  const game = String(league?.game ?? "");
+
+  const standings = await computeNflStandings(leagueId, seasonNumber);
+
+  const teamsResult = await getPgPool().query(
+    `select id,name,abbreviation,conference,division,display_city,display_nick,display_abbr,is_relocated,logo_url
+     from rec_teams where league_id=$1`,
+    [leagueId],
+  );
+  const teamSummaryById = new Map<string, TeamSummary>(
+    teamsResult.rows.map((row: any) => [
+      String(row.id),
+      {
+        teamId: String(row.id),
+        name: formatTeamDisplayName(row) ?? "Team",
+        abbreviation: row.display_abbr ?? row.abbreviation ?? null,
+        logoUrl: row.logo_url ?? null,
+        conference: String(row.conference ?? ""),
+        division: String(row.division ?? ""),
+      },
+    ]),
+  );
+  const teamSummary = (teamId: string): TeamSummary =>
+    teamSummaryById.get(teamId) ?? { teamId, name: "Team", abbreviation: null, logoUrl: null, conference: "", division: "" };
+
+  const showBracket = currentWeek >= 12; // NFL_PLAYOFF_PICTURE_START_WEEK, kept as a literal here to avoid a cross-package import for one constant
+  const isLiveProjection = currentWeek < ROUND_WEEK.wild_card;
+
+  const conferences = standings.conferences.map((c) => ({
+    conference: c.conference,
+    divisions: c.divisions.map((d) => ({
+      division: d.division,
+      teams: d.standings.map((s) => {
+        const seedRow = c.seeds.find((seed) => seed.teamId === s.teamId);
+        return {
+          teamId: s.teamId,
+          team: teamSummary(s.teamId),
+          wins: s.wins,
+          losses: s.losses,
+          ties: s.ties,
+          pf: s.pf,
+          pa: s.pa,
+          isDivisionWinner: seedRow?.isDivisionWinner ?? false,
+          seed: seedRow?.seed ?? null,
+        };
+      }),
+    })),
+    seeds: c.seeds.map((s) => ({ ...s, team: teamSummary(s.teamId) })),
+  }));
+
+  // Real games/slots for this bracket (if any), keyed for lookup by the exact matchup shape
+  // computeRoundMatchups would produce -- conference:round:homeSeed:awaySeed.
+  const realSlots = await getPgPool().query(
+    `select s.conference,s.round,s.home_seed,s.away_seed,s.home_team_id,s.away_team_id,
+            g.id as game_id,g.status,coalesce(g.home_score,r.home_score) as home_score,coalesce(g.away_score,r.away_score) as away_score
+     from rec_nfl_bracket_slots s
+     join rec_nfl_brackets b on b.id=s.bracket_id
+     left join rec_games g on g.id=s.game_id
+     left join rec_game_results r on r.league_id=b.league_id and r.season_number=b.season_number
+       and r.home_team_id=s.home_team_id and r.away_team_id=s.away_team_id
+     where b.league_id=$1 and b.season_number=$2`,
+    [leagueId, seasonNumber],
+  );
+  const realSlotByKey = new Map<string, (typeof realSlots.rows)[number]>(
+    realSlots.rows.map((row: any) => [`${row.conference}:${row.round}:${row.home_seed}:${row.away_seed}`, row]),
+  );
+
+  const rounds: NflPlayoffPicture["rounds"] = [];
+  let aliveSeeds: AliveSeed[] = standings.conferences.flatMap((c) => c.seeds.map((s) => ({ seed: s.seed, teamId: s.teamId, conference: c.conference })));
+
+  for (const round of NFL_ROUNDS) {
+    const matchups = computeRoundMatchups(round, aliveSeeds);
+    const resolved: NflPlayoffMatchup[] = [];
+    const nextAlive: AliveSeed[] = [];
+
+    // Seeds that got a bye this round (only possible at wild_card) auto-advance.
+    if (round === "wild_card") {
+      const seededThisRound = new Set(matchups.flatMap((m) => [m.homeSeed, m.awaySeed]));
+      for (const seed of aliveSeeds) {
+        if (!seededThisRound.has(seed.seed)) nextAlive.push(seed);
+      }
+    }
+
+    for (const matchup of matchups) {
+      const key = `${matchup.conference}:${round}:${matchup.homeSeed}:${matchup.awaySeed}`;
+      const real = realSlotByKey.get(key);
+      const homeScore = real?.home_score != null ? Number(real.home_score) : null;
+      const awayScore = real?.away_score != null ? Number(real.away_score) : null;
+      const decided = homeScore != null && awayScore != null && homeScore !== awayScore;
+      const winnerTeamId = decided ? (homeScore! > awayScore! ? matchup.homeTeamId : matchup.awayTeamId) : null;
+
+      resolved.push({
+        conference: matchup.conference,
+        homeSeed: matchup.homeSeed,
+        awaySeed: matchup.awaySeed,
+        homeTeam: teamSummary(matchup.homeTeamId),
+        awayTeam: teamSummary(matchup.awayTeamId),
+        gameId: real?.game_id ?? null,
+        status: decided ? "completed" : real?.game_id ? "scheduled" : "projected",
+        homeScore,
+        awayScore,
+        winnerTeamId,
+      });
+
+      const winnerSeed: AliveSeed = decided
+        ? winnerTeamId === matchup.homeTeamId
+          ? { seed: matchup.homeSeed, teamId: matchup.homeTeamId, conference: matchup.conference }
+          : { seed: matchup.awaySeed, teamId: matchup.awayTeamId, conference: matchup.conference }
+        : chalkWinner(matchup);
+      nextAlive.push(winnerSeed);
+    }
+
+    rounds.push({ round, matchups: resolved });
+    aliveSeeds = nextAlive;
+  }
+
+  const superBowl = rounds.find((r) => r.round === "super_bowl")?.matchups[0] ?? null;
+  const champion = superBowl?.winnerTeamId ? teamSummary(superBowl.winnerTeamId) : null;
+
+  return {
+    league: { leagueId, game, currentWeek, seasonStage },
+    showBracket,
+    isLiveProjection,
+    conferences,
+    rounds,
+    champion,
+  };
 }

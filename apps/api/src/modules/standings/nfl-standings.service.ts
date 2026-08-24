@@ -1,3 +1,4 @@
+import { getPgPool } from "../../db/client.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { sortStandingsWithTiebreakers, type TeamStanding } from "./nfl-tiebreakers.js";
 import { loadTeamGameLog } from "./team-game-log.js";
@@ -112,4 +113,36 @@ export async function computeNflStandings(leagueId: string, seasonNumber: number
     NFL_STANDINGS_CACHE_TTL_MS,
     () => computeNflStandingsUncached(leagueId, seasonNumber),
   );
+}
+
+const POSTSEASON_STAGES = new Set(["wild_card", "divisional", "conference_championship", "super_bowl"]);
+
+/** Called after every advance for Madden leagues (see completeAdvanceWeek). Always refreshes
+ *  the rec_season_team_seeds cache/read-model from the live computation (this is the only
+ *  writer of that table); once the league has actually reached the postseason, also syncs
+ *  every bracket round so the "always full bracket, live reseeded" view stays current without
+ *  a separate cron. */
+export async function syncMaddenStandingsAndBracket(input: {
+  leagueId: string;
+  seasonNumber: number;
+  seasonId: string;
+  seasonStage: string;
+}): Promise<void> {
+  const standings = await computeNflStandingsUncached(input.leagueId, input.seasonNumber);
+
+  for (const row of standings.teamRows) {
+    await getPgPool().query(
+      `insert into rec_season_team_seeds(league_id,season_number,team_id,conference,seed,made_playoffs,division_name,division_winner,created_at,updated_at)
+       values($1,$2,$3,$4,$5,$6,$7,$8,now(),now())
+       on conflict(league_id,season_number,team_id) do update set
+         conference=excluded.conference,seed=excluded.seed,made_playoffs=excluded.made_playoffs,
+         division_name=excluded.division_name,division_winner=excluded.division_winner,updated_at=now()`,
+      [input.leagueId, input.seasonNumber, row.teamId, row.conference, row.seed, row.madePlayoffs, row.division, row.isDivisionWinner],
+    );
+  }
+
+  if (POSTSEASON_STAGES.has(input.seasonStage)) {
+    const { syncAllNflBracketRounds } = await import("./nfl-bracket.service.js");
+    await syncAllNflBracketRounds({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, seasonId: input.seasonId });
+  }
 }
