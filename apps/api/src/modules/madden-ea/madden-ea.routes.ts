@@ -29,7 +29,9 @@ import { validateWeekRef, type EaWeekScope } from "./ea-weeks.js";
 const datasetSchema = z.enum(EA_DATASETS as [EaDataset, ...EaDataset[]]);
 
 async function requireLeagueCommissioner(request: FastifyRequest, guildId: string, leagueId: string) {
-  const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+  // "co_commissioner" qualifies both head commissioners and co-commissioners -- import data
+  // shouldn't require the head commissioner specifically.
+  const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
   if (auth.mode === "bot") throw new ApiError(403, "Browser session required.");
   const context = await getCurrentLeagueContext(guildId);
   if (context.leagueId !== leagueId) throw new ApiError(403, "League does not belong to this server context.");
