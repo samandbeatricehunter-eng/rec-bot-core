@@ -1,4 +1,4 @@
-import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, REC_DEV_TIER_LABELS, formatCoins, devTierOrderForGame, getRecAttributeDisplayName, isCfb, type RecPurchaseType, type RecDevTier } from "@rec/shared";
+import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, REC_DEV_TIER_LABELS, formatCoins, devTierOrderForGame, getRecAttributeDisplayName, isCfb, isCustomPlayerRenderAllowed, customPlayerRenderPublicUrl, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -267,8 +267,13 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
  * sit waiting for the commissioner to actually recreate the player inside the Madden save on
  * the designated roster slot. Runs after every EA roster import: if the designated player's
  * row (or, failing that, any freshly-imported row on the buying team) now carries a name
- * matching the purchase, the purchase/build is marked fulfilled — informational only, since
- * the import itself already wrote the real data. Never mutates rec_players. */
+ * matching the purchase, the purchase/build is marked fulfilled. The EA import itself is the
+ * source of truth for stats/attributes/contract, but EA has no concept of "this is a REC
+ * legend" and never supplies a curated headshot for one -- so the one field this function DOES
+ * write onto the matched row is photo_url (only when the freshly-imported row doesn't already
+ * have one), copied from rec_legend_catalog for legends or rendered from the build's
+ * cardRenderId for custom players. Everything else about the row stays exactly what the import
+ * wrote. */
 export async function reconcileApprovedMaddenPurchases(leagueId: string): Promise<{ legendsFulfilled: number; customPlayersApplied: number }> {
   const now = new Date().toISOString();
 
@@ -299,6 +304,15 @@ export async function reconcileApprovedMaddenPurchases(leagueId: string): Promis
     const targetId = details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
     const matchedId = await findMatch(teamId, String(details.name ?? ""), targetId);
     if (!matchedId) continue;
+    if (details.legendId) {
+      const [legend, existing] = await Promise.all([
+        supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle(),
+        supabase.from("rec_players").select("photo_url").eq("id", matchedId).maybeSingle(),
+      ]);
+      if (legend.data?.photo_url && !existing.data?.photo_url) {
+        await supabase.from("rec_players").update({ photo_url: legend.data.photo_url, updated_at: now }).eq("id", matchedId);
+      }
+    }
     await supabase.from("rec_purchases").update({ status: "fulfilled", fulfilled_at: now, updated_at: now }).eq("id", purchase.id);
     await createSiteNotification({
       userId: purchase.user_id, leagueId, kind: "legend_fulfilled",
@@ -307,7 +321,7 @@ export async function reconcileApprovedMaddenPurchases(leagueId: string): Promis
     legendsFulfilled++;
   }
 
-  const pendingBuilds = await supabase.from("rec_custom_player_builds").select("id,user_id,league_id,team_id,identity,replacement_player_id,purchase_id")
+  const pendingBuilds = await supabase.from("rec_custom_player_builds").select("id,user_id,league_id,team_id,position,identity,replacement_player_id,purchase_id")
     .eq("league_id", leagueId).eq("game_family", "MADDEN").eq("status", "approved");
   if (pendingBuilds.error) throw new ApiError(500, "We couldn't load approved custom-player builds to reconcile.", pendingBuilds.error);
   let customPlayersApplied = 0;
@@ -317,6 +331,13 @@ export async function reconcileApprovedMaddenPurchases(leagueId: string): Promis
     if (!build.team_id) continue;
     const matchedId = await findMatch(build.team_id, fullName, build.replacement_player_id ?? null);
     if (!matchedId) continue;
+    const renderId = typeof identity.cardRenderId === "string" ? identity.cardRenderId : null;
+    if (renderId && isCustomPlayerRenderAllowed({ cardRenderId: renderId, bodyBuild: identity.bodyType, position: build.position })) {
+      const existing = await supabase.from("rec_players").select("photo_url").eq("id", matchedId).maybeSingle();
+      if (!existing.data?.photo_url) {
+        await supabase.from("rec_players").update({ photo_url: customPlayerRenderPublicUrl(renderId), updated_at: now }).eq("id", matchedId);
+      }
+    }
     await supabase.from("rec_custom_player_builds").update({ status: "applied", applied_at: now, created_player_id: matchedId, updated_at: now }).eq("id", build.id);
     if (build.purchase_id) await supabase.from("rec_purchases").update({ status: "fulfilled", fulfilled_at: now, updated_at: now }).eq("id", build.purchase_id);
     await createSiteNotification({

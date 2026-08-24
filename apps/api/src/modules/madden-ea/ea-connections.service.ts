@@ -18,6 +18,7 @@ import type { CompanionConnection } from "../madden-companion/madden-companion.s
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { reconcileApprovedMaddenPurchases } from "../purchases/purchases.service.js";
+import { levenshtein, normalizePlayerName } from "./player-name-matching.js";
 import {
   BLAZE_COMPONENT_NAME,
   EA_LOGIN_URL,
@@ -1183,11 +1184,16 @@ export async function wipeBaselineRoster(leagueId: string): Promise<number> {
   }
 }
 
-/**
- * Restore player photos after an EA import. Matches by madden_player_id first (exact),
- * then falls back to full_name (case-insensitive) for baseline players that didn't have
- * an EA ID when the photo was uploaded.
- */
+/** Restores photo_url on freshly-imported player rows that lost it because their
+ *  madden_player_id changed (EA does this on re-signs/roster-ID reassignment) or because
+ *  they're a brand-new row for a player who already had one under a slightly different name.
+ *  Three tiers, in order of confidence: exact EA ID -> exact normalized name -> a single
+ *  high-confidence fuzzy name match (edit distance small relative to name length, and only
+ *  when exactly one candidate qualifies -- an ambiguous match is worse than no match, so it's
+ *  skipped rather than guessed). A matched snapshot entry is claimed so two different new
+ *  players can never both grab the same old photo. Once applied here, photo_url lives on the
+ *  row under this import's madden_player_id, so a future import that keeps that same ID needs
+ *  no restoration at all -- this tier only has to fire again if EA reassigns the ID once more. */
 async function restorePlayerPhotos(
   leagueId: string,
   photoByEaId: Map<string, string>,
@@ -1201,61 +1207,63 @@ async function restorePlayerPhotos(
     [leagueId],
   );
 
-  // Build CASE expressions for a single batched UPDATE
-  const eaCases: string[] = [];
-  const nameCases: string[] = [];
-  const eaIds: string[] = [];
-  const names: string[] = [];
-  const params: string[] = [leagueId];
-  let paramIdx = 2;
+  const nameByNormalized = new Map<string, string>(); // normalized name -> photo, exact tier
+  for (const [name, photo] of photoByName) nameByNormalized.set(normalizePlayerName(name), photo);
+  const claimed = new Set<string>();
 
+  const updates: Array<{ id: string; photo: string }> = [];
   for (const player of players.rows) {
-    const photo = (player.madden_player_id && photoByEaId.get(player.madden_player_id))
-      ?? photoByName.get(player.full_name?.toLowerCase() ?? "");
-    if (!photo) continue;
+    const normalized = normalizePlayerName(player.full_name);
 
-    if (player.madden_player_id && photoByEaId.get(player.madden_player_id)) {
-      eaCases.push(`when madden_player_id = $${paramIdx} then $${paramIdx + 1}`);
-      eaIds.push(player.madden_player_id);
-      params.push(player.madden_player_id, photo);
-      paramIdx += 2;
-    } else {
-      nameCases.push(`when lower(full_name) = $${paramIdx} then $${paramIdx + 1}`);
-      names.push(player.full_name?.toLowerCase() ?? "");
-      params.push(player.full_name?.toLowerCase() ?? "", photo);
-      paramIdx += 2;
+    const eaMatch = player.madden_player_id ? photoByEaId.get(player.madden_player_id) : undefined;
+    if (eaMatch) { updates.push({ id: player.id, photo: eaMatch }); continue; }
+
+    if (!claimed.has(normalized)) {
+      const exactMatch = nameByNormalized.get(normalized);
+      if (exactMatch) { updates.push({ id: player.id, photo: exactMatch }); claimed.add(normalized); continue; }
+    }
+
+    // Fuzzy tier: only for names with real content, only against still-unclaimed candidates,
+    // only accepted when it's the single best candidate within a tight distance budget.
+    if (normalized.length < 4) continue;
+    let bestDistance = Infinity;
+    let bestPhoto: string | null = null;
+    let bestCount = 0;
+    const budget = Math.min(3, Math.max(1, Math.floor(normalized.length / 6)));
+    for (const [candidateName, photo] of nameByNormalized) {
+      if (claimed.has(candidateName)) continue;
+      if (Math.abs(candidateName.length - normalized.length) > budget) continue;
+      const distance = levenshtein(normalized, candidateName);
+      if (distance > budget) continue;
+      if (distance < bestDistance) { bestDistance = distance; bestPhoto = photo; bestCount = 1; }
+      else if (distance === bestDistance) bestCount += 1;
+    }
+    if (bestPhoto && bestCount === 1) {
+      updates.push({ id: player.id, photo: bestPhoto });
+      // Re-derive which normalized key won so it can't be claimed twice in this same pass.
+      for (const [candidateName] of nameByNormalized) {
+        if (!claimed.has(candidateName) && nameByNormalized.get(candidateName) === bestPhoto && levenshtein(normalized, candidateName) === bestDistance) {
+          claimed.add(candidateName);
+          break;
+        }
+      }
     }
   }
 
-  if (eaCases.length === 0 && nameCases.length === 0) return 0;
+  if (!updates.length) return 0;
 
-  const wheres: string[] = [];
-  if (eaCases.length > 0) wheres.push(`(madden_player_id in (${eaIds.map((_, i) => `$${2 + i * 2}`).join(",")}))`);
-  if (nameCases.length > 0) wheres.push(`(lower(full_name) in (${names.map((_, i) => `$${2 + eaIds.length * 2 + i * 2}`).join(",")}))`);
-
-  // Simpler approach: just do a single pass with a CTE
-  // Actually, let's just use a simpler batched approach
-  let restored = 0;
   const batchSize = 50;
-  for (let i = 0; i < players.rows.length; i += batchSize) {
-    const batch = players.rows.slice(i, i + batchSize);
-    const updates: Array<{ id: string; photo: string }> = [];
-    for (const player of batch) {
-      const photo = (player.madden_player_id && photoByEaId.get(player.madden_player_id))
-        ?? photoByName.get(player.full_name?.toLowerCase() ?? "");
-      if (photo) updates.push({ id: player.id, photo });
-    }
-    if (updates.length === 0) continue;
-    const cases = updates.map((u, idx) => `when id = $${idx * 2 + 2} then $${idx * 2 + 3}`).join(" ");
-    const ids = updates.map((u) => u.id);
-    const flatParams = updates.flatMap((u) => [u.id, u.photo]);
+  for (let i = 0; i < updates.length; i += batchSize) {
+    const batch = updates.slice(i, i + batchSize);
+    const cases = batch.map((_, idx) => `when id = $${idx * 2 + 2} then $${idx * 2 + 3}`).join(" ");
+    const ids = batch.map((u) => u.id);
+    const flatParams = batch.flatMap((u) => [u.id, u.photo]);
     await pool.query(
       `update rec_players set photo_url = case ${cases} end where id = any($1::uuid[])`,
       [ids, ...flatParams],
     );
-    restored += updates.length;
   }
-  return restored;
+  return updates.length;
 }
 
 /**
