@@ -265,7 +265,7 @@ async function loadEaConnectionByLeague(leagueId: string): Promise<EaConnectionR
  */
 export async function withEaAdminSession<T>(
   leagueId: string,
-  operation: (client: ReturnType<typeof createEaClient>, eaLeagueId: number, ownUserId: string | null) => Promise<T>,
+  operation: (client: ReturnType<typeof createEaClient>, eaLeagueId: number) => Promise<T>,
 ): Promise<T | null> {
   requireEaImportConfigured();
   const row = await loadEaConnectionByLeague(leagueId);
@@ -298,12 +298,9 @@ export async function withEaAdminSession<T>(
   }
 
   const eaLeagueId = Number(row.ea_league_id);
-  if (row.ea_own_user_id && row.ea_own_is_owner === false) {
-    console.warn(`[EA] Connected persona for league ${leagueId} resolves to EA user ${row.ea_own_user_id} but EA's own data does NOT flag them as isOwner -- admin commands may be rejected for lacking EA-recognized owner status, independent of any request-shape issue.`);
-  }
   const run = async (activeSession: EaSessionCache) => {
     const client = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
-    return operation(client, eaLeagueId, row.ea_own_user_id);
+    return operation(client, eaLeagueId);
   };
   try {
     return await run(session);

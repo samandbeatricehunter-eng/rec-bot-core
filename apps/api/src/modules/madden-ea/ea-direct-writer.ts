@@ -116,6 +116,11 @@ export async function directWriteSchedule(
     const status = num(row, ["status", "gameStatus"]);
     const played = row.isGamePlayed === true || row.is_game_played === true;
     const scheduleId = num(row, ["scheduleId", "schedule_id"]);
+    // The Companion App's own Force Win/Force Away Win/Clear Forced Result calls target a game
+    // purely by this key ({leagueId, seasonGameKey}, no separate scheduleId/stageIndex/weekIndex
+    // fields at all) -- confirmed by decompiling the app's JS bundle. Captured here so those
+    // in-game admin actions (ea-admin-actions.service.ts) have it available per game.
+    const seasonGameKey = str(row, ["seasonGameKey", "season_game_key"]);
 
     // Determine if game is completed
     const completed = played || (status !== null && status > 1);
@@ -174,17 +179,17 @@ export async function directWriteSchedule(
     if (gameId) {
       await pool.query(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
-           import_verified=true, external_game_id=$6, updated_at=now()
+           import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key), updated_at=now()
          where id=$1`,
-        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId],
+        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
         `insert into rec_games
            (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
             status, source, import_verified, manual_entered, result_payout_eligible,
-            eos_payout_eligible, external_game_id, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,now())
+            eos_payout_eligible, external_game_id, ea_season_game_key, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,$10,now())
          on conflict (league_id, external_game_id) where external_game_id is not null do update set
            week_number=excluded.week_number,
            home_team_id=coalesce(excluded.home_team_id, rec_games.home_team_id),
@@ -195,10 +200,11 @@ export async function directWriteSchedule(
            phase=excluded.phase,
            source='madden_companion_export',
            import_verified=true,
+           ea_season_game_key=coalesce(excluded.ea_season_game_key, rec_games.ea_season_game_key),
            updated_at=now()
          returning id`,
         [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
-         completed ? "completed" : "scheduled", externalId],
+         completed ? "completed" : "scheduled", externalId, seasonGameKey],
       );
       gameId = gameRow.rows[0]?.id ?? null;
     }

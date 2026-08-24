@@ -13,6 +13,7 @@ import {
   eaRemoveAdmin,
   eaSubmitCareerResponse,
   eaToggleAutoPilot,
+  eaTransferAdmin,
   listForceableMatches,
 } from "./ea-admin-actions.service.js";
 
@@ -86,6 +87,16 @@ export async function eaAdminActionRoutes(app: FastifyInstance) {
       const body = teamBody.parse(request.body);
       const auth = await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
       return reply.send({ result: await eaRemoveAdmin(body.league_id, body.team_id, { source: "tool", actingDiscordId: auth.discordId }) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/madden/ea/admin/transfer-admin", async (request, reply) => {
+    try {
+      const body = teamBody.parse(request.body);
+      const auth = await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
+      return reply.send({ result: await eaTransferAdmin(body.league_id, body.team_id, { source: "tool", actingDiscordId: auth.discordId }) });
     } catch (error) {
       return sendError(reply, error);
     }

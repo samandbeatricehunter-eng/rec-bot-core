@@ -354,6 +354,8 @@ export const recApi = {
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/add-admin", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
   eaAdminRemoveAdmin: (input: { guildId: string; leagueId: string; teamId: string }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/remove-admin", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
+  eaAdminTransferAdmin: (input: { guildId: string; leagueId: string; teamId: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/transfer-admin", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId }) }),
   eaAdminForceHomeWin: (input: { guildId: string; leagueId: string; gameId: string }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/force-home-win", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, game_id: input.gameId }) }),
   eaAdminForceAwayWin: (input: { guildId: string; leagueId: string; gameId: string }) =>

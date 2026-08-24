@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot } from "lucide-react";
+import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot, ArrowRightLeft } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LinkedTeamRow } from "../../../types/api.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -263,6 +263,12 @@ export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props:
     render: (p) => <TeamActionPanel {...p} icon={<ShieldOff size={14} />} buttonLabel="Remove Admin"
       description="Revokes a team's owner's in-game commissioner/admin status. Also fires automatically when they're demoted from Co-Commish."
       run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />,
+  },
+  {
+    key: "transfer-admin", title: "Transfer Admin",
+    render: (p) => <TeamActionPanel {...p} icon={<ArrowRightLeft size={14} />} buttonLabel="Transfer Admin"
+      description="Transfers in-game franchise admin/commissioner status to a team's owner."
+      run={(teamId) => recApi.eaAdminTransferAdmin({ ...p, teamId })} />,
   },
   { key: "force-result", title: "Force Win / Clear Result", render: (p) => <ForceResultPanel {...p} /> },
   { key: "autopilot", title: "Toggle AutoPilot", render: (p) => <AutoPilotPanel {...p} /> },

@@ -508,6 +508,11 @@ async function sendBlazeRpc<T>(
     try {
       parsed = JSON.parse(stripControlCharacters(text));
     } catch {
+      // EA's gateway itself (as opposed to the Blaze app-level JSON error envelope) can reject
+      // with plain XML, e.g. <error><errorcode>401</errorcode><errormessage>...</errormessage></error>.
+      const xmlMessage = /<errormessage>([^<]*)<\/errormessage>/i.exec(text)?.[1]?.trim();
+      const xmlCode = /<errorcode>([^<]*)<\/errorcode>/i.exec(text)?.[1]?.trim();
+      if (xmlMessage) throw new BlazeSessionError(`${rpc.commandName}: ${xmlCode ? `${xmlCode} ` : ""}${xmlMessage}`);
       throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
     }
     if (parsed && typeof parsed === "object" && "error" in parsed) {
@@ -536,76 +541,6 @@ async function sendBlazeRpc<T>(
     workingComponentNameByBlazeId.set(session.blazeId, fallback);
     return result;
   }
-}
-
-// Direct-path dispatch, same wire format as sendExport below: raw payload as the body (no
-// Process envelope, no messageAuthData/componentId/commandId/componentName at all), POSTed to a
-// command-specific URL path. Every export (teams/standings/schedule/stats/rosters -- proven
-// reliable, used for every import) goes through this exact shape; sendBlazeRpc's generic
-// "Process" envelope is only proven for two read RPCs (GetMyLeagues/GetLeagueHub). Trying this
-// shape for the write-side admin commands is untested but structurally the most different lever
-// available: every previous attempt only varied fields *inside* the Process envelope, never
-// whether the envelope itself was the right mechanism.
-async function sendBlazeDirectAction<T>(
-  token: { accessToken: string; console: SystemConsole },
-  session: EaSessionCache,
-  commandName: string,
-  payload: Record<string, unknown>,
-): Promise<T> {
-  // First live test of the bare export shape (no auth data at all) got back a genuine HTTP-style
-  // "401 Request not authorized" (XML, distinct from every prior generic Process-envelope error)
-  // -- real evidence the direct URL path is a real, distinct, auth-checked endpoint, just missing
-  // credentials exports apparently don't need to supply. Flattened (not envelope-wrapped, unlike
-  // sendBlazeRpc) auth fields onto the payload as the next hypothesis.
-  const auth = calculateMessageAuthData(session.blazeId, session.requestId);
-  const body = {
-    ...payload,
-    messageAuthData: auth,
-    messageExpirationTime: Math.floor(Date.now() / 1000),
-    deviceId: MACHINE_KEY,
-    ipAddress: "127.0.0.1",
-  };
-  // The 401 persisted through a full session recreation (a fresh sessionKey, not just a retried
-  // request), so it isn't staleness -- something about this specific endpoint's authorization is
-  // missing regardless of session freshness. None of our other Blaze calls (reads or exports)
-  // ever send the OAuth access token as a header; they're identified purely by sessionKey in the
-  // URL. Testing whether this write endpoint specifically expects it as a Bearer header, the same
-  // way EA's own accounts/entitlements endpoints do (fetchEntitlements above).
-  let response: Awaited<ReturnType<typeof undiciFetch>>;
-  try {
-    response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${commandName}/${session.sessionKey}`, {
-      dispatcher: legacySslAgent,
-      method: "POST",
-      headers: { ...blazeHeaders(token.console), Authorization: `Bearer ${token.accessToken}` },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(EA_BLAZE_FETCH_TIMEOUT_MS),
-    });
-  } catch (error) {
-    if (isAbortTimeout(error)) throw new BlazeSessionError(`${commandName}: hung EA socket`);
-    throw error;
-  }
-  const text = await response.text();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripControlCharacters(text));
-  } catch {
-    // EA's gateway itself (as opposed to the Blaze app-level JSON error envelope) rejects with
-    // plain XML, e.g. <error><errorcode>401</errorcode><errormessage>...</errormessage></error>.
-    const xmlMessage = /<errormessage>([^<]*)<\/errormessage>/i.exec(text)?.[1]?.trim();
-    const xmlCode = /<errorcode>([^<]*)<\/errorcode>/i.exec(text)?.[1]?.trim();
-    if (xmlMessage) throw new BlazeSessionError(`${commandName}: ${xmlCode ? `${xmlCode} ` : ""}${xmlMessage}`);
-    throw new EaAuthError(`EA returned an unreadable response: ${text.slice(0, 300)}`, "Try again in a moment.");
-  }
-  if (parsed && typeof parsed === "object" && "error" in parsed) {
-    const errorPayload = (parsed as Record<string, unknown>).error;
-    if (blazeErrorString(errorPayload)?.trim().toLowerCase() === "restricted") {
-      throw new BlazeRestrictedError(
-        `EA is currently restricting access to ${commandName}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
-      );
-    }
-    throw new BlazeSessionError(JSON.stringify(errorPayload).slice(0, 400));
-  }
-  return parsed as T;
 }
 
 // ── Step 10: exports ──
@@ -730,19 +665,19 @@ export type EaClient = {
   getTeamStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
   getTeamRoster(leagueId: number, teamId: number, teamIndex: number): Promise<unknown>;
   getFreeAgents(leagueId: number): Promise<unknown>;
-  // ── In-game admin actions (write-side; commandId is always 0 for these). requestorUserId is
-  // the connected persona's own small EA user id (userAdminHubInfo key, NOT blazeId) -- the
-  // actor identity these commands need, resolved by ea-admin-actions.service.ts from
-  // rec_ea_connections.ea_own_user_id and passed in rather than computed here. ──
-  submitCareerResponse(leagueId: number, requestorUserId: string | null): Promise<unknown>;
-  clearCapPenalties(leagueId: number, teamId: number, requestorUserId: string | null): Promise<unknown>;
-  bootUser(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
-  addAdmin(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
-  removeAdmin(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
-  forceHomeWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
-  forceAwayWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
-  forceNoWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
-  toggleAutoPilot(leagueId: number, userId: string, weeks: number, requestorUserId: string | null): Promise<unknown>;
+  // ── In-game admin actions (write-side). Command names, componentId/commandId, and payload
+  // field names below are all confirmed by decompiling the official Companion App's own JS
+  // bundle (it's an Angular/Cordova app since Madden 24, unobfuscated) -- not guesses. ──
+  submitCareerResponse(leagueId: number): Promise<unknown>;
+  clearCapPenalties(leagueId: number, clearedUserId: string): Promise<unknown>;
+  bootUser(leagueId: number, bootedUserId: string): Promise<unknown>;
+  addAdmin(leagueId: number, newAdminUserId: string): Promise<unknown>;
+  removeAdmin(leagueId: number, newAdminUserId: string): Promise<unknown>;
+  transferAdmin(leagueId: number, newAdminUserId: string): Promise<unknown>;
+  forceHomeWin(leagueId: number, seasonGameKey: string): Promise<unknown>;
+  forceAwayWin(leagueId: number, seasonGameKey: string): Promise<unknown>;
+  forceNoWin(leagueId: number, seasonGameKey: string): Promise<unknown>;
+  toggleAutoPilot(leagueId: number, toggleAutoPilotUserId: string, actionTimeout: number): Promise<unknown>;
 };
 
 export function createEaClient(
@@ -815,30 +750,31 @@ export function createEaClient(
         returnFreeAgents: true,
         teamId: 0,
       }),
-    // These 8 write-side admin commands use sendBlazeDirectAction -- the same wire shape as
-    // every export below (raw payload, no Process envelope), dispatched to a command-specific
-    // URL path instead of the generic Process endpoint. requestorUserId is the caller-supplied
-    // small EA user id (userAdminHubInfo key, NOT session.blazeId -- a persistent 401 survived
-    // every credential variant tried using blazeId, so it's very likely the wrong id space for
-    // this specific field). Falls back to session.blazeId only if the caller has no resolved
-    // small id yet (e.g. league hub hasn't been re-fetched since this column was added).
-    submitCareerResponse: (leagueId, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_Career_SubmitResponse", { leagueId, requestorUserId: requestorUserId ?? session.blazeId }),
-    clearCapPenalties: (leagueId, teamId, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ClearCapPenalties", { leagueId, teamId, requestorUserId: requestorUserId ?? session.blazeId }),
-    bootUser: (leagueId, userId, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_BootUser", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
-    addAdmin: (leagueId, userId, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_AddAdmin", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
-    removeAdmin: (leagueId, userId, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_RemoveAdmin", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
-    forceHomeWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceHomeWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
-    forceAwayWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceAwayWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
-    forceNoWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceNoWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
-    toggleAutoPilot: (leagueId, userId, weeks, requestorUserId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ToggleAutoPilot", { leagueId, userId, weeks, requestorUserId: requestorUserId ?? session.blazeId }),
+    // These 9 write-side admin commands: commandName, componentId, commandId, componentName, and
+    // payload field names are all confirmed by decompiling the official Companion App's own JS
+    // bundle (Angular/Cordova, unobfuscated since Madden 24) -- specifically its buildBlazeBody()
+    // (same Process envelope as sendBlazeRpc above) and each feature component's actual
+    // blazeService.rpcRequest(...) call sites. No requestorUserId/"who's asking" field exists in
+    // any of these payloads -- the caller is identified purely by the session, same as every read.
+    submitCareerResponse: (leagueId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_Career_SubmitResponse", componentId: 2060, commandId: 824, requestPayload: { leagueId } }),
+    clearCapPenalties: (leagueId, clearedUserId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ClearCapPenalties", componentId: 2050, commandId: 9110, requestPayload: { leagueId, clearedUserId } }),
+    bootUser: (leagueId, bootedUserId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_BootUser", componentId: 2060, commandId: 844, requestPayload: { leagueId, bootedUserId } }),
+    addAdmin: (leagueId, newAdminUserId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_AddAdmin", componentId: 2060, commandId: 847, requestPayload: { leagueId, newAdminUserId } }),
+    removeAdmin: (leagueId, newAdminUserId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_RemoveAdmin", componentId: 2060, commandId: 848, requestPayload: { leagueId, newAdminUserId } }),
+    transferAdmin: (leagueId, newAdminUserId) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_TransferAdmin", componentId: 2060, commandId: 845, requestPayload: { leagueId, newAdminUserId } }),
+    forceHomeWin: (leagueId, seasonGameKey) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceHomeWin", componentId: 2060, commandId: 863, requestPayload: { leagueId, seasonGameKey } }),
+    forceAwayWin: (leagueId, seasonGameKey) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceAwayWin", componentId: 2060, commandId: 864, requestPayload: { leagueId, seasonGameKey } }),
+    forceNoWin: (leagueId, seasonGameKey) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceNoWin", componentId: 2060, commandId: 865, requestPayload: { leagueId, seasonGameKey } }),
+    toggleAutoPilot: (leagueId, toggleAutoPilotUserId, actionTimeout) =>
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ToggleAutoPilot", componentId: 2050, commandId: 9110, requestPayload: { leagueId, toggleAutoPilotUserId, actionTimeout } }),
   };
 }
