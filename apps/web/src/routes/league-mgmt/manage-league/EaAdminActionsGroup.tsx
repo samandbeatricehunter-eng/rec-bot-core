@@ -132,9 +132,9 @@ function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: st
         <select className="form-input" value={gameId} disabled={busy || !games.length}
           onChange={(event) => { setGameId(event.target.value); setChoice(""); }}>
           <option value="">
-            {games.length ? "Select a matchup" : loaded ? "No EA-imported games yet" : "Loading matchups…"}
+            {games.length ? "Select a matchup" : loaded ? "No EA-imported games for the current week yet" : "Loading matchups…"}
           </option>
-          {games.map((game) => <option key={game.gameId} value={game.gameId}>Week {game.weekNumber} — {game.awayTeamName} at {game.homeTeamName}</option>)}
+          {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}</option>)}
         </select>
       </label>
       {selectedGame && (

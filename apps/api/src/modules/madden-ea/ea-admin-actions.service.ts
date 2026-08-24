@@ -123,10 +123,12 @@ async function loadGameEaRef(leagueId: string, gameId: string): Promise<GameEaRe
 
 export type ForceableMatch = { gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string };
 
-/** Games this league has actually imported from EA -- the only ones Force Win/Clear Result can
- *  target, since loadGameEaRef needs an EA scheduleId parsed out of external_game_id. Scoped
- *  separately from the hub's matchup schedule (which shows every scheduled game regardless of
- *  import status) so the Tools-menu picker can't offer a matchup that's guaranteed to 409. */
+/** Games this league has actually imported from EA for the CURRENT week only -- the only ones
+ *  Force Win/Clear Result can target, since loadGameEaRef needs an EA scheduleId parsed out of
+ *  external_game_id, and a past week's result can't be force-changed. Scoped separately from the
+ *  hub's matchup schedule (which shows every scheduled game across every week regardless of
+ *  import status) so the Tools-menu picker can't offer a matchup that's guaranteed to 409 or
+ *  belongs to a week that's already over. */
 export async function listForceableMatches(leagueId: string): Promise<ForceableMatch[]> {
   const result = await getPgPool().query<{ id: string; week_number: number; away_name: string | null; home_name: string | null }>(
     `select g.id, g.week_number,
@@ -135,8 +137,9 @@ export async function listForceableMatches(leagueId: string): Promise<ForceableM
        from rec_games g
        left join rec_teams at on at.id = g.away_team_id
        left join rec_teams ht on ht.id = g.home_team_id
-      where g.league_id=$1 and g.external_game_id like 'ea:%'
-      order by g.week_number desc, away_name asc`,
+       inner join rec_leagues l on l.id = g.league_id
+      where g.league_id=$1 and g.external_game_id like 'ea:%' and g.week_number = l.current_week
+      order by away_name asc`,
     [leagueId],
   );
   return result.rows.map((row) => ({
