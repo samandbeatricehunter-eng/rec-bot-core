@@ -30,6 +30,12 @@ export type LeagueGame = "madden_26" | "madden_27" | "cfb_27" | string | null | 
 /** Number of separate advances the CFB Transfer Portal & Off-Season Recruiting window spans. */
 export const CFB_TRANSFER_PORTAL_ADVANCES = 4;
 
+/** Madden-only: the regular-season week the site starts showing a live projected NFL playoff
+ *  bracket ("if the season ended today"), well before the real postseason boundary (week 19,
+ *  wild_card). Purely a display threshold -- does not affect the actual regular season / wild
+ *  card boundary above. */
+export const NFL_PLAYOFF_PICTURE_START_WEEK = 12;
+
 export function isCfb(game: LeagueGame) {
   return game === "cfb_27";
 }
