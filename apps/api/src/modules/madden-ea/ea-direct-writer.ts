@@ -98,14 +98,6 @@ export async function directWriteSchedule(
   const rawRows = extractRows(rawEaData, "gameScheduleInfoList");
   const pool = getPgPool();
   let written = 0;
-  // Field-discovery only, not used programmatically -- verifying the exact seasonGameKey field
-  // name/type EA actually sends before relying on it for Force Win/Away/NoWin.
-  if (rawRows[0]) {
-    await pool.query(
-      `update rec_ea_connections set ea_schedule_sample_raw=$2::jsonb, updated_at=now() where league_id=$1`,
-      [leagueId, JSON.stringify(rawRows[0])],
-    ).catch((error) => console.error("[WARN] Failed to store raw schedule sample (non-fatal):", error));
-  }
   const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
     `select id, madden_team_id from rec_teams where league_id=$1`,
     [leagueId],
@@ -135,10 +127,12 @@ export async function directWriteSchedule(
     const played = row.isGamePlayed === true || row.is_game_played === true;
     const scheduleId = num(row, ["scheduleId", "schedule_id"]);
     // The Companion App's own Force Win/Force Away Win/Clear Forced Result calls target a game
-    // purely by this key ({leagueId, seasonGameKey}, no separate scheduleId/stageIndex/weekIndex
-    // fields at all) -- confirmed by decompiling the app's JS bundle. Captured here so those
-    // in-game admin actions (ea-admin-actions.service.ts) have it available per game.
-    const seasonGameKey = strOrNum(row, ["seasonGameKey", "season_game_key"]);
+    // purely by {leagueId, seasonGameKey} -- confirmed by decompiling the app's JS bundle. There
+    // is no "seasonGameKey" field on this export's rows at all (verified against a real captured
+    // sample); a separately-captured LeagueHub response confirmed seasonGameKey is numerically
+    // identical to this export's own scheduleId for the same game -- same id, different response,
+    // different field name. So it's just scheduleId, not a distinct value to look up elsewhere.
+    const seasonGameKey = scheduleId != null ? String(scheduleId) : null;
 
     // Determine if game is completed
     const completed = played || (status !== null && status > 1);
