@@ -562,6 +562,7 @@ async function sendBlazeRpc<T>(
         return result;
       } catch (error) {
         if (!(error instanceof BlazeSessionError)) throw error;
+        console.warn(`[EA admin] componentName candidate "${candidate}" failed for ${rpc.commandName}:`, error.message.slice(0, 300));
         lastError = error;
       }
     }
