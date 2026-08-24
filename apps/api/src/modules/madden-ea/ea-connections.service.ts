@@ -753,6 +753,14 @@ export async function importEaDatasetsWithProgress(
         [row.id, own.userId, own.isOwner],
       ).catch((error) => console.error("[WARN] Failed to store the connected persona's own EA user id (non-fatal):", error));
     }
+    // Field-discovery only, not used programmatically -- we've only ever typed a handful of
+    // fields off this structure (userName/team/isOwner/isCoach) based on guesses; storing the
+    // raw blob lets us inspect what EA actually sends (e.g. a real commissioner/permission
+    // field) directly via the database instead of needing a packet capture.
+    await getPgPool().query(
+      `update rec_ea_connections set ea_user_admin_hub_raw=$2::jsonb, updated_at=now() where id=$1`,
+      [row.id, JSON.stringify(info.userAdminHubInfo)],
+    ).catch((error) => console.error("[WARN] Failed to store raw userAdminHubInfo (non-fatal):", error));
   }
   if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
     throw new Error(
