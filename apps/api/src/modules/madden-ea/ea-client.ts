@@ -442,8 +442,14 @@ type BlazeRpc = {
   requestPayload: Record<string, unknown>;
   componentId?: number;
   /** Overrides the careermode/franchisemode component-name guessing below entirely -- for
-   *  commands that live under a different Blaze component than career/franchise mode. */
-  componentName?: string;
+   *  commands that live under a different Blaze component than career/franchise mode. Same
+   *  version-dependent-renaming problem as careermode/franchisemode applies here too (per
+   *  external confirmation: componentName resolution, not commandId, is what a 67606 actually
+   *  means, and "it isn't the same string across Madden versions"), so this is a candidate list
+   *  tried in order, not a single guess -- the first one EA accepts is cached per-family per
+   *  session and reused on subsequent calls.
+   */
+  componentNameCandidates?: string[];
 };
 
 // EA renamed the Blaze component from "careermode" to "franchisemode" for Madden 27, but
@@ -455,6 +461,16 @@ type BlazeRpc = {
 // stomp on each other's working component name mid-request.
 const COMPONENT_NAME_FALLBACK = BLAZE_COMPONENT_NAME === "careermode" ? "franchisemode" : "careermode";
 const workingComponentNameByBlazeId = new Map<number, string>();
+
+// Candidate componentName strings for the write-side admin commands, tried in order until one
+// doesn't 502. Includes careermode/franchisemode as a fallback in case these commands actually
+// share career mode's component rather than having their own -- our domain-guessed names
+// ("useradmin"/"gameschedule") were never confirmed, only the command names themselves were.
+const USER_ADMIN_COMPONENT_CANDIDATES = ["useradmin", "franchiseuseradmin", "careermode", "franchisemode"];
+const GAME_SCHEDULE_COMPONENT_CANDIDATES = ["gameschedule", "franchiseschedule", "careermode", "franchisemode"];
+// Keyed by `${blazeId}:${commandName}` -- the first componentName candidate that doesn't 502 for
+// a given write command, remembered per session so later calls skip straight to it.
+const workingCandidateComponentName = new Map<string, string>();
 
 /** Hung EA sockets used to freeze a whole import; snallabot only retries JSON ERR_TIMEOUT. */
 export const EA_BLAZE_FETCH_TIMEOUT_MS = 45_000;
@@ -529,9 +545,28 @@ async function sendBlazeRpc<T>(
     return parsed as T;
   };
 
-  // An explicit componentName means this command isn't part of the careermode/franchisemode
-  // ambiguity at all -- send it as-is, no fallback guessing.
-  if (rpc.componentName) return attempt(rpc.componentName);
+  // An explicit candidate list means this command isn't part of the careermode/franchisemode
+  // ambiguity at all -- try each candidate name in order (cheapest-first: whichever one already
+  // worked for this session/command), stopping at the first that doesn't produce a Blaze error.
+  if (rpc.componentNameCandidates?.length) {
+    const cacheKey = `${session.blazeId}:${rpc.commandName}`;
+    const remembered = workingCandidateComponentName.get(cacheKey);
+    const ordered = remembered
+      ? [remembered, ...rpc.componentNameCandidates.filter((name) => name !== remembered)]
+      : rpc.componentNameCandidates;
+    let lastError: unknown;
+    for (const candidate of ordered) {
+      try {
+        const result = await attempt(candidate);
+        workingCandidateComponentName.set(cacheKey, candidate);
+        return result;
+      } catch (error) {
+        if (!(error instanceof BlazeSessionError)) throw error;
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
 
   try {
     const result = await attempt(componentName);
@@ -752,37 +787,36 @@ export function createEaClient(
         returnFreeAgents: true,
         teamId: 0,
       }),
-    // These 8 write-side admin commands: commandId 0 (confirmed by someone who has these working
-    // live), no componentId (no real evidence for any specific value -- the one live 502 that
-    // echoed "component":2070 turned out to just be echoing whatever we sent, not independent
-    // confirmation). Newest untested lever: componentName. Every prior attempt reused
-    // "careermode"/"franchisemode" because that's the only component our reads have ever needed,
-    // but Mobile_UserAdmin_* and Mobile_GameSchedule_* are a different naming family from
-    // Mobile_Career_* entirely -- plausibly routed through their own Blaze components
-    // ("useradmin"/"gameschedule") rather than career mode's. Mobile_Career_SubmitResponse stays
-    // on the careermode/franchisemode guess since it shares the Mobile_Career_ prefix with the
-    // known-working GetLeagueHub read. Every payload also still carries
-    // `requestorUserId: session.blazeId` (the connected persona's own id, i.e. the commissioner
-    // running the action) -- unverified guess, along with every other field name here. If this
-    // also fails identically, remaining field names are the likely gap, and a real packet
-    // capture becomes the only way to narrow further with confidence.
+    // These 8 write-side admin commands: commandId is basically ignored by EA (confirmed
+    // externally -- a 502/67606 means the dispatched name didn't resolve, not a bad commandId),
+    // kept at 0 per the earlier separate confirmation it's the right value for someone with these
+    // working. componentId omitted (no evidence for any value -- our one live 502 that echoed
+    // "component":2070 was just echoing whatever we sent). The real lever is componentName: same
+    // version-dependent renaming problem as careermode/franchisemode (confirmed externally --
+    // "it isn't the same string across Madden versions"), so rather than one hardcoded guess,
+    // try a short candidate list per command family and let EA's response pick the winner
+    // (cached per session+command after the first success). Mobile_Career_SubmitResponse instead
+    // uses the existing careermode/franchisemode dual-attempt below unchanged, since it shares
+    // the Mobile_Career_ prefix with the known-working GetLeagueHub read. Every payload also
+    // still carries `requestorUserId: session.blazeId` (the connected persona's own id) --
+    // unverified guess, along with every other field name here.
     submitCareerResponse: (leagueId) =>
       sendBlazeRpc(token, session, { commandName: "Mobile_Career_SubmitResponse", commandId: 0, requestPayload: { leagueId, requestorUserId: session.blazeId } }),
     clearCapPenalties: (leagueId, teamId) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ClearCapPenalties", commandId: 0, componentName: "useradmin", requestPayload: { leagueId, teamId, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ClearCapPenalties", commandId: 0, componentNameCandidates: USER_ADMIN_COMPONENT_CANDIDATES, requestPayload: { leagueId, teamId, requestorUserId: session.blazeId } }),
     bootUser: (leagueId, userId) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_BootUser", commandId: 0, componentName: "useradmin", requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_BootUser", commandId: 0, componentNameCandidates: USER_ADMIN_COMPONENT_CANDIDATES, requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
     addAdmin: (leagueId, userId) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_AddAdmin", commandId: 0, componentName: "useradmin", requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_AddAdmin", commandId: 0, componentNameCandidates: USER_ADMIN_COMPONENT_CANDIDATES, requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
     removeAdmin: (leagueId, userId) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_RemoveAdmin", commandId: 0, componentName: "useradmin", requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_RemoveAdmin", commandId: 0, componentNameCandidates: USER_ADMIN_COMPONENT_CANDIDATES, requestPayload: { leagueId, userId, requestorUserId: session.blazeId } }),
     forceHomeWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceHomeWin", commandId: 0, componentName: "gameschedule", requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceHomeWin", commandId: 0, componentNameCandidates: GAME_SCHEDULE_COMPONENT_CANDIDATES, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
     forceAwayWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceAwayWin", commandId: 0, componentName: "gameschedule", requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceAwayWin", commandId: 0, componentNameCandidates: GAME_SCHEDULE_COMPONENT_CANDIDATES, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
     forceNoWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceNoWin", commandId: 0, componentName: "gameschedule", requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceNoWin", commandId: 0, componentNameCandidates: GAME_SCHEDULE_COMPONENT_CANDIDATES, requestPayload: { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId } }),
     toggleAutoPilot: (leagueId, userId, weeks) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ToggleAutoPilot", commandId: 0, componentName: "useradmin", requestPayload: { leagueId, userId, weeks, requestorUserId: session.blazeId } }),
+      sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ToggleAutoPilot", commandId: 0, componentNameCandidates: USER_ADMIN_COMPONENT_CANDIDATES, requestPayload: { leagueId, userId, weeks, requestorUserId: session.blazeId } }),
   };
 }
