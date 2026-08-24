@@ -37,6 +37,16 @@ export function str(row: Json, keys: string[]): string | null {
   return null;
 }
 
+/** Like str(), but also accepts a numeric value (EA sends some ID-shaped fields as numbers). */
+export function strOrNum(row: Json, keys: string[]): string | null {
+  for (const key of keys) {
+    const val = row[key];
+    if (typeof val === "string" && val.trim()) return val.trim();
+    if (typeof val === "number" && Number.isFinite(val)) return String(val);
+  }
+  return null;
+}
+
 function rowHash(row: Json): string {
   return createHash("sha1").update(JSON.stringify(row)).digest("hex").slice(0, 16);
 }
@@ -88,6 +98,14 @@ export async function directWriteSchedule(
   const rawRows = extractRows(rawEaData, "gameScheduleInfoList");
   const pool = getPgPool();
   let written = 0;
+  // Field-discovery only, not used programmatically -- verifying the exact seasonGameKey field
+  // name/type EA actually sends before relying on it for Force Win/Away/NoWin.
+  if (rawRows[0]) {
+    await pool.query(
+      `update rec_ea_connections set ea_schedule_sample_raw=$2::jsonb, updated_at=now() where league_id=$1`,
+      [leagueId, JSON.stringify(rawRows[0])],
+    ).catch((error) => console.error("[WARN] Failed to store raw schedule sample (non-fatal):", error));
+  }
   const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
     `select id, madden_team_id from rec_teams where league_id=$1`,
     [leagueId],
@@ -120,7 +138,7 @@ export async function directWriteSchedule(
     // purely by this key ({leagueId, seasonGameKey}, no separate scheduleId/stageIndex/weekIndex
     // fields at all) -- confirmed by decompiling the app's JS bundle. Captured here so those
     // in-game admin actions (ea-admin-actions.service.ts) have it available per game.
-    const seasonGameKey = str(row, ["seasonGameKey", "season_game_key"]);
+    const seasonGameKey = strOrNum(row, ["seasonGameKey", "season_game_key"]);
 
     // Determine if game is completed
     const completed = played || (status !== null && status > 1);
