@@ -565,12 +565,18 @@ async function sendBlazeDirectAction<T>(
     deviceId: MACHINE_KEY,
     ipAddress: "127.0.0.1",
   };
+  // The 401 persisted through a full session recreation (a fresh sessionKey, not just a retried
+  // request), so it isn't staleness -- something about this specific endpoint's authorization is
+  // missing regardless of session freshness. None of our other Blaze calls (reads or exports)
+  // ever send the OAuth access token as a header; they're identified purely by sessionKey in the
+  // URL. Testing whether this write endpoint specifically expects it as a Bearer header, the same
+  // way EA's own accounts/entitlements endpoints do (fetchEntitlements above).
   let response: Awaited<ReturnType<typeof undiciFetch>>;
   try {
     response = await undiciFetch(`${BLAZE_BASE_URL}/wal/mca/${commandName}/${session.sessionKey}`, {
       dispatcher: legacySslAgent,
       method: "POST",
-      headers: blazeHeaders(token.console),
+      headers: { ...blazeHeaders(token.console), Authorization: `Bearer ${token.accessToken}` },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(EA_BLAZE_FETCH_TIMEOUT_MS),
     });
