@@ -186,6 +186,32 @@ export function eaOwnerUserIdsFromHub(info: {
 }
 
 /**
+ * Resolves the CONNECTED persona's own EA user id (and whether EA's own data flags them as
+ * "isOwner", i.e. league owner/admin) by matching userInfoMap entries' gamertag against the
+ * persona's known display name. Distinct from eaOwnerUserIdsFromHub above, which maps
+ * teamId -> owner id for every team; this answers "which of those small user ids is *me*",
+ * needed as the requestor/actor identity on write-side Blaze admin commands (a different,
+ * much smaller id space than the persona's own blazeId).
+ */
+export function eaOwnUserIdFromHub(
+  info: { userAdminHubInfo?: { userInfoMap?: Record<string, EaHubUserInfo> | null } | null },
+  personaDisplayName: string | null,
+): { userId: string; isOwner: boolean } | null {
+  const userInfoMap = info.userAdminHubInfo?.userInfoMap;
+  if (!userInfoMap || typeof userInfoMap !== "object" || !personaDisplayName) return null;
+  const target = personaDisplayName.trim().toLowerCase();
+  if (!target) return null;
+  for (const [eaUserId, entry] of Object.entries(userInfoMap)) {
+    if (!entry || typeof entry !== "object") continue;
+    const username = normalizeImportedEaUsername(entry.userName);
+    if (username && username.trim().toLowerCase() === target) {
+      return { userId: eaUserId, isOwner: entry.isOwner === true };
+    }
+  }
+  return null;
+}
+
+/**
  * Pull player/game rows out of an EA export. Snallabot keeps the companion envelope
  * (`{ rosterInfoList: [...] }`); REC's team-roster fetch used to flatten that into a
  * bare array. `typeof [] === "object"`, so a helper that only looks for `envelopeKey`

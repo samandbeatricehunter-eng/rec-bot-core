@@ -730,16 +730,19 @@ export type EaClient = {
   getTeamStats(leagueId: number, stage: EaStage, weekIndex: number): Promise<unknown>;
   getTeamRoster(leagueId: number, teamId: number, teamIndex: number): Promise<unknown>;
   getFreeAgents(leagueId: number): Promise<unknown>;
-  // ── In-game admin actions (write-side; commandId is always 0 for these) ──
-  submitCareerResponse(leagueId: number): Promise<unknown>;
-  clearCapPenalties(leagueId: number, teamId: number): Promise<unknown>;
-  bootUser(leagueId: number, userId: string): Promise<unknown>;
-  addAdmin(leagueId: number, userId: string): Promise<unknown>;
-  removeAdmin(leagueId: number, userId: string): Promise<unknown>;
-  forceHomeWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
-  forceAwayWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
-  forceNoWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number): Promise<unknown>;
-  toggleAutoPilot(leagueId: number, userId: string, weeks: number): Promise<unknown>;
+  // ── In-game admin actions (write-side; commandId is always 0 for these). requestorUserId is
+  // the connected persona's own small EA user id (userAdminHubInfo key, NOT blazeId) -- the
+  // actor identity these commands need, resolved by ea-admin-actions.service.ts from
+  // rec_ea_connections.ea_own_user_id and passed in rather than computed here. ──
+  submitCareerResponse(leagueId: number, requestorUserId: string | null): Promise<unknown>;
+  clearCapPenalties(leagueId: number, teamId: number, requestorUserId: string | null): Promise<unknown>;
+  bootUser(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
+  addAdmin(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
+  removeAdmin(leagueId: number, userId: string, requestorUserId: string | null): Promise<unknown>;
+  forceHomeWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
+  forceAwayWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
+  forceNoWin(leagueId: number, scheduleId: number, stageIndex: EaStage, weekIndex: number, requestorUserId: string | null): Promise<unknown>;
+  toggleAutoPilot(leagueId: number, userId: string, weeks: number, requestorUserId: string | null): Promise<unknown>;
 };
 
 export function createEaClient(
@@ -812,31 +815,30 @@ export function createEaClient(
         returnFreeAgents: true,
         teamId: 0,
       }),
-    // These 8 write-side admin commands now use sendBlazeDirectAction -- the same wire shape as
-    // every export below (raw payload, no Process envelope/messageAuthData/componentId/
-    // commandId/componentName), dispatched to a command-specific URL path instead of the generic
-    // Process endpoint. Every prior attempt only varied fields *inside* the Process envelope
-    // (componentId, commandId, componentName) and got an identical error regardless -- a strong
-    // sign the envelope mechanism itself, not its contents, was the mismatch. Every payload still
-    // carries `requestorUserId: session.blazeId` (the connected persona's own id) -- unverified
-    // guess, along with every other field name here.
-    submitCareerResponse: (leagueId) =>
-      sendBlazeDirectAction(token, session, "Mobile_Career_SubmitResponse", { leagueId, requestorUserId: session.blazeId }),
-    clearCapPenalties: (leagueId, teamId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ClearCapPenalties", { leagueId, teamId, requestorUserId: session.blazeId }),
-    bootUser: (leagueId, userId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_BootUser", { leagueId, userId, requestorUserId: session.blazeId }),
-    addAdmin: (leagueId, userId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_AddAdmin", { leagueId, userId, requestorUserId: session.blazeId }),
-    removeAdmin: (leagueId, userId) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_RemoveAdmin", { leagueId, userId, requestorUserId: session.blazeId }),
-    forceHomeWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceHomeWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId }),
-    forceAwayWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceAwayWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId }),
-    forceNoWin: (leagueId, scheduleId, stageIndex, weekIndex) =>
-      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceNoWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: session.blazeId }),
-    toggleAutoPilot: (leagueId, userId, weeks) =>
-      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ToggleAutoPilot", { leagueId, userId, weeks, requestorUserId: session.blazeId }),
+    // These 8 write-side admin commands use sendBlazeDirectAction -- the same wire shape as
+    // every export below (raw payload, no Process envelope), dispatched to a command-specific
+    // URL path instead of the generic Process endpoint. requestorUserId is the caller-supplied
+    // small EA user id (userAdminHubInfo key, NOT session.blazeId -- a persistent 401 survived
+    // every credential variant tried using blazeId, so it's very likely the wrong id space for
+    // this specific field). Falls back to session.blazeId only if the caller has no resolved
+    // small id yet (e.g. league hub hasn't been re-fetched since this column was added).
+    submitCareerResponse: (leagueId, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_Career_SubmitResponse", { leagueId, requestorUserId: requestorUserId ?? session.blazeId }),
+    clearCapPenalties: (leagueId, teamId, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ClearCapPenalties", { leagueId, teamId, requestorUserId: requestorUserId ?? session.blazeId }),
+    bootUser: (leagueId, userId, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_BootUser", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
+    addAdmin: (leagueId, userId, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_AddAdmin", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
+    removeAdmin: (leagueId, userId, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_RemoveAdmin", { leagueId, userId, requestorUserId: requestorUserId ?? session.blazeId }),
+    forceHomeWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceHomeWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
+    forceAwayWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceAwayWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
+    forceNoWin: (leagueId, scheduleId, stageIndex, weekIndex, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_GameSchedule_ForceNoWin", { leagueId, scheduleId, stageIndex, weekIndex, requestorUserId: requestorUserId ?? session.blazeId }),
+    toggleAutoPilot: (leagueId, userId, weeks, requestorUserId) =>
+      sendBlazeDirectAction(token, session, "Mobile_UserAdmin_ToggleAutoPilot", { leagueId, userId, weeks, requestorUserId: requestorUserId ?? session.blazeId }),
   };
 }

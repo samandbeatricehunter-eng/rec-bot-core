@@ -53,7 +53,7 @@ async function runEaAdminCommand(
   targetDescription: string | null,
   requestPayload: Record<string, unknown>,
   ctx: AuditContext,
-  call: (client: EaClient, eaLeagueId: number) => Promise<unknown>,
+  call: (client: EaClient, eaLeagueId: number, ownUserId: string | null) => Promise<unknown>,
 ): Promise<unknown> {
   try {
     const result = await withEaAdminSession(leagueId, call);
@@ -154,61 +154,61 @@ export async function listForceableMatches(leagueId: string): Promise<ForceableM
 
 export async function eaSubmitCareerResponse(leagueId: string, ctx: AuditContext) {
   return runEaAdminCommand(leagueId, "Mobile_Career_SubmitResponse", null, {}, ctx,
-    (client, eaLeagueId) => client.submitCareerResponse(eaLeagueId));
+    (client, eaLeagueId, ownUserId) => client.submitCareerResponse(eaLeagueId, ownUserId));
 }
 
 export async function eaClearCapPenalties(leagueId: string, teamId: string, ctx: AuditContext) {
   const team = await loadTeam(leagueId, teamId);
   const maddenTeamId = requireMaddenTeamId(team);
   return runEaAdminCommand(leagueId, "Mobile_UserAdmin_ClearCapPenalties", team.name, { teamId: maddenTeamId }, ctx,
-    (client, eaLeagueId) => client.clearCapPenalties(eaLeagueId, maddenTeamId));
+    (client, eaLeagueId, ownUserId) => client.clearCapPenalties(eaLeagueId, maddenTeamId, ownUserId));
 }
 
 export async function eaBootUser(leagueId: string, teamId: string, ctx: AuditContext) {
   const team = await loadTeam(leagueId, teamId);
   const ownerUserId = requireOwnerUserId(team);
   return runEaAdminCommand(leagueId, "Mobile_UserAdmin_BootUser", team.name, { userId: ownerUserId }, ctx,
-    (client, eaLeagueId) => client.bootUser(eaLeagueId, ownerUserId));
+    (client, eaLeagueId, ownUserId) => client.bootUser(eaLeagueId, ownerUserId, ownUserId));
 }
 
 export async function eaAddAdmin(leagueId: string, teamId: string, ctx: AuditContext) {
   const team = await loadTeam(leagueId, teamId);
   const ownerUserId = requireOwnerUserId(team);
   return runEaAdminCommand(leagueId, "Mobile_UserAdmin_AddAdmin", team.name, { userId: ownerUserId }, ctx,
-    (client, eaLeagueId) => client.addAdmin(eaLeagueId, ownerUserId));
+    (client, eaLeagueId, ownUserId) => client.addAdmin(eaLeagueId, ownerUserId, ownUserId));
 }
 
 export async function eaRemoveAdmin(leagueId: string, teamId: string, ctx: AuditContext) {
   const team = await loadTeam(leagueId, teamId);
   const ownerUserId = requireOwnerUserId(team);
   return runEaAdminCommand(leagueId, "Mobile_UserAdmin_RemoveAdmin", team.name, { userId: ownerUserId }, ctx,
-    (client, eaLeagueId) => client.removeAdmin(eaLeagueId, ownerUserId));
+    (client, eaLeagueId, ownUserId) => client.removeAdmin(eaLeagueId, ownerUserId, ownUserId));
 }
 
 export async function eaForceHomeWin(leagueId: string, gameId: string, ctx: AuditContext) {
   const ref = await loadGameEaRef(leagueId, gameId);
   return runEaAdminCommand(leagueId, "Mobile_GameSchedule_ForceHomeWin", gameId,
     { scheduleId: ref.scheduleId, stageIndex: ref.stageIndex, weekIndex: ref.weekIndex }, ctx,
-    (client, eaLeagueId) => client.forceHomeWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex));
+    (client, eaLeagueId, ownUserId) => client.forceHomeWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex, ownUserId));
 }
 
 export async function eaForceAwayWin(leagueId: string, gameId: string, ctx: AuditContext) {
   const ref = await loadGameEaRef(leagueId, gameId);
   return runEaAdminCommand(leagueId, "Mobile_GameSchedule_ForceAwayWin", gameId,
     { scheduleId: ref.scheduleId, stageIndex: ref.stageIndex, weekIndex: ref.weekIndex }, ctx,
-    (client, eaLeagueId) => client.forceAwayWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex));
+    (client, eaLeagueId, ownUserId) => client.forceAwayWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex, ownUserId));
 }
 
 export async function eaForceNoWin(leagueId: string, gameId: string, ctx: AuditContext) {
   const ref = await loadGameEaRef(leagueId, gameId);
   return runEaAdminCommand(leagueId, "Mobile_GameSchedule_ForceNoWin", gameId,
     { scheduleId: ref.scheduleId, stageIndex: ref.stageIndex, weekIndex: ref.weekIndex }, ctx,
-    (client, eaLeagueId) => client.forceNoWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex));
+    (client, eaLeagueId, ownUserId) => client.forceNoWin(eaLeagueId, ref.scheduleId, ref.stageIndex, ref.weekIndex, ownUserId));
 }
 
 export async function eaToggleAutoPilot(leagueId: string, teamId: string, weeks: number, ctx: AuditContext) {
   const team = await loadTeam(leagueId, teamId);
   const ownerUserId = requireOwnerUserId(team);
   return runEaAdminCommand(leagueId, "Mobile_UserAdmin_ToggleAutoPilot", team.name, { userId: ownerUserId, weeks }, ctx,
-    (client, eaLeagueId) => client.toggleAutoPilot(eaLeagueId, ownerUserId, weeks));
+    (client, eaLeagueId, ownUserId) => client.toggleAutoPilot(eaLeagueId, ownerUserId, weeks, ownUserId));
 }

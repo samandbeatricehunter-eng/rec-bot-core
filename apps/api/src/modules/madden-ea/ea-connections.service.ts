@@ -41,6 +41,7 @@ import {
   extractEaEnvelopeRows,
   eaUsernamesFromHub,
   eaOwnerUserIdsFromHub,
+  eaOwnUserIdFromHub,
   parseDatasets,
   toIngestEnvelope,
   WEEKLY_DATASETS,
@@ -91,6 +92,8 @@ type EaConnectionRow = {
   ea_league_id: string | null;
   ea_league_name: string | null;
   ea_season_year: number | null;
+  ea_own_user_id: string | null;
+  ea_own_is_owner: boolean | null;
   enabled_datasets: string[] | null;
   auto_import: boolean;
   status: string;
@@ -262,7 +265,7 @@ async function loadEaConnectionByLeague(leagueId: string): Promise<EaConnectionR
  */
 export async function withEaAdminSession<T>(
   leagueId: string,
-  operation: (client: ReturnType<typeof createEaClient>, eaLeagueId: number) => Promise<T>,
+  operation: (client: ReturnType<typeof createEaClient>, eaLeagueId: number, ownUserId: string | null) => Promise<T>,
 ): Promise<T | null> {
   requireEaImportConfigured();
   const row = await loadEaConnectionByLeague(leagueId);
@@ -295,9 +298,12 @@ export async function withEaAdminSession<T>(
   }
 
   const eaLeagueId = Number(row.ea_league_id);
+  if (row.ea_own_user_id && row.ea_own_is_owner === false) {
+    console.warn(`[EA] Connected persona for league ${leagueId} resolves to EA user ${row.ea_own_user_id} but EA's own data does NOT flag them as isOwner -- admin commands may be rejected for lacking EA-recognized owner status, independent of any request-shape issue.`);
+  }
   const run = async (activeSession: EaSessionCache) => {
     const client = createEaClient({ accessToken: token.accessToken, console: token.console }, activeSession);
-    return operation(client, eaLeagueId);
+    return operation(client, eaLeagueId, row.ea_own_user_id);
   };
   try {
     return await run(session);
@@ -740,6 +746,13 @@ export async function importEaDatasetsWithProgress(
       console.error("[WARN] Failed to store imported EA gamertags (non-fatal):", error));
     await persistImportedEaOwnerUserIds(leagueId, eaOwnerUserIdsFromHub(info)).catch((error) =>
       console.error("[WARN] Failed to store imported EA owner user ids (non-fatal):", error));
+    const own = eaOwnUserIdFromHub(info, row.persona_display_name);
+    if (own) {
+      await getPgPool().query(
+        `update rec_ea_connections set ea_own_user_id=$2, ea_own_is_owner=$3, updated_at=now() where id=$1`,
+        [row.id, own.userId, own.isOwner],
+      ).catch((error) => console.error("[WARN] Failed to store the connected persona's own EA user id (non-fatal):", error));
+    }
   }
   if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
     throw new Error(
