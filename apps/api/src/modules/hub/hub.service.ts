@@ -243,6 +243,10 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
   await clearDiscordTeamIdentityForUsers({ leagueId: context.leagueId, guildId, userIds: [userId] });
   await syncLeagueRecruitingAd(context.leagueId);
 
+  const { eaBootUser } = await import("../madden-ea/ea-admin-actions.service.js");
+  await eaBootUser(context.leagueId, assignment.team_id, { source: "auto", actingDiscordId: discordId })
+    .catch((error) => console.error("[WARN] Failed to trigger EA BootUser for hub retirement (non-fatal):", error));
+
   return { ok: true };
 }
 
@@ -358,6 +362,12 @@ async function unlinkUserFromLeague(input: { leagueId: string; guildId: string; 
 
   await clearDiscordTeamIdentityForUsers({ leagueId: input.leagueId, guildId: input.guildId, userIds: [input.userId] });
   await syncLeagueRecruitingAd(input.leagueId);
+
+  if (assignment) {
+    const { eaBootUser } = await import("../madden-ea/ea-admin-actions.service.js");
+    await eaBootUser(input.leagueId, assignment.team_id, { source: "auto" })
+      .catch((error) => console.error("[WARN] Failed to trigger EA BootUser for league departure (non-fatal):", error));
+  }
 }
 
 /** Settings → Retire: commissioners leave the league (and Discord) after confirming. Head

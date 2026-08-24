@@ -317,6 +317,10 @@ export async function retireFromSiteLeague(input: {
   await clearDiscordTeamIdentityForUsers({ leagueId: input.leagueId, userIds: [input.recUserId] });
   await syncLeagueRecruitingAd(input.leagueId);
 
+  const { eaBootUser } = await import("../madden-ea/ea-admin-actions.service.js");
+  await eaBootUser(input.leagueId, assignment.team_id, { source: "auto", actingUserId: input.recUserId })
+    .catch((error) => console.error("[WARN] Failed to trigger EA BootUser for site retirement (non-fatal):", error));
+
   return { ok: true };
 }
 
