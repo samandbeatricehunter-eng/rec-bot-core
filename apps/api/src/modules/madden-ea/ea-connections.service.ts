@@ -759,6 +759,17 @@ export async function importEaDatasetsWithProgress(
       [row.id, JSON.stringify(info.userAdminHubInfo)],
     ).catch((error) => console.error("[WARN] Failed to store raw userAdminHubInfo (non-fatal):", error));
   }
+  // Field-discovery only, not used programmatically -- the Companion App's own Force Win reads
+  // seasonGameKey from LeagueHub's gameScheduleHubInfo.leagueSchedule, NOT from the
+  // WeeklySchedulesExport rec_games.ea_season_game_key was (wrongly) being sourced from. Storing
+  // the raw blob to find the real correlating fields before wiring up a backfill.
+  const gameScheduleHubInfo = (info as Record<string, unknown>).gameScheduleHubInfo;
+  if (gameScheduleHubInfo != null) {
+    await getPgPool().query(
+      `update rec_ea_connections set ea_game_schedule_hub_raw=$2::jsonb, updated_at=now() where id=$1`,
+      [row.id, JSON.stringify(gameScheduleHubInfo)],
+    ).catch((error) => console.error("[WARN] Failed to store raw gameScheduleHubInfo (non-fatal):", error));
+  }
   if (datasets.includes("rosters") && teamIdInfoList.length === 0) {
     throw new Error(
       "EA's league hub returned no teams for this franchise, so the roster import has nothing to fetch. " +
