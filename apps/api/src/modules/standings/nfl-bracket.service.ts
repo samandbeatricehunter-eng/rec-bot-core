@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { NFL_PLAYOFF_PICTURE_START_WEEK } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeNflStandings } from "./nfl-standings.service.js";
@@ -332,7 +333,7 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
   const teamSummary = (teamId: string): TeamSummary =>
     teamSummaryById.get(teamId) ?? { teamId, name: "Team", abbreviation: null, logoUrl: null, conference: "", division: "" };
 
-  const showBracket = currentWeek >= 12; // NFL_PLAYOFF_PICTURE_START_WEEK, kept as a literal here to avoid a cross-package import for one constant
+  const showBracket = currentWeek >= NFL_PLAYOFF_PICTURE_START_WEEK;
   const isLiveProjection = currentWeek < ROUND_WEEK.wild_card;
 
   const conferences = standings.conferences.map((c) => ({
