@@ -4,8 +4,6 @@ import {
   ButtonStyle,
   EmbedBuilder,
   ModalBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
@@ -25,7 +23,6 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   homeWinPrefix: "rec:advance_wizard:home",
   awayWinPrefix: "rec:advance_wizard:away",
   tiePrefix: "rec:advance_wizard:tie",
-  divisionWinnerSelectPrefix: "rec:advance_wizard:division_winner",
   cancelPrefix: "rec:advance_wizard:cancel",
   scoreModalPrefix: "rec:advance_wizard:score_modal",
   scoreAwayInput: "rec:advance_wizard:score_away",
@@ -53,17 +50,6 @@ type AdvanceWizardSession = {
   gameIndex: number;
   results: Array<{ gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }>;
   pendingOutcome: "home" | "away" | "tie" | null;
-  divisions: DivisionWinnerGroup[];
-  divisionIndex: number;
-  divisionWinners: Array<{ divisionKey: string; teamId: string }>;
-};
-
-type DivisionWinnerGroup = {
-  key: string;
-  label: string;
-  conference: string;
-  division: string;
-  teams: Array<{ id: string; name: string; abbreviation?: string | null }>;
 };
 
 const sessions = new Map<string, AdvanceWizardSession>();
@@ -106,90 +92,11 @@ function renderWizardStep(session: AdvanceWizardSession) {
   };
 }
 
-function needsDivisionWinnerStep(session: Pick<AdvanceWizardSession, "currentStage" | "currentWeek" | "nextSeasonStage">) {
-  return session.currentStage === "regular_season" && session.currentWeek >= 18 && session.nextSeasonStage === "wild_card";
-}
-
-function renderDivisionWinnerStep(session: AdvanceWizardSession) {
-  const division = session.divisions[session.divisionIndex];
-  if (!division) {
-    return {
-      embeds: [new EmbedBuilder().setTitle("Division Winners").setDescription("All division winners selected. Saving and advancing...")],
-      components: [],
-    };
-  }
-
-  const selectedLines = session.divisionWinners
-    .map((winner) => {
-      const group = session.divisions.find((d) => d.key === winner.divisionKey);
-      const team = group?.teams.find((t) => t.id === winner.teamId);
-      return `- ${group?.label ?? winner.divisionKey}: **${team?.name ?? "Selected"}**`;
-    });
-
-  const suffix = `:${session.guildId}:${session.userId}`;
-  const selected = session.divisionWinners.find((winner) => winner.divisionKey === division.key)?.teamId;
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.divisionWinnerSelectPrefix}${suffix}`)
-    .setPlaceholder(`Select ${division.label} winner`)
-    .addOptions(
-      division.teams.slice(0, 25).map((team) =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(team.name.slice(0, 100))
-          .setDescription((team.abbreviation ?? division.label).slice(0, 100))
-          .setValue(team.id)
-          .setDefault(team.id === selected),
-      ),
-    );
-
-  return {
-    embeds: [new EmbedBuilder()
-      .setTitle(`Division Winners - ${session.divisionIndex + 1} of ${session.divisions.length}`)
-      .setDescription([
-        `Select the **${division.label}** winner before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.`,
-        "",
-        selectedLines.length ? selectedLines.join("\n") : "No division winners selected yet.",
-      ].join("\n"))],
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.cancelPrefix}${suffix}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
-  };
-}
-
-async function enterDivisionWinnerStepOrComplete(
-  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
-  session: AdvanceWizardSession,
-  buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[],
-) {
-  if (needsDivisionWinnerStep(session)) {
-    const payload = await recApi.getDivisionWinnerOptions(session.guildId);
-    session.divisions = (payload.divisions ?? []).filter((division: DivisionWinnerGroup) => (division.teams ?? []).length > 1);
-    session.divisionIndex = 0;
-    session.divisionWinners = [];
-    if (session.divisions.length) {
-      sessions.set(sessionKey(session.guildId, session.userId), session);
-      return interaction.editReply(renderDivisionWinnerStep(session));
-    }
-  }
-  return completeAdvanceFromSession(interaction, session, buildAdvanceRows);
-}
-
 async function completeAdvanceFromSession(
   interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   session: AdvanceWizardSession,
   _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[],
 ) {
-  if (needsDivisionWinnerStep(session) && session.divisionWinners.length) {
-    await recApi.saveDivisionWinners({
-      guildId: session.guildId,
-      seasonNumber: session.seasonNumber,
-      selectedByDiscordId: interaction.user.id,
-      winners: session.divisionWinners,
-    });
-  }
-
   await interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Saving display results and advancing the league week.")],
     components: [],
@@ -320,16 +227,13 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
     gameIndex: 0,
     results: [],
     pendingOutcome: null,
-    divisions: [],
-    divisionIndex: 0,
-    divisionWinners: [],
   };
 
   sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
 
   if (!pendingGames.length) {
     sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
-    return enterDivisionWinnerStepOrComplete(interaction, session, buildAdvanceRows);
+    return completeAdvanceFromSession(interaction, session, buildAdvanceRows);
   }
 
   return interaction.editReply(renderWizardStep(session));
@@ -410,35 +314,6 @@ export async function handleAdvanceWizardScoreModal(interaction: ModalSubmitInte
   if (session.gameIndex < session.pendingGames.length) {
     sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
     return interaction.editReply(renderWizardStep(session));
-  }
-
-  return enterDivisionWinnerStepOrComplete(interaction, session, buildAdvanceRows);
-}
-
-export async function handleAdvanceWizardDivisionWinnerSelect(
-  interaction: StringSelectMenuInteraction,
-  buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[],
-) {
-  if (!interaction.inCachedGuild()) return;
-  const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
-  if (!session) {
-    return interaction.reply({ content: "Advance session expired. Reopen League Mgmt > Advance.", ephemeral: true });
-  }
-
-  const division = session.divisions[session.divisionIndex];
-  const teamId = interaction.values[0];
-  if (!division || !teamId) return interaction.reply({ content: "Division winner selection was invalid.", ephemeral: true });
-
-  await interaction.deferUpdate();
-  session.divisionWinners = [
-    ...session.divisionWinners.filter((winner) => winner.divisionKey !== division.key),
-    { divisionKey: division.key, teamId },
-  ];
-  session.divisionIndex += 1;
-
-  if (session.divisionIndex < session.divisions.length) {
-    sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
-    return interaction.editReply(renderDivisionWinnerStep(session));
   }
 
   return completeAdvanceFromSession(interaction, session, buildAdvanceRows);

@@ -417,9 +417,6 @@ export type GotwCandidate = {
   isRivalry: boolean; rivalryName: string | null;
   breakdown: GotwCandidateBreakdown; score: number; recommended: boolean;
 };
-export type DivisionWinnerOption = { key: string; conference: string; division: string; label: string; teams: { id: string; name: string; abbreviation: string | null }[] };
-export type DivisionWinnerOptions = { league: { id: string; seasonNumber: number }; divisions: DivisionWinnerOption[] };
-
 export type RecPayoutTier = "S" | "A" | "B" | "C" | "D";
 export type RecTierProgress = {
   currentTier: RecPayoutTier | null;

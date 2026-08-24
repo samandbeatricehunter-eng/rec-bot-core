@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
+import { completeAdvanceWeek, getAdvanceWeekGames, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
@@ -340,35 +340,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.submittedByDiscordId = auth.discordId;
       return reply.send(await recordManualGameResult(body));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/division-winner-options", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send(await getDivisionWinnerOptions(body.guildId));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/division-winners", async (request, reply) => {
-    try {
-      const body = z.object({
-        guildId: z.string().min(1),
-        seasonNumber: z.number().int().min(1),
-        selectedByDiscordId: z.string().min(1),
-        winners: z.array(z.object({
-          divisionKey: z.string().min(1),
-          teamId: z.string().uuid(),
-        })).min(1),
-      }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      if (auth.mode === "user") body.selectedByDiscordId = auth.discordId;
-      return reply.send(await saveDivisionWinners(body));
     } catch (error) {
       return sendError(reply, error);
     }

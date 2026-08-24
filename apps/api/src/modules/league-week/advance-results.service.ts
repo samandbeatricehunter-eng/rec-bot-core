@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -342,23 +342,17 @@ async function postWeeklyFinalResultsRecap(input: { guildId: string; leagueId: s
   return { posted: true, games: rows.length };
 }
 
-function ordinal(value: number): string {
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
-  return `${value}${value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th"}`;
-}
-
-/** Publishes the Madden playoff race from Week 16 onward. Imported EA seeds are the
- * authority when available; the stored season seed table remains authoritative once
- * commissioners lock the bracket. Postseason rounds use the actual next-week schedule,
- * which naturally preserves NFL reseeding instead of trying to predict future pairings. */
+/** Pings the league that this week's NFL playoff picture is live from Week 12 onward.
+ * The actual seeds/matchups are computed live by computeNflStandings/getNflPlayoffPicture
+ * (standings/nfl-standings.service.ts, nfl-bracket.service.ts) and rendered on the site's
+ * playoff bracket page -- this just posts a link-out rather than re-rendering that same
+ * live-reseeding data as static Discord text a second time. */
 async function publishMaddenPlayoffPicture(input: {
   guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; seasonStage: string; game: string;
 }) {
   if (!input.game.startsWith("madden")) return;
-  const isRaceWeek = input.seasonStage === "regular_season" && input.weekNumber >= 16 && input.weekNumber <= 18;
   const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(input.seasonStage);
-  if (!isRaceWeek && !isPostseason) return;
+  if (input.weekNumber < NFL_PLAYOFF_PICTURE_START_WEEK && !isPostseason) return;
 
   const primaryAngle = `playoff_picture_${input.seasonStage}_${input.weekNumber}`;
   const existing = await supabase.from("rec_game_stories").select("id").eq("league_id", input.leagueId)
@@ -366,66 +360,11 @@ async function publishMaddenPlayoffPicture(input: {
   if (existing.error) throw existing.error;
   if (existing.data?.length) return;
 
-  const [teams, fixedSeeds, importedSeeds] = await Promise.all([
-    supabase.from("rec_teams").select("id,name,display_nick,display_city,is_relocated,conference").eq("league_id", input.leagueId),
-    supabase.from("rec_season_team_seeds").select("team_id,conference,seed,made_playoffs,division_winner")
-      .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber),
-    supabase.from("rec_team_standings_snapshots").select("team_id,conference_name,playoff_seed,made_playoffs,week_number,updated_at")
-      .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber)
-      .order("week_number", { ascending: false }).order("updated_at", { ascending: false }),
-  ]);
-  if (teams.error || fixedSeeds.error || importedSeeds.error) throw teams.error ?? fixedSeeds.error ?? importedSeeds.error;
-  const teamById = new Map<string, any>((teams.data ?? []).map((team: any) => [String(team.id), team]));
-  const importedByTeam = new Map<string, any>();
-  for (const row of importedSeeds.data ?? []) if (!importedByTeam.has(String(row.team_id))) importedByTeam.set(String(row.team_id), row);
-  const fixedByTeam = new Map<string, any>((fixedSeeds.data ?? []).map((row: any) => [String(row.team_id), row]));
-  const seeded = [...teamById.keys()].map((teamId) => {
-    const fixed = fixedByTeam.get(teamId);
-    const imported = importedByTeam.get(teamId);
-    const team = teamById.get(teamId);
-    const seed = Number(fixed?.seed ?? imported?.playoff_seed ?? 0);
-    const conference = String(fixed?.conference ?? imported?.conference_name ?? team?.conference ?? "").toUpperCase();
-    return { teamId, team, seed, conference, madePlayoffs: Boolean(fixed?.made_playoffs ?? imported?.made_playoffs ?? seed > 0) };
-  }).filter((row) => row.seed > 0 && row.madePlayoffs && (row.conference.includes("AFC") || row.conference.includes("NFC")));
-  const seedLabel = (teamId: string) => {
-    const row = seeded.find((item) => item.teamId === teamId);
-    const team = teamById.get(teamId);
-    const name = formatTeamDisplayName(team) ?? "TBD";
-    return row ? `${name} (${ordinal(row.seed)} Seed - ${row.conference.includes("AFC") ? "AFC" : "NFC"})` : name;
-  };
-
-  const sections: string[] = [];
-  if (seeded.length) {
-    for (const conference of ["AFC", "NFC"]) {
-      const rows = seeded.filter((row) => row.conference.includes(conference)).sort((a, b) => a.seed - b.seed);
-      if (rows.length) sections.push(`**${conference} Playoff Field**\n${rows.map((row) => `${row.seed}. ${seedLabel(row.teamId)}`).join("\n")}`);
-    }
-  }
-
-  if (isRaceWeek && seeded.length) {
-    const projected: string[] = [];
-    for (const conference of ["AFC", "NFC"]) {
-      const rows = seeded.filter((row) => row.conference.includes(conference));
-      const bySeed = new Map(rows.map((row) => [row.seed, row]));
-      const bye = bySeed.get(1);
-      if (bye) projected.push(`• ${seedLabel(bye.teamId)} — first-round bye`);
-      for (const [high, low] of [[2, 7], [3, 6], [4, 5]] as const) {
-        const home = bySeed.get(high); const away = bySeed.get(low);
-        if (home && away) projected.push(`• ${seedLabel(away.teamId)} at ${seedLabel(home.teamId)}`);
-      }
-    }
-    if (projected.length) sections.push(`**Projected Wild Card Matchups**\n${projected.join("\n")}`);
-  } else if (isPostseason) {
-    const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
-    const games = await leagueWeekGamesQuery(supabase, { leagueId: input.leagueId, seasonId, weekNumber: input.weekNumber }, "id,away_team_id,home_team_id");
-    if (games.error) throw games.error;
-    const matchupLines = (games.data ?? []).map((game: any) => `• ${seedLabel(String(game.away_team_id))} at ${seedLabel(String(game.home_team_id))}`);
-    if (matchupLines.length) sections.push(`**${stageLabel(input.seasonStage, input.weekNumber, input.game)} Matchups**\n${matchupLines.join("\n")}`);
-  }
-  if (!sections.length) sections.push("The playoff field is still being finalized. Updated seeds and matchups will appear as soon as the league data confirms them.");
-
-  const headline = isRaceWeek ? `Week ${input.weekNumber} NFL Playoff Picture` : `${stageLabel(input.seasonStage, input.weekNumber, input.game)} Playoff Bracket Update`;
-  const body = `${sections.join("\n\n")}\n\nNFL format: seven teams per conference, the No. 1 seed receives the first-round bye, and each conference is reseeded after every round.`;
+  const headline = isPostseason
+    ? `${stageLabel(input.seasonStage, input.weekNumber, input.game)} Playoff Bracket Update`
+    : `Week ${input.weekNumber} NFL Playoff Picture`;
+  const siteUrl = process.env.REC_SITE_URL ?? "https://rec-leagues.com";
+  const body = `This week's NFL Playoff Picture is live and reseeds automatically as results come in — check the bracket on the site: ${siteUrl}/l/${input.leagueId}/mgmt/playoff-bracket`;
   await publishTransitionStory({ guildId: input.guildId, headline, body, primaryAngle, storyType: "article" });
   await recordHubAnnouncement({ guildId: input.guildId, title: headline, body });
 }
@@ -1250,109 +1189,6 @@ export async function completeAdvanceWeek(input: {
     weekNumber: nextTarget.weekNumber,
   }).catch((error) => console.error("[WARN] Failed to refresh box-score channel after advance:", error));
   return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), nextAdvanceLabel, wagerCleanup };
-}
-
-export async function getDivisionWinnerOptions(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const seasonNumber = resolveSeasonNumber(context);
-
-  const { data: teams, error } = await supabase
-    .from("rec_teams")
-    .select("id,name,abbreviation,display_city,display_nick,is_relocated,conference,division")
-    .eq("league_id", context.leagueId)
-    .order("conference", { ascending: true })
-    .order("division", { ascending: true })
-    .order("name", { ascending: true });
-  if (error) throw new ApiError(500, "We couldn't load teams for division winner selection. Please try again.", error);
-
-  const divisions = new Map<string, any>();
-  for (const team of teams ?? []) {
-    const conference = String(team.conference ?? "Conference");
-    const division = String(team.division ?? "Division");
-    const key = `${conference}:${division}`;
-    const existing = divisions.get(key) ?? {
-      key,
-      conference,
-      division,
-      label: `${conference} ${division}`.trim(),
-      teams: [],
-    };
-    existing.teams.push({
-      id: team.id,
-      name: formatTeamDisplayName(team) ?? team.name ?? team.abbreviation ?? "Team",
-      abbreviation: team.abbreviation ?? null,
-    });
-    divisions.set(key, existing);
-  }
-
-  return { league: { id: context.leagueId, seasonNumber }, divisions: [...divisions.values()] };
-}
-
-export async function saveDivisionWinners(input: {
-  guildId: string;
-  seasonNumber: number;
-  selectedByDiscordId: string;
-  winners: Array<{ divisionKey: string; teamId: string }>;
-}) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const now = new Date().toISOString();
-  const requested = new Map(input.winners.map((winner) => [winner.divisionKey, winner.teamId]));
-  if (!requested.size) throw new ApiError(400, "Select at least one division winner.");
-
-  const teamIds = [...new Set(input.winners.map((winner) => winner.teamId))];
-  const { data: teams, error: teamsError } = await supabase
-    .from("rec_teams")
-    .select("id,name,abbreviation,conference,division")
-    .eq("league_id", context.leagueId)
-    .in("id", teamIds);
-  if (teamsError) throw new ApiError(500, "We couldn't validate division winners. Please try again.", teamsError);
-
-  const teamsById = new Map<string, any>((teams ?? []).map((team: any) => [team.id, team]));
-  const seedRows: Array<Record<string, unknown>> = [];
-  for (const [divisionKey, teamId] of requested.entries()) {
-    const team = teamsById.get(teamId);
-    if (!team) throw new ApiError(400, "One selected division winner is not in this league.");
-    const expectedKey = `${team.conference ?? "Conference"}:${team.division ?? "Division"}`;
-    if (expectedKey !== divisionKey) {
-      throw new ApiError(400, `${team.name ?? team.abbreviation ?? "Selected team"} is not in ${divisionKey.replace(":", " ")}.`);
-    }
-    seedRows.push({
-      league_id: context.leagueId,
-      season_number: input.seasonNumber,
-      team_id: teamId,
-      conference: team.conference ?? null,
-      division_name: team.division ?? null,
-      division_winner: true,
-      made_playoffs: true,
-      updated_at: now,
-    });
-  }
-
-  await supabase
-    .from("rec_season_team_seeds")
-    .update({ division_winner: false, updated_at: now })
-    .eq("league_id", context.leagueId)
-    .eq("season_number", input.seasonNumber)
-    .then(({ error }) => {
-      if (error) throw new ApiError(500, "We couldn't clear previous division winners. Please try again.", error);
-    });
-
-  const upsert = await supabase
-    .from("rec_season_team_seeds")
-    .upsert(seedRows, { onConflict: "league_id,season_number,team_id" })
-    .select("team_id,conference,division_name,division_winner");
-  if (upsert.error) throw new ApiError(500, "We couldn't save division winners. Please try again.", upsert.error);
-
-  // Division standings/seeding is still real structure for Madden's playoff bracket
-  // (rec_season_team_seeds.division_winner/made_playoffs above) — only the badge that
-  // used to piggyback on this selection is gone: the new badge set replaces
-  // division_champion with conf_champion/div_champion, which are earned automatically
-  // by actually winning the conference-championship/divisional-round game (see
-  // reigningChampionBadges in box-score-intelligence/persistence.ts), not hand-picked
-  // by a commissioner here.
-  return {
-    saved: upsert.data ?? [],
-  };
 }
 
 export async function listAdvanceGameStories(input: {
