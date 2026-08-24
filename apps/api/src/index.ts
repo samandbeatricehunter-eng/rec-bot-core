@@ -99,11 +99,17 @@ setInterval(() => {
 // Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data every
 // 4 hours instead of waiting for a commissioner to click "Import Now," which also keeps each
 // connection's session active so EA's ten-day-inactivity refresh_token expiry never gets hit.
-setInterval(() => {
+// setInterval alone only fires after the first 4-hour period elapses, so a league whose sweep
+// window keeps getting reset by a redeploy (routine on this platform) could go long stretches
+// without ever actually running — run once at boot too, same as the other sweeps' effectively
+// immediate first tick from their much shorter (60s) intervals.
+function runEaAutoImportSweep() {
   runAutoImportSweep()
     .then((result) => { if (result.attempted) app.log.info(result, "EA auto-import sweep completed"); })
     .catch((error) => app.log.error({ err: error }, "EA auto-import sweep failed"));
-}, 4 * 60 * 60_000).unref();
+}
+runEaAutoImportSweep();
+setInterval(runEaAutoImportSweep, 4 * 60 * 60_000).unref();
 
 // One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
 // were written directly in Supabase), backfill open-league embeds once on boot.
