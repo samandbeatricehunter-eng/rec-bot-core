@@ -78,7 +78,7 @@ export function TroubleshootModal({
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <ToolGroup label="Discord">
-          <CollapsibleSection title="Roles & Nicknames" defaultOpen>
+          <CollapsibleSection title="Roles & Nicknames">
             <DiscordRolesPanel guildId={guildId} />
           </CollapsibleSection>
         </ToolGroup>

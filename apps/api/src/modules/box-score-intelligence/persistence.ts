@@ -95,17 +95,27 @@ async function loadPerformanceTagNotes(gameId: string, winnerTeamId: string | nu
   return { notes, headline: bestStandout?.text ?? null };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function processGameIntelligence(sub: SubmissionRow, options?: { postToDiscord?: boolean }): Promise<void> {
   const gameId = sub.game_id ?? null;
   const leagueGame = await loadLeagueGame(sub.league_id);
 
-  // Look up team-game-stats rows by submission_id first (box-score path). If none found,
-  // fall back to game_id — EA-imported stats have submission_id=null but game_id is set.
-  let { data: rows, error } = await supabase
-    .from("rec_team_game_stats")
-    .select("*")
-    .eq("submission_id", sub.id);
-  if (error) throw error;
+  // Look up team-game-stats rows by submission_id first (box-score path). If none found, fall
+  // back to game_id — EA-imported stats have submission_id=null but game_id is set. EA-import
+  // callers pass a synthetic non-UUID sub.id (e.g. "ea-import-<gameId>") just to satisfy this
+  // type's shape, since there's no real submission row for an EA-imported game — querying
+  // submission_id with that string against a uuid column throws "invalid input syntax for type
+  // uuid" instead of the empty result the fallback logic expects, so skip straight past it.
+  let rows: unknown[] | null = null;
+  if (UUID_RE.test(sub.id)) {
+    const bySubmission = await supabase
+      .from("rec_team_game_stats")
+      .select("*")
+      .eq("submission_id", sub.id);
+    if (bySubmission.error) throw bySubmission.error;
+    rows = bySubmission.data;
+  }
   if ((!rows || rows.length === 0) && gameId) {
     const fallback = await supabase
       .from("rec_team_game_stats")
