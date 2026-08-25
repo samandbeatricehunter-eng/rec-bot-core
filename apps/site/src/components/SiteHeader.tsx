@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
@@ -8,6 +8,7 @@ import { ProfileChip } from "./ProfileChip.js";
 import { TeamLogo } from "@rec/hub-ui";
 import { IconChevronDown, IconGear, IconHome, IconLeagues, IconComp } from "./icons.js";
 import { LeagueRow3 } from "./LeagueRow3.js";
+import { useHeaderMenu } from "./HeaderMenu.js";
 
 function sortLeagues(leagues: SiteLeagueSummary[]) {
   const rank = (league: SiteLeagueSummary) => {
@@ -27,25 +28,8 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
 function HeaderRow1() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [gearOpen, setGearOpen] = useState(false);
+  const { triggerRef, open: gearOpen, setOpen: setGearOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const [signOutBusy, setSignOutBusy] = useState(false);
-
-  useEffect(() => {
-    if (!gearOpen) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setGearOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setGearOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [gearOpen]);
 
   async function handleSignOut() {
     setSignOutBusy(true);
@@ -63,22 +47,17 @@ function HeaderRow1() {
       <div className="site-header-row1-end">
         <ProfileChip />
         <NotificationsBell />
-        <div className="site-header-gear" ref={rootRef}>
-          <button type="button" className="site-header-icon-btn" aria-label="Settings" aria-expanded={gearOpen} onClick={() => setGearOpen((v) => !v)}>
+        <div className="site-header-gear">
+          <button ref={triggerRef} type="button" className="site-header-icon-btn" aria-label="Settings" aria-expanded={gearOpen} onClick={() => setGearOpen((v) => !v)}>
             <IconGear />
           </button>
-          {gearOpen ? (
-            <>
-              <button type="button" className="site-account-menu-backdrop" aria-label="Close menu" onClick={() => setGearOpen(false)} />
-              <div className="site-header-dropdown-panel" role="menu">
-                <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/account"); }}>My Account</button>
-                <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/help"); }}>Help / FAQ</button>
-                <button type="button" role="menuitem" className="site-account-menu-item is-danger" disabled={signOutBusy} onClick={() => void handleSignOut()}>
-                  {signOutBusy ? "Signing out…" : "Sign Out"}
-                </button>
-              </div>
-            </>
-          ) : null}
+          <Panel className="site-header-dropdown-panel" role="menu">
+            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/account"); }}>My Account</button>
+            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/help"); }}>Help / FAQ</button>
+            <button type="button" role="menuitem" className="site-account-menu-item is-danger" disabled={signOutBusy} onClick={() => void handleSignOut()}>
+              {signOutBusy ? "Signing out…" : "Sign Out"}
+            </button>
+          </Panel>
         </div>
       </div>
     </div>
@@ -90,19 +69,9 @@ function HeaderRow2() {
   const hub = useHub();
   const navigate = useNavigate();
   const location = useLocation();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const leagues = sortLeagues(hub.leagues);
   const selected = hub.selectedLeague;
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
 
   function chooseLeague(league: SiteLeagueSummary) {
     setOpen(false);
@@ -117,8 +86,8 @@ function HeaderRow2() {
   }
 
   return (
-    <div className="site-header-row2" ref={rootRef}>
-      <button type="button" className="site-header-row2-trigger" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+    <div className="site-header-row2">
+      <button ref={triggerRef} type="button" className="site-header-row2-trigger" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         {selected ? (
           <span className="site-header-row2-active">
             {selected.teamAbbr ? (
@@ -137,27 +106,25 @@ function HeaderRow2() {
         )}
         <IconChevronDown className="site-header-caret" />
       </button>
-      {open ? (
-        <div className="site-header-dropdown-panel site-header-row2-panel" role="menu">
-          {hub.leaguesLoading ? <p className="site-muted">Loading leagues…</p>
-            : leagues.length === 0 ? <p className="site-muted">No leagues linked yet.</p>
-            : leagues.map((league) => (
-              <button key={league.id} type="button" role="menuitem" className={["site-header-league-row", selected?.id === league.id ? "is-active" : ""].filter(Boolean).join(" ")} onClick={() => chooseLeague(league)}>
-                {league.teamAbbr ? (
-                  <span className="site-header-league-row-team">
-                    <TeamLogo abbreviation={league.teamAbbr} alt="" className="site-header-league-row-logo" />
-                    <strong>{league.teamAbbr}</strong>
-                  </span>
-                ) : null}
-                <span className="site-header-league-row-name">{league.name}</span>
-                <span className="site-header-league-row-meta">
-                  {league.seasonRecordText ? `${league.seasonRecordText} · ` : ""}({league.gameLabel}) · {league.currentWeek != null ? `Week ${league.currentWeek}` : league.seasonStageLabel}
+      <Panel className="site-header-dropdown-panel site-header-row2-panel" role="menu">
+        {hub.leaguesLoading ? <p className="site-muted">Loading leagues…</p>
+          : leagues.length === 0 ? <p className="site-muted">No leagues linked yet.</p>
+          : leagues.map((league) => (
+            <button key={league.id} type="button" role="menuitem" className={["site-header-league-row", selected?.id === league.id ? "is-active" : ""].filter(Boolean).join(" ")} onClick={() => chooseLeague(league)}>
+              {league.teamAbbr ? (
+                <span className="site-header-league-row-team">
+                  <TeamLogo abbreviation={league.teamAbbr} alt="" className="site-header-league-row-logo" />
+                  <strong>{league.teamAbbr}</strong>
                 </span>
-              </button>
-            ))}
-          <button type="button" role="menuitem" className="site-header-league-row site-header-home-row" onClick={chooseHome}>Home</button>
-        </div>
-      ) : null}
+              ) : null}
+              <span className="site-header-league-row-name">{league.name}</span>
+              <span className="site-header-league-row-meta">
+                {league.seasonRecordText ? `${league.seasonRecordText} · ` : ""}({league.gameLabel}) · {league.currentWeek != null ? `Week ${league.currentWeek}` : league.seasonStageLabel}
+              </span>
+            </button>
+          ))}
+        <button type="button" role="menuitem" className="site-header-league-row site-header-home-row" onClick={chooseHome}>Home</button>
+      </Panel>
     </div>
   );
 }

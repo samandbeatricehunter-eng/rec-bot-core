@@ -1269,7 +1269,7 @@ h1, h2, h3, .site-wordmark {
   padding: 14px;
   border: 1px solid var(--border-strong);
   border-radius: 14px;
-  background: var(--card-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--card-bevel);
+  background: rgba(10, 10, 12, 0.97); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--card-bevel);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 .site-notif-panel-header {
@@ -4611,24 +4611,37 @@ h1, h2, h3, .site-wordmark {
 .site-header-row3-btn.is-active { color: var(--btn-primary-text); background: var(--accent-gradient); font-weight: 900; }
 .site-header-row3-dropdown { position: relative; flex-shrink: 0; }
 
+/* Panel position (top/left/right) is set inline by useHeaderMenu (HeaderMenu.tsx), which
+   portals the panel into document.body and anchors it to the trigger's live bounding rect --
+   required because these triggers live inside .site-header-row3 (overflow-x:auto for the
+   mobile button-scroll strip), where a position:absolute child gets clipped/squashed into the
+   scroll container instead of floating over the page, same failure mode NotificationsBell's
+   own fixed+portal-free-but-unclipped panel already avoids. */
+.site-header-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 319;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: default;
+}
 .site-header-dropdown-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 120;
+  z-index: 320;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 220px;
   max-width: min(320px, calc(100vw - 20px));
   padding: var(--space-2);
+  max-height: min(70vh, 480px);
+  overflow: auto;
   border: var(--card-border);
   border-radius: var(--radius-lg);
-  background: var(--card-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  background: rgba(10, 10, 12, 0.97); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--card-bevel), 0 16px 40px rgba(0, 0, 0, 0.5);
 }
-.site-header-row1 .site-header-dropdown-panel,
-.site-header-row2-panel { top: calc(100% + 6px); right: 0; left: auto; }
 
 @media (max-width: 720px) {
   .site-header-row3 { gap: 4px; justify-content: flex-start; }
@@ -4637,10 +4650,9 @@ h1, h2, h3, .site-wordmark {
   .site-header-row3-dropdown .site-header-row3-btn span { display: inline; }
   .site-header-dropdown-panel,
   .site-header-row2-panel {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    top: auto;
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
     bottom: 12px;
     max-width: none;
     width: auto;

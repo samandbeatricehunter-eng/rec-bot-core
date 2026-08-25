@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   IconBuzz, IconHeadlines, IconMatchups, IconStats, IconTeam, IconMgmt, IconGear,
   IconChevronDown,
 } from "./icons.js";
+import { useHeaderMenu } from "./HeaderMenu.js";
 
 function isActive(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(`${to}/`);
@@ -20,25 +21,15 @@ function openModalHref(leagueId: string, modal: string) {
 }
 
 function Dropdown({ label, icon, active, children }: { label: string; icon: ReactNode; active: boolean; children: (close: () => void) => ReactNode }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const close = () => setOpen(false);
 
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
-
   return (
-    <div className="site-header-row3-dropdown" ref={rootRef}>
-      <button type="button" className={["site-header-row3-btn", active ? "is-active" : ""].filter(Boolean).join(" ")} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+    <div className="site-header-row3-dropdown">
+      <button ref={triggerRef} type="button" className={["site-header-row3-btn", active ? "is-active" : ""].filter(Boolean).join(" ")} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         {icon}<span>{label}</span><IconChevronDown className="site-header-caret" />
       </button>
-      {open ? <div className="site-header-dropdown-panel site-header-row3-panel" role="menu">{children(close)}</div> : null}
+      <Panel className="site-header-dropdown-panel site-header-row3-panel" role="menu">{children(close)}</Panel>
     </div>
   );
 }
