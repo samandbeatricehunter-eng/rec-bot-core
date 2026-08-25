@@ -1419,9 +1419,6 @@ h1, h2, h3, .site-wordmark {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
-@media (min-width: 960px) {
-  .site-ticker { left: 248px; }
-}
 
 .site-league-selector {
   position: relative;

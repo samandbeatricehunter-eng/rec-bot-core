@@ -116,6 +116,16 @@ export function HubProvider({ children }: { children: ReactNode }) {
     }
     if (!onLeagueHubPage) {
       setTheme("app");
+      // Any navigation off /l/:id back to main chrome (brand-link click, browser
+      // back/forward, a plain <NavLink to="/home"> that doesn't go through
+      // exitToMain()) must drop league scope too -- otherwise the header keeps
+      // reading scope.kind === "league" and renders the stale league's row2/row3
+      // switcher/nav on top of the home page.
+      if (scope.kind === "league") {
+        const next: HubScope = { kind: "main" };
+        setScope(next);
+        persistScope(next);
+      }
       return;
     }
     // Keep league scope while the route still points at that league (Discord handoff
