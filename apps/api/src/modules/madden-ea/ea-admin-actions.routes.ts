@@ -4,6 +4,8 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
+  EA_ADVANCE_ACTIONS,
+  EA_DEFAULT_ADVANCE_ACTION,
   eaAddAdmin,
   eaBootUser,
   eaClearCapPenalties,
@@ -44,9 +46,9 @@ export async function eaAdminActionRoutes(app: FastifyInstance) {
 
   app.post("/v1/madden/ea/admin/advance", async (request, reply) => {
     try {
-      const body = baseBody.parse(request.body);
+      const body = baseBody.extend({ action: z.enum(EA_ADVANCE_ACTIONS).default(EA_DEFAULT_ADVANCE_ACTION) }).parse(request.body);
       const auth = await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
-      return reply.send({ result: await eaSubmitCareerResponse(body.league_id, { source: "tool", actingDiscordId: auth.discordId }) });
+      return reply.send({ result: await eaSubmitCareerResponse(body.league_id, { source: "tool", actingDiscordId: auth.discordId }, body.action) });
     } catch (error) {
       return sendError(reply, error);
     }

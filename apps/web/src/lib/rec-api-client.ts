@@ -339,8 +339,8 @@ export const recApi = {
     recApiFetch<{ ok: boolean; wiped: number }>("/v1/import/madden/ea/wipe-roster", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   backfillEaScores: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ ok: boolean }>("/v1/import/madden/ea/backfill-scores", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
-  eaAdminAdvance: (input: { guildId: string; leagueId: string }) =>
-    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/advance", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  eaAdminAdvance: (input: { guildId: string; leagueId: string; action: string }) =>
+    recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/advance", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, action: input.action }) }),
   eaAdminListForceableMatches: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ matches: Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string }> }>(
       "/v1/madden/ea/admin/forceable-matches", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },

@@ -140,9 +140,16 @@ export async function listForceableMatches(leagueId: string): Promise<ForceableM
 
 // ── Public actions ──
 
-export async function eaSubmitCareerResponse(leagueId: string, ctx: AuditContext) {
-  return runEaAdminCommand(leagueId, "Mobile_Career_SubmitResponse", null, {}, ctx,
-    (client, eaLeagueId) => client.submitCareerResponse(eaLeagueId));
+export const EA_ADVANCE_ACTIONS = [
+  "Force Advance", "Ready to Advance", "Sim to Playoffs", "Sim to Super Bowl",
+  "Sim to Offseason", "Sim to Draft", "Sim to Next Season", "Sim 10 Years",
+] as const;
+export type EaAdvanceAction = typeof EA_ADVANCE_ACTIONS[number];
+export const EA_DEFAULT_ADVANCE_ACTION: EaAdvanceAction = "Force Advance";
+
+export async function eaSubmitCareerResponse(leagueId: string, ctx: AuditContext, action: EaAdvanceAction = EA_DEFAULT_ADVANCE_ACTION) {
+  return runEaAdminCommand(leagueId, "Mobile_Career_SubmitResponse", null, { action }, ctx,
+    (client, eaLeagueId) => client.submitCareerResponse(eaLeagueId, action));
 }
 
 export async function eaClearCapPenalties(leagueId: string, teamId: string, ctx: AuditContext) {

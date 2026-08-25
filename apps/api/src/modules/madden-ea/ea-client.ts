@@ -668,7 +668,7 @@ export type EaClient = {
   // ── In-game admin actions (write-side). Command names, componentId/commandId, and payload
   // field names below are all confirmed by decompiling the official Companion App's own JS
   // bundle (it's an Angular/Cordova app since Madden 24, unobfuscated) -- not guesses. ──
-  submitCareerResponse(leagueId: number): Promise<unknown>;
+  submitCareerResponse(leagueId: number, action: string): Promise<unknown>;
   clearCapPenalties(leagueId: number, clearedUserId: string): Promise<unknown>;
   bootUser(leagueId: number, bootedUserId: string): Promise<unknown>;
   addAdmin(leagueId: number, newAdminUserId: string): Promise<unknown>;
@@ -760,9 +760,13 @@ export function createEaClient(
     // *specific* pending request, identified by requestId (from GetLeagueHub's
     // careerHubInfo.requestInfoList) plus the responseKey of the chosen responseList entry — EA
     // accepts the RPC and returns success either way, so a missing/wrong pair looks identical to
-    // a working advance until you check the franchise. The advance option's server-side title is
-    // always "Next Week" (the app's UI relabels the button "Ready to Advance").
-    async submitCareerResponse(leagueId) {
+    // a working advance until you check the franchise. Live traffic confirms the AdvanceStage
+    // request's responseList carries several sibling options beyond a plain advance -- "Ready to
+    // Advance" only readies the caller's own team (does not force the league forward if other
+    // teams haven't readied up), "Force Advance" actually advances regardless, and a set of
+    // "Sim to ..." options skip further ahead. `action` selects which response title to submit;
+    // callers default to "Force Advance" since that's the one that reliably moves the league.
+    async submitCareerResponse(leagueId, action) {
       const hub = await sendBlazeRpc<BlazeLeagueResponse>(token, session, {
         commandName: "Mobile_Career_GetLeagueHub",
         componentId: 2060,
@@ -771,7 +775,7 @@ export function createEaClient(
       });
       const requestInfoList = hub.responseInfo.value.careerHubInfo.requestInfoList ?? [];
       const advanceRequest = requestInfoList.find((request) => request.type === "AdvanceStage");
-      const advanceResponse = advanceRequest?.responseList.find((entry) => entry.title === "Next Week");
+      const advanceResponse = advanceRequest?.responseList.find((entry) => entry.title === action);
       if (!advanceRequest || !advanceResponse) {
         // Diagnostic detail instead of a guess: exactly what EA's hub actually returned, so a
         // wrong request `type` or response `title` (e.g. EA renaming it again for a new Madden
@@ -779,10 +783,10 @@ export function createEaClient(
         const seenTypes = requestInfoList.map((r) => r.type).join(", ") || "(none)";
         const seenTitles = advanceRequest ? advanceRequest.responseList.map((r) => r.title).join(", ") || "(none)" : null;
         const detail = advanceRequest
-          ? `Found an AdvanceStage request but no "Next Week" response option (saw: ${seenTitles}).`
+          ? `Found an AdvanceStage request but no "${action}" response option (saw: ${seenTitles}).`
           : `No AdvanceStage request in the hub (saw request types: ${seenTypes}; isLeagueAdvancing=${hub.responseInfo.value.careerHubInfo.isLeagueAdvancing}).`;
         throw new EaAuthError(
-          `No pending advance request found for this league. ${detail}`,
+          `No pending "${action}" request found for this league. ${detail}`,
           "The league may already be mid-advance, waiting on another commissioner action, or not ready to advance yet — check the franchise in-game.",
         );
       }

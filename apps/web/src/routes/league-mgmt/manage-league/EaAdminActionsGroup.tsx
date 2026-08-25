@@ -157,7 +157,13 @@ function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: st
   );
 }
 
+const EA_ADVANCE_ACTIONS = [
+  "Force Advance", "Ready to Advance", "Sim to Playoffs", "Sim to Super Bowl",
+  "Sim to Offseason", "Sim to Draft", "Sim to Next Season", "Sim 10 Years",
+] as const;
+
 function AdvancePanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const [action, setAction] = useState<string>("Force Advance");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -167,7 +173,7 @@ function AdvancePanel({ guildId, leagueId }: { guildId: string; leagueId: string
     setError(null);
     setDone(null);
     try {
-      await recApi.eaAdminAdvance({ guildId, leagueId });
+      await recApi.eaAdminAdvance({ guildId, leagueId, action });
       setDone("Sent to EA.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "EA rejected this action.");
@@ -179,12 +185,20 @@ function AdvancePanel({ guildId, leagueId }: { guildId: string; leagueId: string
   return (
     <div>
       <p className="form-hint" style={{ marginTop: 0 }}>
-        Submits the advance/sim response for the current week directly in the franchise, the same
-        as tapping Advance in the Companion App.
+        Submits the chosen response directly in the franchise, the same as tapping it in the
+        Companion App. "Ready to Advance" only readies your own team — it does not move the
+        league forward if other teams haven't readied up. "Force Advance" advances the league
+        regardless, which is why it's the default here.
       </p>
       {error && <p className="hub-transfer-status">{error}</p>}
       {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
-      <Button variant="secondary" disabled={busy} onClick={() => void submit()}><PlayCircle size={14} /> {busy ? "Sending…" : "Advance League"}</Button>
+      <label className="form-field">
+        <span className="form-label">Action</span>
+        <select className="form-input" value={action} disabled={busy} onChange={(event) => setAction(event.target.value)}>
+          {EA_ADVANCE_ACTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <Button variant="secondary" disabled={busy} onClick={() => void submit()}><PlayCircle size={14} /> {busy ? "Sending…" : "Submit"}</Button>
     </div>
   );
 }
