@@ -315,28 +315,15 @@ export async function tournamentRoutes(app: FastifyInstance) {
         matchId: z.string().uuid(),
         winnerUserId: z.string().uuid(),
         resultMethod: z.enum(["final_screenshot", "concede", "opponent_quit"]),
-        screenshotUrl: z.string().url(),
+        // Only the "final score screenshot" method actually has a screenshot to attach —
+        // a concede/quit-out report has nothing to upload.
+        screenshotUrl: z.string().url().optional().nullable(),
         concededByUserId: z.string().uuid().optional().nullable(),
         playerAScore: z.number().int().min(0).max(200).optional().nullable(),
         playerBScore: z.number().int().min(0).max(200).optional().nullable(),
-        boxScore: z.object({
-          home: z.object({
-            totalYards: z.number().optional().nullable(),
-            rushYards: z.number().optional().nullable(),
-            passYards: z.number().optional().nullable(),
-            turnovers: z.number().optional().nullable(),
-            redzoneOff: z.number().optional().nullable(),
-            redzoneDef: z.number().optional().nullable(),
-          }).optional().nullable(),
-          away: z.object({
-            totalYards: z.number().optional().nullable(),
-            rushYards: z.number().optional().nullable(),
-            passYards: z.number().optional().nullable(),
-            turnovers: z.number().optional().nullable(),
-            redzoneOff: z.number().optional().nullable(),
-            redzoneDef: z.number().optional().nullable(),
-          }).optional().nullable(),
-        }).optional().nullable(),
+      }).refine((value) => value.resultMethod !== "final_screenshot" || Boolean(value.screenshotUrl), {
+        message: "A screenshot is required for the final-score-screenshot result.",
+        path: ["screenshotUrl"],
       }).parse(request.body ?? {});
       return reply.send(await reportTournamentWinner({
         recUserId,
@@ -345,11 +332,10 @@ export async function tournamentRoutes(app: FastifyInstance) {
         matchId: body.matchId,
         winnerUserId: body.winnerUserId,
         resultMethod: body.resultMethod,
-        screenshotUrl: body.screenshotUrl,
+        screenshotUrl: body.screenshotUrl ?? null,
         concededByUserId: body.concededByUserId,
         playerAScore: body.playerAScore,
         playerBScore: body.playerBScore,
-        boxScore: body.boxScore,
       }));
     } catch (error) {
       return sendError(reply, error);

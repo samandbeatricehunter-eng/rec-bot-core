@@ -962,18 +962,19 @@ export async function reportTournamentWinner(input: {
   matchId: string;
   winnerUserId: string;
   resultMethod: "final_screenshot" | "concede" | "opponent_quit";
-  screenshotUrl: string;
+  screenshotUrl: string | null;
   concededByUserId?: string | null;
   playerAScore?: number | null;
   playerBScore?: number | null;
-  boxScore?: TournamentBoxScore | null;
 }) {
   const tournament = await loadTournament(input.tournamentId);
   if (tournament.event_paused) throw new ApiError(409, "This tournament is closed.");
   if (tournament.status !== "locked") throw new ApiError(409, "Results can only be recorded on a locked bracket.");
-  const screenshotUrl = input.screenshotUrl.trim();
-  if (!/^https?:\/\//i.test(screenshotUrl)) {
-    throw new ApiError(400, "Upload a screenshot of the final score, the concession, or the quit-out screen.");
+  // Only the final-score-screenshot method actually has a screenshot -- a concede/quit-out
+  // report has nothing to attach.
+  const screenshotUrl = (input.screenshotUrl ?? "").trim() || null;
+  if (input.resultMethod === "final_screenshot" && (!screenshotUrl || !/^https?:\/\//i.test(screenshotUrl))) {
+    throw new ApiError(400, "Upload a screenshot of the final score.");
   }
   const result = await getPgPool().query(
     `select * from rec_site_tournament_matches where id = $1 and tournament_id = $2`,
@@ -1006,7 +1007,6 @@ export async function reportTournamentWinner(input: {
   const playerBScore = input.playerBScore == null || !Number.isFinite(Number(input.playerBScore))
     ? null
     : Math.max(0, Math.trunc(Number(input.playerBScore)));
-  const boxScore = normalizeTournamentBoxScore(input.boxScore);
 
   // Admin-submitted results are already trusted and apply immediately, exactly as before.
   // Player-submitted results now hold in pending_review until an admin approves them --
@@ -1017,11 +1017,11 @@ export async function reportTournamentWinner(input: {
       update rec_site_tournament_matches
       set winner_user_id = $2, status = $3, result_method = $4, screenshot_url = $5,
           conceded_by_user_id = $6, player_a_score = $7, player_b_score = $8, betting_open = false,
-          box_score = $9::jsonb, submitted_by_user_id = $10, submitted_at = now()
+          submitted_by_user_id = $9, submitted_at = now()
       where id = $1
     `,
     [match.id, input.winnerUserId, nextStatus, input.resultMethod, screenshotUrl, concededBy, playerAScore, playerBScore,
-      boxScore ? JSON.stringify(boxScore) : null, input.recUserId],
+      input.recUserId],
   );
 
   if (input.isAdmin) {

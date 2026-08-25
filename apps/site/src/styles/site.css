@@ -3298,8 +3298,22 @@ h1, h2, h3, .site-wordmark {
 }
 .site-tournament-report {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.site-tournament-report-actions {
+  display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.site-tournament-report-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
 }
 .site-hero-switcher {
   align-self: center;

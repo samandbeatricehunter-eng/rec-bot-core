@@ -65,5 +65,8 @@ test("match options include moneyline, spread, and totals", () => {
   assert.ok(options.markets.some((market) => market.market === "moneyline"));
   assert.ok(options.markets.some((market) => market.market === "spread"));
   assert.ok(options.markets.some((market) => market.market === "total_points"));
-  assert.ok(options.markets.some((market) => market.market === "total_yards"));
+  // Tournament match reports no longer collect box-score stats, so requiresBoxScore markets
+  // (total/rushing/passing yards, turnovers, red zone %) are never offered -- nothing left to
+  // grade them against.
+  assert.ok(!options.markets.some((market) => market.market === "total_yards"));
 });

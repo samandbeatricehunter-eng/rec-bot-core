@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import { TOURNAMENT_HIGHLIGHT_COINS, TOURNAMENT_REQUIRED_RULES, americanFromDecimal } from "@rec/shared";
 import {
   siteApi,
-  type SiteTournamentBoxScore,
   type SiteTournamentDetail,
   type SiteTournamentHighlight,
   type SiteTournamentTeamOption,
@@ -58,10 +57,10 @@ function TournamentBracket({
     matchId: string;
     winnerUserId: string;
     resultMethod: "final_screenshot" | "concede" | "opponent_quit";
-    file: File;
+    file: File | null;
     playerAScore: number | null;
     playerBScore: number | null;
-    boxScore: SiteTournamentBoxScore | null;
+    boxScore: null;
   }) => void;
   onSaveStream: (matchId: string, streamUrl: string) => void;
   onUploadHighlight: (matchId: string, file: File) => void;
@@ -115,13 +114,12 @@ function TournamentBracket({
                     <strong>
                       {match.playerA?.displayName ?? "TBD"}
                       {match.playerA?.teamName ? ` · ${match.playerA.teamName}` : ""}
-                      <small> Home · must stream</small>
+                      <small> Must stream</small>
                     </strong>
                     <span>vs</span>
                     <strong>
                       {match.playerB?.displayName ?? "TBD"}
                       {match.playerB?.teamName ? ` · ${match.playerB.teamName}` : ""}
-                      <small> Away</small>
                     </strong>
                   </div>
                   {match.scheduledAt ? (
@@ -200,10 +198,10 @@ function MatchUploads({
   onReport: (input: {
     winnerUserId: string;
     resultMethod: "final_screenshot" | "concede" | "opponent_quit";
-    file: File;
+    file: File | null;
     playerAScore: number | null;
     playerBScore: number | null;
-    boxScore: SiteTournamentBoxScore | null;
+    boxScore: null;
   }) => void;
   onSaveStream: (url: string) => void;
   onUploadHighlight: (file: File) => void;
@@ -211,39 +209,63 @@ function MatchUploads({
   const [method, setMethod] = useState<"final_screenshot" | "concede" | "opponent_quit">("final_screenshot");
   const [winnerUserId, setWinnerUserId] = useState(match.playerA?.userId ?? "");
   const [file, setFile] = useState<File | null>(null);
-  const [homeScore, setHomeScore] = useState("");
-  const [awayScore, setAwayScore] = useState("");
+  const [playerAScore, setPlayerAScore] = useState("");
+  const [playerBScore, setPlayerBScore] = useState("");
+  const [streamOpen, setStreamOpen] = useState(false);
   const [streamUrl, setStreamUrl] = useState(match.streamUrl ?? "");
-  const [homeYards, setHomeYards] = useState("");
-  const [awayYards, setAwayYards] = useState("");
-  const [homeRush, setHomeRush] = useState("");
-  const [awayRush, setAwayRush] = useState("");
-  const [homePass, setHomePass] = useState("");
-  const [awayPass, setAwayPass] = useState("");
-  const [homeTo, setHomeTo] = useState("");
-  const [awayTo, setAwayTo] = useState("");
+  const [highlightOpen, setHighlightOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  function num(value: string): number | null {
-    if (value.trim() === "") return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
+  const needsScreenshot = method === "final_screenshot";
+  const canSubmit = Boolean(winnerUserId) && (!needsScreenshot || Boolean(file));
 
   return (
     <div className="site-tournament-report">
-      <p className="site-muted">
-        Home must stream live. Screenshot the final score or concede screen. Saving the VOD is strongly recommended.
-      </p>
-      <label className="site-field">
-        <span>Stream link (pre-game)</span>
-        <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} placeholder="https://" />
-      </label>
-      <button type="button" className="site-btn site-btn-ghost" disabled={busy || !streamUrl.trim()} onClick={() => onSaveStream(streamUrl)}>
-        Save stream
-      </button>
+      <div className="site-tournament-report-actions">
+        <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen((open) => !open)}>
+          {match.streamUrl ? "Update stream" : "Share Stream"}
+        </button>
+        <button type="button" className="site-btn site-btn-ghost" onClick={() => setHighlightOpen((open) => !open)}>
+          Upload Highlight
+        </button>
+      </div>
+
+      {streamOpen ? (
+        <div className="site-tournament-report-panel">
+          <p className="site-muted">Sharing your stream marks this game as started.</p>
+          <label className="site-field">
+            <span>Stream link</span>
+            <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} placeholder="https://" />
+          </label>
+          <button type="button" className="site-btn site-btn-primary" disabled={busy || !streamUrl.trim()} onClick={() => { onSaveStream(streamUrl); setStreamOpen(false); }}>
+            Save stream
+          </button>
+        </div>
+      ) : null}
+
+      {highlightOpen ? (
+        <div className="site-tournament-report-panel">
+          <label className="site-field">
+            <span>Highlight clip (up to 2 videos, ≤45s, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
+            <input
+              type="file"
+              accept="video/*"
+              disabled={busy}
+              onChange={(event) => {
+                const next = event.target.files?.[0];
+                event.target.value = "";
+                if (!next) return;
+                setNotice(`Uploading ${next.name}…`);
+                onUploadHighlight(next);
+              }}
+            />
+          </label>
+          {notice ? <p className="site-muted">{notice}</p> : null}
+        </div>
+      ) : null}
+
       {canReport ? (
-        <>
+        <div className="site-tournament-report-panel">
           <label className="site-field">
             <span>Result</span>
             <select className="site-select" value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
@@ -260,74 +282,38 @@ function MatchUploads({
             </select>
           </label>
           <label className="site-field">
-            <span>Home score</span>
-            <input type="number" min={0} value={homeScore} onChange={(event) => setHomeScore(event.target.value)} />
+            <span>{match.playerA?.displayName ?? "Player A"} score</span>
+            <input type="number" min={0} value={playerAScore} onChange={(event) => setPlayerAScore(event.target.value)} />
           </label>
           <label className="site-field">
-            <span>Away score</span>
-            <input type="number" min={0} value={awayScore} onChange={(event) => setAwayScore(event.target.value)} />
+            <span>{match.playerB?.displayName ?? "Player B"} score</span>
+            <input type="number" min={0} value={playerBScore} onChange={(event) => setPlayerBScore(event.target.value)} />
           </label>
-          <label className="site-field">
-            <span>Home yards / rush / pass / TO</span>
-            <div className="site-tournament-create-grid site-account-stat-grid">
-              <input type="number" min={0} placeholder="Yds" value={homeYards} onChange={(event) => setHomeYards(event.target.value)} />
-              <input type="number" min={0} placeholder="Rush" value={homeRush} onChange={(event) => setHomeRush(event.target.value)} />
-              <input type="number" min={0} placeholder="Pass" value={homePass} onChange={(event) => setHomePass(event.target.value)} />
-              <input type="number" min={0} placeholder="TO" value={homeTo} onChange={(event) => setHomeTo(event.target.value)} />
-            </div>
-          </label>
-          <label className="site-field">
-            <span>Away yards / rush / pass / TO</span>
-            <div className="site-tournament-create-grid site-account-stat-grid">
-              <input type="number" min={0} placeholder="Yds" value={awayYards} onChange={(event) => setAwayYards(event.target.value)} />
-              <input type="number" min={0} placeholder="Rush" value={awayRush} onChange={(event) => setAwayRush(event.target.value)} />
-              <input type="number" min={0} placeholder="Pass" value={awayPass} onChange={(event) => setAwayPass(event.target.value)} />
-              <input type="number" min={0} placeholder="TO" value={awayTo} onChange={(event) => setAwayTo(event.target.value)} />
-            </div>
-          </label>
-          <label className="site-field">
-            <span>Required screenshot</span>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          </label>
+          {needsScreenshot ? (
+            <label className="site-field">
+              <span>Required screenshot</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            </label>
+          ) : null}
           <button
             type="button"
             className="site-btn site-btn-primary"
-            disabled={busy || !file || !winnerUserId}
+            disabled={busy || !canSubmit}
             onClick={() => {
-              if (!file) return;
-              const home = { totalYards: num(homeYards), rushYards: num(homeRush), passYards: num(homePass), turnovers: num(homeTo) };
-              const away = { totalYards: num(awayYards), rushYards: num(awayRush), passYards: num(awayPass), turnovers: num(awayTo) };
-              const hasBox = Object.values(home).some((value) => value != null) || Object.values(away).some((value) => value != null);
               onReport({
                 winnerUserId,
                 resultMethod: method,
                 file,
-                playerAScore: homeScore === "" ? null : Number(homeScore),
-                playerBScore: awayScore === "" ? null : Number(awayScore),
-                boxScore: hasBox ? { home, away } : null,
+                playerAScore: playerAScore === "" ? null : Number(playerAScore),
+                playerBScore: playerBScore === "" ? null : Number(playerBScore),
+                boxScore: null,
               });
             }}
           >
-            Submit result
+            Submit results
           </button>
-        </>
+        </div>
       ) : null}
-      <label className="site-field">
-        <span>Highlight clip (up to 2 videos, ≤45s, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
-        <input
-          type="file"
-          accept="video/*"
-          disabled={busy}
-          onChange={(event) => {
-            const next = event.target.files?.[0];
-            event.target.value = "";
-            if (!next) return;
-            setNotice(`Uploading ${next.name}…`);
-            onUploadHighlight(next);
-          }}
-        />
-      </label>
-      {notice ? <p className="site-muted">{notice}</p> : null}
     </div>
   );
 }
@@ -776,17 +762,16 @@ export function TournamentDetailPage() {
             onRespondToProposal={(matchId, proposalId, action, counterForUtc) => void act(() => siteApi.respondToTournamentMatchProposal({ matchId, proposalId, action, counterForUtc }))}
             onRequestReschedule={(matchId) => void act(() => siteApi.requestTournamentMatchReschedule(matchId))}
             onReport={(input) => void act(async () => {
-              const uploaded = await siteApi.uploadTournamentScreenshot(input.file);
+              const uploaded = input.file ? await siteApi.uploadTournamentScreenshot(input.file) : null;
               const match = detail.matches.find((item) => item.id === input.matchId);
               await siteApi.reportTournamentWinner({
                 tournamentId: row.id,
                 matchId: input.matchId,
                 winnerUserId: input.winnerUserId,
                 resultMethod: input.resultMethod,
-                screenshotUrl: uploaded.url,
+                screenshotUrl: uploaded?.url ?? null,
                 playerAScore: input.playerAScore,
                 playerBScore: input.playerBScore,
-                boxScore: input.boxScore,
                 concededByUserId: input.resultMethod === "concede"
                   ? (match?.playerA?.userId === input.winnerUserId ? match?.playerB?.userId : match?.playerA?.userId) ?? null
                   : null,

@@ -1271,11 +1271,10 @@ export const siteApi = {
     matchId: string;
     winnerUserId: string;
     resultMethod: "final_screenshot" | "concede" | "opponent_quit";
-    screenshotUrl: string;
+    screenshotUrl: string | null;
     concededByUserId?: string | null;
     playerAScore?: number | null;
     playerBScore?: number | null;
-    boxScore?: SiteTournamentBoxScore | null;
   }) {
     return request<SiteTournamentDetail>("/v1/tournaments/report-winner", input);
   },

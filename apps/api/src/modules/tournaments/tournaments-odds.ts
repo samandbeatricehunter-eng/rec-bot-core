@@ -100,7 +100,11 @@ export function buildTournamentMatchWagerOptions(input: {
   const projectedAway = Math.round((awayPpg + LEAGUE_BASELINE.points) / 2);
 
   const markets: TournamentWagerMarketOption[] = [];
-  for (const def of marketsForGame(true)) {
+  // Tournament match reports no longer collect box-score stats (yards/rush/pass/turnovers/
+  // red zone) -- there's no source left to grade a requiresBoxScore market against, so those
+  // markets are never offered here (league wagers keep them; league box scores still come from
+  // real screenshot OCR, unaffected by this).
+  for (const def of marketsForGame(true).filter((market) => !market.requiresBoxScore)) {
     if (def.kind === "moneyline") {
       markets.push({
         market: def.key,
