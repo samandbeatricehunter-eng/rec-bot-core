@@ -1560,7 +1560,20 @@ export function HubHome() {
               ? priceForPurchaseWithConfig("dev_upgrade", { fromTier: presentTier, toTier: devUpgradeTargetTier }, game, economyValues.store)
               : 0;
             return <>
-              <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={devUpgradePlayer} onChange={(player) => { setDevUpgradePlayer(player); setDevUpgradeTargetTier(""); }} excludeDefault={isCfbLeague} /></label>
+              <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect
+                guildId={auth.status === "ready" ? auth.guildId : ""}
+                value={devUpgradePlayer}
+                onChange={(player) => { setDevUpgradePlayer(player); setDevUpgradeTargetTier(""); }}
+                excludeDefault={isCfbLeague}
+                excludePlayer={(p) => {
+                  const tier = (p.devTrait && order.includes(p.devTrait as RecDevTier)) ? p.devTrait : "normal";
+                  return tier === order[order.length - 1];
+                }}
+                extraLabel={(p) => {
+                  const tier = ((p.devTrait && order.includes(p.devTrait as RecDevTier)) ? p.devTrait : "normal") as RecDevTier;
+                  return ` · ${REC_DEV_TIER_LABELS[tier]}`;
+                }}
+              /></label>
               {devUpgradePlayer && <p className="form-hint">Present tier: <strong>{REC_DEV_TIER_LABELS[presentTier]}</strong></p>}
               <label className="form-field"><span className="form-label">Purchasing tier</span><select className="form-input" value={devUpgradeTargetTier} disabled={!devUpgradePlayer} onChange={(event) => setDevUpgradeTargetTier(event.target.value as RecDevTier)}><option value="">Select tier</option>{availableTargets.map((tier) => <option key={tier} value={tier}>{REC_DEV_TIER_LABELS[tier]}</option>)}</select></label>
               <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={devPrice} /></strong></span><Button variant="primary" disabled={purchaseBusy || !devUpgradePlayer || !devUpgradeTargetTier} onClick={() => void submitPurchase({ playerId: devUpgradePlayer!.id, playerName: devUpgradePlayer!.fullName, toTier: devUpgradeTargetTier })}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
@@ -1575,7 +1588,14 @@ export function HubHome() {
 
           {purchaseType === "age_reset" && <>
             <p className="form-hint">All age resets set the selected player&apos;s in-game age to <strong>21</strong>.</p>
-            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect guildId={auth.status === "ready" ? auth.guildId : ""} value={ageResetPlayer} onChange={setAgeResetPlayer} excludeDefault={isCfbLeague} showAge /></label>
+            <label className="form-field"><span className="form-label">Player</span><RosterPlayerSelect
+              guildId={auth.status === "ready" ? auth.guildId : ""}
+              value={ageResetPlayer}
+              onChange={setAgeResetPlayer}
+              excludeDefault={isCfbLeague}
+              showAge
+              excludePlayer={(p) => p.age != null && p.age >= 21 && p.age <= 24}
+            /></label>
             {ageResetPlayer && (
               <p className="form-hint">
                 {ageResetPlayer.fullName}: {ageResetPlayer.age != null ? `age ${ageResetPlayer.age}` : "age unknown"} → <strong>21</strong>

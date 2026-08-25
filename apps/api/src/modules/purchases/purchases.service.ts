@@ -524,22 +524,53 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
   return { playerId, playerName: player.data.full_name, playerPosition: String(player.data.position ?? ""), teamId: player.data.team_id, fromTier, toTier };
 }
 
-// Enforces one of two league-configured cap modes for dev upgrades: a flat count of purchase
-// actions per season (reuses the generic seasonCap path below), or a cap on how many DISTINCT
-// players a team can upgrade in a season — once a player has an active dev_upgrade purchase
-// this season they're already "in", so further purchases on that same player never consume a
-// new slot (they can climb as many tiers as they want once chosen).
-async function enforceDevUpgradePlayerCap(args: { leagueId: string; userId: string; seasonNumber: number; playerId: string; cap: number }) {
-  if (args.cap <= 0) return;
+/** Total tier-rungs a team's dev-upgrade purchases have crossed so far this season, e.g. a
+ *  single Star->X-Factor purchase counts as 2 (Star->Superstar, Superstar->X-Factor), same as
+ *  two separate one-tier purchases would. */
+async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string; seasonNumber: number; game: string }): Promise<number> {
+  const order = devTierOrderForGame(args.game);
   const existing = await supabase.from("rec_purchases").select("details")
-    .eq("league_id", args.leagueId).eq("user_id", args.userId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
+    .eq("league_id", args.leagueId).eq("team_id", args.teamId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
     .in("status", ACTIVE_STATUSES as unknown as string[]);
   if (existing.error) throw new ApiError(500, "We couldn't check the development upgrade limit. Please try again.", existing.error);
-  const distinctPlayerIds = new Set((existing.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
-  if (distinctPlayerIds.has(args.playerId)) return;
-  if (distinctPlayerIds.size >= args.cap) {
-    throw new ApiError(409, `This league limits dev upgrades to ${args.cap} player(s) per team per season — you've already chosen your ${args.cap}.`);
+  let steps = 0;
+  for (const row of existing.data ?? []) {
+    const d = (row as any).details ?? {};
+    const from = order.indexOf(d.fromTier as RecDevTier);
+    const to = order.indexOf(d.toTier as RecDevTier);
+    if (from >= 0 && to > from) steps += to - from;
   }
+  return steps;
+}
+
+/** The ONLY dev-upgrade cap: a team-wide season budget of tier-rungs (not purchase actions,
+ *  not distinct players) — a multi-tier jump in one purchase (e.g. Star straight to X-Factor)
+ *  consumes as many rungs as it crosses, so it can't sneak past a cap that would have blocked
+ *  the same climb done as separate one-tier purchases. Rejects with the remaining budget and,
+ *  when there's still at least one rung left, the single tier the player COULD go up to instead
+ *  (details carries the same info structured, for a smarter follow-up prompt client-side). */
+async function enforceDevUpgradeTierStepCap(args: {
+  leagueId: string; teamId: string; seasonNumber: number; game: string;
+  playerName: string; fromTier: RecDevTier; toTier: RecDevTier; cap: number;
+}) {
+  if (args.cap <= 0) return;
+  const order = devTierOrderForGame(args.game);
+  const fromIndex = order.indexOf(args.fromTier);
+  const toIndex = order.indexOf(args.toTier);
+  const requestedSteps = toIndex - fromIndex;
+  const used = await usedDevUpgradeTierSteps({ leagueId: args.leagueId, teamId: args.teamId, seasonNumber: args.seasonNumber, game: args.game });
+  const remaining = args.cap - used;
+  if (requestedSteps <= remaining) return;
+  if (remaining <= 0) {
+    throw new ApiError(409, `This team has used all ${args.cap} of its dev upgrade tier${args.cap === 1 ? "" : "s"} this season.`, { remainingSteps: 0, cap: args.cap });
+  }
+  const maxTier = order[fromIndex + remaining];
+  const maxTierLabel = REC_DEV_TIER_LABELS[maxTier];
+  throw new ApiError(
+    409,
+    `This team only has ${remaining} dev upgrade tier${remaining === 1 ? "" : "s"} left this season — ${args.playerName} would need ${requestedSteps}. Upgrade ${args.playerName} to ${maxTierLabel} instead?`,
+    { remainingSteps: remaining, cap: args.cap, suggestedTier: maxTier, suggestedTierLabel: maxTierLabel },
+  );
 }
 
 export async function createPurchaseRequest(input: {
@@ -558,9 +589,7 @@ export async function createPurchaseRequest(input: {
 
   const attrSelect = input.purchaseType === "attribute"
     ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
-    : input.purchaseType === "dev_upgrade"
-      ? ["dev_upgrade_cap_mode", "dev_upgrades_player_cap"]
-      : [];
+    : [];
   const selectCols = ["coin_economy_enabled", "purchase_deadlines", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
     .from("rec_league_configuration")
@@ -652,11 +681,13 @@ export async function createPurchaseRequest(input: {
   // common non-racing case), and run again below AFTER the insert commits, when a concurrent
   // request's row (if any) is actually visible — that second call is the real guard.
   async function enforceCaps() {
-    if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
-      await enforceDevUpgradePlayerCap({
-        leagueId, userId, seasonNumber,
-        playerId: String((details as any).playerId),
-        cap: Number(cfgRow.dev_upgrades_player_cap ?? 0),
+    if (input.purchaseType === "dev_upgrade") {
+      if (!purchaseTeamId) throw new ApiError(400, "You need an active team to purchase a dev upgrade.");
+      await enforceDevUpgradeTierStepCap({
+        leagueId, teamId: purchaseTeamId, seasonNumber, game,
+        playerName: String((details as any).playerName ?? "This player"),
+        fromTier: (details as any).fromTier, toTier: (details as any).toTier,
+        cap: Number(cfgRow.dev_upgrades_season_cap ?? 0),
       });
     } else if (input.purchaseType === "attribute") {
       await enforceAttributeCaps({
@@ -740,16 +771,12 @@ export async function createPurchaseRequest(input: {
   // own insert is also visible to THIS recount by the time both have landed, so whichever request
   // reaches this point last is the one that (correctly) self-aborts — see enforceCaps() above.
   try {
-    if (input.purchaseType === "dev_upgrade" && cfgRow.dev_upgrade_cap_mode === "players_per_season") {
-      const cap = Number(cfgRow.dev_upgrades_player_cap ?? 0);
-      if (cap > 0) {
-        const rows = await supabase.from("rec_purchases").select("details")
-          .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", "dev_upgrade").eq("season_number", seasonNumber)
-          .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (rows.error) throw new ApiError(500, "We couldn't verify the development upgrade limit. Please try again.", rows.error);
-        const distinctPlayerIds = new Set((rows.data ?? []).map((row: any) => row.details?.playerId).filter(Boolean));
-        if (distinctPlayerIds.size > cap) {
-          throw new ApiError(409, `This league limits dev upgrades to ${cap} player(s) per team per season — someone else just claimed the last slot.`);
+    if (input.purchaseType === "dev_upgrade") {
+      const cap = Number(cfgRow.dev_upgrades_season_cap ?? 0);
+      if (cap > 0 && purchaseTeamId) {
+        const used = await usedDevUpgradeTierSteps({ leagueId, teamId: purchaseTeamId, seasonNumber, game });
+        if (used > cap) {
+          throw new ApiError(409, `This team's dev upgrade tier budget (${cap} this season) was just used up by another purchase.`);
         }
       }
     } else if (input.purchaseType === "attribute") {

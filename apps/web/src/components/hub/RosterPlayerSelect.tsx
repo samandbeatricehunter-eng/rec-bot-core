@@ -16,6 +16,8 @@ export function RosterPlayerSelect({
   onChange,
   excludeDefault = false,
   showAge = false,
+  excludePlayer,
+  extraLabel,
 }: {
   guildId: string;
   value: RosterPlayer | null;
@@ -23,6 +25,11 @@ export function RosterPlayerSelect({
   excludeDefault?: boolean;
   /** Include current age in option labels (age-reset flow). */
   showAge?: boolean;
+  /** Drop players this purchase type has nothing left to offer (e.g. already top dev tier,
+   *  already at/under the age-reset floor) out of the picker entirely. */
+  excludePlayer?: (player: RosterPlayer) => boolean;
+  /** Extra text appended to each option's label (e.g. current dev tier). */
+  extraLabel?: (player: RosterPlayer) => string;
 }) {
   const [players, setPlayers] = useState<RosterPlayer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +45,12 @@ export function RosterPlayerSelect({
 
   const visible = useMemo(() => {
     if (!players) return [];
-    const filtered = position === "ALL"
+    const filtered = (position === "ALL"
       ? players
-      : players.filter((p) => matchesRosterPositionFilter(p.position, position));
+      : players.filter((p) => matchesRosterPositionFilter(p.position, position))
+    ).filter((p) => !excludePlayer?.(p));
     return [...filtered].sort((a, b) => (b.overallRating ?? 0) - (a.overallRating ?? 0) || a.fullName.localeCompare(b.fullName));
-  }, [players, position]);
+  }, [players, position, excludePlayer]);
 
   useEffect(() => {
     if (value && position !== "ALL" && !matchesRosterPositionFilter(value.position, position)) {
@@ -73,7 +81,7 @@ export function RosterPlayerSelect({
             : "";
           return (
             <option key={player.id} value={player.id}>
-              {player.fullName} · {player.position}{agePart} · {player.overallRating ?? "—"} OVR
+              {player.fullName} · {player.position}{agePart} · {player.overallRating ?? "—"} OVR{extraLabel?.(player) ?? ""}
             </option>
           );
         })}
