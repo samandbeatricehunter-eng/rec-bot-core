@@ -195,7 +195,21 @@ export type EaSeasonInfo = {
 
 export type EaLeagueResponse = {
   availableWeekInfoList: EaWeekInfo[];
-  careerHubInfo: { seasonInfo: EaSeasonInfo; isLeagueAdvancing: boolean };
+  careerHubInfo: {
+    seasonInfo: EaSeasonInfo;
+    isLeagueAdvancing: boolean;
+    // Pending commissioner actions (advance, start draft, ...) the Companion App renders as
+    // "todos". Submitting one requires echoing back its requestId plus the responseKey of the
+    // specific responseList entry chosen -- Mobile_Career_SubmitResponse has no other way to
+    // know which pending request/response a call resolves. The advance option is always
+    // titled "Next Week" in this raw list even though the app's UI relabels its button
+    // "Ready to Advance".
+    requestInfoList?: Array<{
+      type: string;
+      requestId: number;
+      responseList: Array<{ title: string; responseKey: string }>;
+    }>;
+  };
   teamIdInfoList: Array<{ teamId: number; displayName: string; shortName: string; presentationId: number }>;
   playerCountInfo: { rosterCount: number; freeAgentCount: number; totalCount: number };
   userAdminHubInfo?: {

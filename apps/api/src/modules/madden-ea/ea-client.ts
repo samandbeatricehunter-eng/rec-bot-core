@@ -756,8 +756,36 @@ export function createEaClient(
     // (same Process envelope as sendBlazeRpc above) and each feature component's actual
     // blazeService.rpcRequest(...) call sites. No requestorUserId/"who's asking" field exists in
     // any of these payloads -- the caller is identified purely by the session, same as every read.
-    submitCareerResponse: (leagueId) =>
-      sendBlazeRpc(token, session, { commandName: "Mobile_Career_SubmitResponse", componentId: 2060, commandId: 824, requestPayload: { leagueId } }),
+    // The naive { leagueId } payload silently no-ops: Mobile_Career_SubmitResponse resolves a
+    // *specific* pending request, identified by requestId (from GetLeagueHub's
+    // careerHubInfo.requestInfoList) plus the responseKey of the chosen responseList entry — EA
+    // accepts the RPC and returns success either way, so a missing/wrong pair looks identical to
+    // a working advance until you check the franchise. The advance option's server-side title is
+    // always "Next Week" (the app's UI relabels the button "Ready to Advance").
+    async submitCareerResponse(leagueId) {
+      const hub = await sendBlazeRpc<BlazeLeagueResponse>(token, session, {
+        commandName: "Mobile_Career_GetLeagueHub",
+        componentId: 2060,
+        commandId: 811,
+        requestPayload: { leagueId },
+      });
+      const advanceRequest = hub.responseInfo.value.careerHubInfo.requestInfoList?.find(
+        (request) => request.type === "AdvanceStage",
+      );
+      const advanceResponse = advanceRequest?.responseList.find((entry) => entry.title === "Next Week");
+      if (!advanceRequest || !advanceResponse) {
+        throw new EaAuthError(
+          "No pending advance request found for this league.",
+          "The league may already be mid-advance, waiting on another commissioner action, or not ready to advance yet — check the franchise in-game.",
+        );
+      }
+      return sendBlazeRpc(token, session, {
+        commandName: "Mobile_Career_SubmitResponse",
+        componentId: 2060,
+        commandId: 824,
+        requestPayload: { leagueId, requestId: advanceRequest.requestId, responseKey: advanceResponse.responseKey },
+      });
+    },
     clearCapPenalties: (leagueId, clearedUserId) =>
       sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ClearCapPenalties", componentId: 2050, commandId: 9110, requestPayload: { leagueId, clearedUserId } }),
     bootUser: (leagueId, bootedUserId) =>
