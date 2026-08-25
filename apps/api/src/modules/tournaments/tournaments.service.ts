@@ -733,6 +733,23 @@ async function refreshMatchReadiness(matchId: string) {
       `update rec_site_tournament_matches set status = 'ready', required_streamer_user_id = coalesce(required_streamer_user_id, $2) where id = $1`,
       [matchId, a],
     );
+    // Open the scheduling window the moment the match becomes proposable -- read once here
+    // rather than at propose-time, so it's fixed at whatever the admin's setting was when the
+    // round became live, not whatever it happens to be edited to later mid-round.
+    const tournamentRow = await getPgPool().query<{ scheduling_window_hours: number }>(
+      `select scheduling_window_hours from rec_site_tournaments where id = $1`,
+      [match.tournament_id],
+    );
+    const windowHours = Number(tournamentRow.rows[0]?.scheduling_window_hours ?? 48);
+    const { ensureScheduling } = await import("./tournament-match-scheduling.service.js");
+    await ensureScheduling(matchId, match.tournament_id);
+    await getPgPool().query(
+      `update rec_site_tournament_match_scheduling
+          set window_opens_at = coalesce(window_opens_at, now()),
+              window_closes_at = coalesce(window_closes_at, now() + ($2 || ' hours')::interval)
+        where match_id = $1`,
+      [matchId, windowHours],
+    );
   } else if (a || b) {
     await getPgPool().query(`update rec_site_tournament_matches set status = 'pending' where id = $1`, [matchId]);
   }

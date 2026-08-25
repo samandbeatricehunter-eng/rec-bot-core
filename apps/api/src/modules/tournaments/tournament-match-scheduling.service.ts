@@ -46,6 +46,8 @@ type SchedulingRow = {
   accepted_by_user_id: string | null;
   game_started_at: string | null;
   game_completed_at: string | null;
+  window_opens_at: string | null;
+  window_closes_at: string | null;
 };
 
 export async function ensureScheduling(matchId: string, tournamentId: string): Promise<SchedulingRow> {
@@ -105,11 +107,26 @@ async function withdrawPendingAndInsertProposal(
   throw new ApiError(500, "Failed to save your proposed time.");
 }
 
+// Past window_closes_at, new proposals/responses are blocked -- mirrors the league's own
+// Force Win precedent (files a flag for manual admin review, never auto-forfeits). Flips the
+// scheduling row to 'needs_admin_help' so it's visible in the admin panel without a poller.
+async function assertWindowOpen(matchId: string, scheduling: SchedulingRow): Promise<void> {
+  if (!scheduling.window_closes_at || new Date(scheduling.window_closes_at).getTime() > Date.now()) return;
+  if (scheduling.status !== "needs_admin_help") {
+    await getPgPool().query(
+      `update rec_site_tournament_match_scheduling set status='needs_admin_help', updated_at=now() where match_id=$1`,
+      [matchId],
+    );
+  }
+  throw new ApiError(409, "The scheduling window for this round has closed — contact an admin.");
+}
+
 export async function proposeTime(input: { matchId: string; recUserId: string; proposedForUtc: string }) {
   const match = await loadMatch(input.matchId);
   requireParticipant(match, input.recUserId);
   if (match.status !== "ready") throw new ApiError(409, "This match isn't ready to schedule yet.");
-  await ensureScheduling(input.matchId, match.tournament_id);
+  const scheduling = await ensureScheduling(input.matchId, match.tournament_id);
+  await assertWindowOpen(input.matchId, scheduling);
 
   const proposal = await withdrawPendingAndInsertProposal(input.matchId, input.recUserId, input.proposedForUtc);
   await getPgPool().query(
@@ -131,6 +148,10 @@ export async function respondToProposal(input: {
   const pool = getPgPool();
   const match = await loadMatch(input.matchId);
   requireParticipant(match, input.recUserId);
+  if (input.action !== "withdraw") {
+    const scheduling = await ensureScheduling(input.matchId, match.tournament_id);
+    await assertWindowOpen(input.matchId, scheduling);
+  }
 
   const proposalResult = await pool.query<ProposalRow>(
     `select * from rec_site_tournament_match_time_proposals where id=$1 and match_id=$2`,
@@ -219,12 +240,61 @@ export async function markTournamentMatchStarted(input: { matchId: string; recUs
   return updated.rows[0];
 }
 
+export async function checkInMatch(input: { matchId: string; recUserId: string }) {
+  const match = await loadMatch(input.matchId);
+  requireParticipant(match, input.recUserId);
+  const insert = await getPgPool().query(
+    `insert into rec_site_tournament_match_checkins (match_id, user_id)
+     values ($1,$2) on conflict (match_id, user_id) do update set checked_in_at=now()
+     returning *`,
+    [input.matchId, input.recUserId],
+  );
+  return insert.rows[0];
+}
+
+/** Closes out scheduling/live-tracking only -- it does NOT report a winner. The actual result
+ *  still goes through the tournament's "Submit results" flow (reportTournamentWinner in
+ *  tournaments.service.ts). A match can be marked over without a result yet being submitted. */
+export async function markTournamentMatchOver(input: { matchId: string; recUserId: string }) {
+  const match = await loadMatch(input.matchId);
+  requireParticipant(match, input.recUserId);
+  await ensureScheduling(input.matchId, match.tournament_id);
+  const updated = await getPgPool().query<SchedulingRow>(
+    `update rec_site_tournament_match_scheduling
+        set status='completed', game_completed_at=now(), updated_at=now()
+      where match_id=$1
+      returning *`,
+    [input.matchId],
+  );
+  return updated.rows[0] ?? null;
+}
+
+/** Not an automated forfeit engine -- tournaments have no Force Win/Fair Sim rule set to
+ *  auto-resolve against. Flags the match for manual admin review; the admin either resets
+ *  scheduling for a retry, or reports a walkover via the normal result-submission path. */
+export async function markCantMakeMatch(input: { matchId: string; recUserId: string }) {
+  const match = await loadMatch(input.matchId);
+  requireParticipant(match, input.recUserId);
+  await ensureScheduling(input.matchId, match.tournament_id);
+  const updated = await getPgPool().query<SchedulingRow>(
+    `update rec_site_tournament_match_scheduling
+        set status='needs_admin_help', updated_at=now()
+      where match_id=$1
+      returning *`,
+    [input.matchId],
+  );
+  await getPgPool().query(`update rec_site_tournament_match_time_proposals set status='withdrawn', responded_at=now() where match_id=$1 and status='pending'`, [input.matchId]);
+  return updated.rows[0] ?? null;
+}
+
 export async function resetMatchScheduling(matchId: string) {
   const pool = getPgPool();
   await pool.query(`update rec_site_tournament_match_time_proposals set status='withdrawn', responded_at=now() where match_id=$1 and status='pending'`, [matchId]);
+  await pool.query(`delete from rec_site_tournament_match_checkins where match_id=$1`, [matchId]);
   await pool.query(
     `update rec_site_tournament_match_scheduling
-        set status='not_scheduled', scheduled_for=null, confirmed_at=null, proposed_by_user_id=null, accepted_by_user_id=null, updated_at=now()
+        set status='not_scheduled', scheduled_for=null, confirmed_at=null, proposed_by_user_id=null, accepted_by_user_id=null,
+            game_started_at=null, game_completed_at=null, window_opens_at=null, window_closes_at=null, updated_at=now()
       where match_id=$1`,
     [matchId],
   );
@@ -235,13 +305,15 @@ export async function resetMatchScheduling(matchId: string) {
 export type MatchSchedulingSnapshot = {
   status: SchedulingRow["status"];
   scheduledFor: string | null;
+  windowClosesAt: string | null;
+  checkedInUserIds: string[];
   pendingProposal: { id: string; proposedByUserId: string; proposedFor: string } | null;
 };
 
 /** Batched read for getTournamentDetail -- one round-trip for every match in a tournament, no N+1. */
 export async function loadTournamentSchedulingSnapshots(tournamentId: string): Promise<Map<string, MatchSchedulingSnapshot>> {
   const pool = getPgPool();
-  const [scheduling, pending] = await Promise.all([
+  const [scheduling, pending, checkins] = await Promise.all([
     pool.query<SchedulingRow>(`select * from rec_site_tournament_match_scheduling where tournament_id=$1`, [tournamentId]),
     pool.query<ProposalRow & { match_id: string }>(
       `select p.* from rec_site_tournament_match_time_proposals p
@@ -249,14 +321,28 @@ export async function loadTournamentSchedulingSnapshots(tournamentId: string): P
         where m.tournament_id=$1 and p.status='pending'`,
       [tournamentId],
     ),
+    pool.query<{ match_id: string; user_id: string }>(
+      `select c.match_id, c.user_id from rec_site_tournament_match_checkins c
+         inner join rec_site_tournament_matches m on m.id = c.match_id
+        where m.tournament_id=$1`,
+      [tournamentId],
+    ),
   ]);
   const pendingByMatch = new Map(pending.rows.map((row) => [row.match_id, row]));
+  const checkinsByMatch = new Map<string, string[]>();
+  for (const row of checkins.rows) {
+    const list = checkinsByMatch.get(row.match_id) ?? [];
+    list.push(row.user_id);
+    checkinsByMatch.set(row.match_id, list);
+  }
   const snapshots = new Map<string, MatchSchedulingSnapshot>();
   for (const row of scheduling.rows) {
     const pendingRow = pendingByMatch.get(row.match_id);
     snapshots.set(row.match_id, {
       status: row.status,
       scheduledFor: row.scheduled_for,
+      windowClosesAt: row.window_closes_at,
+      checkedInUserIds: checkinsByMatch.get(row.match_id) ?? [],
       pendingProposal: pendingRow
         ? { id: pendingRow.id, proposedByUserId: pendingRow.proposed_by_user_id, proposedFor: pendingRow.proposed_for }
         : null,

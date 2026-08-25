@@ -54,6 +54,10 @@ import {
   skipLotteryPick,
 } from "./tournament-lottery.service.js";
 import {
+  checkInMatch,
+  markCantMakeMatch,
+  markTournamentMatchOver,
+  markTournamentMatchStarted,
   proposeTime as proposeMatchSchedulingTime,
   requestReschedule as requestMatchReschedule,
   resetMatchScheduling,
@@ -813,6 +817,46 @@ export async function tournamentRoutes(app: FastifyInstance) {
       await requireSiteAdmin(request);
       const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(await resetMatchScheduling(body.matchId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/check-in", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await checkInMatch({ matchId: body.matchId, recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/game-started", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await markTournamentMatchStarted({ matchId: body.matchId, recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/game-over", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await markTournamentMatchOver({ matchId: body.matchId, recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/scheduling/cant-make-game", async (request, reply) => {
+    try {
+      const { recUserId } = await identity(request);
+      const body = z.object({ matchId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await markCantMakeMatch({ matchId: body.matchId, recUserId }));
     } catch (error) {
       return sendError(reply, error);
     }
