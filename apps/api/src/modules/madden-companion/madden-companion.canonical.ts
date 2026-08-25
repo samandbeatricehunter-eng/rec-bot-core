@@ -195,6 +195,12 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
   const completed = played === true
     || (played === null && eaStatus !== null && eaStatus > 1)
     || (played === null && eaStatus === null && homeScore !== null && awayScore !== null);
+  // Null the 0-0 placeholder for an unplayed game instead of writing it through -- readers
+  // downstream (e.g. GOTW nomination) reasonably read a null score as "not played yet" and a
+  // literal 0-0 broke that for every not-yet-played Madden game (see ea-direct-writer.ts's
+  // identical fix).
+  const finalHomeScore = completed ? homeScore : null;
+  const finalAwayScore = completed ? awayScore : null;
   const gameId = await resolveImportedGameId(client, {
     leagueId, weekNumber, homeTeamId: home, awayTeamId: away,
     scopedExternalId: externalId, legacyExternalId: record.sourceGameId,
@@ -206,7 +212,7 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
          home_score=$6, away_score=$7, status=$8, source='madden_companion_export',
          import_verified=true, external_game_id=$9, updated_at=now()
        where id=$1`,
-      [gameId, weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+      [gameId, weekNumber, seasonStage(row, record), home, away, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", externalId],
     );
     return;
   }
@@ -217,7 +223,7 @@ async function applySchedule(client: PoolClient, leagueId: string, record: Norma
        week_number=excluded.week_number,home_team_id=coalesce(excluded.home_team_id,rec_games.home_team_id),
        away_team_id=coalesce(excluded.away_team_id,rec_games.away_team_id),home_score=excluded.home_score,
        away_score=excluded.away_score,status=excluded.status,source='madden_companion_export',import_verified=true,updated_at=now()`,
-    [leagueId, weekNumber, seasonStage(row, record), home, away, homeScore, awayScore, completed ? "completed" : "scheduled", externalId],
+    [leagueId, weekNumber, seasonStage(row, record), home, away, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", externalId],
   );
 }
 

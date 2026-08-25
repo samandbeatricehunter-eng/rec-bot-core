@@ -175,8 +175,12 @@ export async function scoreWeekGotwCandidates(guildId: string, weekNumber: numbe
   const preEligible = ((gamesRes.data ?? []) as any[]).filter((g) => {
     const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null;
     const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id ?? null;
+    // NOT a `home_score == null` check: Madden-imported games always carry home_score/
+    // away_score = 0 (EA's export reports 0-0 for a not-yet-played game, never null), so that
+    // check silently matched zero games in every Madden league, every week -- status is the
+    // only reliable "has this been played" signal.
     return g.home_team_id && g.away_team_id && homeUserId && awayUserId
-      && g.status !== "completed" && g.status !== "final" && g.home_score == null && g.away_score == null;
+      && g.status !== "completed" && g.status !== "final";
   }).map((g) => ({
     ...g,
     home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,

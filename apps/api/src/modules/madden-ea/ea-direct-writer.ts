@@ -136,6 +136,14 @@ export async function directWriteSchedule(
 
     // Determine if game is completed
     const completed = played || (status !== null && status > 1);
+    // EA's export reports homeScore/awayScore as 0-0 for a game that hasn't been played yet,
+    // never null -- writing that literal 0 through made every "is this game played" check that
+    // (reasonably) reads null scores as "not played" silently wrong for every Madden league,
+    // every week (e.g. the GOTW nomination filter, which read 0-0 as "already has a score" and
+    // excluded every future-week game). Null them out here, at the one place data enters the
+    // table, instead of pushing an `== null` vs `=== 0` distinction onto every downstream reader.
+    const finalHomeScore = completed ? homeScore : null;
+    const finalAwayScore = completed ? awayScore : null;
 
     const homeUuid = homeTeamId != null ? teamUuidFromMap(teamByMaddenId, String(homeTeamId)) : null;
     const awayUuid = awayTeamId != null ? teamUuidFromMap(teamByMaddenId, String(awayTeamId)) : null;
@@ -193,7 +201,7 @@ export async function directWriteSchedule(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
            import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key), updated_at=now()
          where id=$1`,
-        [gameId, homeScore, awayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey],
+        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
@@ -215,7 +223,7 @@ export async function directWriteSchedule(
            ea_season_game_key=coalesce(excluded.ea_season_game_key, rec_games.ea_season_game_key),
            updated_at=now()
          returning id`,
-        [leagueId, displayWeek, phase, homeUuid, awayUuid, homeScore, awayScore,
+        [leagueId, displayWeek, phase, homeUuid, awayUuid, finalHomeScore, finalAwayScore,
          completed ? "completed" : "scheduled", externalId, seasonGameKey],
       );
       gameId = gameRow.rows[0]?.id ?? null;
