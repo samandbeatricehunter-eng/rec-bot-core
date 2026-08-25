@@ -3,8 +3,10 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { renderMatchupCardPng } from "../../lib/matchup-render.js";
-import { verifyMatchupRenderToken } from "../../lib/render-token.js";
+import { renderPlayerOfWeekPng } from "../../lib/player-of-week-render.js";
+import { verifyMatchupRenderToken, verifyPlayerOfWeekRenderToken } from "../../lib/render-token.js";
 import { getMatchupCardRenderData } from "../hub/hub.service.js";
+import { getPlayerOfWeekRenderData } from "../league-week/player-of-week-award.service.js";
 
 // Unauthenticated (token-gated, 60s expiry) -- backs apps/site's chromeless
 // /render/matchup/:gameId route, which the Playwright screenshot pipeline
@@ -31,6 +33,26 @@ export async function renderRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const params = z.object({ gameId: z.string().min(1) }).parse(request.params);
       const png = await renderMatchupCardPng(params.gameId);
+      return reply.header("content-type", "image/png").send(png);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/player-of-week/:storyId", async (request, reply) => {
+    try {
+      const params = z.object({ storyId: z.string().min(1) }).parse(request.params);
+      const query = z.object({ token: z.string().min(1) }).parse(request.query);
+      if (!verifyPlayerOfWeekRenderToken(params.storyId, query.token)) {
+        return reply.code(403).send({ error: "Invalid or expired render token." });
+      }
+      return reply.send(await getPlayerOfWeekRenderData(params.storyId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/player-of-week/:storyId/debug-png", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const params = z.object({ storyId: z.string().min(1) }).parse(request.params);
+      const png = await renderPlayerOfWeekPng(params.storyId);
       return reply.header("content-type", "image/png").send(png);
     } catch (error) { return sendError(reply, error); }
   });

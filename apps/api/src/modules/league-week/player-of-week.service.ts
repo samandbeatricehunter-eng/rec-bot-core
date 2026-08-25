@@ -48,6 +48,8 @@ export type PlayerOfWeekWinner = {
   position: string | null;
   teamId: string;
   teamName: string;
+  teamAbbr: string | null;
+  teamLogoUrl: string | null;
   score: number;
   statLine: WeeklyPlayerStatLine;
 };
@@ -69,7 +71,7 @@ export async function computeWeeklyPlayerOfWeek(guildId: string, weekNumber: num
 
   const teamIds = [...new Set(rows.flatMap((row) => (row.team_id ? [row.team_id] : [])))];
   const teamsRes = teamIds.length
-    ? await supabase.from("rec_teams").select("id,conference,name,display_city,display_nick,is_relocated").in("id", teamIds)
+    ? await supabase.from("rec_teams").select("id,conference,name,display_city,display_nick,is_relocated,abbreviation,display_abbr,logo_url").in("id", teamIds)
     : { data: [] as any[], error: null };
   if (teamsRes.error) throw new ApiError(500, "We couldn't load team conferences for this week. Please try again.", teamsRes.error);
   const teamById = new Map<string, any>((teamsRes.data ?? []).map((team: any) => [team.id, team]));
@@ -120,6 +122,8 @@ function toWinner(
     conference, side,
     playerId: player.playerId, playerName: player.playerName, position: player.position,
     teamId: player.teamId, teamName: team ? (formatTeamDisplayName(team) ?? team.name ?? "Team") : "Team",
+    teamAbbr: team?.display_abbr ?? team?.abbreviation ?? null,
+    teamLogoUrl: team?.logo_url ?? null,
     score: Math.round(score * 10) / 10, statLine: player.line,
   };
 }

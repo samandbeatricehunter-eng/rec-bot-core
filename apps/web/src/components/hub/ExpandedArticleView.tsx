@@ -5,6 +5,7 @@ import { MobileActionBar } from "../design-system/MobileActionBar.js";
 import { Button } from "../ui/Button.js";
 import type { HubResponse, StoryComment } from "../../types/api.js";
 import { InterviewBody } from "./InterviewBody.js";
+import { PlayerOfWeekCard } from "./PlayerOfWeekCard.js";
 
 type Story = HubResponse["headlines"][number];
 
@@ -103,7 +104,11 @@ export function ExpandedArticleView({
               onClick={() => onImageClick(story.image_url!)}
             />
           ) : null}
-          <InterviewBody body={story.body} />
+          {story.story_type === "player_of_week" && !Array.isArray(story.notes) && story.notes ? (
+            <PlayerOfWeekCard weekNumber={story.week ?? 0} winners={story.notes.winners} />
+          ) : (
+            <InterviewBody body={story.body} />
+          )}
           {story.roundtable?.length ? (
             <div className="roundtable-panel">
               <div className="roundtable-banner">REC NETWORK · LEAGUE ROUNDTABLE</div>

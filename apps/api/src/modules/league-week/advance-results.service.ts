@@ -907,6 +907,20 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
   });
 
+  // Player of the Week for the week that JUST completed (currentWeek/currentStage, captured
+  // before this advance moved the league forward) -- gameplaySeasonStages excludes preseason
+  // and every offseason stage, so this is a no-op there. Idempotent, so a retried advance never
+  // double-awards.
+  const { awardWeeklyPlayerOfWeek } = await import("./player-of-week-award.service.js");
+  await awardWeeklyPlayerOfWeek({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: currentWeek,
+    seasonStage: currentStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] Player of the Week award failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

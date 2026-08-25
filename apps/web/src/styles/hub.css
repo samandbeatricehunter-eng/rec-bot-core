@@ -3789,6 +3789,27 @@ button.poty:disabled {
 .hub-hero-prediction strong em { padding: 0 7px; color: var(--accent-bright); font-style: normal; }
 .hub-hero-prediction small { color: var(--text-muted); }
 
+/* —— Player of the Week card (site headline article body + Discord render target) —— */
+.potw-card { background: rgba(5, 7, 10, .48); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; }
+.potw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+.potw-panel { background: rgba(5, 7, 10, .78); display: flex; flex-direction: column; min-height: 150px; }
+.potw-panel > header { padding: 10px 16px; color: var(--text-secondary); font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.potw-panel-body { display: flex; align-items: center; gap: 14px; padding: 0 16px 16px; flex: 1; }
+.potw-panel-empty { color: var(--text-muted); font-size: 13px; align-items: flex-start; }
+.potw-conf-badge { flex-shrink: 0; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 8px; font-family: var(--font-display); font-size: 26px; font-weight: 900; color: #fff; }
+.potw-conf-badge.afc { background: linear-gradient(180deg, #d5323f, #a01d28); }
+.potw-conf-badge.nfc { background: linear-gradient(180deg, #1f3f8f, #0b2265); }
+.potw-panel-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.potw-panel-info small { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.potw-panel-info strong { font-family: var(--font-display); font-size: 19px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.potw-panel-stats { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 2px; }
+.potw-panel-stats span { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.potw-team-logo { flex-shrink: 0; width: 40px; height: 40px; object-fit: contain; }
+.potw-footer { padding: 10px 16px; text-align: center; color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: color-mix(in srgb, var(--accent) 8%, transparent); border-top: 1px solid var(--border); }
+@media (max-width: 700px) {
+  .potw-grid { grid-template-columns: 1fr; }
+}
+
 .hub-hero-action-area { display: grid; gap: 8px; }
 .hub-hero-action-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .hub-hero-action-pills button { min-height: 38px; padding: 8px 15px; border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border-strong)); border-radius: 999px; background: rgba(7, 9, 13, .68); color: var(--text-primary); font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast); }

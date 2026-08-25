@@ -35,3 +35,30 @@ export function verifyMatchupRenderToken(gameId: string, token: string | undefin
     return false;
   }
 }
+
+// Same idiom, reused for the Player of the Week render (apps/site's chromeless
+// /render/player-of-week/:storyId route + apps/api/src/lib/player-of-week-render.ts) -- a
+// distinct message prefix ("potw:") keeps this token type from ever being interchangeable
+// with a matchup render token even if the two ids collided.
+export function signPlayerOfWeekRenderToken(storyId: string): string {
+  const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
+  const sig = createHmac("sha256", renderSecret()).update(`potw:${storyId}.${expiresAt}`).digest("hex");
+  return `${expiresAt}.${sig}`;
+}
+
+export function verifyPlayerOfWeekRenderToken(storyId: string, token: string | undefined | null): boolean {
+  if (!token) return false;
+  const [expiresAtRaw, sig] = token.split(".");
+  const expiresAt = Number(expiresAtRaw);
+  if (!expiresAtRaw || !sig || !Number.isFinite(expiresAt)) return false;
+  if (Math.floor(Date.now() / 1000) > expiresAt) return false;
+
+  const expected = createHmac("sha256", renderSecret()).update(`potw:${storyId}.${expiresAt}`).digest("hex");
+  try {
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(sig, "hex");
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}

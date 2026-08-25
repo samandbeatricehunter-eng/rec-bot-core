@@ -10,6 +10,7 @@ export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/ro
 export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";
 export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecordsHome.js";
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
+export { PlayerOfWeekCard, type PlayerOfWeekCardWinner } from "../../../apps/web/src/components/hub/PlayerOfWeekCard.js";
 export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
