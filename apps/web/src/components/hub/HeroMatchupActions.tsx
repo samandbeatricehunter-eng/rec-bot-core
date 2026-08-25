@@ -167,8 +167,8 @@ export function HeroMatchupActions({
         </>}
       </div>
       {matchup.involvesMe && <div className="matchup-actions hub-hero-game-actions" role="group" aria-label="Game tools">
-        <button type="button" className="matchup-action" disabled={!boxScoreMode || !onOpenBoxScore || matchup.isFinal || Boolean(matchup.boxScoreSubmissionId)} onClick={onOpenBoxScore}><ClipboardList size={16} /> Box Score</button>
-        <button type="button" className="matchup-action" disabled={!boxScoreMode || !onOpenPlayerStats || !matchup.boxScoreSubmissionId || matchup.boxScoreStatus === "denied"} onClick={onOpenPlayerStats}><BarChart3 size={16} /> Player Stats</button>
+        {boxScoreMode && <button type="button" className="matchup-action" disabled={!onOpenBoxScore || matchup.isFinal || Boolean(matchup.boxScoreSubmissionId)} onClick={onOpenBoxScore}><ClipboardList size={16} /> Box Score</button>}
+        {boxScoreMode && <button type="button" className="matchup-action" disabled={!onOpenPlayerStats || !matchup.boxScoreSubmissionId || matchup.boxScoreStatus === "denied"} onClick={onOpenPlayerStats}><BarChart3 size={16} /> Player Stats</button>}
         <button type="button" className="matchup-action" disabled={!onOpenShareStream} onClick={onOpenShareStream}><Share2 size={16} /> Share Stream</button>
         <button type="button" className="matchup-action" disabled={!onUploadHighlight} onClick={onUploadHighlight}><Film size={16} /> Upload Highlight(s)</button>
         <button type="button" className="matchup-action" disabled={!isH2h || !onOpenRequestHelp} title={schedulingInactiveReason} onClick={onOpenRequestHelp}><LifeBuoy size={16} /> Request Help</button>

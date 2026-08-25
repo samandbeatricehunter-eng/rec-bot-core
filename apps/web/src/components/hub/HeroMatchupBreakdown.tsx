@@ -4,8 +4,8 @@ import { PositionMatchupAdvantages } from "../matchups/PositionMatchupAdvantages
 
 const FALLBACK_PRIMARY = "#8a94a6";
 
-function rankLabel(rank: number | null, missingRankLabel = "Rank unavailable") {
-  return rank == null ? missingRankLabel : `#${rank} in league`;
+function rankLabel(rank: number | null, missingRankLabel = "Unranked") {
+  return rank == null ? missingRankLabel : `#${rank}`;
 }
 
 function formatValue(value: number, suffix = "") {
