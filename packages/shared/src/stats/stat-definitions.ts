@@ -368,10 +368,27 @@ export function statCategoriesForPosition(position: string | null | undefined): 
 // had no consumer — raw EA keys (puntAtt, passYds, defSacks, …) were being stored verbatim in
 // rec_player_weekly_stats.stats, so anything reading by canonical key (League Records,
 // League Stats, season/career totals, badges) silently matched nothing.
+// First-write-wins on an alias collision (canonicalKey itself is always set/overwritten --
+// only the alias loop below is first-write-wins) rather than last-write-wins: this file's own
+// header warns some aliases are "context-sensitive... resolved by the normalizer using scope +
+// statCategory", but canonicalizeStatPayload below takes no scope parameter and has exactly one
+// real caller (madden-companion.canonical.ts's statPayload(), used only for player-scope
+// rec_player_weekly_stats rows) -- so on a genuine collision the earlier-declared definition
+// should win, and STAT_DEFINITIONS is built player-categories-first (PASSING/RUSHING/RECEIVING/
+// DEFENSE) then team-categories (TEAM_OFFENSE/TEAM_DEFENSE). Concretely: player "sacks" and team
+// "team_sacks" both alias raw EA key "defSacks" -- last-write-wins silently canonicalized every
+// player defensive sack into "team_sacks" instead, so `stats->>'sacks'` was always 0 for every
+// player in every league (confirmed against Player of the Week scoring picking wrong winners
+// for real sack leaders like Will Anderson Jr's 6-sack week). A canonicalKey always wins over
+// any alias regardless of order (set unconditionally, first), so a definition's own key is
+// never shadowed by another definition's alias for it.
 const STAT_ALIAS_TO_CANONICAL = new Map<string, string>();
+for (const def of STAT_DEFINITIONS) STAT_ALIAS_TO_CANONICAL.set(def.canonicalKey.toLowerCase(), def.canonicalKey);
 for (const def of STAT_DEFINITIONS) {
-  STAT_ALIAS_TO_CANONICAL.set(def.canonicalKey.toLowerCase(), def.canonicalKey);
-  for (const alias of def.aliases) STAT_ALIAS_TO_CANONICAL.set(alias.toLowerCase(), def.canonicalKey);
+  for (const alias of def.aliases) {
+    const key = alias.toLowerCase();
+    if (!STAT_ALIAS_TO_CANONICAL.has(key)) STAT_ALIAS_TO_CANONICAL.set(key, def.canonicalKey);
+  }
 }
 
 /** Resolves a raw stat field name to its canonical key, or returns it unchanged if unknown. */

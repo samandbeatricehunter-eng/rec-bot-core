@@ -1606,6 +1606,36 @@ export const siteApi = {
   getMatchupCardRenderData(gameId: string, token: string) {
     return publicRequest<Record<string, unknown>>(`/v1/render/matchup/${gameId}?token=${encodeURIComponent(token)}`);
   },
+  getPlayerOfWeekRenderData(storyId: string, token: string) {
+    return publicRequest<PlayerOfWeekRenderData>(`/v1/render/player-of-week/${storyId}?token=${encodeURIComponent(token)}`);
+  },
+};
+
+export type PlayerOfWeekStatLine = {
+  passYards: number; rushYards: number; receivingYards: number;
+  passTds: number; rushTds: number; receivingTds: number;
+  interceptionsThrown: number; rushingFumbles: number;
+  sacks: number; interceptions: number; forcedFumbles: number; fumbleRecoveries: number;
+  tacklesForLoss: number; defensiveTds: number; tackles: number;
+};
+
+export type PlayerOfWeekWinner = {
+  conference: "AFC" | "NFC";
+  side: "offense" | "defense";
+  playerName: string;
+  position: string | null;
+  teamName: string;
+  score: number;
+  statLine: PlayerOfWeekStatLine;
+  coinsAwarded: number;
+  doubled: boolean;
+};
+
+export type PlayerOfWeekRenderData = {
+  headline: string | null;
+  week: number;
+  season: number;
+  winners: PlayerOfWeekWinner[];
 };
 
 export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft";

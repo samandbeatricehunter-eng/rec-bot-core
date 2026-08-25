@@ -5,7 +5,8 @@
 // week (4 total): AFC offense, AFC defense, NFC offense, NFC defense.
 //
 // Offense: (pass yards * 0.04) + (rush + receiving yards * 0.1) + (touchdowns * 6) - (turnovers * 4)
-// Defense: (sacks * 4) + (interceptions * 4) + (tackles for loss * 2) + (defensive TDs * 6)
+// Defense: (sacks * 4) + (interceptions * 4) + (forced fumbles * 3) + (fumble recoveries * 3)
+//          + (tackles for loss * 2) + (defensive TDs * 6)
 //
 // The initial version weighted every yard (passing included) at 0.1, per the community
 // formula as given. Checked against EA's own real Week 10 "Top Players" picks (screenshot,
@@ -14,8 +15,19 @@
 // pass, 56 rush, 4 TD) despite Lawrence scoring higher under a flat 0.1/yard; same story for
 // Adrian Peterson over Tom Brady in the AFC. Splitting passing yards to the standard-fantasy
 // 0.04/yard (1pt/25yd) while keeping rush/receiving at 0.1/yard (1pt/10yd) reproduces both
-// real winners exactly. Defensive formula needed no correction -- it already reproduced both
-// real defensive winners' scores exactly (12.0 and 20.0) on the first try.
+// real winners exactly.
+//
+// Checked again against weeks 1-9's real picks (screenshots, 2026-08-25): the original defense
+// formula couldn't explain several real winners at all -- Talanoa Hufanga (Week 2 AFC) won with
+// a stat line of *only* 2 forced fumbles + 4 fumble recoveries (zero sacks/INTs/TFL/TDs), which
+// scored a flat 0 under the original formula. Forced fumbles and fumble recoveries were missing
+// entirely. Added both at weight 3 (between a takeaway's 4 and a TFL's 2) -- this reproduces
+// Hufanga's win outright (no other category could have given him a nonzero score at all) and is
+// directionally consistent with the other weeks checked, though a perfect week-by-week
+// reproduction of every single pick wasn't achieved from 9 data points; EA's real selection may
+// include tie-break or context criteria (e.g. snap count, "highlight-worthy" flags) this system
+// has no data for. Ties are broken alphabetically by player name here, which is very unlikely to
+// match EA's real tie-break rule (unknown) -- acceptable for a rare edge case, not chased further.
 //
 // Deliberately dropped from the community defensive formula: "allowed big plays /
 // concessions" has no per-player canonical stat in this system (only team-level yards/points
@@ -36,14 +48,20 @@ export type WeeklyPlayerStatLine = {
   rushingFumbles: number;
   sacks: number;
   interceptions: number;
+  forcedFumbles: number;
+  fumbleRecoveries: number;
   tacklesForLoss: number;
   defensiveTds: number;
+  /** Display-only -- not part of either score formula, just shown on the award card/post. */
+  tackles: number;
 };
 
 export function emptyWeeklyPlayerStatLine(): WeeklyPlayerStatLine {
   return {
     passYards: 0, rushYards: 0, receivingYards: 0, passTds: 0, rushTds: 0, receivingTds: 0,
-    interceptionsThrown: 0, rushingFumbles: 0, sacks: 0, interceptions: 0, tacklesForLoss: 0, defensiveTds: 0,
+    interceptionsThrown: 0, rushingFumbles: 0, sacks: 0, interceptions: 0,
+    forcedFumbles: 0, fumbleRecoveries: 0, tacklesForLoss: 0, defensiveTds: 0,
+    tackles: 0,
   };
 }
 
@@ -55,7 +73,8 @@ export function offensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
 }
 
 export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
-  return line.sacks * 4 + line.interceptions * 4 + line.tacklesForLoss * 2 + line.defensiveTds * 6;
+  return line.sacks * 4 + line.interceptions * 4 + line.forcedFumbles * 3 + line.fumbleRecoveries * 3
+    + line.tacklesForLoss * 2 + line.defensiveTds * 6;
 }
 
 // A defensive line with zero recorded defensive stats isn't a "defensive performance" at
@@ -63,7 +82,8 @@ export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
 // exclude it from defensive POTW consideration rather than let it win 0-0 by default when no
 // one else has a line either.
 export function hasDefensiveStatLine(line: WeeklyPlayerStatLine): boolean {
-  return line.sacks > 0 || line.interceptions > 0 || line.tacklesForLoss > 0 || line.defensiveTds > 0;
+  return line.sacks > 0 || line.interceptions > 0 || line.forcedFumbles > 0 || line.fumbleRecoveries > 0
+    || line.tacklesForLoss > 0 || line.defensiveTds > 0;
 }
 
 export function hasOffensiveStatLine(line: WeeklyPlayerStatLine): boolean {

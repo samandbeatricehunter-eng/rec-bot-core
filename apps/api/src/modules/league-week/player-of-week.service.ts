@@ -29,8 +29,11 @@ const STAT_KEY_MAP: Record<keyof WeeklyPlayerStatLine, string> = {
   rushingFumbles: "rushing_fumbles",
   sacks: "sacks",
   interceptions: "interceptions",
+  forcedFumbles: "forced_fumbles",
+  fumbleRecoveries: "fumble_recoveries",
   tacklesForLoss: "tackles_for_loss",
   defensiveTds: "defensive_tds",
+  tackles: "tackles",
 };
 
 function num(value: unknown): number {
