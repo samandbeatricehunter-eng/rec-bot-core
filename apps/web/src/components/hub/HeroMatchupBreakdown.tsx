@@ -13,13 +13,16 @@ function formatValue(value: number, suffix = "") {
   return `${signed}${value.toFixed(Number.isInteger(value) ? 0 : 1)}`;
 }
 
-type StatRow = { key: string; label: string; awayValue: number; awayRank: number | null; homeValue: number; homeRank: number | null; suffix?: string };
+type StatRow = {
+  key: string; label: string; awayValue: number; awayRank: number | null; homeValue: number; homeRank: number | null;
+  suffix?: string; lowerIsBetter?: boolean;
+};
 
 function statRows(away: MatchupTeamBreakdown, home: MatchupTeamBreakdown) {
   return [
     { label: null as string | null, rows: [
       { key: "points-for", label: "Points / game", awayValue: away.pointsPerGame, awayRank: away.pointsPerGameRank, homeValue: home.pointsPerGame, homeRank: home.pointsPerGameRank },
-      { key: "points-allowed", label: "Points allowed / game", awayValue: away.pointsAllowedPerGame, awayRank: away.pointsAllowedPerGameRank, homeValue: home.pointsAllowedPerGame, homeRank: home.pointsAllowedPerGameRank },
+      { key: "points-allowed", label: "Points allowed / game", awayValue: away.pointsAllowedPerGame, awayRank: away.pointsAllowedPerGameRank, homeValue: home.pointsAllowedPerGame, homeRank: home.pointsAllowedPerGameRank, lowerIsBetter: true },
       { key: "point-diff", label: "Point differential", awayValue: away.pointDifferential, awayRank: away.pointDifferentialRank, homeValue: home.pointDifferential, homeRank: home.pointDifferentialRank, suffix: " signed" },
     ] as StatRow[] },
     { label: "Offensive", rows: [
@@ -27,20 +30,25 @@ function statRows(away: MatchupTeamBreakdown, home: MatchupTeamBreakdown) {
       { key: "rush-for", label: "Rushing yards / game", awayValue: away.rushingYardsPerGame, awayRank: away.rushingYardsRank, homeValue: home.rushingYardsPerGame, homeRank: home.rushingYardsRank },
     ] as StatRow[] },
     { label: "Defensive", rows: [
-      { key: "pass-allowed", label: "Passing yards allowed / game", awayValue: away.passingYardsAllowedPerGame, awayRank: away.passingYardsAllowedRank, homeValue: home.passingYardsAllowedPerGame, homeRank: home.passingYardsAllowedRank },
-      { key: "rush-allowed", label: "Rushing yards allowed / game", awayValue: away.rushingYardsAllowedPerGame, awayRank: away.rushingYardsAllowedRank, homeValue: home.rushingYardsAllowedPerGame, homeRank: home.rushingYardsAllowedRank },
+      { key: "pass-allowed", label: "Passing yards allowed / game", awayValue: away.passingYardsAllowedPerGame, awayRank: away.passingYardsAllowedRank, homeValue: home.passingYardsAllowedPerGame, homeRank: home.passingYardsAllowedRank, lowerIsBetter: true },
+      { key: "rush-allowed", label: "Rushing yards allowed / game", awayValue: away.rushingYardsAllowedPerGame, awayRank: away.rushingYardsAllowedRank, homeValue: home.rushingYardsAllowedPerGame, homeRank: home.rushingYardsAllowedRank, lowerIsBetter: true },
       { key: "turnover-diff", label: "Turnover differential", awayValue: away.turnoverDifferential, awayRank: away.turnoverDifferentialRank, homeValue: home.turnoverDifferential, homeRank: home.turnoverDifferentialRank, suffix: " signed" },
     ] as StatRow[] },
   ];
 }
 
-// Bar length reflects each side's magnitude relative to whichever side is larger for that row
-// (not "which side is better" -- a bigger Points Allowed bar just means a bigger number, same
-// as the reference design). A floor keeps a genuine 0 from rendering as an invisible sliver.
-function barWidthPct(value: number, other: number): number {
-  const max = Math.max(Math.abs(value), Math.abs(other));
-  if (max <= 0) return 6;
-  return Math.max(6, Math.round((Math.abs(value) / max) * 100));
+// One bar per row split into an away-share and a home-share that reflect who currently has the
+// edge in that stat -- not raw magnitude (which reads as "bigger bar = better" even for stats
+// like Points Allowed where a bigger number is worse). `lowerIsBetter` flips the direction for
+// allowed-type stats. The split is a smooth S-curve (not a hard proportion) scaled to each row's
+// own magnitude, so a real 20-point gap in Points/game leans hard while a 0.3-yard gap barely
+// moves off the middle -- and it's never fully empty on either side, which would misread as "no
+// data" rather than "slight edge."
+function awayAdvantageShare(row: StatRow): number {
+  const direction = row.lowerIsBetter ? -1 : 1;
+  const diff = direction * (row.awayValue - row.homeValue);
+  const scale = Math.max(Math.abs(row.awayValue), Math.abs(row.homeValue), 1) * 0.15;
+  return 0.5 + 0.5 * Math.tanh(diff / scale);
 }
 
 export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: MatchupPreview; wagerOptions?: WagerOptionsResponse | null }) {
@@ -64,16 +72,18 @@ export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: Match
       {statRows(away, home).map((group) => <div className="hub-hero-comparison-group" key={group.label ?? "scoring"}>
         {group.label ? <h3>{group.label}</h3> : null}
         {group.rows.map((row) => {
-          const awayPct = barWidthPct(row.awayValue, row.homeValue);
-          const homePct = barWidthPct(row.homeValue, row.awayValue);
+          const awayShare = awayAdvantageShare(row);
+          const awayLeads = awayShare >= 0.5;
           return <div className="hub-hero-comparison-row" key={row.key}>
             <div className="hub-hero-comparison-figure away">
               <strong>{formatValue(row.awayValue, row.suffix)}</strong>
               <small>{rankLabel(row.awayRank)}</small>
             </div>
-            <div className="hub-hero-comparison-bar away"><span style={{ width: `${awayPct}%` }} /></div>
+            <div className="hub-hero-comparison-bar">
+              <span className={`away${awayLeads ? " leads" : ""}`} style={{ width: `${(awayShare * 100).toFixed(1)}%` }} />
+              <span className={`home${awayLeads ? "" : " leads"}`} style={{ width: `${((1 - awayShare) * 100).toFixed(1)}%` }} />
+            </div>
             <span className="hub-hero-comparison-label">{row.label}</span>
-            <div className="hub-hero-comparison-bar home"><span style={{ width: `${homePct}%` }} /></div>
             <div className="hub-hero-comparison-figure home">
               <strong>{formatValue(row.homeValue, row.suffix)}</strong>
               <small>{rankLabel(row.homeRank)}</small>
