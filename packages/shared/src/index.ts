@@ -17,6 +17,7 @@ export * from "./route-channels.js";
 export * from "./roundtable-personalities.js";
 export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
+export * from "./player-of-week.js";
 export * from "./madden/index.js";
 export * from "./madden-pick-baselines.js";
 export * from "./madden-relocation.js";

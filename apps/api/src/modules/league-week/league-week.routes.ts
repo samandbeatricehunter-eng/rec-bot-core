@@ -10,6 +10,7 @@ import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, clo
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
+import { computeWeeklyPlayerOfWeek } from "./player-of-week.service.js";
 import { getMyDefenseNicknameStatus, setDefenseNickname } from "./defense-nicknames.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
@@ -108,6 +109,18 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send({ candidates: await scoreWeekGotwCandidates(body.guildId, body.weekNumber) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Player of the Week -- 1 offense + 1 defense winner per conference (AFC/NFC), scored from
+  // that week's rec_player_weekly_stats. Read-only/compute-on-demand, same pattern as GOTW.
+  app.post("/v1/league-week/player-of-week", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send({ winners: await computeWeeklyPlayerOfWeek(body.guildId, body.weekNumber) });
     } catch (error) {
       return sendError(reply, error);
     }
