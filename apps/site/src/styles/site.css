@@ -4616,8 +4616,6 @@ h1, h2, h3, .site-wordmark {
   color: #ffffff;
   background: #d81e2c;
   font-weight: 900;
-  -webkit-text-stroke: 1px #000;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px rgba(0, 0, 0, 0.5);
 }
 .site-header-row3-dropdown { position: relative; flex-shrink: 0; }
 
