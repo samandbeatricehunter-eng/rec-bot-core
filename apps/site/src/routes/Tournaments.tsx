@@ -43,7 +43,7 @@ export function statusLabel(status: string): string {
   return status;
 }
 
-function tzOffsetMs(utcMs: number, timeZone: string) {
+export function tzOffsetMs(utcMs: number, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hour12: false,
@@ -60,7 +60,7 @@ function tzOffsetMs(utcMs: number, timeZone: string) {
   return asUtc - utcMs;
 }
 
-function isoFromZonedLocal(value: string, timeZone: string) {
+export function isoFromZonedLocal(value: string, timeZone: string) {
   const [date, time] = value.split("T");
   const [year, month, day] = date.split("-").map(Number);
   const [hour, minute] = time.split(":").map(Number);
@@ -68,7 +68,7 @@ function isoFromZonedLocal(value: string, timeZone: string) {
   return new Date(utcGuess - tzOffsetMs(utcGuess, timeZone)).toISOString();
 }
 
-function localInputInZone(date: Date, timeZone: string) {
+export function localInputInZone(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",

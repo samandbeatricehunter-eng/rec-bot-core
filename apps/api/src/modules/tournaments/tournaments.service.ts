@@ -12,6 +12,7 @@ import {
   type TournamentRules,
 } from "@rec/shared";
 import type { PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
 import { getPgPool } from "../../db/client.js";
 import { syncTournamentDiscordAnnouncements } from "./tournament-discord.service.js";
 import { loadTournamentSchedulingSnapshots } from "./tournament-match-scheduling.service.js";
@@ -65,6 +66,8 @@ type TournamentRow = {
   team_selection_mode: "typed" | "claim_pool";
   claim_order_mode: "first_come" | "lottery" | null;
   schedule_mode: "single_kickoff" | "per_round";
+  logo_url: string | null;
+  scheduling_window_hours: number;
   entrant_count?: number;
   approved_count?: number;
   pending_count?: number;
@@ -205,6 +208,8 @@ function publicTournament(row: TournamentRow, extra: {
     teamSelectionMode: row.team_selection_mode ?? "typed",
     claimOrderMode: row.claim_order_mode ?? null,
     scheduleMode: row.schedule_mode ?? "single_kickoff",
+    logoUrl: row.logo_url ?? null,
+    schedulingWindowHours: Number(row.scheduling_window_hours ?? 48),
   };
 }
 
@@ -373,11 +378,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
   };
 }
 
-export async function createTournament(input: {
-  recUserId: string;
-  title: string;
-  description?: string | null;
-  game: Game;
+type TournamentFieldInput = {
   bracketType: string;
   payoutScope: TournamentPayoutScope;
   winnerCoins: number;
@@ -386,13 +387,13 @@ export async function createTournament(input: {
   registrationOpensAt: string;
   registrationClosesAt: string;
   kickoffAt: string;
-  rules: TournamentRules;
-  timezone?: string | null;
-  rosterLibraryId?: string | null;
   teamSelectionMode?: "typed" | "claim_pool";
   claimOrderMode?: "first_come" | "lottery" | null;
-  scheduleMode?: "single_kickoff" | "per_round";
-}) {
+};
+
+/** Shared by createTournament and updateTournament so the two never drift apart. Throws
+ *  ApiError on the first violation; returns the parsed dates/derived fields callers need. */
+function validateTournamentFields(input: TournamentFieldInput) {
   const meta = tournamentBracketType(input.bracketType);
   if (!meta) throw new ApiError(400, "Unknown bracket type.");
   if (input.winnerCoins < 0 || input.runnerUpCoins < 0 || input.semifinalistCoins < 0) {
@@ -417,6 +418,30 @@ export async function createTournament(input: {
     throw new ApiError(400, "Pick first-come or lottery for how claimed teams are ordered.");
   }
   const claimOrderMode = teamSelectionMode === "claim_pool" ? input.claimOrderMode ?? null : null;
+  return { meta, opens, closes, kickoff, teamSelectionMode, claimOrderMode };
+}
+
+export async function createTournament(input: {
+  recUserId: string;
+  title: string;
+  description?: string | null;
+  game: Game;
+  bracketType: string;
+  payoutScope: TournamentPayoutScope;
+  winnerCoins: number;
+  runnerUpCoins: number;
+  semifinalistCoins: number;
+  registrationOpensAt: string;
+  registrationClosesAt: string;
+  kickoffAt: string;
+  rules: TournamentRules;
+  timezone?: string | null;
+  rosterLibraryId?: string | null;
+  teamSelectionMode?: "typed" | "claim_pool";
+  claimOrderMode?: "first_come" | "lottery" | null;
+  scheduleMode?: "single_kickoff" | "per_round";
+}) {
+  const { opens, closes, kickoff, teamSelectionMode, claimOrderMode } = validateTournamentFields(input);
   const scheduleMode = input.scheduleMode ?? "single_kickoff";
   const rules = parseTournamentRules(input.rules, input.game);
   const result = await getPgPool().query(
@@ -461,6 +486,118 @@ export async function createTournament(input: {
   void syncTournamentDiscordAnnouncements(tournament.id, opensNow ? { pingEveryone: "created" } : {}).catch((error) =>
     console.error("[ERROR] tournament announcement sync failed (non-fatal):", error));
   return { tournament };
+}
+
+const TOURNAMENT_RESTRICTED_ONCE_LOCKED = [
+  "payoutScope", "winnerCoins", "runnerUpCoins", "semifinalistCoins",
+  "registrationOpensAt", "registrationClosesAt", "kickoffAt", "rules",
+  "rosterLibraryId", "teamSelectionMode", "claimOrderMode", "scheduleMode",
+] as const;
+
+/** bracketType/size is intentionally NOT editable here -- changing it after entrants have
+ *  joined would break seeding math (padEntrants/seededBracketOrder assume a fixed size decided
+ *  at creation). Once a tournament is locked or complete, only branding (title/description/
+ *  logo) and the scheduling window may still change -- everything else risks corrupting an
+ *  in-flight or finished bracket. */
+export async function updateTournament(input: {
+  tournamentId: string;
+  title?: string;
+  description?: string | null;
+  payoutScope?: TournamentPayoutScope;
+  winnerCoins?: number;
+  runnerUpCoins?: number;
+  semifinalistCoins?: number;
+  registrationOpensAt?: string;
+  registrationClosesAt?: string;
+  kickoffAt?: string;
+  rules?: unknown;
+  timezone?: string | null;
+  rosterLibraryId?: string | null;
+  teamSelectionMode?: "typed" | "claim_pool";
+  claimOrderMode?: "first_come" | "lottery" | null;
+  scheduleMode?: "single_kickoff" | "per_round";
+  schedulingWindowHours?: number;
+  logoUrl?: string | null;
+}) {
+  const tournament = await loadTournament(input.tournamentId);
+  const locked = tournament.status === "locked" || tournament.status === "complete";
+  if (locked) {
+    for (const key of TOURNAMENT_RESTRICTED_ONCE_LOCKED) {
+      if (input[key] !== undefined) {
+        throw new ApiError(409, "This tournament is locked — only branding and scheduling-window changes are allowed.");
+      }
+    }
+  }
+
+  const { opens, closes, kickoff, teamSelectionMode, claimOrderMode } = validateTournamentFields({
+    bracketType: tournament.bracket_type,
+    payoutScope: input.payoutScope ?? tournament.payout_scope,
+    winnerCoins: input.winnerCoins ?? Number(tournament.winner_coins),
+    runnerUpCoins: input.runnerUpCoins ?? Number(tournament.runner_up_coins),
+    semifinalistCoins: input.semifinalistCoins ?? Number(tournament.semifinalist_coins),
+    registrationOpensAt: input.registrationOpensAt ?? tournament.registration_opens_at!,
+    registrationClosesAt: input.registrationClosesAt ?? tournament.registration_closes_at!,
+    kickoffAt: input.kickoffAt ?? tournament.kickoff_at!,
+    teamSelectionMode: input.teamSelectionMode ?? tournament.team_selection_mode,
+    claimOrderMode: input.claimOrderMode !== undefined ? input.claimOrderMode : tournament.claim_order_mode,
+  });
+
+  const title = (input.title ?? tournament.title).trim();
+  const description = input.description !== undefined ? (input.description?.trim() || null) : tournament.description;
+  const rules = input.rules !== undefined ? parseTournamentRules(input.rules, tournament.game) : tournament.rules;
+  const timezone = input.timezone !== undefined ? (input.timezone?.trim() || "America/Chicago") : (tournament.timezone || "America/Chicago");
+  const rosterLibraryId = input.rosterLibraryId !== undefined ? (input.rosterLibraryId || null) : tournament.roster_library_id;
+  const scheduleMode = input.scheduleMode ?? tournament.schedule_mode;
+  const schedulingWindowHours = input.schedulingWindowHours !== undefined
+    ? Math.max(1, Math.trunc(input.schedulingWindowHours))
+    : Number(tournament.scheduling_window_hours ?? 48);
+  const logoUrl = input.logoUrl !== undefined ? input.logoUrl : tournament.logo_url;
+
+  const result = await getPgPool().query(
+    `
+      update rec_site_tournaments set
+        title = $2, description = $3, payout_scope = $4, winner_coins = $5, runner_up_coins = $6, semifinalist_coins = $7,
+        registration_opens_at = $8, registration_closes_at = $9, kickoff_at = $10, starts_at = $10, rules = $11::jsonb, timezone = $12,
+        roster_library_id = $13, team_selection_mode = $14, claim_order_mode = $15, schedule_mode = $16,
+        scheduling_window_hours = $17, logo_url = $18, updated_at = now()
+      where id = $1
+      returning *
+    `,
+    [
+      input.tournamentId, title, description,
+      input.payoutScope ?? tournament.payout_scope,
+      Math.trunc(input.winnerCoins ?? Number(tournament.winner_coins)),
+      Math.trunc(input.runnerUpCoins ?? Number(tournament.runner_up_coins)),
+      Math.trunc(input.semifinalistCoins ?? Number(tournament.semifinalist_coins)),
+      opens.toISOString(), closes.toISOString(), kickoff.toISOString(),
+      JSON.stringify(rules), timezone, rosterLibraryId, teamSelectionMode, claimOrderMode, scheduleMode,
+      schedulingWindowHours, logoUrl,
+    ],
+  );
+  return { tournament: publicTournament(result.rows[0] as TournamentRow) };
+}
+
+/** Modeled 1:1 on setup.service.ts's storeLeagueLogo -- same size/type limits, same
+ *  rec-media bucket, same rollback-on-DB-failure behavior. Tournaments are admin-owned
+ *  site-wide (not per-league), so the caller only needs requireSiteAdmin, not an ownership
+ *  check against a specific user. */
+export async function uploadTournamentLogo(input: { tournamentId: string; buffer: Buffer; contentType: string }) {
+  if (input.buffer.byteLength > 5 * 1024 * 1024) throw new ApiError(400, "Tournament logos must be 5 MB or smaller.");
+  if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(input.contentType)) {
+    throw new ApiError(400, "Tournament logos must be PNG, JPEG, or WebP. Animated GIFs are not accepted.");
+  }
+  await loadTournament(input.tournamentId);
+  const extension = input.contentType === "image/jpeg" ? "jpg" : input.contentType.split("/")[1];
+  const path = `${input.tournamentId}/tournament-logo-${randomUUID()}.${extension}`;
+  const stored = await supabase.storage.from("rec-media").upload(path, input.buffer, { contentType: input.contentType, cacheControl: "31536000", upsert: false });
+  if (stored.error) throw new ApiError(500, "We couldn't upload the tournament logo. Please try again.", stored.error);
+  const logoUrl = supabase.storage.from("rec-media").getPublicUrl(path).data.publicUrl;
+  const updated = await supabase.from("rec_site_tournaments").update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq("id", input.tournamentId).select("id,logo_url").single();
+  if (updated.error) {
+    await supabase.storage.from("rec-media").remove([path]);
+    throw new ApiError(500, "We couldn't save the tournament logo. Please try again.", updated.error);
+  }
+  return { logoUrl: updated.data.logo_url as string | null };
 }
 
 export async function cancelTournament(input: { tournamentId: string }) {

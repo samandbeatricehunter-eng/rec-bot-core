@@ -1177,6 +1177,40 @@ export const siteApi = {
   }) {
     return request<{ tournament: SiteTournamentSummary }>("/v1/tournaments/create", input);
   },
+  updateTournament(input: {
+    tournamentId: string;
+    title?: string;
+    description?: string | null;
+    payoutScope?: "winner" | "final_two" | "final_four";
+    winnerCoins?: number;
+    runnerUpCoins?: number;
+    semifinalistCoins?: number;
+    registrationOpensAt?: string;
+    registrationClosesAt?: string;
+    kickoffAt?: string;
+    timezone?: string;
+    rules?: TournamentRules;
+    rosterLibraryId?: string | null;
+    teamSelectionMode?: "typed" | "claim_pool";
+    claimOrderMode?: "first_come" | "lottery" | null;
+    scheduleMode?: "single_kickoff" | "per_round";
+    schedulingWindowHours?: number;
+  }) {
+    return request<{ tournament: SiteTournamentSummary }>("/v1/tournaments/update", input);
+  },
+  async uploadTournamentLogo(tournamentId: string, file: File) {
+    const base = requireApiBaseUrl();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("You are not signed in.");
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${base}/v1/tournaments/upload-logo?tournamentId=${encodeURIComponent(tournamentId)}`, {
+      method: "POST", headers: { authorization: `Bearer ${session.access_token}` }, body: form,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Logo upload failed.");
+    return payload as { logoUrl: string };
+  },
   listTournamentRounds(tournamentId: string) {
     return request<{ rounds: Array<{ bracketSide: "winners" | "losers" | "grand_final"; round: number; scheduledAt: string | null }> }>(
       "/v1/tournaments/rounds/list",
@@ -1669,6 +1703,8 @@ export type SiteTournamentSummary = {
   teamSelectionMode: "typed" | "claim_pool";
   claimOrderMode: "first_come" | "lottery" | null;
   scheduleMode: "single_kickoff" | "per_round";
+  logoUrl: string | null;
+  schedulingWindowHours: number;
 };
 
 export type SiteTournamentTeamOption = {

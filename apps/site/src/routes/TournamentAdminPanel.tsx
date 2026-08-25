@@ -14,6 +14,7 @@ import {
   type SiteTournamentTeamOption,
 } from "../lib/site-api.js";
 import { CreateTournamentForm, gameLabel, payoutLine, statusLabel } from "./Tournaments.js";
+import { EditTournamentForm } from "./EditTournamentForm.js";
 
 function resultMethodLabel(method: string | null): string {
   if (method === "concede") return "Opponent conceded";
@@ -586,6 +587,14 @@ export function TournamentAdminPanel() {
               ) : null}
             </div>
           </div>
+
+          <EditTournamentForm
+            tournament={row}
+            onUpdated={(next) => {
+              setDetail((current) => (current ? { ...current, tournament: next } : current));
+              void loadList();
+            }}
+          />
 
           {row.scheduleMode === "per_round" ? <TournamentRoundScheduler tournamentId={row.id} /> : null}
 

@@ -85,6 +85,8 @@ import {
   setTournamentRegistrationOpen,
   setTournamentRoundSchedule,
   tournamentTeamsForGame,
+  updateTournament,
+  uploadTournamentLogo,
 } from "./tournaments.service.js";
 
 const gameSchema = z.enum(["madden_26", "madden_27", "cfb_27"]);
@@ -202,6 +204,46 @@ export async function tournamentRoutes(app: FastifyInstance) {
         claimOrderMode: body.claimOrderMode,
         scheduleMode: body.scheduleMode,
       }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/update", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const body = z.object({
+        tournamentId: z.string().uuid(),
+        title: z.string().trim().min(2).max(80).optional(),
+        description: z.string().trim().max(500).optional().nullable(),
+        payoutScope: payoutSchema.optional(),
+        winnerCoins: z.number().int().min(0).max(10_000_000).optional(),
+        runnerUpCoins: z.number().int().min(0).max(10_000_000).optional(),
+        semifinalistCoins: z.number().int().min(0).max(10_000_000).optional(),
+        registrationOpensAt: z.string().min(1).optional(),
+        registrationClosesAt: z.string().min(1).optional(),
+        kickoffAt: z.string().min(1).optional(),
+        timezone: z.string().trim().min(1).max(64).optional(),
+        rules: rulesSchema.optional(),
+        rosterLibraryId: z.string().uuid().optional().nullable(),
+        teamSelectionMode: z.enum(["typed", "claim_pool"]).optional(),
+        claimOrderMode: z.enum(["first_come", "lottery"]).optional().nullable(),
+        scheduleMode: z.enum(["single_kickoff", "per_round"]).optional(),
+        schedulingWindowHours: z.number().int().min(1).max(24 * 30).optional(),
+      }).parse(request.body ?? {});
+      return reply.send(await updateTournament(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/tournaments/upload-logo", async (request, reply) => {
+    try {
+      await requireSiteAdmin(request);
+      const tournamentId = z.string().uuid().parse((request.query as { tournamentId?: string })?.tournamentId);
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Choose a tournament logo image.");
+      return reply.send(await uploadTournamentLogo({ tournamentId, buffer: await file.toBuffer(), contentType: file.mimetype }));
     } catch (error) {
       return sendError(reply, error);
     }
