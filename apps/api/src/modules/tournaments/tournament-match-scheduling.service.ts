@@ -12,11 +12,12 @@ type MatchRow = {
   player_a_user_id: string | null;
   player_b_user_id: string | null;
   status: string;
+  required_streamer_user_id: string | null;
 };
 
 async function loadMatch(matchId: string): Promise<MatchRow> {
   const result = await getPgPool().query<MatchRow>(
-    `select id, tournament_id, player_a_user_id, player_b_user_id, status
+    `select id, tournament_id, player_a_user_id, player_b_user_id, status, required_streamer_user_id
        from rec_site_tournament_matches where id=$1`,
     [matchId],
   );
@@ -31,14 +32,20 @@ function requireParticipant(match: MatchRow, recUserId: string) {
   }
 }
 
+export type TournamentSchedulingStatus =
+  | "not_scheduled" | "proposed" | "confirmed" | "reschedule_requested"
+  | "live" | "completed" | "needs_admin_help";
+
 type SchedulingRow = {
   match_id: string;
   tournament_id: string;
-  status: "not_scheduled" | "proposed" | "confirmed" | "reschedule_requested";
+  status: TournamentSchedulingStatus;
   scheduled_for: string | null;
   confirmed_at: string | null;
   proposed_by_user_id: string | null;
   accepted_by_user_id: string | null;
+  game_started_at: string | null;
+  game_completed_at: string | null;
 };
 
 export async function ensureScheduling(matchId: string, tournamentId: string): Promise<SchedulingRow> {
@@ -184,6 +191,32 @@ export async function requestReschedule(input: { matchId: string; recUserId: str
   );
   await getPgPool().query(`update rec_site_tournament_matches set scheduled_at=null, updated_at=now() where id=$1`, [input.matchId]);
   return { status: "reschedule_requested" as const };
+}
+
+/** Flips a match live. Two call paths: a manual "Game Started" click (either participant may
+ *  call it), or `auto: true` fired from a stream-link save -- which only actually starts the
+ *  match when the SAVING user is the required streamer, so a stream save from the other player
+ *  never auto-starts it. Idempotent: a match that's already live or completed is a no-op. */
+export async function markTournamentMatchStarted(input: { matchId: string; recUserId: string; auto?: boolean }) {
+  const match = await loadMatch(input.matchId);
+  if (input.auto) {
+    if (match.required_streamer_user_id && input.recUserId !== match.required_streamer_user_id) return null;
+  } else {
+    requireParticipant(match, input.recUserId);
+  }
+  await ensureScheduling(input.matchId, match.tournament_id);
+  const pool = getPgPool();
+  const updated = await pool.query<SchedulingRow>(
+    `update rec_site_tournament_match_scheduling
+        set status='live', game_started_at=now(), updated_at=now()
+      where match_id=$1 and status not in ('live','completed')
+      returning *`,
+    [input.matchId],
+  );
+  if (!updated.rows[0]) return null;
+  await pool.query(`update rec_site_tournament_matches set status='live', started_at=now() where id=$1 and status='ready'`, [input.matchId]);
+  await pool.query(`update rec_site_tournament_match_time_proposals set status='withdrawn', responded_at=now() where match_id=$1 and status='pending'`, [input.matchId]);
+  return updated.rows[0];
 }
 
 export async function resetMatchScheduling(matchId: string) {

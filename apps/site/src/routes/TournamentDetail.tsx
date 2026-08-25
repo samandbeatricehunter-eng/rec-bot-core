@@ -114,12 +114,13 @@ function TournamentBracket({
                     <strong>
                       {match.playerA?.displayName ?? "TBD"}
                       {match.playerA?.teamName ? ` · ${match.playerA.teamName}` : ""}
-                      <small> Must stream</small>
+                      {match.requiredStreamerUserId && match.requiredStreamerUserId === match.playerA?.userId ? <small> Must stream</small> : null}
                     </strong>
                     <span>vs</span>
                     <strong>
                       {match.playerB?.displayName ?? "TBD"}
                       {match.playerB?.teamName ? ` · ${match.playerB.teamName}` : ""}
+                      {match.requiredStreamerUserId && match.requiredStreamerUserId === match.playerB?.userId ? <small> Must stream</small> : null}
                     </strong>
                   </div>
                   {match.scheduledAt ? (
@@ -154,6 +155,7 @@ function TournamentBracket({
                       match={match}
                       busy={busy}
                       canReport={canReport}
+                      canStream={isAdmin || (Boolean(youId) && youId === match.requiredStreamerUserId)}
                       onReport={(input) => onReport({ matchId: match.id, ...input })}
                       onSaveStream={(url) => onSaveStream(match.id, url)}
                       onUploadHighlight={(file) => onUploadHighlight(match.id, file)}
@@ -188,6 +190,7 @@ function MatchUploads({
   match,
   busy,
   canReport,
+  canStream,
   onReport,
   onSaveStream,
   onUploadHighlight,
@@ -195,6 +198,7 @@ function MatchUploads({
   match: SiteTournamentDetail["matches"][number];
   busy: boolean;
   canReport: boolean;
+  canStream: boolean;
   onReport: (input: {
     winnerUserId: string;
     resultMethod: "final_screenshot" | "concede" | "opponent_quit";
@@ -222,15 +226,17 @@ function MatchUploads({
   return (
     <div className="site-tournament-report">
       <div className="site-tournament-report-actions">
-        <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen((open) => !open)}>
-          {match.streamUrl ? "Update stream" : "Share Stream"}
-        </button>
+        {canStream ? (
+          <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen((open) => !open)}>
+            {match.streamUrl ? "Update stream" : "Share Stream"}
+          </button>
+        ) : null}
         <button type="button" className="site-btn site-btn-ghost" onClick={() => setHighlightOpen((open) => !open)}>
           Upload Highlight
         </button>
       </div>
 
-      {streamOpen ? (
+      {streamOpen && canStream ? (
         <div className="site-tournament-report-panel">
           <p className="site-muted">Sharing your stream marks this game as started.</p>
           <label className="site-field">

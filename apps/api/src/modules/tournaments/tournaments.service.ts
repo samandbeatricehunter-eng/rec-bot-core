@@ -104,6 +104,7 @@ type MatchRow = {
   screenshot_url: string | null;
   conceded_by_user_id: string | null;
   stream_url: string | null;
+  required_streamer_user_id: string | null;
   player_a_score: number | null;
   player_b_score: number | null;
   betting_open: boolean;
@@ -370,6 +371,7 @@ export async function getTournamentDetail(input: { recUserId: string; tournament
         ? playerLabel({ username: row.w_username, display_name: row.w_display_name })
         : null,
       streamUrl: row.stream_url ?? null,
+      requiredStreamerUserId: row.required_streamer_user_id ?? null,
       playerAScore: row.player_a_score ?? null,
       playerBScore: row.player_b_score ?? null,
       bettingOpen: row.betting_open !== false,
@@ -724,7 +726,13 @@ async function refreshMatchReadiness(matchId: string) {
   const a = match.player_a_user_id;
   const b = match.player_b_user_id;
   if (a && b) {
-    await getPgPool().query(`update rec_site_tournament_matches set status = 'ready' where id = $1`, [matchId]);
+    // player_a is the required streamer -- set once, the first time both slots are filled, and
+    // never overwritten afterward (a later reschedule/replacement shouldn't silently change who
+    // has to stream mid-tournament).
+    await getPgPool().query(
+      `update rec_site_tournament_matches set status = 'ready', required_streamer_user_id = coalesce(required_streamer_user_id, $2) where id = $1`,
+      [matchId, a],
+    );
   } else if (a || b) {
     await getPgPool().query(`update rec_site_tournament_matches set status = 'pending' where id = $1`, [matchId]);
   }
@@ -792,8 +800,8 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
       const inserted = await client.query(
         `
           insert into rec_site_tournament_matches
-            (tournament_id, bracket_key, bracket_side, round, slot, player_a_user_id, player_b_user_id, status)
-          values ($1, $2, $3, $4, $5, $6, $7, $8)
+            (tournament_id, bracket_key, bracket_side, round, slot, player_a_user_id, player_b_user_id, status, required_streamer_user_id)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           returning id
         `,
         [
@@ -805,6 +813,7 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
           spec.playerA,
           spec.playerB,
           spec.playerA && spec.playerB ? "ready" : "pending",
+          spec.playerA && spec.playerB ? spec.playerA : null,
         ],
       );
       idByKey.set(spec.key, String(inserted.rows[0].id));
@@ -1628,9 +1637,18 @@ export async function setTournamentMatchStream(input: {
   streamUrl: string;
 }) {
   const match = await loadMatch(input.tournamentId, input.matchId);
+  // Only the required streamer (player_a, the stable first-seated slot) may set the stream link
+  // -- an admin can still do it on their behalf. Sharing it is also what flips the match live;
+  // a stream save from the non-required side must never trigger that.
+  if (!input.isAdmin && match.required_streamer_user_id && input.recUserId !== match.required_streamer_user_id) {
+    throw new ApiError(403, "Only the player required to stream can set the stream link.");
+  }
   assertMatchParticipant(match, input.recUserId, input.isAdmin);
   const streamUrl = requireHttpUrl(input.streamUrl, "stream link");
   await getPgPool().query(`update rec_site_tournament_matches set stream_url = $2 where id = $1`, [match.id, streamUrl]);
+  const { markTournamentMatchStarted } = await import("./tournament-match-scheduling.service.js");
+  await markTournamentMatchStarted({ matchId: match.id, recUserId: input.recUserId, auto: true }).catch((error) =>
+    console.error("[WARN] Failed to auto-start tournament match after stream save (non-fatal):", error));
   return getTournamentDetail({ recUserId: input.recUserId, tournamentId: input.tournamentId });
 }
 

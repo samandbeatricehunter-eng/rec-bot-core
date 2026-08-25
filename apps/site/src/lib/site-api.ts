@@ -1827,6 +1827,7 @@ export type SiteTournamentDetail = {
     scheduledAt: string | null;
     status: string;
     homeMustStream: boolean;
+    requiredStreamerUserId: string | null;
     resultMethod: string | null;
     screenshotUrl: string | null;
     streamUrl: string | null;
