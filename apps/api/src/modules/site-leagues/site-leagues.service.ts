@@ -50,6 +50,9 @@ export type SiteLeagueSummary = {
   game: string;
   gameLabel: string;
   teamName: string | null;
+  teamAbbr: string | null;
+  /** This league's current-season win-loss(-tie) record for the caller's team, e.g. "6-2". Null with no team assigned or no games played yet. */
+  seasonRecordText: string | null;
   isCommissioner: boolean;
   /** head = owner / head commissioner; co = co-commissioner; member = player only */
   commissionerRole: "head" | "co" | "member";
@@ -167,6 +170,8 @@ export async function listMySiteLeagues(input: {
       game: row.game,
       gameLabel: gameLabelFor(row.game),
       teamName: row.team_name ?? null,
+      teamAbbr: null,
+      seasonRecordText: null,
       isCommissioner: commissionerRole !== "member",
       commissionerRole,
       discordBotEnabled: Boolean(row.discord_bot_enabled),
@@ -206,19 +211,24 @@ export async function listMySiteLeagues(input: {
             ) members
           ) as member_count,
           ta.team_id,
+          coalesce(my_t.display_abbr, my_t.abbreviation) as team_abbr,
           g.id as game_id,
           g.home_team_id,
           g.away_team_id,
           g.home_user_id,
           g.away_user_id,
           home_t.name as home_team_name,
-          away_t.name as away_team_name
+          away_t.name as away_team_name,
+          record.wins as record_wins,
+          record.losses as record_losses,
+          record.ties as record_ties
         from rec_leagues l
         left join rec_team_assignments ta
           on ta.league_id = l.id
           and ta.user_id = $2
           and ta.assignment_status = 'active'
           and ta.ended_at is null
+        left join rec_teams my_t on my_t.id = ta.team_id
         left join rec_games g
           on g.league_id = l.id
           and g.week_number = l.current_week
@@ -226,6 +236,14 @@ export async function listMySiteLeagues(input: {
           and (g.home_team_id = ta.team_id or g.away_team_id = ta.team_id)
         left join rec_teams home_t on home_t.id = g.home_team_id
         left join rec_teams away_t on away_t.id = g.away_team_id
+        left join lateral (
+          select
+            count(*) filter (where gr.winning_user_id = $2) as wins,
+            count(*) filter (where gr.losing_user_id = $2) as losses,
+            count(*) filter (where gr.is_tie) as ties
+          from rec_game_results gr
+          where gr.league_id = l.id and (gr.home_user_id = $2 or gr.away_user_id = $2)
+        ) record on ta.team_id is not null
         where l.id = any($1::uuid[])
       `,
       [leagues.map((league) => league.id), input.recUserId],
@@ -239,6 +257,13 @@ export async function listMySiteLeagues(input: {
       const week = row.current_week == null ? null : Number(row.current_week);
       league.maxMembers = Number(row.max_members ?? 32);
       league.memberCount = Number(row.member_count ?? 0);
+      league.teamAbbr = row.team_abbr ?? null;
+      if (row.team_id) {
+        const wins = Number(row.record_wins ?? 0);
+        const losses = Number(row.record_losses ?? 0);
+        const ties = Number(row.record_ties ?? 0);
+        league.seasonRecordText = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+      }
       league.seasonStage = stage;
       league.currentWeek = week;
       league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");

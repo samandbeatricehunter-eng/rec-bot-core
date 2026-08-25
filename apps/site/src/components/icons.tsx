@@ -260,3 +260,17 @@ export function IconStats(props: IconProps) {
     </>,
   );
 }
+
+export function IconGear(props: IconProps) {
+  return base(
+    props,
+    <>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 3.5v2.4M12 18.1v2.4M20.5 12h-2.4M5.9 12H3.5M17.6 6.4l-1.7 1.7M8.1 15.9l-1.7 1.7M17.6 17.6l-1.7-1.7M8.1 8.1 6.4 6.4" />
+    </>,
+  );
+}
+
+export function IconChevronDown(props: IconProps) {
+  return base(props, <path d="M6 9l6 6 6-6" />);
+}

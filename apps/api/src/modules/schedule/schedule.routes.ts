@@ -35,7 +35,9 @@ const SaveManualGameSchema = z.object({
 export async function scheduleRoutes(app: FastifyInstance) {
   app.post("/v1/schedule/cfp/state", async (request, reply) => {
     try {
-      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      // Read-only — any league member can view postseason rankings/bracket; only
+      // top-25/generate below (which mutate) require co-commissioner.
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "member" });
       const input = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().positive().optional().nullable() }).parse(request.body);
       return reply.send(await getCfpPostseasonState(input));
     } catch (error) { return sendError(reply, error); }

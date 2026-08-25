@@ -340,6 +340,8 @@ export type SiteLeagueSummary = {
   game: string;
   gameLabel: string;
   teamName: string | null;
+  teamAbbr?: string | null;
+  seasonRecordText?: string | null;
   isCommissioner: boolean;
   commissionerRole?: "head" | "co" | "member";
   discordBotEnabled: boolean;

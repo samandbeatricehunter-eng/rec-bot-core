@@ -5,7 +5,6 @@ import { useHub } from "../lib/hub-context.js";
 import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-api.js";
 import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
-import { LeagueTopNav } from "../components/LeagueTopNav.js";
 import {
   ChatDrawerProvider,
   CfpPostseasonManager,
@@ -25,6 +24,8 @@ import {
   RecruitingHome,
   LeagueHistoryHome,
   LeagueRecordsHome,
+  LeagueStandingsHome,
+  LeagueCareerStatsHome,
   LeagueStatsHome,
   RolesHome,
   RulesHome,
@@ -52,7 +53,7 @@ import "../../../web/src/styles/league-management.css";
 import "../../../web/src/styles/nfl-playoff-bracket.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "history" | "records" | "mgmt";
+type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
@@ -66,6 +67,8 @@ function viewFromPath(pathname: string): HubView {
   if (pathname.includes("/wagers")) return "wagers";
   if (pathname.includes("/roster")) return "roster";
   if (pathname.includes("/trades")) return "trades";
+  if (pathname.includes("/standings")) return "standings";
+  if (pathname.includes("/career-stats")) return "career-stats";
   if (pathname.includes("/stats")) return "stats";
   if (pathname.includes("/records")) return "records";
   if (pathname.includes("/history")) return "history";
@@ -145,11 +148,11 @@ class HubErrorBoundary extends Component<
   }
 }
 
-const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records">, string> = {
+const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records">, string> = {
   buzz: "buzz", news: "news", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
 };
 
-function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "history" | "records"> | null {
+function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records"> | null {
   if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
   if (section === "league" && subTab === "news") return "news";
   if (section === "team") return "team";
@@ -408,7 +411,6 @@ export function LeagueHubPage() {
             <HighlightUploadProvider>
             <ChatDrawerProvider>
               <LeagueThemeProvider game={gameTheme}>
-                <LeagueTopNav leagueId={leagueId} />
                 <HubErrorBoundary>
                   {location.pathname.endsWith("/draft-board") ? (
                     <FantasyDraftBoardPage />
@@ -422,6 +424,10 @@ export function LeagueHubPage() {
                     <LeagueRecordsHome />
                   ) : view === "stats" ? (
                     <LeagueStatsHome />
+                  ) : view === "standings" ? (
+                    <LeagueStandingsHome />
+                  ) : view === "career-stats" ? (
+                    <LeagueCareerStatsHome />
                   ) : (
                     <HubHomeBridge view={view} leagueId={leagueId} />
                   )}

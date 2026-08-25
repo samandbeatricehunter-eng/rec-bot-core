@@ -154,7 +154,7 @@ function useLeagueStats(guildId: string, filters: { teamId?: string | null; posi
 
 /** "Stats by Category" — pick Passing/Rushing/Receiving/Blocking/Defensive/Special Teams and
  * see every player who plays that side of the ball, ranked by that category's headline stat. */
-function CategoryStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
+export function CategoryStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
   const [categoryKey, setCategoryKey] = useState<StatPageCategoryKey>("passing");
   const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
   const { data, error } = useLeagueStats(guildId, { scope });
@@ -188,7 +188,7 @@ function CategoryStatsView({ guildId, scope }: { guildId: string; scope: "season
 
 /** "Stats by Team" — pick a team, then a position (defaults to QB); shows that position group's
  * season totals for the selected team. */
-function TeamStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
+export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
   const [teamId, setTeamId] = useState("");
   const [position, setPosition] = useState("QB");
   const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);

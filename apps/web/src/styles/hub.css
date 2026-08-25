@@ -3777,6 +3777,21 @@ button.poty:disabled {
 .hub-stats-resource-grid button.active { border-color:var(--accent-bright); background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent-bright); }
 .hub-stats-resource-panel { display:grid; gap:var(--space-5); }
 .hub-stats-playoff-key { display:flex; flex-wrap:wrap; gap:8px 18px; margin:14px 0 0; color:var(--text-muted); font-size:11px; font-weight:700; text-transform:uppercase; }
+.hub-standings-drawer-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; padding:0; border:none; background:transparent; color:var(--text-primary); font:inherit; cursor:pointer; }
+.hub-standings-drawer-toggle span { color:var(--accent-bright); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.hub-standings-drawer-body { margin-top:14px; }
+.hub-standings-conference-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; }
+.hub-standings-conference h3 { margin:0 0 8px; color:var(--accent-bright); font-family:var(--font-display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+.hub-standings-table { width:100%; border-collapse:collapse; font-size:13px; }
+.hub-standings-table th { padding:4px 6px; color:var(--text-muted); font-size:10px; font-weight:800; letter-spacing:.06em; text-align:left; text-transform:uppercase; }
+.hub-standings-table th:not(:first-child), .hub-standings-table td:not(:first-child) { text-align:center; }
+.hub-standings-table td { padding:6px; border-top:1px solid rgba(255,255,255,.07); font-weight:700; }
+.hub-standings-marker { color:var(--accent-bright); font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.hub-standings-poll { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:6px 18px; margin:0 0 18px; padding:0; list-style:none; counter-reset:none; font-weight:700; }
+.hub-standings-poll li { padding:4px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+.hub-standings-bracket-round { margin-top:16px; }
+.hub-standings-bracket-round h3 { margin:0 0 8px; color:var(--accent-bright); font-family:var(--font-display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+.hub-standings-bracket-game { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700; }
 .hub-hero-comparison-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(155px, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 58px; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .hub-hero-comparison-row > div { display: flex; flex-direction: column; min-width: 0; }
 .hub-hero-comparison-row > div:last-child { align-items: flex-end; text-align: right; }

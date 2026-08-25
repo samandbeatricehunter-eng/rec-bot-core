@@ -652,6 +652,26 @@ export function HubHome() {
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
+  const [financialsTab, setFinancialsTab] = useState<"ledger" | "transfer">("ledger");
+
+  // Bridge for SiteHeader's league-row-3 dropdown items (apps/site/src/components/LeagueRow3.tsx)
+  // -- SiteHeader renders outside HubHome's component tree (a sibling in SiteShell, not a
+  // descendant), so a header dropdown item can't call one of HubHome's local modal setters
+  // directly. It navigates to the current page with ?openModal=<key> instead; this effect reads
+  // that once, opens the matching modal, and strips the param so a refresh/back doesn't reopen it.
+  useEffect(() => {
+    const requested = searchParams.get("openModal");
+    if (!requested) return;
+    if (requested === "interview" || requested === "article") setMediaModal(requested);
+    else if (requested === "schedule") void viewMySchedule();
+    else if (requested === "financials") setFinancialModalOpen(true);
+    else if (requested === "wager") openSportsbook();
+    else if (requested === "retire") { setRetireError(null); setRetireModalOpen(true); }
+    const next = new URLSearchParams(searchParams);
+    next.delete("openModal");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
   const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -1501,8 +1521,16 @@ export function HubHome() {
       {hub.league.game !== "cfb_27" && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
         <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
       </Modal>}
-      {hub.league.game !== "cfb_27" && financialModalOpen && <Modal title="Financial Profile" onClose={() => setFinancialModalOpen(false)}>
-        <FinancialLedger summary={profile.financialSummary} />
+      {hub.league.game !== "cfb_27" && financialModalOpen && <Modal title="Financials" onClose={() => setFinancialModalOpen(false)}>
+        <div className="hub-modal-pill-row">
+          <button type="button" className={financialsTab === "ledger" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("ledger")}>Ledger</button>
+          <button type="button" className={financialsTab === "transfer" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("transfer")}>Transfer</button>
+        </div>
+        {financialsTab === "ledger" ? (
+          <FinancialLedger summary={profile.financialSummary} />
+        ) : (
+          <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
+        )}
       </Modal>}
       {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
@@ -2193,7 +2221,6 @@ export function HubHome() {
             currentWeek={hub.league.weekNumber}
             highlightCounts={myHighlightCounts ?? undefined}
             onUploadBoxScore={isCfbLeague ? setScheduleBoxScoreWeek : undefined}
-            onUploadHighlight={setScheduleHighlightWeek}
           />
       ) : (
         <div className="hub-schedule-league-week">
