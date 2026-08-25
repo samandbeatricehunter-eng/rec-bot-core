@@ -13,10 +13,35 @@ import {
   verifyStreamWebhookSignature,
 } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
-import { editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { editDiscordMessage, editDiscordMessageWithFile, postDiscordChannelMessage, postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+
+// Discord only ever auto-renders a *playable* inline video from a raw direct-file URL posted as
+// message content if its own crawler successfully probes the remote host -- in practice that
+// unfurl is unreliable against Cloudflare's customer-*.cloudflarestream.com download host (it
+// just renders as a plain link, per a live screenshot showing exactly that after this file's
+// direct-URL approach shipped). The one guaranteed-native-player path is uploading the actual
+// video bytes as a Discord attachment, which Discord always renders as its own inline player
+// since it's hosting the file itself. Discord's smallest per-guild upload cap (no server boosts)
+// is 10MB; stay comfortably under that so multipart overhead never tips a clip over the edge.
+const DISCORD_ATTACHMENT_SAFE_BYTES = 9 * 1024 * 1024;
+
+async function fetchVideoBufferForDiscord(url: string): Promise<Buffer | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) return null;
+    const contentLength = Number(response.headers.get("content-length") ?? "0");
+    if (contentLength > 0 && contentLength > DISCORD_ATTACHMENT_SAFE_BYTES) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.byteLength > DISCORD_ATTACHMENT_SAFE_BYTES) return null;
+    return buffer;
+  } catch (error) {
+    console.error(`[WARN] Failed to fetch highlight video bytes from ${url} (non-fatal):`, error);
+    return null;
+  }
+}
 
 // Mirrors a site-submitted highlight (with full game/team/submitter details) to the guild's
 // configured Highlights channel, the same way headlines mirror to their own channel
@@ -66,22 +91,21 @@ async function postHighlightToDiscord(input: {
     const content = mentionIds.length ? mentionIds.map((id: string) => `<@${id}>`).join(" ") : undefined;
 
     const watchUrl = input.streamUid ? `https://iframe.videodelivery.net/${input.streamUid}` : input.playbackUrl;
-    // Discord only ever auto-renders a *playable* inline video for a raw direct-file URL
-    // posted as message content — the iframe player URL above is an HTML page, so Discord
-    // can't unfurl it as video no matter where it's linked from, and a link inside an embed
-    // never auto-plays regardless of URL type. Enable the Stream MP4 download and drop its
-    // direct URL into the message content so Discord's own unfurler builds the native player;
-    // fall back to the "Watch the clip" link when the download isn't encoded yet.
-    let directVideoUrl: string | null = null;
+    // Attaching the actual video bytes is the only path Discord guarantees a native inline
+    // player for -- relying on Discord's own crawler to unfurl a raw Cloudflare download URL
+    // posted as message content is unreliable in practice (it often just renders as a plain
+    // link). Enable the Stream MP4 download, fetch its bytes if ready within a couple of quick
+    // retries, and upload it as an attachment; fall back to the "Watch the clip" link otherwise.
+    let videoBuffer: Buffer | null = null;
     if (input.streamUid) {
       try {
         // First call just kicks off Cloudflare's MP4 encode (usually a few seconds for a
         // clip this short) and comes back not-ready; a couple of short retries catches it
-        // landing instead of falling back to the non-playable iframe link almost every time.
+        // landing instead of falling back to the link almost every time.
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const download = await enableStreamDownload(input.streamUid);
           if (download.ready) {
-            directVideoUrl = download.url;
+            videoBuffer = await fetchVideoBufferForDiscord(download.url);
             break;
           }
           if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -97,11 +121,16 @@ async function postHighlightToDiscord(input: {
         `Submitted by ${submitterLabel}`,
         teamName ? `Team: ${teamName}` : null,
         `Week ${input.weekNumber}, Season ${input.seasonNumber}`,
-        !directVideoUrl && watchUrl ? `[Watch the clip](${watchUrl})` : null,
+        !videoBuffer && watchUrl ? `[Watch the clip](${watchUrl})` : null,
       ].filter(Boolean).join("\n"),
     };
-    const contentLines = [content, directVideoUrl].filter(Boolean).join("\n") || undefined;
-    const sent = await postDiscordChannelMessage(channelId, contentLines ? { content: contentLines, embeds: [embed] } : { embeds: [embed] });
+    const sent = videoBuffer
+      ? await postDiscordChannelMessageWithFile(
+          channelId,
+          content ? { content, embeds: [embed] } : { embeds: [embed] },
+          { buffer: videoBuffer, name: "highlight.mp4", contentType: "video/mp4" },
+        )
+      : await postDiscordChannelMessage(channelId, content ? { content, embeds: [embed] } : { embeds: [embed] });
     if (sent?.id) {
       await supabase.from("rec_highlight_posts").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", input.highlightId);
       // The clip usually reaches "ready to stream" (what triggers this whole function) well
@@ -110,7 +139,7 @@ async function postHighlightToDiscord(input: {
       // playable native video is only ~10-30s away. Keep polling in the background and swap
       // the message over to the real video the moment it's ready, instead of leaving every
       // highlight stuck with a "Watch the clip" link.
-      if (!directVideoUrl && input.streamUid) {
+      if (!videoBuffer && input.streamUid) {
         void backfillDirectVideoIntoMessage({
           channelId, messageId: sent.id, streamUid: input.streamUid,
           content, embed, watchUrl,
@@ -150,17 +179,29 @@ async function backfillDirectVideoIntoMessage(input: {
     }
     if (!download.ready) continue;
 
-    // Drop the "Watch the clip" line now that the message content itself will be the native
-    // playable video -- same shape postHighlightToDiscord builds on its first-try success path.
+    const buffer = await fetchVideoBufferForDiscord(download.url);
+    // Drop the "Watch the clip" line now that the video is either attached directly, or (if the
+    // fetch failed/oversized) leave the link as the best fallback available.
     const readyEmbed = {
       ...input.embed,
       description: String((input.embed as { description?: string }).description ?? "")
         .split("\n").filter((line) => !line.startsWith("[Watch the clip]")).join("\n"),
     };
-    const contentLines = [input.content, download.url].filter(Boolean).join("\n");
-    await editDiscordMessage(input.channelId, input.messageId, { content: contentLines, embeds: [readyEmbed] }).catch((error) => {
-      console.error(`[WARN] Failed to edit highlight message with the ready direct video (non-fatal):`, error);
-    });
+    if (buffer) {
+      await editDiscordMessageWithFile(
+        input.channelId, input.messageId, { content: input.content, embeds: [readyEmbed] },
+        { buffer, name: "highlight.mp4", contentType: "video/mp4" },
+      ).catch((error) => {
+        console.error(`[WARN] Failed to attach the ready direct video to the highlight message (non-fatal):`, error);
+      });
+    } else if (input.watchUrl) {
+      // Couldn't fetch/attach the file (oversized or a transient error) -- at least restore the
+      // "Watch the clip" link the initial post already had, rather than leaving the description
+      // silently missing it.
+      await editDiscordMessage(input.channelId, input.messageId, { content: input.content, embeds: [input.embed] }).catch((error) => {
+        console.error(`[WARN] Failed to restore the "Watch the clip" fallback (non-fatal):`, error);
+      });
+    }
     return;
   }
 }
