@@ -4561,14 +4561,15 @@ h1, h2, h3, .site-wordmark {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: min(360px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
   max-height: min(70vh, 480px);
   overflow: auto;
 }
 .site-header-league-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 2px 8px;
   width: 100%;
   padding: 10px 12px;
   border: none;
@@ -4577,15 +4578,18 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-primary);
   text-align: left;
   font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
 .site-header-league-row:hover,
 .site-header-league-row.is-active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .site-header-league-row-team { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.site-header-league-row-logo { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
-.site-header-league-row strong { color: var(--accent-bright); font-family: var(--font-display); flex-shrink: 0; }
+.site-header-league-row-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.site-header-league-row strong { color: var(--accent-bright); font-family: var(--font-display); font-size: 13px; flex-shrink: 0; }
+/* meta gets its own line (flex-basis:100%) so the name isn't squeezed between the abbr and the
+   record/game/week text on one line -- that's what was truncating league names. */
 .site-header-league-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-.site-header-league-row-meta { color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+.site-header-league-row-meta { flex-basis: 100%; color: var(--text-muted); font-size: 11px; }
 .site-header-home-row { justify-content: center; margin-top: 4px; border-top: 1px solid var(--border); border-radius: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* Row 3 — Home tabs / league tabs, both dynamic content in the same row */
@@ -4608,7 +4612,13 @@ h1, h2, h3, .site-wordmark {
 }
 .site-header-row3-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 .site-header-row3-btn:hover { color: var(--text-primary); }
-.site-header-row3-btn.is-active { color: var(--btn-primary-text); background: var(--accent-gradient); font-weight: 900; }
+.site-header-row3-btn.is-active {
+  color: #ffffff;
+  background: #d81e2c;
+  font-weight: 900;
+  -webkit-text-stroke: 1px #000;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px rgba(0, 0, 0, 0.5);
+}
 .site-header-row3-dropdown { position: relative; flex-shrink: 0; }
 
 /* Panel position (top/left/right) is set inline by useHeaderMenu (HeaderMenu.tsx), which
