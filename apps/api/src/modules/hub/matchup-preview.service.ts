@@ -10,7 +10,7 @@
 // home-field edge. The projected score blends each offense's scoring rate against the
 // other defense's concession rate, then tilts toward the favored side so the line agrees
 // with the odds.
-import { isCfb } from "@rec/shared";
+import { isCfb, NFL_TEAM_SECONDARY_COLORS } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -35,6 +35,7 @@ export type MatchupTeamBreakdown = {
   teamName: string;
   abbr: string | null;
   primaryColor: string;
+  secondaryColor: string | null;
   conference: string | null;
   isHuman: boolean;
   record: string;
@@ -302,6 +303,10 @@ function buildBreakdown(
       formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? "Team",
     abbr: team?.display_abbr ?? team?.abbreviation ?? null,
     primaryColor: team?.primary_color ?? "#FFFFFF",
+    // Secondary color has no per-team DB column (only primary is commissioner-editable) --
+    // sourced straight from the permanent NFL catalog by the team's real (non-relocated)
+    // abbreviation. CFB has no secondary catalog yet, so college teams get null here.
+    secondaryColor: NFL_TEAM_SECONDARY_COLORS[String(team?.abbreviation ?? "").toUpperCase()] ?? null,
     conference: team?.conference ?? null,
     isHuman,
     record:

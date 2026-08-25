@@ -769,13 +769,20 @@ export function createEaClient(
         commandId: 811,
         requestPayload: { leagueId },
       });
-      const advanceRequest = hub.responseInfo.value.careerHubInfo.requestInfoList?.find(
-        (request) => request.type === "AdvanceStage",
-      );
+      const requestInfoList = hub.responseInfo.value.careerHubInfo.requestInfoList ?? [];
+      const advanceRequest = requestInfoList.find((request) => request.type === "AdvanceStage");
       const advanceResponse = advanceRequest?.responseList.find((entry) => entry.title === "Next Week");
       if (!advanceRequest || !advanceResponse) {
+        // Diagnostic detail instead of a guess: exactly what EA's hub actually returned, so a
+        // wrong request `type` or response `title` (e.g. EA renaming it again for a new Madden
+        // year) shows up directly in the error instead of requiring another decompile round-trip.
+        const seenTypes = requestInfoList.map((r) => r.type).join(", ") || "(none)";
+        const seenTitles = advanceRequest ? advanceRequest.responseList.map((r) => r.title).join(", ") || "(none)" : null;
+        const detail = advanceRequest
+          ? `Found an AdvanceStage request but no "Next Week" response option (saw: ${seenTitles}).`
+          : `No AdvanceStage request in the hub (saw request types: ${seenTypes}; isLeagueAdvancing=${hub.responseInfo.value.careerHubInfo.isLeagueAdvancing}).`;
         throw new EaAuthError(
-          "No pending advance request found for this league.",
+          `No pending advance request found for this league. ${detail}`,
           "The league may already be mid-advance, waiting on another commissioner action, or not ready to advance yet — check the franchise in-game.",
         );
       }

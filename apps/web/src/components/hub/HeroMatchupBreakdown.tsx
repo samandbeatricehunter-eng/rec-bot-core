@@ -1,51 +1,91 @@
+import type { CSSProperties } from "react";
 import type { MatchupPreview, MatchupTeamBreakdown, WagerOptionsResponse } from "../../types/api.js";
 import { PositionMatchupAdvantages } from "../matchups/PositionMatchupAdvantages.js";
 
-function ranked(value: number, rank: number | null, suffix = "", missingRankLabel = "Rank unavailable") {
-  const signed = suffix === " signed" && value > 0 ? "+" : "";
-  return <><strong>{signed}{value.toFixed(Number.isInteger(value) ? 0 : 1)}</strong><small>{rank == null ? missingRankLabel : `#${rank} in league`}</small></>;
+const FALLBACK_PRIMARY = "#8a94a6";
+
+function rankLabel(rank: number | null, missingRankLabel = "Rank unavailable") {
+  return rank == null ? missingRankLabel : `#${rank} in league`;
 }
 
-function comparisonGroups(team: MatchupTeamBreakdown) {
+function formatValue(value: number, suffix = "") {
+  const signed = suffix === " signed" && value > 0 ? "+" : "";
+  return `${signed}${value.toFixed(Number.isInteger(value) ? 0 : 1)}`;
+}
+
+type StatRow = { key: string; label: string; awayValue: number; awayRank: number | null; homeValue: number; homeRank: number | null; suffix?: string };
+
+function statRows(away: MatchupTeamBreakdown, home: MatchupTeamBreakdown) {
   return [
-    { label: null, rows: [
-    { key: "points-for", label: "Points / game", value: ranked(team.pointsPerGame, team.pointsPerGameRank) },
-    { key: "points-allowed", label: "Points allowed / game", value: ranked(team.pointsAllowedPerGame, team.pointsAllowedPerGameRank) },
-    { key: "point-diff", label: "Point differential", value: ranked(team.pointDifferential, team.pointDifferentialRank, " signed") },
-    ] },
+    { label: null as string | null, rows: [
+      { key: "points-for", label: "Points / game", awayValue: away.pointsPerGame, awayRank: away.pointsPerGameRank, homeValue: home.pointsPerGame, homeRank: home.pointsPerGameRank },
+      { key: "points-allowed", label: "Points allowed / game", awayValue: away.pointsAllowedPerGame, awayRank: away.pointsAllowedPerGameRank, homeValue: home.pointsAllowedPerGame, homeRank: home.pointsAllowedPerGameRank },
+      { key: "point-diff", label: "Point differential", awayValue: away.pointDifferential, awayRank: away.pointDifferentialRank, homeValue: home.pointDifferential, homeRank: home.pointDifferentialRank, suffix: " signed" },
+    ] as StatRow[] },
     { label: "Offensive", rows: [
-    { key: "pass-for", label: "Passing yards / game", value: ranked(team.passingYardsPerGame, team.passingYardsRank) },
-    { key: "rush-for", label: "Rushing yards / game", value: ranked(team.rushingYardsPerGame, team.rushingYardsRank) },
-    ] },
+      { key: "pass-for", label: "Passing yards / game", awayValue: away.passingYardsPerGame, awayRank: away.passingYardsRank, homeValue: home.passingYardsPerGame, homeRank: home.passingYardsRank },
+      { key: "rush-for", label: "Rushing yards / game", awayValue: away.rushingYardsPerGame, awayRank: away.rushingYardsRank, homeValue: home.rushingYardsPerGame, homeRank: home.rushingYardsRank },
+    ] as StatRow[] },
     { label: "Defensive", rows: [
-    { key: "pass-allowed", label: "Passing yards allowed / game", value: ranked(team.passingYardsAllowedPerGame, team.passingYardsAllowedRank) },
-    { key: "rush-allowed", label: "Rushing yards allowed / game", value: ranked(team.rushingYardsAllowedPerGame, team.rushingYardsAllowedRank) },
-    { key: "turnover-diff", label: "Turnover differential", value: ranked(team.turnoverDifferential, team.turnoverDifferentialRank, " signed") },
-    ] },
+      { key: "pass-allowed", label: "Passing yards allowed / game", awayValue: away.passingYardsAllowedPerGame, awayRank: away.passingYardsAllowedRank, homeValue: home.passingYardsAllowedPerGame, homeRank: home.passingYardsAllowedRank },
+      { key: "rush-allowed", label: "Rushing yards allowed / game", awayValue: away.rushingYardsAllowedPerGame, awayRank: away.rushingYardsAllowedRank, homeValue: home.rushingYardsAllowedPerGame, homeRank: home.rushingYardsAllowedRank },
+      { key: "turnover-diff", label: "Turnover differential", awayValue: away.turnoverDifferential, awayRank: away.turnoverDifferentialRank, homeValue: home.turnoverDifferential, homeRank: home.turnoverDifferentialRank, suffix: " signed" },
+    ] as StatRow[] },
   ];
 }
 
+// Bar length reflects each side's magnitude relative to whichever side is larger for that row
+// (not "which side is better" -- a bigger Points Allowed bar just means a bigger number, same
+// as the reference design). A floor keeps a genuine 0 from rendering as an invisible sliver.
+function barWidthPct(value: number, other: number): number {
+  const max = Math.max(Math.abs(value), Math.abs(other));
+  if (max <= 0) return 6;
+  return Math.max(6, Math.round((Math.abs(value) / max) * 100));
+}
+
 export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: MatchupPreview; wagerOptions?: WagerOptionsResponse | null }) {
-  const awayGroups = comparisonGroups(preview.away);
-  const homeGroups = comparisonGroups(preview.home);
-  return <section className="hub-hero-breakdown" aria-label="Matchup stat comparison">
+  const { away, home } = preview;
+  const awayPrimary = away.primaryColor && away.primaryColor !== "#FFFFFF" ? away.primaryColor : FALLBACK_PRIMARY;
+  const homePrimary = home.primaryColor && home.primaryColor !== "#FFFFFF" ? home.primaryColor : FALLBACK_PRIMARY;
+  const cardStyle = {
+    "--away-primary": awayPrimary,
+    "--home-primary": homePrimary,
+    "--away-secondary": away.secondaryColor ?? awayPrimary,
+    "--home-secondary": home.secondaryColor ?? homePrimary,
+  } as CSSProperties;
+
+  return <section className="hub-hero-breakdown" aria-label="Matchup stat comparison" style={cardStyle}>
     <div className="hub-hero-breakdown-head">
-      <div><small>Away</small><strong>{preview.away.abbr ?? preview.away.teamName}</strong></div>
+      <div className="hub-hero-breakdown-side away"><small>Away</small><strong>{away.abbr ?? away.teamName}</strong></div>
       <span>Matchup Breakdown</span>
-      <div><small>Home</small><strong>{preview.home.abbr ?? preview.home.teamName}</strong></div>
+      <div className="hub-hero-breakdown-side home"><small>Home</small><strong>{home.abbr ?? home.teamName}</strong></div>
     </div>
     <div className="hub-hero-comparison-grid">
-      {awayGroups.map((group, groupIndex) => <div className="hub-hero-comparison-group" key={group.label ?? "scoring"}>
+      {statRows(away, home).map((group) => <div className="hub-hero-comparison-group" key={group.label ?? "scoring"}>
         {group.label ? <h3>{group.label}</h3> : null}
-        {group.rows.map((awayRow, rowIndex) => <div className="hub-hero-comparison-row" key={awayRow.key}>
-          <div>{awayRow.value}</div><span>{awayRow.label}</span><div>{homeGroups[groupIndex].rows[rowIndex].value}</div>
-        </div>)}
+        {group.rows.map((row) => {
+          const awayPct = barWidthPct(row.awayValue, row.homeValue);
+          const homePct = barWidthPct(row.homeValue, row.awayValue);
+          return <div className="hub-hero-comparison-row" key={row.key}>
+            <div className="hub-hero-comparison-figure away">
+              <strong>{formatValue(row.awayValue, row.suffix)}</strong>
+              <small>{rankLabel(row.awayRank)}</small>
+            </div>
+            <div className="hub-hero-comparison-bar away"><span style={{ width: `${awayPct}%` }} /></div>
+            <span className="hub-hero-comparison-label">{row.label}</span>
+            <div className="hub-hero-comparison-bar home"><span style={{ width: `${homePct}%` }} /></div>
+            <div className="hub-hero-comparison-figure home">
+              <strong>{formatValue(row.homeValue, row.suffix)}</strong>
+              <small>{rankLabel(row.homeRank)}</small>
+            </div>
+          </div>;
+        })}
       </div>)}
     </div>
     <PositionMatchupAdvantages away={preview.away} home={preview.home} wagerOptions={wagerOptions} />
     <footer className="hub-hero-prediction">
       <span>Predicted Score</span>
-      <strong>{preview.away.abbr ?? preview.away.teamName} {preview.prediction.predictedAwayScore} <em>–</em> {preview.prediction.predictedHomeScore} {preview.home.abbr ?? preview.home.teamName}</strong>
+      <strong>{away.abbr ?? away.teamName} {preview.prediction.predictedAwayScore} <em>–</em> {preview.prediction.predictedHomeScore} {home.abbr ?? home.teamName}</strong>
       <small>{preview.prediction.awayWinProbability}% away · {preview.prediction.homeWinProbability}% home</small>
     </footer>
   </section>;

@@ -721,6 +721,7 @@ export type MatchupTeamBreakdown = {
   teamName: string;
   abbr: string | null;
   primaryColor: string;
+  secondaryColor: string | null;
   conference: string | null;
   isHuman: boolean;
   record: string;

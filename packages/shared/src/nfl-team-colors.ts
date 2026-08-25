@@ -42,3 +42,49 @@ export const NFL_TEAM_PRIMARY_COLORS: Readonly<Record<string, string>> = {
   "SF":  "#AA0000",
   "SEA": "#002244",
 };
+
+// Official NFL team secondary colors (2024-25 season brand guides) -- used alongside
+// NFL_TEAM_PRIMARY_COLORS wherever a team needs a two-tone treatment (e.g. hero matchup card
+// side panels). Custom / relocated teams have no entry until the commissioner sets one.
+export const NFL_TEAM_SECONDARY_COLORS: Readonly<Record<string, string>> = {
+  // AFC East
+  "BUF": "#C60C30",
+  "MIA": "#FC4C02",
+  "NE":  "#C60C30",
+  "NYJ": "#000000",
+  // AFC North
+  "BAL": "#000000",
+  "CIN": "#000000",
+  "CLE": "#FF3C00",
+  "PIT": "#101820",
+  // AFC South
+  "HOU": "#A71930",
+  "IND": "#A2AAAD",
+  "JAX": "#D7A22A",
+  "TEN": "#4B92DB",
+  // AFC West
+  "DEN": "#002244",
+  "KC":  "#FFB612",
+  "LAC": "#FFC20E",
+  "LV":  "#000000",
+  // NFC East
+  "DAL": "#869397",
+  "NYG": "#A71930",
+  "PHI": "#A5ACAF",
+  "WAS": "#FFB612",
+  // NFC North
+  "CHI": "#C83803",
+  "DET": "#B0B7BC",
+  "GB":  "#FFB612",
+  "MIN": "#FFC62F",
+  // NFC South
+  "ATL": "#000000",
+  "CAR": "#000000",
+  "NO":  "#000000",
+  "TB":  "#34302B",
+  // NFC West
+  "ARI": "#000000",
+  "LAR": "#FFA300",
+  "SF":  "#B3995D",
+  "SEA": "#69BE28",
+};
