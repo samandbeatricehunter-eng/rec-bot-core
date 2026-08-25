@@ -3749,21 +3749,12 @@ button.poty:disabled {
 .hub-hero-no-matchup strong { font-family: var(--font-display); font-size: var(--text-xl); text-transform: uppercase; }
 .hub-hero-no-matchup span { color: var(--text-muted); }
 
-.hub-hero-breakdown {
-  --away-primary: #8a94a6; --home-primary: #8a94a6; --away-secondary: var(--away-primary); --home-secondary: var(--home-primary);
-  position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg);
-  background:
-    linear-gradient(to right, color-mix(in srgb, var(--away-secondary) 22%, transparent), transparent 55%),
-    linear-gradient(to left, color-mix(in srgb, var(--home-secondary) 22%, transparent), transparent 55%),
-    rgba(5, 7, 10, .48);
-}
+.hub-hero-breakdown { overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); background: rgba(5, 7, 10, .48); }
 .hub-hero-breakdown-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .hub-hero-breakdown-head > div { display: flex; flex-direction: column; min-width: 0; }
 .hub-hero-breakdown-head > div:last-child { align-items: flex-end; text-align: right; }
 .hub-hero-breakdown-head small { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .hub-hero-breakdown-head strong { overflow: hidden; text-overflow: ellipsis; font-family: var(--font-display); font-size: clamp(15px, 2vw, 21px); text-transform: uppercase; white-space: nowrap; }
-.hub-hero-breakdown-side.away strong { color: var(--away-primary); }
-.hub-hero-breakdown-side.home strong { color: var(--home-primary); }
 .hub-hero-breakdown-head > span { color: var(--accent-bright); font-size: 11px; font-weight: 900; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
 .hub-hero-comparison-grid { position: relative; display: grid; }
 .hub-hero-comparison-group > h3 { margin:0; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.07); background:color-mix(in srgb,var(--accent) 8%,rgba(0,0,0,.18)); color:var(--accent-bright); font-size:11px; letter-spacing:.12em; text-align:center; text-transform:uppercase; }
@@ -3781,19 +3772,12 @@ button.poty:disabled {
 .hub-stats-resource-grid button.active { border-color:var(--accent-bright); background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent-bright); }
 .hub-stats-resource-panel { display:grid; gap:var(--space-5); }
 .hub-stats-playoff-key { display:flex; flex-wrap:wrap; gap:8px 18px; margin:14px 0 0; color:var(--text-muted); font-size:11px; font-weight:700; text-transform:uppercase; }
-.hub-hero-comparison-row {
-  display: grid; grid-template-columns: minmax(58px, auto) minmax(140px, 1.3fr) minmax(58px, auto);
-  align-items: center; gap: 12px; min-height: 46px; padding: 6px 18px; border-bottom: 1px solid rgba(255,255,255,.07);
-}
-.hub-hero-comparison-figure { grid-row: 1 / span 2; display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-.hub-hero-comparison-figure.home { align-items: flex-end; text-align: right; }
-.hub-hero-comparison-figure strong { color: var(--text-primary); font-family: var(--font-display); font-size: 17px; }
-.hub-hero-comparison-figure small { color: var(--text-muted); font-size: 9px; white-space: nowrap; }
-.hub-hero-comparison-bar { grid-column: 2; grid-row: 1; display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.08); }
-.hub-hero-comparison-bar span { display: block; height: 100%; transition: width .3s ease; background: rgba(255,255,255,.14); }
-.hub-hero-comparison-bar span.away.leads { background: linear-gradient(to right, color-mix(in srgb, var(--away-primary) 60%, transparent), var(--away-primary)); }
-.hub-hero-comparison-bar span.home.leads { background: linear-gradient(to left, color-mix(in srgb, var(--home-primary) 60%, transparent), var(--home-primary)); }
-.hub-hero-comparison-label { grid-column: 2; grid-row: 2; margin-top: 3px; color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .03em; text-align: center; text-transform: uppercase; }
+.hub-hero-comparison-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(155px, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 58px; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.hub-hero-comparison-row > div { display: flex; flex-direction: column; min-width: 0; }
+.hub-hero-comparison-row > div:last-child { align-items: flex-end; text-align: right; }
+.hub-hero-comparison-row > div strong { font-family: var(--font-display); font-size: 18px; }
+.hub-hero-comparison-row > div small { color: var(--text-muted); font-size: 10px; }
+.hub-hero-comparison-row > span { color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
 .hub-hero-prediction { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 16px; background: color-mix(in srgb, var(--accent) 10%, rgba(0,0,0,.25)); text-align: center; }
 .hub-hero-prediction > span { color: var(--text-muted); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .hub-hero-prediction strong { font-family: var(--font-display); font-size: clamp(20px, 3vw, 29px); text-transform: uppercase; }
@@ -3842,9 +3826,8 @@ button.poty:disabled {
   .hub-hero-centered-header h1 em { display: none; }
   .hub-hero-breakdown-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .hub-hero-breakdown-head > span { grid-column: 1 / -1; grid-row: 1; }
-  .hub-hero-comparison-row { grid-template-columns: minmax(44px, auto) minmax(100px, 1.3fr) minmax(44px, auto); gap: 8px; padding-inline: 10px; }
-  .hub-hero-comparison-figure strong { font-size: 14px; }
-  .hub-hero-comparison-label { font-size: 8.5px; }
+  .hub-hero-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(112px, 1.2fr) minmax(0, 1fr); gap: 7px; padding-inline: 10px; }
+  .hub-hero-comparison-row > div strong { font-size: 15px; }
   .hub-season-snapshot > header { align-items: flex-start; flex-direction: column; gap: 2px; }
   .hub-season-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-hero-action-pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
