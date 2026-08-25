@@ -44,36 +44,53 @@ const STAT_FIELDS: Record<string, Array<[string, string]>> = {
 
 const PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
 
-function weeklySubmissionsDescription(input: { seasonNumber: number; week: string }) {
+// Box Scores and (since it requires a pending/approved box score to exist first) Player Stats
+// are both meaningless outside box-score data mode -- an import-mode league's scores/stats
+// come from EA automatically, so there's nothing for either button to do, and Player Stats'
+// eligibility check would just always reject with "submit the game's box score first," which
+// reads as broken rather than intentionally unavailable. Recruiting Commits is independent.
+function weeklySubmissionsDescription(input: { seasonNumber: number; week: string; boxScoreMode: boolean }) {
   return [
     `Season ${input.seasonNumber} - ${input.week}`,
     "",
     "Use the buttons below to send this week's league submissions. Anything you type or upload during a submission is captured by REC Scout and removed from this channel so the panel stays easy to find.",
     "",
-    "**Box Scores** - upload the required game screenshots. This creates a shared box-score submission for your current matchup and sends it to commissioner review for score/stat import and payout handling.",
-    "**Player Stats** - submit standout stat lines after a box score is pending or approved. These feed player tracking, stories, and league content.",
+    input.boxScoreMode
+      ? "**Box Scores** - upload the required game screenshots. This creates a shared box-score submission for your current matchup and sends it to commissioner review for score/stat import and payout handling."
+      : null,
+    input.boxScoreMode
+      ? "**Player Stats** - submit standout stat lines after a box score is pending or approved. These feed player tracking, stories, and league content."
+      : null,
     "**Recruiting Commits** - CFB only. Submit a recruit commitment to your school with position, star rating, and hometown so it can be logged and used in league news.",
-  ].join("\n");
+  ].filter((line): line is string => line !== null).join("\n");
 }
 
 export async function publishWeeklySubmissionsPanel(guild: Guild) {
   const cfg = await recApi.getEconomyConfig(guild.id);
   const league = cfg.league ?? {};
   if (!PLAYABLE_STAGES.has(league.season_stage)) return { posted: false, reason: "not_playable" };
+  const cfb = league.game === "cfb_27";
+  const dataMode = cfg.configuration?.data_mode;
+  const boxScoreMode = dataMode !== "import" && dataMode !== "manual";
+  // Every button this panel can offer is either box-score-dependent or CFB-only -- an
+  // import/manual-mode Madden league has nothing left to submit here at all.
+  if (!boxScoreMode && !cfb) return { posted: false, reason: "nothing_to_submit" };
   const channel = await getWeeklySubmissionsChannel(guild, cfg.routes ?? {});
   if (!channel) return { posted: false, reason: "not_configured" };
   await purgeChannelMessages(channel);
   const stage = String(league.season_stage).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const week = league.current_week != null ? `Week ${league.current_week}` : stage;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats).setLabel("Player Stats").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting).setLabel("Recruiting Commits").setStyle(ButtonStyle.Success),
+    ...(boxScoreMode ? [
+      new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats).setLabel("Player Stats").setStyle(ButtonStyle.Secondary),
+    ] : []),
+    ...(cfb ? [new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting).setLabel("Recruiting Commits").setStyle(ButtonStyle.Success)] : []),
   );
   {
     const sent = await channel.send({
       content: "@everyone",
-      embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(weeklySubmissionsDescription({ seasonNumber: league.season_number ?? 1, week }))],
+      embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(weeklySubmissionsDescription({ seasonNumber: league.season_number ?? 1, week, boxScoreMode }))],
       components: [row],
       allowedMentions: { parse: ["everyone"] },
     });
