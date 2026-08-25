@@ -271,6 +271,23 @@ export function IconGear(props: IconProps) {
   );
 }
 
+/** Tournament-bracket tree -- distinct from IconStats's ascending-bars glyph, used for
+ * Standings (playoff bracket + conference standings) so it doesn't read as a duplicate of the
+ * Stats dropdown, which also used IconStats. */
+export function IconBracket(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M5 5v5h5" />
+      <path d="M5 19v-5h5" />
+      <path d="M10 10h3" />
+      <path d="M10 14h3" />
+      <path d="M13 10v4" />
+      <path d="M13 12h6" />
+    </>,
+  );
+}
+
 export function IconChevronDown(props: IconProps) {
   return base(props, <path d="M6 9l6 6 6-6" />);
 }

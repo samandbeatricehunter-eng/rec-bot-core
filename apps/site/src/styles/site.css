@@ -1172,6 +1172,14 @@ h1, h2, h3, .site-wordmark {
   margin: 0;
   padding: 0;
   padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  /* flex:1 + flex-direction:column so .site-hub-embed (flex:1 below) fills the real
+     remaining space under the header naturally, instead of a hardcoded
+     `calc(100dvh - Npx)` guess at the header's height -- that guess was already wrong
+     twice over (56px assumed the old single-row top bar; the desktop 72px assumed a
+     fixed bottom element that no longer exists) and would silently go stale again the
+     next time the header's height changes. */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Messages inbox (next to notifications bell) */
@@ -1245,21 +1253,12 @@ h1, h2, h3, .site-wordmark {
   line-height: 18px;
   text-align: center;
 }
-.site-notif-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 299;
-  border: none;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  cursor: default;
-}
+/* Position (top/left/right) is set inline by useHeaderMenu (HeaderMenu.tsx), which anchors
+   this panel to the bell trigger's live bounding rect -- a hardcoded top offset here would
+   assume a fixed single-row header height and drift out of sync whenever the header's actual
+   height changes (it already has, three times over, since this was first written). */
 .site-notif-panel {
-  position: fixed;
-  top: calc(56px + env(safe-area-inset-top, 0px));
-  right: 12px;
-  z-index: 300;
+  z-index: 320;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2602,14 +2601,15 @@ h1, h2, h3, .site-wordmark {
 .site-hub-embed {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 56px);
+  flex: 1;
+  min-height: 0;
   margin: 0;
   background: #070807;
 }
 .site-hub-embed-frame {
   flex: 1;
   width: 100%;
-  min-height: calc(100dvh - 56px);
+  min-height: 0;
   border: 0;
   background: #070807;
 }
@@ -2639,12 +2639,6 @@ h1, h2, h3, .site-wordmark {
   z-index: 1;
   width: 100%;
   min-height: inherit;
-}
-@media (min-width: 960px) {
-  .site-hub-embed,
-  .site-hub-embed-frame {
-    min-height: calc(100dvh - 56px - 72px);
-  }
 }
 
 /* —— Platinum shell extras —— */
@@ -4649,20 +4643,12 @@ h1, h2, h3, .site-wordmark {
 }
 
 @media (max-width: 720px) {
+  /* Every row3 button keeps its icon+label on mobile too (the horizontal scroll strip
+     accommodates them) -- previously only the active button and dropdown triggers kept
+     their label while plain NavLinks (Matchups/Standings) lost theirs, which read as
+     "half the buttons are missing their titles." */
   .site-header-row3 { gap: 4px; justify-content: flex-start; }
-  .site-header-row3-btn span { display: none; }
-  .site-header-row3-btn.is-active span,
-  .site-header-row3-dropdown .site-header-row3-btn span { display: inline; }
-  .site-header-dropdown-panel,
-  .site-header-row2-panel {
-    left: 12px !important;
-    right: 12px !important;
-    top: auto !important;
-    bottom: 12px;
-    max-width: none;
-    width: auto;
-    max-height: 70vh;
-  }
+  .site-header-row3-home { justify-content: center; }
   .site-header-brand { font-size: 14px; }
   .site-header-row2-detail:not(:last-child) { display: none; }
 }

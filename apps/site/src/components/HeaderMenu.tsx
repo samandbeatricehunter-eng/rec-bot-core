@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 
 type MenuPosition = { top: number; left?: number; right?: number };
+
+// Module-level so every header dropdown (row1 gear, row2 switcher, each row3 dropdown) shares
+// one "only one open at a time" slot. Without this, opening "Stats" then clicking the "My Team"
+// trigger left two independent portaled panels/backdrops stacked over each other, since each
+// useHeaderMenu() instance previously tracked its own open state in isolation.
+let activeMenuId: object | null = null;
+let activeMenuClose: (() => void) | null = null;
 
 /** Shared open/position state for every header dropdown (row1 gear, row2 league switcher,
  * row3 nav dropdowns). The panel portals straight into document.body and is positioned via
@@ -11,9 +19,51 @@ type MenuPosition = { top: number; left?: number; right?: number };
  * position:absolute panel nested inside it gets clipped/squashed into that scroll container
  * instead of floating over the page. Escaping via a portal sidesteps that entirely. */
 export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
+  const idRef = useRef({});
   const triggerRef = useRef<T>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
   const [pos, setPos] = useState<MenuPosition | null>(null);
+  const location = useLocation();
+
+  function close() {
+    setOpenState(false);
+  }
+
+  function setOpen(next: boolean | ((current: boolean) => boolean)) {
+    setOpenState((current) => {
+      const value = typeof next === "function" ? next(current) : next;
+      if (value) {
+        if (activeMenuId && activeMenuId !== idRef.current) activeMenuClose?.();
+        activeMenuId = idRef.current;
+        activeMenuClose = close;
+      } else if (activeMenuId === idRef.current) {
+        activeMenuId = null;
+        activeMenuClose = null;
+      }
+      return value;
+    });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (activeMenuId === idRef.current) {
+        activeMenuId = null;
+        activeMenuClose = null;
+      }
+    };
+  }, []);
+
+  // Close whenever the route changes. A menu item *inside* this panel already calls close()
+  // itself before navigating, but a click on a plain sibling NavLink (Overview/Matchups/the
+  // brand link) or browser back/forward otherwise leaves this panel open and floating over the
+  // newly-navigated-to page, since none of the header components unmount across in-app nav.
+  const pathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (location.pathname !== pathRef.current) {
+      pathRef.current = location.pathname;
+      if (open) close();
+    }
+  }, [location.pathname, open]);
 
   useEffect(() => {
     if (!open) return;

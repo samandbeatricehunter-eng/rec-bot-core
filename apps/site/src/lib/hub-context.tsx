@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -95,12 +96,23 @@ export function HubProvider({ children }: { children: ReactNode }) {
       setLeagues([]);
       setLeaguesError(null);
       setLeaguesReady(false);
+      // A different account can sign in on the same tab/session while still parked on a
+      // /l/:id URL that belonged to the previous account -- without dropping scope here,
+      // it stays {kind:"league", leagueId} for that stale id (selectedLeague resolves to
+      // null once the new leagues list loads, but scope.kind itself never self-corrects,
+      // which SiteShell reads independently of selectedLeague -- see its isLeague check).
+      const next: HubScope = { kind: "main" };
+      setScope(next);
+      persistScope(next);
       return;
     }
     void refreshLeagues();
   }, [auth.status]);
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so scope is corrected before paint -- otherwise a
+  // navigation off /l/:id via a plain link (not exitToMain()) could paint one frame of
+  // LeagueRow3 for the old league on top of the newly-navigated-to page before this runs.
+  useLayoutEffect(() => {
     // Game theme is only for /l/:id hub surfaces. Site chrome (leagues list, home,
     // account, etc.) always stays on the app carbon theme — otherwise selecting a
     // league re-skinned the whole website.

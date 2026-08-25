@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { siteApi, type SiteNotificationItem } from "../lib/site-api.js";
 import { useSiteActivity } from "../lib/site-activity-context.js";
 import { IconBell } from "./icons.js";
+import { useHeaderMenu } from "./HeaderMenu.js";
 
 export function NotificationsBell() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const { counts, refresh: refreshCounts } = useSiteActivity();
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regular, setRegular] = useState<SiteNotificationItem[]>([]);
@@ -41,18 +41,6 @@ export function NotificationsBell() {
   useEffect(() => {
     if (!open) return;
     void refreshLists();
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-    };
   }, [open]);
 
   async function openItem(item: SiteNotificationItem) {
@@ -102,8 +90,9 @@ export function NotificationsBell() {
   }
 
   return (
-    <div className="site-notif-bell" ref={rootRef}>
+    <div className="site-notif-bell">
       <button
+        ref={triggerRef}
         type="button"
         className="site-notif-bell-trigger"
         aria-label={
@@ -122,15 +111,7 @@ export function NotificationsBell() {
         ) : null}
       </button>
 
-      {open ? (
-        <>
-          <button
-            type="button"
-            className="site-notif-backdrop"
-            aria-label="Close notifications"
-            onClick={() => setOpen(false)}
-          />
-          <div className="site-notif-panel" role="dialog" aria-label="Notifications">
+      <Panel className="site-notif-panel" role="dialog" ariaLabel="Notifications">
           <header className="site-notif-panel-header">
             <h2>Notifications</h2>
             {loading ? (
@@ -193,9 +174,7 @@ export function NotificationsBell() {
               </ul>
             </section>
           ) : null}
-        </div>
-        </>
-      ) : null}
+      </Panel>
     </div>
   );
 }

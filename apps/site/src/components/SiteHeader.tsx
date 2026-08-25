@@ -144,7 +144,7 @@ function isActivePath(pathname: string, to: string) {
 function HomeRow3() {
   const location = useLocation();
   return (
-    <nav className="site-header-row3" aria-label="Site">
+    <nav className="site-header-row3 site-header-row3-home" aria-label="Site">
       {HOME_ROW3_ITEMS.map((item) => (
         <NavLink key={item.key} to={item.to} className={["site-header-row3-btn", isActivePath(location.pathname, item.to) ? "is-active" : ""].filter(Boolean).join(" ")}>
           {item.icon}<span>{item.label}</span>

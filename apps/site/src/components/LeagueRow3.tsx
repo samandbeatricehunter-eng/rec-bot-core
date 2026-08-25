@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  IconBuzz, IconHeadlines, IconMatchups, IconStats, IconTeam, IconMgmt, IconGear,
+  IconBuzz, IconHeadlines, IconMatchups, IconStats, IconBracket, IconTeam, IconMgmt, IconGear,
   IconChevronDown,
 } from "./icons.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
@@ -20,16 +20,16 @@ function openModalHref(leagueId: string, modal: string) {
   return `/l/${leagueId}/buzz?openModal=${modal}`;
 }
 
-function Dropdown({ label, icon, active, children }: { label: string; icon: ReactNode; active: boolean; children: (close: () => void) => ReactNode }) {
+function Dropdown({ label, ariaLabel, icon, active, children }: { label: string; ariaLabel?: string; icon: ReactNode; active: boolean; children: (close: () => void) => ReactNode }) {
   const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const close = () => setOpen(false);
 
   return (
     <div className="site-header-row3-dropdown">
-      <button ref={triggerRef} type="button" className={["site-header-row3-btn", active ? "is-active" : ""].filter(Boolean).join(" ")} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button ref={triggerRef} type="button" className={["site-header-row3-btn", active ? "is-active" : ""].filter(Boolean).join(" ")} aria-expanded={open} aria-label={label ? undefined : ariaLabel} onClick={() => setOpen((v) => !v)}>
         {icon}<span>{label}</span><IconChevronDown className="site-header-caret" />
       </button>
-      <Panel className="site-header-dropdown-panel site-header-row3-panel" role="menu">{children(close)}</Panel>
+      <Panel className="site-header-dropdown-panel site-header-row3-panel" role="menu" ariaLabel={ariaLabel ?? label}>{children(close)}</Panel>
     </div>
   );
 }
@@ -59,7 +59,7 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
       </NavLink>
 
       <NavLink to={`${base}/standings`} className={["site-header-row3-btn", isActive(path, `${base}/standings`) ? "is-active" : ""].filter(Boolean).join(" ")}>
-        <IconStats /><span>Standings</span>
+        <IconBracket /><span>Standings</span>
       </NavLink>
 
       <Dropdown label="Stats" icon={<IconStats />} active={isActive(path, `${base}/stats`) || isActive(path, `${base}/career-stats`) || isActive(path, `${base}/records`) || isActive(path, `${base}/history`)}>
@@ -81,7 +81,7 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
         </>}
       </Dropdown>
 
-      <Dropdown label="" icon={<IconGear />} active={isActive(path, `${base}/rules`) || isActive(path, `${base}/mgmt`)}>
+      <Dropdown label="" ariaLabel="More options" icon={<IconGear />} active={isActive(path, `${base}/rules`) || isActive(path, `${base}/mgmt`)}>
         {(close) => <>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "wager")); }}>Place a Wager</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rules`); }}>League Rules</button>

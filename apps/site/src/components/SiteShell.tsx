@@ -20,7 +20,12 @@ function resolveBackground(pathname: string, game: string | undefined): "madden"
 export function SiteShell({ children }: { children: ReactNode }) {
   const hub = useHub();
   const location = useLocation();
-  const isLeague = hub.scope.kind === "league";
+  // Must match SiteHeader's condition for rendering LeagueRow3 exactly (scope alone isn't
+  // enough -- scope can be stuck at "league" for a stale/no-longer-resolvable id, e.g. right
+  // after sign-out, in which case SiteHeader already falls back to HomeRow3 and this needs to
+  // agree, or the footer gets hidden and .is-league-scope gets applied on what's really the
+  // main-chrome home page).
+  const isLeague = hub.scope.kind === "league" && Boolean(hub.selectedLeague);
   const background = resolveBackground(location.pathname, hub.selectedLeague?.game);
 
   return (

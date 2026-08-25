@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useAuth } from "../lib/auth-context.js";
-import { useHub } from "../lib/hub-context.js";
 import { HeroCard } from "../components/HeroCard.js";
 import { useSwipeNavigation } from "../hooks/useSwipeNavigation.js";
 import {
@@ -10,28 +9,11 @@ import {
   type LinkProfileResponse,
   type SiteAnnouncement,
   type SiteHomeCard,
-  type SiteLeagueSummary,
   type SiteTournamentHomeCard,
   type SpotlightItem,
 } from "../lib/site-api.js";
 
 const ANNOUNCEMENT_MS = 8000;
-const GAME_ORDER = ["madden_27", "cfb_27", "madden_26"];
-
-function occupancy(league: SiteLeagueSummary) {
-  const max = league.maxMembers ?? 32;
-  const count = league.memberCount ?? 0;
-  return `${count}/${max}`;
-}
-
-function leagueMeta(league: SiteLeagueSummary) {
-  const bits = [`${occupancy(league)} occupied`];
-  if (league.seasonStageLabel && league.matchupKind !== "offseason") {
-    bits.push(league.seasonStageLabel);
-  }
-  if (league.matchupLabel) bits.push(league.matchupLabel);
-  return bits.join(" · ");
-}
 
 function MyTournamentCards() {
   const [cards, setCards] = useState<SiteTournamentHomeCard[]>([]);
@@ -82,81 +64,6 @@ function MyTournamentCards() {
         ))}
       </ul>
     </section>
-  );
-}
-
-function MyLeaguesByGame() {
-  const hub = useHub();
-  const navigate = useNavigate();
-  const [openGames, setOpenGames] = useState<Record<string, boolean>>({});
-
-  const groups = useMemo(() => {
-    const byGame = new Map<string, { label: string; leagues: SiteLeagueSummary[] }>();
-    for (const league of hub.leagues) {
-      const current = byGame.get(league.game) ?? { label: league.gameLabel, leagues: [] };
-      current.leagues.push(league);
-      byGame.set(league.game, current);
-    }
-    const keys = [...byGame.keys()].sort((a, b) => {
-      const ai = GAME_ORDER.indexOf(a);
-      const bi = GAME_ORDER.indexOf(b);
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
-    return keys.map((game) => ({ game, ...byGame.get(game)! }));
-  }, [hub.leagues]);
-
-  if (hub.leaguesLoading) {
-    return <p className="site-muted">Loading your leagues…</p>;
-  }
-  if (!groups.length) {
-    return (
-      <p className="site-muted">
-        No leagues yet. <Link to="/leagues">Find or create one</Link>.
-      </p>
-    );
-  }
-
-  return (
-    <div className="site-home-league-groups">
-      {groups.map((group) => {
-        const open = openGames[group.game] ?? false;
-        return (
-          <section key={group.game} className="site-home-league-group">
-            <button
-              type="button"
-              className="site-home-league-group-toggle"
-              aria-expanded={open}
-              onClick={() => setOpenGames((current) => ({ ...current, [group.game]: !open }))}
-            >
-              <strong>{group.label}</strong>
-              <span>{group.leagues.length} league{group.leagues.length === 1 ? "" : "s"}</span>
-            </button>
-            {open ? (
-              <ul className="site-home-league-list">
-                {group.leagues.map((league) => (
-                  <li key={league.id}>
-                    <div>
-                      <strong>{league.name}</strong>
-                      <span>{leagueMeta(league)}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="site-btn site-btn-primary"
-                      onClick={() => {
-                        hub.selectLeague(league.id);
-                        navigate(`/l/${league.id}/buzz`);
-                      }}
-                    >
-                      Open
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-        );
-      })}
-    </div>
   );
 }
 
@@ -316,14 +223,6 @@ export function HomePage() {
       <HeroCard displayName={displayName} card={card} />
 
       <MyTournamentCards />
-
-      <section className="site-home-panel site-home-leagues">
-        <header className="site-home-panel-head">
-          <p>Your leagues</p>
-          <h2>By game</h2>
-        </header>
-        <MyLeaguesByGame />
-      </section>
 
       <section className="site-home-panel site-home-spotlight">
         <header className="site-home-panel-head">
