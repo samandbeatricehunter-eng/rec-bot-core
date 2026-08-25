@@ -28,10 +28,19 @@ export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   rosterTeamSelectPrefix: "rec:openteams:roster:team",
 } as const;
 
-function formatTeamLine(team: { name: string; linkedDiscordId?: string | null; hasPendingRequest?: boolean | null }) {
-  if (team.linkedDiscordId) return `~~${team.name}~~ (<@${team.linkedDiscordId}>)`;
-  if (team.hasPendingRequest) return `~~${team.name}~~ (request pending)`;
-  return `**${team.name}**`;
+function formatTeamLine(team: {
+  name: string;
+  linkedDiscordId?: string | null;
+  hasPendingRequest?: boolean | null;
+  wins?: number | null;
+  losses?: number | null;
+  ties?: number | null;
+  recordText?: string | null;
+}) {
+  const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
+  if (team.linkedDiscordId) return `~~${team.name}~~ (${record}) (<@${team.linkedDiscordId}>)`;
+  if (team.hasPendingRequest) return `~~${team.name}~~ (${record}) (request pending)`;
+  return `**${team.name}** (${record})`;
 }
 
 function conferenceFields(conference: RosterConference) {
