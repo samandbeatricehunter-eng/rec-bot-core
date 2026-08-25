@@ -3940,18 +3940,24 @@ h1, h2, h3, .site-wordmark {
 }
 
 /* —— Midnight Glass site shell —— */
+/* Background varies by context: SiteShell stamps data-bg="madden"/"cfb"/"tournaments" when
+   the active league/route calls for it, falling back to the general background otherwise
+   (also used verbatim for .site-auth-page/.site-page, which render before SiteShell mounts). */
 .site-shell,
 .site-auth-page,
 .site-page {
   background-color: #05070a;
   background-image:
     linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
-    url("/assets/backgrounds/stadium-hero.webp");
+    url("/assets/backgrounds/general-background.webp");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
+.site-shell[data-bg="madden"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/madden-background.webp"); }
+.site-shell[data-bg="cfb"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/cfb-background.webp"); }
+.site-shell[data-bg="tournaments"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/tournaments-background.webp"); }
 .site-desktop-sidebar {
   background: var(--glass-panel-bg) !important;
   backdrop-filter: var(--glass-panel-blur);

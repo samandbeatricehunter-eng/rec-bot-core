@@ -3516,16 +3516,21 @@ button.poty:disabled {
 .rec-coin-amount__value { line-height: 1; }
 
 /* —— Midnight Glass + Campus Buzz layout —— */
+/* Standalone-app fallback (embedded-in-site mode gets its background from SiteShell's
+   .site-shell[data-bg] instead, see apps/site/src/styles/site.css) -- data-bg is stamped by
+   HubHome based on the league's game so Madden/CFB leagues each get their own background. */
 .hub-page {
   background-color: #05070a;
   background-image:
     linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
-    url("/assets/backgrounds/stadium-hero.webp");
+    url("/assets/backgrounds/general-background.webp");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
+.hub-page[data-bg="madden"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/madden-background.webp"); }
+.hub-page[data-bg="cfb"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/cfb-background.webp"); }
 .hub-section,
 .hub-hero,
 .hub-story-card,
