@@ -1,5 +1,148 @@
 # Session Progress Log (2026-08-03 marathon session)
 
+## Combined plan handoff (2026-08-25) — nav rebuild + audit done, Phase 2a started, 2b-5 not started
+
+Full context for this section: the plan being worked from is a 5-phase combined plan (Nav
+rebuild → Data integrity → DB cleanup → CSS/backgrounds → Polling audit), originally approved
+in plan mode and referenced by the user across several sessions. The plan's full text lives at
+`C:\Users\josh_\.claude\plans\rosy-honking-clover.md` on this machine (NOT in this repo — if
+you're a different agent/session without access to that path, the summary below plus this
+file's own history should be enough to keep going without it).
+
+### Phase 1 — Navigation rebuild: DONE, audited, bugs fixed
+
+Replaced `DesktopSidebar.tsx`/`BottomNav.tsx`/`LeagueTopNav.tsx` (deleted) with one unified
+3-row `SiteHeader.tsx` (`apps/site/src/components/`), used on desktop and mobile alike:
+- Row 1: brand + `ProfileChip` + `NotificationsBell` + gear dropdown (My Account/Help/Sign Out).
+- Row 2: `HeaderRow2` — "My Leagues" switcher reading `useHub()`, shows team logo (via
+  `@rec/hub-ui`'s `TeamLogo`) + abbr + record + game + week, "Home" as the last row.
+- Row 3: `LeagueRow3.tsx` (league scope) or `HomeRow3` (main scope) inside `SiteHeader.tsx`.
+- Two new pages: `LeagueStandingsHome.tsx` and `LeagueCareerStatsHome.tsx`
+  (`apps/web/src/routes/hub/`), routed via `apps/site/src/routes/LeagueHub.tsx`'s
+  `viewFromPath()`, exported through `packages/hub-ui/src/index.ts`.
+- Shared dropdown mechanics live in `apps/site/src/components/HeaderMenu.tsx`
+  (`useHeaderMenu()`): portals every header dropdown panel into `document.body`, anchors it to
+  the trigger's live bounding rect, auto-closes on route change, and enforces "only one open at
+  a time" via a module-level slot. `NotificationsBell.tsx` now uses this too (previously had its
+  own hand-rolled open/backdrop logic with a hardcoded `top: 56px` that went stale the moment
+  the header grew past one row).
+
+**A dedicated audit pass** (explicitly requested: "go through the rest of the header for issues
+like this") found and fixed, beyond the nav build itself:
+- `.site-ticker`'s `left: 248px` (leftover `DesktopSidebar` reservation) — ticker was cut off at
+  the old sidebar edge instead of running full-width.
+- `hub-context.tsx`'s route-sync effect never reset `scope` back to `{kind:"main"}` when
+  leaving a league via anything other than `exitToMain()` (browser back, brand-link click, a
+  plain `<NavLink to="/home">`) — header kept showing the old league's nav on the home page.
+  Also never reset scope on sign-out (stale scope could leak into a different account signing
+  in on the same tab). Switched the effect to `useLayoutEffect` to close a one-frame flash gap.
+- `SiteShell.tsx`'s `isLeague` check was looser than `SiteHeader`'s — could disagree whenever
+  scope was stuck on a stale/unresolvable league id.
+- Header dropdowns didn't close when navigating via a sibling link (only via their own menu
+  item's `close()` call), and sibling dropdowns had no mutual exclusion (opening two at once
+  stacked two portaled panels). Both fixed in `useHeaderMenu`.
+- `.site-hub-embed`'s `min-height: calc(100dvh - 56px [- 72px on desktop])` assumed old chrome
+  heights that no longer exist — replaced with `flex: 1` inside a flex-column
+  `.site-shell-main` so it can't go stale again.
+- Mobile-specific bugs from direct user feedback on the live header: dropdowns were forced into
+  a bottom-sheet regardless of the tapped button's position (removed the `!important`
+  bottom-sheet override — mobile now anchors under the trigger like desktop); row3 hid every
+  plain NavLink's label except the active one while dropdown triggers kept theirs (removed,
+  every button now keeps its label on mobile); Home row3 (Home/Leagues/Tournaments) inherited
+  league-scope row3's `justify-content: flex-start` (needed there for the horizontal scroll
+  strip) and looked left-aligned — split into `.site-header-row3-home`, centered; Standings
+  reused `IconStats`, same icon as the adjacent Stats dropdown, read as a duplicate button —
+  added a distinct `IconBracket`; removed the home page's redundant "Your leagues / By game"
+  card (`MyLeaguesByGame` in `Home.tsx`) now that the header's own switcher does the same job.
+- Active row3 tab color: went through gold gradient → red/white/black-stroke → plain red/white
+  per direct iterative feedback. Current state: `#d81e2c` background, white text, no stroke.
+
+All of the above is committed and pushed to `main` (commits `acaeae5b`..`16ca609c`, see `git log`
+for exact messages — each commit message documents the specific bug it fixes). Typecheck clean
+across api/web/site/hub-ui; API test suite 125/125 passing throughout.
+
+**Not done / worth another pass**: live click-testing with a real signed-in session (this
+environment has no `apps/api/.env`, so `/dev-bypass` auth couldn't be configured — verification
+so far has been static CSS mocks loading the real dev-server stylesheet, computed-style
+JS checks, and careful code reading, not actual clicking through a live signed-in app). Also
+still dead-but-harmless: `.site-desktop-sidebar`/`.site-bottom-nav`/`.site-league-top-nav`/
+`.site-league-menu`/`.site-notif-backdrop`-adjacent CSS rules in `site.css` with no remaining
+element references — left for Phase 4 (CSS centralization) rather than touched piecemeal.
+
+### Phase 2 — Data integrity: 2a partially done, 2b/2c/2d not started
+
+**2a (canonical game-result sync) — root cause found and fixed, backfill migration written but
+NOT YET APPLIED.** The original plan assumed a generic missing-sync-helper problem needing a
+new `syncGameFromResult()` called from every write site. On investigation the real bugs were
+narrower and already mostly-covered:
+- `apps/api/src/modules/league-week/manual-scores.service.ts` and
+  `apps/api/src/modules/box-score/box-score.service.ts` (the box-score-approval path) both set
+  `rec_games.status` to the string `'final'` — **not a valid `rec_game_status` enum value**
+  (valid: `scheduled`/`pending_schedule`/`ready`/`completed`/`locked`/`cancelled`). Neither call
+  site checked the update's error result, so the sync silently failed every single time on both
+  paths. Fixed: both now write `'completed'` and log (not swallow) any future failure.
+- `box-score.service.ts`'s `syncApprovedBoxScoreCorrection` (editing an already-approved box
+  score) never touched `rec_games` at all — fixed, now syncs it too.
+- `advance-results.service.ts` and `apps/api/src/modules/madden-ea/ea-direct-writer.ts` were
+  already correct (advance already had its own inline sync; the EA direct writer writes both
+  tables from the same code path). `madden-companion.service.ts`'s sync function reads FROM
+  `rec_games` (already completed+scored) TO write `rec_game_results`, so it can't be a source of
+  this particular drift either.
+- Net result: no new generic helper was needed or added (one was written, then removed as dead
+  code once the real root causes turned out to be three specific fixable call sites instead).
+- **One-time backfill for the 167 games that already drifted before these fixes**: written to
+  `supabase/migrations/20260925100000_backfill_rec_games_from_results.sql` but **NOT applied** —
+  the Claude Code auto-mode permission classifier blocked the `apply_migration` call (a
+  production UPDATE across ~167 rows), correctly treating it as needing explicit human sign-off
+  even though the general shape of this fix was discussed in earlier plan-mode sessions.
+  **Next step for whoever picks this up: get the user's explicit go-ahead, then apply that
+  migration file via the Supabase MCP** (`project_id: kyooxpjsxvsatrariafq`). Re-verify the
+  count first (`select count(*) from rec_games g join rec_game_results r on r.game_id=g.id
+  where g.home_score is distinct from r.home_score or g.away_score is distinct from
+  r.away_score or g.status is distinct from 'completed'` — was 167 as of 2026-08-25) since more
+  may have accumulated if the app fixes above hadn't shipped yet when this is read.
+
+**2b (orphaned `rec_team_game_stats` rows, ~170 each with a dead `league_id`/dead `game_id`) —
+NOT STARTED.** Per the plan: extend `rebuildOfficialGlobalRecords()`
+(`apps/api/src/modules/official-records/official-records.service.ts`) to read these rows
+directly when their `league_id`/`game_id` no longer resolve, instead of only walking
+`rec_games`/`rec_game_results`. Re-verify the row counts are still ~170/~170 before starting
+(they predate `preserveGlobalContributionsBeforeLeagueDelete`, live since 2026-07-29, so the
+count shouldn't be growing).
+
+**2c (table consolidation: `rec_user_h2h_league_records`, `rec_user_head_to_head_records`,
+`rec_user_records` — all 0 rows per the original audit) — NOT STARTED.** Grep for real
+readers/writers before dropping anything (the original audit's own caveat — row counts alone
+aren't proof of dead code). `rec_global_h2h_matchups` is confirmed live (via `getH2hHistory()`)
+and must NOT be touched.
+
+**2d (league inactivity lifecycle: archive at 14 days inactive, hard-delete at 30) — NOT
+STARTED.** Needs a new `rec_leagues.last_active_at` column (backfill from `updated_at`), touched
+by the advance flow, plus a new pg_cron daily sweep job (model: `refresh_power_rankings_daily`,
+`prune_dead_highlights_daily`) calling a new `sweepInactiveLeagues()`. The hard-delete step
+should just call the *existing* `adminDeleteLeague()` (`apps/api/src/modules/admin/
+admin.service.ts`), which already runs the preservation functions before deleting — no new
+preservation logic needed.
+
+### Phase 3 (DB cleanup), Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
+
+See the plan file (or ask the user for its contents if you can't reach that path) for the full
+per-phase detail — table drop candidates, the CSS-file-consolidation list, and the polling
+inventory table are all written out there already and weren't re-derived here.
+
+### General notes for whoever continues this
+
+- This repo's Supabase project id is `kyooxpjsxvsatrariafq`. Any `execute_sql`/`apply_migration`
+  call that mutates real rows (not just reads/schema) should expect the auto-mode permission
+  classifier to block it — that's working as intended, not a bug to route around. Ask the user
+  first, or expect the user to run it themselves.
+- Trunk-based workflow: commit and push directly to `main`, no feature branches (see
+  `[[always_push_to_main]]` memory). Everything in this session was pushed incrementally,
+  commit-per-logical-fix, not batched at the end.
+- `pnpm --filter @rec/shared build` after any `packages/shared` change, before typechecking
+  other packages (stale `dist/` causes phantom TS2305 errors) — didn't come up this session but
+  is a standing project rule.
+
 ## CFB settings expansion — B2 backend wiring (2026-08-06, committed and pushed)
 The site wizard already collected every new CFB setting and per-conference rule in the UI,
 but the backend silently dropped them: `CreateUnclaimedLeagueSchema` stripped the unknown

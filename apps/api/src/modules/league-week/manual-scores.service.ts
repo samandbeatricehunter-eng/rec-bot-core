@@ -210,7 +210,15 @@ export async function recordManualGameResult(input: {
   const result = await supabase.from("rec_game_results").upsert(row, { onConflict: "records_apply_key", ignoreDuplicates: false });
   if (result.error) throw new ApiError(500, "We couldn't save the manual game result. Please try again.", result.error);
   await closeWageringForGame({ guildId: input.guildId, gameId: input.gameId });
-  await supabase.from("rec_games").update({ status: "final", home_score: homeScore, away_score: awayScore, updated_at: now }).eq("id", input.gameId);
+  // "final" is not a rec_game_status enum value (valid: scheduled/pending_schedule/ready/
+  // completed/locked/cancelled) -- this update was silently failing on every manual score
+  // entry (its result was never checked), leaving rec_games permanently out of sync with the
+  // rec_game_results row just written. Root cause of the 167-game rec_games/rec_game_results
+  // mismatch found in the 2026-08 combined data-integrity audit.
+  const gameSyncResult = await supabase.from("rec_games").update({ status: "completed", home_score: homeScore, away_score: awayScore, updated_at: now }).eq("id", input.gameId);
+  if (gameSyncResult.error) {
+    console.error("[ERROR] Failed to sync rec_games after manual score entry (non-fatal):", gameSyncResult.error);
+  }
   await settleGotwPollsForGame({ guildId: input.guildId, gameId: input.gameId, winningTeamId }).catch((err) => {
     console.error("[ERROR] settleGotwPollsForGame failed after manual score entry (non-fatal):", err);
   });

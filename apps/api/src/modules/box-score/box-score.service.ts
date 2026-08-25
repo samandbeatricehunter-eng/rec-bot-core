@@ -1340,7 +1340,16 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     if (resultError) throw new ApiError(500, "We couldn't record the box score game result. Please try again.", resultError);
     if (sub.game_id) {
       await closeWageringForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id });
-      await supabase.from("rec_games").update({ status: "final", home_score: sub.home_score, away_score: sub.away_score, updated_at: now }).eq("id", sub.game_id);
+      // "final" is not a rec_game_status enum value (valid: scheduled/pending_schedule/ready/
+      // completed/locked/cancelled) -- this update was silently failing on every box-score
+      // approval (its result was never checked), leaving rec_games permanently out of sync
+      // with the rec_game_results row just written. Same bug as manual-scores.service.ts,
+      // root cause of the 167-game rec_games/rec_game_results mismatch found in the 2026-08
+      // combined data-integrity audit.
+      const gameSyncResult = await supabase.from("rec_games").update({ status: "completed", home_score: sub.home_score, away_score: sub.away_score, updated_at: now }).eq("id", sub.game_id);
+      if (gameSyncResult.error) {
+        console.error("[ERROR] Failed to sync rec_games after box score approval (non-fatal):", gameSyncResult.error);
+      }
       await settleGotwPollsForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id, winningTeamId }).catch((error) => {
         console.error("[ERROR] settleGotwPollsForGame failed after box score approval (non-fatal):", error);
         warnings.push("Failed to settle GOTW voting.");
@@ -1609,6 +1618,16 @@ async function syncApprovedBoxScoreCorrection(sub: any) {
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
     if (error) throw new ApiError(500, "We couldn't refresh the corrected box score result. Please try again.", error);
+    // This correction path wrote the fixed score into rec_game_results but never touched
+    // rec_games, so an already-approved box score corrected via commissioner edit would leave
+    // rec_games showing the original (pre-correction) score forever -- same rec_games/
+    // rec_game_results drift as the "final" enum-value bug above, different write path.
+    if (sub.game_id) {
+      const gameSyncResult = await supabase.from("rec_games").update({ status: "completed", home_score: sub.home_score, away_score: sub.away_score, updated_at: now }).eq("id", sub.game_id);
+      if (gameSyncResult.error) {
+        console.error("[ERROR] Failed to sync rec_games after box score correction (non-fatal):", gameSyncResult.error);
+      }
+    }
   }
 
   await recordTeamGameStats(sub);
