@@ -4,13 +4,26 @@
 // without touching raw EA field names. One offense + one defense winner per conference per
 // week (4 total): AFC offense, AFC defense, NFC offense, NFC defense.
 //
-// Offense: (yards * 0.1) + (touchdowns * 6) - (turnovers * 4)
+// Offense: (pass yards * 0.04) + (rush + receiving yards * 0.1) + (touchdowns * 6) - (turnovers * 4)
 // Defense: (sacks * 4) + (interceptions * 4) + (tackles for loss * 2) + (defensive TDs * 6)
+//
+// The initial version weighted every yard (passing included) at 0.1, per the community
+// formula as given. Checked against EA's own real Week 10 "Top Players" picks (screenshot,
+// 2026-08-25) that flat weight got the offensive side wrong on both conferences: Baker
+// Mayfield (185 pass, 23 rush, 6 total TD) was the actual NFC pick over Trevor Lawrence (296
+// pass, 56 rush, 4 TD) despite Lawrence scoring higher under a flat 0.1/yard; same story for
+// Adrian Peterson over Tom Brady in the AFC. Splitting passing yards to the standard-fantasy
+// 0.04/yard (1pt/25yd) while keeping rush/receiving at 0.1/yard (1pt/10yd) reproduces both
+// real winners exactly. Defensive formula needed no correction -- it already reproduced both
+// real defensive winners' scores exactly (12.0 and 20.0) on the first try.
 //
 // Deliberately dropped from the community defensive formula: "allowed big plays /
 // concessions" has no per-player canonical stat in this system (only team-level yards/points
 // allowed are tracked) -- there's nothing to subtract, so it's simply omitted rather than
-// faked with a proxy.
+// faked with a proxy. Tackles-for-loss also always contributes 0 in practice -- EA's Madden
+// Companion export has no TFL field at all (confirmed against a raw defensive payload), only
+// defTotalTackles/defSacks/defInts/defTDs/defFumRec/defForcedFum/defDeflections/defSafeties --
+// left in the formula for the day EA's export adds it, but it's currently a no-op.
 
 export type WeeklyPlayerStatLine = {
   passYards: number;
@@ -35,10 +48,10 @@ export function emptyWeeklyPlayerStatLine(): WeeklyPlayerStatLine {
 }
 
 export function offensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
-  const yards = line.passYards + line.rushYards + line.receivingYards;
+  const rushRecYards = line.rushYards + line.receivingYards;
   const touchdowns = line.passTds + line.rushTds + line.receivingTds;
   const turnovers = line.interceptionsThrown + line.rushingFumbles;
-  return yards * 0.1 + touchdowns * 6 - turnovers * 4;
+  return line.passYards * 0.04 + rushRecYards * 0.1 + touchdowns * 6 - turnovers * 4;
 }
 
 export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
