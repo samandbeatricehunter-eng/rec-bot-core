@@ -1112,72 +1112,6 @@ export type RecLeagueFeatureSettings = typeof recLeagueFeatureSettings.$inferSel
 export type RecLeagueConfiguration = typeof recLeagueConfiguration.$inferSelect;
 
 // ============================================================================
-// Head-to-head records / user records
-// ============================================================================
-
-export const recUserHeadToHeadRecords = pgTable("rec_user_head_to_head_records", {
-  id: uuid("id").primaryKey(),
-  userAId: uuid("user_a_id").notNull().references(() => recUsers.id),
-  userBId: uuid("user_b_id").notNull().references(() => recUsers.id),
-  userAWins: integer("user_a_wins").notNull().default(0),
-  userALosses: integer("user_a_losses").notNull().default(0),
-  userATies: integer("user_a_ties").notNull().default(0),
-  userAPointDifferential: integer("user_a_point_differential").notNull().default(0),
-  userAPointsFor: integer("user_a_points_for").notNull().default(0),
-  userAPointsAgainst: integer("user_a_points_against").notNull().default(0),
-  userAPlayoffWins: integer("user_a_playoff_wins").notNull().default(0),
-  userAPlayoffLosses: integer("user_a_playoff_losses").notNull().default(0),
-  userAPlayoffTies: integer("user_a_playoff_ties").notNull().default(0),
-  userAPlayoffPointDifferential: integer("user_a_playoff_point_differential").notNull().default(0),
-  userASuperbowlWins: integer("user_a_superbowl_wins").notNull().default(0),
-  userASuperbowlLosses: integer("user_a_superbowl_losses").notNull().default(0),
-  userASuperbowlTies: integer("user_a_superbowl_ties").notNull().default(0),
-  userASuperbowlPointDifferential: integer("user_a_superbowl_point_differential").notNull().default(0),
-  totalGames: integer("total_games").notNull().default(0),
-  playoffGames: integer("playoff_games").notNull().default(0),
-  superbowlGames: integer("superbowl_games").notNull().default(0),
-  averagePointDifferential: numeric("average_point_differential"),
-  lastGameId: uuid("last_game_id").references(() => recGames.id),
-  lastPlayedAt: timestamp("last_played_at", { withTimezone: true, mode: "string" }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recUserRecords = pgTable("rec_user_records", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  regularSeasonWins: integer("regular_season_wins").notNull().default(0),
-  regularSeasonLosses: integer("regular_season_losses").notNull().default(0),
-  regularSeasonTies: integer("regular_season_ties").notNull().default(0),
-  playoffWins: integer("playoff_wins").notNull().default(0),
-  playoffLosses: integer("playoff_losses").notNull().default(0),
-  superBowlWins: integer("super_bowl_wins").notNull().default(0),
-  superBowlLosses: integer("super_bowl_losses").notNull().default(0),
-  cpuWins: integer("cpu_wins").notNull().default(0),
-  cpuLosses: integer("cpu_losses").notNull().default(0),
-  h2hWins: integer("h2h_wins").notNull().default(0),
-  h2hLosses: integer("h2h_losses").notNull().default(0),
-  h2hTies: integer("h2h_ties").notNull().default(0),
-  pointsFor: integer("points_for").notNull().default(0),
-  pointsAgainst: integer("points_against").notNull().default(0),
-  pointDifferential: integer("point_differential"),
-  largestWinMargin: integer("largest_win_margin"),
-  largestLossMargin: integer("largest_loss_margin"),
-  highestScoringGamePoints: integer("highest_scoring_game_points"),
-  closestWinMargin: integer("closest_win_margin"),
-  closestLossMargin: integer("closest_loss_margin"),
-  longestWinStreak: integer("longest_win_streak").notNull().default(0),
-  longestLosingStreak: integer("longest_losing_streak").notNull().default(0),
-  currentWinStreak: integer("current_win_streak").notNull().default(0),
-  currentLosingStreak: integer("current_losing_streak").notNull().default(0),
-  gamesPlayed: integer("games_played").notNull().default(0),
-  lastGameId: uuid("last_game_id").references(() => recGameResults.id),
-  lastPlayedAt: timestamp("last_played_at", { withTimezone: true, mode: "string" }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-// ============================================================================
 // EOS payouts / weekly challenges
 // ============================================================================
 
@@ -1561,8 +1495,6 @@ export const recGlobalGotwGuessingRecords = pgTable("rec_global_gotw_guessing_re
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export type RecUserHeadToHeadRecord = typeof recUserHeadToHeadRecords.$inferSelect;
-export type RecUserRecord = typeof recUserRecords.$inferSelect;
 export type RecEosPayoutBatch = typeof recEosPayoutBatches.$inferSelect;
 export type RecEosPayoutItem = typeof recEosPayoutItems.$inferSelect;
 export type RecWeeklyChallenge = typeof recWeeklyChallenges.$inferSelect;
@@ -1661,41 +1593,6 @@ export const recPlayerWeeklyStats = pgTable("rec_player_weekly_stats", {
   sourceRosterId: text("source_roster_id")
 });
 
-export const recUserH2hGlobalRecords = pgTable("rec_user_h2h_global_records", {
-  id: uuid("id").primaryKey(),
-  userAId: uuid("user_a_id").notNull().references(() => recUsers.id),
-  userBId: uuid("user_b_id").notNull().references(() => recUsers.id),
-  userAWins: integer("user_a_wins").notNull().default(0),
-  userALosses: integer("user_a_losses").notNull().default(0),
-  userATies: integer("user_a_ties").notNull().default(0),
-  userAPointsFor: integer("user_a_points_for").notNull().default(0),
-  userAPointsAgainst: integer("user_a_points_against").notNull().default(0),
-  userAPointDifferential: integer("user_a_point_differential").notNull().default(0),
-  gamesPlayed: integer("games_played").notNull().default(0),
-  avgUserAPointDifferential: numeric("avg_user_a_point_differential").notNull().default("0"),
-  lastPlayedAt: timestamp("last_played_at", { withTimezone: true, mode: "string" }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recUserH2hLeagueRecords = pgTable("rec_user_h2h_league_records", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  userAId: uuid("user_a_id").notNull().references(() => recUsers.id),
-  userBId: uuid("user_b_id").notNull().references(() => recUsers.id),
-  userAWins: integer("user_a_wins").notNull().default(0),
-  userALosses: integer("user_a_losses").notNull().default(0),
-  userATies: integer("user_a_ties").notNull().default(0),
-  userAPointsFor: integer("user_a_points_for").notNull().default(0),
-  userAPointsAgainst: integer("user_a_points_against").notNull().default(0),
-  userAPointDifferential: integer("user_a_point_differential").notNull().default(0),
-  gamesPlayed: integer("games_played").notNull().default(0),
-  avgUserAPointDifferential: numeric("avg_user_a_point_differential").notNull().default("0"),
-  lastPlayedAt: timestamp("last_played_at", { withTimezone: true, mode: "string" }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recLeagueRecords = pgTable("rec_league_records", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
@@ -1742,8 +1639,6 @@ export const recPowerRankings = pgTable("rec_power_rankings", {
 
 export type RecPlayer = typeof recPlayers.$inferSelect;
 export type RecPlayerWeeklyStats = typeof recPlayerWeeklyStats.$inferSelect;
-export type RecUserH2hGlobalRecord = typeof recUserH2hGlobalRecords.$inferSelect;
-export type RecUserH2hLeagueRecord = typeof recUserH2hLeagueRecords.$inferSelect;
 export type RecLeagueRecord = typeof recLeagueRecords.$inferSelect;
 export type RecPowerRanking = typeof recPowerRankings.$inferSelect;
 
@@ -2897,17 +2792,6 @@ export const recLeagueConfigurationRelations = relations(recLeagueConfiguration,
   league: one(recLeagues, { fields: [recLeagueConfiguration.leagueId], references: [recLeagues.id] })
 }));
 
-export const recUserHeadToHeadRecordsRelations = relations(recUserHeadToHeadRecords, ({ one }) => ({
-  userA: one(recUsers, { fields: [recUserHeadToHeadRecords.userAId], references: [recUsers.id], relationName: "recUserHeadToHeadRecordsUserA" }),
-  userB: one(recUsers, { fields: [recUserHeadToHeadRecords.userBId], references: [recUsers.id], relationName: "recUserHeadToHeadRecordsUserB" }),
-  lastGame: one(recGames, { fields: [recUserHeadToHeadRecords.lastGameId], references: [recGames.id] })
-}));
-
-export const recUserRecordsRelations = relations(recUserRecords, ({ one }) => ({
-  user: one(recUsers, { fields: [recUserRecords.userId], references: [recUsers.id] }),
-  lastGame: one(recGameResults, { fields: [recUserRecords.lastGameId], references: [recGameResults.id] })
-}));
-
 export const recEosPayoutBatchesRelations = relations(recEosPayoutBatches, ({ one, many }) => ({
   league: one(recLeagues, { fields: [recEosPayoutBatches.leagueId], references: [recLeagues.id] }),
   createdByUser: one(recUsers, { fields: [recEosPayoutBatches.createdByUserId], references: [recUsers.id], relationName: "recEosPayoutBatchesCreatedByUser" }),
@@ -3008,17 +2892,6 @@ export const recPlayerWeeklyStatsRelations = relations(recPlayerWeeklyStats, ({ 
   league: one(recLeagues, { fields: [recPlayerWeeklyStats.leagueId], references: [recLeagues.id] }),
   player: one(recPlayers, { fields: [recPlayerWeeklyStats.playerId], references: [recPlayers.id] }),
   team: one(recTeams, { fields: [recPlayerWeeklyStats.teamId], references: [recTeams.id] })
-}));
-
-export const recUserH2hGlobalRecordsRelations = relations(recUserH2hGlobalRecords, ({ one }) => ({
-  userA: one(recUsers, { fields: [recUserH2hGlobalRecords.userAId], references: [recUsers.id], relationName: "recUserH2hGlobalRecordsUserA" }),
-  userB: one(recUsers, { fields: [recUserH2hGlobalRecords.userBId], references: [recUsers.id], relationName: "recUserH2hGlobalRecordsUserB" })
-}));
-
-export const recUserH2hLeagueRecordsRelations = relations(recUserH2hLeagueRecords, ({ one }) => ({
-  league: one(recLeagues, { fields: [recUserH2hLeagueRecords.leagueId], references: [recLeagues.id] }),
-  userA: one(recUsers, { fields: [recUserH2hLeagueRecords.userAId], references: [recUsers.id], relationName: "recUserH2hLeagueRecordsUserA" }),
-  userB: one(recUsers, { fields: [recUserH2hLeagueRecords.userBId], references: [recUsers.id], relationName: "recUserH2hLeagueRecordsUserB" })
 }));
 
 export const recLeagueRecordsRelations = relations(recLeagueRecords, ({ one }) => ({

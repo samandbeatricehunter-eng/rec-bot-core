@@ -177,6 +177,13 @@ mean resurrecting dead code, not writing new. **NOT dropped yet** — `DROP TABL
 non-empty table is a step up in irreversibility from the UPDATE already approved this session,
 and wasn't asked about explicitly. Flagged back to the user rather than assumed-authorized.
 
+**2c update — dropped, with user's explicit approval.** All five tables dropped
+(`supabase/migrations/20260925110000_drop_dead_records_tables.sql`, applied via Supabase MCP)
+and their now-pointless Drizzle declarations (`recUserH2hLeagueRecords`,
+`recUserHeadToHeadRecords`, `recUserRecords`, `recUserH2hGlobalRecords` — tables, inferred
+types, and relations objects) removed from `apps/api/src/db/schema.ts`. Typechecked, 125/125
+tests still pass.
+
 **2d (league inactivity lifecycle)** — still NOT STARTED, unchanged from the summary above.
 
 ### Phase 3 (DB cleanup), Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
