@@ -124,6 +124,61 @@ should just call the *existing* `adminDeleteLeague()` (`apps/api/src/modules/adm
 admin.service.ts`), which already runs the preservation functions before deleting — no new
 preservation logic needed.
 
+### Phase 2 update (2026-08-25, later same day) — 2a applied, 2b code shipped, 2c verified
+
+**2a applied.** User gave explicit go-ahead ("run the migration and continue with the work")
+after the classifier block. Re-verified count was still 167, ran
+`20260925100000_backfill_rec_games_from_results.sql` via the Supabase MCP, verified 0 remaining
+mismatches immediately after. Migration file updated in place to say APPLIED instead of
+pending.
+
+**2b (orphaned `rec_team_game_stats`) — code shipped, one-off backfill run blocked by a local
+env issue, not a classifier block.** Confirmed via SQL: 170 rows / exactly 1 dead league_id /
+7 distinct affected users (including Kayo4L and MrSixOnTheSticks), and the phase values on
+those rows (`divisional`, `conference_championship`, `super_bowl`) are Madden/NFL playoff
+terms, not CFB — so the existing `"madden_26"` fallback for an unresolvable league_id already
+happens to be a reasonable guess here, not a wild one.
+- Added `loadOrphanedGameResults()` to `official-records.service.ts`: finds
+  `rec_team_game_stats` rows whose `league_id`/`game_id` no longer resolve, dedupes by
+  `game_id` (one row per TEAM per game there, vs. one row per GAME in `rec_game_results` — this
+  matters, naive inclusion would double-count every recovered game for both users), and maps
+  each into the same shape `rebuildOfficialGlobalRecords()` already consumes.
+  `rebuildOfficialGlobalRecords()` now concatenates this with `loadAllOfficialResults()`'s
+  output. Typechecked, 125/125 API tests still pass.
+- Wrote `apps/api/scripts/rebuild-global-records-for-orphaned-stats.ts` (same one-off-script
+  convention as `backfill-league-record-holders.ts`) to run the rebuild for exactly the 7
+  affected users. **Could not execute it in this environment**: it failed with `password
+  authentication failed for user "postgres"` — `apps/api/src/lib/supabase.ts`'s query builder
+  opens a direct `pg` connection using `REC_DATABASE_URL` from the root `.env`, and that
+  password is stale/wrong (a `SUPABASE_SERVICE_ROLE_KEY`-based REST call, like everything the
+  Supabase MCP does, is a completely separate credential and worked fine throughout this
+  session — only the direct Postgres connection string is broken). This is an environment
+  problem, not a code problem or a permission block.
+  **Next step: fix `REC_DATABASE_URL` in the root `.env` (get the current password from
+  Supabase project settings), then run**
+  `pnpm --filter @rec/api exec tsx scripts/rebuild-global-records-for-orphaned-stats.ts`.
+  Until then, this self-heals gradually anyway — `rebuildOfficialRecordsAfterBoxScore()` calls
+  `rebuildOfficialGlobalRecords()` for both players any time either of these 7 users has a new
+  box score approved, and the orphaned games are now included whenever that fires — but the
+  numbers won't be fully correct until either that happens naturally for all 7 or the script
+  runs once manually.
+
+**2c (table consolidation) — verified, one correction to the plan's own assumption.** Grepped
+`apps/` and `packages/` for every candidate table name — all five have zero references outside
+`schema.ts` (i.e. genuinely dead code, not just low row counts):
+`rec_user_h2h_league_records` (0 rows), `rec_user_head_to_head_records` (0 rows),
+`rec_user_records` (0 rows), `rec_players_baseline_dup_backup_20260815` (3,121 rows, expected —
+it's a named/dated backup table), and **`rec_user_h2h_global_records` (29 rows, not 0 as the
+original external audit assumed)** — this is the exact table the Kayo4L/MrSixOnTheSticks
+`points_for`/`points_against`=0 bug was reported against; it's confirmed dead now (superseded
+by `rec_global_h2h_matchups`, which `getH2hHistory()` actually reads), so those 29 rows are
+stale leftovers from an abandoned feature, not a bug worth fixing in place — fixing it would
+mean resurrecting dead code, not writing new. **NOT dropped yet** — `DROP TABLE` on a
+non-empty table is a step up in irreversibility from the UPDATE already approved this session,
+and wasn't asked about explicitly. Flagged back to the user rather than assumed-authorized.
+
+**2d (league inactivity lifecycle)** — still NOT STARTED, unchanged from the summary above.
+
 ### Phase 3 (DB cleanup), Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
 
 See the plan file (or ask the user for its contents if you can't reach that path) for the full

@@ -309,6 +309,56 @@ async function loadAllOfficialResults() {
   return data ?? [];
 }
 
+// rec_team_game_stats rows whose league_id/game_id no longer resolve to a live row -- a league
+// hard-deleted before preserveGlobalContributionsBeforeLeagueDelete existed (live since
+// 2026-07-29) took its rec_games/rec_game_results rows with it but left the raw per-team stat
+// rows behind (170 rows / 1 dead league / 7 affected users as of 2026-08-25). Every global
+// record rebuild only ever read rec_game_results, so these games were invisible to every W/L/
+// points aggregation for those users, permanently -- this recovers them from the one place
+// their data actually survived. One row per TEAM per game here (unlike rec_game_results' one
+// row per game), so dedupe by game_id: keeping both rows would double-count every recovered
+// game for both users.
+async function loadOrphanedGameResults() {
+  const { data, error } = await supabase
+    .from("rec_team_game_stats")
+    .select("game_id,league_id,week_number,user_id,opponent_user_id,is_home,points_for,points_against,result")
+    .not("game_id", "is", null)
+    .not("user_id", "is", null);
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  if (!rows.length) return [];
+
+  const leagueIds = [...new Set(rows.map((row) => String(row.league_id)))];
+  const { data: liveLeagues, error: leagueError } = await supabase.from("rec_leagues").select("id").in("id", leagueIds);
+  if (leagueError) throw leagueError;
+  const liveLeagueIds = new Set((liveLeagues ?? []).map((row: any) => String(row.id)));
+
+  const gameIds = [...new Set(rows.map((row) => String(row.game_id)))];
+  const { data: liveGames, error: gameError } = await supabase.from("rec_games").select("id").in("id", gameIds);
+  if (gameError) throw gameError;
+  const liveGameIds = new Set((liveGames ?? []).map((row: any) => String(row.id)));
+
+  const orphaned = rows.filter((row) => !liveLeagueIds.has(String(row.league_id)) || !liveGameIds.has(String(row.game_id)));
+  const byGame = new Map<string, (typeof orphaned)[number]>();
+  for (const row of orphaned) {
+    if (!byGame.has(row.game_id)) byGame.set(row.game_id, row);
+  }
+  return [...byGame.values()].map((row) => {
+    const isHome = row.is_home ?? true;
+    return {
+      home_user_id: isHome ? row.user_id : row.opponent_user_id,
+      away_user_id: isHome ? row.opponent_user_id : row.user_id,
+      home_score: isHome ? row.points_for : row.points_against,
+      away_score: isHome ? row.points_against : row.points_for,
+      week_number: row.week_number,
+      is_tie: row.result === "tie",
+      league_id: row.league_id,
+      source: "orphaned_team_game_stats" as const,
+      created_at: null,
+    };
+  });
+}
+
 async function loadLeagueGamesMap(leagueIds: string[]) {
   if (!leagueIds.length) return new Map<string, string>();
   const { data, error } = await supabase.from("rec_leagues").select("id,game").in("id", leagueIds);
@@ -572,7 +622,8 @@ export async function getH2hHistory(userId: string, opponentUserId: string, limi
 }
 
 export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
-  const results = await loadAllOfficialResults();
+  const [officialResults, orphanedResults] = await Promise.all([loadAllOfficialResults(), loadOrphanedGameResults()]);
+  const results = [...officialResults, ...orphanedResults];
   const leagueIds = [...new Set<string>(results.map((row: any) => String(row.league_id)).filter(Boolean))];
   const leagueGameById = await loadLeagueGamesMap(leagueIds);
 

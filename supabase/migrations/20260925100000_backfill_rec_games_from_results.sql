@@ -1,6 +1,6 @@
--- NOT YET APPLIED — requires explicit approval before running against production.
--- The Claude Code auto-mode permission classifier blocked this UPDATE when first attempted
--- (a live-data mutation across ~167 rows), so it was written here for review instead.
+-- APPLIED 2026-08-25 (via Supabase MCP, after explicit user approval — the auto-mode
+-- permission classifier initially blocked this UPDATE as a ~167-row production mutation).
+-- Verified 0 remaining mismatches immediately after.
 --
 -- Backfills rec_games.home_score/away_score/status from rec_game_results for every game
 -- whose result was recorded but never synced back. As of 2026-08-25, all 167 affected rows
