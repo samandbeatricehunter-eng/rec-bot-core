@@ -19,6 +19,15 @@ const mainLinks = [
 
 const draftColumns = ["SPD", "ACC", "STR", "AGI", "AWR", "JMP", "INJ", "STA", "TOU", "THP", "TUP", "SAC", "MAC", "DAC", "CAT", "CIT", "SPC", "CAR", "BTK", "COD", "TKL", "POW", "BSH", "MCV", "ZCV", "PBK", "RBK"];
 
+// Mirrors apps/web's PlayerPhoto.tsx onError fallback pattern -- without it, a stale/deleted
+// Cloudflare Images URL shows a browser broken-image icon forever instead of the position badge
+// every other player-photo render site in the app already falls back to.
+function DraftPlayerPhoto({ url, position, className }: { url: string | null; position: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <span className={className}>{position}</span>;
+  return <img className={className} src={url} alt="" loading="lazy" onError={() => setFailed(true)} />;
+}
+
 function DemoFantasyDraftBoard({ players }: { players: DraftPlayer[] }) {
   const [position, setPosition] = useState("All");
   const [query, setQuery] = useState("");
@@ -45,9 +54,9 @@ function DemoFantasyDraftBoard({ players }: { players: DraftPlayer[] }) {
         <button type="button">Attribute filters</button>
       </div>
       <div className="demo-draft-table-wrap">
-        <table className="demo-draft-table"><thead><tr><th>PLAYER</th><th>OVR ▼</th>{draftColumns.map((key) => <th key={key}>{key}</th>)}<th>ACTIONS</th></tr></thead><tbody>{filtered.map((player) => <tr key={player.id}><td><div className="demo-draft-player">{player.photoUrl ? <img src={player.photoUrl} alt="" loading="lazy" /> : <span>{player.position}</span>}<div><strong>{player.name}</strong><small>{player.position}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</small></div></div></td><td><b>{player.overallRating}</b></td>{draftColumns.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}<td className="demo-draft-row-actions"><button type="button" onClick={() => toggleBoard(player.id)}>{boardIds.includes(player.id) ? "Remove" : "+ Board"}</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></td></tr>)}</tbody></table>
+        <table className="demo-draft-table"><thead><tr><th>PLAYER</th><th>OVR ▼</th>{draftColumns.map((key) => <th key={key}>{key}</th>)}<th>ACTIONS</th></tr></thead><tbody>{filtered.map((player) => <tr key={player.id}><td><div className="demo-draft-player">{<DraftPlayerPhoto url={player.photoUrl} position={player.position} />}<div><strong>{player.name}</strong><small>{player.position}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</small></div></div></td><td><b>{player.overallRating}</b></td>{draftColumns.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}<td className="demo-draft-row-actions"><button type="button" onClick={() => toggleBoard(player.id)}>{boardIds.includes(player.id) ? "Remove" : "+ Board"}</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></td></tr>)}</tbody></table>
       </div>
-      <div className="demo-personal-board"><header><div><small>PERSONAL DRAFT BOARD</small><h2>Your Rankings</h2></div><span>Demo changes reset when you leave</span></header>{board.length === 0 ? <p>Add players from the pool above to build and adjust your board.</p> : <ol>{board.map((player, index) => <li key={player.id}><b>{index + 1}</b>{player.photoUrl ? <img src={player.photoUrl} alt="" /> : <span className="demo-board-pos">{player.position}</span>}<div><strong>{player.name}</strong><small>{player.position} · {player.overallRating} OVR</small></div><button type="button" disabled={index === 0} onClick={() => moveBoard(player.id, -1)}>↑</button><button type="button" disabled={index === board.length - 1} onClick={() => moveBoard(player.id, 1)}>↓</button><button type="button" onClick={() => toggleBoard(player.id)}>Remove</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></li>)}</ol>}</div>
+      <div className="demo-personal-board"><header><div><small>PERSONAL DRAFT BOARD</small><h2>Your Rankings</h2></div><span>Demo changes reset when you leave</span></header>{board.length === 0 ? <p>Add players from the pool above to build and adjust your board.</p> : <ol>{board.map((player, index) => <li key={player.id}><b>{index + 1}</b>{<DraftPlayerPhoto url={player.photoUrl} position={player.position} className="demo-board-pos" />}<div><strong>{player.name}</strong><small>{player.position} · {player.overallRating} OVR</small></div><button type="button" disabled={index === 0} onClick={() => moveBoard(player.id, -1)}>↑</button><button type="button" disabled={index === board.length - 1} onClick={() => moveBoard(player.id, 1)}>↓</button><button type="button" onClick={() => toggleBoard(player.id)}>Remove</button><button type="button" onClick={() => makePick(player)}>Mark pick</button></li>)}</ol>}</div>
       <div className="demo-draft-footer"><button type="button" disabled title="Saving is disabled in the public demo">Save Draft Board</button><button type="button" disabled title="Loading saved boards is disabled in the public demo">Load Draft Board</button><label><span>SORT BY</span><select><option>My custom rank</option><option>OVR</option></select></label><strong>{draftedIds.length ? `${draftedIds.length} demo pick${draftedIds.length === 1 ? "" : "s"} logged` : "No picks logged yet."}</strong></div>
     </section>
   );
