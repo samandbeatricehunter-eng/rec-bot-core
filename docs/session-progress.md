@@ -236,7 +236,39 @@ flagged "scans ≠ unused, trace before dropping") — traced and dropped:
   (`recPurchaseHolds` table/type/relations) removed from `schema.ts`. Typechecked, 125/125
   tests pass.
 
-### Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
+### Phase 4 (CSS centralization) — dead-code removal done, file-consolidation NOT STARTED
+
+Removed the CSS/component cruft left dead by the Phase 1 nav rebuild (grepped every class
+name against `apps/site/src/**/*.tsx` before deleting each):
+- `.site-top-bar*` (old single-row top bar), `.site-bottom-nav*`, `.site-league-top-nav*`,
+  `.site-league-menu*`, `.site-desktop-sidebar*`, `.site-sidebar-nav*`/`.site-sidebar-brand`/
+  `.site-sidebar-leagues*` (old sidebar family), `.site-league-selector*` (its dedicated CSS —
+  the component itself, `LeagueSelector.tsx`, was a fully orphaned file with zero importers,
+  deleted outright), `.site-account-menu`/`.site-account-menu-backdrop`/
+  `.site-account-menu-panel` (the wrapper — `.site-account-menu-item` is still live, used
+  inside the header's portal-based panels, kept). **548 lines removed from `site.css`**, one
+  file (`LeagueSelector.tsx`) deleted. Carefully preserved the one still-live rule that shared
+  a media-query block with dead siblings
+  (`.site-shell.is-league-scope .site-shell-main:has(.site-hub-embed)`). Verified CSS brace
+  balance programmatically after the edits, confirmed via computed-style checks in a live dev
+  server that the header still renders identically (active-tab red background, all labels
+  visible) post-cleanup. Typechecked clean.
+- Removed the three superseded background images (`stadium-hero.webp`, `midnight-glass-bg.webp`,
+  `rec-mobile-stadium.webp`) from the tracked source location
+  (`apps/web/public/assets/backgrounds/`) — confirmed zero remaining CSS/TSX references before
+  deleting. (`apps/site/public/assets/backgrounds/` still has copies of these, but that whole
+  directory is gitignored/copied-at-build-time, not tracked — nothing to clean up there in git.)
+
+**NOT done**: the file-consolidation piece — merging `LeagueHub.tsx`'s eleven separately-imported
+hub CSS files (`tokens.css`, `themes/cfb27.css`, `themes/madden27.css`, `typography.css`,
+`surfaces.css`, `buttons.css`, `icons.css`, `football-components.css`, `hub.css`,
+`league-management.css`, `nfl-playoff-bracket.css`, `responsive.css`) into fewer purpose-named
+bundles. This is a pure file-reorganization pass with no visual change intended — lower
+priority than the dead-code removal (which had real correctness value, since dead CSS at least
+theoretically risks selector collisions) and higher risk of import-order regressions for
+comparatively little benefit. Left for a future pass if wanted.
+
+### Phase 5 (polling audit) — NOT STARTED
 
 See the plan file (or ask the user for its contents if you can't reach that path) for the full
 per-phase detail — table drop candidates, the CSS-file-consolidation list, and the polling
