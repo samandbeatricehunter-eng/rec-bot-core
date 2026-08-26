@@ -503,16 +503,3 @@ export async function listCaseEvents(guildId: string, inboxId: string): Promise<
     })),
   };
 }
-
-export async function linkCaseToVotingTopic(input: { guildId: string; inboxId: string; topicId: string }) {
-  const { data, error } = await supabase
-    .from("rec_commissioners_inbox")
-    .update({ voting_topic_id: input.topicId, updated_at: new Date().toISOString() })
-    .eq("id", input.inboxId)
-    .eq("guild_id", input.guildId)
-    .select("id")
-    .maybeSingle();
-  if (error) throw new ApiError(500, "Failed to link voting topic.", error);
-  if (!data) throw new ApiError(404, "Case not found.");
-  return { ok: true as const };
-}

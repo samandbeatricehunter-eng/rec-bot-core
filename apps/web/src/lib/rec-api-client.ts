@@ -1,6 +1,6 @@
 import { createReadCache } from "./read-cache.js";
 import { REC_API_ROUTES } from "@rec/shared";
-import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary, RecGlobalEconomyConfig } from "@rec/shared";
+import type { RecGlobalEconomyConfig } from "@rec/shared";
 import type { TradeEvaluatorReport } from "../types/api.js";
 import type {
   ActiveCheckReview,
@@ -11,15 +11,7 @@ import type {
   CfbBaselineApplyResponse,
   CfbRollForwardResponse,
   CfbRosterSeedStatus,
-  ChatAttachment,
   CommissionerPoll,
-  ChatMessage,
-  ChatTopic,
-  PublicPoll,
-  GameChatChannel,
-  GameChatMessage,
-  LeagueChatMember,
-  LeagueChatMessage,
   CommissionerNotificationsResponse,
   CompletedCommissionerTransactionsResponse,
   CommissionerPendingSummary,
@@ -504,8 +496,6 @@ export const recApi = {
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
   getMatchupPreview: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").MatchupPreview>("/v1/hub/matchups/preview", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 10_000 }),
-  sendHubMatchupMessage: (input: { guildId: string; gameId: string; body: string }) =>
-    recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
     recApiFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
   shareHubMatchupStream: (input: { guildId: string; gameId: string; url?: string }) =>
@@ -928,8 +918,6 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/notifications/case/memo", { method: "POST", body: JSON.stringify(input) }),
   listCaseEvents: (input: { guildId: string; inboxId: string }) =>
     recApiFetch<{ events: import("../types/api.js").CommissionerCaseEvent[] }>("/v1/notifications/case/events", { method: "POST", body: JSON.stringify(input) }),
-  linkCaseToVotingTopic: (input: { guildId: string; inboxId: string; topicId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/notifications/case/link-vote", { method: "POST", body: JSON.stringify(input) }),
   setCaseAwaitingUserResponse: (input: { guildId: string; inboxId: string; awaiting: boolean }) =>
     recApiFetch<{ ok: true }>("/v1/notifications/case/awaiting-user", { method: "POST", body: JSON.stringify(input) }),
 
@@ -1142,79 +1130,6 @@ export const recApi = {
     recApiFetch<CfbBaselineApplyResponse>("/v1/cfb-baseline/apply", { method: "POST", body: JSON.stringify({ guildId }) }),
   rollForwardCfbRoster: (guildId: string) =>
     recApiFetch<CfbRollForwardResponse>("/v1/cfb-baseline/roll-forward", { method: "POST", body: JSON.stringify({ guildId }) }),
-
-  // Commissioner Chat + Voting
-  listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
-    recApiFetch<{ messages: ChatMessage[] }>("/v1/commissioner-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postChatMessage: (input: { guildId: string; body: string; replyToMessageId?: string | null }) =>
-    recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
-  editChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
-    recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
-  deleteChatMessage: (input: { guildId: string; messageId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/commissioner-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
-  listChatTopics: (guildId: string) =>
-    recApiFetch<{ topics: ChatTopic[] }>("/v1/commissioner-chat/topics/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  createChatTopic: (input: { guildId: string; title: string; description?: string | null; options: string[]; closesAt?: string | null; audience?: "commissioners" | "league" }) =>
-    recApiFetch<{ topic: ChatTopic }>("/v1/commissioner-chat/topics/create", { method: "POST", body: JSON.stringify(input) }),
-  voteOnChatTopic: (input: { guildId: string; topicId: string; optionIndex: number }) =>
-    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/vote", { method: "POST", body: JSON.stringify(input) }),
-  listPublicPolls: (input: { guildId: string; discordId: string }) =>
-    recApiFetch<{ polls: PublicPoll[] }>("/v1/commissioner-chat/topics/public-list", { method: "POST", body: JSON.stringify(input) }),
-  voteOnPublicPoll: (input: { guildId: string; topicId: string; optionIndex: number }) =>
-    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/public-vote", { method: "POST", body: JSON.stringify(input) }),
-  closeChatTopic: (input: { guildId: string; topicId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/close", { method: "POST", body: JSON.stringify(input) }),
-  getMentionableCommissioners: (guildId: string) =>
-    recApiFetch<MentionableList>(REC_API_ROUTES.commissionerChatMentionable, { method: "POST", body: JSON.stringify({ guildId }) }),
-
-  // League Chat + Game Chat (Campus Buzz "Chat" tab)
-  listLeagueChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
-    recApiFetch<{ messages: LeagueChatMessage[] }>("/v1/league-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postLeagueChatMessage: (input: { guildId: string; body: string; replyToMessageId?: string | null }) =>
-    recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
-  editLeagueChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
-    recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
-  deleteLeagueChatMessage: (input: { guildId: string; messageId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/league-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
-  listLeagueMembersForChat: (guildId: string) =>
-    recApiFetch<{ members: LeagueChatMember[] }>("/v1/league-chat/members/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  sendLeagueChatHeartbeat: (guildId: string) =>
-    recApiFetch<{ ok: true }>("/v1/league-chat/heartbeat", { method: "POST", body: JSON.stringify({ guildId }) }),
-  listGameChatChannels: (guildId: string) =>
-    recApiFetch<{ channels: GameChatChannel[] }>("/v1/game-chat/channels/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  listGameChatMessages: (input: { guildId: string; gameChannelId: string }) =>
-    recApiFetch<{ messages: GameChatMessage[] }>("/v1/game-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string; replyToMessageId?: string | null }) =>
-    recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
-  editGameChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
-    recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
-  deleteGameChatMessage: (input: { guildId: string; messageId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/game-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
-
-  // Universal Chat Drawer — aggregated channel list + unread state, spanning league/game/commissioner chat.
-  listChatChannels: (guildId: string) =>
-    recApiFetch<{ channels: ChatChannelSummary[]; canAccessCommissionerChat: boolean }>(REC_API_ROUTES.chatChannelsList, {
-      method: "POST",
-      body: JSON.stringify({ guildId }),
-    }),
-  markChatChannelRead: (input: { guildId: string } & ChatMarkReadInput) =>
-    recApiFetch<{ ok: true }>(REC_API_ROUTES.chatChannelsMarkRead, { method: "POST", body: JSON.stringify(input) }),
-  listChatReactions: (input: { guildId: string; channelType: ChatChannelType; messageIds: string[] }) =>
-    recApiFetch<{ reactions: ChatReactionSummary[] }>("/v1/chat/reactions/list", { method: "POST", body: JSON.stringify(input) }),
-  toggleChatReaction: (input: { guildId: string; channelType: ChatChannelType; messageId: string; emojiKey: string }) =>
-    recApiFetch<{ reacted: boolean }>("/v1/chat/reactions/toggle", { method: "POST", body: JSON.stringify(input) }),
-  uploadChatAttachment: (guildId: string, file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return recApiFetch<{ storageKey: string; url: string; mimeType: string; filename: string | null; sizeBytes: number }>(
-      `/v1/chat/attachments/upload?guildId=${encodeURIComponent(guildId)}`,
-      { method: "POST", body: formData },
-    );
-  },
-  attachChatFile: (input: { guildId: string; channelType: ChatChannelType; messageId: string; storageKey: string; url: string; mimeType: string; filename?: string | null; sizeBytes?: number | null }) =>
-    recApiFetch<{ attachment: ChatAttachment }>("/v1/chat/attachments/attach", { method: "POST", body: JSON.stringify(input) }),
-  listChatAttachments: (input: { guildId: string; channelType: ChatChannelType; messageIds: string[] }) =>
-    recApiFetch<{ attachments: ChatAttachment[] }>("/v1/chat/attachments/list", { method: "POST", body: JSON.stringify(input) }),
 
   getCustomPlayerConfig: (guildId: string) => recApiFetch<any>("/v1/custom-players/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   getCustomPlayerDraft: (guildId: string) => recApiFetch<any>("/v1/custom-players/draft/get", { method: "POST", body: JSON.stringify({ guildId }) }),

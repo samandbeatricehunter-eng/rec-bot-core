@@ -39,7 +39,6 @@ import {
   submitInterview,
   submitUserMediaArticle,
   shareHubMatchupStream,
-  sendHubMatchupMessage,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
   toggleHubStreamReaction,
@@ -374,15 +373,6 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Matchup preview requires a user session.");
       return reply.send(await getMatchupPreview({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/hub/matchups/chat/send", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), body: z.string().trim().min(1).max(1000) }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "bot") throw new ApiError(400, "Matchup chat requires a user session.");
-      return reply.send(await sendHubMatchupMessage({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

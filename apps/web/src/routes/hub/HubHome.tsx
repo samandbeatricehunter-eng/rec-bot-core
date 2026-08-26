@@ -31,7 +31,6 @@ import { StatusChip } from "../../components/design-system/StatusChip.js";
 import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
 import { InterviewBody } from "../../components/hub/InterviewBody.js";
 import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
-import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
 import { CommissionerPollsVotingBlock } from "../../components/hub/CommissionerPollsVotingBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
@@ -1796,7 +1795,6 @@ export function HubHome() {
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
         <EosAwardVotingBlock />
-        <PublicPollsBlock />
         <CommissionerPollsVotingBlock />
         </>}
         {subTab === "news" && <>

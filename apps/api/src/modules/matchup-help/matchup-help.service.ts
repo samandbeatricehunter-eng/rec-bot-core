@@ -8,8 +8,6 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
@@ -93,20 +91,9 @@ export async function submitMatchupHelpRequest(input: {
 
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);
 
-  const gameChannel = await bestEffort("matchup_help.load_game_channel", () => getGameChannelByGameId(input.gameId), { leagueId: context.leagueId, entityId: input.gameId }) ?? null;
-  if (gameChannel) {
-    await postGameChatSystemMessage({
-      gameChannelId: gameChannel.id,
-      leagueId: context.leagueId,
-      gameId: input.gameId,
-      body: `${author.displayName} submitted a request: ${HEADER_BY_KIND[input.kind]}. A commissioner has been notified.`,
-    }).catch((error) => console.error("[ERROR] Failed to post matchup-help confirmation to game chat (non-fatal):", error));
-  }
-
-  // Private confirmation to the requester — the game-chat system message above is visible to
-  // both participants, but the requester specifically needs their own status notification per
-  // spec (a spectator/opponent seeing the system message isn't the same as the requester
-  // knowing their own request was actually received).
+  // Private confirmation to the requester -- the requester specifically needs their own status
+  // notification per spec (a spectator/opponent seeing a shared notice isn't the same as the
+  // requester knowing their own request was actually received).
   if (author.userId) {
     const title = `${HEADER_BY_KIND[input.kind]} — request received`;
     const body = `Your request for ${awayTeamName} @ ${homeTeamName} was sent to the commissioner team. You'll be notified when it's resolved.`;

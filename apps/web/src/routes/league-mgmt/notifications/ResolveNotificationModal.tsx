@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CASE_STATUS_BADGE, sortRecAttributeKeys } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { ChatTopic, CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
+import type { CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Badge } from "../../../components/ui/Badge.js";
@@ -426,23 +426,12 @@ export function ResolveNotificationModal({
   const [memoSaving, setMemoSaving] = useState(false);
   const [memoSaved, setMemoSaved] = useState(false);
   const [events, setEvents] = useState<CommissionerCaseEvent[] | null>(null);
-  const [votingTopicId, setVotingTopicId] = useState(notification.votingTopicId);
-  const [votingTopic, setVotingTopic] = useState<ChatTopic | null>(null);
-  const [startingVote, setStartingVote] = useState(false);
   const [awaitingUser, setAwaitingUser] = useState(notification.awaitingUserResponse);
   const [awaitingUserSaving, setAwaitingUserSaving] = useState(false);
 
   useEffect(() => {
     recApi.listCaseEvents({ guildId, inboxId: notification.id }).then((res) => setEvents(res.events)).catch(() => setEvents([]));
   }, [guildId, notification.id]);
-
-  useEffect(() => {
-    if (!votingTopicId) {
-      setVotingTopic(null);
-      return;
-    }
-    recApi.listChatTopics(guildId).then((res) => setVotingTopic(res.topics.find((t) => t.id === votingTopicId) ?? null)).catch(() => setVotingTopic(null));
-  }, [guildId, votingTopicId]);
 
   async function saveMemo() {
     setMemoSaving(true);
@@ -467,25 +456,6 @@ export function ResolveNotificationModal({
       setError(err instanceof Error ? err.message : "Failed to update case status.");
     } finally {
       setAwaitingUserSaving(false);
-    }
-  }
-
-  async function startVote() {
-    setStartingVote(true);
-    setError(null);
-    try {
-      const created = await recApi.createChatTopic({
-        guildId,
-        title: notification.title,
-        description: notification.subtitle,
-        options: ["Approve", "Deny"],
-      });
-      await recApi.linkCaseToVotingTopic({ guildId, inboxId: notification.id, topicId: created.topic.id });
-      setVotingTopicId(created.topic.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start a vote.");
-    } finally {
-      setStartingVote(false);
     }
   }
 
@@ -630,27 +600,6 @@ export function ResolveNotificationModal({
         <Button variant="secondary" size="compact" onClick={() => void saveMemo()} disabled={memoSaving}>
           {memoSaving ? "Saving…" : memoSaved ? "Saved" : "Save Memo"}
         </Button>
-      </div>
-
-      <div style={{ marginTop: "var(--space-4)" }}>
-        <strong style={{ fontSize: "var(--text-sm)" }}>Case Voting</strong>
-        {votingTopic ? (
-          <div style={{ marginTop: "var(--space-2)" }}>
-            {votingTopic.options.map((opt, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)" }}>
-                <span>{opt}</span>
-                <span>{votingTopic.tally[i] ?? 0} vote{(votingTopic.tally[i] ?? 0) === 1 ? "" : "s"}</span>
-              </div>
-            ))}
-            <span className="hub-muted" style={{ fontSize: "var(--text-xs)" }}>Status: {votingTopic.status}</span>
-          </div>
-        ) : (
-          <div style={{ marginTop: "var(--space-2)" }}>
-            <Button variant="secondary" size="compact" onClick={() => void startVote()} disabled={startingVote}>
-              {startingVote ? "Starting…" : "Start a Vote"}
-            </Button>
-          </div>
-        )}
       </div>
 
       <div style={{ marginTop: "var(--space-4)" }}>

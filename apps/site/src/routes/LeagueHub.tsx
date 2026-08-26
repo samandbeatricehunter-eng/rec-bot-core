@@ -6,7 +6,6 @@ import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-ap
 import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
 import {
-  ChatDrawerProvider,
   CfpPostseasonManager,
   FantasyDraftBoardPage,
   DeleteLeagueHome,
@@ -33,7 +32,6 @@ import {
   TeamOwnershipTable,
   TeamRosterForm,
   TeamScheduleForm,
-  UniversalChatDrawer,
   ImportStatusDrawer,
   ImportStatusProvider,
   HighlightUploadDrawer,
@@ -405,7 +403,6 @@ export function LeagueHubPage() {
           <HubChromeProvider embedded>
             <ImportStatusProvider>
             <HighlightUploadProvider>
-            <ChatDrawerProvider>
               <LeagueThemeProvider game={gameTheme}>
                 <HubErrorBoundary>
                   {location.pathname.endsWith("/draft-board") ? (
@@ -428,11 +425,9 @@ export function LeagueHubPage() {
                     <HubHomeBridge view={view} leagueId={leagueId} />
                   )}
                 </HubErrorBoundary>
-                <UniversalChatDrawer guildId={context.guildId} discordId={context.discordId} />
                 <ImportStatusDrawer />
                 <HighlightUploadDrawer />
               </LeagueThemeProvider>
-            </ChatDrawerProvider>
             </HighlightUploadProvider>
             </ImportStatusProvider>
           </HubChromeProvider>

@@ -1,7 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
-import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
@@ -70,30 +69,6 @@ export async function deriveStreamMatchupContext(leagueId: string, gameId: strin
     homeTeamName: nameById.get(game.data.home_team_id) ?? "Home",
     matchupLabel: game.data.home_user_id && game.data.away_user_id ? "H2H" : "CPU",
   };
-}
-
-// Public "someone's live" notice mirrored into the league-wide site chat, regardless of which
-// surface (Discord or site) the stream was submitted from.
-export async function postLeagueChatStreamNotice(input: {
-  leagueId: string;
-  seasonNumber: number;
-  awayTeamName: string;
-  homeTeamName: string;
-  matchupLabel: "H2H" | "CPU";
-  posterDisplayName: string;
-  url: string;
-}): Promise<void> {
-  const body = `🔴 **${input.matchupLabel}** — ${input.awayTeamName} at ${input.homeTeamName}: ${input.posterDisplayName} is live! ${input.url}`;
-  const { error } = await supabase.from("rec_league_chat_messages").insert({
-    league_id: input.leagueId,
-    season_number: input.seasonNumber,
-    author_user_id: null,
-    author_discord_id: null,
-    author_display_name: "REC Bot",
-    is_discord_only: false,
-    body,
-  });
-  if (error) throw error;
 }
 
 type RecordStreamPostInput = {
@@ -322,23 +297,6 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     await refreshMatchupsChannelForGame(lockedGameId);
   }
 
-  // Best-effort public notice on the league chat — never blocks the stream post itself.
-  if (lockedGameId) {
-    void (async () => {
-      const matchupContext = await deriveStreamMatchupContext(context.leagueId, lockedGameId);
-      if (!matchupContext) return;
-      const author = await resolveChatAuthor(input.discordId);
-      await postLeagueChatStreamNotice({
-        leagueId: context.leagueId,
-        seasonNumber,
-        awayTeamName: matchupContext.awayTeamName,
-        homeTeamName: matchupContext.homeTeamName,
-        matchupLabel: matchupContext.matchupLabel,
-        posterDisplayName: author.displayName,
-        url: input.messageUrl ?? "Discord Live",
-      });
-    })().catch((error) => console.error("[ERROR] Failed to post league-chat stream notice (non-fatal):", error));
-  }
 
   const payout = await createStreamPayoutReview({
     guildId: input.guildId,

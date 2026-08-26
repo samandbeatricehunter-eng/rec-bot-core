@@ -29,12 +29,9 @@ export { PlayerStatsReview } from "../../../apps/web/src/routes/league-mgmt/mana
 export { NotificationsHome } from "../../../apps/web/src/routes/league-mgmt/notifications/NotificationsHome.js";
 export { DeleteLeagueHome } from "../../../apps/web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 export { SettingsHome } from "../../../apps/web/src/routes/league-mgmt/settings/SettingsHome.js";
-export { CommissionerChatHome } from "../../../apps/web/src/routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
 export { PublishingHome } from "../../../apps/web/src/routes/league-mgmt/publishing/PublishingHome.js";
 export { RecruitingHome } from "../../../apps/web/src/routes/league-mgmt/recruiting/RecruitingHome.js";
-export { UniversalChatDrawer } from "../../../apps/web/src/components/chat/UniversalChatDrawer.js";
 export { ImportStatusDrawer } from "../../../apps/web/src/components/import/ImportStatusDrawer.js";
 export { ImportStatusProvider, useImportStatus } from "../../../apps/web/src/lib/import-status-context.js";
 export { HighlightUploadDrawer } from "../../../apps/web/src/components/hub/HighlightUploadDrawer.js";
 export { HighlightUploadProvider, useHighlightUpload } from "../../../apps/web/src/lib/highlight-upload-context.js";
-export { ChatDrawerProvider, useChatDrawer } from "../../../apps/web/src/lib/chat-drawer-context.js";

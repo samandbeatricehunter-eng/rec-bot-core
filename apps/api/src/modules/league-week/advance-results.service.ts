@@ -32,7 +32,6 @@ import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
-import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
@@ -524,13 +523,6 @@ async function notifyScheduleGameAsap(input: { leagueId: string; gameId: string;
       allowed_mentions: { users: discordIds },
     });
   }
-
-  await postGameChatSystemMessage({
-    gameChannelId: channel.id,
-    leagueId: input.leagueId,
-    gameId: input.gameId,
-    body: input.chatBody ?? `${headline} — a commissioner flagged this matchup as overdue.`,
-  });
 }
 
 const NOTIFY_MISSING_BOX_SCORE_COPY = {

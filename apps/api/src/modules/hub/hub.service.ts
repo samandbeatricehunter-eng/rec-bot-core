@@ -21,7 +21,7 @@ import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
-import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
+import { createStreamPayoutReview, deriveStreamMatchupContext, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
 import { stageHasScheduledGames, stageLabel } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -36,8 +36,6 @@ import { buildRoundtableDiscussion } from "./roundtable.js";
 import { postGeneratedHeadlineToDiscord } from "./story-publishing.js";
 import { CFB_TEAM_PRIMARY_COLORS, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
-import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat.service.js";
 import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
 import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
@@ -1983,10 +1981,6 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     : streams[0] ?? null;
   const secondaryStream =
     streams.find((stream: any) => stream.streamLogId !== primaryStream?.streamLogId) ?? null;
-  const gameChannel = await getGameChannelByGameId(input.gameId);
-  const messages = gameChannel
-    ? await getGameChatMessages({ guildId: input.guildId, gameChannelId: gameChannel.id })
-    : { messages: [] };
   // "This isn't these two coaches' first meeting" — every prior H2H result between this
   // game's two participants, across every league (including leagues since deleted).
   const h2h = await getH2hHistory(game.data.home_user_id, game.data.away_user_id).catch(() => ({ lastMatchup: null, history: [] }));
@@ -2000,19 +1994,7 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     gotw: matchup.gotw,
     h2hHistory: h2h.history,
     lastMatchup: h2h.lastMatchup,
-    messages: messages.messages,
   };
-}
-
-export async function sendHubMatchupMessage(input: { guildId: string; discordId: string; gameId: string; body: string }) {
-  const gameChannel = await getGameChannelByGameId(input.gameId);
-  if (!gameChannel) throw new ApiError(409, "This matchup does not have an active bridged game chat.");
-  return sendGameChatMessage({
-    guildId: input.guildId,
-    discordId: input.discordId,
-    gameChannelId: gameChannel.id,
-    body: input.body,
-  });
 }
 
 export async function getHubStreamingAccounts(input: { guildId: string; discordId: string }) {
@@ -2132,8 +2114,7 @@ export async function shareHubMatchupStream(input: {
   });
 
   // Cross-communication: mirror the site-submitted stream into Discord's streams channel (if
-  // this league is linked to a server) and post a public notice in league chat — best-effort,
-  // never blocks the stream submission itself.
+  // this league is linked to a server) — best-effort, never blocks the stream submission itself.
   void (async () => {
     const matchupContext = await deriveStreamMatchupContext(context.leagueId, input.gameId);
     if (!matchupContext) return;
@@ -2150,15 +2131,6 @@ export async function shareHubMatchupStream(input: {
         homeTeamName: matchupContext.homeTeamName,
         url: cleanedUrl,
         weekNumber,
-      }),
-      postLeagueChatStreamNotice({
-        leagueId: context.leagueId,
-        seasonNumber,
-        awayTeamName: matchupContext.awayTeamName,
-        homeTeamName: matchupContext.homeTeamName,
-        matchupLabel: matchupContext.matchupLabel,
-        posterDisplayName: author.displayName,
-        url: cleanedUrl,
       }),
     ]);
   })().catch((error) => console.error("[ERROR] Failed to mirror site-submitted stream (non-fatal):", error));

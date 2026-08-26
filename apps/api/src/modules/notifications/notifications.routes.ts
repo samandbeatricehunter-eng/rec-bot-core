@@ -7,7 +7,6 @@ import { reviewForceWinRequest } from "../scheduling/matchup-scheduling.service.
 import {
   addCaseMemo,
   getCommissionerPendingSummaryForLeague,
-  linkCaseToVotingTopic,
   listCaseEvents,
   listCommissionerNotifications,
   listCompletedCommissionerTransactions,
@@ -117,15 +116,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await listCaseEvents(body.guildId, body.inboxId));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/notifications/case/link-vote", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid(), topicId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Linking a vote requires a user session."));
-      return reply.send(await linkCaseToVotingTopic({ guildId: body.guildId, inboxId: body.inboxId, topicId: body.topicId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -4,7 +4,6 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
-import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.service.js";
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
@@ -104,9 +103,6 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     }
     await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
-    });
-    await wipeLeagueChatForSeasonRollover(context.leagueId).catch((error) => {
-      console.error("[ERROR] Failed to wipe league chat on season rollover:", error);
     });
     // Any payout still sitting in the backlog for the ending season doesn't carry into the
     // new one — it's dropped rather than released once the season it belongs to is over.

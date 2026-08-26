@@ -63,8 +63,6 @@ export const recApi = {
     }),
   recordHubAnnouncement: (input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) =>
     recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
-  ingestGameChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>
-    recFetch<{ ingested: boolean }>("/v1/game-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
   getGuildLinkStatus: (guildId: string) =>
     recFetch<{ linked: boolean }>("/v1/discord-servers/link-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   getPublicLeagueSnapshot: (guildId: string) =>
@@ -690,8 +688,6 @@ export const recApi = {
     recFetch<{ managementGuildId: string | null; linkedGuildIds: string[] }>("/v1/admin/discord-governance/snapshot", { method: "POST", body: JSON.stringify({}) }),
   markCommissionerNotificationDms: (guildId: string, ids: string[]) =>
     recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
-  ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>
-    recFetch<{ ingested: boolean }>("/v1/league-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
   syncDiscordMemberRole: (input: { guildId: string; discordId: string; roleKey: "member" | "compCommittee" | "commissioner" }) =>
     recFetch<{ ok: true }>("/v1/roles/discord-sync", { method: "POST", body: JSON.stringify(input) }),
 

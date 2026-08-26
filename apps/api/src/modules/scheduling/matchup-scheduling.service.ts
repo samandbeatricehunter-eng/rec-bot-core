@@ -6,7 +6,6 @@ import { getAvailabilityProfile, getEffectiveAvailability } from "./availability
 import { intersectIntervals, scoreOverlapWindows, suggestedKickoffsWithinWindow } from "./overlap.service.js";
 import { logSchedulingEvent, userIdFromDiscordId } from "./shared.js";
 import { submitMatchupHelpRequest } from "../matchup-help/matchup-help.service.js";
-import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { deleteDiscordComponentMessagesForGame, deleteTransientGameSchedulingMessages, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, isSiteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
@@ -464,8 +463,6 @@ async function notifyOpponent(gameId: string, game: Game, actingUserId: string, 
   const actingMention = actingDiscordId ? `<@${actingDiscordId}>` : "A coach";
   const opponentMention = opponentDiscordId ? `<@${opponentDiscordId}>` : "the other coach";
   const resolvedText = buildText({ tz: displayTz, actingMention, opponentMention });
-
-  await postGameChatSystemMessage({ gameChannelId: channel.id, leagueId: game.league_id, gameId, body: `Scheduling: ${resolvedText}` }).catch((error) => console.error("[ERROR] notifyOpponent: failed to post game-chat system message (non-fatal):", error));
 
   if (channel.discord_channel_id) {
     const mentionIds = [actingDiscordId, opponentDiscordId].filter((id): id is string => Boolean(id));
