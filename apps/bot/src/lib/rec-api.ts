@@ -838,15 +838,6 @@ export const recApi = {
   getPurchaseCounts: (discordId: string, guildId: string) =>
     recFetch<any>("/v1/purchases/counts", { method: "POST", body: JSON.stringify({ discordId, guildId }) }),
 
-  // ─── Fantasy draft check-ins ───
-  getFantasyDraftCheckins: (guildId: string) =>
-    recFetch<{ checkins: Array<{ teamId: string; teamName: string; checkedIn: boolean }> }>("/v1/fantasy-draft/check-ins", { method: "POST", body: JSON.stringify({ guildId }) }),
-  setFantasyDraftSelfCheckin: (guildId: string, discordId: string, checkedIn: boolean) =>
-    recFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify({ guildId, discordId, checkedIn }) }),
-  getFantasyDraftSelfCheckinStatus: (guildId: string, discordId: string) =>
-    recFetch<{ teamId: string; teamName: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/status", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
-  isDisplayingDraftCommand: (guildId: string) =>
-    recFetch<{ includeDraft: boolean }>("/v1/fantasy-draft/guild-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
   isDisplayingBoxScoreCommand: (guildId: string) =>
     recFetch<{ includeBoxScore: boolean }>("/v1/league-week/box-score-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

@@ -54,19 +54,12 @@ function discordRest() {
   return new REST({ version: "10" }).setToken(env.DISCORD_TOKEN);
 }
 
-/** Resolve the full guild command set, including /draft and /boxscore only if the API says
- * this guild should see them right now (/draft: within ~1hr of a scheduled fantasy draft, or
- * live; /boxscore: league is in box_scores data mode). Falls back to the base commands if the
- * API is unreachable — the API's own sync calls (data mode change, fantasy-draft schedule
- * transitions) backstop registration between restarts. */
+/** Resolve the full guild command set, including /boxscore only if the API says this guild
+ * should see it right now (league is in box_scores data mode). Falls back to the base commands
+ * if the API is unreachable — the API's own sync calls (data mode change) backstop
+ * registration between restarts. */
 async function guildCommandSet(guildId: string) {
   const base = [...commands];
-  try {
-    const state = await recApi.isDisplayingDraftCommand(guildId);
-    if (state.includeDraft) base.push({ name: "draft", description: "Check in for the fantasy draft." });
-  } catch (error) {
-    console.error(`Failed to resolve /draft visibility for guild ${guildId}:`, error);
-  }
   try {
     const state = await recApi.isDisplayingBoxScoreCommand(guildId);
     if (state.includeBoxScore) base.push({ name: "boxscore", description: "Get a link to upload a box score for an eligible week." });

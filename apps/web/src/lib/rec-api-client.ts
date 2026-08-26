@@ -78,8 +78,8 @@ import type {
   TeamScheduleManualState,
   UploadImageResponse,
   FantasyDraftState,
-  FantasyDraftSession,
   FantasyDraftOrderMode,
+  FantasyDraftType,
   GotwGuessingRecordsResponse,
 } from "../types/api.js";
 
@@ -1166,59 +1166,19 @@ export const recApi = {
   getWeeklyH2hGames: (guildId: string) =>
     recApiFetch<WeeklyH2hGamesResponse>(REC_API_ROUTES.weeklyH2hGames, { method: "POST", body: JSON.stringify({ guildId }) }),
 
-  // Fantasy draft (Madden league draft tracker) — all actions require a website session.
+  // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
-  saveFantasyDraftBoard: (input: { guildId: string; playerIds: string[] }) =>
-    recApiFetch<{ ok: true; board: string[] }>("/v1/fantasy-draft/board/save", { method: "POST", body: JSON.stringify(input) }),
-  // Named, reusable draft boards — separate from the live working board above, these persist
-  // across leagues/drafts of the same game.
-  listSavedFantasyDraftBoards: (guildId: string) =>
-    recApiFetch<{ boards: Array<{ id: string; name: string; updatedAt: string; playerCount: number }> }>("/v1/fantasy-draft/board/saved/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  saveNamedFantasyDraftBoard: (input: { guildId: string; name: string; playerIds: string[] }) =>
-    recApiFetch<{ ok: true; boardId: string; name: string; playerCount: number }>("/v1/fantasy-draft/board/saved/save", { method: "POST", body: JSON.stringify(input) }),
-  loadNamedFantasyDraftBoard: (input: { guildId: string; boardId: string }) =>
-    recApiFetch<{ ok: true; board: string[]; requestedCount?: number; resolvedCount?: number }>("/v1/fantasy-draft/board/saved/load", { method: "POST", body: JSON.stringify(input) }),
-  deleteSavedFantasyDraftBoard: (input: { guildId: string; boardId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/board/saved/delete", { method: "POST", body: JSON.stringify(input) }),
-  scheduleFantasyDraft: (input: { guildId: string; scheduledAt?: string | null }) =>
-    recApiFetch<FantasyDraftSession>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
-  commenceFantasyDraft: (guildId: string) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/commence", { method: "POST", body: JSON.stringify({ guildId }) }),
-  pingFantasyDraftUsers: (input: { guildId: string; mode: "countdown" | "starting_now" }) =>
-    recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/fantasy-draft/ping-users", { method: "POST", body: JSON.stringify(input) }),
-  pingFantasyDraftOnClock: (guildId: string) =>
-    recApiFetch<{ ok: true; teamName: string | null }>("/v1/fantasy-draft/ping-on-clock", { method: "POST", body: JSON.stringify({ guildId }) }),
+  startFantasyDraft: (input: { guildId: string; draftType: FantasyDraftType; pickTimerSeconds: number | null }) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/start", { method: "POST", body: JSON.stringify(input) }),
+  endFantasyDraft: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/fantasy-draft/end", { method: "POST", body: JSON.stringify({ guildId }) }),
   setFantasyDraftPickOrder: (input: { guildId: string; orderMode: FantasyDraftOrderMode; picks: Array<{ pickInRound: number; teamId: string }> }) =>
     recApiFetch<{ ok: true; orderMode: FantasyDraftOrderMode; count: number }>("/v1/fantasy-draft/set-pick-order", { method: "POST", body: JSON.stringify(input) }),
-  addFantasyDraftCustomPlayer: (input: { guildId: string; firstName: string; lastName: string; position: string; jerseyNumber?: number | null; archetype?: string | null; devTrait?: string | null; overallRating?: number | null; attributes: Record<string, number> }) =>
-    recApiFetch<{ id: string; name: string; position: string; overallRating: number | null }>("/v1/fantasy-draft/add-custom-player", { method: "POST", body: JSON.stringify(input) }),
-  removeFantasyDraftPoolPlayer: (input: { guildId: string; playerId: string }) =>
-    recApiFetch<{ removed: true }>("/v1/fantasy-draft/remove-pool-player", { method: "POST", body: JSON.stringify(input) }),
-  logFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
-    recApiFetch<{ ok: true; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick", { method: "POST", body: JSON.stringify(input) }),
-  skipFantasyDraftPick: (guildId: string) =>
-    recApiFetch<{ ok: true; skippedSlotId: string; round: number; pickInRound: number; teamId: string; overallPickNumber: number }>("/v1/fantasy-draft/pick/skip", { method: "POST", body: JSON.stringify({ guildId }) }),
-  skipFantasyDraftToPick: (input: { guildId: string; targetRound: number; targetPickInRound: number }) =>
-    recApiFetch<{ ok: true; skipped: number; targetRound: number; targetPickInRound: number }>("/v1/fantasy-draft/pick/skip-to", { method: "POST", body: JSON.stringify(input) }),
-  listSkippedFantasyDraftPicks: (guildId: string) =>
-    recApiFetch<{ skipped: Array<{ id: string; teamId: string; teamName: string; round: number; pickInRound: number; overallPickNumber: number }> }>("/v1/fantasy-draft/pick/skipped", { method: "POST", body: JSON.stringify({ guildId }) }),
-  fillSkippedFantasyDraftPick: (input: { guildId: string; skippedSlotId: string; playerId: string }) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/pick/skipped/fill", { method: "POST", body: JSON.stringify(input) }),
-  requestFantasyDraftPick: (input: { guildId: string; playerId: string }) =>
-    recApiFetch<{ ok: true; requestId: string; pending: true }>("/v1/fantasy-draft/pick/request", { method: "POST", body: JSON.stringify(input) }),
-  resolveFantasyDraftPickRequest: (input: { guildId: string; requestId: string; action: "approve" | "deny" }) =>
-    recApiFetch<{ ok: true; approved: boolean }>("/v1/fantasy-draft/pick/resolve-request", { method: "POST", body: JSON.stringify(input) }),
-  logFantasyDraftWrapupPick: (input: { guildId: string; playerId: string; teamId?: string | null }) =>
-    recApiFetch<{ ok: true; overallPickNumber: number; teamId: string }>("/v1/fantasy-draft/wrapup-pick", { method: "POST", body: JSON.stringify(input) }),
-  undoFantasyDraftPick: (guildId: string) =>
-    recApiFetch<{ ok: true; undonePlayerId: string }>("/v1/fantasy-draft/undo", { method: "POST", body: JSON.stringify({ guildId }) }),
-  skipFantasyDraftToEnd: (guildId: string) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/skip-to-end", { method: "POST", body: JSON.stringify({ guildId }) }),
-  concludeFantasyDraft: (guildId: string) =>
-    recApiFetch<{ ok: true; underStrengthTeams: Array<{ teamId: string; teamName: string; draftedCount: number }> }>("/v1/fantasy-draft/conclude", { method: "POST", body: JSON.stringify({ guildId }) }),
-  setFantasyDraftSelfCheckin: (input: { guildId: string; checkedIn: boolean }) =>
-    recApiFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in", { method: "POST", body: JSON.stringify(input) }),
-  setFantasyDraftTeamCheckin: (input: { guildId: string; teamId: string; checkedIn: boolean }) =>
-    recApiFetch<{ ok: true; teamId: string; checkedIn: boolean }>("/v1/fantasy-draft/check-in/set", { method: "POST", body: JSON.stringify(input) }),
+  setFantasyDraftTimer: (input: { guildId: string; pickTimerSeconds: number | null }) =>
+    recApiFetch<{ ok: true; pickTimerSeconds: number | null }>("/v1/fantasy-draft/set-timer", { method: "POST", body: JSON.stringify(input) }),
+  skipFantasyDraftToNext: (guildId: string) =>
+    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-next", { method: "POST", body: JSON.stringify({ guildId }) }),
+  skipFantasyDraftToSpecific: (input: { guildId: string; round: number; pickInRound: number }) =>
+    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-specific", { method: "POST", body: JSON.stringify(input) }),
 };

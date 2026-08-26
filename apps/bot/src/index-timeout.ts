@@ -135,7 +135,6 @@ import {
 } from "./flows/recruiting-board.js";
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
-import { DRAFT_SLASH_CUSTOM_IDS, handleDraftSlash, handleDraftSlashToggleButton } from "./flows/draft-slash.js";
 import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
 import { handleHighlightsSlash } from "./flows/highlights-slash.js";
 import { handleLinkLeagueSlash } from "./flows/linkleague-slash.js";
@@ -670,11 +669,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isChatInputCommand() && interaction.commandName === "draft") {
-      await handleDraftSlash(interaction);
-      return;
-    }
-
     if (interaction.isChatInputCommand() && interaction.commandName === "viewleague") {
       await handleViewLeagueSlash(interaction);
       return;
@@ -793,11 +787,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);
-      return;
-    }
-
-    if (interaction.isButton() && interaction.customId === DRAFT_SLASH_CUSTOM_IDS.toggle) {
-      await handleDraftSlashToggleButton(interaction);
       return;
     }
 

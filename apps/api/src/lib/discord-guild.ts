@@ -134,17 +134,12 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "powerrankings", description: "Show current power rankings." },
   { name: "rules", description: "Browse this league's rules." },
 ];
-const DRAFT_COMMAND_JSON = { name: "draft", description: "Check in for the fantasy draft." };
-
 /**
- * Registers this guild's full command set — the base commands plus /draft only when
- * `includeDraft` is true. /draft is meant to only be visible within ~1hr of a scheduled
- * fantasy draft or while one is live; see fantasy-draft.service.ts's schedule/commence/
- * conclude/skip-to-end for the call sites that flip this.
+ * Registers this guild's full base command set.
  */
-export async function syncGuildCommands(guildId: string, includeDraft: boolean): Promise<void> {
+export async function syncGuildCommands(guildId: string): Promise<void> {
   const appId = await getApplicationId();
-  const body = includeDraft ? [...BASE_GUILD_COMMANDS_JSON, DRAFT_COMMAND_JSON] : BASE_GUILD_COMMANDS_JSON;
+  const body = BASE_GUILD_COMMANDS_JSON;
   const res = await discordBotFetch(`/applications/${appId}/guilds/${guildId}/commands`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -157,12 +152,9 @@ const BOXSCORE_COMMAND_JSON = { name: "boxscore", description: "Get a link to up
 
 /**
  * Adds or removes /boxscore from this guild's command set without touching anything else
- * currently registered (including /draft, whose visibility is driven by its own independent
- * timer-based state in fantasy-draft.service.ts — reusing syncGuildCommands here would require
- * knowing /draft's current desired state too, which this call site has no reason to track).
- * Reads the guild's actual current commands first so this stays correct regardless of what
- * else is/isn't visible right now. Called whenever a league's data mode changes to/from
- * "box_scores" — see league-week/data-mode.service.ts.
+ * currently registered. Reads the guild's actual current commands first so this stays correct
+ * regardless of what else is/isn't visible right now. Called whenever a league's data mode
+ * changes to/from "box_scores" — see league-week/data-mode.service.ts.
  */
 export async function syncBoxScoreCommandVisibility(guildId: string, includeBoxScore: boolean): Promise<void> {
   const appId = await getApplicationId();

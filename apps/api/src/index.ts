@@ -8,7 +8,7 @@ import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 import { hasValidInternalApiKey } from "./lib/auth.js";
-import { checkFantasyDraftScheduleNotifications } from "./modules/fantasy-draft/fantasy-draft.service.js";
+import { sweepFantasyDraftTimers } from "./modules/fantasy-draft/fantasy-draft.service.js";
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
@@ -65,12 +65,12 @@ await registerRoutes(app);
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
 
-// Scheduled fantasy-draft T-1hr/30min/10min reminders — polled rather than one-shot
-// setTimeout'd, so a deploy/restart between scheduling and any threshold just means the next
-// tick catches it instead of silently losing the notification.
+// Fantasy/offseason draft pick-timer sweep: fires the 15-second-remaining Discord warning and
+// auto-skips a pick whose timer has expired. Short interval (not the 60s pattern used
+// elsewhere) so a 15-second warning threshold is actually caught in time.
 setInterval(() => {
-  checkFantasyDraftScheduleNotifications().catch((error) => app.log.error({ err: error }, "Fantasy draft schedule-notification poll failed"));
-}, 60_000).unref();
+  sweepFantasyDraftTimers().catch((error) => app.log.error({ err: error }, "Fantasy draft timer sweep failed"));
+}, 5_000).unref();
 
 // REC Game Scheduling System: contact/AutoPilot/game-time/check-in reminder sweep — same
 // restart-safe polled pattern as the fantasy-draft reminders above.

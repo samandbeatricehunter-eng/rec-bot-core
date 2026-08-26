@@ -1,71 +1,57 @@
-// Fantasy draft tracker (docs/madden-fantasy-draft-plan.md §4). Commissioner-run companion
-// to Madden's in-game fantasy draft: a session tracks round/pick-on-the-clock, a fixed
-// round-1 pick order (with optional snake reversal on even rounds), and a derived pool
-// (every rec_players row for the league — team_id null in fantasy-draft leagues). "Drafted"
-// is derived from rec_fantasy_draft_picks, not stored on rec_players; on pick the player's
-// team_id/is_free_agent are updated so the roster surfaces the assignment, and undo reverts
-// it. All state mutations broadcast a `fantasy_draft:{leagueId}` realtime refresh event.
+// Fantasy/off-season draft turn-order coordinator. REC does NOT track which player each team
+// picks anymore -- that proved too tedious/time-consuming in practice, and leagues no longer
+// seed a baseline roster to draft from anyway (rosters populate from the first EA import
+// instead). This is purely a pick-clock companion to the real in-Madden draft: whose turn it
+// is, an optional per-pick timer (with a 15-second-remaining Discord warning before an
+// auto-skip), and five commissioner-only controls (Start/End Draft, Set Pick Order, Skip to
+// Next Pick, Skip to a Specific Pick). Every state change broadcasts a
+// `fantasy_draft:{leagueId}` realtime refresh event over the websocket transport kept for this
+// purpose (apps/api/src/modules/chat/chat-realtime.ts).
 import { supabase } from "../../lib/supabase.js";
 import { bestEffort, bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
-import { env } from "../../config/env.js";
-import { getPgPool } from "../../db/client.js";
 import { broadcastChatEvent } from "../chat/chat-realtime.js";
-import { editDiscordMessage, postDiscordChannelMessage, syncGuildCommands } from "../../lib/discord-guild.js";
-import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import {
-  findServerRoutesForLeague,
   getCurrentLeagueContext,
   isSiteOnlyDiscordId,
   recUserIdFromSiteOnlyDiscordId,
 } from "../league-context/league-context.service.js";
 
-export type FantasyDraftStatus = "not_scheduled" | "scheduled" | "live" | "wrap_up" | "concluded";
+export type FantasyDraftStatus = "not_started" | "live" | "concluded";
 export type FantasyDraftOrderMode = "standard" | "snake";
+export type FantasyDraftType = "fantasy" | "offseason";
+
+// Offseason drafts are fixed-length (rosters just need a top-up, not a full rebuild);
+// fantasy drafts have no fixed length -- the commissioner ends it manually with End Draft.
+const OFFSEASON_TOTAL_ROUNDS = 7;
+const WARNING_THRESHOLD_MS = 15_000;
+const ON_THE_CLOCK_COLOR = 0xd9a521;
 
 type SessionRow = {
   id: string;
   league_id: string;
   status: FantasyDraftStatus;
+  draft_type: FantasyDraftType;
   order_mode: FantasyDraftOrderMode | null;
-  scheduled_at: string | null;
   current_round: number;
   current_pick_in_round: number;
+  total_rounds: number | null;
+  pick_timer_seconds: number | null;
+  turn_started_at: string | null;
+  warning_sent: boolean;
   commenced_by_user_id: string | null;
   commenced_at: string | null;
   concluded_at: string | null;
-  checkin_message_channel_id: string | null;
-  checkin_message_id: string | null;
   on_clock_message_channel_id: string | null;
   on_clock_message_id: string | null;
-  schedule_message_channel_id: string | null;
-  schedule_message_id: string | null;
-  notified_1hr_at?: string | null;
-  notified_30min_at?: string | null;
-  notified_10min_at?: string | null;
   created_at: string;
   updated_at: string;
 };
 
-type PickRow = {
-  id: string;
-  session_id: string;
-  round: number;
-  pick_in_round: number;
-  overall_pick_number: number;
-  team_id: string;
-  player_id: string;
-  is_wrapup_pick: boolean;
-  logged_by_user_id: string;
-  logged_at: string;
-};
-
-// §7 (position minimums) was dropped from scope, but conclude still reports under-strength
-// teams so the frontend can warn affected owners. A fantasy-draft league has ~2,700 pool
-// players across 32 teams (~83/team if fully drafted); 22 is a sane floor to flag teams that
-// stopped way short.
-const MIN_DRAFTED_ROSTER_SIZE = 22;
+type Team = { id: string; name: string; displayName: string; abbreviation: string | null };
+type PickOrderEntry = { pickInRound: number; teamId: string };
 
 async function resolveRecUserId(discordId: string): Promise<string | null> {
   if (isSiteOnlyDiscordId(discordId)) return recUserIdFromSiteOnlyDiscordId(discordId);
@@ -82,86 +68,20 @@ async function getActiveSession(leagueId: string): Promise<SessionRow | null> {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new ApiError(500, "We couldn't load the fantasy draft session right now. Please try again.", error);
+  if (error) throw new ApiError(500, "We couldn't load the draft session right now. Please try again.", error);
   return (data as SessionRow | null) ?? null;
 }
 
 async function requireActiveSession(leagueId: string): Promise<SessionRow> {
   const session = await getActiveSession(leagueId);
-  if (!session) throw new ApiError(404, "This league has no fantasy draft session yet.");
+  if (!session) throw new ApiError(404, "This league has no draft session yet.");
   return session;
 }
 
-async function requireSessionStatus(session: SessionRow, allowed: FantasyDraftStatus[]) {
+function requireSessionStatus(session: SessionRow, allowed: FantasyDraftStatus[]) {
   if (!allowed.includes(session.status)) {
     throw new ApiError(409, `This action requires the draft to be ${allowed.join(" or ")}, but it is ${session.status}.`);
   }
-}
-
-// /draft is only registered as a visible guild command within ~1hr of the scheduled draft
-// time (or while live) — see syncGuildCommands. Scheduling ahead of time needs a timer for
-// the "now within 1hr" transition since nothing else triggers exactly then; in-memory only
-// (matches the existing pattern for the unlinked-guild grace period), so a process restart
-// between now and the transition just means /draft appears late instead of not at all.
-const draftVisibilityTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// Last desired /draft-visible state synced per guild. Empty after a process restart, so the
-// first poll re-derives and re-asserts the correct state instead of trusting a lost timer
-// (see checkFantasyDraftScheduleNotifications below — that's the restart-tolerant backstop).
-const draftCommandVisibilityState = new Map<string, boolean>();
-
-/** PUT the guild command set only when /draft's desired visibility actually changes. */
-async function applyDraftCommandVisibility(guildId: string, includeDraft: boolean) {
-  if (draftCommandVisibilityState.get(guildId) === includeDraft) return;
-  await syncGuildCommands(guildId, includeDraft);
-  draftCommandVisibilityState.set(guildId, includeDraft);
-}
-
-function scheduleDraftCommandVisibility(guildId: string, scheduledAt: string) {
-  const existing = draftVisibilityTimers.get(guildId);
-  if (existing) clearTimeout(existing);
-  const msUntilWindow = new Date(scheduledAt).getTime() - 60 * 60_000 - Date.now();
-  if (msUntilWindow <= 0) {
-    applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (immediate window):", error));
-    return;
-  }
-  // Reschedule out of the 1hr window must hide /draft again (bot ready/guildCreate never includes it).
-  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (outside window):", error));
-  const timer = setTimeout(() => {
-    draftVisibilityTimers.delete(guildId);
-    applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (scheduled window):", error));
-  }, msUntilWindow);
-  draftVisibilityTimers.set(guildId, timer);
-}
-
-function cancelDraftCommandVisibilityTimer(guildId: string) {
-  const existing = draftVisibilityTimers.get(guildId);
-  if (existing) { clearTimeout(existing); draftVisibilityTimers.delete(guildId); }
-}
-
-/** Bot-facing answer to "should /draft be visible in this guild right now?" — used by the
- * bot's ready/guildCreate command refresh so it re-sends the FULL set including /draft when
- * a fantasy draft is within ~1hr or live, instead of stripping it with the base-commands PUT. */
-export async function getDraftCommandState(guildId: string): Promise<{ includeDraft: boolean }> {
-  let leagueId: string;
-  try {
-    ({ leagueId } = await getCurrentLeagueContext(guildId));
-  } catch {
-    // Unlinked guild (no league context) — no draft command to show.
-    return { includeDraft: false };
-  }
-  const session = await getActiveSession(leagueId);
-  if (!session || session.status === "concluded" || session.status === "wrap_up") return { includeDraft: false };
-  if (session.status === "live") return { includeDraft: true };
-  if (session.status === "scheduled" && session.scheduled_at) {
-    const minutesUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60_000;
-    return { includeDraft: minutesUntil <= 60 };
-  }
-  return { includeDraft: false };
-}
-
-async function setLeagueFantasyDraftStatus(leagueId: string, status: string) {
-  const { error } = await supabase.from("rec_leagues").update({ fantasy_draft_status: status }).eq("id", leagueId);
-  if (error) throw new ApiError(500, "We couldn't update the fantasy draft status. Please try again.", error);
 }
 
 function serializeSession(row: SessionRow) {
@@ -169,19 +89,20 @@ function serializeSession(row: SessionRow) {
     id: row.id,
     leagueId: row.league_id,
     status: row.status,
+    draftType: row.draft_type,
     orderMode: row.order_mode,
-    scheduledAt: row.scheduled_at,
     currentRound: row.current_round,
     currentPickInRound: row.current_pick_in_round,
+    totalRounds: row.total_rounds,
+    pickTimerSeconds: row.pick_timer_seconds,
+    turnStartedAt: row.turn_started_at,
     commencedByUserId: row.commenced_by_user_id,
     commencedAt: row.commenced_at,
     concludedAt: row.concluded_at,
-    checkinMessageChannelId: row.checkin_message_channel_id,
-    checkinMessageId: row.checkin_message_id,
   };
 }
 
-async function listTeams(leagueId: string) {
+async function listTeams(leagueId: string): Promise<Team[]> {
   const { data, error } = await supabase
     .from("rec_teams")
     .select("id,name,display_nick,display_abbr,abbreviation")
@@ -196,7 +117,7 @@ async function listTeams(leagueId: string) {
   }));
 }
 
-async function listPickOrder(sessionId: string) {
+async function listPickOrder(sessionId: string): Promise<PickOrderEntry[]> {
   const { data, error } = await supabase
     .from("rec_fantasy_draft_pick_order")
     .select("*")
@@ -206,214 +127,14 @@ async function listPickOrder(sessionId: string) {
   return (data ?? []).map((row: any) => ({ pickInRound: row.pick_in_round, teamId: row.team_id }));
 }
 
-async function listPicks(sessionId: string) {
-  const { data, error } = await supabase
-    .from("rec_fantasy_draft_picks")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("overall_pick_number", { ascending: true });
-  if (error) throw new ApiError(500, "We couldn't load the pick history right now. Please try again.", error);
-  return (data ?? []) as PickRow[];
-}
-
-function teamOnTheClock(session: SessionRow, pickOrder: Array<{ pickInRound: number; teamId: string }>): string | null {
+/** Snake reverses the round-1 order on even rounds; standard repeats the same order every round. */
+function teamOnTheClock(session: Pick<SessionRow, "order_mode" | "current_round" | "current_pick_in_round">, pickOrder: PickOrderEntry[]): string | null {
   if (!pickOrder.length) return null;
   const index = session.current_pick_in_round - 1;
-  // Snake: even rounds reverse the round-1 order.
   if (session.order_mode === "snake" && session.current_round % 2 === 0) {
     return pickOrder[pickOrder.length - 1 - index]?.teamId ?? null;
   }
   return pickOrder[index]?.teamId ?? null;
-}
-
-export async function getFantasyDraftState(guildId: string, discordId: string, isCommissioner: boolean) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const [session, teams, userId] = await Promise.all([
-    getActiveSession(leagueId),
-    listTeams(leagueId),
-    resolveRecUserId(discordId),
-  ]);
-
-  const [pickOrder, picks, pool, pickRequests] = await Promise.all([
-    session ? listPickOrder(session.id) : Promise.resolve<Array<{ pickInRound: number; teamId: string }>>([]),
-    session ? listPicks(session.id) : Promise.resolve<PickRow[]>([]),
-    supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,jersey_number,archetype,team_id,is_free_agent,photo_url,madden_player_id,player_source,dev_trait,attributes,abilities,height_inches,weight_lbs,birth_year,college,years_pro")
-      .eq("league_id", leagueId)
-      .order("overall_rating", { ascending: false }),
-    session ? listPendingPickRequests(session.id) : Promise.resolve<PickRequestRow[]>([]),
-  ]);
-  if (pool.error) throw new ApiError(500, "We couldn't load the draft pool right now. Please try again.", pool.error);
-
-  const draftedTeamByPlayer = new Map<string, string>();
-  for (const pick of picks) draftedTeamByPlayer.set(pick.player_id, pick.team_id);
-  const draftedIds = new Set(draftedTeamByPlayer.keys());
-
-  let myTeamId: string | null = null;
-  if (userId) {
-    const assignment = await supabase
-      .from("rec_team_assignments")
-      .select("team_id")
-      .eq("league_id", leagueId)
-      .eq("user_id", userId)
-      .eq("assignment_status", "active")
-      .is("ended_at", null)
-      .maybeSingle();
-    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
-    myTeamId = assignment.data?.team_id ?? null;
-  }
-
-  // Personal ranked board — ordered player ids, draft status derived from picks so a
-  // freshly drafted player (before the delete trigger clears it) never shows as available.
-  let myBoard: string[] = [];
-  if (userId) {
-    const board = await supabase
-      .from("rec_fantasy_draft_board_entries")
-      .select("player_id")
-      .eq("league_id", leagueId)
-      .eq("user_id", userId)
-      .order("rank", { ascending: true });
-    if (board.error) throw new ApiError(500, "We couldn't load your draft board right now. Please try again.", board.error);
-    myBoard = (board.data ?? [])
-      .map((entry: any) => entry.player_id as string)
-      .filter((playerId) => !draftedIds.has(playerId));
-  }
-
-  const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
-  const onTheClockTeamId = session ? teamOnTheClock(session, pickOrder) : null;
-  const checkins = session ? await buildCheckinList(session.id, leagueId, teams, isCommissioner) : [];
-  const onTheClockCheckedIn = onTheClockTeamId
-    ? checkins.find((c) => c.teamId === onTheClockTeamId)?.checkedIn ?? false
-    : false;
-
-  return {
-    session: session ? serializeSession(session) : null,
-    teams,
-    pickOrder,
-    onTheClockTeamId,
-    onTheClockCheckedIn,
-    checkins,
-    pool: (pool.data ?? []).map((p: any) => ({
-      id: p.id,
-      name: p.full_name,
-      position: p.position,
-      overallRating: p.overall_rating,
-      jerseyNumber: p.jersey_number,
-      archetype: p.archetype,
-      devTrait: p.dev_trait ?? null,
-      photoUrl: p.photo_url ?? null,
-      teamId: p.team_id,
-      isDrafted: draftedIds.has(p.id),
-      draftedByTeamId: draftedTeamByPlayer.get(p.id) ?? null,
-      isDefaultPlayer: Boolean(p.is_default_player),
-      attributes: (p.attributes ?? {}) as Record<string, number | null>,
-      abilities: (p.abilities ?? null) as Array<{ name: string; description: string }> | null,
-      heightInches: p.height_inches ?? null,
-      weightLbs: p.weight_lbs ?? null,
-      birthYear: p.birth_year ?? null,
-      college: p.college ?? null,
-      yearsPro: p.years_pro ?? null,
-    })),
-    picks: picks.map((pick) => ({
-      id: pick.id,
-      round: pick.round,
-      pickInRound: pick.pick_in_round,
-      overallPickNumber: pick.overall_pick_number,
-      teamId: pick.team_id,
-      teamName: teamById.get(pick.team_id) ?? "Unknown",
-      playerId: pick.player_id,
-      isWrapupPick: pick.is_wrapup_pick,
-      loggedAt: pick.logged_at,
-    })),
-    pickRequests: pickRequests.map((r) => ({
-      id: r.id,
-      teamId: r.team_id,
-      teamName: teamById.get(r.team_id) ?? "Unknown",
-      playerId: r.player_id,
-      requestedByUserId: r.requested_by_user_id,
-      createdAt: r.created_at,
-    })),
-    myBoard,
-    caller: { isCommissioner, myTeamId },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Draft check-ins. Discord-linked users toggle "checked in" from the site or the
-// /draft slash command; commissioners can override any team's status. The embed is
-// a single read-only status message in the announcements channel, refreshed in
-// place whenever a status changes — there are no buttons on it.
-// ---------------------------------------------------------------------------
-const CHECKIN_EMBED_COLOR = 0xd9a521;
-
-type CheckinRow = {
-  id: string;
-  session_id: string;
-  team_id: string;
-  user_id: string | null;
-  discord_id: string | null;
-  checked_in: boolean;
-  checked_in_at: string | null;
-  updated_by_user_id: string | null;
-  updated_at: string;
-};
-
-export type FantasyDraftCheckin = {
-  teamId: string;
-  teamName: string;
-  checkedIn: boolean;
-  isCpu: boolean;
-  ownerUserId: string | null;
-  discordUsername: string | null;
-  discordGlobalName: string | null;
-};
-
-/** Teams ordered the same as listTeams(), with check-in state plus (for commissioners)
- * the owner's REC id and Discord identity so the panel can show the DC tag next to the
- * Discord name while listing every team by its team name. */
-async function buildCheckinList(
-  sessionId: string,
-  leagueId: string,
-  teams: Array<{ id: string; displayName: string }>,
-  includeIdentity: boolean,
-): Promise<FantasyDraftCheckin[]> {
-  const [rowsResult, assignmentsResult] = await Promise.all([
-    supabase.from("rec_fantasy_draft_checkins").select("*").eq("session_id", sessionId),
-    supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
-  ]);
-  if (rowsResult.error) throw new ApiError(500, "We couldn't load draft check-ins right now. Please try again.", rowsResult.error);
-  if (assignmentsResult.error) throw new ApiError(500, "We couldn't load team owners right now. Please try again.", assignmentsResult.error);
-
-  const byTeam = new Map<string, CheckinRow>((rowsResult.data ?? []).map((r) => [r.team_id, r as CheckinRow]));
-  const ownerByTeam = new Map<string, string>((assignmentsResult.data ?? []).map((a: any) => [a.team_id, a.user_id]));
-
-  let identityByUser = new Map<string, { username: string | null; global_name: string | null }>();
-  if (includeIdentity) {
-    const userIds = [...new Set([...ownerByTeam.values(), ...(rowsResult.data ?? []).map((r) => r.user_id).filter(Boolean)])];
-    if (userIds.length) {
-      const accounts = await supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", userIds);
-      if (accounts.error) throw new ApiError(500, "We couldn't load check-in identities right now. Please try again.", accounts.error);
-      identityByUser = new Map((accounts.data ?? []).map((a: any) => [a.user_id, { username: a.username ?? null, global_name: a.global_name ?? null }]));
-    }
-  }
-
-  return teams.map((team) => {
-    const ownerUserId = ownerByTeam.get(team.id) ?? null;
-    const identity = ownerUserId ? identityByUser.get(ownerUserId) : null;
-    // CPU-controlled teams (no active user assignment) don't need to check in — they're
-    // always treated as ready so the draft never waits on one, and the commissioner fills
-    // their picks in later via the wrap-up flow.
-    const isCpu = !ownerUserId;
-    return {
-      teamId: team.id,
-      teamName: team.displayName,
-      checkedIn: isCpu ? true : Boolean(byTeam.get(team.id)?.checked_in),
-      isCpu,
-      ownerUserId: includeIdentity ? ownerUserId : null,
-      discordUsername: includeIdentity ? (identity?.username ?? null) : null,
-      discordGlobalName: includeIdentity ? (identity?.global_name ?? null) : null,
-    };
-  });
 }
 
 async function resolveTeamOwnerUserId(leagueId: string, teamId: string): Promise<string | null> {
@@ -429,859 +150,6 @@ async function resolveTeamOwnerUserId(leagueId: string, teamId: string): Promise
   return assignment.data?.user_id ?? null;
 }
 
-async function resolveTeamForUser(leagueId: string, userId: string): Promise<string> {
-  const assignment = await supabase
-    .from("rec_team_assignments")
-    .select("team_id")
-    .eq("league_id", leagueId)
-    .eq("user_id", userId)
-    .eq("assignment_status", "active")
-    .is("ended_at", null)
-    .maybeSingle();
-  if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
-  if (!assignment.data?.team_id) throw new ApiError(400, "You aren't assigned to a team in this league yet.");
-  return assignment.data.team_id;
-}
-
-async function persistCheckin(input: {
-  sessionId: string;
-  leagueId: string;
-  teamId: string;
-  userId: string | null;
-  discordId: string | null;
-  checkedIn: boolean;
-  updatedByUserId: string | null;
-}) {
-  const { error } = await supabase.from("rec_fantasy_draft_checkins").upsert({
-    session_id: input.sessionId,
-    team_id: input.teamId,
-    user_id: input.userId,
-    discord_id: input.discordId,
-    checked_in: input.checkedIn,
-    checked_in_at: input.checkedIn ? new Date().toISOString() : null,
-    updated_by_user_id: input.updatedByUserId,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "session_id,team_id" });
-  if (error) throw new ApiError(500, "We couldn't update that draft check-in. Please try again.", error);
-}
-
-async function buildCheckinEmbedData(leagueId: string, session: SessionRow) {
-  const teams = await listTeams(leagueId);
-  const checkins = await buildCheckinList(session.id, leagueId, teams, false);
-  const linkedCheckins = checkins.filter((c) => !c.isCpu);
-  const checkedCount = linkedCheckins.filter((c) => c.checkedIn).length;
-  return {
-    title: "Fantasy Draft Check-In",
-    color: CHECKIN_EMBED_COLOR,
-    description: `The fantasy draft is live! Use **/draft** to check in or out — if you're not checked in when your pick comes up, it gets skipped. CPU teams are skipped automatically.\n\n${checkins
-      .map((c) => (c.isCpu ? `🤖 **${c.teamName}** — CPU` : c.checkedIn ? `✅ **${c.teamName}** — Checked In` : `❌ **${c.teamName}** — NOT Checked In`))
-      .join("\n")}`,
-    footer: { text: `Checked in: ${checkedCount}/${linkedCheckins.length} linked teams` },
-  };
-}
-
-/** Rebuilds the live check-in embed in place after a status change. Silent no-op when the
- * session has no tracked embed yet (e.g. site-only league with no announcements channel). */
-async function refreshCheckinEmbed(leagueId: string, session: SessionRow) {
-  if (!session.checkin_message_channel_id || !session.checkin_message_id) return;
-  const channelId = session.checkin_message_channel_id;
-  const messageId = session.checkin_message_id;
-  const embed = await buildCheckinEmbedData(leagueId, session);
-  await bestEffort("discord.edit_checkin_embed", () => editDiscordMessage(channelId, messageId, {
-    embeds: [embed],
-    components: [],
-  }), { leagueId, entityId: session.id });
-}
-
-/** Fires a push to the on-the-clock team's owner ("your pick is coming up"). Cheap to call
- * on every state change; the user's device only shows it if push is subscribed. */
-async function pushOnTheClock(leagueId: string, session: SessionRow) {
-  const pickOrder = await listPickOrder(session.id);
-  const teamId = teamOnTheClock(session, pickOrder);
-  if (!teamId) return;
-  const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
-  if (!ownerUserId) return;
-  const team = await supabase.from("rec_teams").select("name,display_nick,display_abbr").eq("id", teamId).maybeSingle();
-  const displayName = team.data ? (team.data.display_nick ?? team.data.display_abbr ?? team.data.name) : "your team";
-  const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
-  bestEffortVoid("push.fantasy_draft_on_clock_checkin", sendPushToUsers([ownerUserId], {
-    title: "Your pick is on the clock",
-    body: `${displayName} is up (Round ${session.current_round} Pick ${session.current_pick_in_round}). Check in so your pick isn't skipped!`,
-    url: `${base}/l/${leagueId}/buzz`,
-  }), { leagueId, userId: ownerUserId, entityId: session.id });
-}
-
-/** Commissioner-oriented read for the bot's live check-in embed (team name + status only). */
-export async function getFantasyDraftCheckins(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live", "wrap_up"]);
-  const teams = await listTeams(leagueId);
-  const checkins = await buildCheckinList(session.id, leagueId, teams, false);
-  return { checkins: checkins.map((c) => ({ teamId: c.teamId, teamName: c.teamName, checkedIn: c.checkedIn })) };
-}
-
-/** Backs the `/draft` ephemeral command: the caller's own team + check-in status, without
- * exposing every other team's identity (unlike getFantasyDraftCheckins, which is
- * commissioner-oriented). Bot-callable — resolves the team from the caller's own discordId. */
-export async function getFantasyDraftSelfCheckinStatus(guildId: string, discordId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to check in.");
-  const teamId = await resolveTeamForUser(leagueId, userId);
-  const team = await supabase.from("rec_teams").select("name,display_nick,display_abbr").eq("id", teamId).maybeSingle();
-  const teamName = team.data ? (team.data.display_nick ?? team.data.display_abbr ?? team.data.name) : "your team";
-  const checkin = await supabase.from("rec_fantasy_draft_checkins").select("checked_in").eq("session_id", session.id).eq("team_id", teamId).maybeSingle();
-  return { teamId, teamName, checkedIn: Boolean(checkin.data?.checked_in) };
-}
-
-/** Self-service check-in/out. Only Discord-linked accounts (real or site-only) can toggle;
- * the target team is the caller's active team assignment. Broadcasts a refresh and keeps the
- * live Discord embed in sync. */
-export async function setFantasyDraftSelfCheckin(guildId: string, discordId: string, checkedIn: boolean) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["not_scheduled", "scheduled", "live"]);
-
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to check in.");
-  const teamId = await resolveTeamForUser(leagueId, userId);
-
-  await persistCheckin({ sessionId: session.id, leagueId, teamId, userId, discordId, checkedIn, updatedByUserId: userId });
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  await refreshCheckinEmbed(leagueId, session);
-  return { ok: true as const, teamId, checkedIn };
-}
-
-/** Commissioner override of any team's check-in status (used from the site panel and the
- * Discord embed's per-team buttons). */
-export async function setFantasyDraftTeamCheckin(guildId: string, actorDiscordId: string, teamId: string, checkedIn: boolean) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["not_scheduled", "scheduled", "live"]);
-
-  const team = await supabase.from("rec_teams").select("id").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
-  if (team.error) throw new ApiError(500, "We couldn't validate that team. Please try again.", team.error);
-  if (!team.data) throw new ApiError(400, "The target team does not belong to this league.");
-
-  const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
-  let ownerDiscordId: string | null = null;
-  if (ownerUserId) {
-    const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", ownerUserId).maybeSingle();
-    if (account.error) throw new ApiError(500, "We couldn't load the team owner. Please try again.", account.error);
-    ownerDiscordId = account.data?.discord_id ?? null;
-  }
-  const actorUserId = await resolveRecUserId(actorDiscordId);
-
-  await persistCheckin({ sessionId: session.id, leagueId, teamId, userId: ownerUserId, discordId: ownerDiscordId, checkedIn, updatedByUserId: actorUserId });
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  await refreshCheckinEmbed(leagueId, session);
-  return { ok: true as const, teamId, checkedIn };
-}
-
-/** Replaces the caller's personal ranked board for the league's active draft. Only
- * undrafted pool players may sit on the board; drafted or removed players are dropped
- * silently. Available any time before the draft is concluded. */
-export async function saveFantasyDraftBoard(guildId: string, discordId: string, playerIds: string[]) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["not_scheduled", "scheduled", "live", "wrap_up"]);
-
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to save a draft board.");
-
-  const unique = [...new Set(playerIds)];
-  if (unique.length > 500) throw new ApiError(400, "A draft board can hold up to 500 players.");
-
-  let validated: string[] = unique;
-  if (unique.length) {
-    const players = await supabase
-      .from("rec_players")
-      .select("id")
-      .eq("league_id", leagueId)
-      .in("id", unique);
-    if (players.error) throw new ApiError(500, "We couldn't validate those board players. Please try again.", players.error);
-    const validIds = new Set((players.data ?? []).map((p: any) => p.id));
-    validated = unique.filter((id) => validIds.has(id));
-  }
-
-  const picks = await listPicks(session.id);
-  const draftedIds = new Set(picks.map((pick) => pick.player_id));
-  const board = validated.filter((id) => !draftedIds.has(id));
-
-  const { error: deleteError } = await supabase
-    .from("rec_fantasy_draft_board_entries")
-    .delete()
-    .eq("league_id", leagueId)
-    .eq("user_id", userId);
-  if (deleteError) throw new ApiError(500, "We couldn't replace your draft board. Please try again.", deleteError);
-
-  if (board.length) {
-    const { error } = await supabase.from("rec_fantasy_draft_board_entries").insert(
-      board.map((playerId, index) => ({
-        league_id: leagueId,
-        user_id: userId,
-        player_id: playerId,
-        rank: index + 1,
-      })),
-    );
-    if (error) throw new ApiError(500, "We couldn't save your draft board. Please try again.", error);
-  }
-
-  return { ok: true as const, board };
-}
-
-/** Lists the caller's named, reusable draft boards for the current league's game — distinct
- * from the single live working board above, these persist across leagues/drafts so a user
- * can build a board once and reuse it for a future fantasy draft of the same game. */
-export async function listSavedFantasyDraftBoards(guildId: string, discordId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const game = context.rec_leagues.game;
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to view saved draft boards.");
-
-  const boards = await supabase
-    .from("rec_fantasy_draft_saved_boards")
-    .select("id,name,updated_at,entries:rec_fantasy_draft_saved_board_entries(count)")
-    .eq("user_id", userId)
-    .eq("game", game)
-    .order("updated_at", { ascending: false });
-  if (boards.error) throw new ApiError(500, "We couldn't load saved draft boards right now. Please try again.", boards.error);
-
-  return {
-    boards: (boards.data ?? []).map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      updatedAt: row.updated_at,
-      playerCount: row.entries?.[0]?.count ?? 0,
-    })),
-  };
-}
-
-/** Snapshots the caller's current live board (by rec_players id, this league's rows) into a
- * named saved board keyed by madden_player_id, so it can be resolved against a different
- * league later. Saving again under the same name overwrites it. */
-export async function saveNamedFantasyDraftBoard(guildId: string, discordId: string, name: string, playerIds: string[]) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const game = context.rec_leagues.game;
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to save a draft board.");
-
-  const trimmedName = name.trim();
-  if (!trimmedName) throw new ApiError(400, "Give this draft board a name.");
-  if (trimmedName.length > 60) throw new ApiError(400, "Board names must be 60 characters or fewer.");
-
-  const unique = [...new Set(playerIds)];
-  if (!unique.length) throw new ApiError(400, "Your current board is empty — nothing to save.");
-  if (unique.length > 500) throw new ApiError(400, "A draft board can hold up to 500 players.");
-
-  const players = await supabase
-    .from("rec_players")
-    .select("id,madden_player_id,full_name,position")
-    .eq("league_id", leagueId)
-    .in("id", unique);
-  if (players.error) throw new ApiError(500, "We couldn't load board players right now. Please try again.", players.error);
-  type BoardPlayerRow = { id: string; madden_player_id: string | null; full_name: string; position: string };
-  const byId = new Map((players.data ?? []).map((p: BoardPlayerRow): [string, BoardPlayerRow] => [p.id, p]));
-  const ordered = unique.map((id) => byId.get(id)).filter((p): p is BoardPlayerRow => Boolean(p));
-  if (!ordered.length) throw new ApiError(400, "None of the players on your board could be found.");
-
-  const existing = await supabase
-    .from("rec_fantasy_draft_saved_boards")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("game", game)
-    .eq("name", trimmedName)
-    .maybeSingle();
-  if (existing.error) throw new ApiError(500, "We couldn't check for an existing saved board. Please try again.", existing.error);
-
-  const now = new Date().toISOString();
-  let boardId: string;
-  if (existing.data?.id) {
-    boardId = existing.data.id;
-    const updated = await supabase.from("rec_fantasy_draft_saved_boards").update({ updated_at: now }).eq("id", boardId);
-    if (updated.error) throw new ApiError(500, "We couldn't update that saved board. Please try again.", updated.error);
-    const cleared = await supabase.from("rec_fantasy_draft_saved_board_entries").delete().eq("board_id", boardId);
-    if (cleared.error) throw new ApiError(500, "We couldn't update that saved board. Please try again.", cleared.error);
-  } else {
-    const created = await supabase
-      .from("rec_fantasy_draft_saved_boards")
-      .insert({ user_id: userId, game, name: trimmedName })
-      .select("id")
-      .single();
-    if (created.error) throw new ApiError(500, "We couldn't create that saved board. Please try again.", created.error);
-    boardId = created.data.id;
-  }
-
-  const inserted = await supabase.from("rec_fantasy_draft_saved_board_entries").insert(
-    ordered.map((player, index) => ({
-      board_id: boardId,
-      rank: index + 1,
-      madden_player_id: player.madden_player_id ?? null,
-      full_name: player.full_name,
-      position: player.position,
-    })),
-  );
-  if (inserted.error) throw new ApiError(500, "We couldn't save those board players. Please try again.", inserted.error);
-
-  return { ok: true as const, boardId, name: trimmedName, playerCount: ordered.length };
-}
-
-export async function deleteSavedFantasyDraftBoard(guildId: string, discordId: string, boardId: string) {
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required.");
-  const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id").eq("id", boardId).eq("user_id", userId).maybeSingle();
-  if (board.error) throw new ApiError(500, "We couldn't load that saved board. Please try again.", board.error);
-  if (!board.data) throw new ApiError(404, "Saved draft board not found.");
-  const deleted = await supabase.from("rec_fantasy_draft_saved_boards").delete().eq("id", boardId);
-  if (deleted.error) throw new ApiError(500, "We couldn't delete that saved board. Please try again.", deleted.error);
-  return { ok: true as const };
-}
-
-/** Resolves a saved board against the CURRENT league's pool (by madden_player_id, falling
- * back to an exact full_name+position match for entries with none) and immediately replaces
- * the caller's live working board with the result — same drop-unavailable-players and
- * reflow-ranks behavior as any other board edit. Players not found in this league or already
- * drafted here are silently dropped, same as saveFantasyDraftBoard already does. */
-export async function loadNamedFantasyDraftBoard(guildId: string, discordId: string, boardId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const game = context.rec_leagues.game;
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to load a draft board.");
-
-  const board = await supabase.from("rec_fantasy_draft_saved_boards").select("id,game").eq("id", boardId).eq("user_id", userId).maybeSingle();
-  if (board.error) throw new ApiError(500, "We couldn't load that saved board. Please try again.", board.error);
-  if (!board.data) throw new ApiError(404, "Saved draft board not found.");
-  if (board.data.game !== game) throw new ApiError(400, "That saved board is for a different game and can't be loaded here.");
-
-  const entries = await supabase
-    .from("rec_fantasy_draft_saved_board_entries")
-    .select("rank,madden_player_id,full_name,position")
-    .eq("board_id", boardId)
-    .order("rank", { ascending: true });
-  if (entries.error) throw new ApiError(500, "We couldn't load that saved board's players. Please try again.", entries.error);
-  if (!entries.data?.length) return saveFantasyDraftBoard(guildId, discordId, []);
-
-  const maddenIdSet = new Set<string>();
-  for (const entry of entries.data as any[]) if (entry.madden_player_id) maddenIdSet.add(String(entry.madden_player_id));
-  const maddenIds: string[] = [...maddenIdSet];
-  const poolRows: Array<{ id: string; madden_player_id: string | null; full_name: string; position: string }> = [];
-  if (maddenIds.length) {
-    const byMadden = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("madden_player_id", maddenIds);
-    if (byMadden.error) throw new ApiError(500, "We couldn't match the saved board to this league's players. Please try again.", byMadden.error);
-    poolRows.push(...(byMadden.data ?? []));
-  }
-  // Entries with no madden_player_id (custom players saved from a previous draft) can only
-  // match by exact name+position — pull those separately rather than scanning the whole pool.
-  const namePositionEntries = (entries.data as any[]).filter((e) => !e.madden_player_id);
-  if (namePositionEntries.length) {
-    const names = [...new Set(namePositionEntries.map((e) => e.full_name))];
-    const byName = await supabase.from("rec_players").select("id,madden_player_id,full_name,position").eq("league_id", leagueId).in("full_name", names);
-    if (byName.error) throw new ApiError(500, "We couldn't match the saved board to this league's players. Please try again.", byName.error);
-    poolRows.push(...(byName.data ?? []));
-  }
-
-  const byMaddenId = new Map<string, string>();
-  const byNamePosition = new Map<string, string>();
-  for (const p of poolRows) {
-    if (p.madden_player_id) byMaddenId.set(p.madden_player_id, p.id);
-    byNamePosition.set(`${p.full_name}::${p.position}`, p.id);
-  }
-
-  const resolvedIds: string[] = [];
-  for (const entry of entries.data as any[]) {
-    const matchId = (entry.madden_player_id && byMaddenId.get(entry.madden_player_id))
-      ?? byNamePosition.get(`${entry.full_name}::${entry.position}`);
-    if (matchId) resolvedIds.push(matchId);
-  }
-
-  const result = await saveFantasyDraftBoard(guildId, discordId, resolvedIds);
-  return { ...result, requestedCount: entries.data.length, resolvedCount: resolvedIds.length };
-}
-
-export async function scheduleFantasyDraft(guildId: string, discordId: string, scheduledAt: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const userId = await resolveRecUserId(discordId);
-  let session = await getActiveSession(leagueId);
-  const wasAlreadyScheduled = session?.status === "scheduled";
-
-  if (!session) {
-    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
-      league_id: leagueId,
-      status: "scheduled",
-      scheduled_at: scheduledAt,
-      commenced_by_user_id: userId,
-      notified_1hr_at: null,
-      notified_30min_at: null,
-      notified_10min_at: null,
-    }).select("*").single();
-    if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
-    session = data as SessionRow;
-  } else {
-    requireSessionStatus(session, ["not_scheduled", "scheduled"]);
-    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").update({
-      status: "scheduled",
-      scheduled_at: scheduledAt,
-      notified_1hr_at: null,
-      notified_30min_at: null,
-      notified_10min_at: null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", session.id).select("*").single();
-    if (error) throw new ApiError(500, "We couldn't schedule the fantasy draft. Please try again.", error);
-    session = data as SessionRow;
-  }
-
-  await setLeagueFantasyDraftStatus(leagueId, "scheduled");
-  scheduleDraftCommandVisibility(guildId, scheduledAt);
-  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft scheduling:", error));
-
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  if (announcementsChannelId) {
-    const scheduledUnix = Math.floor(new Date(scheduledAt).getTime() / 1000);
-    const embed = {
-      title: wasAlreadyScheduled ? "Fantasy Draft Rescheduled" : "Fantasy Draft Scheduled",
-      color: 0xd9a521,
-      description:
-        `${wasAlreadyScheduled ? "The fantasy draft has a new start time" : "The fantasy draft is scheduled"} ` +
-        `<t:${scheduledUnix}:F> (<t:${scheduledUnix}:R>).\n\n` +
-        `Use **/draft** to check in once the command appears (within about an hour of start).`,
-      footer: { text: "REC Leagues" },
-    };
-    const payload = { embeds: [embed] };
-    let edited = false;
-    if (session.schedule_message_channel_id && session.schedule_message_id) {
-      const scheduleChannelId = session.schedule_message_channel_id;
-      const scheduleMessageId = session.schedule_message_id;
-      edited = Boolean(await bestEffort("discord.edit_draft_schedule_message", () => editDiscordMessage(scheduleChannelId, scheduleMessageId, payload), { leagueId, entityId: session.id }));
-    }
-    if (!edited) {
-      const posted = await postDiscordChannelMessage(announcementsChannelId, {
-        content: "@everyone",
-        ...payload,
-        allowed_mentions: { parse: ["everyone"] },
-      }).catch((error) => {
-        console.error("[ERROR] Fantasy draft schedule announcement failed (non-fatal):", error);
-        return null;
-      });
-      if (posted?.id) {
-        await supabase.from("rec_fantasy_draft_sessions").update({
-          schedule_message_channel_id: announcementsChannelId,
-          schedule_message_id: posted.id,
-          updated_at: new Date().toISOString(),
-        }).eq("id", session.id);
-        session = {
-          ...session,
-          schedule_message_channel_id: announcementsChannelId,
-          schedule_message_id: posted.id,
-        };
-      }
-    }
-  }
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return serializeSession(session);
-}
-
-export async function commenceFantasyDraft(guildId: string, discordId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const userId = await resolveRecUserId(discordId);
-  let session = await getActiveSession(leagueId);
-  if (!session) {
-    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
-      league_id: leagueId,
-      status: "live",
-      commenced_by_user_id: userId,
-      commenced_at: new Date().toISOString(),
-    }).select("*").single();
-    if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
-    session = data as SessionRow;
-  } else {
-    // Commencing without a scheduled time is allowed but discouraged (open question 2) —
-    // the UI nudges toward scheduling first, but never hard-blocks it.
-    requireSessionStatus(session, ["not_scheduled", "scheduled"]);
-    const { error } = await supabase.from("rec_fantasy_draft_sessions").update({
-      status: "live",
-      commenced_by_user_id: userId,
-      commenced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", session.id);
-    if (error) throw new ApiError(500, "We couldn't start the fantasy draft. Please try again.", error);
-  }
-
-  await setLeagueFantasyDraftStatus(leagueId, "live");
-  cancelDraftCommandVisibilityTimer(guildId);
-  applyDraftCommandVisibility(guildId, true).catch((error) => console.error("[ERROR] Failed to register /draft (commence):", error));
-  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft commence:", error));
-
-  // Fire-and-forget side effects — never block the response on Discord/push failures.
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  if (announcementsChannelId) {
-    postDiscordChannelMessage(announcementsChannelId, {
-      content: "@everyone",
-      embeds: [{
-        title: "FANTASY DRAFT IS LIVE",
-        color: 0xd9a521,
-        description: "The fantasy draft has started. Check the draft board in the league hub to follow along.",
-        footer: { text: "REC Leagues" },
-      }],
-      allowed_mentions: { parse: ["everyone"] },
-    }).catch((error) => console.error("[ERROR] Fantasy draft commence announcement failed (non-fatal):", error));
-
-    // Live check-in board — one message the API and bot both keep in sync. No buttons here:
-    // check-in/out happens exclusively via the /draft slash command (apps/bot/src/flows/
-    // draft-slash.ts), which stays registered for the guild while the draft is scheduled/live.
-    const checkinEmbed = await buildCheckinEmbedData(leagueId, session);
-    const posted = await bestEffort("discord.post_draft_checkin_board", () => postDiscordChannelMessage(announcementsChannelId, {
-      content: "@everyone Use **/draft** to check in or out before your pick comes up.",
-      embeds: [checkinEmbed],
-      allowed_mentions: { parse: ["everyone"] },
-    }), { leagueId, entityId: session.id }) ?? null;
-    if (posted?.id) {
-      try {
-        await supabase.from("rec_fantasy_draft_sessions").update({
-          checkin_message_channel_id: announcementsChannelId,
-          checkin_message_id: posted.id,
-          updated_at: new Date().toISOString(),
-        }).eq("id", session.id);
-      } catch { /* non-fatal — embed stays live even if tracking fails */ }
-      session.checkin_message_channel_id = announcementsChannelId;
-      session.checkin_message_id = posted.id;
-    }
-  }
-  const members = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId);
-  const userIds = [...new Set((members.data ?? []).map((m: any) => m.user_id).filter(Boolean))] as string[];
-  if (userIds.length) {
-    bestEffortVoid("push.fantasy_draft_live", sendPushToUsers(userIds, { title: "Fantasy draft is live!", body: "The fantasy draft has started — check the draft board." }), { leagueId });
-  }
-  await pushOnTheClock(leagueId, session);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const };
-}
-
-// ---------------------------------------------------------------------------
-// Scheduled-draft reminders (T-1hr / T-30min / T-10min) and manual pings.
-// ---------------------------------------------------------------------------
-
-async function scheduledDraftMemberUserIds(leagueId: string): Promise<string[]> {
-  const members = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId);
-  return [...new Set((members.data ?? []).map((m: any) => m.user_id).filter(Boolean))] as string[];
-}
-
-async function fireScheduleReminder(
-  session: { id: string; league_id: string; scheduled_at: string },
-  label: string,
-  flagColumn: "notified_1hr_at" | "notified_30min_at" | "notified_10min_at",
-  bodyText: string,
-) {
-  const scheduledUnix = Math.floor(new Date(session.scheduled_at).getTime() / 1000);
-  const userIds = await scheduledDraftMemberUserIds(session.league_id);
-  if (userIds.length) {
-    await sendPushToUsers(userIds, { title: "Fantasy draft starting soon", body: bodyText }).catch((error) =>
-      console.error(`[ERROR] Fantasy draft ${label} push reminder failed (non-fatal):`, error),
-    );
-  }
-  const routes = await bestEffort("fantasy_draft.find_server_routes", () => findServerRoutesForLeague(session.league_id), { leagueId: session.league_id }) ?? null;
-  const announcementsChannelId = (routes?.routes as any)?.announcements_channel_id ?? null;
-  if (announcementsChannelId) {
-    await postDiscordChannelMessage(announcementsChannelId, {
-      content: "@everyone",
-      embeds: [{
-        title: "Fantasy Draft Starting Soon",
-        color: 0xd9a521,
-        description: `${bodyText}\n\nStarts <t:${scheduledUnix}:R> (<t:${scheduledUnix}:f>). Use **/draft** to check in — if you're not checked in when your pick comes up, it gets skipped.`,
-        footer: { text: "REC Leagues" },
-      }],
-      allowed_mentions: { parse: ["everyone"] },
-    }).catch((error) => console.error(`[ERROR] Fantasy draft ${label} Discord reminder failed (non-fatal):`, error));
-  }
-  await supabase.from("rec_fantasy_draft_sessions").update({ [flagColumn]: new Date().toISOString() }).eq("id", session.id);
-}
-
-/** Polled every ~60s from the API process (see server bootstrap) rather than scheduled with a
- * one-shot timer — a restart between scheduling and any threshold just means the next tick
- * catches it, instead of silently losing the reminder. Each threshold is independent (not
- * else-if) so a session discovered late (e.g. after downtime) still catches up on whichever
- * reminders it missed rather than skipping straight to the next one. */
-export async function checkFantasyDraftScheduleNotifications() {
-  const { data, error } = await supabase
-    .from("rec_fantasy_draft_sessions")
-    .select("id,league_id,status,scheduled_at,notified_1hr_at,notified_30min_at,notified_10min_at")
-    .in("status", ["scheduled", "live", "wrap_up"]);
-  if (error) { console.error("[ERROR] Failed to load scheduled fantasy drafts for reminder poll:", error); return; }
-
-  const now = Date.now();
-  for (const row of data ?? []) {
-    const minutesUntil = row.scheduled_at ? (new Date(row.scheduled_at).getTime() - now) / 60_000 : Number.POSITIVE_INFINITY;
-    // Command visibility reconciliation: /draft must be visible within ~1hr of a scheduled
-    // draft or while it's live. The one-shot in-memory timer above dies with the process, so a
-    // restart between scheduling and the window used to leave /draft invisible — this polled
-    // path re-asserts it every tick (dedup'd by draftCommandVisibilityState). wrap_up is
-    // reconciled to hidden to match skip-to-end's explicit unregister.
-    if (row.scheduled_at || row.status === "live" || row.status === "wrap_up") {
-      const includeDraft = row.status === "live" || (row.status === "scheduled" && minutesUntil <= 60);
-      try {
-        const server = await findServerRoutesForLeague(row.league_id);
-        if (server?.guildId) await applyDraftCommandVisibility(server.guildId, includeDraft);
-      } catch (error) {
-        console.error("[ERROR] Failed to reconcile /draft command visibility:", error);
-      }
-    }
-    if (row.status !== "scheduled" || !row.scheduled_at) continue;
-    if (minutesUntil <= 60 && !row.notified_1hr_at) {
-      await fireScheduleReminder(row as any, "1hr", "notified_1hr_at", "The fantasy draft starts in about an hour.").catch((err) => console.error("[ERROR] 1hr fantasy draft reminder failed:", err));
-    }
-    if (minutesUntil <= 30 && !row.notified_30min_at) {
-      await fireScheduleReminder(row as any, "30min", "notified_30min_at", "The fantasy draft starts in about 30 minutes.").catch((err) => console.error("[ERROR] 30min fantasy draft reminder failed:", err));
-    }
-    if (minutesUntil <= 10 && !row.notified_10min_at) {
-      await fireScheduleReminder(row as any, "10min", "notified_10min_at", "The fantasy draft starts in about 10 minutes.").catch((err) => console.error("[ERROR] 10min fantasy draft reminder failed:", err));
-    }
-  }
-}
-
-/** Commissioner "Ping Users" button, usable any time before/during the draft — either quotes
- * the scheduled start time (native Discord countdown) or announces it's starting now. Distinct
- * from the automatic T-1hr/30min/10min reminders above: this is an on-demand, commissioner-
- * triggered nudge (e.g. turnout looks light, or they want one more reminder right before). */
-export async function pingFantasyDraftUsers(guildId: string, discordId: string, mode: "countdown" | "starting_now") {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live"]);
-  if (mode === "countdown" && !session.scheduled_at) throw new ApiError(400, "No scheduled time is set for this draft — use \"Starting now\" instead.");
-
-  const userIds = await scheduledDraftMemberUserIds(leagueId);
-  const bodyText = mode === "starting_now"
-    ? "The fantasy draft is starting now — check in with /draft."
-    : "Reminder: get checked in for the fantasy draft with /draft.";
-  if (userIds.length) {
-    await bestEffort("push.fantasy_draft_reminder", () => sendPushToUsers(userIds, { title: "Fantasy draft", body: bodyText }), { leagueId });
-  }
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  if (announcementsChannelId) {
-    const scheduledUnix = session.scheduled_at ? Math.floor(new Date(session.scheduled_at).getTime() / 1000) : null;
-    const description = mode === "starting_now"
-      ? "The fantasy draft is starting **now**. Use **/draft** to check in immediately."
-      : `Starts <t:${scheduledUnix}:R> (<t:${scheduledUnix}:f>). Use **/draft** to check in — if you're not checked in when your pick comes up, it gets skipped.`;
-    await bestEffort("discord.fantasy_draft_reminder", () => postDiscordChannelMessage(announcementsChannelId, {
-      content: "@everyone",
-      embeds: [{ title: "Fantasy Draft Reminder", color: 0xd9a521, description, footer: { text: "REC Leagues" } }],
-      allowed_mentions: { parse: ["everyone"] },
-    }), { leagueId, guildId });
-  }
-  return { ok: true as const, notifiedUserIds: userIds };
-}
-
-/** Commissioner on-the-clock "Ping" button during a live draft — distinct from the automatic
- * mention already baked into the persistent on-the-clock embed (postOrUpdateOnTheClockEmbed):
- * this is an explicit push + Discord ping the commissioner fires on demand, with round/pick
- * context. Throws a typed error for a CPU team so the caller can show a plain "can't ping a
- * CPU team" message instead of a generic failure. */
-export async function pingFantasyDraftOnTheClock(guildId: string, discordId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-
-  const teams = await listTeams(leagueId);
-  const pickOrder = await listPickOrder(session.id);
-  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
-  if (!onTheClockTeamId) throw new ApiError(400, "No team is currently on the clock.");
-  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
-
-  const ownerUserId = await resolveTeamOwnerUserId(leagueId, onTheClockTeamId);
-  if (!ownerUserId) throw new ApiError(409, "CPU_TEAM_ON_CLOCK");
-  const ownerDiscordId = await resolveTeamOwnerDiscordId(leagueId, onTheClockTeamId);
-
-  const body = `You're on the clock! Round ${session.current_round}, Pick ${session.current_pick_in_round} (${onTheClockTeam?.displayName ?? "your team"}).`;
-  await bestEffort("push.fantasy_draft_on_clock", () => sendPushToUsers([ownerUserId], { title: "You're on the clock", body }), { leagueId, userId: ownerUserId });
-
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  if (announcementsChannelId && ownerDiscordId) {
-    await bestEffort("discord.fantasy_draft_on_clock", () => postDiscordChannelMessage(announcementsChannelId, {
-      content: `<@${ownerDiscordId}> ${body}`,
-      allowed_mentions: { users: [ownerDiscordId] },
-    }), { leagueId, guildId });
-  }
-  return { ok: true as const, teamName: onTheClockTeam?.displayName ?? null };
-}
-
-export async function setFantasyDraftPickOrder(guildId: string, discordId: string, orderMode: FantasyDraftOrderMode, picks: Array<{ pickInRound: number; teamId: string }>) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live"]);
-
-  if (picks.length !== 32) throw new ApiError(400, "Pick order must assign exactly 32 teams.");
-  const pickInRounds = picks.map((p) => p.pickInRound);
-  if (new Set(pickInRounds).size !== 32 || Math.min(...pickInRounds) < 1 || Math.max(...pickInRounds) > 32) {
-    throw new ApiError(400, "Pick order must cover slots 1-32 exactly once.");
-  }
-  const teamIds = picks.map((p) => p.teamId);
-  if (new Set(teamIds).size !== 32) throw new ApiError(400, "Each team can occupy only one pick slot.");
-
-  const teams = await supabase.from("rec_teams").select("id").eq("league_id", leagueId).in("id", teamIds);
-  if (teams.error) throw new ApiError(500, "We couldn't validate those pick-order teams. Please try again.", teams.error);
-  if ((teams.data ?? []).length !== 32) throw new ApiError(400, "Every pick-order team must belong to this league.");
-
-  const { error: deleteError } = await supabase.from("rec_fantasy_draft_pick_order").delete().eq("session_id", session.id);
-  if (deleteError) throw new ApiError(500, "We couldn't replace the pick order. Please try again.", deleteError);
-
-  const { error } = await supabase.from("rec_fantasy_draft_pick_order").insert(
-    picks.map((p) => ({ session_id: session.id, pick_in_round: p.pickInRound, team_id: p.teamId })),
-  );
-  if (error) throw new ApiError(500, "We couldn't save the pick order. Please try again.", error);
-
-  const { error: updateError } = await supabase.from("rec_fantasy_draft_sessions").update({
-    order_mode: orderMode,
-    updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
-  if (updateError) throw new ApiError(500, "We couldn't save the pick-order mode. Please try again.", updateError);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, orderMode, count: 32 };
-}
-
-export async function addFantasyDraftCustomPlayer(guildId: string, discordId: string, input: {
-  firstName: string;
-  lastName: string;
-  position: string;
-  jerseyNumber?: number | null;
-  archetype?: string | null;
-  devTrait?: string | null;
-  overallRating?: number | null;
-  attributes: Record<string, number>;
-}) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live", "wrap_up"]);
-
-  const firstName = input.firstName.trim();
-  const lastName = input.lastName.trim();
-  if (!firstName || !lastName) throw new ApiError(400, "A first and last name are required.");
-  if (firstName.length > 40 || lastName.length > 40) throw new ApiError(400, "Player names are limited to 40 characters.");
-  const position = input.position.trim().toUpperCase();
-  if (!/^[A-Z]{2,3}$/.test(position)) throw new ApiError(400, "Position must be a 2-3 letter code (e.g. QB, WR, MLB).");
-  if (input.jerseyNumber != null && (input.jerseyNumber < 0 || input.jerseyNumber > 99)) {
-    throw new ApiError(400, "Jersey number must be 0-99.");
-  }
-  const attributes: Record<string, number> = {};
-  for (const [key, value] of Object.entries(input.attributes ?? {})) {
-    if (!Number.isInteger(value) || value < 0 || value > 99) {
-      throw new ApiError(400, `Attribute ${key} must be an integer from 0 through 99.`);
-    }
-    attributes[key.trim().toLowerCase()] = value;
-  }
-
-  const { data, error } = await supabase.from("rec_players").insert({
-    league_id: leagueId,
-    team_id: null,
-    madden_player_id: null,
-    first_name: firstName,
-    last_name: lastName,
-    full_name: `${firstName} ${lastName}`,
-    position,
-    jersey_number: input.jerseyNumber ?? null,
-    archetype: input.archetype ?? null,
-    dev_trait: input.devTrait ?? null,
-    overall_rating: input.overallRating ?? null,
-    attributes,
-    is_free_agent: true,
-    is_default_player: false,
-    player_source: "custom_player",
-    roster_status: "active",
-    raw_payload: { fantasyDraft: true },
-  }).select("*").single();
-  if (error) throw new ApiError(500, "We couldn't add that custom player to the draft pool. Please try again.", error);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return {
-    id: data.id,
-    name: `${firstName} ${lastName}`,
-    position,
-    overallRating: data.overall_rating ?? null,
-  };
-}
-
-export async function removeFantasyDraftPoolPlayer(guildId: string, playerId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["scheduled", "live", "wrap_up"]);
-
-  const player = await supabase.from("rec_players").select("id,team_id,is_free_agent").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "We couldn't load that pool player. Please try again.", player.error);
-  if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
-
-  const pick = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", playerId).maybeSingle();
-  if (pick.error) throw new ApiError(500, "We couldn't check whether that player is drafted. Please try again.", pick.error);
-  if (pick.data) throw new ApiError(409, "That player has already been drafted.");
-  if (player.data.team_id != null) throw new ApiError(409, "That player is already assigned to a team.");
-
-  const deleted = await supabase.from("rec_players").delete().eq("id", playerId).eq("league_id", leagueId).select("id").maybeSingle();
-  if (deleted.error) throw new ApiError(500, "We couldn't remove that player from the pool. Please try again.", deleted.error);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { removed: true as const };
-}
-
-async function recordPick(input: {
-  session: SessionRow;
-  leagueId: string;
-  playerId: string;
-  teamId: string;
-  round: number;
-  pickInRound: number;
-  overallPickNumber: number;
-  isWrapupPick: boolean;
-  loggedByUserId: string;
-}) {
-  const { session, leagueId } = input;
-  const player = await supabase.from("rec_players").select("id,team_id,is_free_agent").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "We couldn't load that draft player. Please try again.", player.error);
-  if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
-  if (player.data.team_id != null) throw new ApiError(409, "That player is already on a team.");
-
-  const existing = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", input.playerId).maybeSingle();
-  if (existing.error) throw new ApiError(500, "We couldn't check whether that player is drafted. Please try again.", existing.error);
-  if (existing.data) throw new ApiError(409, "That player has already been drafted.");
-
-  const { error } = await supabase.from("rec_fantasy_draft_picks").insert({
-    session_id: session.id,
-    round: input.round,
-    pick_in_round: input.pickInRound,
-    overall_pick_number: input.overallPickNumber,
-    team_id: input.teamId,
-    player_id: input.playerId,
-    is_wrapup_pick: input.isWrapupPick,
-    logged_by_user_id: input.loggedByUserId,
-  });
-  if (error) throw new ApiError(500, "We couldn't log that draft pick. Please try again.", error);
-
-  const update = await supabase.from("rec_players").update({ team_id: input.teamId, is_free_agent: false }).eq("id", input.playerId).select("id").maybeSingle();
-  if (update.error) throw new ApiError(500, "We couldn't assign that drafted player. Please try again.", update.error);
-}
-
-// ---------------------------------------------------------------------------
-// Live "on the clock" embed and per-round conclusion announcements. The on-the-clock embed
-// is a single message (tracked via on_clock_message_channel_id/_id) that gets edited in
-// place after every pick to show the previous pick alongside who's up next; the round
-// conclusion embed is a fresh @everyone post each time a round's 32nd pick is logged.
-// ---------------------------------------------------------------------------
-
 async function resolveTeamOwnerDiscordId(leagueId: string, teamId: string): Promise<string | null> {
   const ownerUserId = await resolveTeamOwnerUserId(leagueId, teamId);
   if (!ownerUserId) return null;
@@ -1290,577 +158,429 @@ async function resolveTeamOwnerDiscordId(leagueId: string, teamId: string): Prom
   return account.data?.discord_id ?? null;
 }
 
-async function buildOnTheClockEmbedData(
-  leagueId: string,
-  teams: Array<{ id: string; displayName: string }>,
-  session: SessionRow,
-  previousPick: PickRow | null,
-) {
-  const pickOrder = await listPickOrder(session.id);
-  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
-  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
-
-  let description = "";
-  if (previousPick) {
-    const player = await supabase.from("rec_players").select("full_name,position").eq("id", previousPick.player_id).maybeSingle();
-    const prevTeam = teams.find((t) => t.id === previousPick.team_id);
-    description += `Previous Pick (${previousPick.pick_in_round} - ${prevTeam?.displayName ?? "Unknown"}): **${player.data?.full_name ?? "Unknown"}** (${player.data?.position ?? "?"})\n\n`;
-  }
-  description += onTheClockTeam
-    ? `**${onTheClockTeam.displayName}**, you're on the CLOCK! (Round ${session.current_round}, Pick ${session.current_pick_in_round})`
-    : "Waiting for the next pick...";
-
-  return { onTheClockTeam, embed: { title: "On The Clock", color: 0xd9a521, description } };
+async function setLeagueFantasyDraftStatus(leagueId: string, status: string) {
+  const { error } = await supabase.from("rec_leagues").update({ fantasy_draft_status: status }).eq("id", leagueId);
+  if (error) throw new ApiError(500, "We couldn't update the fantasy draft status. Please try again.", error);
 }
 
-/** Posts (first time) or edits in place (every pick after) the live on-the-clock embed.
- * Silent no-op if the league has no announcements channel configured. */
-async function postOrUpdateOnTheClockEmbed(
-  announcementsChannelId: string | null,
-  leagueId: string,
-  teams: Array<{ id: string; displayName: string }>,
-  session: SessionRow,
-  previousPick: PickRow | null,
-) {
-  if (!announcementsChannelId) return;
-  const { onTheClockTeam, embed } = await buildOnTheClockEmbedData(leagueId, teams, session, previousPick);
-  const ownerDiscordId = onTheClockTeam ? await resolveTeamOwnerDiscordId(leagueId, onTheClockTeam.id) : null;
-  const content = ownerDiscordId ? `<@${ownerDiscordId}>` : undefined;
+async function announcementsChannelIdForLeague(leagueId: string): Promise<string | null> {
+  const context = await bestEffort("fantasy_draft.load_league_context", () => getCurrentLeagueContext(leagueId), { leagueId }) ?? null;
+  return (context?.routes as any)?.announcements_channel_id ?? null;
+}
 
-  if (session.on_clock_message_channel_id && session.on_clock_message_id) {
-    const onClockChannelId = session.on_clock_message_channel_id;
-    const onClockMessageId = session.on_clock_message_id;
-    const edited = await bestEffort("discord.edit_on_clock_embed", () => editDiscordMessage(onClockChannelId, onClockMessageId, { content, embeds: [embed] }), { leagueId, entityId: session.id });
-    if (edited) return;
+function formatTimeRemaining(seconds: number): string {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds % 60;
+    return rest > 0 ? `${minutes}m ${rest}s` : `${minutes} minute${minutes === 1 ? "" : "s"}`;
   }
-  const posted = await bestEffort("discord.post_on_clock_embed", () => postDiscordChannelMessage(announcementsChannelId, { content, embeds: [embed] }), { leagueId, entityId: session.id }) ?? null;
+  return `${seconds} seconds`;
+}
+
+/** Posts a brand-new "you're on the clock" announcement (never edits in place -- a turn
+ * beginning is a fresh event the on-the-clock coach needs to actually notice, not a silent
+ * edit to a message they may have already scrolled past). Silent no-op with no announcements
+ * channel configured. */
+async function postOnTheClockAnnouncement(leagueId: string, teams: Team[], session: SessionRow, pickOrder: PickOrderEntry[]): Promise<void> {
+  const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
+  if (!announcementsChannelId) return;
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
+  if (!onTheClockTeam) return;
+  const ownerDiscordId = await resolveTeamOwnerDiscordId(leagueId, onTheClockTeam.id);
+  const content = ownerDiscordId ? `<@${ownerDiscordId}>` : undefined;
+  const timerLine = session.pick_timer_seconds
+    ? `\nYou have **${formatTimeRemaining(session.pick_timer_seconds)}** to make your pick before it's skipped.`
+    : "";
+  const posted = await bestEffort("discord.post_on_clock_announcement", () => postDiscordChannelMessage(announcementsChannelId, {
+    content,
+    embeds: [{
+      title: "On The Clock",
+      color: ON_THE_CLOCK_COLOR,
+      description: `**${onTheClockTeam.displayName}**, you're on the clock! (Round ${session.current_round}, Pick ${session.current_pick_in_round})${timerLine}`,
+    }],
+    allowed_mentions: ownerDiscordId ? { users: [ownerDiscordId] } : undefined,
+  }), { leagueId, entityId: session.id }) ?? null;
   if (posted?.id) {
     await supabase.from("rec_fantasy_draft_sessions").update({
       on_clock_message_channel_id: announcementsChannelId,
       on_clock_message_id: posted.id,
       updated_at: new Date().toISOString(),
     }).eq("id", session.id).then(() => undefined, () => undefined);
-    session.on_clock_message_channel_id = announcementsChannelId;
-    session.on_clock_message_id = posted.id;
+  }
+  if (ownerDiscordId) {
+    const ownerUserId = await resolveTeamOwnerUserId(leagueId, onTheClockTeam.id);
+    if (ownerUserId) {
+      bestEffortVoid("push.fantasy_draft_on_clock", sendPushToUsers([ownerUserId], {
+        title: "You're on the clock",
+        body: `Round ${session.current_round}, Pick ${session.current_pick_in_round} (${onTheClockTeam.displayName}).`,
+      }), { leagueId, userId: ownerUserId });
+    }
   }
 }
 
-/** Fires once a round's 32nd pick lands — full pick list for that round, @everyone, to
- * the announcements channel. Fire-and-forget; never blocks the pick response. */
-async function postRoundConclusionEmbed(
-  announcementsChannelId: string | null,
-  leagueId: string,
-  teams: Array<{ id: string; displayName: string }>,
-  session: SessionRow,
-  completedRound: number,
-) {
+async function postFifteenSecondWarning(leagueId: string, teams: Team[], session: SessionRow, pickOrder: PickOrderEntry[]): Promise<void> {
+  const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
   if (!announcementsChannelId) return;
-  const picks = await listPicks(session.id);
-  const roundPicks = picks.filter((p) => p.round === completedRound).sort((a, b) => a.pick_in_round - b.pick_in_round);
-  if (!roundPicks.length) return;
-  const playerIds = roundPicks.map((p) => p.player_id);
-  const players = await supabase.from("rec_players").select("id,full_name,position").in("id", playerIds);
-  const playerById = new Map<string, { full_name: string; position: string }>((players.data ?? []).map((p: any) => [p.id, p]));
-  const lines = roundPicks.map((pick) => {
-    const team = teams.find((t) => t.id === pick.team_id);
-    const player = playerById.get(pick.player_id);
-    return `${pick.pick_in_round}. **${team?.displayName ?? "Unknown"}** — ${player?.full_name ?? "Unknown"} (${player?.position ?? "?"})`;
-  });
-  await postDiscordChannelMessage(announcementsChannelId, {
-    content: "@everyone",
+  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
+  const onTheClockTeam = teams.find((t) => t.id === onTheClockTeamId) ?? null;
+  if (!onTheClockTeam) return;
+  const ownerDiscordId = await resolveTeamOwnerDiscordId(leagueId, onTheClockTeam.id);
+  const content = ownerDiscordId ? `<@${ownerDiscordId}>` : undefined;
+  await bestEffort("discord.post_fifteen_second_warning", () => postDiscordChannelMessage(announcementsChannelId, {
+    content,
     embeds: [{
-      title: `Round ${completedRound} Complete`,
-      color: 0xd9a521,
-      description: lines.join("\n"),
-      footer: { text: "REC Leagues Fantasy Draft" },
+      title: "⚠️ 15 Seconds Left",
+      color: 0xdc3545,
+      description: `**${onTheClockTeam.displayName}**, you have **15 seconds** left before your pick is skipped!`,
     }],
-    allowed_mentions: { parse: ["everyone"] },
-  }).catch((error) => console.error("[ERROR] Fantasy draft round-conclusion announcement failed (non-fatal):", error));
+    allowed_mentions: ownerDiscordId ? { users: [ownerDiscordId] } : undefined,
+  }), { leagueId, entityId: session.id });
 }
 
-/** Shared tail of both pick-logging paths (direct commissioner log, and an approved pick
- * request): advances the session's round/pick counters, then fires the on-the-clock embed
- * update (always) and the round-conclusion embed (only when a round's last pick just landed). */
-async function advanceDraftClockAndAnnounce(
-  leagueId: string,
-  session: SessionRow,
-  justLoggedPick: { round: number; pickInRound: number; teamId: string; playerId: string },
-): Promise<{ nextRound: number; nextPick: number }> {
-  let nextRound = session.current_round;
-  let nextPick = session.current_pick_in_round + 1;
-  const roundJustCompleted = nextPick > 32;
-  if (roundJustCompleted) {
-    nextRound += 1;
-    nextPick = 1;
+/** Pure round/pick advance -- one slot forward, wrapping into the next round at the end of
+ * the pick order. Returns null if the draft has just run out of rounds (offseason only; a
+ * fantasy draft's total_rounds is null, so it never runs out -- the commissioner ends it). */
+function advancePick(session: SessionRow, pickOrderLength: number): { round: number; pickInRound: number } | null {
+  let round = session.current_round;
+  let pickInRound = session.current_pick_in_round + 1;
+  if (pickInRound > pickOrderLength) {
+    round += 1;
+    pickInRound = 1;
   }
+  if (session.total_rounds != null && round > session.total_rounds) return null;
+  return { round, pickInRound };
+}
+
+/** Shared tail of every "the clock moves forward" action (manual skip-next, skip-to-specific,
+ * and the timer sweep's auto-skip): persists the new round/pick, resets the per-pick timer
+ * bookkeeping, and announces the new team on the clock. */
+async function advanceAndAnnounce(leagueId: string, session: SessionRow, next: { round: number; pickInRound: number }): Promise<void> {
+  const turnStartedAt = session.pick_timer_seconds ? new Date().toISOString() : null;
   await supabase.from("rec_fantasy_draft_sessions").update({
-    current_round: nextRound,
-    current_pick_in_round: nextPick,
+    current_round: next.round,
+    current_pick_in_round: next.pickInRound,
+    turn_started_at: turnStartedAt,
+    warning_sent: false,
     updated_at: new Date().toISOString(),
   }).eq("id", session.id);
 
-  const context = await bestEffort("fantasy_draft.load_league_context", () => getCurrentLeagueContext(leagueId), { leagueId }) ?? null;
-  const announcementsChannelId = (context?.routes as any)?.announcements_channel_id ?? null;
-  const teams = await listTeams(leagueId);
-  const nextSession = { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow;
-
-  const previousPickRow: PickRow = {
-    id: "", session_id: session.id, round: justLoggedPick.round, pick_in_round: justLoggedPick.pickInRound,
-    overall_pick_number: 0, team_id: justLoggedPick.teamId, player_id: justLoggedPick.playerId,
-    is_wrapup_pick: false, logged_by_user_id: "", logged_at: new Date().toISOString(),
-  };
-  await bestEffort("discord.draft_on_clock_after_pick", () => postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, previousPickRow), { leagueId, entityId: session.id });
-  if (roundJustCompleted) {
-    await bestEffort("discord.draft_round_conclusion", () => postRoundConclusionEmbed(announcementsChannelId, leagueId, teams, session, justLoggedPick.round), { leagueId, entityId: session.id });
-  }
-
-  return { nextRound, nextPick };
-}
-
-export async function logFantasyDraftPick(guildId: string, discordId: string, playerId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to log picks.");
-
-  const pickOrder = await listPickOrder(session.id);
-  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before logging picks.");
-
-  const teamId = teamOnTheClock(session, pickOrder);
-  if (!teamId) throw new ApiError(409, "No team is on the clock — is the pick order set?");
-
-  const overallPickNumber = (session.current_round - 1) * 32 + session.current_pick_in_round;
-  await recordPick({
-    session,
-    leagueId,
-    playerId,
-    teamId,
-    round: session.current_round,
-    pickInRound: session.current_pick_in_round,
-    overallPickNumber,
-    isWrapupPick: false,
-    loggedByUserId: userId,
-  });
-
-  const { nextRound, nextPick } = await advanceDraftClockAndAnnounce(leagueId, session, {
-    round: session.current_round, pickInRound: session.current_pick_in_round, teamId, playerId,
-  });
-  await pushOnTheClock(leagueId, { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow);
-
+  const nextSession: SessionRow = { ...session, current_round: next.round, current_pick_in_round: next.pickInRound, turn_started_at: turnStartedAt, warning_sent: false };
+  const [teams, pickOrder] = await Promise.all([listTeams(leagueId), listPickOrder(session.id)]);
+  await bestEffort("discord.draft_on_clock_after_advance", () => postOnTheClockAnnouncement(leagueId, teams, nextSession, pickOrder), { leagueId, entityId: session.id });
   broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, round: session.current_round, pickInRound: session.current_pick_in_round, teamId, overallPickNumber };
 }
 
-// ---------------------------------------------------------------------------
-// Skipped picks — a team's turn the commissioner couldn't see in-game gets flagged instead
-// of guessed. The clock still advances so the draft keeps moving; the slot stays open to
-// fill in later (mid-draft, once it's known, or during wrap-up).
-// ---------------------------------------------------------------------------
-
-export async function skipFantasyDraftPick(guildId: string, discordId: string) {
+export async function getFantasyDraftState(guildId: string, discordId: string, isCommissioner: boolean) {
   const context = await getCurrentLeagueContext(guildId);
   const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to skip a pick.");
-
-  const pickOrder = await listPickOrder(session.id);
-  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before logging picks.");
-  const teamId = teamOnTheClock(session, pickOrder);
-  if (!teamId) throw new ApiError(409, "No team is on the clock — is the pick order set?");
-
-  const round = session.current_round;
-  const pickInRound = session.current_pick_in_round;
-  const overallPickNumber = (round - 1) * 32 + pickInRound;
-
-  const inserted = await supabase.from("rec_fantasy_draft_skipped_picks").insert({
-    session_id: session.id, team_id: teamId, round, pick_in_round: pickInRound,
-    overall_pick_number: overallPickNumber, skipped_by_user_id: userId,
-  }).select("id").single();
-  if (inserted.error) throw new ApiError(500, "We couldn't record that skipped pick. Please try again.", inserted.error);
-
-  let nextRound = round;
-  let nextPick = pickInRound + 1;
-  const roundJustCompleted = nextPick > 32;
-  if (roundJustCompleted) { nextRound += 1; nextPick = 1; }
-  const { error: advanceError } = await supabase.from("rec_fantasy_draft_sessions").update({
-    current_round: nextRound, current_pick_in_round: nextPick, updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
-  if (advanceError) throw new ApiError(500, "We couldn't advance the draft clock. Please try again.", advanceError);
-
-  const teams = await listTeams(leagueId);
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  const nextSession = { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow;
-  // No real player attached to a skip — the on-the-clock embed just shows "waiting for the
-  // next pick" for this transition instead of a fabricated previous-pick line.
-  await bestEffort("discord.draft_on_clock_after_skip", () => postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, null), { leagueId, guildId, entityId: session.id });
-  if (roundJustCompleted) {
-    await bestEffort("discord.draft_round_conclusion", () => postRoundConclusionEmbed(announcementsChannelId, leagueId, teams, session, round), { leagueId, guildId, entityId: session.id });
-  }
-  await pushOnTheClock(leagueId, nextSession);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, skippedSlotId: inserted.data.id, round, pickInRound, teamId, overallPickNumber };
-}
-
-/** Advances across multiple CPU picks in one operation. Every bypassed slot is retained in
- * the missed-picks queue, but Discord/push/realtime updates happen only once at the target. */
-export async function skipFantasyDraftToPick(guildId: string, discordId: string, targetRound: number, targetPickInRound: number) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to skip picks.");
-  if (!Number.isInteger(targetRound) || !Number.isInteger(targetPickInRound) || targetRound < session.current_round || targetPickInRound < 1 || targetPickInRound > 32) {
-    throw new ApiError(400, "Choose a valid future draft pick.");
-  }
-  const currentOverall = (session.current_round - 1) * 32 + session.current_pick_in_round;
-  const targetOverall = (targetRound - 1) * 32 + targetPickInRound;
-  const skipCount = targetOverall - currentOverall;
-  if (skipCount < 1 || skipCount > 64) throw new ApiError(400, "Skip forward between 1 and 64 picks at a time.");
-
-  const pickOrder = await listPickOrder(session.id);
-  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before skipping picks.");
-  const rows = Array.from({ length: skipCount }, (_, offset) => {
-    const overall = currentOverall + offset;
-    const round = Math.floor((overall - 1) / 32) + 1;
-    const pickInRound = ((overall - 1) % 32) + 1;
-    return {
-      session_id: session.id,
-      team_id: teamOnTheClock({ ...session, current_round: round, current_pick_in_round: pickInRound } as SessionRow, pickOrder),
-      round,
-      pick_in_round: pickInRound,
-      overall_pick_number: overall,
-      skipped_by_user_id: userId,
-    };
-  });
-  const inserted = await supabase.from("rec_fantasy_draft_skipped_picks").insert(rows);
-  if (inserted.error) throw new ApiError(500, "We couldn't record the skipped picks. Please try again.", inserted.error);
-  const advanced = await supabase.from("rec_fantasy_draft_sessions").update({
-    current_round: targetRound, current_pick_in_round: targetPickInRound, updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
-  if (advanced.error) throw new ApiError(500, "We couldn't advance the draft clock. Please try again.", advanced.error);
-
-  const teams = await listTeams(leagueId);
-  const announcementsChannelId = (context.routes as any)?.announcements_channel_id ?? null;
-  const nextSession = { ...session, current_round: targetRound, current_pick_in_round: targetPickInRound } as SessionRow;
-  await bestEffort("discord.draft_on_clock_after_bulk_skip", () => postOrUpdateOnTheClockEmbed(announcementsChannelId, leagueId, teams, nextSession, null), { leagueId, guildId, entityId: session.id });
-  await pushOnTheClock(leagueId, nextSession);
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, skipped: skipCount, targetRound, targetPickInRound };
-}
-
-export async function listSkippedFantasyDraftPicks(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  const [teams, { data, error }] = await Promise.all([
+  const [session, teams, userId] = await Promise.all([
+    getActiveSession(leagueId),
     listTeams(leagueId),
-    supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("session_id", session.id).is("resolved_at", null).order("overall_pick_number", { ascending: true }),
+    resolveRecUserId(discordId),
   ]);
-  if (error) throw new ApiError(500, "We couldn't load skipped picks right now. Please try again.", error);
-  const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
+  const pickOrder = session ? await listPickOrder(session.id) : [];
+
+  let myTeamId: string | null = null;
+  if (userId) {
+    const assignment = await supabase
+      .from("rec_team_assignments")
+      .select("team_id")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .eq("assignment_status", "active")
+      .is("ended_at", null)
+      .maybeSingle();
+    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
+    myTeamId = assignment.data?.team_id ?? null;
+  }
+
+  const onTheClockTeamId = session && session.status === "live" ? teamOnTheClock(session, pickOrder) : null;
+  // The dropdown for "Skip to a Specific Pick" -- remaining slots this round, plus next
+  // round's slots if another round is actually coming (unbounded for fantasy, capped at
+  // total_rounds for offseason).
+  const skipChoices: Array<{ round: number; pickInRound: number; teamId: string; teamName: string }> = [];
+  if (session && session.status === "live" && pickOrder.length) {
+    const teamById = new Map(teams.map((t) => [t.id, t.displayName]));
+    let round = session.current_round;
+    let pickInRound = session.current_pick_in_round;
+    const roundsToShow = new Set([round, round + 1]);
+    while (session.total_rounds == null || round <= session.total_rounds) {
+      if (!roundsToShow.has(round)) break;
+      const teamId = teamOnTheClock({ order_mode: session.order_mode, current_round: round, current_pick_in_round: pickInRound }, pickOrder);
+      if (teamId) skipChoices.push({ round, pickInRound, teamId, teamName: teamById.get(teamId) ?? "Unknown" });
+      pickInRound += 1;
+      if (pickInRound > pickOrder.length) { pickInRound = 1; round += 1; }
+    }
+  }
+
   return {
-    skipped: (data ?? []).map((row: any) => ({
-      id: row.id, teamId: row.team_id, teamName: teamById.get(row.team_id) ?? "Unknown team",
-      round: row.round, pickInRound: row.pick_in_round, overallPickNumber: row.overall_pick_number,
-    })),
+    session: session ? serializeSession(session) : null,
+    teams,
+    pickOrder,
+    onTheClockTeamId,
+    skipChoices,
+    caller: { isCommissioner, myTeamId },
   };
 }
 
-/** Fills in a previously-skipped slot once the actual pick is known — recorded at the
- * slot's ORIGINAL round/pick position (not appended at the end like a wrap-up pick), so
- * draft-order history stays accurate. Usable any time the draft is live or in wrap-up. */
-export async function fillSkippedFantasyDraftPick(guildId: string, discordId: string, skippedSlotId: string, playerId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live", "wrap_up"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to fill a skipped pick.");
-
-  const slot = await supabase.from("rec_fantasy_draft_skipped_picks").select("*").eq("id", skippedSlotId).eq("session_id", session.id).maybeSingle();
-  if (slot.error) throw new ApiError(500, "We couldn't load that skipped pick. Please try again.", slot.error);
-  if (!slot.data) throw new ApiError(404, "Skipped pick not found.");
-  if (slot.data.resolved_at) throw new ApiError(409, "This skipped pick has already been filled.");
-
-  await recordPick({
-    session, leagueId, playerId, teamId: slot.data.team_id,
-    round: slot.data.round, pickInRound: slot.data.pick_in_round, overallPickNumber: slot.data.overall_pick_number,
-    isWrapupPick: false, loggedByUserId: userId,
-  });
-
-  const resolved = await supabase.from("rec_fantasy_draft_picks").select("id").eq("session_id", session.id).eq("player_id", playerId).maybeSingle();
-  await supabase.from("rec_fantasy_draft_skipped_picks").update({
-    resolved_at: new Date().toISOString(), resolved_pick_id: resolved.data?.id ?? null,
-  }).eq("id", skippedSlotId);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const };
-}
-
-// ---------------------------------------------------------------------------
-// Pick requests. A non-commissioner "drafting" a player doesn't log the pick directly —
-// it submits a request that only takes effect once the commissioner approves it (they
-// confirmed the pick actually happened in-game). Only valid while the requesting team is
-// still on the clock; if the draft has moved on by the time the commissioner acts, the
-// request is auto-denied instead of silently applying to the wrong slot.
-// ---------------------------------------------------------------------------
-
-type PickRequestRow = {
-  id: string;
-  session_id: string;
-  team_id: string;
-  player_id: string;
-  requested_by_user_id: string;
-  status: "pending" | "approved" | "denied";
-  created_at: string;
-  resolved_at: string | null;
-  resolved_by_user_id: string | null;
-};
-
-async function listPendingPickRequests(sessionId: string): Promise<PickRequestRow[]> {
-  const { data, error } = await supabase
-    .from("rec_fantasy_draft_pick_requests")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: true });
-  if (error) throw new ApiError(500, "We couldn't load pending pick requests right now. Please try again.", error);
-  return (data ?? []) as PickRequestRow[];
-}
-
-export async function requestFantasyDraftPick(guildId: string, discordId: string, playerId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to request a pick.");
-
-  const teamId = await resolveTeamForUser(leagueId, userId);
-
-  const pickOrder = await listPickOrder(session.id);
-  if (pickOrder.length !== 32) throw new ApiError(409, "Set the pick order before drafting.");
-  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
-  if (onTheClockTeamId !== teamId) {
-    throw new ApiError(409, "It's not your turn — you can only draft a player when your team is on the clock.");
-  }
-
-  const player = await supabase.from("rec_players").select("id,team_id").eq("id", playerId).eq("league_id", leagueId).maybeSingle();
-  if (player.error) throw new ApiError(500, "We couldn't load that player. Please try again.", player.error);
-  if (!player.data) throw new ApiError(404, "Player not found in this league's draft pool.");
-  if (player.data.team_id != null) throw new ApiError(409, "That player has already been drafted.");
-
-  // Replace any earlier pending request from this team (e.g. they changed their mind) rather
-  // than stacking a second one — the unique partial index only allows one pending row per team.
-  await supabase.from("rec_fantasy_draft_pick_requests").delete().eq("session_id", session.id).eq("team_id", teamId).eq("status", "pending");
-
-  const inserted = await supabase.from("rec_fantasy_draft_pick_requests").insert({
-    session_id: session.id,
-    team_id: teamId,
-    player_id: playerId,
-    requested_by_user_id: userId,
-  }).select("id").single();
-  if (inserted.error) throw new ApiError(500, "We couldn't submit that pick request. Please try again.", inserted.error);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, requestId: inserted.data.id, pending: true as const };
-}
-
-export async function resolveFantasyDraftPickRequest(guildId: string, discordId: string, requestId: string, action: "approve" | "deny") {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to resolve pick requests.");
-
-  const request = await supabase.from("rec_fantasy_draft_pick_requests").select("*").eq("id", requestId).eq("session_id", session.id).maybeSingle();
-  if (request.error) throw new ApiError(500, "We couldn't load that pick request. Please try again.", request.error);
-  if (!request.data) throw new ApiError(404, "Pick request not found.");
-  if (request.data.status !== "pending") throw new ApiError(409, "This pick request has already been resolved.");
-  const row = request.data as PickRequestRow;
-
-  if (action === "deny") {
-    const { error } = await supabase.from("rec_fantasy_draft_pick_requests")
-      .update({ status: "denied", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
-      .eq("id", row.id);
-    if (error) throw new ApiError(500, "We couldn't deny that pick request. Please try again.", error);
-    broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-    return { ok: true as const, approved: false as const };
-  }
-
-  const pickOrder = await listPickOrder(session.id);
-  const onTheClockTeamId = teamOnTheClock(session, pickOrder);
-  if (onTheClockTeamId !== row.team_id) {
-    await supabase.from("rec_fantasy_draft_pick_requests")
-      .update({ status: "denied", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
-      .eq("id", row.id);
-    broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-    throw new ApiError(409, "The draft has moved on since this request was made — it's no longer that team's turn. The request was denied.");
-  }
-
-  const overallPickNumber = (session.current_round - 1) * 32 + session.current_pick_in_round;
-  await recordPick({
-    session,
-    leagueId,
-    playerId: row.player_id,
-    teamId: row.team_id,
-    round: session.current_round,
-    pickInRound: session.current_pick_in_round,
-    overallPickNumber,
-    isWrapupPick: false,
-    loggedByUserId: row.requested_by_user_id,
-  });
-
-  const { nextRound, nextPick } = await advanceDraftClockAndAnnounce(leagueId, session, {
-    round: session.current_round, pickInRound: session.current_pick_in_round, teamId: row.team_id, playerId: row.player_id,
-  });
-
-  await supabase.from("rec_fantasy_draft_pick_requests")
-    .update({ status: "approved", resolved_at: new Date().toISOString(), resolved_by_user_id: userId })
-    .eq("id", row.id);
-
-  await pushOnTheClock(leagueId, { ...session, current_round: nextRound, current_pick_in_round: nextPick } as SessionRow);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, approved: true as const, round: session.current_round, pickInRound: session.current_pick_in_round, teamId: row.team_id, overallPickNumber };
-}
-
-export async function logFantasyDraftWrapupPick(guildId: string, discordId: string, playerId: string, requestedTeamId: string | null, isCommissioner: boolean) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["wrap_up"]);
-  const userId = await resolveRecUserId(discordId);
-  if (!userId) throw new ApiError(400, "A linked REC account is required to log wrap-up picks.");
-
-  let teamId = requestedTeamId;
-  if (isCommissioner) {
-    if (!teamId) throw new ApiError(400, "Choose the team to receive this wrap-up pick.");
-    const team = await supabase.from("rec_teams").select("id").eq("id", teamId).eq("league_id", leagueId).maybeSingle();
-    if (team.error) throw new ApiError(500, "We couldn't validate that target team. Please try again.", team.error);
-    if (!team.data) throw new ApiError(400, "The target team does not belong to this league.");
-  } else {
-    const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
-    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
-    teamId = assignment.data?.team_id ?? null;
-    if (!teamId) throw new ApiError(400, "You aren't assigned to a team in this league yet.");
-  }
-
-  const picks = await listPicks(session.id);
-  const maxOverall = picks.reduce((max, p) => Math.max(max, p.overall_pick_number), 0);
-  const overallPickNumber = maxOverall + 1;
-  const round = Math.ceil(overallPickNumber / 32);
-  const pickInRound = ((overallPickNumber - 1) % 32) + 1;
-
-  await recordPick({
-    session,
-    leagueId,
-    playerId,
-    teamId: teamId as string,
-    round,
-    pickInRound,
-    overallPickNumber,
-    isWrapupPick: true,
-    loggedByUserId: userId,
-  });
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, overallPickNumber, teamId };
-}
-
-export async function undoFantasyDraftPick(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live", "wrap_up"]);
-
-  const picks = await listPicks(session.id);
-  const latest = picks[picks.length - 1];
-  if (!latest) throw new ApiError(400, "Nothing to undo — no picks have been logged yet.");
-
-  const deleted = await supabase.from("rec_fantasy_draft_picks").delete().eq("id", latest.id).eq("session_id", session.id).select("id").maybeSingle();
-  if (deleted.error) throw new ApiError(500, "We couldn't undo that pick. Please try again.", deleted.error);
-
-  const player = await supabase.from("rec_players").update({ team_id: null, is_free_agent: true }).eq("id", latest.player_id).select("id").maybeSingle();
-  if (player.error) throw new ApiError(500, "We couldn't unassign the drafted player. Please try again.", player.error);
-
-  if (!latest.is_wrapup_pick) {
-    await supabase.from("rec_fantasy_draft_sessions").update({
-      current_round: latest.round,
-      current_pick_in_round: latest.pick_in_round,
-      updated_at: new Date().toISOString(),
-    }).eq("id", session.id);
-  }
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, undonePlayerId: latest.player_id };
-}
-
-export async function skipFantasyDraftToEnd(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["live"]);
-  await supabase.from("rec_fantasy_draft_sessions").update({ status: "wrap_up", updated_at: new Date().toISOString() }).eq("id", session.id);
-  await setLeagueFantasyDraftStatus(leagueId, "wrap_up");
-  cancelDraftCommandVisibilityTimer(guildId);
-  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (skip to end):", error));
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const };
-}
-
-export async function concludeFantasyDraft(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const { leagueId } = context;
-  const session = await requireActiveSession(leagueId);
-  requireSessionStatus(session, ["wrap_up"]);
-
-  await supabase.from("rec_fantasy_draft_sessions").update({
-    status: "concluded",
-    concluded_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq("id", session.id);
-  await setLeagueFantasyDraftStatus(leagueId, "concluded");
-  cancelDraftCommandVisibilityTimer(guildId);
-  applyDraftCommandVisibility(guildId, false).catch((error) => console.error("[ERROR] Failed to unregister /draft (conclude):", error));
-  void syncLeagueRecruitingAd(leagueId).catch((error) => console.error("[WARN] Failed to refresh recruiting ad after draft conclude:", error));
-
-  // Roster-size report for the "your team might not be fully assigned" modal — informational,
-  // never a hard block (position minimums are out of scope, see plan §7).
-  const teams = await listTeams(leagueId);
-  const countResult = await getPgPool().query(
-    `select p.team_id, count(*)::int as drafted_count
-     from rec_fantasy_draft_picks p
-     where p.session_id = $1
-     group by p.team_id`,
-    [session.id],
-  );
-  const countByTeam = new Map<string, number>((countResult.rows ?? []).map((r: any) => [r.team_id, Number(r.drafted_count)]));
-  const underStrengthTeams = teams
-    .map((team) => ({ teamId: team.id, teamName: team.displayName, draftedCount: countByTeam.get(team.id) ?? 0 }))
-    .filter((t) => t.draftedCount < MIN_DRAFTED_ROSTER_SIZE);
-
-  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
-  return { ok: true as const, underStrengthTeams };
-}
-
-/** Creates a not_scheduled session for a newly created fantasy-draft league. Called from
- * setup.service.ts (createLeagueForServer / createUnclaimedLeague) right after the baseline
- * pool is applied. Idempotent — safe to call again if the league somehow has one already. */
+/** Creates a not_started session for a newly created league. Called from setup.service.ts
+ * right after the league is created. Idempotent -- safe to call again if one already exists. */
 export async function ensureFantasyDraftSession(leagueId: string): Promise<void> {
   const existing = await supabase.from("rec_fantasy_draft_sessions").select("id").eq("league_id", leagueId).limit(1).maybeSingle();
   if (existing.error) throw new ApiError(500, "We couldn't check for an existing draft session. Please try again.", existing.error);
   if (existing.data) return;
   const { error } = await supabase.from("rec_fantasy_draft_sessions").insert({
     league_id: leagueId,
-    status: "not_scheduled",
+    status: "not_started",
   });
-  if (error) throw new ApiError(500, "We couldn't create the fantasy draft session. Please try again.", error);
+  if (error) throw new ApiError(500, "We couldn't create the draft session. Please try again.", error);
+}
+
+export async function startFantasyDraft(guildId: string, discordId: string, input: { draftType: FantasyDraftType; pickTimerSeconds: number | null }) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const userId = await resolveRecUserId(discordId);
+  let session = await getActiveSession(leagueId);
+  const totalRounds = input.draftType === "offseason" ? OFFSEASON_TOTAL_ROUNDS : null;
+
+  if (!session || session.status === "concluded") {
+    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
+      league_id: leagueId,
+      status: "live",
+      draft_type: input.draftType,
+      total_rounds: totalRounds,
+      pick_timer_seconds: input.pickTimerSeconds,
+      current_round: 1,
+      current_pick_in_round: 1,
+      commenced_by_user_id: userId,
+      commenced_at: new Date().toISOString(),
+    }).select("*").single();
+    if (error) throw new ApiError(500, "We couldn't start the draft. Please try again.", error);
+    session = data as SessionRow;
+  } else {
+    requireSessionStatus(session, ["not_started"]);
+    const { data, error } = await supabase.from("rec_fantasy_draft_sessions").update({
+      status: "live",
+      draft_type: input.draftType,
+      total_rounds: totalRounds,
+      pick_timer_seconds: input.pickTimerSeconds,
+      current_round: 1,
+      current_pick_in_round: 1,
+      warning_sent: false,
+      commenced_by_user_id: userId,
+      commenced_at: new Date().toISOString(),
+      concluded_at: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", session.id).select("*").single();
+    if (error) throw new ApiError(500, "We couldn't start the draft. Please try again.", error);
+    session = data as SessionRow;
+  }
+
+  const pickOrder = await listPickOrder(session.id);
+  if (pickOrder.length) {
+    const turnStartedAt = session.pick_timer_seconds ? new Date().toISOString() : null;
+    await supabase.from("rec_fantasy_draft_sessions").update({ turn_started_at: turnStartedAt, updated_at: new Date().toISOString() }).eq("id", session.id);
+    session.turn_started_at = turnStartedAt;
+  }
+
+  await setLeagueFantasyDraftStatus(leagueId, "live");
+
+  const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
+  const draftLabel = input.draftType === "offseason" ? "OFFSEASON DRAFT" : "FANTASY DRAFT";
+  if (announcementsChannelId) {
+    await bestEffort("discord.draft_start_announcement", () => postDiscordChannelMessage(announcementsChannelId, {
+      content: "@everyone",
+      embeds: [{
+        title: `${draftLabel} IS LIVE`,
+        color: ON_THE_CLOCK_COLOR,
+        description: input.draftType === "offseason"
+          ? "The offseason draft has started -- 7 rounds, standard order."
+          : "The fantasy draft has started. Follow along in the league hub.",
+      }],
+      allowed_mentions: { parse: ["everyone"] },
+    }), { leagueId, entityId: session.id });
+  }
+  const members = await supabase.from("rec_league_memberships").select("user_id").eq("league_id", leagueId);
+  const userIds = [...new Set((members.data ?? []).map((m: any) => m.user_id).filter(Boolean))] as string[];
+  if (userIds.length) {
+    bestEffortVoid("push.fantasy_draft_live", sendPushToUsers(userIds, { title: `${draftLabel} is live!`, body: "The draft has started." }), { leagueId });
+  }
+  if (pickOrder.length) {
+    const teams = await listTeams(leagueId);
+    await bestEffort("discord.draft_on_clock_after_start", () => postOnTheClockAnnouncement(leagueId, teams, session as SessionRow, pickOrder), { leagueId, entityId: session.id });
+  }
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const };
+}
+
+export async function endFantasyDraft(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+
+  await supabase.from("rec_fantasy_draft_sessions").update({
+    status: "concluded",
+    concluded_at: new Date().toISOString(),
+    turn_started_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+
+  await setLeagueFantasyDraftStatus(leagueId, "concluded");
+
+  const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
+  if (announcementsChannelId) {
+    await bestEffort("discord.draft_end_announcement", () => postDiscordChannelMessage(announcementsChannelId, {
+      content: "@everyone",
+      embeds: [{ title: "DRAFT COMPLETE", color: ON_THE_CLOCK_COLOR, description: "The draft has concluded." }],
+      allowed_mentions: { parse: ["everyone"] },
+    }), { leagueId, entityId: session.id });
+  }
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const };
+}
+
+export async function setFantasyDraftPickOrder(guildId: string, orderMode: FantasyDraftOrderMode, picks: PickOrderEntry[]) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["not_started", "live"]);
+  if (session.draft_type === "offseason" && orderMode !== "standard") {
+    throw new ApiError(400, "Offseason drafts always use standard order -- snake isn't available.");
+  }
+
+  const teams = await listTeams(leagueId);
+  const teamCount = teams.length;
+  if (picks.length !== teamCount) throw new ApiError(400, `Pick order must assign exactly ${teamCount} teams.`);
+  const pickInRounds = picks.map((p) => p.pickInRound);
+  if (new Set(pickInRounds).size !== teamCount || Math.min(...pickInRounds) < 1 || Math.max(...pickInRounds) > teamCount) {
+    throw new ApiError(400, `Pick order must cover slots 1-${teamCount} exactly once.`);
+  }
+  const teamIds = picks.map((p) => p.teamId);
+  if (new Set(teamIds).size !== teamCount) throw new ApiError(400, "Each team can occupy only one pick slot.");
+  const leagueTeamIds = new Set(teams.map((t) => t.id));
+  if (!teamIds.every((id) => leagueTeamIds.has(id))) throw new ApiError(400, "Every pick-order team must belong to this league.");
+
+  const { error: deleteError } = await supabase.from("rec_fantasy_draft_pick_order").delete().eq("session_id", session.id);
+  if (deleteError) throw new ApiError(500, "We couldn't replace the pick order. Please try again.", deleteError);
+  const { error } = await supabase.from("rec_fantasy_draft_pick_order").insert(
+    picks.map((p) => ({ session_id: session.id, pick_in_round: p.pickInRound, team_id: p.teamId })),
+  );
+  if (error) throw new ApiError(500, "We couldn't save the pick order. Please try again.", error);
+
+  const wasFirstTimeSet = session.turn_started_at == null && session.status === "live" && session.pick_timer_seconds != null;
+  const turnStartedAt = session.status === "live" && session.pick_timer_seconds ? new Date().toISOString() : session.turn_started_at;
+  const { error: updateError } = await supabase.from("rec_fantasy_draft_sessions").update({
+    order_mode: orderMode,
+    turn_started_at: turnStartedAt,
+    warning_sent: false,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+  if (updateError) throw new ApiError(500, "We couldn't save the pick-order mode. Please try again.", updateError);
+
+  if (session.status === "live") {
+    const updatedSession: SessionRow = { ...session, order_mode: orderMode, turn_started_at: turnStartedAt };
+    const pickOrder = picks;
+    await bestEffort("discord.draft_on_clock_after_order_set", () => postOnTheClockAnnouncement(leagueId, teams, updatedSession, pickOrder), { leagueId, entityId: session.id });
+  }
+  void wasFirstTimeSet;
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, orderMode, count: teamCount };
+}
+
+export async function setFantasyDraftTimer(guildId: string, pickTimerSeconds: number | null) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["not_started", "live"]);
+
+  const turnStartedAt = session.status === "live" && pickTimerSeconds ? new Date().toISOString() : null;
+  const { error } = await supabase.from("rec_fantasy_draft_sessions").update({
+    pick_timer_seconds: pickTimerSeconds,
+    turn_started_at: turnStartedAt,
+    warning_sent: false,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+  if (error) throw new ApiError(500, "We couldn't update the pick timer. Please try again.", error);
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, pickTimerSeconds };
+}
+
+export async function skipFantasyDraftPick(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const pickOrder = await listPickOrder(session.id);
+  if (!pickOrder.length) throw new ApiError(409, "Set the pick order before skipping picks.");
+
+  const next = advancePick(session, pickOrder.length);
+  if (!next) {
+    throw new ApiError(409, "This is the last pick of the draft -- use End Draft to finish it.");
+  }
+  await advanceAndAnnounce(leagueId, session, next);
+  return { ok: true as const, round: next.round, pickInRound: next.pickInRound };
+}
+
+export async function skipFantasyDraftToSpecificPick(guildId: string, targetRound: number, targetPickInRound: number) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  const session = await requireActiveSession(leagueId);
+  requireSessionStatus(session, ["live"]);
+  const pickOrder = await listPickOrder(session.id);
+  if (!pickOrder.length) throw new ApiError(409, "Set the pick order before skipping picks.");
+  if (!Number.isInteger(targetRound) || !Number.isInteger(targetPickInRound) || targetPickInRound < 1 || targetPickInRound > pickOrder.length) {
+    throw new ApiError(400, "Choose a valid draft pick.");
+  }
+  if (session.total_rounds != null && targetRound > session.total_rounds) {
+    throw new ApiError(400, `This draft only has ${session.total_rounds} rounds.`);
+  }
+  const currentOverall = (session.current_round - 1) * pickOrder.length + session.current_pick_in_round;
+  const targetOverall = (targetRound - 1) * pickOrder.length + targetPickInRound;
+  if (targetOverall <= currentOverall) throw new ApiError(400, "Choose a pick later than the current one.");
+
+  await advanceAndAnnounce(leagueId, session, { round: targetRound, pickInRound: targetPickInRound });
+  return { ok: true as const, round: targetRound, pickInRound: targetPickInRound };
+}
+
+/** Polled every few seconds from apps/api/src/index.ts while any league has a live draft with
+ * a timer set. Cheap when idle (a single indexed filter query) -- only fantasy/offseason
+ * drafts that are both live and timed even show up in the query. */
+export async function sweepFantasyDraftTimers(): Promise<void> {
+  const { data, error } = await supabase
+    .from("rec_fantasy_draft_sessions")
+    .select("*")
+    .eq("status", "live")
+    .not("pick_timer_seconds", "is", null)
+    .not("turn_started_at", "is", null);
+  if (error || !data?.length) return;
+
+  for (const row of data as SessionRow[]) {
+    const session = row;
+    const elapsedMs = Date.now() - new Date(session.turn_started_at as string).getTime();
+    const timerMs = (session.pick_timer_seconds as number) * 1000;
+    const remainingMs = timerMs - elapsedMs;
+    try {
+      if (remainingMs <= 0) {
+        const pickOrder = await listPickOrder(session.id);
+        if (!pickOrder.length) continue;
+        const next = advancePick(session, pickOrder.length);
+        if (!next) continue; // out of rounds (offseason) -- commissioner must End Draft manually
+        await advanceAndAnnounce(session.league_id, session, next);
+      } else if (remainingMs <= WARNING_THRESHOLD_MS && !session.warning_sent) {
+        const marked = await supabase.from("rec_fantasy_draft_sessions").update({ warning_sent: true, updated_at: new Date().toISOString() })
+          .eq("id", session.id).eq("warning_sent", false).select("id").maybeSingle();
+        if (!marked.data) continue; // another tick already claimed this warning
+        const [teams, pickOrder] = await Promise.all([listTeams(session.league_id), listPickOrder(session.id)]);
+        await postFifteenSecondWarning(session.league_id, teams, session, pickOrder);
+      }
+    } catch (sweepError) {
+      console.error(`[ERROR] Fantasy draft timer sweep failed for session ${session.id} (non-fatal):`, sweepError);
+    }
+  }
 }

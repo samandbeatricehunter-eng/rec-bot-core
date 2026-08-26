@@ -1123,23 +1123,26 @@ export type MentionableCommissioner = { discordId: string; displayName: string }
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
 export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };
 
-// Fantasy draft (Madden league draft tracker)
-export type FantasyDraftStatus = "not_scheduled" | "scheduled" | "live" | "wrap_up" | "concluded";
+// Fantasy/offseason draft: a pure turn-order/pick-clock coordinator for the real in-Madden
+// draft. REC doesn't track which player each team picks -- see fantasy-draft.service.ts.
+export type FantasyDraftStatus = "not_started" | "live" | "concluded";
 export type FantasyDraftOrderMode = "standard" | "snake";
+export type FantasyDraftType = "fantasy" | "offseason";
 
 export type FantasyDraftSession = {
   id: string;
   leagueId: string;
   status: FantasyDraftStatus;
+  draftType: FantasyDraftType;
   orderMode: FantasyDraftOrderMode | null;
-  scheduledAt: string | null;
   currentRound: number;
   currentPickInRound: number;
+  totalRounds: number | null;
+  pickTimerSeconds: number | null;
+  turnStartedAt: string | null;
   commencedByUserId: string | null;
   commencedAt: string | null;
   concludedAt: string | null;
-  checkinMessageChannelId: string | null;
-  checkinMessageId: string | null;
 };
 
 export type FantasyDraftTeam = {
@@ -1149,69 +1152,13 @@ export type FantasyDraftTeam = {
   abbreviation: string | null;
 };
 
-export type FantasyDraftPoolPlayer = {
-  id: string;
-  name: string;
-  position: string;
-  overallRating: number | null;
-  jerseyNumber: number | null;
-  archetype: string | null;
-  devTrait: string | null;
-  photoUrl: string | null;
-  teamId: string | null;
-  isDrafted: boolean;
-  draftedByTeamId: string | null;
-  isDefaultPlayer: boolean;
-  attributes: Record<string, number | null>;
-  abilities: Array<{ name: string; description: string }> | null;
-  heightInches: number | null;
-  weightLbs: number | null;
-  birthYear: number | null;
-  college: string | null;
-  yearsPro: number | null;
-};
-
-export type FantasyDraftPickRequest = {
-  id: string;
-  teamId: string;
-  teamName: string;
-  playerId: string;
-  requestedByUserId: string;
-  createdAt: string;
-};
-
-export type FantasyDraftPick = {
-  id: string;
-  round: number;
-  pickInRound: number;
-  overallPickNumber: number;
-  teamId: string;
-  teamName: string;
-  playerId: string;
-  isWrapupPick: boolean;
-  loggedAt: string;
-};
-
-export type FantasyDraftCheckin = {
-  teamId: string;
-  teamName: string;
-  checkedIn: boolean;
-  isCpu: boolean;
-  ownerUserId: string | null;
-  discordUsername: string | null;
-  discordGlobalName: string | null;
-};
+export type FantasyDraftSkipChoice = { round: number; pickInRound: number; teamId: string; teamName: string };
 
 export type FantasyDraftState = {
   session: FantasyDraftSession | null;
   teams: FantasyDraftTeam[];
   pickOrder: Array<{ pickInRound: number; teamId: string }>;
   onTheClockTeamId: string | null;
-  onTheClockCheckedIn: boolean;
-  checkins: FantasyDraftCheckin[];
-  pool: FantasyDraftPoolPlayer[];
-  picks: FantasyDraftPick[];
-  pickRequests: FantasyDraftPickRequest[];
-  myBoard: string[];
+  skipChoices: FantasyDraftSkipChoice[];
   caller: { isCommissioner: boolean; myTeamId: string | null };
 };
