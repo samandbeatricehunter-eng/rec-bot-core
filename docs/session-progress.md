@@ -268,7 +268,51 @@ priority than the dead-code removal (which had real correctness value, since dea
 theoretically risks selector collisions) and higher risk of import-order regressions for
 comparatively little benefit. Left for a future pass if wanted.
 
-### Phase 5 (polling audit) — NOT STARTED
+### Phase 5 (polling audit) — DONE
+
+Inventoried every `setInterval` across all four apps (`grep -rn "setInterval(" apps/*/src`)
+and read each one's actual interval value and gating. Most were already well-designed —
+`SiteTicker.tsx` (60s/5min/30s, all `document.visibilityState === "visible"`-gated),
+`site-activity-context.tsx` (2min, gated + focus-triggered refresh), `GoingLiveModal.tsx` and
+`SiteUpdateNotice.tsx`/`Inbox.tsx` (all gated, just via `document.hidden` instead of
+`visibilityState`, which is why an earlier grep pass for `visibilityState` alone missed them —
+double-checked with both patterns before concluding anything was actually ungated).
+`chat-store.ts`'s 10-minute per-channel poll is a realtime-websocket fallback, already scoped
+to only run while a channel view is actually mounted (ref-counted activate/deactivate). Local
+carousel/clock timers (`HubHome.tsx`'s headline/conference/wager carousels,
+`FantasyDraftCard.tsx`'s 1s countdown tick) do pure local state updates with no network call —
+not worth touching. `CommandCenterDashboard.tsx`'s 600ms advance-progress poll and
+`TournamentLotteryPanel.tsx`'s 1-5s live-draw polls are both short-lived and scoped to an
+active user-initiated action/view, not persistent background polling — expected, matches the
+plan's own note.
+
+**Two real fixes**, both previously-persistent, ungated network polls:
+- `ImportStatusDrawer.tsx` — was polling every 2 seconds, unconditionally, forever, for every
+  eligible commissioner with any page open in a Madden import-mode league, with no visibility
+  gating and no backoff even once it confirmed nothing was running. Now polls every 2s only
+  while an import is actively running, backs off to 15s when idle, and skips entirely while
+  the tab is hidden (rescheduling itself via `setTimeout` instead of a fixed `setInterval` so
+  the cadence can react to the poll's own result).
+- `UniversalChatDrawer.tsx` — unconditionally mounted on every league page for every signed-in
+  user (per its own doc comment), polling `listChatChannels` every 15s with zero visibility
+  gating. Added the same `document.visibilityState === "visible"` gate (interval callback +
+  a `visibilitychange` listener for an immediate refresh on refocus) used everywhere else in
+  the codebase.
+
+Typechecked clean (`@rec/web`).
+
+### Combined plan status: ALL FIVE PHASES NOW COMPLETE (as of 2026-08-26)
+
+Phase 1 (nav rebuild + full audit), Phase 2 (data integrity — including the critical unsafe
+stale-league-cron find), Phase 3 (DB cleanup), Phase 4 (dead CSS/asset removal; file
+consolidation intentionally deferred, see above), Phase 5 (polling audit). Everything is
+committed and pushed to `main`. The only genuinely open items left anywhere in this plan are
+the ones explicitly called out as deferred/optional above:
+- Running `apps/api/scripts/rebuild-global-records-for-orphaned-stats.ts` once
+  `REC_DATABASE_URL` has a working password (Phase 2b).
+- The hub CSS file-consolidation reorg (Phase 4, cosmetic/organizational only).
+- Live click-testing of the Phase 1 nav with a real signed-in session (this environment has no
+  working local auth bypass).
 
 See the plan file (or ask the user for its contents if you can't reach that path) for the full
 per-phase detail — table drop candidates, the CSS-file-consolidation list, and the polling

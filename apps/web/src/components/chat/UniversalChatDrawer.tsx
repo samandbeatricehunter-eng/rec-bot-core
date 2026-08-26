@@ -46,8 +46,20 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
 
   useEffect(() => {
     loadChannels();
-    const interval = setInterval(loadChannels, CHANNEL_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // This drawer is unconditionally mounted on every league page for every signed-in user
+    // (see the component doc comment above), so an ungated interval here polled every open tab
+    // for every user every 15s forever, including tabs sitting hidden/backgrounded.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") loadChannels();
+    }, CHANNEL_POLL_INTERVAL_MS);
+    function onVisible() {
+      if (document.visibilityState === "visible") loadChannels();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [loadChannels]);
 
   useEffect(() => {

@@ -8,7 +8,13 @@ import { useImportStatus } from "../../lib/import-status-context.js";
 import { summarizeImportProgress } from "../../lib/import-progress.js";
 import { ImportProgressLines } from "./ImportProgressLines.js";
 
-const POLL_MS = 2000;
+// 2s while an import is actively running (progress lines update fast enough that a
+// commissioner watching it needs that cadence); backs off to 15s otherwise, since imports
+// don't start spontaneously -- polling every 2s indefinitely regardless of whether anything is
+// running, and regardless of tab visibility, was needlessly hammering the API for every
+// eligible commissioner with any page open in the league.
+const POLL_MS_RUNNING = 2000;
+const POLL_MS_IDLE = 15_000;
 
 export function ImportStatusDrawer() {
   const { guildId } = useReadyAuth();
@@ -30,22 +36,30 @@ export function ImportStatusDrawer() {
   useEffect(() => {
     if (!eligible || !guildId || !leagueId) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
     async function poll() {
+      if (cancelled) return;
+      if (document.visibilityState !== "visible") {
+        timer = setTimeout(poll, POLL_MS_IDLE);
+        return;
+      }
+      let nextDelay = POLL_MS_IDLE;
       try {
         const progress = await recApi.getImportProgress({ guildId, leagueId: leagueId! });
         if (cancelled) return;
         setEvents(progress.events);
         setRunning(progress.running);
         setSource(progress.source ?? null);
+        nextDelay = progress.running ? POLL_MS_RUNNING : POLL_MS_IDLE;
       } catch {
         /* drawer is best-effort */
       }
+      if (!cancelled) timer = setTimeout(poll, nextDelay);
     }
     void poll();
-    const timer = setInterval(() => void poll(), POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [eligible, guildId, leagueId]);
 
