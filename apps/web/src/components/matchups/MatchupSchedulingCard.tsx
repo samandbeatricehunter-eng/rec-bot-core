@@ -81,8 +81,7 @@ export function MatchupSchedulingCard({ guildId, gameId, isCommissioner }: { gui
         <>
           <p>Kickoff: <strong>{fmt(snapshot.scheduledFor)}</strong></p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.checkInScheduling({ guildId, gameId }), "You're checked in.")}>I'm Ready</Button>
-            <Button variant="secondary" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameStarted({ guildId, gameId }), "Game marked started.")}>Game Started</Button>
+            <Button variant="primary" size="compact" disabled={busy} onClick={() => void run(() => recApi.markGameStarted({ guildId, gameId }), "Game marked started.")}>Game Started</Button>
             <Button variant="ghost" size="compact" disabled={busy} onClick={() => void run(() => recApi.requestSchedulingReschedule({ guildId, gameId }), "Reschedule requested.")}>Reschedule</Button>
           </div>
         </>

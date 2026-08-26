@@ -72,11 +72,12 @@ setInterval(() => {
   sweepFantasyDraftTimers().catch((error) => app.log.error({ err: error }, "Fantasy draft timer sweep failed"));
 }, 5_000).unref();
 
-// REC Game Scheduling System: contact/AutoPilot/game-time/check-in reminder sweep — same
-// restart-safe polled pattern as the fantasy-draft reminders above.
+// REC Game Scheduling System: 12h-no-attempt / 30m-to-kickoff / kickoff-prompt reminder sweep --
+// 5 minutes is plenty of precision for these three thresholds (availability nagging moved to be
+// advance-triggered instead of polled -- see league-week.service.ts).
 setInterval(() => {
   runSchedulingReminderSweep().catch((error) => app.log.error({ err: error }, "Scheduling reminder sweep failed"));
-}, 60_000).unref();
+}, 5 * 60_000).unref();
 
 setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));

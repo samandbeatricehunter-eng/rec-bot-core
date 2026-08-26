@@ -48,6 +48,10 @@ export const commands = [
     .setName("rules")
     .setDescription("Browse this league's rules.")
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("commishtools")
+    .setDescription("Commissioner tools: Force Win, Fair Sim, AutoPilot, Suspend, Boot, Reset Scheduling, Game Day Audit.")
+    .toJSON(),
 ];
 
 function discordRest() {

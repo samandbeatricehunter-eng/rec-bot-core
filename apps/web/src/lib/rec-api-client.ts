@@ -507,11 +507,16 @@ export const recApi = {
       profile: { timezone: string | null; timezone_source: string; show_detailed_availability: boolean };
       windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }>;
       overrides: Array<{ id: string; scope: string; startsAt: string; endsAt: string; unavailable: boolean; timezoneOverride: string | null; gameId: string | null }>;
+      dayMarks: number[];
     }>("/v1/scheduling/profile", { method: "POST", body: JSON.stringify({ guildId }) }),
   setSchedulingTimezone: (input: { guildId: string; timezone: string; source: "site_detected" | "site_manual" }) =>
     recApiFetch<{ timezone: string }>("/v1/scheduling/timezone", { method: "POST", body: JSON.stringify(input) }),
   setSchedulingWindows: (input: { guildId: string; leagueScoped: boolean; weekday: number; windows: Array<{ startMinute: number; endMinute: number }> }) =>
     recApiFetch<{ windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }> }>("/v1/scheduling/windows", { method: "POST", body: JSON.stringify(input) }),
+  setAvailabilityDayUnavailable: (input: { guildId: string; leagueScoped: boolean; weekday: number }) =>
+    recApiFetch<{ markedUnavailable: true }>("/v1/scheduling/day-unavailable/set", { method: "POST", body: JSON.stringify(input) }),
+  clearAvailabilityDayUnavailable: (input: { guildId: string; leagueScoped: boolean; weekday: number }) =>
+    recApiFetch<{ markedUnavailable: false }>("/v1/scheduling/day-unavailable/clear", { method: "POST", body: JSON.stringify(input) }),
   setSchedulingOverride: (input: { guildId: string; scope: "week" | "day" | "matchup"; localDate: string; timezone: string; startMinute?: number; endMinute?: number; unavailable: boolean; gameId?: string | null }) =>
     recApiFetch<{ id: string; scope: string; startsAt: string; endsAt: string; unavailable: boolean; timezoneOverride: string | null; gameId: string | null }>("/v1/scheduling/overrides", { method: "POST", body: JSON.stringify(input) }),
   deleteSchedulingOverride: (input: { guildId: string; overrideId: string }) =>
@@ -531,12 +536,8 @@ export const recApi = {
     recApiFetch<any>("/v1/scheduling/matchup/respond-to-proposal", { method: "POST", body: JSON.stringify(input) }),
   requestSchedulingReschedule: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ status: string }>("/v1/scheduling/matchup/request-reschedule", { method: "POST", body: JSON.stringify(input) }),
-  checkInScheduling: (input: { guildId: string; gameId: string }) =>
-    recApiFetch<any>("/v1/scheduling/matchup/checkin", { method: "POST", body: JSON.stringify(input) }),
   markGameStarted: (input: { guildId: string; gameId: string }) =>
     recApiFetch<any>("/v1/scheduling/matchup/game-started", { method: "POST", body: JSON.stringify(input) }),
-  requestSchedulingForceWin: (input: { guildId: string; gameId: string }) =>
-    recApiFetch<{ flagged: true }>("/v1/scheduling/matchup/request-force-win", { method: "POST", body: JSON.stringify(input) }),
   getSchedulingCantMakeGameOptions: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ canGrantForceWin: boolean; canRequestFairSim: boolean }>("/v1/scheduling/matchup/cant-make-game-options", { method: "POST", body: JSON.stringify(input) }),
   markSchedulingCantMakeGame: (input: { guildId: string; gameId: string; choice: "grant_fw" | "request_fs" }) =>

@@ -154,9 +154,16 @@ export async function awardHeismanWinner(input: {
     const linked = await client.query(`select supabase_auth_user_id from rec_users where id=$1`, [winnerUserId]);
     const isDiscordOnly = !linked.rows[0]?.supabase_auth_user_id;
 
+    // Repeated failure to set scheduling availability holds payouts too (see
+    // availability-compliance.service.ts) -- this path duplicates economy-backlog.ts's
+    // creditOrBacklog logic rather than calling it (same existing pattern as the Discord-only
+    // check above), so it needs the same condition mirrored here.
+    const compliance = await client.query(`select warning_count from rec_availability_compliance where user_id=$1 and league_id=$2`, [winnerUserId, context.leagueId]);
+    const payoutsHeldForAvailability = Number(compliance.rows[0]?.warning_count ?? 0) > 2;
+
     // Same connection/transaction as the race-state write below, so the coin payout (or its
     // backlog entry) and closing the race commit atomically — never one without the other.
-    if (isDiscordOnly) {
+    if (isDiscordOnly || payoutsHeldForAvailability) {
       await client.query(
         `insert into rec_economy_payout_backlog (league_id, season_number, user_id, amount, description, transaction_type, source, source_reference)
          values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,

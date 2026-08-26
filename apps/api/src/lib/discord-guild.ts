@@ -349,6 +349,7 @@ export type DiscordChannelMessage = {
   id: string;
   author?: { id?: string; bot?: boolean };
   content?: string;
+  timestamp?: string;
   attachments?: Array<{ filename?: string }>;
   embeds?: Array<{ title?: string | null; image?: { url?: string } | null }>;
 };

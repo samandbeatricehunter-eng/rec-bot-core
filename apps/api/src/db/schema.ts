@@ -1348,13 +1348,6 @@ export const recUserSuspensions = pgTable("rec_user_suspensions", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export const recGameKickoffCheckins = pgTable("rec_game_kickoff_checkins", {
-  id: uuid("id").primaryKey(),
-  gameId: uuid("game_id").notNull().references(() => recGames.id),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  checkedInAt: timestamp("checked_in_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recSchedulingRemindersSent = pgTable("rec_scheduling_reminders_sent", {
   id: uuid("id").primaryKey(),
   gameId: uuid("game_id").references(() => recGames.id),

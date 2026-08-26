@@ -21,11 +21,6 @@ export const GAME_SCHEDULING_CUSTOM_IDS = {
   // opponent never sees the tag/buttons at all.
   proposalAccept: "r:s:a:",
   proposalCounter: "r:s:c:",
-  checkin: "rec:gamesched:checkin:",
-  fwRequest: "rec:gamesched:fwrequest:",
-  fwRequestFailureToSchedule: "rec:gamesched:fwfts:",
-  autopilot: "rec:gamesched:autopilot:",
-  staleProposalAutopilot: "rec:gamesched:staleautopilot:",
   cantMakeAcceptFs: "rec:gamesched:cantmake:accept_fs:",
   cantMakeAutopilot: "rec:gamesched:cantmake:autopilot:",
   cantMakeChoiceGrantFw: "rec:gamesched:cantmakechoice:grant_fw:",
@@ -244,66 +239,6 @@ export async function handleCantMakeResponse(interaction: ButtonInteraction, cho
       content: choice === "accept_fs" ? "Fair Sim accepted for this game." : "AutoPilot requested — a commissioner has been notified.",
       components: [],
     });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleCheckin(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.checkin, interaction.customId);
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.checkInScheduling({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "✅ You're checked in." });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleFwRequest(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.fwRequest, interaction.customId);
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.requestSchedulingForceWin({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "Force Win requested — flagged for the commissioner in Advance Readiness." });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleFwRequestFailureToSchedule(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.fwRequestFailureToSchedule, interaction.customId);
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.requestFailureToScheduleForceWin({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "Force Win requested for failure to schedule — flagged for the commissioner in Advance Readiness." });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleAutopilotRequest(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.autopilot, interaction.customId);
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.submitMatchupHelpRequest({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, kind: "autopilot", message: "Requested via the scheduling reminder's Request AutoPilot button." });
-    await interaction.editReply({ content: "AutoPilot requested — a commissioner has been notified." });
-  } catch (error) {
-    await replyErr(interaction, error);
-  }
-}
-
-export async function handleStaleProposalAutopilotRequest(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const gameId = idAfter(GAME_SCHEDULING_CUSTOM_IDS.staleProposalAutopilot, interaction.customId);
-  try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await recApi.requestStaleProposalAutopilot({ guildId: interaction.guildId, discordId: interaction.user.id, gameId });
-    await interaction.editReply({ content: "AutoPilot requested — a commissioner has been notified." });
   } catch (error) {
     await replyErr(interaction, error);
   }

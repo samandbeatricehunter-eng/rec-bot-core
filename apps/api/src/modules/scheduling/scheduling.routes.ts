@@ -4,13 +4,13 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
-  createOverride, deleteOverride, getAvailabilityProfileByDiscordId, getEffectiveAvailability,
-  getRecurringWindows, listOverrides, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
+  clearAvailabilityDayUnavailable, createOverride, deleteOverride, getAvailabilityDayMarks, getAvailabilityProfileByDiscordId, getEffectiveAvailability,
+  getRecurringWindows, listOverrides, markAvailabilityDayUnavailable, setAvailabilityVisibility, setRecurringWindowsForDay, setTimezone,
 } from "./availability.service.js";
 import {
-  bootUser, checkIn, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, grantFairSimCommissioner, grantForceWinCommissioner,
+  bootUser, getCantMakeGameOptions, getMatchupSchedulingSnapshot, getSchedulingSuggestions, grantAutoPilotDirect, grantFairSimCommissioner, grantForceWinCommissioner,
   listWeekSchedulingStatuses, markCantMakeGame, markGameStarted, markResponded, proposeTime,
-  refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestFailureToScheduleForceWin, requestForceWin, requestReschedule, requestStaleProposalAutopilot, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
+  refreshSchedulingPanelsForUser, reportDashing, reportRuleViolation, requestReschedule, resetScheduling, resolveAutopilotRequest, resolveCantMakeGame,
   resolveDashingReport, resolveViolationReport, respondToProposal, suspendUser,
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
@@ -18,6 +18,7 @@ import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
 import { syncAvailabilityBoard } from "./availability-board.service.js";
 import { markGameOver } from "./game-announcement.service.js";
 import { getReadyToAdvanceStatus, reportOwnGameScore, requestCpuForceWin } from "./ready-to-advance.service.js";
+import { runGameDayAudit } from "./game-day-audit.service.js";
 
 function resyncBoard(guildId: string) {
   syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
@@ -105,7 +106,34 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const context = await getCurrentLeagueContext(body.guildId);
       const windows = await getRecurringWindows(userId, context.leagueId);
       const overrides = await listOverrides({ userId, leagueId: context.leagueId });
-      return reply.send({ profile, windows, overrides });
+      const dayMarks = [...(await getAvailabilityDayMarks(userId, context.leagueId))];
+      return reply.send({ profile, windows, overrides, dayMarks });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/day-unavailable/set", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), leagueScoped: z.boolean().default(false), weekday: z.number().int().min(0).max(6) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
+      const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
+      const result = await markAvailabilityDayUnavailable({ userId, leagueId, weekday: body.weekday });
+      resyncBoard(body.guildId);
+      refreshPanels(userId);
+      return reply.send(result);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/day-unavailable/clear", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), leagueScoped: z.boolean().default(false), weekday: z.number().int().min(0).max(6) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
+      const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
+      const result = await clearAvailabilityDayUnavailable({ userId, leagueId, weekday: body.weekday });
+      resyncBoard(body.guildId);
+      refreshPanels(userId);
+      return reply.send(result);
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -217,43 +245,11 @@ export async function schedulingRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  app.post("/v1/scheduling/matchup/checkin", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await checkIn({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
   app.post("/v1/scheduling/matchup/game-started", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       return reply.send(await markGameStarted({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/scheduling/matchup/request-force-win", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await requestForceWin({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/scheduling/matchup/request-force-win-failure-to-schedule", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await requestFailureToScheduleForceWin({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/scheduling/matchup/request-autopilot-stale-proposal", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid() }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
-      return reply.send(await requestStaleProposalAutopilot({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId) }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -338,6 +334,14 @@ export async function schedulingRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  app.post("/v1/scheduling/matchup/commish/grant-autopilot", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), side: z.enum(["home", "away"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await grantAutoPilotDirect({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), side: body.side }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/scheduling/matchup/commish/suspend-user", async (request, reply) => {
     try {
       const body = z.object({
@@ -354,6 +358,15 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().optional(), gameId: z.string().uuid(), side: z.enum(["home", "away"]), reason: z.string().min(1).max(500) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await bootUser({ gameId: body.gameId, discordId: actorDiscordId(auth, body.discordId), side: body.side, reason: body.reason }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/scheduling/matchup/commish/game-day-audit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      const context = await getCurrentLeagueContext(body.guildId);
+      return reply.send({ entries: await runGameDayAudit(context.leagueId) });
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -9,20 +9,18 @@ export async function getSchedulingPayoutMultiplier(input: {
   awayUserId: string | null | undefined;
 }): Promise<1 | 2> {
   if (!input.homeUserId || !input.awayUserId) return 1;
-  const [scheduling, checkins, markedOver] = await Promise.all([
+  const [scheduling, markedOver] = await Promise.all([
     supabase.from("rec_game_scheduling").select("confirmed_at").eq("game_id", input.gameId).maybeSingle(),
-    supabase.from("rec_game_kickoff_checkins").select("user_id").eq("game_id", input.gameId),
     supabase.from("rec_game_scheduling_events").select("id").eq("game_id", input.gameId).eq("event_type", "game_marked_over").limit(1).maybeSingle(),
   ]);
-  if (scheduling.error || checkins.error || markedOver.error) {
-    console.error("[ERROR] Failed to evaluate scheduling payout bonus (non-fatal):", scheduling.error ?? checkins.error ?? markedOver.error);
+  if (scheduling.error || markedOver.error) {
+    console.error("[ERROR] Failed to evaluate scheduling payout bonus (non-fatal):", scheduling.error ?? markedOver.error);
     return 1;
   }
   return qualifiesForSchedulingPayoutBonus({
     confirmedAt: scheduling.data?.confirmed_at,
     homeUserId: input.homeUserId,
     awayUserId: input.awayUserId,
-    checkedInUserIds: (checkins.data ?? []).map((row: any) => String(row.user_id)),
     markedOver: Boolean(markedOver.data),
   }) ? 2 : 1;
 }

@@ -10,10 +10,9 @@ import { getGameChannelByGameId } from "../game-channels/game-channels.service.j
 import { deleteDiscordComponentMessagesForGame, deleteTransientGameSchedulingMessages, kickDiscordGuildMember, postDiscordChannelMessage, editDiscordMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, isSiteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
 import { resolveTeamNick } from "../users/user-profile-stats.service.js";
-import { elapsedMsExcludingQuietHours, formatInstantInZone } from "../../lib/timezone.js";
+import { formatInstantInZone } from "../../lib/timezone.js";
 import { refreshMatchupsChannelForGame } from "./matchups-channel.service.js";
 import { releaseMemberTeamLinksOnLeave } from "../team-ownership/team-ownership.service.js";
-import { hasFailureToScheduleWaitElapsed } from "./scheduling-guardrails.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 
@@ -290,16 +289,6 @@ export async function requestReschedule(input: { gameId: string; discordId: stri
   return { status: "reschedule_requested" };
 }
 
-export async function checkIn(input: { gameId: string; discordId: string }) {
-  const game = await loadGame(input.gameId);
-  const userId = await userIdFromDiscordId(input.discordId);
-  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only the two coaches in this matchup can check in.");
-  const insert = await supabase.from("rec_game_kickoff_checkins").upsert({ game_id: input.gameId, user_id: userId, checked_in_at: new Date().toISOString() }, { onConflict: "game_id,user_id" }).select("*").single();
-  if (insert.error) throw new ApiError(500, "Failed to check you in.", insert.error);
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "checked_in" });
-  return insert.data;
-}
-
 // Flips a game live -- triggered automatically the first time either coach posts a stream
 // (discordId omitted, system call), or manually via the "Game Started" panel button (discordId
 // required, must be one of the two coaches). Idempotent: a second stream from the other coach,
@@ -351,60 +340,6 @@ export async function getActiveRuleKeys(leagueId: string): Promise<{ forceWin: R
     forceWin: sanitizeForceWinRuleKeys(isPostseason ? config.data?.force_win_rules_postseason : config.data?.force_win_rules_regular),
     fairSim: sanitizeFairSimRuleKeys(isPostseason ? config.data?.fair_sim_rules_postseason : config.data?.fair_sim_rules_regular),
   };
-}
-
-// FW is a manual-apply LABEL only (no code path here actually forces a win) -- files a
-// Request Help ticket the commissioner can act on, posts public evidence in the game channel,
-// and flags rec_game_scheduling.fw_flagged so Advance Readiness can badge the matchup.
-export async function requestForceWin(input: { gameId: string; discordId: string }) {
-  const game = await loadGame(input.gameId);
-  const userId = await userIdFromDiscordId(input.discordId);
-  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only a checked-in coach in this matchup can request a Force Win.");
-  const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
-  if (!opponentId) throw new ApiError(400, "This game has no opponent to request a Force Win against.");
-
-  const activeRules = (await getActiveRuleKeys(game.league_id)).forceWin;
-  if (!activeRules.includes("missed_window")) {
-    throw new ApiError(403, "Force Win for a missed kickoff window is not enabled for this league.");
-  }
-
-  const checkins = await supabase.from("rec_game_kickoff_checkins").select("user_id").eq("game_id", input.gameId);
-  if (checkins.error) throw new ApiError(500, "Failed to verify check-in status.", checkins.error);
-  const checkedInIds = new Set((checkins.data ?? []).map((r: any) => r.user_id));
-  if (!checkedInIds.has(userId)) throw new ApiError(403, "Check in for kickoff before requesting a Force Win.");
-  if (checkedInIds.has(opponentId)) throw new ApiError(409, "Your opponent already checked in — no Force Win to request.");
-
-  const scheduling = await supabase.from("rec_game_scheduling").select("*").eq("game_id", input.gameId).maybeSingle();
-  await supabase.from("rec_game_scheduling").update({
-    fw_flagged: true, fw_flagged_for_user_id: userId, fw_flagged_at: new Date().toISOString(),
-    attention_required: true, updated_at: new Date().toISOString(),
-  }).eq("game_id", input.gameId);
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested" });
-
-  const routes = await findServerRoutesForLeague(game.league_id);
-  const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
-  const league = await supabase.from("rec_leagues").select("owner_user_id").eq("id", game.league_id).maybeSingle();
-  const ticketTz = await resolveDisplayTimezone(league.data?.owner_user_id ?? null, scheduling.data?.proposed_by_user_id ?? userId);
-  await submitMatchupHelpRequest({
-    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
-    discordId: input.discordId,
-    gameId: input.gameId,
-    kind: "force_win",
-    message: `Opponent missed the confirmed kickoff (${scheduling.data?.scheduled_for ? formatInstantInZone(scheduling.data.scheduled_for, ticketTz) : "scheduled time"}). Checked-in coach is requesting a Force Win.`,
-  }).catch((err) => console.error("[ERROR] Failed to file the Force Win Request Help ticket (non-fatal):", err));
-
-  const channel = await getGameChannelByGameId(input.gameId);
-  if (channel?.discord_channel_id) {
-    const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
-    const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
-    await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `⚠️ **Force Win requested.** ${roleMention}${participants.requester} requested the Force Win against ${participants.recipient}, who missed the confirmed kickoff — flagged in Advance Readiness for review.`,
-      allowed_mentions: { roles: commissionerRoleId ? [commissionerRoleId] : [], users: participants.discordIds },
-    }).catch(() => undefined);
-  }
-  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
-  await refreshMatchupsChannelForGame(input.gameId);
-  return { flagged: true };
 }
 
 // Resolves which zone to *display* a time in for the opponent: their own set timezone if
@@ -693,64 +628,6 @@ export async function resolveAutopilotRequest(input: { gameId: string; discordId
   return { decision: input.decision };
 }
 
-// Distinct from requestForceWin (which requires a check-in mismatch after a CONFIRMED kickoff) --
-// this is the "opponent never engaged with scheduling at all" justification surfaced by
-// reminder-poller.service.ts's runFailureToScheduleFwSurface after 8h of silence from one side.
-export async function requestFailureToScheduleForceWin(input: { gameId: string; discordId: string }) {
-  const game = await loadGame(input.gameId);
-  const userId = await userIdFromDiscordId(input.discordId);
-  if (userId !== game.home_user_id && userId !== game.away_user_id) throw new ApiError(403, "Only a coach in this matchup can request a Force Win.");
-  const opponentId = userId === game.home_user_id ? game.away_user_id : game.home_user_id;
-  if (!opponentId) throw new ApiError(400, "This game has no opponent to request a Force Win against.");
-
-  const active = await getActiveRuleKeys(game.league_id);
-  if (!active.forceWin.includes("failure_to_schedule")) throw new ApiError(403, "Force Win for failure to schedule is not enabled for this league.");
-
-  const [scheduling, pendingProposal, opponentProfile] = await Promise.all([
-    supabase.from("rec_game_scheduling").select("response_started_at,home_responded_at,away_responded_at").eq("game_id", input.gameId).maybeSingle(),
-    supabase.from("rec_game_time_proposals").select("proposed_by_user_id,created_at").eq("game_id", input.gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    getAvailabilityProfile(opponentId),
-  ]);
-  // The opponent's own local midnight-7AM doesn't count toward either wait below -- a proposal
-  // or check-in miss sent right before their bedtime shouldn't quietly cross the 8h threshold
-  // before they've had a normal waking day to see it.
-  const opponentTimeZone = opponentProfile.timezone ?? "America/Chicago";
-  const requesterHasStaleUnansweredProposal = pendingProposal.data?.proposed_by_user_id === userId
-    && elapsedMsExcludingQuietHours(new Date(pendingProposal.data.created_at).getTime(), Date.now(), opponentTimeZone, 0, 7) >= 8 * 60 * 60 * 1000;
-  const requesterResponded = userId === game.home_user_id ? scheduling.data?.home_responded_at : scheduling.data?.away_responded_at;
-  const opponentResponded = userId === game.home_user_id ? scheduling.data?.away_responded_at : scheduling.data?.home_responded_at;
-  const legacyContactEligibility = hasFailureToScheduleWaitElapsed(requesterResponded, opponentResponded, opponentTimeZone);
-  if (!requesterHasStaleUnansweredProposal && !legacyContactEligibility) throw new ApiError(403, "Only a coach who attempted to schedule and waited 8 hours without a scheduling response can request this Force Win.");
-
-  await supabase.from("rec_game_scheduling").update({
-    fw_flagged: true, fw_flagged_for_user_id: userId, fw_flagged_at: new Date().toISOString(),
-    attention_required: true, updated_at: new Date().toISOString(),
-  }).eq("game_id", input.gameId);
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "fw_requested_failure_to_schedule" });
-
-  const routes = await findServerRoutesForLeague(game.league_id);
-  const participants = await getForceWinParticipants(input.gameId, game, userId, opponentId);
-  await submitMatchupHelpRequest({
-    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
-    discordId: input.discordId,
-    gameId: input.gameId,
-    kind: "force_win",
-    message: "Opponent has not engaged with scheduling at all in 8+ hours. Requesting a Force Win for failure to schedule.",
-  }).catch((err) => console.error("[ERROR] Failed to file the failure-to-schedule Force Win Request Help ticket (non-fatal):", err));
-
-  const channel = await getGameChannelByGameId(input.gameId);
-  if (channel?.discord_channel_id) {
-    const commissionerRoleId = String((routes?.routes as any)?.commissioner_role_id ?? "");
-    const roleMention = commissionerRoleId ? `<@&${commissionerRoleId}> ` : "";
-    await postDiscordChannelMessage(channel.discord_channel_id, {
-      content: `⚠️ **Force Win requested (failure to schedule).** ${roleMention}${participants.requester} requested the Force Win against ${participants.recipient}, who has not engaged with scheduling — flagged in Advance Readiness for review.`,
-      allowed_mentions: { roles: commissionerRoleId ? [commissionerRoleId] : [], users: participants.discordIds },
-    }).catch(() => undefined);
-  }
-  await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
-  return { flagged: true };
-}
-
 // Report Violation: the reporter's own free-text description of what the opponent did wrong.
 // Files a matchup-help ticket AND posts a commissioner-role-tagged in-channel review with
 // Grant FW (only if rule_violation is enabled for this stage) / Clear buttons -- same public-
@@ -897,8 +774,8 @@ export async function resolveDashingReport(input: { gameId: string; discordId: s
 }
 
 // Commissioner-only escape hatch: wipes this game's scheduling state entirely (status, proposed
-// time, FW flag, pending proposals, kickoff check-ins) so both coaches can restart scheduling
-// from scratch -- e.g. a "Can't Make Game" that later turns out to have been premature.
+// time, FW flag, pending proposals) so both coaches can restart scheduling from scratch -- e.g.
+// a "Can't Make Game" that later turns out to have been premature.
 async function resetSchedulingInternal(gameId: string, userId: string | null, eventType: string, channelMessage: string, wipeMessages = false) {
   await Promise.all([
     supabase.from("rec_game_scheduling").update({
@@ -908,7 +785,6 @@ async function resetSchedulingInternal(gameId: string, userId: string | null, ev
       fw_flagged_at: null, attention_required: false, updated_at: new Date().toISOString(),
     }).eq("game_id", gameId),
     supabase.from("rec_game_time_proposals").update({ status: "withdrawn", responded_at: new Date().toISOString() }).eq("game_id", gameId).eq("status", "pending"),
-    supabase.from("rec_game_kickoff_checkins").delete().eq("game_id", gameId),
     supabase.from("rec_games").update({
       advance_outcome_override: null, advance_outcome_marked_by_discord_id: null,
       advance_outcome_marked_at: null, updated_at: new Date().toISOString(),
@@ -952,69 +828,6 @@ export async function repostPendingProposalNoticeIfAny(gameId: string) {
     (ctx) => `This channel was rebuilt — carrying over a pending scheduling offer. ${ctx.actingMention} proposed <t:${proposedForUnix}:F> (<t:${proposedForUnix}:R>). ${ctx.opponentMention}, respond below:`,
     proposal.data.id,
   );
-}
-
-// Rebuildable eligibility surface for a proposal that has sat unanswered for 8+ hours. The
-// proposer is the only eligible coach: they are the one who attempted to schedule, so only
-// their Discord account is mentioned and both server-side request paths enforce that identity.
-export async function postStaleProposalEligibilityNoticeIfAny(gameId: string) {
-  const game = await loadGame(gameId).catch(() => null);
-  if (!game) return { posted: false, includedForceWin: false };
-  const [proposal, active] = await Promise.all([
-    supabase.from("rec_game_time_proposals").select("id,proposed_by_user_id,created_at").eq("game_id", gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    getActiveRuleKeys(game.league_id),
-  ]);
-  if (!proposal.data || Date.now() - new Date(proposal.data.created_at).getTime() < 8 * 60 * 60 * 1000) {
-    return { posted: false, includedForceWin: false };
-  }
-  const proposerUserId = String(proposal.data.proposed_by_user_id);
-  const proposerIsHome = proposerUserId === game.home_user_id;
-  const proposerIsAway = proposerUserId === game.away_user_id;
-  if (!proposerIsHome && !proposerIsAway) return { posted: false, includedForceWin: false };
-  const includeAutopilot = active.fairSim.includes("allow_autopilot_requests");
-  // A pending 8h-old proposal is itself the proof that the opponent has not answered the
-  // scheduling attempt. home/away_responded_at also records ordinary chat, which must not make
-  // the actual proposer lose Force Win eligibility merely because the opponent sent a message.
-  const includeForceWin = active.forceWin.includes("failure_to_schedule");
-  if (!includeAutopilot && !includeForceWin) return { posted: false, includedForceWin: false };
-
-  const [account, channel] = await Promise.all([
-    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", proposerUserId).maybeSingle(),
-    getGameChannelByGameId(gameId),
-  ]);
-  const discordId = account.data?.discord_id ? String(account.data.discord_id) : null;
-  if (!channel?.discord_channel_id || !discordId) return { posted: false, includedForceWin: false };
-  const actions: Array<Record<string, unknown>> = [];
-  if (includeAutopilot) actions.push({ type: 2, style: 2, custom_id: `rec:gamesched:staleautopilot:${gameId}`, label: "Request AutoPilot" });
-  if (includeForceWin) actions.push({ type: 2, style: 4, custom_id: `rec:gamesched:fwfts:${gameId}`, label: "Request Force Win" });
-  const choices = [includeAutopilot ? "AutoPilot" : null, includeForceWin ? "a Force Win" : null].filter(Boolean).join(" or ");
-  await postDiscordChannelMessage(channel.discord_channel_id, {
-    content: `<@${discordId}> — your proposed time has gone unanswered for 8 hours. Because you attempted to schedule and your opponent has not answered the proposal, you may request ${choices}.`,
-    components: [{ type: 1, components: actions }],
-    allowed_mentions: { users: [discordId] },
-  });
-  await logSchedulingEvent({ gameId, userId: proposerUserId, eventType: "scheduling_eligibility_notice_posted", payload: { reason: "stale_proposal", autopilot: includeAutopilot, forceWin: includeForceWin } });
-  return { posted: true, includedForceWin: includeForceWin };
-}
-
-export async function requestStaleProposalAutopilot(input: { gameId: string; discordId: string }) {
-  const game = await loadGame(input.gameId);
-  const userId = await userIdFromDiscordId(input.discordId);
-  const proposal = await supabase.from("rec_game_time_proposals").select("proposed_by_user_id,created_at").eq("game_id", input.gameId).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!proposal.data || proposal.data.proposed_by_user_id !== userId) throw new ApiError(403, "Only the coach whose unanswered proposal triggered this notice can request AutoPilot.");
-  if (Date.now() - new Date(proposal.data.created_at).getTime() < 8 * 60 * 60 * 1000) throw new ApiError(409, "AutoPilot becomes available after the proposal has gone unanswered for 8 hours.");
-  const active = await getActiveRuleKeys(game.league_id);
-  if (!active.fairSim.includes("allow_autopilot_requests")) throw new ApiError(403, "AutoPilot requests are not enabled for this league stage.");
-  const routes = await findServerRoutesForLeague(game.league_id);
-  await submitMatchupHelpRequest({
-    guildId: routes?.guildId ?? siteOnlyGuildId(game.league_id),
-    discordId: input.discordId,
-    gameId: input.gameId,
-    kind: "autopilot",
-    message: "My proposed time has gone unanswered for 8+ hours. Requesting AutoPilot.",
-  });
-  await logSchedulingEvent({ gameId: input.gameId, userId, eventType: "autopilot_requested_stale_proposal" });
-  return { requested: true as const };
 }
 
 // Read-only lookup used by game-channels.service.ts (advise + auto-FW a suspended coach's new
@@ -1103,6 +916,44 @@ export async function grantForceWinCommissioner(input: { gameId: string; discord
     }).catch(() => undefined);
   }
   await updateSchedulingPanel(input.gameId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panel (non-fatal):", error));
+  return { granted: true, side: input.side, cite: beneficiary.cite, teamName: beneficiary.teamName };
+}
+
+// Commissioner-initiated AutoPilot grant reachable from /commishtools, with no pending request
+// required first (unlike grantAutopilotInGame above, which resolves the requester off an
+// existing rec_commissioners_inbox row). Same 1-week grant + EA ToggleAutoPilot trigger.
+export async function grantAutoPilotDirect(input: { gameId: string; discordId: string; side: "home" | "away" }) {
+  const game = await loadGame(input.gameId);
+  const beneficiaryId = input.side === "home" ? game.home_user_id : game.away_user_id;
+  if (!beneficiaryId) throw new ApiError(400, "This game has no user on that side to grant AutoPilot to.");
+
+  const weeks = 1;
+  await supabase.from("rec_autopilot_grants").insert({
+    league_id: game.league_id, game_id: input.gameId, user_id: beneficiaryId, weeks, source: "discord",
+    granted_by_user_id: await userIdFromDiscordId(input.discordId).catch(() => null),
+  }).select("id").maybeSingle().then((result) => {
+    if (result.error) console.error("[WARN] Failed to record autopilot grant (non-fatal):", result.error);
+  });
+
+  const assignment = await supabase.from("rec_team_assignments")
+    .select("team_id").eq("league_id", game.league_id).eq("user_id", beneficiaryId)
+    .eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  const teamId = assignment.data?.team_id;
+  if (teamId) {
+    const { eaToggleAutoPilot } = await import("../madden-ea/ea-admin-actions.service.js");
+    await eaToggleAutoPilot(game.league_id, teamId, weeks, { source: "auto", actingDiscordId: input.discordId })
+      .catch((error) => console.error("[WARN] Failed to trigger EA ToggleAutoPilot (non-fatal):", error));
+  }
+
+  await logSchedulingEvent({ gameId: input.gameId, userId: await userIdFromDiscordId(input.discordId).catch(() => null), eventType: "commissioner_grant_autopilot", payload: { side: input.side } });
+  const beneficiary = await citeGameSide(game, input.side);
+  const channel = await getGameChannelByGameId(input.gameId);
+  if (channel?.discord_channel_id) {
+    await postDiscordChannelMessage(channel.discord_channel_id, {
+      content: `✅ **AutoPilot granted** by a commissioner to ${beneficiary.cite} — play their team as a CPU for 1 week.`,
+      allowed_mentions: beneficiary.discordId ? { users: [beneficiary.discordId] } : { parse: [] },
+    }).catch(() => undefined);
+  }
   return { granted: true, side: input.side, cite: beneficiary.cite, teamName: beneficiary.teamName };
 }
 
@@ -1305,9 +1156,9 @@ function proposeButtonLabel(status: UserFacingStatus): string {
   return "Propose Time";
 }
 
-// Row layout matches the spec: Availability/Propose; Can't Make Game/Report Violation;
-// lifecycle+Commish Tools. Reset now lives INSIDE Commish Tools (with the message-wipe option)
-// instead of being its own row-3 button.
+// Row layout: Availability/Propose; Can't Make Game/Report Violation; lifecycle. Commish Tools
+// moved out to the standalone /commishtools slash command (reachable from anywhere, not just
+// this channel) -- see apps/bot/src/flows/commish-tools-flow.ts.
 function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
   const lifecycleButton = status === "completed" ? null
     : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Over" }
@@ -1327,14 +1178,30 @@ function schedulingPanelComponents(gameId: string, status: UserFacingStatus) {
         { type: 2, style: 4, custom_id: `rec:gamesched:panel:reportviolation:${gameId}`, label: "Report Violation" },
       ],
     },
-    {
-      type: 1,
-      components: [
-        ...(lifecycleButton ? [lifecycleButton] : []),
-        { type: 2, style: 3, custom_id: `rec:gamesched:panel:commishtools:${gameId}`, label: "Commish Tools" },
-      ],
-    },
+    ...(lifecycleButton ? [{ type: 1, components: [lifecycleButton] }] : []),
   ];
+}
+
+// Proactively surfaces the panel's existing Game Started / Game Ended buttons right at kickoff,
+// pinging both coaches, instead of leaving them to scroll back up to the original panel message.
+// Called once by reminder-poller.service.ts's runKickoffPrompt.
+export async function postKickoffPrompt(gameId: string): Promise<void> {
+  const game = await loadGame(gameId).catch(() => null);
+  if (!game) return;
+  const channel = await getGameChannelByGameId(gameId);
+  if (!channel?.discord_channel_id) return;
+  const status = await computeUserFacingStatus(gameId);
+  const lifecycleButton = status === "completed" ? null
+    : status === "live" ? { type: 2, style: 3, custom_id: `rec:gamesched:gameover:${gameId}`, label: "Game Ended" }
+    : { type: 2, style: 3, custom_id: `rec:gamesched:panel:gamestarted:${gameId}`, label: "Game Started" };
+  if (!lifecycleButton) return;
+  const [home, away] = await Promise.all([citeGameSide(game, "home"), citeGameSide(game, "away")]);
+  const mentionIds = [home.discordId, away.discordId].filter((v): v is string => Boolean(v));
+  await postDiscordChannelMessage(channel.discord_channel_id, {
+    content: `${[home.cite, away.cite].join(" ")} — kickoff time! Hit the button below once you've started (or finished) the game.`,
+    components: [{ type: 1, components: [lifecycleButton] }],
+    allowed_mentions: { users: mentionIds },
+  }).catch((error) => console.error("[ERROR] Failed to post kickoff prompt (non-fatal):", error));
 }
 
 async function schedulingPanelDescription(gameId: string, status: UserFacingStatus): Promise<string> {

@@ -159,7 +159,7 @@ import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
-  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve, handleCheckin, handleFwRequest, handleFwRequestFailureToSchedule, handleAutopilotRequest, handleStaleProposalAutopilotRequest,
+  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve,
   handleGameOverButton, handleGameOverModal,
 } from "./flows/game-scheduling-panel.js";
 import {
@@ -182,6 +182,8 @@ import {
   handleCommishBootModal,
   handleCommishBootSide,
   handleCommishBootStart,
+  handleCommishGrantAutopilotSide,
+  handleCommishGrantAutopilotStart,
   handleCommishGrantFs,
   handleCommishGrantFwSide,
   handleCommishGrantFwStart,
@@ -190,7 +192,9 @@ import {
   handleCommishSuspendModal,
   handleCommishSuspendSide,
   handleCommishSuspendStart,
+  handleCommishToolsMatchupSelect,
   handleCommishToolsPanel,
+  handleCommishToolsSlash,
 } from "./flows/commish-tools-flow.js";
 import {
   READY_TO_ADVANCE_CUSTOM_IDS,
@@ -724,6 +728,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       await handleRulesSlash(interaction);
       return;
     }
+    if (interaction.isChatInputCommand() && interaction.commandName === "commishtools") {
+      await handleCommishToolsSlash(interaction);
+      return;
+    }
+    if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.pagePrefix)) return handleRulesPage(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 
@@ -743,6 +752,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFwSide)) return handleCommishGrantFwSide(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFw)) return handleCommishGrantFwStart(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFs)) return handleCommishGrantFs(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilotSide)) return handleCommishGrantAutopilotSide(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilot)) return handleCommishGrantAutopilotStart(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendSide)) return handleCommishSuspendSide(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspend)) return handleCommishSuspendStart(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendModal)) return handleCommishSuspendModal(interaction);
@@ -766,11 +777,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceRequestFs)) return handleCantMakeChoice(interaction, "request_fs");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveGrant)) return handleAutopilotResolve(interaction, "grant_autopilot");
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveEnforceFs)) return handleAutopilotResolve(interaction, "enforce_fs");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.checkin)) return handleCheckin(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequest)) return handleFwRequest(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.fwRequestFailureToSchedule)) return handleFwRequestFailureToSchedule(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.staleProposalAutopilot)) return handleStaleProposalAutopilotRequest(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilot)) return handleAutopilotRequest(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOver)) return handleGameOverButton(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal)) return handleGameOverModal(interaction);
     if (interaction.isButton() && interaction.customId === READY_TO_ADVANCE_CUSTOM_IDS.button) return handleReadyToAdvanceButton(interaction);

@@ -51,6 +51,7 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
   const [timezone, setTimezone] = useState<string | null>(null);
   const [timezoneSource, setTimezoneSource] = useState<string>("unset");
   const [windowsByDay, setWindowsByDay] = useState<Record<number, Window[]>>({});
+  const [unavailableDays, setUnavailableDays] = useState<Set<number>>(new Set());
   const [activeDay, setActiveDay] = useState<number>(1);
   const [draft, setDraft] = useState<Draft>({ hour: 6, minute: "00", meridiem: "PM" });
   const [draftEnd, setDraftEnd] = useState<Draft>({ hour: 9, minute: "00", meridiem: "PM" });
@@ -73,6 +74,7 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
         const byDay: Record<number, Window[]> = {};
         for (const w of res.windows) byDay[w.weekday] = [...(byDay[w.weekday] ?? []), { startMinute: w.startMinute, endMinute: w.endMinute }];
         setWindowsByDay(byDay);
+        setUnavailableDays(new Set(res.dayMarks));
         setOverrides(res.overrides.filter((o) => o.scope === "week"));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load your availability."))
@@ -168,8 +170,36 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
     try {
       const res = await recApi.setSchedulingWindows({ guildId, leagueScoped: false, weekday: activeDay, windows });
       setWindowsByDay((prev) => ({ ...prev, [activeDay]: res.windows.map((w) => ({ startMinute: w.startMinute, endMinute: w.endMinute })) }));
+      setUnavailableDays((prev) => { const next = new Set(prev); next.delete(activeDay); return next; });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save availability.");
+    } finally {
+      setSavingDay(false);
+    }
+  }
+
+  async function markDayUnavailable() {
+    setSavingDay(true);
+    setError(null);
+    try {
+      await recApi.setAvailabilityDayUnavailable({ guildId, leagueScoped: false, weekday: activeDay });
+      setWindowsByDay((prev) => ({ ...prev, [activeDay]: [] }));
+      setUnavailableDays((prev) => new Set(prev).add(activeDay));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark this day unavailable.");
+    } finally {
+      setSavingDay(false);
+    }
+  }
+
+  async function clearDayUnavailable() {
+    setSavingDay(true);
+    setError(null);
+    try {
+      await recApi.clearAvailabilityDayUnavailable({ guildId, leagueScoped: false, weekday: activeDay });
+      setUnavailableDays((prev) => { const next = new Set(prev); next.delete(activeDay); return next; });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear that mark.");
     } finally {
       setSavingDay(false);
     }
@@ -229,7 +259,11 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
               </div>
 
               <p className="form-hint">{WEEKDAYS.find((d) => d.weekday === activeDay)?.label}</p>
-              {(windowsByDay[activeDay] ?? []).length === 0 && <p className="hub-empty">No windows set — unavailable by default.</p>}
+              {unavailableDays.has(activeDay) ? (
+                <p className="hub-empty">Marked <strong>Unavailable</strong> — <Button variant="ghost" size="compact" disabled={savingDay} onClick={() => void clearDayUnavailable()}>Clear</Button></p>
+              ) : (windowsByDay[activeDay] ?? []).length === 0 ? (
+                <p className="hub-empty">No windows set — not yet marked either way.</p>
+              ) : null}
               <ul className="site-public-league-list">
                 {(windowsByDay[activeDay] ?? []).map((w, i) => (
                   <li key={i}><span>{formatWindow(w)}</span><Button variant="ghost" size="compact" disabled={savingDay} onClick={() => void removeWindow(i)}>Remove</Button></li>
@@ -244,6 +278,9 @@ export function AvailabilityModal({ guildId, onClose }: { guildId: string; onClo
                 </div>
                 <Button variant="primary" size="compact" disabled={savingDay} onClick={() => void addWindow()}>Add Window</Button>
               </div>
+              {!unavailableDays.has(activeDay) && (
+                <Button variant="ghost" size="compact" disabled={savingDay} onClick={() => void markDayUnavailable()}>Mark {WEEKDAYS.find((d) => d.weekday === activeDay)?.label} Unavailable</Button>
+              )}
             </div>
           )}
 

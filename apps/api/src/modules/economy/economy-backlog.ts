@@ -87,6 +87,13 @@ export async function creditOrBacklog(input: CreditOrBacklogInput): Promise<{ ba
     return backlogPayout(input);
   }
 
+  // Repeated failure to set scheduling availability holds this user's payouts (2 free warnings,
+  // then held every advance until they set it again) -- see availability-compliance.service.ts.
+  const { isPayoutsHeldForAvailability } = await import("../scheduling/availability-compliance.service.js");
+  if (await isPayoutsHeldForAvailability(input.userId, input.leagueId)) {
+    return backlogPayout(input);
+  }
+
   const activation = await getEconomyActivation(input.leagueId);
   if (activation.payoutsActive) {
     return { backlogged: false, ledgerId: await issuePayout(input) };

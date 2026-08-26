@@ -27,11 +27,10 @@ test("failure-to-schedule wait pauses during the recipient's local midnight-7AM"
   assert.equal(hasFailureToScheduleWaitElapsed(outreach, null, "America/Chicago", new Date("2026-08-22T19:00:00.000Z").getTime()), true); // 15h of wall time (11PM-2PM); 1h (11PM-midnight) + 7h (7AM-2PM) = 8h counted
 });
 
-test("scheduling payout bonus requires a confirmed time, both check-ins, and game-over", () => {
-  const complete = { confirmedAt: "2026-08-21T13:00:00.000Z", homeUserId: "home", awayUserId: "away", checkedInUserIds: ["home", "away"], markedOver: true };
+test("scheduling payout bonus requires a confirmed time and game-over", () => {
+  const complete = { confirmedAt: "2026-08-21T13:00:00.000Z", homeUserId: "home", awayUserId: "away", markedOver: true };
   assert.equal(qualifiesForSchedulingPayoutBonus(complete), true);
   assert.equal(qualifiesForSchedulingPayoutBonus({ ...complete, confirmedAt: null }), false);
-  assert.equal(qualifiesForSchedulingPayoutBonus({ ...complete, checkedInUserIds: ["home"] }), false);
   assert.equal(qualifiesForSchedulingPayoutBonus({ ...complete, markedOver: false }), false);
 });
 

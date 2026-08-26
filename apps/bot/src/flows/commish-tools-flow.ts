@@ -3,8 +3,8 @@
 // the API routes behind every action here are ALSO gated server-side (permission:
 // "co_commissioner"), so this bot-side check is a UX nicety, not the only enforcement.
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, MessageFlags,
-  ModalBuilder, ModalSubmitInteraction, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChatInputCommandInteraction, EmbedBuilder, MessageFlags,
+  ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
@@ -14,6 +14,7 @@ import { idAfter } from "./game-scheduling-panel.js";
 export const COMMISH_TOOLS_CUSTOM_IDS = {
   panel: "rec:gamesched:panel:commishtools:",
   menu: "rec:commish:menu:",
+  matchupSelect: "rec:commish:matchupselect",
   // "Start" buttons (posted from the Commish Tools menu, customId suffix is just a gameId) and
   // "Side" buttons (posted after Home/Away is picked, suffix is "home:<gameId>"/"away:<gameId>")
   // deliberately use DIFFERENT prefixes even though they're steps in the same flow -- sharing one
@@ -22,6 +23,8 @@ export const COMMISH_TOOLS_CUSTOM_IDS = {
   grantFw: "rec:commish:grantfw:",
   grantFwSide: "rec:commish:grantfwside:",
   grantFs: "rec:commish:grantfs:",
+  grantAutopilot: "rec:commish:grantap:",
+  grantAutopilotSide: "rec:commish:grantapside:",
   suspend: "rec:commish:suspend:",
   suspendSide: "rec:commish:suspendside:",
   suspendModal: "rec:commish:suspendmodal:",
@@ -31,6 +34,7 @@ export const COMMISH_TOOLS_CUSTOM_IDS = {
   bootModal: "rec:commish:bootmodal:",
   reset: "rec:commish:reset:",
   resetWipeConfirm: "rec:commish:resetwipeconfirm:",
+  audit: "rec:commish:audit",
 };
 
 async function replyErr(interaction: ButtonInteraction | ModalSubmitInteraction, error: unknown) {
@@ -43,27 +47,103 @@ function denyNonCommish(interaction: ButtonInteraction) {
   return interaction.reply({ content: "Only a commissioner or co-commissioner can use Commish Tools.", flags: MessageFlags.Ephemeral });
 }
 
+function actionMenuComponents(gameId: string) {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.grantFw}${gameId}`).setLabel("Grant FW").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.grantFs}${gameId}`).setLabel("Grant FS").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.grantAutopilot}${gameId}`).setLabel("Grant AutoPilot").setStyle(ButtonStyle.Primary),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.suspend}${gameId}`).setLabel("Suspend User").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.boot}${gameId}`).setLabel("Boot User").setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.reset}${gameId}`).setLabel("Reset Scheduling").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
 export async function handleCommishToolsPanel(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) return denyNonCommish(interaction);
   const gameId = idAfter(COMMISH_TOOLS_CUSTOM_IDS.panel, interaction.customId);
+  await interaction.reply({ content: "Commish Tools — choose an action:", components: actionMenuComponents(gameId), flags: MessageFlags.Ephemeral });
+}
+
+// --- /commishtools slash command entry point: matchup select, then the same action menu ---
+export async function handleCommishToolsSlash(interaction: ChatInputCommandInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only a commissioner or co-commissioner can use Commish Tools.", flags: MessageFlags.Ephemeral });
+
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const games = await recApi.listManualScoreGames({ guildId: interaction.guildId, weekNumber: week?.league?.current_week ?? undefined }).catch(() => null);
+  const options = (games?.games ?? []).slice(0, 24).map((g: any) =>
+    new StringSelectMenuOptionBuilder().setLabel(`${g.awayName} at ${g.homeName}`.slice(0, 100)).setValue(g.gameId),
+  );
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Game Day Audit (all active channels)").setValue("__audit__"));
+
   await interaction.reply({
-    content: "Commish Tools — choose an action:",
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.grantFw}${gameId}`).setLabel("Grant FW").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.grantFs}${gameId}`).setLabel("Grant FS").setStyle(ButtonStyle.Primary),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.suspend}${gameId}`).setLabel("Suspend User").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.boot}${gameId}`).setLabel("Boot User").setStyle(ButtonStyle.Danger),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${COMMISH_TOOLS_CUSTOM_IDS.reset}${gameId}`).setLabel("Reset Scheduling").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
+    content: "Commish Tools — pick a matchup, or run a Game Day Audit across every active game channel:",
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder().setCustomId(COMMISH_TOOLS_CUSTOM_IDS.matchupSelect).setPlaceholder("Select a matchup").addOptions(options),
+    )],
     flags: MessageFlags.Ephemeral,
   });
+}
+
+export async function handleCommishToolsMatchupSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return denyNonCommish(interaction as unknown as ButtonInteraction);
+  const value = interaction.values[0] ?? "";
+  if (value === "__audit__") return runGameDayAudit(interaction);
+  await interaction.update({ content: "Commish Tools — choose an action:", components: actionMenuComponents(value) });
+}
+
+async function runGameDayAudit(interaction: StringSelectMenuInteraction) {
+  await interaction.deferUpdate();
+  try {
+    const result = await recApi.gameDayAudit({ guildId: interaction.guildId!, discordId: interaction.user.id });
+    if (!result.entries.length) {
+      await interaction.editReply({ content: "No active game channels to audit.", components: [] });
+      return;
+    }
+    const recommendationLabel = (r: string | null) => r === "fair_sim" ? "⚪ Recommend: Fair Sim (neither coach engaged)"
+      : r === "force_win_home" ? "🔴 Recommend: Force Win for the home coach (away coach unresponsive)"
+      : r === "force_win_away" ? "🔴 Recommend: Force Win for the away coach (home coach unresponsive)"
+      : "🟢 Both coaches engaged — no recommendation";
+    const coachLine = (label: string, c: { teamName: string; messageCount: number; firstMessageTodayAt: string | null; submittedTimesCount: number }) => {
+      const first = c.firstMessageTodayAt ? `<t:${Math.floor(new Date(c.firstMessageTodayAt).getTime() / 1000)}:t>` : "no messages today";
+      return `**${label} (${c.teamName})**: ${c.messageCount} messages, first today at ${first}, ${c.submittedTimesCount} time(s) submitted`;
+    };
+    const embeds = result.entries.slice(0, 10).map((entry) => new EmbedBuilder()
+      .setTitle(`${entry.away.teamName} at ${entry.home.teamName}`)
+      .setDescription([coachLine("Home", entry.home), coachLine("Away", entry.away), "", recommendationLabel(entry.recommendation)].join("\n")));
+    await interaction.editReply({ content: `Game Day Audit — ${result.entries.length} active channel(s):`, embeds, components: [] });
+  } catch (error) {
+    await interaction.editReply({ content: userFacingError(error), components: [] });
+  }
+}
+
+// --- Grant AutoPilot ---
+export async function handleCommishGrantAutopilotStart(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return denyNonCommish(interaction);
+  const gameId = idAfter(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilot, interaction.customId);
+  await interaction.reply({ content: "Grant AutoPilot to which side?", components: [sideRow(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilotSide, gameId)], flags: MessageFlags.Ephemeral });
+}
+
+export async function handleCommishGrantAutopilotSide(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return denyNonCommish(interaction);
+  const { side, gameId } = parseSideAndGameId(idAfter(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilotSide, interaction.customId));
+  try {
+    await interaction.deferUpdate();
+    const result = await recApi.grantAutoPilotCommissioner({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, side });
+    await interaction.editReply({ content: `✅ AutoPilot granted to ${result.cite}.`, components: [] });
+  } catch (error) {
+    await replyErr(interaction, error);
+  }
 }
 
 function sideRow(prefix: string, gameId: string) {

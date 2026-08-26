@@ -29,16 +29,16 @@ export function hasFailureToScheduleWaitElapsed(
   return elapsedMsExcludingQuietHours(outreachMs, nowMs, recipientTimeZone, 0, 7) >= 8 * 60 * 60 * 1000;
 }
 
+// Check-ins were retired (see reminder-poller.service.ts's simplification) -- qualification now
+// rests on "scheduled through REC and marked over", not on both coaches having pressed a
+// check-in button.
 export function qualifiesForSchedulingPayoutBonus(input: {
   confirmedAt: string | null | undefined;
   homeUserId: string | null | undefined;
   awayUserId: string | null | undefined;
-  checkedInUserIds: readonly string[];
   markedOver: boolean;
 }): boolean {
-  if (!input.confirmedAt || !input.homeUserId || !input.awayUserId || !input.markedOver) return false;
-  const checkedIn = new Set(input.checkedInUserIds);
-  return checkedIn.has(input.homeUserId) && checkedIn.has(input.awayUserId);
+  return Boolean(input.confirmedAt && input.homeUserId && input.awayUserId && input.markedOver);
 }
 
 export type DiscordCleanupMessage = {

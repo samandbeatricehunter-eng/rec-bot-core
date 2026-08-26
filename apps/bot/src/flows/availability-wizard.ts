@@ -171,7 +171,7 @@ export async function handleAvailabilityWizardButton(interaction: ButtonInteract
       .setCustomId(`${AVAILABILITY_WIZARD_CUSTOM_IDS.dayModalPrefix}${weekday}`)
       .setTitle(`${label} availability`)
       .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId("windows").setLabel('Windows, e.g. "6pm-9pm, 10pm-12am", or "off"').setStyle(TextInputStyle.Short).setPlaceholder("6pm-9pm").setRequired(true),
+        new TextInputBuilder().setCustomId("windows").setLabel('Windows (e.g. "6pm-9pm"), or "unavailable"').setStyle(TextInputStyle.Short).setPlaceholder("6pm-9pm").setRequired(true),
       ));
     return interaction.showModal(modal);
   } else if (interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.datePrefix)) {
@@ -200,11 +200,15 @@ export async function handleAvailabilityWizardDayModal(interaction: ModalSubmitI
 
   const weekday = Number(interaction.customId.slice(AVAILABILITY_WIZARD_CUSTOM_IDS.dayModalPrefix.length));
   const raw = interaction.fields.getTextInputValue("windows");
-  const parsed = parseAvailabilityText(raw);
-  if ("error" in parsed) return interaction.reply({ content: parsed.error, flags: MessageFlags.Ephemeral });
 
   try {
-    await recApi.setSchedulingWindows({ guildId: interaction.guildId, discordId: interaction.user.id, leagueScoped: false, weekday, windows: parsed.windows });
+    if (raw.trim().toLowerCase() === "unavailable") {
+      await recApi.setAvailabilityDayUnavailable({ guildId: interaction.guildId, discordId: interaction.user.id, leagueScoped: false, weekday });
+    } else {
+      const parsed = parseAvailabilityText(raw);
+      if ("error" in parsed) return interaction.reply({ content: parsed.error, flags: MessageFlags.Ephemeral });
+      await recApi.setSchedulingWindows({ guildId: interaction.guildId, discordId: interaction.user.id, leagueScoped: false, weekday, windows: parsed.windows });
+    }
   } catch (error) {
     return interaction.reply({ content: error instanceof Error ? error.message : "Failed to save your availability.", flags: MessageFlags.Ephemeral });
   }

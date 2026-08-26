@@ -5,6 +5,8 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
+import { applyAvailabilityComplianceForAdvance } from "../scheduling/availability-compliance.service.js";
+import { repostAvailabilityNag } from "../scheduling/availability-nag.service.js";
 import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { generateRollingDraftClass, syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
@@ -162,6 +164,12 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     console.error("[ERROR] Failed to apply savings interest on advance:", error);
     return { applied: false as const, reason: "error" as const, usersCredited: 0, totalInterest: 0 };
   });
+
+  // Availability compliance (warnings/payout-holds/releases) then the nag repost that reuses its
+  // result -- both best-effort so a failure here never blocks the advance itself.
+  await applyAvailabilityComplianceForAdvance(context.leagueId)
+    .then((compliance) => repostAvailabilityNag(context.leagueId, compliance))
+    .catch((error) => console.error("[ERROR] Failed to apply availability compliance on advance (non-fatal):", error));
 
   return {
     league: result.data,

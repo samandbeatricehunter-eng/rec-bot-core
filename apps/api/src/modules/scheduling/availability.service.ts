@@ -102,6 +102,58 @@ export async function setRecurringWindowsForDay(input: {
   return { windows: (inserted.data ?? []).map(rowToWindow) };
 }
 
+// A day is either windowed (rec_user_availability_windows has a row) or explicitly marked
+// unavailable (rec_user_availability_day_marks has a row) -- the two are mutually exclusive, so
+// setting one clears the other. Both use the same global/league-scoped fallback.
+export async function markAvailabilityDayUnavailable(input: { userId: string; leagueId: string | null; weekday: number }) {
+  if (input.weekday < 0 || input.weekday > 6) throw new ApiError(400, "weekday must be 0-6.");
+  let delWindows = supabase.from("rec_user_availability_windows").delete().eq("user_id", input.userId).eq("weekday", input.weekday);
+  delWindows = input.leagueId ? delWindows.eq("league_id", input.leagueId) : delWindows.is("league_id", null);
+  const deletedWindows = await delWindows;
+  if (deletedWindows.error) throw new ApiError(500, "Failed to update availability.", deletedWindows.error);
+
+  const upsert = await supabase.from("rec_user_availability_day_marks").upsert(
+    { user_id: input.userId, league_id: input.leagueId, weekday: input.weekday, marked_at: new Date().toISOString() },
+    { onConflict: "user_id,weekday,league_id" },
+  );
+  if (upsert.error) throw new ApiError(500, "Failed to mark this day unavailable.", upsert.error);
+  return { markedUnavailable: true };
+}
+
+export async function clearAvailabilityDayUnavailable(input: { userId: string; leagueId: string | null; weekday: number }) {
+  let del = supabase.from("rec_user_availability_day_marks").delete().eq("user_id", input.userId).eq("weekday", input.weekday);
+  del = input.leagueId ? del.eq("league_id", input.leagueId) : del.is("league_id", null);
+  const deleted = await del;
+  if (deleted.error) throw new ApiError(500, "Failed to clear that unavailable mark.", deleted.error);
+  return { markedUnavailable: false };
+}
+
+export async function getAvailabilityDayMarks(userId: string, leagueId: string | null): Promise<Set<number>> {
+  const scoped = leagueId
+    ? await supabase.from("rec_user_availability_day_marks").select("weekday").eq("user_id", userId).eq("league_id", leagueId)
+    : { data: [] as any[], error: null };
+  if (scoped.error) throw new ApiError(500, "Failed to load availability.", scoped.error);
+  const global = await supabase.from("rec_user_availability_day_marks").select("weekday").eq("user_id", userId).is("league_id", null);
+  if (global.error) throw new ApiError(500, "Failed to load availability.", global.error);
+  return new Set([...(scoped.data ?? []), ...(global.data ?? [])].map((r: any) => Number(r.weekday)));
+}
+
+// "Fully set" = a timezone AND, for every day of the week, at least one active window or an
+// explicit Unavailable mark (global or league-scoped) -- an untouched day counts as missing.
+export async function isAvailabilityFullySet(userId: string, leagueId: string | null): Promise<boolean> {
+  const profile = await getAvailabilityProfile(userId);
+  if (!profile.timezone) return false;
+  const [windows, dayMarks] = await Promise.all([
+    getRecurringWindows(userId, leagueId),
+    getAvailabilityDayMarks(userId, leagueId),
+  ]);
+  const windowedDays = new Set(windows.map((w) => w.weekday));
+  for (let weekday = 0; weekday <= 6; weekday++) {
+    if (!windowedDays.has(weekday) && !dayMarks.has(weekday)) return false;
+  }
+  return true;
+}
+
 export async function listOverrides(input: { userId: string; leagueId?: string | null; gameId?: string | null }): Promise<Override[]> {
   let query = supabase.from("rec_availability_overrides").select("*").eq("user_id", input.userId).order("starts_at", { ascending: true });
   if (input.gameId) query = query.eq("game_id", input.gameId);
