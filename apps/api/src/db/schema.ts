@@ -676,22 +676,6 @@ export const recPurchases = pgTable("rec_purchases", {
   deniedReason: text("denied_reason")
 });
 
-export const recPurchaseHolds = pgTable("rec_purchase_holds", {
-  id: uuid("id").primaryKey(),
-  purchaseId: uuid("purchase_id").notNull().references(() => recPurchases.id),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  amount: integer("amount").notNull(),
-  status: text("status").notNull().default("held"),
-  heldAt: timestamp("held_at", { withTimezone: true, mode: "string" }).notNull(),
-  clearedAt: timestamp("cleared_at", { withTimezone: true, mode: "string" }),
-  refundedAt: timestamp("refunded_at", { withTimezone: true, mode: "string" }),
-  refundReason: text("refund_reason"),
-  createdByUserId: uuid("created_by_user_id").references(() => recUsers.id),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export type RecUser = typeof recUsers.$inferSelect;
 export type RecDiscordAccount = typeof recDiscordAccounts.$inferSelect;
 export type RecAppAccount = typeof recAppAccounts.$inferSelect;
@@ -713,7 +697,6 @@ export type RecLegacyUserBaseline = typeof recLegacyUserBaselines.$inferSelect;
 export type RecWallet = typeof recWallets.$inferSelect;
 export type RecDollarLedger = typeof recDollarLedger.$inferSelect;
 export type RecPurchase = typeof recPurchases.$inferSelect;
-export type RecPurchaseHold = typeof recPurchaseHolds.$inferSelect;
 
 // ============================================================================
 // Games / schedule / draft
@@ -2712,13 +2695,6 @@ export const recPurchasesRelations = relations(recPurchases, ({ one }) => ({
   league: one(recLeagues, { fields: [recPurchases.leagueId], references: [recLeagues.id] }),
   team: one(recTeams, { fields: [recPurchases.teamId], references: [recTeams.id] }),
   season: one(recSeasons, { fields: [recPurchases.seasonId], references: [recSeasons.id] })
-}));
-
-export const recPurchaseHoldsRelations = relations(recPurchaseHolds, ({ one }) => ({
-  purchase: one(recPurchases, { fields: [recPurchaseHolds.purchaseId], references: [recPurchases.id] }),
-  user: one(recUsers, { fields: [recPurchaseHolds.userId], references: [recUsers.id] }),
-  league: one(recLeagues, { fields: [recPurchaseHolds.leagueId], references: [recLeagues.id] }),
-  createdByUser: one(recUsers, { fields: [recPurchaseHolds.createdByUserId], references: [recUsers.id] })
 }));
 
 export const recGamesRelations = relations(recGames, ({ one, many }) => ({

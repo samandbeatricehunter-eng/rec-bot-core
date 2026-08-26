@@ -1,0 +1,14 @@
+-- APPLIED 2026-08-25 (via Supabase MCP, after explicit user approval).
+--
+-- rec_purchase_holds was flagged in the original external audit as "0 rows, 136 scans" --
+-- worth tracing before dropping, since scans could mean something depends on it even at 0
+-- rows. Traced: zero application code references anywhere in apps/ or packages/. Confirmed
+-- via pg_stat_user_tables that its scan timestamps line up exactly with the 09:17 UTC daily
+-- stale-league cleanup cron -- the old private.rec_cleanup_stale_leagues() function (dropped
+-- in 20260925120000_fix_unsafe_stale_league_cleanup_cron.sql) had an explicit
+-- `delete from rec_purchase_holds` step for stale leagues' holds. That step was redundant:
+-- rec_delete_league() (the RPC both the admin panel and the new sweepStaleLeagues() use)
+-- already dynamically deletes from every public-schema table with a league_id column,
+-- rec_purchase_holds included, whenever a league is deleted. Nothing depends on this table
+-- existing as its own thing.
+drop table if exists rec_purchase_holds;

@@ -217,7 +217,26 @@ that was still armed and would have hit the next league to cross 21 days inactiv
   If a grace-period/archive stage is still wanted, that's a genuinely fresh feature to design,
   separate from "fix the existing unsafe deletion," which is what this session actually did.
 
-### Phase 3 (DB cleanup), Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
+### Phase 3 (DB cleanup) — DONE
+
+Turned out to be mostly already covered: the plan's one named table
+(`rec_players_baseline_dup_backup_20260815`) was dropped together with Phase 2c's batch. The
+other explicit Phase 3 item — `rec_purchase_holds` (0 rows, 136 scans per the original audit,
+flagged "scans ≠ unused, trace before dropping") — traced and dropped:
+- Zero application code references anywhere.
+- `pg_stat_user_tables.last_seq_scan` lined up exactly with the 09:17 UTC daily cron —
+  the now-removed old `rec_cleanup_stale_leagues()` had its own explicit
+  `delete from rec_purchase_holds` step for stale leagues, which was redundant:
+  `rec_delete_league()` (the RPC both the admin panel and the new `sweepStaleLeagues()` use)
+  already dynamically deletes from every `public`-schema table with a `league_id` column —
+  `rec_purchase_holds` included — whenever a league is deleted. Confirmed via
+  `pg_get_functiondef` before relying on it.
+- Dropped with explicit user approval
+  (`supabase/migrations/20260925130000_drop_rec_purchase_holds.sql`), Drizzle declaration
+  (`recPurchaseHolds` table/type/relations) removed from `schema.ts`. Typechecked, 125/125
+  tests pass.
+
+### Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
 
 See the plan file (or ask the user for its contents if you can't reach that path) for the full
 per-phase detail — table drop candidates, the CSS-file-consolidation list, and the polling
