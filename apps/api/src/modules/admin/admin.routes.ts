@@ -20,6 +20,7 @@ import {
   listRecentAdminUsers,
   listAdminAnnouncements,
   searchAdminUsers,
+  sweepStaleLeagues,
   updateAdminAnnouncement,
 } from "./admin.service.js";
 import {
@@ -207,6 +208,20 @@ export async function adminRoutes(app: FastifyInstance) {
         .object({ leagueId: z.string().uuid(), confirmationText: z.string().trim().min(1) })
         .parse(request.body ?? {});
       return reply.send(await adminDeleteLeague(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Cron-only (rec_cleanup_stale_leagues_daily) -- replaces the old
+  // private.rec_cleanup_stale_leagues Postgres function, which ran a raw `delete from
+  // rec_leagues` with no preservation step at all. See sweepStaleLeagues's own comment in
+  // admin.service.ts for why that was a live data-loss bug, not just tech debt.
+  app.post("/v1/admin/leagues/sweep-stale", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ staleDays: z.number().int().min(1).optional() }).parse(request.body ?? {});
+      return reply.send(await sweepStaleLeagues(body.staleDays));
     } catch (error) {
       return sendError(reply, error);
     }

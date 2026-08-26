@@ -286,6 +286,33 @@ export async function adminRemoveUserFromLeague(input: { leagueId: string; userI
   return { ok: true as const };
 }
 
+// Shared by adminDeleteLeague (human-confirmed) and sweepStaleLeagues (automated) so both
+// paths always run the same preservation-then-delete sequence. This did NOT used to be a
+// single shared function -- the automated stale-league cron (rec_cleanup_stale_leagues,
+// live since 2026-06-15) ran its own raw `delete from rec_leagues` with no preservation call
+// at all, predating preserveGlobalContributionsBeforeLeagueDelete/
+// preserveH2hHistoryBeforeLeagueDelete (live since 2026-07-29) by six weeks. That gap is the
+// confirmed source of the orphaned rec_team_game_stats rows and stale rec_user_h2h_global_records
+// data found in the 2026-08 data-integrity audit -- this function (and retiring that old SQL
+// cron in favor of sweepStaleLeagues below) closes it for good.
+async function deleteLeagueWithPreservation(leagueId: string, leagueName: string): Promise<{ ok: true; leagueName: string }> {
+  await deleteAllLeagueStreamHighlights(leagueId).catch((error) => {
+    console.error("[ERROR] Failed to delete league Stream highlights before league wipe:", error);
+  });
+
+  await preserveGlobalContributionsBeforeLeagueDelete(leagueId).catch((error) => {
+    console.error("[ERROR] Failed to preserve global contributions before league wipe:", error);
+  });
+  await preserveH2hHistoryBeforeLeagueDelete(leagueId).catch((error) => {
+    console.error("[ERROR] Failed to preserve H2H history before league wipe:", error);
+  });
+
+  const deleted = await supabase.rpc("rec_delete_league", { p_league_id: leagueId });
+  if (deleted.error) throw new ApiError(500, "Failed to delete league.", deleted.error);
+
+  return { ok: true as const, leagueName };
+}
+
 export async function adminDeleteLeague(input: { leagueId: string; confirmationText: string }) {
   const league = await supabase.from("rec_leagues").select("id,name").eq("id", input.leagueId).maybeSingle();
   if (league.error) throw new ApiError(500, "Failed to look up league.", league.error);
@@ -296,29 +323,62 @@ export async function adminDeleteLeague(input: { leagueId: string; confirmationT
     throw new ApiError(400, `Confirmation did not match. Type the league name exactly ("${leagueName}") to delete it.`);
   }
 
-  await deleteAllLeagueStreamHighlights(input.leagueId).catch((error) => {
-    console.error("[ERROR] Failed to delete league Stream highlights before admin league wipe:", error);
-  });
-
-  await preserveGlobalContributionsBeforeLeagueDelete(input.leagueId).catch((error) => {
-    console.error("[ERROR] Failed to preserve global contributions before admin league wipe:", error);
-  });
-  await preserveH2hHistoryBeforeLeagueDelete(input.leagueId).catch((error) => {
-    console.error("[ERROR] Failed to preserve H2H history before admin league wipe:", error);
-  });
-
-  const deleted = await supabase.rpc("rec_delete_league", { p_league_id: input.leagueId });
-  if (deleted.error) throw new ApiError(500, "Failed to delete league.", deleted.error);
+  const result = await deleteLeagueWithPreservation(input.leagueId, leagueName);
 
   await bestEffort("audit.league_deleted_by_admin", () => writeAuditLog({
     action: "league.deleted_by_admin",
     entityType: "rec_leagues",
     entityId: input.leagueId,
-    newValue: { leagueName, result: deleted.data },
+    newValue: { leagueName },
     source: "admin_correction",
   }), { leagueId: input.leagueId });
 
-  return { ok: true as const, leagueName };
+  return result;
+}
+
+// Replaces the old private.rec_cleanup_stale_leagues Postgres function (see
+// deleteLeagueWithPreservation's comment above for why). Called daily by the
+// rec_cleanup_stale_leagues_daily cron job via POST /v1/admin/leagues/sweep-stale,
+// requireInternalApiKey-gated the same way the highlights-prune sweep is. Uses the same
+// coalesce(last_advanced_at, updated_at, created_at) staleness signal and 21-day default the
+// old function used, so behavior (WHEN a league goes stale) is unchanged -- only HOW it gets
+// deleted changed, to go through the safe preserved path.
+export async function sweepStaleLeagues(staleDays = 21): Promise<{ swept: Array<{ leagueId: string; leagueName: string }>; failed: Array<{ leagueId: string; error: string }> }> {
+  if (staleDays < 1) throw new ApiError(400, "staleDays must be at least 1.");
+  const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("rec_leagues")
+    .select("id,name,last_advanced_at,updated_at,created_at");
+  if (error) throw new ApiError(500, "Failed to load leagues for stale sweep.", error);
+
+  const stale = (data ?? []).filter((league: any) => {
+    const lastActive = league.last_advanced_at ?? league.updated_at ?? league.created_at;
+    return Boolean(lastActive) && lastActive < cutoff;
+  });
+
+  const swept: Array<{ leagueId: string; leagueName: string }> = [];
+  const failed: Array<{ leagueId: string; error: string }> = [];
+  for (const league of stale) {
+    const leagueId = String(league.id);
+    const leagueName = String(league.name ?? "");
+    try {
+      await deleteLeagueWithPreservation(leagueId, leagueName);
+      swept.push({ leagueId, leagueName });
+      await bestEffort("audit.league_deleted_by_stale_sweep", () => writeAuditLog({
+        action: "league.deleted_by_stale_sweep",
+        entityType: "rec_leagues",
+        entityId: leagueId,
+        newValue: { leagueName, staleDays },
+        source: "automated_sweep",
+      }), { leagueId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[ERROR] Stale league sweep failed for ${leagueId} (${leagueName}):`, err);
+      failed.push({ leagueId, error: message });
+    }
+  }
+  return { swept, failed };
 }
 
 // ----------------------------------------------------------------------------
