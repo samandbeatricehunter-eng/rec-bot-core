@@ -184,7 +184,38 @@ and their now-pointless Drizzle declarations (`recUserH2hLeagueRecords`,
 types, and relations objects) removed from `apps/api/src/db/schema.ts`. Typechecked, 125/125
 tests still pass.
 
-**2d (league inactivity lifecycle)** — still NOT STARTED, unchanged from the summary above.
+**2d (league inactivity lifecycle) — turned out to already exist, and was unsafe. Found and
+fixed, with explicit user approval at each step.** Before building the planned archive/
+hard-delete lifecycle from scratch, checked `cron.job` and found `rec_cleanup_stale_leagues_daily`
+already existed (live since 2026-06-15, `202606150003_stale_league_cleanup.sql` /
+`202606160002_move_stale_cleanup_to_private_schema.sql`), running daily at 09:17 UTC, calling
+`private.rec_cleanup_stale_leagues(21, false)` — a raw `delete from rec_leagues` for any league
+inactive 21+ days, with **no call to `preserveGlobalContributionsBeforeLeagueDelete()`/
+`preserveH2hHistoryBeforeLeagueDelete()` at all** (those didn't exist until 2026-07-29, six
+weeks after this cron started running). **This is the confirmed root cause of both the Phase
+2b and Phase 2c findings** — not two independent historical incidents, one live ongoing bug
+that was still armed and would have hit the next league to cross 21 days inactive.
+- Fix: extracted `deleteLeagueWithPreservation()` in `admin.service.ts` (stream-highlight
+  cleanup + both preservation calls + the `rec_delete_league` RPC) — now shared by the
+  existing human-driven `adminDeleteLeague()` and a new `sweepStaleLeagues()`. Added
+  `POST /v1/admin/leagues/sweep-stale` (`requireInternalApiKey`-gated, same pattern as the
+  highlights-prune sweep).
+- Migration `20260925120000_fix_unsafe_stale_league_cleanup_cron.sql` repoints the cron onto
+  that route via `net.http_post` (same pattern as `prune_dead_highlights_daily`) and drops the
+  old unsafe SQL function. Applied — confirmed the Railway deploy of the new route landed
+  first (polled `/v1/admin/leagues/sweep-stale` with a harmless `staleDays: 99999` until it
+  stopped 404ing), then repointed the cron, then confirmed `cron.job` shows the new command.
+  Same 21-day default and staleness signal as before — only *how* the delete happens changed.
+- No leagues were actually stale at the time this was found (checked before touching
+  anything), so nothing was lost by the delay in fixing it — but this had been armed and live
+  for two months.
+- **What was NOT built**: the originally-planned separate "archive at 14 days, hard-delete at
+  30" two-stage lifecycle with a new `rec_leagues.status`/`last_active_at` column. The existing
+  21-day-straight-to-delete mechanism (now made safe) already does the job the plan wanted;
+  introducing a whole new status column and a 14-day archived-but-visible middle state was
+  scoped as new-feature work in the original plan, not a bug fix, and wasn't attempted here.
+  If a grace-period/archive stage is still wanted, that's a genuinely fresh feature to design,
+  separate from "fix the existing unsafe deletion," which is what this session actually did.
 
 ### Phase 3 (DB cleanup), Phase 4 (CSS centralization), Phase 5 (polling audit) — NOT STARTED
 

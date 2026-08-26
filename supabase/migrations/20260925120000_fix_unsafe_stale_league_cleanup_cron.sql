@@ -1,4 +1,7 @@
--- APPLIED 2026-08-25 (via Supabase MCP, after explicit user approval).
+-- APPLIED 2026-08-25 (via Supabase MCP, after explicit user approval). Verified the new
+-- route was live on production (Railway auto-deploy from the app-code commit landed first,
+-- confirmed with a harmless staleDays:99999 test call returning 200) before repointing the
+-- cron, and confirmed cron.job now shows the new net.http_post command afterward.
 --
 -- rec_cleanup_stale_leagues_daily (live since 202606150003_stale_league_cleanup.sql, moved to
 -- the private schema in 202606160002) called private.rec_cleanup_stale_leagues(21, false),
