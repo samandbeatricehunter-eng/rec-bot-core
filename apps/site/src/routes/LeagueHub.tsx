@@ -40,17 +40,13 @@ import {
   HighlightUploadProvider,
 } from "@rec/hub-ui";
 
-import "../../../web/src/styles/tokens.css";
-import "../../../web/src/styles/themes/cfb27.css";
-import "../../../web/src/styles/themes/madden27.css";
-import "../../../web/src/styles/typography.css";
-import "../../../web/src/styles/surfaces.css";
-import "../../../web/src/styles/buttons.css";
-import "../../../web/src/styles/icons.css";
-import "../../../web/src/styles/football-components.css";
-import "../../../web/src/styles/hub.css";
-import "../../../web/src/styles/league-management.css";
-import "../../../web/src/styles/nfl-playoff-bracket.css";
+// Consolidated from 11 separately-imported files into 3 purpose-named bundles (Phase 4 CSS
+// centralization) -- see hub-tokens.css/hub-layout.css/hub-features.css for what each groups
+// and why. responsive.css stays its own final import; it must load after every other
+// stylesheet regardless of bundle grouping (see hub-features.css's comment).
+import "../../../web/src/styles/hub-tokens.css";
+import "../../../web/src/styles/hub-layout.css";
+import "../../../web/src/styles/hub-features.css";
 import "../../../web/src/styles/responsive.css";
 
 type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt";

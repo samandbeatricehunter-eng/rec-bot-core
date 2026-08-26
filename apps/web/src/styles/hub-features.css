@@ -1,0 +1,10 @@
+/* Page/feature-specific bundle — football component chrome, the main hub page, league
+ * management, and the NFL playoff bracket. Order preserved exactly as LeagueHub.tsx imported
+ * these individually before this pass. responsive.css stays a separate, final import (not
+ * folded in here) -- it must load after every other stylesheet regardless of bundle grouping,
+ * since its media-query overrides are meant to win the cascade over component styles of equal
+ * specificity, which depends on source order, not just specificity. */
+@import "./football-components.css";
+@import "./hub.css";
+@import "./league-management.css";
+@import "./nfl-playoff-bracket.css";

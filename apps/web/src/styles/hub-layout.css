@@ -1,0 +1,6 @@
+/* Layout/component primitives bundle — generic surfaces, buttons, and icon sizing shared
+ * across every hub page. Order preserved exactly as LeagueHub.tsx imported these individually
+ * before this pass. */
+@import "./surfaces.css";
+@import "./buttons.css";
+@import "./icons.css";
