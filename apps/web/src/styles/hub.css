@@ -3755,6 +3755,13 @@ button.poty:disabled {
 .hub-hero-no-matchup span { color: var(--text-muted); }
 
 .hub-hero-breakdown { overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); background: rgba(5, 7, 10, .48); }
+/* Tap-to-expand wrapper around a matchup card -- collapsed by default, HeroMatchupBreakdown
+   renders as the drawer content once expanded (see ExpandableMatchupCard.tsx / the hero card's
+   own toggle in HubHome.tsx). */
+.hub-expandable-matchup-trigger { cursor: pointer; border-radius: var(--radius-lg); transition: box-shadow .15s ease; }
+.hub-expandable-matchup-trigger:hover, .hub-expandable-matchup-trigger:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); outline: none; }
+.hub-expandable-matchup-drawer { margin-top: var(--space-3); animation: hub-expandable-matchup-in .15s ease-out; }
+@keyframes hub-expandable-matchup-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 .hub-hero-breakdown-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .hub-hero-breakdown-head > div { display: flex; flex-direction: column; min-width: 0; }
 .hub-hero-breakdown-head > div:last-child { align-items: flex-end; text-align: right; }

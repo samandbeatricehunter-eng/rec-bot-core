@@ -12,7 +12,9 @@ export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecord
 export { LeagueStandingsHome } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
 export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCareerStatsHome.js";
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
+export { HeroMatchupBreakdown } from "../../../apps/web/src/components/hub/HeroMatchupBreakdown.js";
 export { TeamLogo } from "../../../apps/web/src/components/ui/TeamLogo.js";
+export type { MatchupPreview } from "../../../apps/web/src/types/api.js";
 export { PlayerOfWeekCard, type PlayerOfWeekCardWinner } from "../../../apps/web/src/components/hub/PlayerOfWeekCard.js";
 export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";

@@ -42,6 +42,7 @@ import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestMo
 import { RelocateTeamWizard } from "../../components/hub/RelocateTeamWizard.js";
 import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
+import { ExpandableMatchupCard } from "../../components/matchups/ExpandableMatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
 import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
@@ -596,6 +597,7 @@ export function HubHome() {
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
   const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
   const [heroWagerOptions, setHeroWagerOptions] = useState<WagerOptionsResponse | null>(null);
+  const [heroBreakdownExpanded, setHeroBreakdownExpanded] = useState(false);
   const [manageFundsOpen, setManageFundsOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
@@ -1729,8 +1731,24 @@ export function HubHome() {
             </header>
 
             {heroMatchup ? <div className="hub-hero-matchup-stack">
-              <MatchupCard game={heroMatchup} showReactions reactionsBelow passive />
-              {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} wagerOptions={heroWagerOptions} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+              {/* Not `passive` on the card itself -- this wrapper's onClick needs the click to
+               * bubble up from the card; the reaction row below (reactionsBelow) is a separate
+               * sibling, not inside this clickable area, so it's unaffected either way. */}
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={heroBreakdownExpanded}
+                className="hub-expandable-matchup-trigger"
+                onClick={() => setHeroBreakdownExpanded((value) => !value)}
+                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setHeroBreakdownExpanded((value) => !value); } }}
+              >
+                <MatchupCard game={heroMatchup} showReactions reactionsBelow />
+              </div>
+              {heroBreakdownExpanded ? (
+                <div className="hub-expandable-matchup-drawer">
+                  {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} wagerOptions={heroWagerOptions} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+                </div>
+              ) : null}
               {auth.status === "ready" && <HeroMatchupActions
                 guildId={auth.guildId}
                 matchup={heroMatchup}
@@ -2017,7 +2035,7 @@ export function HubHome() {
                 </div>
                 {(() => {
                   const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
-                  return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <MatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
+                  return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <ExpandableMatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
                 })()}
                 {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${game.gotw ? " gotw" : ""}`} key={game.gameId}>
                   <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.gotw ? " gotw" : "")}>

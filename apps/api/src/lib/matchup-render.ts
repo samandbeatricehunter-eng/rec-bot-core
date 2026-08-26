@@ -48,7 +48,7 @@ export async function renderMatchupCardPng(gameId: string): Promise<Buffer> {
     // render silently fails. "domcontentloaded" fires immediately; target.waitFor below is the
     // real readiness gate (data fetched + MatchupCard actually mounted).
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: RENDER_TIMEOUT_MS });
-    const target = page.locator("[data-matchup-render]");
+    const target = page.locator("[data-matchup-render-root]");
     try {
       await target.waitFor({ state: "visible", timeout: RENDER_TIMEOUT_MS });
     } catch (waitError) {
@@ -64,7 +64,7 @@ export async function renderMatchupCardPng(gameId: string): Promise<Buffer> {
     // in Discord. Wait until every logo has finished (load or error); `complete` is true for
     // both. Zero images is valid (relocated/custom/CFB) and must not hang.
     await page.waitForFunction(() => {
-      const root = document.querySelector("[data-matchup-render]");
+      const root = document.querySelector("[data-matchup-render-root]");
       if (!root) return false;
       return Array.from(root.querySelectorAll("img")).every((img) => img.complete);
     }, { timeout: RENDER_TIMEOUT_MS }).catch(() => undefined);

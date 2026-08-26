@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { MatchupCard, type HubMatchupGame } from "@rec/hub-ui";
+import { MatchupCard, HeroMatchupBreakdown, type HubMatchupGame, type MatchupPreview } from "@rec/hub-ui";
 import { siteApi } from "../../lib/site-api.js";
 
 // Chromeless page Playwright screenshots for the Discord game-channel matchup-card embed
@@ -20,6 +20,7 @@ export function RenderMatchup() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [game, setGame] = useState<HubMatchupGame | null>(null);
+  const [preview, setPreview] = useState<MatchupPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function RenderMatchup() {
       return;
     }
     siteApi.getMatchupCardRenderData(gameId, token)
-      .then((data) => setGame(data as unknown as HubMatchupGame))
+      .then((data: any) => { setGame(data.game as HubMatchupGame); setPreview(data.preview as MatchupPreview | null); })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load matchup."));
   }, [gameId, token]);
 
@@ -42,8 +43,13 @@ export function RenderMatchup() {
     // A genuinely taller card (via the .rec-matchup-card--render CSS override, hub.css) is what
     // actually displays bigger, since Discord preserves that taller aspect ratio when it scales
     // width down to its cap.
-    <div style={{ width: 1400, padding: 24, background: "#0b0d10" }}>
+    //
+    // data-matchup-render-root (not the card's own data-matchup-render) is what Playwright
+    // actually screenshots now, so the breakdown table below the card is captured too -- see
+    // apps/api/src/lib/matchup-render.ts.
+    <div data-matchup-render-root style={{ width: 1400, padding: 24, background: "#0b0d10", display: "flex", flexDirection: "column", gap: 20 }}>
       <MatchupCard game={game} featured renderMode="discord" showReactions={false} />
+      {preview ? <HeroMatchupBreakdown preview={preview} /> : null}
     </div>
   );
 }

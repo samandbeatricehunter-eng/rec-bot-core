@@ -8,6 +8,7 @@ import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, isSiteOnlyGuildId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
+import { getMatchupPreview } from "./matchup-preview.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueSeasonGamesQuery, leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -1879,7 +1880,10 @@ export async function getMatchupCardRenderData(gameId: string) {
   const schedule = await getHubMatchupSchedule({ guildId, discordId, weekNumber: Number(game.week_number) });
   const matchup = schedule.games.find((item: any) => item.gameId === gameId);
   if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");
-  return matchup;
+  // Powers the game-channel Discord render's full stat-comparison breakdown (same data the
+  // site's hero card shows) -- best-effort, so a preview hiccup still lets the base card render.
+  const preview = await getMatchupPreview({ guildId, discordId, gameId }).catch(() => null);
+  return { game: matchup, preview };
 }
 
 export async function getHubMatchupDetail(input: { guildId: string; discordId: string; gameId: string }) {
