@@ -3,12 +3,8 @@ import {
   formatStatValue,
   getStatLabel,
   getStatShortLabel,
-  positionsForStatPageCategory,
-  primaryStatKeyForPageCategory,
   statCategoriesForPosition,
   statKeysForCategories,
-  statKeysForPageCategory,
-  STAT_PAGE_CATEGORIES,
   type StatPageCategoryKey,
 } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
@@ -19,8 +15,6 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
-import { TeamLogo } from "../../components/ui/TeamLogo.js";
-import { RankChange } from "./HubHome.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -45,11 +39,6 @@ function columnsForPosition(position: string, players: StatsPlayer[]): string[] 
   return keys.length ? keys : fallbackColumnsForPlayers(players);
 }
 
-function columnsForPageCategory(categoryKey: StatPageCategoryKey, players: StatsPlayer[]): string[] {
-  const keys = statKeysForPageCategory(categoryKey);
-  return keys.length ? keys : fallbackColumnsForPlayers(players);
-}
-
 function statColumnLabel(key: string): string {
   const short = getStatShortLabel(key);
   return short === key ? label(key) : short;
@@ -63,35 +52,6 @@ function PlayerAvatar({ player }: { player: { photoUrl: string | null; position:
       className="rec-stat-player-card-avatar"
       fallback={<span className="rec-stat-player-card-avatar-fallback">{player.position ?? "—"}</span>}
     />
-  );
-}
-
-/** One player's stat line as a card: identity header + a horizontally-scrolling strip of stat
- * chips. Chosen over a wide table because a table's columns wrap into unreadable multi-line
- * headers once more than a handful of stats are shown at mobile widths — a scrollable strip
- * degrades to "swipe sideways" instead. */
-function PlayerStatCard({ player, columns, rank, onOpen }: { player: StatsPlayer; columns: string[]; rank?: number; onOpen: () => void }) {
-  return (
-    <div className="rec-stat-player-card">
-      <div className="rec-stat-player-card-head">
-        {rank != null && <span className="rec-stat-player-card-rank">#{rank}</span>}
-        <button type="button" onClick={onOpen}>
-          <PlayerAvatar player={player} />
-          <span style={{ minWidth: 0 }}>
-            <span className="rec-stat-player-card-name" style={{ display: "block" }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</span>
-            <span className="rec-stat-player-card-meta">{player.teamAbbreviation ?? player.teamName ?? "Free Agent"} · {player.position ?? "—"}</span>
-          </span>
-        </button>
-      </div>
-      <div className="rec-stat-chip-row">
-        {columns.map((key) => (
-          <div key={key} className="rec-stat-chip" title={getStatLabel(key)}>
-            <div className="rec-stat-chip-label">{statColumnLabel(key)}</div>
-            <div className="rec-stat-chip-value">{formatStatValue(key, player.stats[key] ?? 0)}</div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -150,42 +110,73 @@ function useLeagueStats(guildId: string, filters: { teamId?: string | null; posi
   return { data, error };
 }
 
-/** "Stats by Category" — pick Passing/Rushing/Receiving/Blocking/Defensive/Special Teams and
- * see every player who plays that side of the ball, ranked by that category's headline stat. */
-export function CategoryStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
-  const [categoryKey, setCategoryKey] = useState<StatPageCategoryKey>("passing");
-  const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
-  const { data, error } = useLeagueStats(guildId, { scope });
+type SortState = { key: string; direction: "asc" | "desc" };
 
-  const positions = useMemo(() => new Set(positionsForStatPageCategory(categoryKey)), [categoryKey]);
-  const players = useMemo(() => {
-    if (!data) return [];
-    const filtered = positions.size ? data.players.filter((p) => p.position && positions.has(p.position.toUpperCase())) : data.players;
-    const primaryKey = primaryStatKeyForPageCategory(categoryKey);
-    if (!primaryKey) return filtered;
-    return [...filtered].sort((a, b) => (Number(b.stats[primaryKey] ?? 0)) - (Number(a.stats[primaryKey] ?? 0)));
-  }, [data, positions, categoryKey]);
-  const columns = useMemo(() => (data ? columnsForPageCategory(categoryKey, players) : []), [data, categoryKey, players]);
+/** A real sortable table instead of a card strip — every column header toggles ascending/
+ * descending on click, which a strip of cards has no natural place to put. */
+function StatsTable({ players, columns, onOpenPlayer }: { players: StatsPlayer[]; columns: string[]; onOpenPlayer: (player: StatsPlayer) => void }) {
+  const [sort, setSort] = useState<SortState | null>(null);
 
-  if (error) return <ErrorState message={error} />;
-  if (!data) return <LoadingState label="Loading league statistics…" />;
+  const sorted = useMemo(() => {
+    if (!sort) return players;
+    return [...players].sort((a, b) => {
+      const av = Number(a.stats[sort.key] ?? 0);
+      const bv = Number(b.stats[sort.key] ?? 0);
+      return sort.direction === "asc" ? av - bv : bv - av;
+    });
+  }, [players, sort]);
 
-  return <Card>
-    <div className="rec-stats-category-pills" role="tablist" aria-label="Stat category">
-      {STAT_PAGE_CATEGORIES.map((cat) => (
-        <button key={cat.key} type="button" role="tab" aria-selected={categoryKey === cat.key} className={categoryKey === cat.key ? "active" : ""} onClick={() => setCategoryKey(cat.key)}>{cat.label}</button>
-      ))}
+  const toggleSort = (key: string) => {
+    setSort((current) => {
+      if (current?.key !== key) return { key, direction: "desc" };
+      return current.direction === "desc" ? { key, direction: "asc" } : null;
+    });
+  };
+
+  if (!players.length) return <p className="form-hint">No players with recorded stats here yet.</p>;
+
+  return (
+    <div className="rec-stats-table-wrap">
+      <table className="rec-stats-table">
+        <thead>
+          <tr>
+            <th className="rec-stats-table-player-col">Player</th>
+            {columns.map((key) => (
+              <th key={key}>
+                <button type="button" className="rec-stats-table-sort" onClick={() => toggleSort(key)} title={getStatLabel(key)}>
+                  {statColumnLabel(key)}
+                  <span className="rec-stats-table-sort-arrow">{sort?.key === key ? (sort.direction === "asc" ? "▲" : "▼") : ""}</span>
+                </button>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((player) => (
+            <tr key={player.id} onClick={() => onOpenPlayer(player)}>
+              <td className="rec-stats-table-player-col">
+                <div className="rec-stats-table-player">
+                  <PlayerAvatar player={player} />
+                  <span style={{ minWidth: 0 }}>
+                    <span className="rec-stat-player-card-name" style={{ display: "block" }}>{player.fullName}{player.jerseyNumber != null ? ` #${player.jerseyNumber}` : ""}</span>
+                    <span className="rec-stat-player-card-meta">{player.teamAbbreviation ?? player.teamName ?? "Free Agent"} · {player.position ?? "—"}</span>
+                  </span>
+                </div>
+              </td>
+              {columns.map((key) => <td key={key}>{formatStatValue(key, player.stats[key] ?? 0)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
-    <div className="rec-stat-card-list">
-      {players.map((player) => <PlayerStatCard key={player.id} player={player} columns={columns} onOpen={() => setOpenPlayer(player)} />)}
-    </div>
-    {!players.length && <p className="form-hint">No players with recorded stats in this category yet.</p>}
-    {openPlayer && <PlayerStatsModal player={openPlayer} onClose={() => setOpenPlayer(null)} />}
-  </Card>;
+  );
 }
 
-/** "Stats by Team" — pick a team, then a position (defaults to QB); shows that position group's
- * season totals for the selected team. */
+/** The Stats page's one player-production display — pick a team (or ALL, every team in the
+ * league) then a position, and see that group's season totals in a sortable table. Replaces the
+ * old "Stats by Category" pill entirely: it showed every position for a hand-picked category,
+ * but duplicated everything this view already does once ALL was an option here, without a
+ * working per-column sort. */
 export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "season" | "career" }) {
   const [teamId, setTeamId] = useState("");
   const [position, setPosition] = useState("QB");
@@ -193,22 +184,22 @@ export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "sea
   const allTeams = useLeagueStats(guildId, { scope });
   const teamData = useLeagueStats(guildId, { teamId: teamId || null, scope });
 
-  useEffect(() => {
-    if (!teamId && allTeams.data?.teams.length) setTeamId(allTeams.data.teams[0].id);
-  }, [teamId, allTeams.data]);
-
   if (allTeams.error) return <ErrorState message={allTeams.error} />;
   if (!allTeams.data) return <LoadingState label="Loading league statistics…" />;
 
   const positions = teamData.data ? [...new Set(teamData.data.players.map((p) => p.position).filter((p): p is string => Boolean(p)))].sort() : [];
   const effectivePosition = positions.includes(position) ? position : (positions[0] ?? "");
-  const players = teamData.data ? teamData.data.players.filter((p) => p.position === effectivePosition) : [];
-  const columns = teamData.data ? columnsForPosition(effectivePosition, players) : [];
+  const columns = teamData.data ? columnsForPosition(effectivePosition, teamData.data.players) : [];
+  // A player with every relevant column at 0 (a backup who never took a snap) just adds noise.
+  const players = teamData.data
+    ? teamData.data.players.filter((p) => p.position === effectivePosition && columns.some((key) => Number(p.stats[key] ?? 0) !== 0))
+    : [];
 
   return <Card>
     <div className="rec-stats-filter-row">
       <label className="form-field"><span className="form-label">Team</span>
         <select className="form-select" value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+          <option value="">All Teams</option>
           {allTeams.data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
         </select>
       </label>
@@ -218,27 +209,27 @@ export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "sea
         </select>
       </label>
     </div>
-    {teamData.error ? <ErrorState message={teamData.error} /> : !teamData.data ? <LoadingState label="Loading team roster…" /> : (
-      <div className="rec-stat-card-list">
-        {players.map((player) => <PlayerStatCard key={player.id} player={player} columns={columns} onOpen={() => setOpenPlayer(player)} />)}
-        {!players.length && <p className="form-hint">This team has no players at this position yet.</p>}
-      </div>
+    {teamData.error ? <ErrorState message={teamData.error} /> : !teamData.data ? <LoadingState label="Loading roster statistics…" /> : (
+      <StatsTable players={players} columns={columns} onOpenPlayer={setOpenPlayer} />
     )}
     {openPlayer && <PlayerStatsModal player={openPlayer} onClose={() => setOpenPlayer(null)} />}
   </Card>;
 }
 
-const LEADER_CATEGORY_STAT: Record<StatPageCategoryKey, string | null> = {
-  passing: "pass_yards",
-  rushing: "rush_yards",
-  receiving: "receiving_yards",
-  blocking: null,
-  defense: "tackles",
-  special_teams: "fg_made",
-};
+type LeaderCategory = { label: string; columns: string[]; category: StatPageCategoryKey };
+const OFFENSE_LEADER_CATEGORIES: LeaderCategory[] = [
+  { label: "Passing Yards", columns: ["pass_yards", "pass_tds"], category: "passing" },
+  { label: "Rushing Yards", columns: ["rush_yards", "rush_tds"], category: "rushing" },
+  { label: "Receiving Yards", columns: ["receiving_yards", "receiving_tds"], category: "receiving" },
+];
+const DEFENSE_LEADER_CATEGORIES: LeaderCategory[] = [
+  { label: "Interceptions", columns: ["interceptions"], category: "defense" },
+  { label: "Tackles", columns: ["tackles"], category: "defense" },
+];
 
 /** "League Leaders" — one card per category, top 5 players ranked by that category's headline
- * stat, each with a short horizontal stat line pulled from their full season totals. */
+ * stat, grouped Offense/Defense, each showing the ranking stat alongside a secondary column
+ * (TDs for the three yardage categories) while still sorting purely by the ranking stat. */
 function LeagueLeadersView({ guildId }: { guildId: string }) {
   const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
   const { data, error } = useLeagueStats(guildId);
@@ -248,74 +239,76 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
   const playersById = new Map(data.players.map((p) => [p.id, p]));
 
-  const leaderCategories = [
-    { label: "Passing Yards", key: "pass_yards", category: "passing" as StatPageCategoryKey },
-    { label: "Rushing Yards", key: "rush_yards", category: "rushing" as StatPageCategoryKey },
-    { label: "Receiving Yards", key: "receiving_yards", category: "receiving" as StatPageCategoryKey },
-    { label: "Interceptions", key: "interceptions", category: "defense" as StatPageCategoryKey },
-    { label: "Tackles", key: "tackles", category: "defense" as StatPageCategoryKey },
-  ];
-  return <Card><h2 style={{ marginTop: 0 }}>League Leaders</h2><div className="hub-league-leader-grid">
-    {leaderCategories.map((cat) => {
-      const primaryKey = cat.key;
-      const leaders = primaryKey ? data.leaders[primaryKey] ?? [] : [];
-      const columns = [primaryKey];
-      return (
-        <section key={cat.key} className="hub-league-leader-category">
-          <h3>{cat.label}</h3>
-          {!primaryKey || !leaders.length ? (
-            <p className="form-hint">No approved or imported stats are available for this category yet.</p>
-          ) : (
-            <div className="rec-stat-card-list">
-              {leaders.map((leader) => {
-                const player = playersById.get(leader.playerId);
-                return player ? (
-                  <PlayerStatCard key={leader.playerId} player={player} columns={columns.length ? columns : [primaryKey]} rank={leader.rank} onOpen={() => setOpenPlayer(player)} />
-                ) : (
-                  <div key={leader.playerId} className="rec-stat-player-card">
-                    <div className="rec-stat-player-card-head">
-                      <span className="rec-stat-player-card-rank">#{leader.rank}</span>
-                      <span style={{ minWidth: 0 }}>
-                        <span className="rec-stat-player-card-name" style={{ display: "block" }}>{leader.playerName}</span>
-                        <span className="rec-stat-player-card-meta">{leader.teamAbbreviation ?? leader.teamName ?? "Free Agent"} · {leader.position ?? "—"}</span>
-                      </span>
+  const renderGroup = (categories: LeaderCategory[]) => (
+    <div className="hub-league-leader-grid">
+      {categories.map((cat) => {
+        const primaryKey = cat.columns[0];
+        const leaders = data.leaders[primaryKey] ?? [];
+        return (
+          <section key={cat.label} className="hub-league-leader-category">
+            <h3>{cat.label}</h3>
+            {!leaders.length ? (
+              <p className="form-hint">No approved or imported stats are available for this category yet.</p>
+            ) : (
+              <div className="rec-stat-card-list">
+                {leaders.map((leader) => {
+                  const player = playersById.get(leader.playerId);
+                  const photoUrl = player?.photoUrl ?? null;
+                  const position = player?.position ?? leader.position ?? null;
+                  return (
+                    <div key={leader.playerId} className="rec-stat-player-card">
+                      <div className="rec-stat-player-card-head">
+                        <span className="rec-stat-player-card-rank">#{leader.rank}</span>
+                        <button type="button" onClick={() => player && setOpenPlayer(player)} disabled={!player}>
+                          <PlayerAvatar player={{ photoUrl, position }} />
+                          <span style={{ minWidth: 0 }}>
+                            <span className="rec-stat-player-card-name" style={{ display: "block" }}>{leader.playerName}</span>
+                            <span className="rec-stat-player-card-meta">{leader.teamAbbreviation ?? leader.teamName ?? "Free Agent"} · {position ?? "—"}</span>
+                          </span>
+                        </button>
+                      </div>
+                      <div className="rec-stat-chip-row">
+                        {cat.columns.map((key) => (
+                          <div key={key} className="rec-stat-chip">
+                            <div className="rec-stat-chip-label">{statColumnLabel(key)}</div>
+                            <div className="rec-stat-chip-value">{formatStatValue(key, key === primaryKey ? leader.value : (player?.stats[key] ?? 0))}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="rec-stat-chip-row">
-                      <div className="rec-stat-chip"><div className="rec-stat-chip-label">{statColumnLabel(primaryKey)}</div><div className="rec-stat-chip-value">{formatStatValue(primaryKey, leader.value)}</div></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      );
-    })}
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+
+  return <Card>
+    <h2 style={{ marginTop: 0 }}>League Leaders</h2>
+    <h3 className="rec-league-leader-section-heading">Offense</h3>
+    {renderGroup(OFFENSE_LEADER_CATEGORIES)}
+    <h3 className="rec-league-leader-section-heading">Defense</h3>
+    {renderGroup(DEFENSE_LEADER_CATEGORIES)}
     {openPlayer && <PlayerStatsModal player={openPlayer} onClose={() => setOpenPlayer(null)} />}
-  </div></Card>;
+  </Card>;
 }
 
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
-  const [view, setView] = useState<"category" | "team">("category");
   const [scope, setScope] = useState<"season" | "career">("season");
-  const [hub, setHub] = useState<Awaited<ReturnType<typeof recApi.getHub>> | null>(null);
-  useEffect(() => { recApi.getHub(guildId).then(setHub).catch(() => setHub(null)); }, [guildId]);
 
-  // League Records/History/Strength of Schedule/Financial Profile used to live behind a
-  // "League Resources" button row here -- Records and History already have their own nav
-  // entries, Strength of Schedule is moving to the Standings page, and Financial Profile now
-  // lives under My Team > Financials, so this page goes back to just being League Stats.
+  // League Resources button row, Power Rankings, and the Stats by Category/Team pill switcher
+  // used to all live here. Power Rankings has its own home on Standings; League Records/History/
+  // Strength of Schedule have their own nav entries; and Stats by Team (with an All Teams option
+  // and real sortable columns) replaced Stats by Category outright rather than living alongside
+  // it, since it did everything Category did plus per-column sorting Category never had.
   return <div className="hub-section">
-    <PageHeader title="Stats" subtitle="League rankings, leaders, and complete player production." />
-    <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span></span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}<p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p></Card>
+    <PageHeader title="Stats" subtitle="League leaders and complete player production." />
     <LeagueLeadersView guildId={guildId} />
     <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>
-    <div className="rec-matchup-tabs" role="tablist" aria-label="Stats view">
-      <button type="button" role="tab" aria-selected={view === "category"} className={view === "category" ? "active" : ""} onClick={() => setView("category")}>Stats by Category</button>
-      <button type="button" role="tab" aria-selected={view === "team"} className={view === "team" ? "active" : ""} onClick={() => setView("team")}>Stats by Team</button>
-    </div>
-    {view === "category" && <CategoryStatsView guildId={guildId} scope={scope} />}
-    {view === "team" && <TeamStatsView guildId={guildId} scope={scope} />}
+    <TeamStatsView guildId={guildId} scope={scope} />
   </div>;
 }

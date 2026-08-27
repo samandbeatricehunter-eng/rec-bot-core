@@ -1,3 +1,4 @@
+import { computeDerivedSeasonStats, MAX_AGGREGATE_STAT_KEYS, NON_AGGREGABLE_STAT_KEYS } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -47,6 +48,8 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   let filter = "";
   if (input.teamId) { params.push(input.teamId); filter += ` and p.team_id=$${params.length}`; }
   if (input.position) { params.push(input.position); filter += ` and upper(p.position)=upper($${params.length})`; }
+  const maxKeysParam = params.push([...MAX_AGGREGATE_STAT_KEYS]);
+  const nonAggregableKeysParam = params.push([...NON_AGGREGABLE_STAT_KEYS]);
 
   // Single query: the numeric_stats CTE (a full scan + jsonb_each_text expansion of every
   // weekly stat cell for the season) used to be duplicated verbatim across two separate round
@@ -59,11 +62,19 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   // (see statKeysForPageCategory / statCategoriesForPosition in @rec/shared). Capping to "top 16
   // most frequent" server-side used to silently drop a real stat just because it was rare across
   // the currently-filtered player set.
+  //
+  // Blindly SUMming every stat across weeks is only correct for counting stats. A "Longest ___"
+  // stat needs the MAX week's value, not the total of every week's longest play (was showing a
+  // "476-yard longest rush"); a rate stat like Passer Rating can't be summed OR maxed at all
+  // (was showing a "1,064.7" rating) -- those are excluded here entirely and recomputed from the
+  // now-correct totals in JS below (computeDerivedSeasonStats), the only place that can apply
+  // the real formula instead of a per-week average.
   const combined = await getPgPool().query<{ players: Array<Record<string, unknown>>; leaders: Record<string, unknown> }>(
     `with numeric_stats as materialized (
-       select s.player_id,e.key,sum(e.value::numeric) as total
+       select s.player_id,e.key,
+         case when e.key = any($${maxKeysParam}::text[]) then max(e.value::numeric) else sum(e.value::numeric) end as total
        from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
-       where s.league_id=$1${seasonFilter} and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'
+       where s.league_id=$1${seasonFilter} and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$' and e.key <> all($${nonAggregableKeysParam}::text[])
        group by s.player_id,e.key
      ), totals as (
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id
@@ -73,7 +84,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
               coalesce(x.stats,'{}'::jsonb) as stats
          from rec_players p left join rec_teams t on t.id=p.team_id left join totals x on x.player_id=p.id
         where p.league_id=$1 and coalesce(p.roster_status,'active')='active' ${filter}
-        order by t.name nulls last,p.position,p.full_name limit 1000
+        order by t.name nulls last,p.position,p.full_name
      ), ranked as (
        select n.*,row_number() over(partition by n.key order by n.total desc,p.full_name) as rank,
               p.full_name,p.position,t.name as team_name,t.abbreviation as team_abbreviation
@@ -89,7 +100,10 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
     params,
   );
   const row = combined.rows[0] ?? { players: [], leaders: {} };
-  const players = row.players ?? [];
+  const players = (row.players ?? []).map((player: any) => ({
+    ...player,
+    stats: { ...player.stats, ...computeDerivedSeasonStats(player.stats ?? {}) },
+  }));
   const value: LeagueStatsResult = {
     league,
     teams: teamsResult.rows,

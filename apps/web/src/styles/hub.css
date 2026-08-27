@@ -4750,6 +4750,27 @@ button.poty:disabled {
 .hub-league-leader-category .rec-stat-chip-value { font-family:var(--font-display); font-size:15px; color:var(--accent-bright); }
 .rec-stats-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:var(--space-4); }
 
+.rec-league-leader-section-heading { margin:var(--space-4) 0 var(--space-2); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-secondary); }
+.rec-league-leader-section-heading:first-of-type { margin-top:0; }
+
+/* Sortable stats table -- replaces the old card-strip "Stats by Category" list. Wrapped in its
+   own horizontally-scrolling container so a wide column set never forces the page itself to
+   scroll sideways. */
+.rec-stats-table-wrap { overflow-x:auto; }
+.rec-stats-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.rec-stats-table th, .rec-stats-table td { padding:8px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--card-border); }
+.rec-stats-table th:first-child, .rec-stats-table td:first-child { text-align:left; }
+.rec-stats-table-player-col { min-width:180px; }
+.rec-stats-table tbody tr { cursor:pointer; }
+.rec-stats-table tbody tr:hover { background:color-mix(in srgb,var(--surface) 85%,black 6%); }
+.rec-stats-table-player { display:flex; align-items:center; gap:10px; min-width:0; }
+.rec-stats-table-sort {
+  display:inline-flex; align-items:center; gap:4px; background:none; border:0; padding:0; cursor:pointer;
+  color:var(--text-secondary); font:700 11px var(--font-sans); text-transform:uppercase; letter-spacing:.04em;
+}
+.rec-stats-table-sort:hover { color:var(--text-primary); }
+.rec-stats-table-sort-arrow { font-size:9px; color:var(--accent-bright, var(--gold)); }
+
 @media (max-width: 640px) {
   .rec-stats-category-pills { justify-content:center; }
   .rec-stats-category-pills button { flex:1 1 auto; padding:8px 10px; font-size:.7rem; }

@@ -460,6 +460,75 @@ export function primaryStatKeyForPageCategory(key: StatPageCategoryKey): string 
   return withDefault ?? keys[0];
 }
 
+// A season/career total is built by scanning every weekly stat cell for a player and combining
+// them one key at a time (league-stats.service.ts) — correct as a straight sum for counting
+// stats (yards, TDs, tackles...), but wrong for a "max" stat like Longest Rush (summing each
+// week's longest run produced an impossible 400+ yard "longest rush") and meaningless for a
+// rate stat like Passer Rating (summing each week's rating produced values like 1,064.7 -- no
+// NFL rating exceeds 158.3). These lookups let the aggregation query and the post-query derived-
+// stat pass key off the same metadata instead of re-deriving it.
+export const STAT_DEFINITION_BY_KEY: ReadonlyMap<string, StatDefinition> = new Map(STAT_DEFINITIONS.map((def) => [def.canonicalKey, def]));
+
+export function getStatAggregate(canonicalKey: string): AggregationMode | null {
+  return STAT_DEFINITION_BY_KEY.get(canonicalKey)?.aggregate ?? null;
+}
+
+/** Canonical keys whose season/career total must be a MAX across weeks, not a sum (every
+ * "Longest ___" stat). */
+export const MAX_AGGREGATE_STAT_KEYS: readonly string[] = STAT_DEFINITIONS.filter((def) => def.aggregate === "max").map((def) => def.canonicalKey);
+
+/** Canonical keys that can never be meaningfully summed OR maxed week-over-week (rate stats and
+ * simple-formula derived stats) -- these must be excluded from the raw per-week total scan
+ * entirely and recomputed from the OTHER (correctly summed) totals instead. See
+ * computeDerivedSeasonStats. */
+export const NON_AGGREGABLE_STAT_KEYS: readonly string[] = STAT_DEFINITIONS.filter((def) => def.aggregate === "weighted_average" || def.aggregate === "derived").map((def) => def.canonicalKey);
+
+/** Standard NFL passer rating formula, applied once to season/career totals (never averaged or
+ * summed across individual weekly ratings -- see the module comment above). */
+export function computePasserRating(totals: { pass_attempts?: number; pass_completions?: number; pass_yards?: number; pass_tds?: number; interceptions_thrown?: number }): number | null {
+  const att = Number(totals.pass_attempts ?? 0);
+  if (att <= 0) return null;
+  const clamp = (n: number) => Math.min(2.375, Math.max(0, n));
+  const a = clamp(((Number(totals.pass_completions ?? 0) / att) - 0.3) * 5);
+  const b = clamp(((Number(totals.pass_yards ?? 0) / att) - 3) * 0.25);
+  const c = clamp((Number(totals.pass_tds ?? 0) / att) * 20);
+  const dd = clamp(2.375 - ((Number(totals.interceptions_thrown ?? 0) / att) * 25));
+  return Math.round(((a + b + c + dd) / 6) * 100 * 10) / 10;
+}
+
+/** Recomputes every "weighted_average"/"derived" stat (passer rating, completion %, yards per
+ * attempt/carry/reception, FG%/XP%, punt average) from a player's already-correct summed totals,
+ * and returns just those keys -- callers merge this over the raw scanned totals so the
+ * never-summable keys always come from here, never from a raw per-week sum. Silently omits a
+ * stat with no attempts/denominator (e.g. a non-QB with 0 pass_attempts gets no passer_rating)
+ * instead of showing 0 or NaN. */
+export function computeDerivedSeasonStats(totals: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  const ratio = (numeratorKey: string, denominatorKey: string, scale = 1, precision = 1): number | undefined => {
+    const denominator = Number(totals[denominatorKey] ?? 0);
+    if (denominator <= 0) return undefined;
+    const value = (Number(totals[numeratorKey] ?? 0) / denominator) * scale;
+    return Math.round(value * 10 ** precision) / 10 ** precision;
+  };
+  const rating = computePasserRating(totals);
+  if (rating != null) out.passer_rating = rating;
+  const completionPct = ratio("pass_completions", "pass_attempts", 100);
+  if (completionPct != null) out.completion_pct = completionPct;
+  const ypa = ratio("pass_yards", "pass_attempts");
+  if (ypa != null) out.yards_per_attempt = ypa;
+  const ypc = ratio("rush_yards", "rush_attempts");
+  if (ypc != null) out.yards_per_carry = ypc;
+  const ypr = ratio("receiving_yards", "receptions");
+  if (ypr != null) out.yards_per_reception = ypr;
+  const fgPct = ratio("fg_made", "fg_attempts", 100);
+  if (fgPct != null) out.fg_pct = fgPct;
+  const xpPct = ratio("xp_made", "xp_attempts", 100);
+  if (xpPct != null) out.xp_pct = xpPct;
+  const puntAvg = ratio("punt_yards", "punts", 1);
+  if (puntAvg != null) out.punt_average = puntAvg;
+  return out;
+}
+
 // ── Identity field maps (not stats — used for labeling) ───────────────────────
 export const PLAYER_IDENTITY_ALIASES: Record<string, string> = {
   rosterId: "madden_player_id",

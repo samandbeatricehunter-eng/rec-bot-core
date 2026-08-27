@@ -256,7 +256,15 @@ export function computeClipValue(input: {
 
 async function processCapture(job: any) {
   if (!job.capture_path) throw new Error("Capture job has no recording path.");
-  const game = await supabase.from("rec_games").select("season_number,week_number").eq("id", job.game_id).maybeSingle();
+  // rec_games has no season_number column of its own (only week_number -- season is tracked via
+  // season_id, not a raw number on the game row); the league's current season_number is what
+  // rec_player_weekly_stats/rec_stream_event_clips actually key on elsewhere in this codebase.
+  const [game, league] = await Promise.all([
+    supabase.from("rec_games").select("week_number").eq("id", job.game_id).maybeSingle(),
+    supabase.from("rec_leagues").select("season_number").eq("id", job.league_id).maybeSingle(),
+  ]);
+  if (game.error) throw game.error;
+  if (league.error) throw league.error;
   if (!game.data) throw new Error("Capture game no longer exists.");
   const duration = await durationSeconds(job.capture_path);
   let previous: { away: number; home: number } | null = null;
@@ -280,7 +288,7 @@ async function processCapture(job: any) {
     const media = await uploadVideo(clipPath, { name: `REC auto-clip W${game.data.week_number}`, captureJobId: job.id, gameId: job.game_id }, 45);
     await supabase.from("rec_stream_event_clips").upsert({
       capture_job_id: job.id, league_id: job.league_id, game_id: job.game_id,
-      season_number: Number(game.data.season_number ?? 1), week_number: Number(game.data.week_number ?? 1),
+      season_number: Number(league.data?.season_number ?? 1), week_number: Number(game.data.week_number ?? 1),
       event_type: "score_change", event_second: event.second,
       away_score: event.parsed.awayScore, home_score: event.parsed.homeScore,
       quarter: event.parsed.quarter == null ? null : String(event.parsed.quarter), game_clock: event.parsed.gameClock,
