@@ -40,8 +40,12 @@ function missingTable(error: any) {
   return ["42P01", "PGRST205"].includes(String(error?.code ?? ""));
 }
 
-async function commandAvailable(command: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  try { await execFileAsync(command, ["-version"], { timeout: 10_000 }); return { ok: true }; }
+// ffmpeg only understands single-dash flags (-version); yt-dlp is a strict GNU-style parser that
+// clusters an unrecognized single-dash flag as combined short options -- "-version" got read as
+// -v -e -r("sion"), landing on -r's (--limit-rate) argument and failing with a rate-limit error
+// that has nothing to do with what was actually wrong. Each binary needs its own real flag.
+async function commandAvailable(command: string, versionArg: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try { await execFileAsync(command, [versionArg], { timeout: 10_000 }); return { ok: true }; }
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
@@ -98,7 +102,7 @@ async function handleAttemptFailure(job: any, message: string) {
 
 async function startCapture(job: any) {
   if (activeCaptures.has(job.streaming_session_id)) return;
-  const [ffmpegCheck, resolverCheck] = await Promise.all([commandAvailable(FFMPEG), commandAvailable(RESOLVER)]);
+  const [ffmpegCheck, resolverCheck] = await Promise.all([commandAvailable(FFMPEG, "-version"), commandAvailable(RESOLVER, "--version")]);
   if (!ffmpegCheck.ok || !resolverCheck.ok) {
     const details = [!ffmpegCheck.ok ? `${FFMPEG}: ${ffmpegCheck.error}` : null, !resolverCheck.ok ? `${RESOLVER}: ${resolverCheck.error}` : null].filter(Boolean).join(" | ");
     await updateJob(job.id, { status: "awaiting_configuration", last_error: `Install ffmpeg and yt-dlp on the API image (or set FFMPEG_BIN / STREAM_RESOLVER_BIN). ${details}` });
