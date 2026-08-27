@@ -22,7 +22,19 @@ async function getScheduler(): Promise<Tesseract.Scheduler> {
     const workers = await Promise.all(
       Array.from({ length: Math.max(1, OCR_POOL_SIZE) }, async () => {
         const worker = await Tesseract.createWorker("eng");
-        await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE });
+        await worker.setParameters({
+          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+          // Every scorebug field is one of: digits, a score/clock separator, or a handful of
+          // ordinal/label letters (1ST/2ND/3RD/4TH/OT, KICKOFF). Restricting Tesseract's full
+          // English-dictionary model to just this set fixed a real, confirmed miss: without a
+          // whitelist, "4th" consistently read as "ath" (dropping the "4" entirely) across
+          // every preprocessing threshold tried -- a language-model bias, not an image-quality
+          // problem, since the exact same crop read correctly once digits were guaranteed to be
+          // in-vocabulary. One whitelist shared by every field (rather than per-field, which
+          // the pooled scheduler can't do without a per-job parameter race) since it only needs
+          // to be a superset, not exact.
+          tessedit_char_whitelist: "0123456789:&STNDRHKCOFITstndrhkcofit",
+        });
         return worker;
       }),
     );

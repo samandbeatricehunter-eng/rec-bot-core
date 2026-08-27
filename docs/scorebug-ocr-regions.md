@@ -179,6 +179,46 @@ ground-truth-checked.
 Still only two framings calibrated; there may be others (e.g. instant-replay overlays,
 different in-stadium camera cuts) not yet encountered in the sample set.
 
+## Bug #6: no character whitelist, and why "4th" read as "ath"
+
+Quarter was still missing on more than half the frames after everything above. Isolated it by
+recognizing the *exact same*, already-cleanly-thresholded "4th" crop directly (bypassing the
+region/parsing code entirely) across five different threshold levels (80/100/120/150/180) —
+every single one read `"ath"`, dropping the "4" outright. That ruled out image quality; it's
+Tesseract's English-dictionary language model biasing away from a digit in that position.
+
+Confirmed the fix the same way: the identical crop read `"4th"` correctly the moment a character
+whitelist restricted recognition to `0123456789:&STNDRHKCOFITstndrhkcofit` (every character any
+scorebug field can legitimately contain — digits, the clock separator, `&`, and the ordinal/
+label letters for `1ST`–`4TH`/`OT`/`KICKOFF`, both cases). One whitelist shared across all
+fields (rather than a tighter one per field) because the pooled Tesseract scheduler has no
+per-job parameter override — this is baked into the worker pool once at creation, alongside the
+PSM setting from bug #5 (`scorebug-tesseract-pool.ts`).
+
+Re-running the full 18-frame batch: quarter hit-rate went 5/18 → 9/18, with every hit now
+matching known ground truth at 93-94% confidence (previously mid-40s% and frequently wrong).
+Home score also improved (12/18 → 14/18).
+
+## Current summary (after all six fixes)
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 11/18 correct |
+| Quarter | 9/18, high-confidence and correct when non-null |
+| Game clock | 7/18, correct when non-null |
+| Play clock | 10/18 |
+| Away/home score | 9/18, 14/18 |
+| Down & distance | 7/18, correct except rare OCR character drops |
+| Yard line (number) | 13/18 |
+| Yard-line direction | 12/18 |
+| Possession glyph | 18/18 classified |
+
+Remaining known gaps: game clock and down/distance still miss on a meaningful fraction of
+frames (worth trying the box-score module's CLAHE-based variants next, now that the whitelist
+and PSM are both fixed), and no genuine `◀`/`▶`-directional or `▼`-direction ground-truth frame
+has been checked yet to fully validate those two classifiers' sign convention beyond the one
+`▲`/neutral case already confirmed.
+
 ## Implementation
 
 Scaffolding lives in `apps/api/src/modules/scorebug-ocr/`:
