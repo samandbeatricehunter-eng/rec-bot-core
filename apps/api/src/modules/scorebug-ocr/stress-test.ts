@@ -5,7 +5,7 @@
 // comparison against the actual frame -- see docs/scorebug-ocr-regions.md.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { parseScorebugFrame } from "./scorebug-parser.js";
+import { parseScorebugFrameAuto } from "./scorebug-parser.js";
 import { terminateScorebugTesseractWorker } from "./scorebug-tesseract-pool.js";
 
 async function main() {
@@ -27,7 +27,7 @@ async function main() {
     const start = Date.now();
     let result;
     try {
-      result = await parseScorebugFrame(buffer);
+      result = await parseScorebugFrameAuto(buffer);
     } catch (error) {
       console.log(`✗ ${file} -- FAILED: ${error instanceof Error ? error.message : error}`);
       continue;
@@ -36,11 +36,11 @@ async function main() {
 
     if (result.isLiveScorebug) liveCount++; else notLiveCount++;
     for (const [field, value] of Object.entries(result)) {
-      if (field === "raw" || field === "isLiveScorebug") continue;
+      if (field === "raw" || field === "isLiveScorebug" || field === "framing") continue;
       if (value !== null && value !== "unknown") fieldHitCounts[field] = (fieldHitCounts[field] ?? 0) + 1;
     }
 
-    console.log(`--- ${file} (${elapsedMs}ms) ---`);
+    console.log(`--- ${file} (${elapsedMs}ms, framing=${result.framing}) ---`);
     console.log(`  live scorebug: ${result.isLiveScorebug}`);
     console.log(`  away ${result.awayScore ?? "?"}  x  home ${result.homeScore ?? "?"}   possession: ${result.possession}`);
     console.log(`  quarter: ${result.quarter ?? "?"}   clock: ${result.gameClock ?? "?"}   play clock: ${result.playClock ?? "?"}`);

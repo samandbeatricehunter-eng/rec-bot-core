@@ -4,7 +4,9 @@
 import sharp from "sharp";
 import { recognizeScorebugField } from "./scorebug-tesseract-pool.js";
 import { flattenPageWords } from "../box-score/box-score.parser.ocr.js";
-import { SCOREBUG_REGIONS, regionToPixels, type FractionalRegion, type ScorebugFieldName } from "./scorebug-regions.js";
+import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels, type FractionalRegion, type ScorebugFieldName } from "./scorebug-regions.js";
+
+type ScorebugRegionSet = Record<ScorebugFieldName, FractionalRegion>;
 
 export type ScorebugFieldResult = { rawText: string; confidence: number };
 
@@ -45,8 +47,8 @@ async function preprocessFieldCrop(buffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-async function ocrRegion(frameBuffer: Buffer, fieldName: ScorebugFieldName, frameWidth: number, frameHeight: number): Promise<ScorebugFieldResult> {
-  const pixels = regionToPixels(SCOREBUG_REGIONS[fieldName], frameWidth, frameHeight);
+async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldName: ScorebugFieldName, frameWidth: number, frameHeight: number): Promise<ScorebugFieldResult> {
+  const pixels = regionToPixels(regions[fieldName], frameWidth, frameHeight);
   const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
   const processed = await preprocessFieldCrop(crop);
   const result = await recognizeScorebugField(processed, undefined, { blocks: true });
@@ -156,8 +158,8 @@ async function computeMassImbalance(frameBuffer: Buffer, region: FractionalRegio
   return (secondHalfMass - firstHalfMass) / totalMass;
 }
 
-async function classifyPossessionGlyph(frameBuffer: Buffer, frameWidth: number, frameHeight: number): Promise<"neutral" | "left" | "right" | "unknown"> {
-  const imbalance = await computeMassImbalance(frameBuffer, SCOREBUG_REGIONS.possessionGlyph, frameWidth, frameHeight, "horizontal");
+async function classifyPossessionGlyph(frameBuffer: Buffer, regions: ScorebugRegionSet, frameWidth: number, frameHeight: number): Promise<"neutral" | "left" | "right" | "unknown"> {
+  const imbalance = await computeMassImbalance(frameBuffer, regions.possessionGlyph, frameWidth, frameHeight, "horizontal");
   if (imbalance === null) return "unknown";
   if (Math.abs(imbalance) < 0.15) return "neutral"; // roughly symmetric -> "x"
   // More mass on the right half means the point (the empty/narrow side) is on the left ->
@@ -167,8 +169,8 @@ async function classifyPossessionGlyph(frameBuffer: Buffer, frameWidth: number, 
 
 /** ▲ (point up, base at bottom) -> more mass in the bottom half. ▼ (point down, base at top) ->
  * more mass in the top half. */
-async function classifyYardLineDirection(frameBuffer: Buffer, frameWidth: number, frameHeight: number): Promise<"up" | "down" | "unknown"> {
-  const imbalance = await computeMassImbalance(frameBuffer, SCOREBUG_REGIONS.yardLineDirection, frameWidth, frameHeight, "vertical");
+async function classifyYardLineDirection(frameBuffer: Buffer, regions: ScorebugRegionSet, frameWidth: number, frameHeight: number): Promise<"up" | "down" | "unknown"> {
+  const imbalance = await computeMassImbalance(frameBuffer, regions.yardLineDirection, frameWidth, frameHeight, "vertical");
   if (imbalance === null) return "unknown";
   if (Math.abs(imbalance) < 0.15) return "unknown"; // too symmetric to confidently call a direction
   return imbalance > 0 ? "up" : "down"; // more mass in the bottom half -> base at bottom -> points up
@@ -186,25 +188,21 @@ function isLikelyLiveScorebug(quarter: number | "OT" | null, gameClock: string |
 
 // ─── Orchestration ────────────────────────────────────────────────────────────
 
-export async function parseScorebugFrame(imageBuffer: Buffer): Promise<ScorebugFrameResult> {
-  const meta = await sharp(imageBuffer).metadata();
-  const frameWidth = meta.width ?? 1920;
-  const frameHeight = meta.height ?? 1080;
-
+async function parseScorebugFrameWithRegions(imageBuffer: Buffer, regions: ScorebugRegionSet, frameWidth: number, frameHeight: number): Promise<ScorebugFrameResult> {
   const shapeClassifiedFields: ScorebugFieldName[] = ["possessionGlyph", "yardLineDirection"];
-  const fieldNames = Object.keys(SCOREBUG_REGIONS) as ScorebugFieldName[];
+  const fieldNames = Object.keys(regions) as ScorebugFieldName[];
   const raw = {} as Record<ScorebugFieldName, ScorebugFieldResult>;
   for (const fieldName of fieldNames) {
     if (shapeClassifiedFields.includes(fieldName)) continue;
-    raw[fieldName] = await ocrRegion(imageBuffer, fieldName, frameWidth, frameHeight);
+    raw[fieldName] = await ocrRegion(imageBuffer, regions, fieldName, frameWidth, frameHeight);
   }
   for (const fieldName of shapeClassifiedFields) raw[fieldName] = { rawText: "", confidence: 0 };
 
   const quarter = parseQuarter(raw.quarter.rawText);
   const gameClock = parseGameClock(raw.gameClock.rawText);
   const [possession, yardLineDirection] = await Promise.all([
-    classifyPossessionGlyph(imageBuffer, frameWidth, frameHeight),
-    classifyYardLineDirection(imageBuffer, frameWidth, frameHeight),
+    classifyPossessionGlyph(imageBuffer, regions, frameWidth, frameHeight),
+    classifyYardLineDirection(imageBuffer, regions, frameWidth, frameHeight),
   ]);
 
   return {
@@ -220,4 +218,46 @@ export async function parseScorebugFrame(imageBuffer: Buffer): Promise<ScorebugF
     possession,
     raw,
   };
+}
+
+/** Number of fields that actually parsed to something -- used to pick the better-fitting
+ * framing when trying both, not as a real confidence score. */
+function nonNullFieldCount(result: ScorebugFrameResult): number {
+  let count = 0;
+  if (result.awayScore !== null) count++;
+  if (result.homeScore !== null) count++;
+  if (result.quarter !== null) count++;
+  if (result.gameClock !== null) count++;
+  if (result.playClock !== null) count++;
+  if (result.downDistance !== null) count++;
+  if (result.yardLine !== null) count++;
+  if (result.yardLineDirection !== "unknown") count++;
+  if (result.possession !== "unknown") count++;
+  return count;
+}
+
+/** Uses the "ticker present" framing, matching every calibration sample gathered so far. */
+export async function parseScorebugFrame(imageBuffer: Buffer): Promise<ScorebugFrameResult> {
+  const meta = await sharp(imageBuffer).metadata();
+  const frameWidth = meta.width ?? 1920;
+  const frameHeight = meta.height ?? 1080;
+  return parseScorebugFrameWithRegions(imageBuffer, SCOREBUG_REGIONS, frameWidth, frameHeight);
+}
+
+/** Tries both known framings (ticker present / pre-snap wide shot with no ticker) and returns
+ * whichever parsed more fields successfully. Costs roughly 2x the OCR work of
+ * parseScorebugFrame -- fine for calibration/backfill, but a real-time tracker should instead
+ * detect the framing once per stream (or per shot change) and stick with it, not re-guess every
+ * frame. See docs/scorebug-ocr-regions.md's "no-ticker framing" section. */
+export async function parseScorebugFrameAuto(imageBuffer: Buffer): Promise<ScorebugFrameResult & { framing: "ticker" | "no_ticker" }> {
+  const meta = await sharp(imageBuffer).metadata();
+  const frameWidth = meta.width ?? 1920;
+  const frameHeight = meta.height ?? 1080;
+  const [ticker, noTicker] = await Promise.all([
+    parseScorebugFrameWithRegions(imageBuffer, SCOREBUG_REGIONS, frameWidth, frameHeight),
+    parseScorebugFrameWithRegions(imageBuffer, SCOREBUG_REGIONS_NO_TICKER, frameWidth, frameHeight),
+  ]);
+  return nonNullFieldCount(noTicker) > nonNullFieldCount(ticker)
+    ? { ...noTicker, framing: "no_ticker" }
+    : { ...ticker, framing: "ticker" };
 }

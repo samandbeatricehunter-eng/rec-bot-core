@@ -27,6 +27,23 @@ export const SCOREBUG_REGIONS = {
   yardLine: { x0: 0.955, x1: 0.985, y0: 0.898, y1: 0.954 },
 } as const satisfies Record<string, FractionalRegion>;
 
+// Second framing: pre-snap/kickoff wide shots don't render the milestone/ticker row below the
+// main scorebug bar, which shifts the whole bar ~40-50px lower than the "ticker present"
+// framing above -- the x-positions shift slightly too (different zoom level). Pixel-measured
+// against 60ea1bc9809bc41107e50ddc3d08dc4f at t=1s ("ATL 0 ▶ 0 NO", "1ST 4:39", ":33",
+// "2ND & 2", "▲40"). See docs/scorebug-ocr-regions.md's "no-ticker framing" section.
+export const SCOREBUG_REGIONS_NO_TICKER = {
+  awayScore: { x0: 0.336, x1: 0.367, y0: 0.949, y1: 0.991 },
+  possessionGlyph: { x0: 0.383, x1: 0.404, y0: 0.949, y1: 0.991 },
+  homeScore: { x0: 0.424, x1: 0.456, y0: 0.949, y1: 0.991 },
+  quarter: { x0: 0.665, x1: 0.690, y0: 0.949, y1: 0.991 },
+  gameClock: { x0: 0.697, x1: 0.732, y0: 0.949, y1: 0.991 },
+  playClock: { x0: 0.738, x1: 0.784, y0: 0.949, y1: 0.991 },
+  downDistance: { x0: 0.825, x1: 0.870, y0: 0.949, y1: 0.991 },
+  yardLineDirection: { x0: 0.914, x1: 0.924, y0: 0.949, y1: 0.991 },
+  yardLine: { x0: 0.924, x1: 0.948, y0: 0.949, y1: 0.991 },
+} as const satisfies Record<string, FractionalRegion>;
+
 export type ScorebugFieldName = keyof typeof SCOREBUG_REGIONS;
 
 /** Convert a fractional region into absolute pixel bounds for a specific frame size, clamped

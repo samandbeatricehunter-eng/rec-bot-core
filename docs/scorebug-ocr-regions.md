@@ -154,17 +154,36 @@ entirely, so every field misses.
 
 **This means the scorebug's on-screen position isn't fully fixed** — it depends on which
 broadcast/camera state Madden is in (at minimum: standard live play with the ticker, vs. a
-pre-snap/kickoff wide shot without one). The x-positions may shift too on this second framing,
-not just the y-band — not yet measured. **Not fixed in this pass** — this needs its own
-calibration pass (precise region measurement for the no-ticker framing, the same way the
-primary band was measured) plus a way to detect which framing a given frame is in before
-picking which band to crop. Flagging this now rather than silently declaring the region table
-complete: it currently only covers the "ticker present" framing.
+pre-snap/kickoff wide shot without one).
+
+### Second framing, now calibrated
+
+Measured the no-ticker framing the same way as the primary one (generous crops, direct pixel
+reading) against the confirmed ground-truth frame above. Both region sets now live in
+`scorebug-regions.ts` (`SCOREBUG_REGIONS` / `SCOREBUG_REGIONS_NO_TICKER`), and
+`parseScorebugFrameAuto()` tries both and keeps whichever parses more fields successfully —
+costs ~2x the OCR work of `parseScorebugFrame()`, which is fine for calibration/backfill but
+not for a real-time tracker (that should detect the framing once per shot and stick with it,
+not re-guess every frame).
+
+Result on the ground-truth frame: auto-detection correctly picked `no_ticker` and read
+`away=0, home=0, gameClock=4:39, playClock=33` — all four confirmed correct. Quarter missed
+("1ST" renders in a dimmer gray than the bright-white clock text and didn't survive
+thresholding — the same class of issue already noted for the primary framing's quarter field).
+Re-running the full 17-clip batch with auto-detection also picked up gains on frames that were
+previously blank under the ticker-only framing (home score 9/17→12/18, away score 5/17→9/18,
+yard line 10/17→13/18) — some of those may be additional no-ticker frames in the original batch
+that were silently failing before, not just noise, though not all have been manually
+ground-truth-checked.
+
+Still only two framings calibrated; there may be others (e.g. instant-replay overlays,
+different in-stadium camera cuts) not yet encountered in the sample set.
 
 ## Implementation
 
 Scaffolding lives in `apps/api/src/modules/scorebug-ocr/`:
-- `scorebug-regions.ts` — the region table above, as code.
+- `scorebug-regions.ts` — the region table above (`SCOREBUG_REGIONS`) plus a second calibrated
+  set for the no-ticker framing (`SCOREBUG_REGIONS_NO_TICKER`, see below), as code.
 - `scorebug-tesseract-pool.ts` — a dedicated small Tesseract worker pool, separate from the
   box-score module's own pool, configured with `PSM.SINGLE_LINE` (see calibration bug #5 below
   for why this has to be a separate pool rather than sharing box-score's).
