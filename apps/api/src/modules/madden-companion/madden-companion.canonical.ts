@@ -301,6 +301,21 @@ function statCategory(row: Json, record: NormalizedCompanionRecord) {
   return "all";
 }
 
+// Per-field max between a previously stored stat line and a newly imported one -- see the call
+// site's comment for why: a later Companion export for the same player/week/category can be a
+// staler, mid-game snapshot rather than a strict update, and every field here is a same-game
+// counting stat that can only go up.
+function mergeStatsMonotonic(existing: Record<string, unknown> | null | undefined, incoming: Record<string, unknown>): Record<string, unknown> {
+  if (!existing) return incoming;
+  const merged: Record<string, unknown> = { ...incoming };
+  for (const [key, existingValue] of Object.entries(existing)) {
+    if (typeof existingValue !== "number") continue;
+    const incomingValue = incoming[key];
+    if (typeof incomingValue !== "number" || existingValue > incomingValue) merged[key] = existingValue;
+  }
+  return merged;
+}
+
 async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalRecordId: string, seasonKey: string, record: NormalizedCompanionRecord) {
   if (!record.sourcePlayerId) return;
   let player = (await client.query<{ id: string; full_name: string; position: string | null }>(
@@ -340,6 +355,21 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
       where source_companion_record_id = $1`,
     [canonicalRecordId],
   );
+  // The Companion App can push a stat export mid-game, not just once at the final whistle. A
+  // later, incomplete/stale export landing after a more-complete one would otherwise silently
+  // shrink a counting stat (confirmed live: a defender's stored tackle count read 6 when the
+  // real in-game box score showed 10) since this whole function is a blind delete-then-insert
+  // with no merge logic. Counting stats never legitimately decrease within the same game, so
+  // merge by taking the max of each numeric field against whatever's already stored.
+  const existingStats = (await client.query<{ stats: Record<string, unknown> }>(
+    `select stats from rec_player_weekly_stats
+      where league_id=$1 and season_number=$2 and madden_player_id=$3
+        and stat_category=$4 and week_number=$5`,
+    [leagueId, season, record.sourcePlayerId, category, weekNumber],
+  )).rows[0]?.stats;
+  const newStats = statPayload(record.rawData);
+  const mergedStats = mergeStatsMonotonic(existingStats, newStats);
+
   // Key format used to omit week, so the same player+game+category from week 2 would
   // ON CONFLICT onto week 1. Drop any existing row for this player/week/category (including
   // legacy keys) so the insert below is the single source of truth for that line.
@@ -361,7 +391,7 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
        stats=excluded.stats,raw_payload=excluded.raw_payload,source_companion_record_id=excluded.source_companion_record_id,
        source_week_index=excluded.source_week_index,updated_at=now()`,
     [leagueId, season, weekNumber, player.id, resolvedTeamId, record.sourcePlayerId, record.sourceTeamId,
-      player.full_name, team?.name ?? null, player.position, category, JSON.stringify(statPayload(record.rawData)), JSON.stringify(record.rawData),
+      player.full_name, team?.name ?? null, player.position, category, JSON.stringify(mergedStats), JSON.stringify(record.rawData),
       record.recordKey, sourceScheduleId, canonicalRecordId,
       seasonStage(record.rawData, record), sourceWeekIndex],
   );
