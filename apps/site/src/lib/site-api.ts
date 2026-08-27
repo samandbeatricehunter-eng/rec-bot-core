@@ -1629,6 +1629,7 @@ export type PlayerOfWeekWinner = {
   teamName: string;
   teamAbbr: string | null;
   teamLogoUrl: string | null;
+  photoUrl: string | null;
   score: number;
   statLine: PlayerOfWeekStatLine;
   coinsAwarded: number;

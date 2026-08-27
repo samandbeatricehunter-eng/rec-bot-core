@@ -1,4 +1,5 @@
 import { TeamLogo } from "../ui/TeamLogo.js";
+import { PlayerPhoto } from "./PlayerPhoto.js";
 
 type StatLine = {
   passYards: number; rushYards: number; receivingYards: number;
@@ -16,6 +17,7 @@ export type PlayerOfWeekCardWinner = {
   teamName: string;
   teamAbbr: string | null;
   teamLogoUrl: string | null;
+  photoUrl: string | null;
   statLine: StatLine;
 };
 
@@ -46,14 +48,22 @@ function defenseLines(s: StatLine): string[] {
 }
 
 function Panel({ label, winner }: { label: string; winner: PlayerOfWeekCardWinner | undefined }) {
+  const confClass = winner?.conference === "AFC" ? "afc" : winner?.conference === "NFC" ? "nfc" : "";
   return (
     <div className="potw-panel">
-      <header>{label}</header>
+      <header className={confClass}>{label}</header>
       {winner ? (
         <div className="potw-panel-body">
-          <div className={`potw-conf-badge ${winner.conference === "AFC" ? "afc" : "nfc"}`}>
-            {winner.conference === "AFC" ? "A" : "N"}
-          </div>
+          <PlayerPhoto
+            photoUrl={winner.photoUrl}
+            alt={winner.playerName}
+            className="potw-photo"
+            fallback={
+              <div className={`potw-conf-badge ${confClass}`}>
+                {winner.conference === "AFC" ? "A" : "N"}
+              </div>
+            }
+          />
           <div className="potw-panel-info">
             {winner.position ? <small>{winner.position}</small> : null}
             <strong>{winner.playerName}</strong>

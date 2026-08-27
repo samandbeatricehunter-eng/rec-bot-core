@@ -3816,11 +3816,15 @@ button.poty:disabled {
 .potw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
 .potw-panel { background: rgba(5, 7, 10, .78); display: flex; flex-direction: column; min-height: 150px; }
 .potw-panel > header { padding: 10px 16px; color: var(--text-secondary); font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.potw-panel > header.afc { color: #ea4a58; }
+.potw-panel > header.nfc { color: #3f6fd6; }
 .potw-panel-body { display: flex; align-items: center; gap: 14px; padding: 0 16px 16px; flex: 1; }
 .potw-panel-empty { color: var(--text-muted); font-size: 13px; align-items: flex-start; }
-.potw-conf-badge { flex-shrink: 0; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 8px; font-family: var(--font-display); font-size: 26px; font-weight: 900; color: #fff; }
+.potw-conf-badge, .potw-photo { flex-shrink: 0; width: 52px; height: 52px; border-radius: 8px; }
+.potw-conf-badge { display: grid; place-items: center; font-family: var(--font-display); font-size: 26px; font-weight: 900; color: #fff; }
 .potw-conf-badge.afc { background: linear-gradient(180deg, #d5323f, #a01d28); }
 .potw-conf-badge.nfc { background: linear-gradient(180deg, #1f3f8f, #0b2265); }
+.potw-photo { object-fit: cover; background: rgba(255,255,255,.06); }
 .potw-panel-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .potw-panel-info small { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .potw-panel-info strong { font-family: var(--font-display); font-size: 19px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -50,6 +50,7 @@ export type PlayerOfWeekWinner = {
   teamName: string;
   teamAbbr: string | null;
   teamLogoUrl: string | null;
+  photoUrl: string | null;
   score: number;
   statLine: WeeklyPlayerStatLine;
 };
@@ -92,7 +93,7 @@ export async function computeWeeklyPlayerOfWeek(guildId: string, weekNumber: num
     byPlayer.set(row.player_id, agg);
   }
 
-  const winners: PlayerOfWeekWinner[] = [];
+  const winnerCandidates: Array<{ conference: "AFC" | "NFC"; side: "offense" | "defense"; player: PlayerAgg; score: number }> = [];
   for (const conference of ["AFC", "NFC"] as const) {
     const inConference = [...byPlayer.values()].filter((player) => teamById.get(player.teamId)?.conference === conference);
 
@@ -100,15 +101,22 @@ export async function computeWeeklyPlayerOfWeek(guildId: string, weekNumber: num
       .filter((player) => hasOffensiveStatLine(player.line))
       .map((player) => ({ player, score: offensePlayerOfWeekScore(player.line) }))
       .sort((a, b) => b.score - a.score || a.player.playerName.localeCompare(b.player.playerName))[0];
-    if (topOffense) winners.push(toWinner(conference, "offense", topOffense.player, topOffense.score, teamById));
+    if (topOffense) winnerCandidates.push({ conference, side: "offense", player: topOffense.player, score: topOffense.score });
 
     const topDefense = inConference
       .filter((player) => hasDefensiveStatLine(player.line))
       .map((player) => ({ player, score: defensePlayerOfWeekScore(player.line) }))
       .sort((a, b) => b.score - a.score || a.player.playerName.localeCompare(b.player.playerName))[0];
-    if (topDefense) winners.push(toWinner(conference, "defense", topDefense.player, topDefense.score, teamById));
+    if (topDefense) winnerCandidates.push({ conference, side: "defense", player: topDefense.player, score: topDefense.score });
   }
-  return winners;
+  if (!winnerCandidates.length) return [];
+
+  const photoIds = [...new Set(winnerCandidates.map((c) => c.player.playerId))];
+  const photosRes = await supabase.from("rec_players").select("id,photo_url").in("id", photoIds);
+  if (photosRes.error) throw new ApiError(500, "We couldn't load player photos for this week. Please try again.", photosRes.error);
+  const photoUrlById = new Map<string, string | null>((photosRes.data ?? []).map((row: any) => [row.id, row.photo_url ?? null]));
+
+  return winnerCandidates.map((c) => toWinner(c.conference, c.side, c.player, c.score, teamById, photoUrlById));
 }
 
 function toWinner(
@@ -116,10 +124,12 @@ function toWinner(
   player: { playerId: string; playerName: string; position: string | null; teamId: string; line: WeeklyPlayerStatLine },
   score: number,
   teamById: Map<string, any>,
+  photoUrlById: Map<string, string | null>,
 ): PlayerOfWeekWinner {
   const team = teamById.get(player.teamId);
   return {
     conference, side,
+    photoUrl: photoUrlById.get(player.playerId) ?? null,
     playerId: player.playerId, playerName: player.playerName, position: player.position,
     teamId: player.teamId, teamName: team ? (formatTeamDisplayName(team) ?? team.name ?? "Team") : "Team",
     teamAbbr: team?.display_abbr ?? team?.abbreviation ?? null,
