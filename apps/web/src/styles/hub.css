@@ -3793,6 +3793,7 @@ button.poty:disabled {
    (seed number, badge, name, record) instead of a plain HTML table. */
 .hub-standings-rows { display:flex; flex-direction:column; gap:4px; }
 .hub-standings-row { display:grid; grid-template-columns:20px 24px 1fr auto; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; }
+.hub-standings-row .team-logo { width:24px; height:24px; object-fit:contain; }
 .hub-standings-row:nth-child(odd) { background:color-mix(in srgb,var(--surface-raised) 55%,transparent); }
 .hub-standings-row.is-division-leader { background:color-mix(in srgb,var(--accent-secondary,var(--accent-bright)) 12%,transparent); }
 .hub-standings-seed { font-family:var(--font-display); font-weight:700; font-size:11px; color:var(--text-muted); text-align:center; }
