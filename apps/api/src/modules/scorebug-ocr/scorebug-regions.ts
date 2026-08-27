@@ -21,7 +21,15 @@ export const SCOREBUG_REGIONS = {
   // direct crop inspection -- "1:05" was rendering as "1:0" with the "5" sliced away).
   // Widened to the actual gap before playClock's white box, verified against the same frame.
   gameClock: { x0: 0.697, x1: 0.749, y0: 0.898, y1: 0.954 },
-  playClock: { x0: 0.754, x1: 0.792, y0: 0.898, y1: 0.954 },
+  // playClock's own y0 is nudged down from the shared 0.898 -- its white box has a dark top
+  // border that the shared band was catching, and that border renders as a solid full-width
+  // "ink" bar after threshold+negate (confirmed by dumping raw pixel rows), which was enough to
+  // make a real ":21" read back as "1" or nothing at all. Confirmed directly: shifting just this
+  // field's y0 down past the border fixed both known ":21" failures and didn't touch gameClock/
+  // quarter (tested with the same shift -- gameClock was unaffected either way, and quarter got
+  // *worse* under the same shift, so this had to stay a playClock-only change, not a move to the
+  // shared band).
+  playClock: { x0: 0.754, x1: 0.792, y0: 0.910, y1: 0.954 },
   downDistance: { x0: 0.818, x1: 0.917, y0: 0.898, y1: 0.954 },
   // Split from one combined region into the direction glyph (▲/▼, shape-classified like
   // possessionGlyph) and the yard number itself (OCR'd) -- verified against a direct 5x crop of
@@ -41,7 +49,9 @@ export const SCOREBUG_REGIONS_NO_TICKER = {
   homeScore: { x0: 0.424, x1: 0.456, y0: 0.949, y1: 0.991 },
   quarter: { x0: 0.665, x1: 0.690, y0: 0.949, y1: 0.991 },
   gameClock: { x0: 0.697, x1: 0.732, y0: 0.949, y1: 0.991 },
-  playClock: { x0: 0.738, x1: 0.784, y0: 0.949, y1: 0.991 },
+  // Same top-border fix as the ticker framing's playClock, proportionally scaled to this
+  // framing's shorter band height.
+  playClock: { x0: 0.738, x1: 0.784, y0: 0.958, y1: 0.991 },
   downDistance: { x0: 0.825, x1: 0.870, y0: 0.949, y1: 0.991 },
   // yardLineDirection/yardLine were badly miscalibrated: a column-brightness projection against
   // the ground-truth frame ("▲40") showed the old yardLineDirection band (0.914-0.924, pixels

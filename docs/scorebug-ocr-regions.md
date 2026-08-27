@@ -479,11 +479,89 @@ score 10/18 → 13/18, with zero regressions on any other field.
 | Possession glyph | 18/18 classified, 18/18 correct on all known/inferable cases |
 
 Both fully ground-truthed reference frames (`mnf_no_ticker.jpg` and
-`a5eefdc3d94cb4cf00f9e9a50fcf2661.jpg`) now read every field correctly. Remaining gaps
-(down-distance content loss, the handful of still-blank score/yard-line crops) look like they're
-at or near the practical ceiling for PSM.SINGLE_LINE + a tight character whitelist on crops this
-small — squeezing further would likely mean a fundamentally different approach (a larger/steadier
-source capture, or a font-specific trained model) rather than another preprocessing tweak.
+`a5eefdc3d94cb4cf00f9e9a50fcf2661.jpg`) now read every field correctly.
+
+## Expanding the sample set: more timestamps from the same 17 clips
+
+No new highlights had been uploaded to the M27 league since the batch above was pulled, so
+"more sample frames" meant pulling more *timestamps* from the same 17 clips rather than new
+footage — the same technique that originally produced the two ground-truth frames. Fetched
+`t=4s/6s/8s` from all 17 UIDs (50 of 51 requests succeeded; one clip has no frame at 8s and
+Cloudflare correctly 400s rather than returning garbage) into a second sample directory
+(`ocr-samples-extra/`, also gitignored) and ran the stress test against it independently. Field
+hit-rates held at roughly the same proportions as the original 18-frame batch (quarter 40/50,
+gameClock 37/50, possession 50/50, down-distance the weakest at 17/50), which is itself a useful
+result: it means the original 18-frame batch wasn't accidentally cherry-picked/lucky, and the
+fixes above generalize rather than being overfit to those specific frames.
+
+### Down-distance and yard-line's remaining misses are a real game state, not a bug
+
+Picked two of the new batch's down-distance/yard-line blanks that had otherwise
+high-confidence neighboring fields (one read `away 0, home 3, quarter 1ST (93%), gameClock 4:32
+(96%), playClock 0 (95%)` with both down-distance and yard-line crops totally blank) and cropped
+the exact regions directly: both were solid black, no text rendered at all — not a bad crop, not
+a preprocessing failure, genuinely nothing there. Comparing against an adjacent timestamp of the
+same clip (2 seconds earlier, correctly reading `3RD & 7`/`▲39`) confirmed these fields
+disappear from the HUD for stretches of live gameplay (most likely while the play itself is in
+motion) and only reappear between snaps — the same category of "valid non-value" already known
+for `KICKOFF`. This means down-distance/yard-line's hit-rate ceiling is lower than the other
+"always-on" fields for a real, non-fixable reason, not a preprocessing gap still worth chasing.
+
+## Bug #14: playClock's white box has a dark top border that reads as a full-width noise bar
+
+`playClock` sat at 13/18 (original batch) / 31/50 (extra batch) despite being the simplest field
+(1-2 digits, no letters). Isolated a specific, exactly-reproducible failure: a play clock reading
+`":21"` came back as `"1"` (losing the "2" and the colon) on one frame, and completely empty on a
+*different* frame that also happened to show `":21"`. Same string, same field, two different
+source clips, same failure — too consistent to be noise.
+
+Dumped the raw (unprocessed) grayscale pixel values for the crop row-by-row and found the
+digits' white box doesn't start at the crop's top edge: the first ~18 of the crop's 60 rows are
+video background plus the box's own dark top border, and only from row ~19 onward is it the
+actual white interior with the digits. That border is a real, if thin, feature — but after this
+field's threshold+negate preprocessing (built for light-on-dark digits), the border's darkness
+gets inverted into "ink," producing a solid full-width white bar sitting directly above the
+digits in the processed image. Confirmed causally: feeding the same crop with progressively more
+of the top trimmed away to a raw Tesseract call went from `"1"` (0%) at no trim to a correct
+`"21"` (50%) after trimming just 10 of the 60 rows.
+
+Checked whether this was a shared-region problem before touching anything: applying the same
+trim to `gameClock`'s crop (same y-band, different x-position) made no difference either way, and
+applying it to `quarter`'s crop actively made a correct read (`"4th"`) come back wrong
+(`"oth"`). So this could only be a `playClock`-specific fix, not a move of the whole shared
+y-band — the border evidently only meaningfully corrupts recognition when the field's own content
+is this short (1-2 characters), where the border bar's shape competes with the actual glyphs
+rather than being a small fraction of a longer, more distinctive stroke pattern.
+
+Fixed by giving `playClock` its own `y0` in both framings, nudged down proportionally past the
+border (ticker: 0.898 → 0.910; no-ticker: 0.949 → 0.958, scaled to that framing's shorter band).
+Confirmed against both known-bad `":21"` frames (now read `21` correctly in both) and re-checked
+that a previously-correct `":02"` frame stayed correct (and even gained its confidence and the
+leading colon back). Batch results: playClock 13/18 → 14/18 on the original set, 31/50 → 35/50 on
+the new set, with zero regressions on every other field in either batch.
+
+## Final numbers (fourteen fixes, two independent sample batches)
+
+| Field | Original batch (18) | Extra batch (50) |
+|---|---|---|
+| Live-scorebug classification | 15/18 | — |
+| Quarter | 15/18 | 40/50 |
+| Game clock | 14/18 | 37/50 |
+| Play clock | 14/18 | 35/50 |
+| Away/home score | 13/18, 15/18 | 35/50, 34/50 |
+| Down & distance | 9/18 | 17/50 |
+| Yard line (number) | 13/18 | 37/50 |
+| Yard-line direction | 17/18 | 48/50 |
+| Possession glyph | 18/18 | 50/50 |
+
+Remaining gaps are now reasonably well-characterized rather than open-ended: down-distance/
+yard-line's ceiling is partly a real "field not rendered right now" game state (confirmed above,
+not fixable via OCR); the rest look like they're at or near the practical limit for
+PSM.SINGLE_LINE + a tight character whitelist on crops this small. Squeezing further from here
+would likely mean a fundamentally different lever — a steadier/higher-res source capture, or a
+font-specific trained model (discussed and deliberately not started yet — see the "font-specific
+trained model" discussion for the effort/payoff tradeoff) — rather than another preprocessing
+tweak.
 
 ## Implementation
 
