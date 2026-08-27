@@ -40,9 +40,9 @@ function missingTable(error: any) {
   return ["42P01", "PGRST205"].includes(String(error?.code ?? ""));
 }
 
-async function commandAvailable(command: string) {
-  try { await execFileAsync(command, ["-version"], { timeout: 10_000 }); return true; }
-  catch { return false; }
+async function commandAvailable(command: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try { await execFileAsync(command, ["-version"], { timeout: 10_000 }); return { ok: true }; }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
 async function updateJob(id: string, patch: Record<string, unknown>) {
@@ -98,9 +98,10 @@ async function handleAttemptFailure(job: any, message: string) {
 
 async function startCapture(job: any) {
   if (activeCaptures.has(job.streaming_session_id)) return;
-  const configured = await Promise.all([commandAvailable(FFMPEG), commandAvailable(RESOLVER)]);
-  if (configured.some((ready) => !ready)) {
-    await updateJob(job.id, { status: "awaiting_configuration", last_error: `Install ${FFMPEG} and ${RESOLVER} on the API image (or set FFMPEG_BIN / STREAM_RESOLVER_BIN).` });
+  const [ffmpegCheck, resolverCheck] = await Promise.all([commandAvailable(FFMPEG), commandAvailable(RESOLVER)]);
+  if (!ffmpegCheck.ok || !resolverCheck.ok) {
+    const details = [!ffmpegCheck.ok ? `${FFMPEG}: ${ffmpegCheck.error}` : null, !resolverCheck.ok ? `${RESOLVER}: ${resolverCheck.error}` : null].filter(Boolean).join(" | ");
+    await updateJob(job.id, { status: "awaiting_configuration", last_error: `Install ffmpeg and yt-dlp on the API image (or set FFMPEG_BIN / STREAM_RESOLVER_BIN). ${details}` });
     return;
   }
 
