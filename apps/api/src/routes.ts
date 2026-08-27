@@ -39,6 +39,7 @@ import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
 import { teamRosterRoutes } from "./modules/roster/roster.routes.js";
 import { hubRoutes } from "./modules/hub/hub.routes.js";
 import { renderRoutes } from "./modules/render/render.routes.js";
+import { debugStreamDownloadRoutes } from "./modules/streaming/debug-stream-download.routes.js";
 import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
 import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
 import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
@@ -105,6 +106,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await teamRosterRoutes(app);
   await hubRoutes(app);
   await renderRoutes(app);
+  await debugStreamDownloadRoutes(app);
   await watchedPlayersRoutes(app);
   await recruitingRoutes(app);
   await transferPortalRoutes(app);

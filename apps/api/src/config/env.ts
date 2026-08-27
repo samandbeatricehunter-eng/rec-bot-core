@@ -45,6 +45,10 @@ const EnvSchema = z.object({
   CLOUDFLARE_STREAM_WEBHOOK_SECRET: z.string().optional(),
   CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN: z.string().optional(),
   CLOUDFLARE_STREAM_ALLOWED_ORIGINS: z.string().optional(),
+  // One-off ops escape hatch for pulling a Cloudflare Stream video's downloadable MP4 URL
+  // server-side (has the account creds) when the public watch page rejects playback due to
+  // allowedOrigins -- see debug-stream-download.routes.ts. Unset disables the route entirely.
+  DEBUG_STREAM_KEY: z.string().optional(),
   // Base URL the custom-player card renders are served from (Cloudflare Images delivery host,
   // e.g. https://imagedelivery.net/<account-hash>). Optional: empty means the API writes the
   // local /assets/custom-player-renders path into rec_players.photo_url (dev).
