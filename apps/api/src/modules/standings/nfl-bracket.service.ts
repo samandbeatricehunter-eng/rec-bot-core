@@ -379,8 +379,23 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
 
   const rounds: NflPlayoffPicture["rounds"] = [];
   let aliveSeeds: AliveSeed[] = standings.conferences.flatMap((c) => c.seeds.map((s) => ({ seed: s.seed, teamId: s.teamId, conference: c.conference })));
+  // Wild card always computes from real, current standings -- that's the legitimate "live
+  // projection" the page is for. Every later round used to chalk-project its own matchups the
+  // instant the prior round wasn't finished (computeRoundMatchups fed by chalk-advanced seeds,
+  // with no real rec_nfl_bracket_slots behind them at all -- syncNflBracketRound never even
+  // creates a round's real games until the round before it is fully decided). That's what
+  // produced synthetic, ungrounded matchups the whole way to the Super Bowl before a single
+  // playoff game had been played. Now a round only gets populated once the round before it is
+  // 100% decided; until then it renders empty (no matchups), same as it looks before the season
+  // has any bracket to speak of.
+  let priorRoundDecided = true;
 
   for (const round of NFL_ROUNDS) {
+    if (!priorRoundDecided) {
+      rounds.push({ round, matchups: [] });
+      continue;
+    }
+
     const matchups = computeRoundMatchups(round, aliveSeeds);
     const resolved: NflPlayoffMatchup[] = [];
     const nextAlive: AliveSeed[] = [];
@@ -424,6 +439,7 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
 
     rounds.push({ round, matchups: resolved });
     aliveSeeds = nextAlive;
+    priorRoundDecided = resolved.length > 0 && resolved.every((m) => m.status === "completed");
   }
 
   const superBowl = rounds.find((r) => r.round === "super_bowl")?.matchups[0] ?? null;
@@ -454,6 +470,16 @@ export async function snapshotNflPlayoffBracket(leagueId: string, seasonNumber: 
      on conflict(league_id,season_number) do update set bracket=$3,champion_team_id=$4,created_at=now()`,
     [leagueId, seasonNumber, JSON.stringify(picture), picture.champion.teamId],
   );
+}
+
+/** Backs the chromeless /render/nfl-playoff-bracket/:leagueId site route (Playwright screenshot
+ * pipeline for the Discord playoff-picture announcement image). No guildId/session available at
+ * render time, so this resolves the league's current season directly rather than going through
+ * getCurrentLeagueContext. */
+export async function getNflPlayoffBracketRenderData(leagueId: string): Promise<NflPlayoffPicture> {
+  const leagueRow = await getPgPool().query(`select season_number from rec_leagues where id=$1`, [leagueId]);
+  const seasonNumber = Number(leagueRow.rows[0]?.season_number ?? 1);
+  return getNflPlayoffPicture(leagueId, seasonNumber);
 }
 
 /** Most recent settled bracket for a league, if any -- the public/member-facing bracket page

@@ -14,13 +14,13 @@ export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCa
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
 export { HeroMatchupBreakdown } from "../../../apps/web/src/components/hub/HeroMatchupBreakdown.js";
 export { TeamLogo } from "../../../apps/web/src/components/ui/TeamLogo.js";
-export type { MatchupPreview } from "../../../apps/web/src/types/api.js";
+export type { MatchupPreview, NflPlayoffPicture } from "../../../apps/web/src/types/api.js";
 export { PlayerOfWeekCard, type PlayerOfWeekCardWinner } from "../../../apps/web/src/components/hub/PlayerOfWeekCard.js";
 export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
 export { CfpPostseasonManager } from "../../../apps/web/src/routes/league-mgmt/manage-league/CfpPostseasonManager.js";
-export { NflPlayoffBracket } from "../../../apps/web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
+export { NflPlayoffBracket, DesktopBracket as NflPlayoffBracketDesktop } from "../../../apps/web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
 export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
 export { TeamRosterForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.js";
 export { RosterPoolEditor } from "../../../apps/web/src/routes/league-mgmt/manage-league/RosterPoolEditor.js";

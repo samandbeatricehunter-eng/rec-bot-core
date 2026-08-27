@@ -5,8 +5,8 @@
 // week (4 total): AFC offense, AFC defense, NFC offense, NFC defense.
 //
 // Offense: (pass yards * 0.04) + (rush + receiving yards * 0.1) + (touchdowns * 6) - (turnovers * 4)
-// Defense: (sacks * 4) + (interceptions * 4) + (forced fumbles * 3) + (fumble recoveries * 3)
-//          + (tackles for loss * 2) + (defensive TDs * 6)
+// Defense: (tackles * 1) + (sacks * 4) + (interceptions * 4) + (forced fumbles * 3)
+//          + (fumble recoveries * 3) + (tackles for loss * 2) + (defensive TDs * 6)
 //
 // The initial version weighted every yard (passing included) at 0.1, per the community
 // formula as given. Checked against EA's own real Week 10 "Top Players" picks (screenshot,
@@ -36,6 +36,19 @@
 // Companion export has no TFL field at all (confirmed against a raw defensive payload), only
 // defTotalTackles/defSacks/defInts/defTDs/defFumRec/defForcedFum/defDeflections/defSafeties --
 // left in the formula for the day EA's export adds it, but it's currently a no-op.
+//
+// Checked again against real Week 11 picks (screenshot, 2026-08-27): both defensive picks were
+// wrong. Caleb Ransaw (6 TKL, 1 INT, 1 TD) was the real AFC pick over a computed winner with 1
+// INT + 1 fumble recovery + 1 TD but only 3 tackles; Patrick Surtain II (5 TKL, 2 INT, *no* TD)
+// was the real NFC pick over a computed winner with 1 INT + 1 TD but only 2 tackles. Plain
+// tackles -- tracked in the stat line for display only until now -- were never part of the score
+// at all, so a big tackle game couldn't outweigh a single splash play the way it clearly does in
+// EA's real grading. Added tackles at weight 1 (the lowest per-unit weight in the formula, since
+// a single tackle is the least impactful defensive unit): this reproduces the Surtain pick
+// outright (13 vs. 12) and the Ransaw pick via the existing name tie-break (both score 16 with
+// tackles included) -- not a clean win, but the tie-break happens to land on the right name here.
+// Only 2 data points for this specific weight; if a future real pick contradicts it, that's the
+// next thing to check before assuming the weight is right.
 
 export type WeeklyPlayerStatLine = {
   passYards: number;
@@ -73,7 +86,7 @@ export function offensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
 }
 
 export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
-  return line.sacks * 4 + line.interceptions * 4 + line.forcedFumbles * 3 + line.fumbleRecoveries * 3
+  return line.tackles + line.sacks * 4 + line.interceptions * 4 + line.forcedFumbles * 3 + line.fumbleRecoveries * 3
     + line.tacklesForLoss * 2 + line.defensiveTds * 6;
 }
 

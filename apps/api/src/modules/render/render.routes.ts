@@ -4,9 +4,11 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 import { renderPlayerOfWeekPng } from "../../lib/player-of-week-render.js";
-import { verifyMatchupRenderToken, verifyPlayerOfWeekRenderToken } from "../../lib/render-token.js";
+import { renderNflPlayoffBracketPng } from "../../lib/nfl-playoff-bracket-render.js";
+import { verifyMatchupRenderToken, verifyNflPlayoffBracketRenderToken, verifyPlayerOfWeekRenderToken } from "../../lib/render-token.js";
 import { getMatchupCardRenderData } from "../hub/hub.service.js";
 import { getPlayerOfWeekRenderData } from "../league-week/player-of-week-award.service.js";
+import { getNflPlayoffBracketRenderData } from "../standings/nfl-bracket.service.js";
 
 // Unauthenticated (token-gated, 60s expiry) -- backs apps/site's chromeless
 // /render/matchup/:gameId route, which the Playwright screenshot pipeline
@@ -53,6 +55,26 @@ export async function renderRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const params = z.object({ storyId: z.string().min(1) }).parse(request.params);
       const png = await renderPlayerOfWeekPng(params.storyId);
+      return reply.header("content-type", "image/png").send(png);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/nfl-playoff-bracket/:leagueId", async (request, reply) => {
+    try {
+      const params = z.object({ leagueId: z.string().min(1) }).parse(request.params);
+      const query = z.object({ token: z.string().min(1) }).parse(request.query);
+      if (!verifyNflPlayoffBracketRenderToken(params.leagueId, query.token)) {
+        return reply.code(403).send({ error: "Invalid or expired render token." });
+      }
+      return reply.send(await getNflPlayoffBracketRenderData(params.leagueId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/nfl-playoff-bracket/:leagueId/debug-png", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const params = z.object({ leagueId: z.string().min(1) }).parse(request.params);
+      const png = await renderNflPlayoffBracketPng(params.leagueId);
       return reply.header("content-type", "image/png").send(png);
     } catch (error) { return sendError(reply, error); }
   });

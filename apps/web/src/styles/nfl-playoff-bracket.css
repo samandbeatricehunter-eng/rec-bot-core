@@ -14,7 +14,13 @@
   max-width: 1240px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, 1fr) 1.2fr repeat(4, 1fr);
+  /* 7 explicit columns (AFC wild card/divisional/conference, center, NFC conference/
+     divisional/wild card) -- every child is placed with an explicit inline gridColumn/gridRow
+     (see NflPlayoffBracket.tsx) rather than relying on DOM-order auto-placement, which is what
+     previously scattered/duplicated the layout: the old 9-column template never actually
+     contained 9 real elements per row, so nothing lined up with the round label above it. */
+  grid-template-columns: repeat(3, 1fr) 1.3fr repeat(3, 1fr);
+  grid-template-rows: auto 1fr;
   gap: 0 4px;
   align-items: center;
   position: relative;
@@ -32,10 +38,28 @@
 }
 .nfl-bracket-round-label.is-active { color: var(--accent-secondary, var(--accent-bright)); }
 
-.nfl-bracket-matchup-group { display: flex; flex-direction: column; gap: 3px; padding: 8px 6px; position: relative; }
-.nfl-bracket-matchup-group.round-wild_card { row-gap: 44px; }
-.nfl-bracket-matchup-group.round-divisional { row-gap: 148px; }
-.nfl-bracket-matchup-group.round-conference_championship { align-self: center; }
+.nfl-bracket-matchup-group { display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 8px 6px; height: 100%; position: relative; }
+
+.nfl-bracket-tbd {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 64px; padding: 12px; border: 1px dashed var(--border); border-radius: 8px;
+  color: var(--text-secondary); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+
+.nfl-bracket-mgmt-link {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.nfl-bracket-mgmt-link:hover { color: var(--text-primary); border-color: var(--border-strong, var(--border)); }
 
 .nfl-bracket-tag { display: none; }
 
@@ -105,11 +129,12 @@
 .nfl-standings-row .nfl-standings-record { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text-secondary); }
 
 @media (max-width: 900px) {
+  /* Inline gridColumn/gridRow styles are simply inert once the parent stops being a grid, so
+     this just stacks every column (in DOM order: AFC WC -> AFC DIV -> AFC CONF -> center -> NFC
+     CONF -> NFC DIV -> NFC WC) top to bottom -- no per-round CSS needed to make that work. */
   .nfl-bracket { display: flex; flex-direction: column; gap: 16px; }
   .nfl-bracket-round-label { display: none; }
-  .nfl-bracket-matchup-group.round-wild_card,
-  .nfl-bracket-matchup-group.round-divisional,
-  .nfl-bracket-matchup-group.round-conference_championship { row-gap: 3px; }
+  .nfl-bracket-matchup-group { gap: 12px; padding: 0; }
   .nfl-bracket-tag { display: block; font-family: var(--font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; padding-left: 2px; }
   .nfl-bracket-tag.is-active { color: var(--accent-secondary, var(--accent-bright)); }
   .nfl-bracket-center { padding: 10px 4px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }

@@ -62,3 +62,29 @@ export function verifyPlayerOfWeekRenderToken(storyId: string, token: string | u
     return false;
   }
 }
+
+// Same idiom again for the NFL playoff bracket render (apps/site's chromeless
+// /render/nfl-playoff-bracket/:leagueId route + apps/api/src/lib/nfl-playoff-bracket-render.ts),
+// used for the Discord playoff-picture announcement image instead of a plain text link.
+export function signNflPlayoffBracketRenderToken(leagueId: string): string {
+  const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
+  const sig = createHmac("sha256", renderSecret()).update(`bracket:${leagueId}.${expiresAt}`).digest("hex");
+  return `${expiresAt}.${sig}`;
+}
+
+export function verifyNflPlayoffBracketRenderToken(leagueId: string, token: string | undefined | null): boolean {
+  if (!token) return false;
+  const [expiresAtRaw, sig] = token.split(".");
+  const expiresAt = Number(expiresAtRaw);
+  if (!expiresAtRaw || !sig || !Number.isFinite(expiresAt)) return false;
+  if (Math.floor(Date.now() / 1000) > expiresAt) return false;
+
+  const expected = createHmac("sha256", renderSecret()).update(`bracket:${leagueId}.${expiresAt}`).digest("hex");
+  try {
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(sig, "hex");
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}

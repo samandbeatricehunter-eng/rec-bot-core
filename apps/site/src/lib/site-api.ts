@@ -1,4 +1,5 @@
 import type { RecGlobalEconomyConfig, TournamentRules } from "@rec/shared";
+import type { NflPlayoffPicture } from "@rec/hub-ui";
 import { createReadCache } from "./read-cache.js";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
@@ -1610,6 +1611,9 @@ export const siteApi = {
   },
   getPlayerOfWeekRenderData(storyId: string, token: string) {
     return publicRequest<PlayerOfWeekRenderData>(`/v1/render/player-of-week/${storyId}?token=${encodeURIComponent(token)}`);
+  },
+  getNflPlayoffBracketRenderData(leagueId: string, token: string) {
+    return publicRequest<NflPlayoffPicture>(`/v1/render/nfl-playoff-bracket/${leagueId}?token=${encodeURIComponent(token)}`);
   },
 };
 

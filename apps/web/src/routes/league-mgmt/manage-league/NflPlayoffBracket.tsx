@@ -1,5 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
+import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
@@ -78,66 +80,79 @@ function TrophyIcon() {
   );
 }
 
-function DesktopBracket({ picture }: { picture: NflPlayoffPicture }) {
+function TbdSlot({ label }: { label: string }) {
+  return <div className="nfl-bracket-tbd">{label}</div>;
+}
+
+/** One side's column stack (bye row + wild card, or a TBD placeholder for a round that hasn't
+ * been decided yet) -- pinned to an explicit grid column/row so it can't drift the way the old
+ * pure-DOM-order auto-placement did (that's what produced the scattered/duplicated-looking
+ * layout: the grid template had 9 columns but rows never contained 9 real elements, so nothing
+ * lined up with its round label above it). */
+function RoundColumn({ column, matchups, tag, bye, tbdLabel }: {
+  column: number; matchups: NflPlayoffMatchup[]; tag: string; bye?: { team: NflTeamSummary } | null; tbdLabel?: string;
+}) {
+  if (tbdLabel) return <div className="nfl-bracket-matchup-group" style={{ gridColumn: column, gridRow: 2 }}><TbdSlot label={tbdLabel} /></div>;
+  return (
+    <div className="nfl-bracket-matchup-group" style={{ gridColumn: column, gridRow: 2 }}>
+      {bye ? <div className="nfl-bracket-bye"><TeamBadge team={bye.team} size={24} /><span><strong>{bye.team.name}</strong> — first-round bye</span></div> : null}
+      {matchups.map((m, i) => <MatchupBlock key={i} matchup={m} tag={tag} />)}
+    </div>
+  );
+}
+
+export function DesktopBracket({ picture }: { picture: NflPlayoffPicture }) {
   const byRound = new Map(picture.rounds.map((r) => [r.round, r.matchups]));
   const afc = (round: NflPlayoffPicture["rounds"][number]["round"]) => (byRound.get(round) ?? []).filter((m) => m.conference === "AFC");
   const nfc = (round: NflPlayoffPicture["rounds"][number]["round"]) => (byRound.get(round) ?? []).filter((m) => m.conference === "NFC");
   const superBowl = (byRound.get("super_bowl") ?? [])[0] ?? null;
+  // A round with zero matchups either hasn't been decided into yet (the round before it isn't
+  // finished) or genuinely has nothing to show (e.g. super_bowl before conference championships
+  // exist) -- either way, "not populated yet" rather than blank, so it doesn't read as broken.
+  const decidedInto = (round: NflPlayoffPicture["rounds"][number]["round"]) => (byRound.get(round)?.length ?? 0) > 0;
 
-  const bye = (matchups: NflPlayoffMatchup[]) => {
+  const bye = (matchups: NflPlayoffMatchup[], conference: "AFC" | "NFC") => {
     const seeded = new Set(matchups.flatMap((m) => [m.homeSeed, m.awaySeed]));
-    return picture.conferences.find((c) => matchups[0]?.conference === c.conference)?.seeds.find((s) => s.seed === 1 && !seeded.has(1)) ?? null;
+    return picture.conferences.find((c) => c.conference === conference)?.seeds.find((s) => s.seed === 1 && !seeded.has(1)) ?? null;
   };
-  const afcBye = bye(afc("wild_card"));
-  const nfcBye = bye(nfc("wild_card"));
+  const afcWildCard = afc("wild_card");
+  const nfcWildCard = nfc("wild_card");
+  const afcBye = bye(afcWildCard, "AFC");
+  const nfcBye = bye(nfcWildCard, "NFC");
 
   return (
     <div className="nfl-bracket">
-      <div className="nfl-bracket-round-label">Wild Card</div>
-      <div className="nfl-bracket-round-label">Divisional</div>
-      <div className="nfl-bracket-round-label is-active">Conference</div>
-      <div className="nfl-bracket-round-label">&nbsp;</div>
-      <div className="nfl-bracket-round-label">&nbsp;</div>
-      <div className="nfl-bracket-round-label is-active">Conference</div>
-      <div className="nfl-bracket-round-label">Divisional</div>
-      <div className="nfl-bracket-round-label">Wild Card</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 1, gridRow: 1 }}>Wild Card</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 2, gridRow: 1 }}>Divisional</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 3, gridRow: 1 }}>Conference</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 5, gridRow: 1 }}>Conference</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 6, gridRow: 1 }}>Divisional</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: 7, gridRow: 1 }}>Wild Card</div>
 
-      <div className="nfl-bracket-matchup-group round-wild_card">
-        {afc("wild_card").map((m, i) => <MatchupBlock key={i} matchup={m} tag="AFC · Wild Card" />)}
-      </div>
-      <div className="nfl-bracket-matchup-group round-divisional">
-        {afcBye ? <div className="nfl-bracket-bye"><TeamBadge team={afcBye.team} size={24} /><span><strong>{afcBye.team.name}</strong> — first-round bye</span></div> : null}
-      </div>
-      <div className="nfl-bracket-matchup-group round-conference_championship">
-        {afc("conference_championship").map((m, i) => <MatchupBlock key={i} matchup={m} tag="AFC Championship" />)}
-      </div>
+      <RoundColumn column={1} matchups={afcWildCard} tag="AFC · Wild Card" bye={afcBye} />
+      <RoundColumn column={2} matchups={afc("divisional")} tag="AFC Divisional" tbdLabel={decidedInto("divisional") ? undefined : "TBD"} />
+      <RoundColumn column={3} matchups={afc("conference_championship")} tag="AFC Championship" tbdLabel={decidedInto("conference_championship") ? undefined : "TBD"} />
 
-      <div className="nfl-bracket-center">
+      <div className="nfl-bracket-center" style={{ gridColumn: 4, gridRow: "1 / 3" }}>
         <div className="nfl-bracket-trophy-wrap"><TrophyIcon /></div>
         <div className="nfl-bracket-sb-label">Super Bowl</div>
-        {superBowl && (
+        {superBowl ? (
           <div className="nfl-bracket-sb-matchup">
             <TeamRow team={superBowl.homeTeam} seed={superBowl.homeSeed} score={superBowl.homeScore} isWinner={superBowl.winnerTeamId === superBowl.homeTeam.teamId} isDecided={superBowl.status === "completed"} />
             <TeamRow team={superBowl.awayTeam} seed={superBowl.awaySeed} score={superBowl.awayScore} isWinner={superBowl.winnerTeamId === superBowl.awayTeam.teamId} isDecided={superBowl.status === "completed"} />
           </div>
-        )}
+        ) : <TbdSlot label="TBD" />}
         {picture.champion && (
           <div className="nfl-bracket-champion-banner">
-            {picture.isLiveProjection ? "Projected Champion" : "Champion"}
+            Champion
             <strong>{picture.champion.name}</strong>
           </div>
         )}
       </div>
 
-      <div className="nfl-bracket-matchup-group round-conference_championship">
-        {nfc("conference_championship").map((m, i) => <MatchupBlock key={i} matchup={m} tag="NFC Championship" />)}
-      </div>
-      <div className="nfl-bracket-matchup-group round-divisional">
-        {nfcBye ? <div className="nfl-bracket-bye"><TeamBadge team={nfcBye.team} size={24} /><span><strong>{nfcBye.team.name}</strong> — first-round bye</span></div> : null}
-      </div>
-      <div className="nfl-bracket-matchup-group round-wild_card">
-        {nfc("wild_card").map((m, i) => <MatchupBlock key={i} matchup={m} tag="NFC · Wild Card" />)}
-      </div>
+      <RoundColumn column={5} matchups={nfc("conference_championship")} tag="NFC Championship" tbdLabel={decidedInto("conference_championship") ? undefined : "TBD"} />
+      <RoundColumn column={6} matchups={nfc("divisional")} tag="NFC Divisional" tbdLabel={decidedInto("divisional") ? undefined : "TBD"} />
+      <RoundColumn column={7} matchups={nfcWildCard} tag="NFC · Wild Card" bye={nfcBye} />
     </div>
   );
 }
@@ -169,6 +184,8 @@ function StandingsPanel({ picture }: { picture: NflPlayoffPicture }) {
 
 export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
+  const navigate = useNavigate();
+  const isCommissioner = useHubChrome().currentLeague?.isCommissioner ?? false;
   const [picture, setPicture] = useState<NflPlayoffPicture | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<{ seasonNumber: number; picture: NflPlayoffPicture } | null | undefined>(undefined);
@@ -233,6 +250,11 @@ export function NflPlayoffBracket() {
             conference reseeds (lowest surviving seed vs. highest) after every round.
           </p>
         </>
+      )}
+      {isCommissioner && (
+        <button type="button" className="nfl-bracket-mgmt-link" onClick={() => navigate("/league-mgmt")}>
+          League Management
+        </button>
       )}
     </div>
   );

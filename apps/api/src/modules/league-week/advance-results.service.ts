@@ -1,7 +1,7 @@
 import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
@@ -9,7 +9,7 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
-import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, postDiscordChannelMessageWithFile, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
@@ -367,6 +367,25 @@ async function publishMaddenPlayoffPicture(input: {
   const body = `This week's NFL Playoff Picture is live and reseeds automatically as results come in — check the bracket on the site: ${siteUrl}/l/${input.leagueId}/playoff-bracket`;
   await publishTransitionStory({ guildId: input.guildId, headline, body, primaryAngle, storyType: "article" });
   await recordHubAnnouncement({ guildId: input.guildId, title: headline, body });
+
+  // Discord post renders the bracket as an image instead of just linking out, same pattern as
+  // the Player of the Week headline image (player-of-week-award.service.ts's
+  // postPlayerOfWeekHeadline) -- best-effort, the hub announcement above is the source of truth
+  // even if Chromium/Discord posting fails.
+  try {
+    const routes = await findServerRoutesForLeague(input.leagueId);
+    const channelId = routes?.routes?.headlines_channel_id as string | null | undefined;
+    if (!channelId) return;
+    const { renderNflPlayoffBracketPng } = await import("../../lib/nfl-playoff-bracket-render.js");
+    const png = await renderNflPlayoffBracketPng(input.leagueId);
+    await postDiscordChannelMessageWithFile(
+      channelId,
+      { embeds: [{ title: headline, color: 0xd9a521, image: { url: "attachment://nfl-playoff-bracket.png" } }] },
+      { buffer: png, name: "nfl-playoff-bracket.png", contentType: "image/png" },
+    );
+  } catch (err) {
+    console.error("[ERROR] Failed to post NFL playoff bracket image to Discord (non-fatal):", err);
+  }
 }
 
 // Delegates to the shared canonical week->stage mapping instead of hand-rolling a second,

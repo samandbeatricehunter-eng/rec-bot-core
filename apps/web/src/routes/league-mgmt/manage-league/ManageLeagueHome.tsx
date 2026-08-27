@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Database, Inbox, Newspaper, Settings, Trophy, UserPlus, Wrench } from "lucide-react";
+import { AlertTriangle, Database, Inbox, Newspaper, Settings, UserPlus, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -145,11 +145,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               {dataMode === "manual" && summary && (
                 <Button variant="secondary" onClick={() => setManualEntry(true)}>
                   <Database size={16} /> Manual Entry
-                </Button>
-              )}
-              {isMadden && (
-                <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/playoff-bracket")}>
-                  <Trophy size={16} /> Playoff Bracket
                 </Button>
               )}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/notifications")}>
