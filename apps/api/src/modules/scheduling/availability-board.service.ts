@@ -45,17 +45,16 @@ async function upsertBoardMessage(leagueId: string, channelId: string, sectionKe
   }, { onConflict: "league_id,section_key" });
 }
 
+// The Set Availability/Set Timezone/This Week buttons used to live here, but that put them on a
+// static panel disconnected from the moment someone actually needs to act -- they now ride along
+// on the advance-triggered nag itself (availability-nag.service.ts), tagging exactly the people
+// who are out of compliance right when they're told about it.
 function controlPanelPayload() {
   return {
     embeds: [{ title: "League Availability", color: 0xd9a521, description: "Set your weekly availability and timezone here or on the site — coaches use this so the scheduling system can find a shared kickoff window automatically." }],
-    components: [{
-      type: 1,
-      components: [
-        { type: 2, style: 2, custom_id: "rec:availboard:setavailability", label: "Set Availability" },
-        { type: 2, style: 2, custom_id: "rec:availboard:settimezone", label: "Set Timezone" },
-        { type: 2, style: 2, custom_id: "rec:availboard:thisweek", label: "This Week" },
-      ],
-    }],
+    // Discord's message-edit endpoint leaves components untouched when the field is omitted --
+    // an explicit empty array is required to actually clear the buttons this panel used to carry.
+    components: [],
   };
 }
 

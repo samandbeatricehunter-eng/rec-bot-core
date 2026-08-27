@@ -1138,7 +1138,11 @@ export async function releaseMemberTeamLinksOnLeave(input: { guildId: string; di
       .in("source_table", ["rec_team_link_requests"]);
   }
 
-  if (ended.data?.length) syncRecruitingAd(league.id);
+  if (ended.data?.length) {
+    syncRecruitingAd(league.id);
+    const { syncAvailabilityBoard: syncAvailabilityBoardOnLeave } = await import("../scheduling/availability-board.service.js");
+    syncAvailabilityBoardOnLeave(input.guildId).catch((error) => console.error("[ERROR] Failed to resync availability board after member left (non-fatal):", error));
+  }
 
   if (ended.data?.length || rejected.data?.length) {
     await writeAuditLog({
