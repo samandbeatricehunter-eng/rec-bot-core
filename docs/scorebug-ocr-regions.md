@@ -260,10 +260,45 @@ pre-digit-guard run — that run's higher numbers included some of the same garb
 data problem the guard exists to prevent, just not on a frame this doc happened to have ground
 truth for. Trustworthy-when-non-null matters more than raw hit-count here.
 
-**Still open**: the confirmed directional possession frame (`ATL 0 ▶ 0 NO`) still classifies as
-`neutral` under the no-ticker framing despite the region being measured from that same frame —
-worth a closer look at the crop before trusting the possession classifier on this framing.
-Game clock/down-distance/play-clock hit-rates remain the areas with the most room left.
+## Bug #7: shape classifier assumed one fixed polarity, but it isn't fixed either
+
+Chased the "still open" item above immediately: cropped the exact possession-glyph region from
+the ground-truth frame and it was a clean, perfectly-centered `▶` — so the region was right, and
+the bug had to be in `computeMassImbalance` itself. It was: the primary framing's score area is
+a light background with a dark glyph, but the no-ticker framing's is a **solid black background
+with a white/light glyph** — the opposite polarity. `computeMassImbalance` always treated "dark
+pixels" as ink, so on this frame it was measuring the black background instead of the white
+triangle.
+
+Fixed by making it polarity-adaptive instead of assuming one direction: in any small,
+mostly-background crop, the glyph is always the *minority* of pixels after `threshold()`,
+regardless of which absolute brightness that minority happens to be — so count both dark and
+light pixels first, and treat whichever count is smaller as ink.
+
+Confirmed against the ground-truth frame: `possession` now reads `right`, correctly matching
+the `▶` glyph pointing at the home team's score. This is the first real validation of the
+possession classifier's directional logic against actual known ground truth (every prior run
+only had `neutral`/`x` cases to check against) — it was correct in principle the whole time,
+just fed the wrong ink data on this framing.
+
+## Final numbers for this session (after bug #7)
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 15/18 correct |
+| Quarter | 15/18 |
+| Game clock | 9/18 |
+| Play clock | 8/18 |
+| Away/home score | 10/18, 13/18 |
+| Down & distance | 9/18 |
+| Yard line (number) | 10/18 |
+| Yard-line direction | 12/18 |
+| Possession glyph | 17/18 classified, confirmed correct on the one frame with known ground truth |
+
+**Still open**: game clock, play clock, down-distance, and yard-line-number hit-rates remain the
+areas with the most room left (roughly half the batch each). All seven bugs found this session
+were caught by actually running the parser against real frames and checking specific results
+against manually-verified ground truth — not by re-eyeballing crops or assuming a fix worked.
 
 ## Implementation
 

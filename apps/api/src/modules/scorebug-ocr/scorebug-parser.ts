@@ -172,16 +172,26 @@ async function computeMassImbalance(frameBuffer: Buffer, region: FractionalRegio
   const { width, height } = info;
   if (width < 2 || height < 2) return null;
 
+  // Polarity isn't fixed -- the primary framing's score area is a light background with a dark
+  // glyph, but the no-ticker framing's is a solid black background with a white/light glyph.
+  // The glyph is always the minority of pixels in a small, mostly-background crop after
+  // threshold(), regardless of which absolute brightness it is, so count both polarities first
+  // and treat whichever is rarer as ink.
+  let darkCount = 0;
+  let lightCount = 0;
+  for (let i = 0; i < data.length; i++) {
+    if ((data[i] ?? 0) < 128) darkCount++; else lightCount++;
+  }
+  const inkIsDark = darkCount <= lightCount;
+
   let firstHalfMass = 0;
   let secondHalfMass = 0;
   const midpoint = axis === "horizontal" ? Math.floor(width / 2) : Math.floor(height / 2);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const value = data[y * width + x] ?? 0;
-      // These glyphs are dark ink on a light scorebug background -- after threshold() (no
-      // negate here, unlike the OCR preprocessing path), the glyph itself is the DARK pixels,
-      // not the bright ones.
-      const ink = value < 128 ? 1 : 0;
+      const isDark = value < 128;
+      const ink = isDark === inkIsDark ? 1 : 0;
       const inFirstHalf = axis === "horizontal" ? x < midpoint : y < midpoint;
       if (inFirstHalf) firstHalfMass += ink; else secondHalfMass += ink;
     }
