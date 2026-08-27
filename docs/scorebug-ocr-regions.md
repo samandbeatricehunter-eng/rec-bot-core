@@ -102,10 +102,19 @@ known frames, not by re-eyeballing:
    dumping per-row dark-pixel counts for the yard-line-direction region: rows 0–6 were *fully*
    dark (the field, not the glyph) and were swamping the small triangle's real top/bottom
    balance. Nudging `y0` from 0.889 to 0.898 excludes it — this also incidentally raised OCR
-   confidence on several text fields (e.g. `downDistance` and `yardLine` both jumped from
-   ~50-60% to 70-96% confidence on the reference frame).
+   confidence on several text fields.
+5. **Tesseract's default page-segmentation mode (PSM 3, "fully automatic") returns nothing on
+   tiny isolated snippets.** Confirmed directly: the exact same cleanly-preprocessed play-clock
+   crop (a small white box reading ":02" on solid black) came back as empty text under PSM 3 and
+   read correctly as "02" under `PSM.SINGLE_LINE`. This wasn't visible from the region math at
+   all — it only showed up as an unexplained 0/17 hit rate on one field after an unrelated fix.
+   Fixed by giving scorebug OCR its own dedicated Tesseract worker pool
+   (`scorebug-tesseract-pool.ts`) configured with `PSM.SINGLE_LINE`, instead of sharing the
+   box-score module's pool (which needs the default full-page mode for its own large,
+   document-like crops — the two can't share one scheduler with different desired PSMs, since
+   tesseract.js's scheduler API has no per-job parameter override).
 
-## Stress test results (after all four fixes above)
+## Stress test results (after all five fixes above)
 
 Run via `stress-test.ts` against all 17 uploaded highlights in the M27 league (one frame per
 clip, pulled live from Cloudflare Stream at `t=2s`, 1920×1080). Non-null hit rate out of 17:
@@ -115,27 +124,31 @@ clip, pulled live from Cloudflare Stream at `t=2s`, 1920×1080). Non-null hit ra
 | Live-scorebug classification | 10/17 correctly `true` | The known play-call-screen samples correctly classify `false` |
 | Quarter | 7/17 | Correct when non-null; OCR sometimes drops the leading digit ("4th" → "ath"), and the regex correctly refuses to guess rather than misparse |
 | Game clock | 6/17 | Accurate when it hits (`1:14`, `1:11`, `1:18`, `1:13`, `5:11` all matched known values) |
-| Play clock | 0/17 | **Regressed by the y0 fix above** — the red play-clock box likely sits at a slightly different vertical offset than the main black box and needs its own y-range, not the shared one |
-| Away/home score | 4/17, 7/17 | 100% correct when non-null against manually-checked ground truth (`27 x 13`, `24 x 13`, `11/21` all confirmed against the source frame) |
+| Play clock | 10/17 | Was 0/17 before the PSM fix (bug #5) — now the best-improved field |
+| Away/home score | 5/17, 9/17 | Correct when non-null against manually-checked ground truth |
 | Down & distance | 7/17 | Correct when non-null, except one case where OCR noise inserted an extra digit into "1ST" and threw off the parsed down number |
-| Yard line (number) | 5/17, but 75-96% confidence when it hits | Confirmed correct against ground truth (`39`, `34`, `26`, `10`) |
+| Yard line (number) | 10/17, 65-96% confidence when it hits | Confirmed correct against ground truth (`39`, `34`, `26`, `10`) |
 | Yard-line direction | 12/17, confirmed correct on the one verified ground-truth frame (`▲39` → `up`) | Every hit in this batch happened to read `up` — the classifier's logic is confirmed correct for that case, but a genuine `down` sample hasn't been checked by eye yet |
-| Possession glyph | 17/17 classified, all `neutral` in this batch | Mechanism now correctly measures the glyph (bug #3 above); this sample batch happened to have no confirmed directional (`◀`/`▶`) frame to validate against |
+| Possession glyph | 17/17 classified, all `neutral` in this batch | Mechanism now correctly measures the glyph; this sample batch happened to have no confirmed directional (`◀`/`▶`) frame to validate against |
 
-**Takeaway:** every field is *accurate when it returns a non-null result* — remaining work is
-raising hit-rate (particularly re-fixing play clock's regression with its own y-range) and
-finding/validating a genuine directional possession and "down" yard-line sample. Likely next
-steps: per-field preprocessing variants (mirroring how `box-score.parser.ocr.ts` already runs
-multiple threshold/CLAHE variants and merges results), and giving the play-clock box its own
-vertical bounds instead of sharing the row-wide band.
+**Takeaway:** every field is *accurate when it returns a non-null result*, and hit-rate improved
+substantially once the PSM bug was found. Remaining gaps: quarter/game-clock still miss on
+roughly half the frames (font-legibility issue with certain digits/letters, not a region
+problem), and this sample batch never happened to contain a directional possession or "down"
+yard-line frame to validate those two cases against. Likely next steps: per-field preprocessing
+variants (mirroring how `box-score.parser.ocr.ts` runs multiple threshold/CLAHE variants and
+merges results) to recover the quarter/clock misses, and pulling more samples specifically
+looking for a directional possession/yard-line frame.
 
 ## Implementation
 
 Scaffolding lives in `apps/api/src/modules/scorebug-ocr/`:
 - `scorebug-regions.ts` — the region table above, as code.
-- `scorebug-parser.ts` — crop + OCR per field (reuses the existing Tesseract worker pool from
-  `apps/api/src/modules/box-score/box-score.parser.types.ts` rather than standing up a second
-  OCR engine) + a pixel-mass heuristic for the possession glyph.
+- `scorebug-tesseract-pool.ts` — a dedicated small Tesseract worker pool, separate from the
+  box-score module's own pool, configured with `PSM.SINGLE_LINE` (see calibration bug #5 below
+  for why this has to be a separate pool rather than sharing box-score's).
+- `scorebug-parser.ts` — crop + OCR per field + a pixel-mass shape-classification heuristic
+  shared by the possession glyph and the yard-line direction triangle.
 - `stress-test.ts` — standalone script (not part of `pnpm test`) that runs the parser against a
   directory of real sample frames and prints per-field results for manual review. Not wired
   into any route or scheduled job yet — this is calibration tooling, not a shipped feature.

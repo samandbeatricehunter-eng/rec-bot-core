@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseScorebugFrame } from "./scorebug-parser.js";
-import { terminateTesseractWorker } from "../box-score/box-score.parser.types.js";
+import { terminateScorebugTesseractWorker } from "./scorebug-tesseract-pool.js";
 
 async function main() {
   const dir = resolve(process.argv[2] ?? join(import.meta.dirname, "ocr-samples"));
@@ -57,7 +57,7 @@ async function main() {
     console.log(`  ${field}: ${count}/${files.length}`);
   }
 
-  await terminateTesseractWorker();
+  await terminateScorebugTesseractWorker();
 }
 
 main().catch((error) => {

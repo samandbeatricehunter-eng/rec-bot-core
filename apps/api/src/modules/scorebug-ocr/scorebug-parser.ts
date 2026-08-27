@@ -1,12 +1,8 @@
 // Scaffolding for reading the Madden 27 live scorebug out of a video frame. Not wired into any
 // route or job yet -- see docs/scorebug-ocr-regions.md for the calibration behind the crop
 // regions and stress-test.ts for how this gets exercised against real highlight frames.
-//
-// Reuses the box-score module's existing Tesseract worker pool rather than standing up a
-// second OCR engine (apps/api/src/modules/box-score/box-score.parser.types.ts) -- REC already
-// pays the Tesseract cold-start cost once per process, no reason to duplicate it here.
 import sharp from "sharp";
-import { recognizeWithPool } from "../box-score/box-score.parser.types.js";
+import { recognizeScorebugField } from "./scorebug-tesseract-pool.js";
 import { flattenPageWords } from "../box-score/box-score.parser.ocr.js";
 import { SCOREBUG_REGIONS, regionToPixels, type FractionalRegion, type ScorebugFieldName } from "./scorebug-regions.js";
 
@@ -53,7 +49,7 @@ async function ocrRegion(frameBuffer: Buffer, fieldName: ScorebugFieldName, fram
   const pixels = regionToPixels(SCOREBUG_REGIONS[fieldName], frameWidth, frameHeight);
   const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
   const processed = await preprocessFieldCrop(crop);
-  const result = await recognizeWithPool(processed, undefined, { blocks: true });
+  const result = await recognizeScorebugField(processed, undefined, { blocks: true });
   const words = flattenPageWords(result.data);
   if (!words.length) return { rawText: "", confidence: 0 };
   const rawText = words.map((w) => w.text.trim()).filter(Boolean).join(" ");
