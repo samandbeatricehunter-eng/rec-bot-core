@@ -5,8 +5,6 @@ import type {
   MatchupTeamBreakdown,
   WagerOptionsResponse,
 } from "../../types/api.js";
-import { PositionMatchupAdvantages } from "./PositionMatchupAdvantages.js";
-
 function readableText(hex: string) {
   const value = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map(
@@ -233,8 +231,6 @@ export function MatchupPreview({
           </div>
         </section>
       )}
-
-      <PositionMatchupAdvantages away={away} home={home} wagerOptions={wagerOptions} />
     </section>
   );
 }

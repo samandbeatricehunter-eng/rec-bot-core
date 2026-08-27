@@ -667,7 +667,15 @@ async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number;
     .lte("week", input.currentWeek)
     .order("week", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(12);
+    // The News tab's week-by-week paging (headlineWeekGroups in HubHome.tsx) groups this whole
+    // array by week and lets the user page/swipe back through older weeks -- but that only works
+    // on weeks that actually made it into this array. A flat cap of 12 *stories* (not weeks) was
+    // starving that UI: any season with more than a couple of multi-story weeks pushed older
+    // weeks out of the array entirely, which looked like "can't view previous weeks" even though
+    // the paging UI itself was already there and working. Matches the same fix already applied
+    // to rec_hub_announcements just above (60 = a full season's worth of history to page back
+    // through).
+    .limit(60);
 
   const rich = await applyCurrentWindow(richSelect);
   if (!rich.error) return rich;

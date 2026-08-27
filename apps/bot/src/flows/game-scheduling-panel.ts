@@ -6,7 +6,7 @@ import {
 import { userFacingError } from "../lib/errors.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { openCustomTimePicker } from "./custom-time-picker.js";
+import { openCustomTimePicker, userTimezoneOrDefault } from "./custom-time-picker.js";
 import { startAvailabilityWizard } from "./availability-wizard.js";
 
 export const GAME_SCHEDULING_CUSTOM_IDS = {
@@ -53,9 +53,14 @@ async function rejectNonRecipient(interaction: ButtonInteraction, targetDiscordI
   return true;
 }
 
-function fmtUtc(iso: string): string {
-  const d = new Date(iso);
-  return `${d.toUTCString().replace(" GMT", "")} UTC`;
+// Was hardcoded to UTC ("Fri, 28 Aug 2026 00:30:00 UTC") regardless of who was looking at it --
+// now renders in the viewing user's own stored timezone (same lookup custom-time-picker.ts
+// already uses for its picker), falling back to America/Chicago if it's never been set.
+function fmtInZone(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone, weekday: "short", month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  }).format(new Date(iso));
 }
 
 async function replyErr(interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction, error: unknown) {
@@ -74,9 +79,12 @@ export async function handleAdjustAvailability(interaction: ButtonInteraction) {
 }
 
 async function postProposeOptions(interaction: ButtonInteraction | ButtonInteraction, gameId: string, isCounter: boolean, proposalId?: string) {
-  const suggestions = await recApi.getSchedulingSuggestions({ guildId: interaction.guildId!, discordId: interaction.user.id, gameId });
+  const [suggestions, timezone] = await Promise.all([
+    recApi.getSchedulingSuggestions({ guildId: interaction.guildId!, discordId: interaction.user.id, gameId }),
+    userTimezoneOrDefault(interaction.guildId!, interaction.user.id),
+  ]);
   const options = suggestions.bestKickoffOptions.slice(0, 4).map((iso) =>
-    new StringSelectMenuOptionBuilder().setLabel(fmtUtc(iso).slice(0, 100)).setValue(iso),
+    new StringSelectMenuOptionBuilder().setLabel(fmtInZone(iso, timezone).slice(0, 100)).setValue(iso),
   );
   options.push(new StringSelectMenuOptionBuilder().setLabel("Custom time…").setValue("custom"));
   const customId = isCounter
@@ -137,7 +145,8 @@ export async function handleProposalAcceptButton(interaction: ButtonInteraction)
   try {
     await interaction.deferReply();
     const result = await recApi.respondToSchedulingProposal({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: gameId!, proposalId: proposalId!, action: "accept" });
-    await interaction.editReply({ content: `✅ Confirmed for ${result.scheduledFor ? fmtUtc(result.scheduledFor) : "the proposed time"}.`, components: [] });
+    const timezone = await userTimezoneOrDefault(interaction.guildId, interaction.user.id);
+    await interaction.editReply({ content: `✅ Confirmed for ${result.scheduledFor ? fmtInZone(result.scheduledFor, timezone) : "the proposed time"}.`, components: [] });
   } catch (error) {
     await replyErr(interaction, error);
   }
@@ -164,7 +173,8 @@ export async function handleProposeOrCounterSelect(interaction: StringSelectMenu
     } else {
       await recApi.proposeSchedulingTime({ guildId: interaction.guildId, discordId: interaction.user.id, gameId, proposedForUtc: value });
     }
-    await interaction.editReply({ content: `Proposed **${fmtUtc(value)}**. Your opponent has been notified in the channel to accept or counter.`, components: [] });
+    const timezone = await userTimezoneOrDefault(interaction.guildId, interaction.user.id);
+    await interaction.editReply({ content: `Proposed **${fmtInZone(value, timezone)}**. Your opponent has been notified in the channel to accept or counter.`, components: [] });
   } catch (error) {
     await replyErr(interaction, error);
   }

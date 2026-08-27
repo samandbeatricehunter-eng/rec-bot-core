@@ -1,5 +1,4 @@
-import type { MatchupPreview, MatchupTeamBreakdown, WagerOptionsResponse } from "../../types/api.js";
-import { PositionMatchupAdvantages } from "../matchups/PositionMatchupAdvantages.js";
+import type { MatchupPreview, MatchupTeamBreakdown } from "../../types/api.js";
 
 function rankLabel(rank: number | null, missingRankLabel = "Unranked") {
   return rank == null ? missingRankLabel : `#${rank}`;
@@ -29,7 +28,7 @@ function comparisonGroups(team: MatchupTeamBreakdown) {
   ];
 }
 
-export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: MatchupPreview; wagerOptions?: WagerOptionsResponse | null }) {
+export function HeroMatchupBreakdown({ preview }: { preview: MatchupPreview }) {
   const awayGroups = comparisonGroups(preview.away);
   const homeGroups = comparisonGroups(preview.home);
   return <section className="hub-hero-breakdown" aria-label="Matchup stat comparison">
@@ -46,7 +45,6 @@ export function HeroMatchupBreakdown({ preview, wagerOptions }: { preview: Match
         </div>)}
       </div>)}
     </div>
-    <PositionMatchupAdvantages away={preview.away} home={preview.home} wagerOptions={wagerOptions} />
     <footer className="hub-hero-prediction">
       <span>Predicted Score</span>
       <strong>{preview.away.abbr ?? preview.away.teamName} {preview.prediction.predictedAwayScore} <em>–</em> {preview.prediction.predictedHomeScore} {preview.home.abbr ?? preview.home.teamName}</strong>

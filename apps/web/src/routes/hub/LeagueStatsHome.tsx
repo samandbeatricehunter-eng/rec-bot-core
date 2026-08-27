@@ -12,7 +12,6 @@ import {
   type StatPageCategoryKey,
 } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
-import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Card } from "../../components/ui/Card.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
@@ -20,9 +19,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
-import { LeagueRecordsHome } from "./LeagueRecordsHome.js";
-import { LeagueHistoryHome } from "./LeagueHistoryHome.js";
-import { FinancialLedger, RankChange } from "./HubHome.js";
+import { RankChange } from "./HubHome.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -299,33 +296,25 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
-  const hubChrome = useHubChrome();
   const [view, setView] = useState<"category" | "team">("category");
   const [scope, setScope] = useState<"season" | "career">("season");
-  const [resource, setResource] = useState<"stats" | "records" | "history" | "sos" | "financial" | null>(null);
   const [hub, setHub] = useState<Awaited<ReturnType<typeof recApi.getHub>> | null>(null);
   useEffect(() => { recApi.getHub(guildId).then(setHub).catch(() => setHub(null)); }, [guildId]);
-  const leagueId = hubChrome.currentLeague?.id;
 
+  // League Records/History/Strength of Schedule/Financial Profile used to live behind a
+  // "League Resources" button row here -- Records and History already have their own nav
+  // entries, Strength of Schedule is moving to the Standings page, and Financial Profile now
+  // lives under My Team > Financials, so this page goes back to just being League Stats.
   return <div className="hub-section">
     <PageHeader title="Stats" subtitle="League rankings, leaders, and complete player production." />
     <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}{hub?.powerRankings?.teams?.some((team) => team.playoffMarker) ? <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p> : null}</Card>
     <LeagueLeadersView guildId={guildId} />
-    {leagueId ? <Card><h2 style={{ marginTop: 0 }}>League Resources</h2><div className="hub-stats-resource-grid">{([
-      ["stats", "League Stats"], ["records", "League Records"], ["history", "League History"], ["sos", "Strength of Schedule"], ["financial", "Financial Profile"],
-    ] as const).map(([key, text]) => <button key={key} type="button" className={resource === key ? "active" : ""} aria-expanded={resource === key} onClick={() => setResource((current) => current === key ? null : key)}>{text}</button>)}</div></Card> : null}
-    {resource === "stats" && <div className="hub-stats-resource-panel">
-      <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>
-      <div className="rec-matchup-tabs" role="tablist" aria-label="Stats view">
-        <button type="button" role="tab" aria-selected={view === "category"} className={view === "category" ? "active" : ""} onClick={() => setView("category")}>Stats by Category</button>
-        <button type="button" role="tab" aria-selected={view === "team"} className={view === "team" ? "active" : ""} onClick={() => setView("team")}>Stats by Team</button>
-      </div>
-      {view === "category" && <CategoryStatsView guildId={guildId} scope={scope} />}
-      {view === "team" && <TeamStatsView guildId={guildId} scope={scope} />}
-    </div>}
-    {resource === "records" && <div className="hub-stats-resource-panel"><LeagueRecordsHome embedded /></div>}
-    {resource === "history" && <div className="hub-stats-resource-panel"><LeagueHistoryHome embedded /></div>}
-    {resource === "sos" && <Card className="hub-stats-resource-panel"><h2>Strength of Schedule</h2>{hub?.sos?.teams?.length ? <div className="hub-stats-power-grid">{hub.sos.teams.map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}% · {team.sosFull.toFixed(2)}</small></article>)}</div> : <p className="hub-empty">Strength of schedule will appear once the season slate is logged.</p>}</Card>}
-    {resource === "financial" && <Card className="hub-stats-resource-panel"><h2>Financial Profile</h2><FinancialLedger summary={(hub as any)?.myTeam?.profile?.financialSummary ?? (hub as any)?.profile?.financialSummary} /></Card>}
+    <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>
+    <div className="rec-matchup-tabs" role="tablist" aria-label="Stats view">
+      <button type="button" role="tab" aria-selected={view === "category"} className={view === "category" ? "active" : ""} onClick={() => setView("category")}>Stats by Category</button>
+      <button type="button" role="tab" aria-selected={view === "team"} className={view === "team" ? "active" : ""} onClick={() => setView("team")}>Stats by Team</button>
+    </div>
+    {view === "category" && <CategoryStatsView guildId={guildId} scope={scope} />}
+    {view === "team" && <TeamStatsView guildId={guildId} scope={scope} />}
   </div>;
 }

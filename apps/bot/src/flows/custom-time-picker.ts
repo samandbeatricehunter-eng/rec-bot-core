@@ -136,7 +136,7 @@ export async function handleCustomTimeMinuteSelect(interaction: StringSelectMenu
   await interaction.update(buildPickerMessage(token, session));
 }
 
-async function userTimezoneOrDefault(guildId: string, discordId: string): Promise<string> {
+export async function userTimezoneOrDefault(guildId: string, discordId: string): Promise<string> {
   try {
     const profile = await recApi.getSchedulingProfile({ guildId, discordId });
     return profile.profile.timezone ?? "America/Chicago";

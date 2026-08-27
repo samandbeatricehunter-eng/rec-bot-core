@@ -596,7 +596,6 @@ export function HubHome() {
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
   const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
-  const [heroWagerOptions, setHeroWagerOptions] = useState<WagerOptionsResponse | null>(null);
   const [heroBreakdownExpanded, setHeroBreakdownExpanded] = useState(false);
   const [manageFundsOpen, setManageFundsOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
@@ -886,16 +885,9 @@ export function HubHome() {
   useEffect(() => {
     if (auth.status !== "ready" || !heroCurrentGameId) {
       setHeroPreview(null);
-      setHeroWagerOptions(null);
       return;
     }
-    Promise.all([
-      recApi.getMatchupPreview({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
-      recApi.getWagerOptions({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null),
-    ]).then(([preview, wagerOptions]) => {
-      setHeroPreview(preview);
-      setHeroWagerOptions(wagerOptions);
-    });
+    recApi.getMatchupPreview({ guildId: auth.guildId, gameId: heroCurrentGameId }).catch(() => null).then(setHeroPreview);
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, heroCurrentGameId, matchupReloadKey]);
 
   async function load() {
@@ -1746,7 +1738,7 @@ export function HubHome() {
               </div>
               {heroBreakdownExpanded ? (
                 <div className="hub-expandable-matchup-drawer">
-                  {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} wagerOptions={heroWagerOptions} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+                  {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
                 </div>
               ) : null}
               {auth.status === "ready" && <HeroMatchupActions
@@ -1848,7 +1840,13 @@ export function HubHome() {
                   <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                 </article>
                 <p className="hub-story-swipe-hint">
-                  {headlineWeekCount > 1 ? "Swipe for older weeks" : weekLabel}
+                  {headlineWeekCount > 1 ? (
+                    <>
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)} aria-label="Older week">‹</button>
+                      {` ${weekLabel} `}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)} aria-label="Newer week">›</button>
+                    </>
+                  ) : weekLabel}
                   {itemPos ? (
                     <>
                       {" · "}
@@ -1864,7 +1862,11 @@ export function HubHome() {
                 {/* The counter below ("N of M") steps through this week's articles, not
                     weeks — so, to match the Highlight Reel, these big arrows drive
                     headlineItemIndex (the dimension actually visible/relevant here), not
-                    headlineWeekIndex. Week auto-selects to the current week on load. */}
+                    headlineWeekIndex. Week navigation is the small ‹/› pair in the hint line
+                    below instead (mirrors the Announcements card's week arrows, which this
+                    card never got even though the same headlineWeekIndex/headlineWeekGroups
+                    state already existed to drive them). Week auto-selects to the current week
+                    on load. */}
                 {items.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Previous article" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)}><ChevronLeft /></button> : null}
                 <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
                   {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
@@ -1872,7 +1874,13 @@ export function HubHome() {
                 </article>
                 {items.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Next article" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)}><ChevronRight /></button> : null}
                 <p className="hub-story-swipe-hint">
-                  {weekLabel}
+                  {headlineWeekCount > 1 ? (
+                    <>
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)} aria-label="Older week">‹</button>
+                      {` ${weekLabel} `}
+                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)} aria-label="Newer week">›</button>
+                    </>
+                  ) : weekLabel}
                   {itemPos ? ` · Showing ${itemPos}` : null}
                 </p>
               </div>

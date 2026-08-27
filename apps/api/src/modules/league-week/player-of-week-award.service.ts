@@ -166,10 +166,20 @@ export async function awardWeeklyPlayerOfWeek(input: {
   const winners = await computeWeeklyPlayerOfWeek(input.guildId, input.weekNumber);
   if (!winners.length) return { awarded: false, winners: [] };
 
+  // One winner's award/payout failing (e.g. a bad credit) used to abort this whole loop before
+  // the headline post below ever ran -- confirmed directly: a real week left exactly one
+  // rec_player_of_week_awards row committed (with its coins already paid) but zero headline
+  // stories, meaning the announcement silently never happened even though part of the award did.
+  // Isolating each winner keeps one failure from canceling the announcement for everyone else.
   const awarded: AwardedWinner[] = [];
   for (const winner of winners) {
-    awarded.push(await awardOneWinner({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, winner }));
+    try {
+      awarded.push(await awardOneWinner({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, winner }));
+    } catch (err) {
+      console.error(`[ERROR] Failed to award Player of the Week (${winner.conference} ${winner.side}, non-fatal):`, err);
+    }
   }
+  if (!awarded.length) return { awarded: false, winners: [] };
 
   await postPlayerOfWeekHeadline({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, winners: awarded });
   return { awarded: true, winners: awarded };
