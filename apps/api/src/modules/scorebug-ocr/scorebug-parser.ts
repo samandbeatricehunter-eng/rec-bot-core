@@ -34,10 +34,30 @@ export type ScorebugFrameResult = {
 // crushes (e.g. the dimmer gray quarter/down-distance labels vs. the bright-white clock, or a
 // motion-blurred frame); "lowThreshold" catches text that's slightly darker overall than
 // "default" assumes. All three end in the same negate()'d light-on-dark polarity Tesseract
-// reads best, plus a 3x upscale since these crops are far smaller than a full box-score capture.
+// reads best.
 type FieldPreprocessVariant = "default" | "clahe" | "lowThreshold";
 
-async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVariant): Promise<Buffer> {
+// 3x is the right default upscale for most crops (thin/small source text needs the extra size to
+// read at all), but it isn't universal: on at least one frame, the away/home score crop's
+// (bolder-than-usual) digits went from a clean 96%-confidence read at 2x to completely empty
+// (0%, not just low-confidence) at 3x -- the extra upscale turned already-bold strokes into
+// blobs. Making 2x the *default* for score fields instead just moved the problem: several other
+// frames' score crops that read correctly at 3x (e.g. "42", "11", "27") came back truncated or
+// wrong at 2x ("2", "1", "94"), because those particular crops actually needed the larger
+// upscale. Since both scales are each uniquely necessary on different frames, this has to be a
+// fallback (try one, then the other) rather than a fixed per-field choice -- see the extra
+// 2x-rescue attempt in ocrRegion below, tried only for score fields and only after every 3x
+// variant has already failed the digit-plausibility check.
+const DEFAULT_UPSCALE = 3;
+// Not a clean "smaller is safer" story either: sweeping every scale from 1x-3x in 0.5 steps
+// against a second known-bad frame (home score "28") found only 1.5x worked -- 1x, 2x, 2.5x, and
+// 3x all came back completely empty on that exact crop, while 2x was the one that rescued the
+// "25" case above and would itself have failed this one. There's no single rescue scale that
+// covers every frame, so this tries a couple of cheap extra candidates (only paid for when 3x
+// has already failed) rather than chasing one universal number.
+const SCORE_FIELD_RESCUE_UPSCALES = [2, 1.5];
+
+async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVariant, upscale: number): Promise<Buffer> {
   const meta = await sharp(buffer).metadata();
   const width = Math.max(1, meta.width ?? 1);
   const height = Math.max(1, meta.height ?? 1);
@@ -49,7 +69,7 @@ async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVaria
   } else {
     pipeline = pipeline.normalise().threshold(120);
   }
-  return pipeline.negate().resize(width * 3, height * 3, { fit: "fill" }).png().toBuffer();
+  return pipeline.negate().resize(Math.round(width * upscale), Math.round(height * upscale), { fit: "fill" }).png().toBuffer();
 }
 
 // Only quarter and down/distance can legitimately contain letters ("4TH", "KICKOFF"); every
@@ -67,8 +87,8 @@ const FIELD_WHITELIST_KIND: Record<ScorebugFieldName, ScorebugWhitelistKind> = {
   yardLine: "numeric",
 };
 
-async function ocrWithVariant(crop: Buffer, variant: FieldPreprocessVariant, whitelistKind: ScorebugWhitelistKind): Promise<ScorebugFieldResult> {
-  const processed = await preprocessFieldCrop(crop, variant);
+async function ocrWithVariant(crop: Buffer, variant: FieldPreprocessVariant, whitelistKind: ScorebugWhitelistKind, upscale: number): Promise<ScorebugFieldResult> {
+  const processed = await preprocessFieldCrop(crop, variant, upscale);
   const result = await recognizeScorebugField(whitelistKind, processed, undefined, { blocks: true });
   const words = flattenPageWords(result.data);
   if (!words.length) return { rawText: "", confidence: 0 };
@@ -96,15 +116,23 @@ async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldN
   const pixels = regionToPixels(regions[fieldName], frameWidth, frameHeight);
   const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
   const whitelistKind = FIELD_WHITELIST_KIND[fieldName];
-  const attempt = await ocrWithVariant(crop, "default", whitelistKind);
+  const attempt = await ocrWithVariant(crop, "default", whitelistKind, DEFAULT_UPSCALE);
   if (looksLikeRealField(attempt.rawText)) return attempt;
-  const clahe = await ocrWithVariant(crop, "clahe", whitelistKind);
+  const clahe = await ocrWithVariant(crop, "clahe", whitelistKind, DEFAULT_UPSCALE);
   if (looksLikeRealField(clahe.rawText)) return clahe;
-  const lowThreshold = await ocrWithVariant(crop, "lowThreshold", whitelistKind);
+  const lowThreshold = await ocrWithVariant(crop, "lowThreshold", whitelistKind, DEFAULT_UPSCALE);
   if (looksLikeRealField(lowThreshold.rawText)) return lowThreshold;
-  // None of the three produced anything digit-shaped -- return empty rather than whichever
-  // variant's non-digit noise happened to run last, so a caller can tell "no data" apart from
-  // "data, just unparsed."
+  // Score digits specifically get a couple more tries at smaller upscales -- see the comment on
+  // SCORE_FIELD_RESCUE_UPSCALES for why this can't just be one fixed default for these fields.
+  if (fieldName === "awayScore" || fieldName === "homeScore") {
+    for (const rescueUpscale of SCORE_FIELD_RESCUE_UPSCALES) {
+      const rescue = await ocrWithVariant(crop, "default", whitelistKind, rescueUpscale);
+      if (looksLikeRealField(rescue.rawText)) return rescue;
+    }
+  }
+  // Nothing produced anything digit-shaped -- return empty rather than whichever variant's
+  // non-digit noise happened to run last, so a caller can tell "no data" apart from "data, just
+  // unparsed."
   return { rawText: "", confidence: 0 };
 }
 

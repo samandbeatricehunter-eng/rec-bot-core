@@ -424,6 +424,67 @@ re-eyeballing crops or assuming a fix worked — including this session's bigges
 which was invisible from the region math or the crop images alone and only surfaced by dumping
 raw pixel buffers at each pipeline stage.
 
+## Bug #13: the 3x upscale was actively breaking some score crops, and there's no one fixed rescue scale either
+
+Took the "away/home score misses are mostly blank-crop cases" note above at face value and
+chased it directly. One frame with otherwise excellent OCR everywhere else
+(`a5eefdc3d94cb4cf00f9e9a50fcf2661.jpg` — the secondary reference frame, "CAR 25 x 28 NO") came
+back with both score fields completely blank. Cropped the region directly: a perfectly clean,
+legible "25" — dark, sharp, no defects. Ran the exact same crop through the pipeline's own
+preprocessing and fed the resulting (visually clean, purely-binary-thresholded) image straight to
+a bare, default-configured Tesseract worker with no whitelist and no PSM override at all — still
+came back completely empty. That ruled out the whitelist/PSM machinery entirely; the *image being
+handed to Tesseract* was somehow unreadable despite looking perfect.
+
+Swept the pipeline's upscale factor from 1x to 6x on that exact crop: 96% confidence at 1x/2x,
+completely empty at 2.5x and up. Away/home score digits render in a noticeably **bolder** font
+than every other field (clock, yard line, quarter) — confirmed those fields stayed flat-confident
+across the same 1x-3x sweep on the same frame, so the flat 3x default (originally chosen for
+small/blurry crops that need the extra size) was actively *breaking* this crop by turning
+already-bold strokes into blobs Tesseract can't parse as characters at all.
+
+The fix isn't as simple as "use a smaller upscale for score fields," though — that was the first
+thing tried, and it broke other frames' previously-correct reads instead (`42`→`2`, `11`→`1`,
+`27`→`94`) purely by resizing them differently, even though every ticker-framing score crop is
+pixel-identical in size (same fractional region, same 1920×1080 source). There's real
+frame-to-frame variance in what scale reads best, not a single "right" number for this field.
+Worse: sweeping a *second* known-bad frame's home score crop (`"28"`) found only **1.5x** worked
+— 1x, 2x, 2.5x, and 3x all came back empty on that one, meaning even "3x by default, 2x as a
+rescue" wasn't enough to cover both known-bad cases.
+
+Fixed by keeping the 3x default (still correct for every field including score on most frames)
+and adding score fields a rescue path: if every 3x contrast variant fails the existing
+digit-plausibility check, retry the cheap default-threshold preprocessing at 2x, then at 1.5x,
+before giving up. Both extra attempts are cheap (only paid for on the frames that already failed
+everything else) and can only add correct reads, never displace an already-working 3x result.
+
+Confirmed against both known-bad frames without touching the ones that already worked:
+`a5eefdc3d94cb4cf00f9e9a50fcf2661.jpg` now reads `away 25, home 28` (both previously blank, both
+now correct) and every previously-correct score frame in the batch (`27/13`, `34/34`, `42/19`,
+`11/21`, `24/13`, `17/21`, etc.) is unchanged. Batch results: home score 14/18 → 15/18, away
+score 10/18 → 13/18, with zero regressions on any other field.
+
+## Final numbers for this session (after all thirteen fixes)
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 15/18 correct |
+| Quarter | 15/18 |
+| Game clock | 14/18 |
+| Play clock | 13/18 |
+| Away/home score | 13/18, 15/18 |
+| Down & distance | 9/18, correct-when-non-null after bug #10 |
+| Yard line (number) | 13/18 |
+| Yard-line direction | 17/18 |
+| Possession glyph | 18/18 classified, 18/18 correct on all known/inferable cases |
+
+Both fully ground-truthed reference frames (`mnf_no_ticker.jpg` and
+`a5eefdc3d94cb4cf00f9e9a50fcf2661.jpg`) now read every field correctly. Remaining gaps
+(down-distance content loss, the handful of still-blank score/yard-line crops) look like they're
+at or near the practical ceiling for PSM.SINGLE_LINE + a tight character whitelist on crops this
+small — squeezing further would likely mean a fundamentally different approach (a larger/steadier
+source capture, or a font-specific trained model) rather than another preprocessing tweak.
+
 ## Implementation
 
 Scaffolding lives in `apps/api/src/modules/scorebug-ocr/`:
