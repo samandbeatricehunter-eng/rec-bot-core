@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -7,8 +8,8 @@ import { Card } from "../../components/ui/Card.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
-import { NflPlayoffBracket } from "../league-mgmt/manage-league/NflPlayoffBracket.js";
 import { RankChange } from "./HubHome.js";
+import { TeamLogo } from "../../components/ui/TeamLogo.js";
 
 type HubResponse = Awaited<ReturnType<typeof recApi.getHub>>;
 type PowerRankingTeam = NonNullable<HubResponse["powerRankings"]>["teams"][number];
@@ -55,7 +56,7 @@ function ConferenceStandings({ teams }: { teams: PowerRankingTeam[] }) {
             <tbody>
               {list.map((team) => (
                 <tr key={team.teamId}>
-                  <td>{team.abbr ?? team.teamName}{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}</td>
+                  <td><span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}</span>{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}</span></td>
                   <td>{team.wins}</td>
                   <td>{team.losses}</td>
                   <td>{team.ties}</td>
@@ -77,22 +78,20 @@ function PowerRankingsCard({ teams }: { teams: PowerRankingTeam[] }) {
         {teams.map((team) => (
           <article key={team.teamId}>
             <strong>#{team.rank}</strong>
-            <span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span>
+            <span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span></span>
             <small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small>
           </article>
         ))}
       </div>
       {!teams.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}
-      {teams.some((team) => team.playoffMarker) ? (
-        <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p>
-      ) : null}
+      <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p>
     </Card>
   );
 }
 
 /** Read-only CFP rankings + bracket — the commissioner-only editing controls in
  * CfpPostseasonManager (Save Top 25 / Generate Bracket) are intentionally left out. */
-function CfpStandingsDrawer({ guildId }: { guildId: string }) {
+export function CfpStandingsDrawer({ guildId }: { guildId: string }) {
   const [state, setState] = useState<CfpPostseasonState | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -137,32 +136,36 @@ function CfpStandingsDrawer({ guildId }: { guildId: string }) {
 
 export function LeagueStandingsHome() {
   const { guildId } = useReadyAuth();
+  const navigate = useNavigate();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [hubError, setHubError] = useState<string | null>(null);
-  const [bracketOpen, setBracketOpen] = useState(false);
+  const [cfpTop25Locked, setCfpTop25Locked] = useState(false);
   useEffect(() => {
     recApi.getHub(guildId).then(setHub).catch((cause) => setHubError(cause instanceof Error ? cause.message : "Could not load standings."));
   }, [guildId]);
 
   const isMadden = hub?.league.game?.startsWith("madden") ?? false;
+  useEffect(() => {
+    if (!hub || isMadden) return;
+    recApi.getCfpPostseason(guildId).then((state) => setCfpTop25Locked(state.top25Locked)).catch(() => setCfpTop25Locked(false));
+  }, [guildId, hub, isMadden]);
+
   const teams = hub?.powerRankings?.teams ?? [];
+  // Madden's bracket starts forming once the league crosses the NFL playoff-picture week
+  // (week 12); CFB has no equivalent week number (its postseason schedule runs a totally
+  // different week range), so it gates on the Top 25 actually being released instead --
+  // that's the real "a bracket is starting to form" signal for CFP.
+  const bracketAvailable = isMadden ? Number(hub?.league.weekNumber ?? 0) >= 12 : cfpTop25Locked;
 
   return (
     <div className="hub-section">
-      <PageHeader title="Standings" subtitle="Playoff picture, conference standings, and power rankings." />
+      <PageHeader title="Standings" subtitle="Conference standings and power rankings." />
       {hubError ? <ErrorState message={hubError} /> : !hub ? <LoadingState label="Loading standings…" /> : (
         <>
-          <Card className="hub-standings-drawer">
-            <button type="button" className="hub-standings-drawer-toggle" aria-expanded={bracketOpen} onClick={() => setBracketOpen((v) => !v)}>
-              <h2 style={{ margin: 0 }}>Playoff Bracket</h2>
-              <span>{bracketOpen ? "Hide" : "Show"}</span>
-            </button>
-            {bracketOpen ? (
-              <div className="hub-standings-drawer-body">
-                {isMadden ? <NflPlayoffBracket /> : <CfpStandingsDrawer guildId={guildId} />}
-              </div>
-            ) : null}
-          </Card>
+          <div className="hub-standings-actions">
+            <button type="button" onClick={() => navigate(`/l/${hub.league.id}/sos`)}><strong>S.O.S.</strong><span>Strength of Schedule</span></button>
+            <button type="button" disabled={!bracketAvailable} title={bracketAvailable ? "Open playoff bracket" : isMadden ? "Playoff bracket unlocks in Week 12" : "Playoff bracket unlocks once the Top 25 is released"} onClick={() => navigate(`/l/${hub.league.id}/playoff-bracket`)}><strong>Playoff Bracket</strong><span>{bracketAvailable ? "View bracket" : isMadden ? "Unlocks Week 12" : "Unlocks at Top 25"}</span></button>
+          </div>
           <Card><h2 style={{ marginTop: 0 }}>Conference Standings</h2><ConferenceStandings teams={teams} /></Card>
           <PowerRankingsCard teams={teams} />
         </>

@@ -585,6 +585,9 @@ export async function handleStreamerWentOffline(input: {
     await supabase.from("rec_stream_compliance_logs").update({ ended_at: now }).eq("game_id", session.confirmed_game_id).eq("user_id", account.user_id).is("ended_at", null);
   }
   pushStreamingEvent(account.user_id, { kind: "ended", sessionId: session.id });
+  const { requestStreamAutoclipStop } = await import("./stream-autoclip.service.js");
+  await requestStreamAutoclipStop(session.id)
+    .catch((error) => console.error("[ERROR] Failed to stop stream OCR capture (non-fatal):", error));
   return { ended: true as const, sessionId: session.id };
 }
 
@@ -752,6 +755,10 @@ export async function postConfirmedSession(sessionId: string) {
     url: session.data.stream_url,
     weekNumber: matchup?.weekNumber ?? game.data.week_number,
   }).catch((error) => console.error("[ERROR] Failed to post stream to game channel (non-fatal):", error));
+
+  const { enqueueStreamAutoclip } = await import("./stream-autoclip.service.js");
+  await enqueueStreamAutoclip({ sessionId, leagueId: game.data.league_id, gameId, streamUrl: session.data.stream_url })
+    .catch((error) => console.error("[ERROR] Failed to enqueue stream OCR/autoclip capture (non-fatal):", error));
 
   return { posted: true as const, streamLogId: posted.streamLogId };
 }

@@ -126,6 +126,8 @@ import {
   handleOpenTeamsRosterTeamSelect,
   handleOpenTeamsSlash,
   handleOpenTeamsViewRosters,
+  handleOpenTeamsWaitlist,
+  handleOpenTeamsWaitlistSelect,
 } from "./flows/open-teams-slash.js";
 import {
   RECRUITING_BOARD_CUSTOM_IDS,
@@ -811,6 +813,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.teamSelectPrefix}:`)) return handleOpenTeamsRequestSelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:`)) return handleOpenTeamsViewRosters(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.rosterTeamSelectPrefix) return handleOpenTeamsRosterTeamSelect(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistPrefix}:`)) return handleOpenTeamsWaitlist(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistSelectPrefix}:`)) return handleOpenTeamsWaitlistSelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.settingsPagePrefix}:`)) return handleRecruitingBoardSettings(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPagePrefix}:`)) return handleRecruitingBoardRequestPage(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPickPrefix}:`)) return handleRecruitingBoardRequestPick(interaction);

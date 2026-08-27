@@ -11,6 +11,7 @@ import {
   getTeamLinkRequest,
   rejectTeamLinkRequest,
 } from "./team-requests.service.js";
+import { createTeamWaitlist } from "./team-waitlists.service.js";
 
 const CreateRequestSchema = z.object({
   guildId: z.string().min(1),
@@ -37,7 +38,24 @@ const AttachMessageSchema = z.object({
   messageId: z.string().min(1),
 });
 
+const CreateWaitlistSchema = z.object({
+  guildId: z.string().min(1),
+  discordId: z.string().min(1),
+  conference: z.string().trim().min(1).max(100),
+  scope: z.enum(["any_open", "specific_team"]),
+  teamId: z.string().uuid().optional().nullable(),
+});
+
 export async function teamRequestRoutes(app: FastifyInstance) {
+  app.post("/v1/team-waitlists/create", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await createTeamWaitlist(CreateWaitlistSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/team-requests/create", async (request, reply) => {
     try {
       requireInternalApiKey(request);

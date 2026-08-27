@@ -635,6 +635,16 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     }
   }
 
+  // Historical game rows can retain a user UUID after that REC account has been deleted.
+  // Global record tables correctly FK to rec_users, so filter those orphan identifiers before
+  // rebuilding instead of attempting to resurrect an invalid aggregate row on every advance.
+  if (affectedUsers.size) {
+    const existingUsers = await supabase.from("rec_users").select("id").in("id", [...affectedUsers]);
+    if (existingUsers.error) throw existingUsers.error;
+    const existingIds = new Set((existingUsers.data ?? []).map((row) => String(row.id)));
+    for (const userId of affectedUsers) if (!existingIds.has(userId)) affectedUsers.delete(userId);
+  }
+
   const legacyBaselines = affectedUsers.size
     ? await supabase
         .from("rec_legacy_user_baselines")

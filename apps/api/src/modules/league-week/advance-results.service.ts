@@ -1107,6 +1107,9 @@ export async function completeAdvanceWeek(input: {
   updateAdvanceProgress(input.advanceRunId, "Posting weekly final-results recap");
   await postWeeklyFinalResultsRecap({ guildId: input.guildId, leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, game: context.rec_leagues.game })
     .catch((err) => console.error("[ERROR] Weekly final-results recap failed after advance (non-fatal):", err));
+  const { enqueueWeeklyHighlightRecap } = await import("../streaming/stream-autoclip.service.js");
+  await enqueueWeeklyHighlightRecap({ leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek })
+    .catch((err) => console.error("[ERROR] Weekly video highlight recap enqueue failed after advance (non-fatal):", err));
 
   await publishPurchaseDeadlineReminder({
     guildId: input.guildId,

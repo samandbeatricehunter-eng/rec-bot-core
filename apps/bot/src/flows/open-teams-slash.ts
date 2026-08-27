@@ -22,6 +22,8 @@ export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   cfbPagePrefix: "rec:openteams:cfb:page",
   cfbConferenceSelect: "rec:openteams:cfb:conference",
   requestTeam: "rec:openteams:request",
+  waitlistPrefix: "rec:openteams:waitlist",
+  waitlistSelectPrefix: "rec:openteams:waitlist:select",
   conferenceSelect: "rec:openteams:req:conference",
   teamSelectPrefix: "rec:openteams:req:team",
   viewRosters: "rec:openteams:viewrosters",
@@ -80,6 +82,10 @@ function maddenRows(showing: "AFC" | "NFC") {
         .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:${showing}`)
         .setLabel("View Rosters")
         .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistPrefix}:${showing}`)
+        .setLabel("Waitlist")
+        .setStyle(ButtonStyle.Secondary),
     ),
   ];
 }
@@ -113,6 +119,10 @@ function cfbRows(conferences: RosterConference[], pageIndex: number) {
       new ButtonBuilder()
         .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:${pageIndex}`)
         .setLabel("View Rosters")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistPrefix}:${pageIndex}`)
+        .setLabel("Waitlist")
         .setStyle(ButtonStyle.Secondary),
     ),
   ];
@@ -149,6 +159,12 @@ function openTeamsList(conferences: RosterConference[]) {
     }
   }
   return open;
+}
+
+function takenTeamsList(conference: RosterConference) {
+  return conference.divisions.flatMap((division) => division.teams
+    .filter((team) => Boolean(team.linkedDiscordId) && !team.hasPendingRequest)
+    .map((team) => ({ id: team.id, name: team.name, division: division.label })));
 }
 
 export async function handleOpenTeamsSlash(interaction: ChatInputCommandInteraction | ButtonInteraction) {
@@ -318,6 +334,78 @@ export async function handleOpenTeamsRequestTeam(interaction: ButtonInteraction)
     });
   } catch (error) {
     return interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+export async function handleOpenTeamsWaitlist(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const raw = interaction.customId.slice(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistPrefix}:`.length);
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const { conferences } = await loadConferences(interaction.guildId);
+    const conference = raw === "AFC" || raw === "NFC"
+      ? findConference(conferences, raw)
+      : conferences[Number(raw)] ?? null;
+    if (!conference) return interaction.editReply({ content: "Couldn't find the conference you're viewing." });
+
+    const taken = takenTeamsList(conference);
+    const options = [
+      new StringSelectMenuOptionBuilder()
+        .setLabel("Any open team")
+        .setValue("any")
+        .setDescription(`Notify me when any ${conference.conference} team opens`),
+      ...taken.slice(0, 24).map((team) => new StringSelectMenuOptionBuilder()
+        .setLabel(team.name.slice(0, 100))
+        .setValue(`team:${team.id}`)
+        .setDescription((team.division || conference.conference).slice(0, 100))),
+    ];
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle(`${conference.conference} Waitlist`)
+        .setColor(COLORS.gold)
+        .setDescription("Choose **Any open team** or a currently claimed team. The bot will DM you when a matching team becomes available.")],
+      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistSelectPrefix}:${conference.conference}`)
+          .setPlaceholder("Choose a waitlist")
+          .addOptions(options),
+      )],
+    });
+  } catch (error) {
+    const content = userFacingError(error);
+    if (interaction.deferred || interaction.replied) return interaction.editReply({ content }).catch(() => undefined);
+    return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+export async function handleOpenTeamsWaitlistSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  try {
+    await interaction.deferUpdate();
+    const conference = interaction.customId.slice(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistSelectPrefix}:`.length);
+    const selected = interaction.values[0] ?? "";
+    const teamId = selected.startsWith("team:") ? selected.slice(5) : null;
+    const created = await recApi.createTeamWaitlist({
+      guildId: interaction.guildId,
+      discordId: interaction.user.id,
+      conference,
+      scope: teamId ? "specific_team" : "any_open",
+      teamId,
+    });
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle("Waitlist Added")
+        .setColor(COLORS.success)
+        .setDescription(created.teamName
+          ? `I'll DM you when **${created.teamName}** becomes available.`
+          : `I'll DM you with roster breakdowns when a team in **${created.conference}** becomes available.`)],
+      components: [],
+    });
+  } catch (error) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Waitlist Failed").setColor(COLORS.error).setDescription(userFacingError(error))],
+      components: [],
+    });
   }
 }
 

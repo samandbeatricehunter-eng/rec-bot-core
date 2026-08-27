@@ -376,8 +376,24 @@ export async function syncDraftOrderFromLeagueStandings(input: {
     }))
     .filter((row) => row.pick_number != null);
   if (!updates.length) return { reordered: 0 };
-  const result = await supabase.from("rec_draft_picks").upsert(updates, { onConflict: "id" });
-  if (result.error) throw new ApiError(500, "Failed to sync draft pick order from standings.", result.error);
+  // Do not partial-upsert these rows. PostgREST's UPSERT still validates the INSERT shape
+  // before conflict resolution, so an { id, pick_number } payload violates rec_draft_picks'
+  // required league_id (and the other required columns) on every advance. These are existing
+  // picks by construction; scoped UPDATEs express the operation accurately and preserve every
+  // immutable asset column.
+  const failures: unknown[] = [];
+  const concurrency = 12;
+  for (let offset = 0; offset < updates.length; offset += concurrency) {
+    await Promise.all(updates.slice(offset, offset + concurrency).map(async (update) => {
+      const result = await supabase.from("rec_draft_picks")
+        .update({ pick_number: update.pick_number, updated_at: update.updated_at })
+        .eq("id", update.id)
+        .eq("league_id", input.leagueId)
+        .eq("season_number", input.draftSeasonNumber);
+      if (result.error) failures.push(result.error);
+    }));
+  }
+  if (failures.length) throw new ApiError(500, "Failed to sync draft pick order from standings.", failures[0]);
   return { reordered: updates.length };
 }
 

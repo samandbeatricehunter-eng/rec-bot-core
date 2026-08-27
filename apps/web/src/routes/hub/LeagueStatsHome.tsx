@@ -19,6 +19,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
+import { TeamLogo } from "../../components/ui/TeamLogo.js";
 import { RankChange } from "./HubHome.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
@@ -307,7 +308,7 @@ export function LeagueStatsHome() {
   // lives under My Team > Financials, so this page goes back to just being League Stats.
   return <div className="hub-section">
     <PageHeader title="Stats" subtitle="League rankings, leaders, and complete player production." />
-    <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}{hub?.powerRankings?.teams?.some((team) => team.playoffMarker) ? <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p> : null}</Card>
+    <Card><h2 style={{ marginTop: 0 }}>Power Rankings</h2><div className="hub-stats-power-grid">{(hub?.powerRankings?.teams ?? []).map((team) => <article key={team.teamId}><strong>#{team.rank}</strong><span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span></span><small>{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`} · <RankChange change={team.change} /></small></article>)}</div>{!hub?.powerRankings?.teams?.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}<p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p></Card>
     <LeagueLeadersView guildId={guildId} />
     <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>
     <div className="rec-matchup-tabs" role="tablist" aria-label="Stats view">

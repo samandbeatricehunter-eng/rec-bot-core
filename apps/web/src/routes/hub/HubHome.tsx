@@ -265,22 +265,20 @@ function RankingListSearch<T>({
 // (League Records/League History). Trade Center/Roster/League History dropped out of the top
 // nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
 function MaddenMyTeamGrid({
-  coachName, my, profile, heroRank, powerRankSos, heroUserScore, selectSection, viewMySchedule,
-  setMediaModal, mediaPortal, setPowerRankingsModalOpen, setSosModalOpen, setBankModalOpen,
+  coachName, my, profile, heroRank, heroUserScore, selectSection, viewMySchedule,
+  setMediaModal, mediaPortal, setPowerRankingsModalOpen, setBankModalOpen,
   setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId,
 }: {
   coachName: string;
   my: any;
   profile: any;
   heroRank: string;
-  powerRankSos: string;
   heroUserScore: string;
   selectSection: (next: HubSection) => void;
   viewMySchedule: () => void | Promise<void>;
   setMediaModal: (value: "interview" | "article" | null) => void;
   mediaPortal: MediaPortalResponse | null;
   setPowerRankingsModalOpen: (value: boolean) => void;
-  setSosModalOpen: (value: boolean) => void;
   setBankModalOpen: (value: boolean) => void;
   setFinancialModalOpen: (value: boolean) => void;
   setCareerStatsModalOpen: (value: boolean) => void;
@@ -293,7 +291,7 @@ function MaddenMyTeamGrid({
       <article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article>
       <article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article>
       <article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article>
-      <article><span>Power rank / SOS / User score</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"} · Score {heroUserScore}</small></article>
+      <article><span>Power rank / User score</span><strong>{heroRank}</strong><small>Score {heroUserScore}</small></article>
       <article><span>Wallet / Savings</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
     </div>
     <div className="hub-my-team-grid">
@@ -317,7 +315,6 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">League</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => setPowerRankingsModalOpen(true)}><strong>Power Rankings</strong><span>Full league</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setSosModalOpen(true)}><strong>Strength of Schedule</strong><span>Full league</span></button>
           <Link className="hub-my-team-btn" to={`/l/${leagueId}/records`}><strong>League Records</strong><span>Statistical bests</span></Link>
           <Link className="hub-my-team-btn" to={`/l/${leagueId}/history`}><strong>League History</strong><span>Past seasons</span></Link>
         </div>
@@ -649,7 +646,6 @@ export function HubHome() {
   const [scheduleLeagueError, setScheduleLeagueError] = useState<string | null>(null);
   const [scheduleLeagueLoading, setScheduleLeagueLoading] = useState(false);
   const [powerRankingsModalOpen, setPowerRankingsModalOpen] = useState(false);
-  const [sosModalOpen, setSosModalOpen] = useState(false);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
   const [financialsTab, setFinancialsTab] = useState<"ledger" | "transfer">("ledger");
@@ -1383,7 +1379,6 @@ export function HubHome() {
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
-  const powerRankSos = profile.powerRank?.sosScore != null ? `SOS ${Number(profile.powerRank.sosScore).toFixed(3)}` : "SOS --";
   const coachName = my.siteUsername || my.displayName || profile.user?.username || my.discordUsername || profile.user?.display_name || "REC Member";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
   const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
@@ -1398,7 +1393,6 @@ export function HubHome() {
   const heroMatchup = matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
     ?? matchupSchedule?.games.find((game) => game.involvesMe)
     ?? null;
-  const heroSosValue = profile.powerRank?.sosScore != null ? Number(profile.powerRank.sosScore).toFixed(3) : "—";
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
@@ -1449,7 +1443,7 @@ export function HubHome() {
       <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
     </div><div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
-      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>Active streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
+      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>Active streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
       <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /><p className="hub-muted">League career only — global totals live on My Account.</p></div></details>
@@ -1460,14 +1454,12 @@ export function HubHome() {
         my={my}
         profile={profile}
         heroRank={heroRank}
-        powerRankSos={powerRankSos}
         heroUserScore={heroUserScore}
         selectSection={selectSection}
         viewMySchedule={viewMySchedule}
         setMediaModal={setMediaModal}
         mediaPortal={mediaPortal}
         setPowerRankingsModalOpen={setPowerRankingsModalOpen}
-        setSosModalOpen={setSosModalOpen}
         setBankModalOpen={setBankModalOpen}
         setFinancialModalOpen={setFinancialModalOpen}
         setCareerStatsModalOpen={setCareerStatsModalOpen}
@@ -1498,18 +1490,6 @@ export function HubHome() {
             ))}
           </div>
         ) : null}
-      </Modal>}
-      {hub.league.game !== "cfb_27" && sosModalOpen && <Modal title="Strength of Schedule" onClose={() => setSosModalOpen(false)}>
-        {hub.sos?.teams?.length ? <RankingListSearch
-          items={hub.sos.teams}
-          getSearchText={(team) => team.teamName}
-          emptyLabel="Strength of schedule will appear once the season's slate is logged."
-          renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
-            <strong>#{team.rank}</strong>
-            <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
-            <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
-          </article>}
-        /> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
       </Modal>}
       {hub.league.game !== "cfb_27" && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
         <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
@@ -1758,7 +1738,6 @@ export function HubHome() {
               <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
               <div className="hub-season-snapshot-grid">
                 <article><span>User Score &amp; League Ranking</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
-                <article><span>Strength of Schedule</span><strong>{heroSosValue}</strong><small>{profile.powerRank?.rank ? heroRank : "Ranking pending"}</small></article>
                 <article><span>Wallet Balance</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Available funds</small></article>
                 <article><span>Savings Balance</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong><small>Banked funds</small></article>
               </div>
@@ -2011,22 +1990,6 @@ export function HubHome() {
                 ) : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
               </SectionFrame>
 
-              <SectionFrame eyebrow="Toughest schedules this season" title="Strength of Schedule">
-                {hub.sos?.teams?.length ? (
-                  <div className="hub-sos-rankings">
-                    <RankingListSearch
-                      items={hub.sos.teams}
-                      getSearchText={(team) => team.teamName}
-                      emptyLabel="Strength of schedule will appear once the season's slate is logged."
-                      renderItem={(team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
-                        <strong>#{team.rank}</strong>
-                        <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
-                        <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
-                      </article>}
-                    />
-                  </div>
-                ) : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
-              </SectionFrame>
             </>
           ) : (
             <SectionFrame eyebrow="Current slate" title="Weekly Matchups" className="hub-matchup-section">

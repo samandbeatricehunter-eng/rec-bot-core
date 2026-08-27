@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -58,7 +58,7 @@ function MatchupBlock({ matchup, tag }: { matchup: NflPlayoffMatchup; tag?: stri
 
 function TrophyIcon() {
   return (
-    <svg className="nfl-bracket-trophy" viewBox="0 0 24 30" aria-hidden="true">
+    <svg className="nfl-bracket-trophy" viewBox="0 0 64 92" aria-hidden="true">
       <defs>
         <linearGradient id="nflBracketSilverBall" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#f2f4f6" />
@@ -70,12 +70,11 @@ function TrophyIcon() {
           <stop offset="100%" stopColor="#767b83" />
         </linearGradient>
       </defs>
-      <rect x="6" y="27" width="12" height="2.2" rx="1.1" fill="url(#nflBracketSilverRod)" />
-      <path d="M9 27 L11.2 10.5" stroke="url(#nflBracketSilverRod)" strokeWidth="1.3" strokeLinecap="round" fill="none" />
-      <path d="M12 27 L12 9" stroke="url(#nflBracketSilverRod)" strokeWidth="1.3" strokeLinecap="round" fill="none" />
-      <path d="M15 27 L12.8 10.5" stroke="url(#nflBracketSilverRod)" strokeWidth="1.3" strokeLinecap="round" fill="none" />
-      <ellipse cx="12" cy="6.2" rx="3.1" ry="5.6" fill="url(#nflBracketSilverBall)" stroke="#5f646c" strokeWidth="0.5" />
-      <path d="M12 1.6V10.8M10.2 3.4h3.6M10 5.2h4M10 7h4M9.7 8.8h4.6" stroke="#5f646c" strokeWidth="0.45" fill="none" />
+      <ellipse cx="32" cy="18" rx="13" ry="18" transform="rotate(-18 32 18)" fill="url(#nflBracketSilverBall)" stroke="#6b7078" strokeWidth="1.5" />
+      <path d="M22 6c8 4 16 15 20 27M19 13l24 9M18 22l22 8" stroke="#737983" strokeWidth="1.4" fill="none" opacity=".85" />
+      <path d="M33 34L23 76M40 31L34 78M28 35L29 77" stroke="url(#nflBracketSilverRod)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M16 78h32l7 10H9z" fill="url(#nflBracketSilverRod)" stroke="#676c74" strokeWidth="1.5" />
+      <rect x="6" y="87" width="52" height="5" rx="2" fill="#bfc4ca" />
     </svg>
   );
 }
@@ -185,6 +184,8 @@ function StandingsPanel({ picture }: { picture: NflPlayoffPicture }) {
 export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const showStandingsBack = location.pathname.includes("/playoff-bracket") && !location.pathname.includes("/mgmt/");
   const isCommissioner = useHubChrome().currentLeague?.isCommissioner ?? false;
   const [picture, setPicture] = useState<NflPlayoffPicture | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export function NflPlayoffBracket() {
 
   return (
     <div className="nfl-bracket-page">
+      {showStandingsBack && <button type="button" className="hub-page-back" onClick={() => navigate("../standings")}>← Back to Standings</button>}
       <PageHeader title="Playoff Bracket" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
       {error && <ErrorState message={error} />}
       {!picture && !error && <LoadingState label="Loading the playoff picture…" />}

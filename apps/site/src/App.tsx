@@ -272,6 +272,7 @@ function Routed() {
         <Route path="/l/:leagueId/roster" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/rules" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/standings" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/sos" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/playoff-bracket" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/stats" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/career-stats" element={<LeagueHubPage />} />

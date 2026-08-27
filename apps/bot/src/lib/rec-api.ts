@@ -504,6 +504,11 @@ export const recApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  createTeamWaitlist: (input: { guildId: string; discordId: string; conference: string; scope: "any_open" | "specific_team"; teamId?: string | null }) =>
+    recFetch<{ id: string; scope: "any_open" | "specific_team"; conference: string; teamId: string | null; teamName: string | null }>("/v1/team-waitlists/create", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   approveTeamLinkRequest: (input: { requestId: string; reviewerDiscordId: string }) =>
     recFetch<any>("/v1/team-requests/approve", {
