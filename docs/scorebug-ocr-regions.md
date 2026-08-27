@@ -554,6 +554,64 @@ the new set, with zero regressions on every other field in either batch.
 | Yard-line direction | 17/18 | 48/50 |
 | Possession glyph | 18/18 | 50/50 |
 
+## Bug #15: the under-2-minutes red warning clock is invisible to a luminance-based pipeline
+
+Chased one more isolated failure in the extra batch: a frame with confidently-correct quarter
+(94%) and play clock but a completely blank game clock. Cropped the region directly and found
+the digits rendered in **saturated red, directly on black, with no white box** — visually
+distinct from every other clock crop seen this session, which are all dark digits in a light
+box. Measured the raw pixel values: the red digit's brightest point hit only ~74 on the
+standard luminance-weighted grayscale conversion, against a background of ~5 — both **below
+even the `lowThreshold` variant's 85 cutoff**, so no existing variant could ever separate the
+two. This is Madden's own "under 2 minutes remaining" warning treatment for the game clock, a
+real and distinct visual state, not a bad frame.
+
+Fixed by adding a fourth preprocessing variant, `redChannel`, that reads the red channel alone
+(`extractChannel(0)`) instead of standard grayscale — the same digit that measured ~74 on
+luminance hits ~144 on the red channel alone, comfortably separable from a background near 0 at
+a lower (60) threshold tuned for that narrower range. Tried as a cheap final fallback after
+`default`/`clahe`/`lowThreshold` all fail, since every luminance-based variant is guaranteed to
+fail on red text by construction.
+
+**A false start worth recording**: the first attempt at this fix over-generalized bug #12's
+"sharp's chained `.normalise().threshold()` can silently misbehave" finding to this pipeline too,
+replacing every variant's threshold with a manual JS-side one applied to materialized raw pixel
+data. That was wrong and got reverted — confirmed directly that round-tripping a thresholded
+image through a raw buffer (`sharp(buffer, {raw:{...}})`) and then resizing it produces different
+(regressed) results than keeping the original single decode-to-negate-to-resize pipeline
+unbroken, even though the manual threshold values themselves matched sharp's `.threshold()`
+almost exactly (1 pixel of 3870 differed). `computeMassImbalance` never resizes its crop, which
+is presumably why the same fix was safe there but not here. The corrected version only adds the
+new `redChannel` variant and leaves `default`/`clahe`/`lowThreshold` exactly as they were —
+bug #12's fix stays scoped to where it was actually proven necessary.
+
+A related, smaller gap: the red-channel read of a real `"0:11"` came back as `":11"` (losing the
+leading `"0"` specifically), which `parseGameClock`'s strict `M:SS` regex rejected outright.
+Since the display always shows a real minutes digit, a bare `:SS` with nothing before the colon
+is far more likely a dropped leading `"0"` than a nonsense read — added a narrower fallback
+pattern that accepts `:SS` alone and fills in `0:SS`, confirmed against the same frame (now reads
+`0:11` correctly).
+
+Batch results: play clock and yard line both picked up gains as a side effect of the `redChannel`
+fallback being available generally (13/18→15/18 and 13/18→15/18 on the original batch; similar
+gains on the extra batch), game clock gained the specific red-clock frame back (37/50→38/50), and
+the only field that moved backward lost a single-digit, near-certainly-garbage reading (a bare
+`"1"` home score at 0% confidence) rather than a real value — a false positive removed, not a
+regression.
+
+## Final numbers (fifteen fixes, two independent sample batches)
+
+| Field | Original batch (18) | Extra batch (50) |
+|---|---|---|
+| Quarter | 15/18 | 40/50 |
+| Game clock | 14/18 | 38/50 |
+| Play clock | 15/18 | 35/50 |
+| Away/home score | 13/18, 15/18 | 38/50, 33/50 |
+| Down & distance | 9/18 | 17/50 |
+| Yard line (number) | 15/18 | 40/50 |
+| Yard-line direction | 17/18 | 49/50 |
+| Possession glyph | 18/18 | 50/50 |
+
 Remaining gaps are now reasonably well-characterized rather than open-ended: down-distance/
 yard-line's ceiling is partly a real "field not rendered right now" game state (confirmed above,
 not fixable via OCR); the rest look like they're at or near the practical limit for

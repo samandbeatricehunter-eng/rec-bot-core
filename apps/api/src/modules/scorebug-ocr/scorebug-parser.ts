@@ -33,9 +33,26 @@ export type ScorebugFrameResult = {
 // threshold (fast, right most of the time); "clahe" recovers low-contrast text a flat threshold
 // crushes (e.g. the dimmer gray quarter/down-distance labels vs. the bright-white clock, or a
 // motion-blurred frame); "lowThreshold" catches text that's slightly darker overall than
-// "default" assumes. All three end in the same negate()'d light-on-dark polarity Tesseract
-// reads best.
-type FieldPreprocessVariant = "default" | "clahe" | "lowThreshold";
+// "default" assumes; "redChannel" is for Madden's under-2-minutes warning clock, which renders in
+// saturated red directly on black (no white box) -- red's standard-luminance grayscale value is
+// too dark to survive any threshold a white-text field would use (confirmed directly: measured
+// ~74 at the digit's brightest point vs ~5 for the background, both below even the lowThreshold
+// variant's 85 cutoff), so this reads the red channel alone instead, where the same digit hits
+// ~144 against a background near 0, at a lower threshold (60) tuned for that narrower range. All
+// variants end in the same negate()'d light-on-dark polarity Tesseract reads best.
+//
+// NOTE: an earlier version of this function replaced every variant's chained
+// `.normalise().threshold()` with a manual JS threshold applied to materialized raw pixel data,
+// on the theory that this was the same sharp chaining bug fixed in computeMassImbalance below
+// (bug #12). That was wrong and got reverted: confirmed directly that re-ingesting a raw buffer
+// via `sharp(buffer, {raw:{...}})` and then resizing it produces different (regressed) OCR
+// results than keeping the original decode-to-negate-to-resize pipeline unbroken in one sharp()
+// call, even when the manual threshold values themselves matched sharp's threshold() almost
+// exactly (1 pixel out of 3870 differed) -- something about resize interpolation behaves
+// differently once an image has been round-tripped through a raw buffer. computeMassImbalance
+// never resizes its crop, which is presumably why the same fix was safe there. Lesson: don't
+// generalize a fix to a different pipeline without re-confirming it's actually needed there too.
+type FieldPreprocessVariant = "default" | "clahe" | "lowThreshold" | "redChannel";
 
 // 3x is the right default upscale for most crops (thin/small source text needs the extra size to
 // read at all), but it isn't universal: on at least one frame, the away/home score crop's
@@ -61,11 +78,14 @@ async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVaria
   const meta = await sharp(buffer).metadata();
   const width = Math.max(1, meta.width ?? 1);
   const height = Math.max(1, meta.height ?? 1);
-  let pipeline = sharp(buffer).flatten({ background: { r: 0, g: 0, b: 0 } }).grayscale();
+  const flattened = sharp(buffer).flatten({ background: { r: 0, g: 0, b: 0 } });
+  let pipeline = variant === "redChannel" ? flattened.extractChannel(0) : flattened.grayscale();
   if (variant === "clahe") {
     pipeline = pipeline.clahe({ width: Math.max(8, Math.floor(width / 2)), height: Math.max(8, Math.floor(height / 2)), maxSlope: 3 }).normalise();
   } else if (variant === "lowThreshold") {
     pipeline = pipeline.normalise().threshold(85);
+  } else if (variant === "redChannel") {
+    pipeline = pipeline.normalise().threshold(60);
   } else {
     pipeline = pipeline.normalise().threshold(120);
   }
@@ -122,6 +142,11 @@ async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldN
   if (looksLikeRealField(clahe.rawText)) return clahe;
   const lowThreshold = await ocrWithVariant(crop, "lowThreshold", whitelistKind, DEFAULT_UPSCALE);
   if (looksLikeRealField(lowThreshold.rawText)) return lowThreshold;
+  // Catches Madden's under-2-minutes red warning clock (see the "redChannel" variant comment) --
+  // cheap to try last since every luminance-based variant above already failed on it by
+  // definition (red text this dark is invisible to all of them).
+  const redChannel = await ocrWithVariant(crop, "redChannel", whitelistKind, DEFAULT_UPSCALE);
+  if (looksLikeRealField(redChannel.rawText)) return redChannel;
   // Score digits specifically get a couple more tries at smaller upscales -- see the comment on
   // SCORE_FIELD_RESCUE_UPSCALES for why this can't just be one fixed default for these fields.
   if (fieldName === "awayScore" || fieldName === "homeScore") {
@@ -162,11 +187,22 @@ function parseQuarter(text: string): number | "OT" | null {
 function parseGameClock(text: string): string | null {
   const normalized = normalizeDigits(text);
   const match = normalized.match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const minutes = Number(match[1]);
-  const seconds = Number(match[2]);
-  if (minutes > 15 || seconds > 59) return null; // a quarter is at most 15 real minutes
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  if (match) {
+    const minutes = Number(match[1]);
+    const seconds = Number(match[2]);
+    if (minutes > 15 || seconds > 59) return null; // a quarter is at most 15 real minutes
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+  // A bare ":SS" with no digit at all before the colon is the under-2-minutes red clock losing
+  // its leading "0" (confirmed directly: the redChannel variant reads a real "0:11" as ":11") --
+  // the display always has a real minutes digit, so treat a missing one as a dropped "0" rather
+  // than discard an otherwise-good read.
+  const secondsOnly = normalized.match(/^:(\d{2})$/);
+  if (secondsOnly) {
+    const seconds = Number(secondsOnly[1]);
+    if (seconds <= 59) return `0:${String(seconds).padStart(2, "0")}`;
+  }
+  return null;
 }
 
 function parsePlayClock(text: string): number | null {
