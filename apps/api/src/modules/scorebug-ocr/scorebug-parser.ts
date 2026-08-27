@@ -29,34 +29,67 @@ export type ScorebugFrameResult = {
 
 // ─── Per-region crop + OCR ────────────────────────────────────────────────────
 
-/** Mirrors box-score.parser.ocr.ts's "default" preprocessing (grayscale, normalise, threshold,
- * negate -> light text on dark background reads best), plus a 3x upscale since these crops are
- * much smaller than a full box-score screenshot and Tesseract needs the extra resolution. */
-async function preprocessFieldCrop(buffer: Buffer): Promise<Buffer> {
+// Mirrors box-score.parser.ocr.ts's variant naming/intent: "default" is a plain global
+// threshold (fast, right most of the time); "clahe" recovers low-contrast text a flat threshold
+// crushes (e.g. the dimmer gray quarter/down-distance labels vs. the bright-white clock, or a
+// motion-blurred frame); "lowThreshold" catches text that's slightly darker overall than
+// "default" assumes. All three end in the same negate()'d light-on-dark polarity Tesseract
+// reads best, plus a 3x upscale since these crops are far smaller than a full box-score capture.
+type FieldPreprocessVariant = "default" | "clahe" | "lowThreshold";
+
+async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVariant): Promise<Buffer> {
   const meta = await sharp(buffer).metadata();
   const width = Math.max(1, meta.width ?? 1);
   const height = Math.max(1, meta.height ?? 1);
-  return sharp(buffer)
-    .flatten({ background: { r: 0, g: 0, b: 0 } })
-    .grayscale()
-    .normalise()
-    .threshold(120)
-    .negate()
-    .resize(width * 3, height * 3, { fit: "fill" })
-    .png()
-    .toBuffer();
+  let pipeline = sharp(buffer).flatten({ background: { r: 0, g: 0, b: 0 } }).grayscale();
+  if (variant === "clahe") {
+    pipeline = pipeline.clahe({ width: Math.max(8, Math.floor(width / 2)), height: Math.max(8, Math.floor(height / 2)), maxSlope: 3 }).normalise();
+  } else if (variant === "lowThreshold") {
+    pipeline = pipeline.normalise().threshold(85);
+  } else {
+    pipeline = pipeline.normalise().threshold(120);
+  }
+  return pipeline.negate().resize(width * 3, height * 3, { fit: "fill" }).png().toBuffer();
 }
 
-async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldName: ScorebugFieldName, frameWidth: number, frameHeight: number): Promise<ScorebugFieldResult> {
-  const pixels = regionToPixels(regions[fieldName], frameWidth, frameHeight);
-  const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
-  const processed = await preprocessFieldCrop(crop);
+async function ocrWithVariant(crop: Buffer, variant: FieldPreprocessVariant): Promise<ScorebugFieldResult> {
+  const processed = await preprocessFieldCrop(crop, variant);
   const result = await recognizeScorebugField(processed, undefined, { blocks: true });
   const words = flattenPageWords(result.data);
   if (!words.length) return { rawText: "", confidence: 0 };
   const rawText = words.map((w) => w.text.trim()).filter(Boolean).join(" ");
   const confidence = words.reduce((sum, w) => sum + w.confidence, 0) / words.length;
   return { rawText, confidence };
+}
+
+// Every scorebug field is fundamentally digit-based (a score, a clock, an ordinal, a down &
+// distance) -- accepting "first non-empty text" from a low-quality fallback variant let
+// confident-looking garbage (e.g. "Ds") win over a correctly-empty result. Confirmed directly:
+// this regressed the one frame with fully-known ground truth (home score `0` -> wrong `"Ds"`)
+// the moment the CLAHE/lowThreshold fallback chain was added. Requiring at least one digit
+// closes that specific hole without losing the fallback's real gains elsewhere.
+function looksLikeRealField(rawText: string): boolean {
+  // "KICKOFF" is a legitimate real down/distance value with zero digits -- must not get treated
+  // as noise, or a correct read gets discarded by this exact check.
+  return /\d/.test(rawText) || /KICK/i.test(rawText);
+}
+
+/** Tries "default" first (cheapest, right most of the time); only pays for the CLAHE/
+ * low-threshold variants when default comes back without a plausible (digit-containing)
+ * result. Keeps the common case at 1x OCR cost instead of 3x. */
+async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldName: ScorebugFieldName, frameWidth: number, frameHeight: number): Promise<ScorebugFieldResult> {
+  const pixels = regionToPixels(regions[fieldName], frameWidth, frameHeight);
+  const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
+  const attempt = await ocrWithVariant(crop, "default");
+  if (looksLikeRealField(attempt.rawText)) return attempt;
+  const clahe = await ocrWithVariant(crop, "clahe");
+  if (looksLikeRealField(clahe.rawText)) return clahe;
+  const lowThreshold = await ocrWithVariant(crop, "lowThreshold");
+  if (looksLikeRealField(lowThreshold.rawText)) return lowThreshold;
+  // None of the three produced anything digit-shaped -- return empty rather than whichever
+  // variant's non-digit noise happened to run last, so a caller can tell "no data" apart from
+  // "data, just unparsed."
+  return { rawText: "", confidence: 0 };
 }
 
 // ─── Field normalizers ────────────────────────────────────────────────────────

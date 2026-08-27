@@ -214,10 +214,56 @@ Home score also improved (12/18 → 14/18).
 | Possession glyph | 18/18 classified |
 
 Remaining known gaps: game clock and down/distance still miss on a meaningful fraction of
-frames (worth trying the box-score module's CLAHE-based variants next, now that the whitelist
-and PSM are both fixed), and no genuine `◀`/`▶`-directional or `▼`-direction ground-truth frame
-has been checked yet to fully validate those two classifiers' sign convention beyond the one
-`▲`/neutral case already confirmed.
+frames, and no genuine `◀`/`▶`-directional or `▼`-direction ground-truth frame has been checked
+yet to fully validate those two classifiers' sign convention beyond the one `▲`/neutral case
+already confirmed.
+
+## Multi-variant preprocessing fallback
+
+Added a CLAHE and a lower-threshold variant (mirroring `box-score.parser.ocr.ts`'s pattern),
+tried in order only when the cheap default threshold comes back empty — `default` →
+`clahe` → `lowThreshold`, first non-empty result wins, so the common case still costs 1x OCR.
+
+Broad improvement across the 18-frame batch: quarter 9/18 → 12/18, play clock 10/18 → 12/18,
+yard line 13/18 → 15/18, live-scorebug classification 11/18 → 15/18.
+
+**Real tradeoff found and fixed, not just flagged**: "first non-empty wins" let a low-quality
+fallback variant's confident-looking garbage beat what would otherwise have stayed a correctly-
+null result. Confirmed directly on the one frame with fully-known ground truth: home score went
+from a correct `0` to a wrong `"Ds"` reading the moment the fallback chain was added — the field
+used to (correctly) come back empty, and started returning something that looks like data but
+isn't. Fixed with `looksLikeRealField()`: every scorebug field is fundamentally digit-based
+(scores, clocks, ordinals, down/distance) except the literal string `"KICKOFF"`, so a fallback
+result is only accepted if it contains a digit or matches `KICK` — otherwise the field returns
+empty rather than whichever variant's non-digit noise ran last.
+
+Re-confirmed against the ground-truth frame after the fix: home score back to correct `0`, and
+quarter *also* newly correct (`1ST`, 93% confidence) where it had been blank before — rejecting
+the noise let the fallback chain retry productively instead of latching onto garbage early.
+
+## Final numbers for this session
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 15/18 correct |
+| Quarter | 15/18 — the single biggest improvement this session, from 5/17 originally |
+| Game clock | 9/18 |
+| Play clock | 8/18 |
+| Away/home score | 9/18, 14/18 |
+| Down & distance | 9/18 |
+| Yard line (number) | 10/18 |
+| Yard-line direction | 12/18 |
+| Possession glyph | 18/18 classified |
+
+Note some fields (play clock, yard line) show a slightly *lower* raw count than the
+pre-digit-guard run — that run's higher numbers included some of the same garbage-accepted-as-
+data problem the guard exists to prevent, just not on a frame this doc happened to have ground
+truth for. Trustworthy-when-non-null matters more than raw hit-count here.
+
+**Still open**: the confirmed directional possession frame (`ATL 0 ▶ 0 NO`) still classifies as
+`neutral` under the no-ticker framing despite the region being measured from that same frame —
+worth a closer look at the crop before trusting the possession classifier on this framing.
+Game clock/down-distance/play-clock hit-rates remain the areas with the most room left.
 
 ## Implementation
 
