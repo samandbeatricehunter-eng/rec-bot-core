@@ -12,9 +12,13 @@
 
 .nfl-bracket {
   --bracket-line: var(--border);
-  width: 100%;
-  min-width: 1360px;
-  max-width: 1600px;
+  /* Fixed (not minmax/1fr) column widths on purpose: letting columns grow to fill a wide
+     viewport was exactly what made this "too spaced out" -- the matchup cards are a fixed
+     width, so any extra column width just became dead air around them. A fixed total width
+     that comfortably fits a normal desktop content area (no zooming out needed) beats one that
+     stretches to whatever the viewport happens to be. */
+  width: max-content;
+  max-width: 100%;
   margin: 0 auto;
   display: grid;
   /* 7 explicit columns (AFC wild card/divisional/conference, center, NFC conference/
@@ -24,11 +28,11 @@
      contained 9 real elements per row, so nothing lined up with the round label above it.
      Side columns are wide enough that real team names (Buccaneers, Commanders) never wrap or
      truncate -- narrower columns were the actual cause of names getting cut off/wrapped. */
-  grid-template-columns: repeat(3, minmax(205px, 1fr)) minmax(195px, 1.05fr) repeat(3, minmax(205px, 1fr));
+  grid-template-columns: repeat(3, 190px) 170px repeat(3, 190px);
   /* 1 label row + 4 equal wild-card-slot rows. Divisional/conference/Super Bowl children span
      multiple of these rows with align-self:center, which is what centers a divisional game
      vertically between the two wild-card slots that feed it (see ConferenceSide in the .tsx). */
-  grid-template-rows: auto repeat(4, 1fr);
+  grid-template-rows: auto repeat(4, auto);
   gap: 0 4px;
   position: relative;
 }

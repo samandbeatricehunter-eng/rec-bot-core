@@ -1,5 +1,5 @@
 import type { RecGlobalEconomyConfig, TournamentRules } from "@rec/shared";
-import type { NflPlayoffPicture } from "@rec/hub-ui";
+import type { HubMatchupGame, NflPlayoffPicture } from "@rec/hub-ui";
 import { createReadCache } from "./read-cache.js";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
@@ -1615,6 +1615,9 @@ export const siteApi = {
   getNflPlayoffBracketRenderData(leagueId: string, token: string) {
     return publicRequest<NflPlayoffPicture>(`/v1/render/nfl-playoff-bracket/${leagueId}?token=${encodeURIComponent(token)}`);
   },
+  getWeeklyMatchupBoardRenderData(leagueId: string, weekNumber: string, token: string) {
+    return publicRequest<WeeklyMatchupBoardRenderData>(`/v1/render/weekly-matchup-board/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
+  },
 };
 
 export type PlayerOfWeekStatLine = {
@@ -1645,6 +1648,13 @@ export type PlayerOfWeekRenderData = {
   week: number;
   season: number;
   winners: PlayerOfWeekWinner[];
+};
+
+export type WeeklyMatchupBoardRenderData = {
+  weekNumber: number;
+  gotw: HubMatchupGame[];
+  h2h: HubMatchupGame[];
+  humanCpu: HubMatchupGame[];
 };
 
 export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft";

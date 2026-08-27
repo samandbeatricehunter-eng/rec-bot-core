@@ -5,8 +5,9 @@ import { sendError } from "../../lib/errors.js";
 import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 import { renderPlayerOfWeekPng } from "../../lib/player-of-week-render.js";
 import { renderNflPlayoffBracketPng } from "../../lib/nfl-playoff-bracket-render.js";
-import { verifyMatchupRenderToken, verifyNflPlayoffBracketRenderToken, verifyPlayerOfWeekRenderToken } from "../../lib/render-token.js";
-import { getMatchupCardRenderData } from "../hub/hub.service.js";
+import { renderWeeklyMatchupBoardPng } from "../../lib/weekly-matchup-board-render.js";
+import { verifyMatchupRenderToken, verifyNflPlayoffBracketRenderToken, verifyPlayerOfWeekRenderToken, verifyWeeklyMatchupBoardRenderToken } from "../../lib/render-token.js";
+import { getMatchupCardRenderData, getWeeklyMatchupBoardRenderData } from "../hub/hub.service.js";
 import { getPlayerOfWeekRenderData } from "../league-week/player-of-week-award.service.js";
 import { getNflPlayoffBracketRenderData } from "../standings/nfl-bracket.service.js";
 
@@ -75,6 +76,26 @@ export async function renderRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const params = z.object({ leagueId: z.string().min(1) }).parse(request.params);
       const png = await renderNflPlayoffBracketPng(params.leagueId);
+      return reply.header("content-type", "image/png").send(png);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/weekly-matchup-board/:leagueId/:weekNumber", async (request, reply) => {
+    try {
+      const params = z.object({ leagueId: z.string().min(1), weekNumber: z.coerce.number().int() }).parse(request.params);
+      const query = z.object({ token: z.string().min(1) }).parse(request.query);
+      if (!verifyWeeklyMatchupBoardRenderToken(params.leagueId, params.weekNumber, query.token)) {
+        return reply.code(403).send({ error: "Invalid or expired render token." });
+      }
+      return reply.send(await getWeeklyMatchupBoardRenderData(params.leagueId, params.weekNumber));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/weekly-matchup-board/:leagueId/:weekNumber/debug-png", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const params = z.object({ leagueId: z.string().min(1), weekNumber: z.coerce.number().int() }).parse(request.params);
+      const png = await renderWeeklyMatchupBoardPng(params.leagueId, params.weekNumber);
       return reply.header("content-type", "image/png").send(png);
     } catch (error) { return sendError(reply, error); }
   });

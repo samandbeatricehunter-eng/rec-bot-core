@@ -88,3 +88,29 @@ export function verifyNflPlayoffBracketRenderToken(leagueId: string, token: stri
     return false;
   }
 }
+
+// Same idiom again for the weekly matchup board render (apps/site's chromeless
+// /render/weekly-matchup-board/:leagueId/:weekNumber route + the weekly highlight recap's
+// "here's the slate" hold screen). Scoped to a specific league+week pair, not just the league.
+export function signWeeklyMatchupBoardRenderToken(leagueId: string, weekNumber: number): string {
+  const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
+  const sig = createHmac("sha256", renderSecret()).update(`board:${leagueId}:${weekNumber}.${expiresAt}`).digest("hex");
+  return `${expiresAt}.${sig}`;
+}
+
+export function verifyWeeklyMatchupBoardRenderToken(leagueId: string, weekNumber: number, token: string | undefined | null): boolean {
+  if (!token) return false;
+  const [expiresAtRaw, sig] = token.split(".");
+  const expiresAt = Number(expiresAtRaw);
+  if (!expiresAtRaw || !sig || !Number.isFinite(expiresAt)) return false;
+  if (Math.floor(Date.now() / 1000) > expiresAt) return false;
+
+  const expected = createHmac("sha256", renderSecret()).update(`board:${leagueId}:${weekNumber}.${expiresAt}`).digest("hex");
+  try {
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(sig, "hex");
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}

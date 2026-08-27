@@ -1,22 +1,24 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 import { parseScorebugFrameAuto } from "../scorebug-ocr/scorebug-parser.js";
 
 const execFileAsync = promisify(execFile);
 const activeCaptures = new Map<string, ChildProcess>();
 let processing = false;
 
-// Deliberately code-owned production package. Replacing these four files changes the league's
-// recap identity without exposing a per-league UI/configuration surface.
+// Deliberately code-owned production package. Replacing these files changes the league's recap
+// identity without exposing a per-league UI/configuration surface. No outro -- the recap ends on
+// the last highlight clip. `music` is a directory: one track is picked at random per recap run
+// (see processRecap), not a single fixed file.
 const RECAP_ASSETS = {
   intro: path.resolve(process.cwd(), "assets/weekly-recap/intro.mp4"),
-  outro: path.resolve(process.cwd(), "assets/weekly-recap/outro.mp4"),
   overlay: path.resolve(process.cwd(), "assets/weekly-recap/overlay.png"),
-  music: path.resolve(process.cwd(), "assets/weekly-recap/music.mp3"),
+  musicDir: path.resolve(process.cwd(), "assets/weekly-recap/music"),
 } as const;
 const WORK_DIR = path.resolve(process.env.STREAM_OCR_WORK_DIR?.trim() || ".rec-stream-ocr");
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
@@ -285,55 +287,201 @@ async function processCapture(job: any) {
   await updateJob(job.id, { status: "completed", last_error: null });
 }
 
-export async function enqueueWeeklyHighlightRecap(input: { leagueId: string; seasonNumber: number; weekNumber: number }) {
+export async function enqueueWeeklyHighlightRecap(input: { leagueId: string; seasonNumber: number; weekNumber: number; seasonStage: string }) {
   const result = await supabase.from("rec_weekly_recap_jobs").upsert({ ...input, status: "pending", updated_at: new Date().toISOString() }, { onConflict: "league_id,season_number,week_number", ignoreDuplicates: true });
   if (result.error && !missingTable(result.error)) throw result.error;
 }
 
-const RECAP_CLIP_BUDGET = 12;
-const RECAP_PER_GAME_CAP = 3;
+const RECAP_CLIP_BUDGET = 15;
+type RecapClip = { id: string; cloudflare_stream_uid: string; event_second: number; game_id: string; value_score: number };
+type RecapGame = { gameId: string; matchupType: "h2h" | "human_cpu" | "cpu"; isGotw: boolean };
 
-// Which clips make the recap, and how many per game, is driven by value_score -- not just
-// chronological order. Each game's "importance" is its single most valuable clip (its most
-// dramatic moment); games are filled in importance order, each contributing up to
-// RECAP_PER_GAME_CAP of its own best clips, until the total budget is spent. A nailbiter that
-// produced three genuinely great moments can outweigh a blowout's one early lead change, and a
-// blowout with no late drama may contribute nothing at all.
-function selectRecapClips<T extends { game_id: string; value_score: number; event_second: number }>(clips: T[]): T[] {
-  const byGame = new Map<string, T[]>();
-  for (const clip of clips) byGame.set(clip.game_id, [...(byGame.get(clip.game_id) ?? []), clip]);
-  const games = [...byGame.entries()]
-    .map(([gameId, gameClips]) => ({ gameId, gameClips: [...gameClips].sort((a, b) => b.value_score - a.value_score), importance: Math.max(...gameClips.map((c) => c.value_score)) }))
-    .sort((a, b) => b.importance - a.importance);
+const byValueDesc = (a: RecapClip, b: RecapClip) => b.value_score - a.value_score;
+const byEventSecondAsc = (a: RecapClip, b: RecapClip) => a.event_second - b.event_second;
 
-  const selected: T[] = [];
-  for (const game of games) {
-    if (selected.length >= RECAP_CLIP_BUDGET) break;
-    const room = Math.min(RECAP_PER_GAME_CAP, RECAP_CLIP_BUDGET - selected.length);
-    // Keep this game's own chosen clips in the order they happened once picked by value.
-    selected.push(...game.gameClips.slice(0, room).sort((a, b) => a.event_second - b.event_second));
+// Regular season: GOTW gets up to 3 clips, guaranteed, ahead of everything else. Every H2H game
+// is guaranteed its own single best clip (a floor -- every real coach's game gets represented).
+// Every H2H game's *second* clip and every Human-vs-CPU game's *only* clip then compete for
+// whatever budget is left, purely on value_score -- so a Human-vs-CPU highlight that scored
+// higher than a H2H game's second-best moment wins that slot instead, per the exact rule given:
+// "don't include the lower scoring [h2h] one, instead skip it in favor of the higher-scoring
+// human vs cpu highlight."
+function selectRegularSeasonClips(games: RecapGame[], clipsByGame: Map<string, RecapClip[]>): RecapClip[] {
+  const sortedFor = (gameId: string) => [...(clipsByGame.get(gameId) ?? [])].sort(byValueDesc);
+  const gotwGames = games.filter((g) => g.isGotw);
+  const h2hGames = games.filter((g) => !g.isGotw && g.matchupType === "h2h");
+  const cpuGames = games.filter((g) => !g.isGotw && g.matchupType === "human_cpu");
+
+  const gotw: RecapClip[] = [];
+  let gotwBudget = 3;
+  for (const g of gotwGames) {
+    if (gotwBudget <= 0) break;
+    const take = sortedFor(g.gameId).slice(0, gotwBudget);
+    gotw.push(...take);
+    gotwBudget -= take.length;
+  }
+
+  const h2hFloor: RecapClip[] = [];
+  const bonusPool: RecapClip[] = [];
+  for (const g of h2hGames) {
+    if (gotw.length + h2hFloor.length >= RECAP_CLIP_BUDGET) break;
+    const clips = sortedFor(g.gameId);
+    if (clips[0]) h2hFloor.push(clips[0]);
+    if (clips[1]) bonusPool.push(clips[1]);
+  }
+  for (const g of cpuGames) {
+    const clips = sortedFor(g.gameId);
+    if (clips[0]) bonusPool.push(clips[0]);
+  }
+
+  const remaining = Math.max(0, RECAP_CLIP_BUDGET - gotw.length - h2hFloor.length);
+  bonusPool.sort(byValueDesc);
+  const bonus = bonusPool.slice(0, remaining);
+
+  return [
+    ...gotw.sort(byEventSecondAsc),
+    ...h2hFloor.sort(byEventSecondAsc),
+    ...bonus.sort(byEventSecondAsc),
+  ];
+}
+
+// Postseason: every game is treated as GOTW-caliber, but the caps come from the round instead --
+// each round gets a [min, max] highlight range per game (fewer games survive each round, so each
+// one earns more screen time), and the Super Bowl takes the whole budget for its one game. Every
+// game in the round gets its min first (its best min clips, guaranteed), then any leftover budget
+// goes to whichever game's next-best available clip scores highest, up to that game's max.
+const POSTSEASON_ROUND_RULES: Record<string, [min: number, max: number]> = {
+  wild_card: [2, 3],
+  divisional: [3, 4],
+  conference_championship: [7, 8],
+  super_bowl: [0, RECAP_CLIP_BUDGET],
+};
+
+function selectPostseasonClips(games: RecapGame[], clipsByGame: Map<string, RecapClip[]>, rules: [number, number]): RecapClip[] {
+  const [min, max] = rules;
+  const roundGames = games.filter((g) => (clipsByGame.get(g.gameId)?.length ?? 0) > 0);
+  const sortedByGame = new Map(roundGames.map((g) => [g.gameId, [...(clipsByGame.get(g.gameId) ?? [])].sort(byValueDesc)]));
+
+  const allocation = new Map<string, number>();
+  for (const g of roundGames) allocation.set(g.gameId, Math.min(min, sortedByGame.get(g.gameId)!.length));
+  let remaining = RECAP_CLIP_BUDGET - [...allocation.values()].reduce((sum, n) => sum + n, 0);
+
+  while (remaining > 0) {
+    let bestGameId: string | null = null;
+    let bestValue = -Infinity;
+    for (const g of roundGames) {
+      const clips = sortedByGame.get(g.gameId)!;
+      const current = allocation.get(g.gameId)!;
+      const cap = Math.min(max, clips.length);
+      if (current >= cap) continue;
+      const nextValue = clips[current].value_score;
+      if (nextValue > bestValue) { bestValue = nextValue; bestGameId = g.gameId; }
+    }
+    if (!bestGameId) break;
+    allocation.set(bestGameId, allocation.get(bestGameId)! + 1);
+    remaining -= 1;
+  }
+
+  const selected: RecapClip[] = [];
+  for (const g of roundGames) {
+    const count = allocation.get(g.gameId) ?? 0;
+    if (count) selected.push(...sortedByGame.get(g.gameId)!.slice(0, count).sort(byEventSecondAsc));
   }
   return selected;
 }
 
-async function processRecap(job: any) {
-  for (const asset of Object.values(RECAP_ASSETS)) if (!await stat(asset).then(() => true).catch(() => false)) {
-    await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: `Missing hardcoded recap asset: ${asset}`, updated_at: new Date().toISOString() }).eq("id", job.id);
-    return;
-  }
+async function selectRecapClips(job: any): Promise<RecapClip[] | null> {
   const allClips = await supabase.from("rec_stream_event_clips").select("id,cloudflare_stream_uid,event_second,game_id,value_score")
     .eq("league_id", job.league_id).eq("season_number", job.season_number).eq("week_number", job.week_number).not("cloudflare_stream_uid", "is", null);
   if (allClips.error) throw allClips.error;
-  if (!allClips.data?.length) {
+  if (!allClips.data?.length) return null;
+  const clips = allClips.data as RecapClip[];
+
+  const gameIds = [...new Set(clips.map((c) => c.game_id))];
+  const [gamesRes, gotwRes] = await Promise.all([
+    supabase.from("rec_games").select("id,home_user_id,away_user_id").in("id", gameIds),
+    supabase.from("rec_game_of_week_polls").select("game_id").eq("league_id", job.league_id).in("game_id", gameIds),
+  ]);
+  if (gamesRes.error) throw gamesRes.error;
+  if (gotwRes.error) throw gotwRes.error;
+  const gotwGameIds = new Set((gotwRes.data ?? []).map((row: any) => row.game_id));
+  const games: RecapGame[] = (gamesRes.data ?? []).map((row: any) => ({
+    gameId: row.id,
+    matchupType: row.home_user_id && row.away_user_id ? "h2h" : (row.home_user_id || row.away_user_id) ? "human_cpu" : "cpu",
+    isGotw: gotwGameIds.has(row.id),
+  })).filter((g) => g.matchupType !== "cpu");
+
+  const clipsByGame = new Map<string, RecapClip[]>();
+  for (const clip of clips) clipsByGame.set(clip.game_id, [...(clipsByGame.get(clip.game_id) ?? []), clip]);
+
+  const rules = POSTSEASON_ROUND_RULES[String(job.season_stage ?? "")];
+  return rules ? selectPostseasonClips(games, clipsByGame, rules) : selectRegularSeasonClips(games, clipsByGame);
+}
+
+// The recap's matchup board shows final scores, so generating it before every game for the week
+// has actually been scored would freeze some cards mid-game (or blank) -- wait instead. No time
+// budget here (unlike stream capture): it's normal for a commissioner to review/approve box
+// scores well after the advance itself completes, so this just keeps retrying on the regular
+// sweep cadence until the week is genuinely done. Pure CPU-vs-CPU games need no score to "count."
+async function allWeekScoresIn(leagueId: string, seasonNumber: number, weekNumber: number): Promise<boolean> {
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber).catch(() => null);
+  let query = supabase.from("rec_games").select("home_user_id,away_user_id,home_score,away_score").eq("league_id", leagueId).eq("week_number", weekNumber);
+  query = seasonId ? query.eq("season_id", seasonId) : query;
+  const games = await query;
+  if (games.error) throw games.error;
+  const scorable = (games.data ?? []).filter((g: any) => g.home_user_id || g.away_user_id);
+  return scorable.every((g: any) => g.home_score != null && g.away_score != null);
+}
+
+async function pickRandomMusicTrack(): Promise<string | null> {
+  const files = await readdir(RECAP_ASSETS.musicDir).catch(() => [] as string[]);
+  const tracks = files.filter((f) => /\.(mp3|m4a|wav)$/i.test(f));
+  if (!tracks.length) return null;
+  return path.join(RECAP_ASSETS.musicDir, tracks[Math.floor(Math.random() * tracks.length)]);
+}
+
+async function processRecap(job: any) {
+  if (!await stat(RECAP_ASSETS.intro).then(() => true).catch(() => false) || !await stat(RECAP_ASSETS.overlay).then(() => true).catch(() => false)) {
+    await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: "Missing hardcoded recap asset: intro.mp4 or overlay.png.", updated_at: new Date().toISOString() }).eq("id", job.id);
+    return;
+  }
+  const musicTrack = await pickRandomMusicTrack();
+  if (!musicTrack) {
+    await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: "No music tracks found in assets/weekly-recap/music/.", updated_at: new Date().toISOString() }).eq("id", job.id);
+    return;
+  }
+
+  if (!await allWeekScoresIn(job.league_id, job.season_number, job.week_number)) {
+    await supabase.from("rec_weekly_recap_jobs").update({ status: "retry", last_error: "Waiting on box scores -- not every game this week has a final score yet.", updated_at: new Date().toISOString() }).eq("id", job.id);
+    return;
+  }
+
+  const clips = await selectRecapClips(job);
+  if (!clips) {
     await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", last_error: "No OCR score-change clips were available for this week.", updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
-  const clips = selectRecapClips(allClips.data as Array<{ id: string; cloudflare_stream_uid: string; event_second: number; game_id: string; value_score: number }>);
   if (!clips.length) {
     await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", last_error: "No clips scored highly enough to include in this week's recap.", updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
   await supabase.from("rec_stream_event_clips").update({ selected_for_recap: true }).in("id", clips.map((clip) => clip.id));
+
+  // The "here's this week's slate" hold screen (GOTW/H2H/Human-vs-CPU matchup cards with final
+  // scores, over black) sits between the intro and the first clip -- rendered fresh per recap
+  // rather than baked into the hardcoded intro, since its content is different every week.
+  const { renderWeeklyMatchupBoardPng } = await import("../../lib/weekly-matchup-board-render.js");
+  const boardPath = path.join(WORK_DIR, `${job.id}-board.png`);
+  let boardVideoPath: string | null = null;
+  try {
+    await writeFile(boardPath, await renderWeeklyMatchupBoardPng(job.league_id, job.week_number));
+    boardVideoPath = path.join(WORK_DIR, `${job.id}-board.mp4`);
+    await execFileAsync(FFMPEG, ["-y", "-loop", "1", "-i", boardPath, "-t", "6", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-vf", "fps=30", boardVideoPath], { timeout: 60_000, maxBuffer: 2 * 1024 * 1024 });
+  } catch (error) {
+    console.error("[WARN] Failed to render the weekly matchup board hold screen (non-fatal, recap continues without it):", error);
+    boardVideoPath = null;
+  }
+
   const downloaded: string[] = [];
   for (const [index, clip] of clips.entries()) {
     const download = await enableStreamDownload(String(clip.cloudflare_stream_uid));
@@ -348,17 +496,30 @@ async function processRecap(job: any) {
     downloaded.push(local);
   }
 
-  const videos = [RECAP_ASSETS.intro, ...downloaded, RECAP_ASSETS.outro];
+  const videos = [RECAP_ASSETS.intro, ...(boardVideoPath ? [boardVideoPath] : []), ...downloaded];
+  // Every segment's duration is either known outright (board hold = 6s, each extracted clip =
+  // 30s, both fixed by the ffmpeg args that produced them) or cheap to ask ffprobe for (the
+  // intro, which changes if the asset is ever swapped) -- computed up front so the music track's
+  // fade-out can land exactly at the end of the final video instead of guessing.
+  const introDuration = await durationSeconds(RECAP_ASSETS.intro).catch(() => 14);
+  const totalDuration = introDuration + (boardVideoPath ? 6 : 0) + downloaded.length * 30;
+  const fadeDuration = 3;
+  const fadeStart = Math.max(0, totalDuration - fadeDuration);
+
   const output = path.join(WORK_DIR, `${job.id}-weekly-recap.mp4`);
   const args: string[] = ["-y"];
   for (const video of videos) args.push("-i", video);
   const overlayIndex = videos.length;
   const musicIndex = videos.length + 1;
-  args.push("-loop", "1", "-i", RECAP_ASSETS.overlay, "-stream_loop", "-1", "-i", RECAP_ASSETS.music);
+  args.push("-loop", "1", "-i", RECAP_ASSETS.overlay, "-stream_loop", "-1", "-i", musicTrack);
   const videoFilters = videos.map((_, index) => `[${index}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30,setsar=1,setpts=PTS-STARTPTS[v${index}]`);
   const concatInputs = videos.map((_, index) => `[v${index}]`).join("");
-  const filter = `${videoFilters.join(";")};${concatInputs}concat=n=${videos.length}:v=1:a=0[base];[base][${overlayIndex}:v]overlay=0:0:format=auto[v]`;
-  args.push("-filter_complex", filter, "-map", "[v]", "-map", `${musicIndex}:a:0`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", output);
+  // loudnorm brings every track (they're not all mastered to the same level) to a consistent
+  // broadcast-style loudness; afade tapers it out over the last 3 seconds instead of cutting off
+  // hard when -shortest truncates the looped track to the video's length.
+  const audioFilter = `[${musicIndex}:a]loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${fadeStart.toFixed(2)}:d=${fadeDuration}[aout]`;
+  const filter = `${videoFilters.join(";")};${concatInputs}concat=n=${videos.length}:v=1:a=0[base];[base][${overlayIndex}:v]overlay=0:0:format=auto[v];${audioFilter}`;
+  args.push("-filter_complex", filter, "-map", "[v]", "-map", "[aout]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", output);
   await execFileAsync(FFMPEG, args, { timeout: 20 * 60_000, maxBuffer: 4 * 1024 * 1024 });
   const media = await uploadVideo(output, { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id }, 20 * 60);
   await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", output_stream_uid: media.uid, playback_url: media.playbackUrl, last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);

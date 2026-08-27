@@ -1894,6 +1894,31 @@ export async function getMatchupCardRenderData(gameId: string) {
   return { game: matchup, preview };
 }
 
+/** Backs the chromeless /render/weekly-matchup-board site route (the "here's this week's slate,
+ * final scores" screen the weekly highlight recap holds on after its intro, before the clips
+ * start) -- GOTW first, then H2H, then Human vs CPU, matching the recap's own clip-priority
+ * order. Pure CPU-vs-CPU games have no card worth showing (same rule getMatchupCardRenderData
+ * already enforces per-game) and are dropped. Any active human team works as the schedule-read's
+ * viewer anchor since none of the viewer-relative fields (involvesMe, myReactions, etc.) are used
+ * here. */
+export async function getWeeklyMatchupBoardRenderData(leagueId: string, weekNumber: number) {
+  const routes = await findServerRoutesForLeague(leagueId);
+  const guildId = routes?.guildId ?? siteOnlyGuildId(leagueId);
+  const anchor = await supabase.from("rec_team_assignments").select("user_id")
+    .eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null).not("user_id", "is", null).limit(1).maybeSingle();
+  if (!anchor.data?.user_id) throw new ApiError(404, "No active coaches in this league to anchor the render.");
+  const discordId = siteOnlyDiscordId(String(anchor.data.user_id));
+
+  const schedule = await getHubMatchupSchedule({ guildId, discordId, weekNumber });
+  const games = schedule.games.filter((g) => g.matchupType !== "cpu");
+  return {
+    weekNumber,
+    gotw: games.filter((g) => g.isGameOfWeek),
+    h2h: games.filter((g) => !g.isGameOfWeek && g.matchupType === "h2h"),
+    humanCpu: games.filter((g) => !g.isGameOfWeek && g.matchupType === "human_cpu"),
+  };
+}
+
 export async function getHubMatchupDetail(input: { guildId: string; discordId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const viewerUserId = await userIdForDiscord(input.discordId);
