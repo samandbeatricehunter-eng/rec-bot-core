@@ -331,6 +331,30 @@ got. Every one of the nine bugs found this session was caught by actually runnin
 against real frames and checking specific results against manually-verified ground truth, not
 by re-eyeballing crops or assuming a fix worked.
 
+## Bug #10: down-distance took the FIRST digit run after down, not the LAST
+
+Took the "still open" down-distance item head-on. Read the raw OCR text for every non-null
+down/distance frame across the batch and found the same shape of failure `parseYardLine` had
+already been fixed for once: `"3R0&249"` (a real "3RD & 24"-ish value, with the misread "D"
+rendering as a stray `"0"`) was parsing to `{down:3, distance:0}` — the old regex,
+`/(\d)\D+(\d{1,2})/`, greedily grabbed the *first* digit run after the down digit as the
+distance, so the spurious inserted `"0"` won over the real distance digits sitting right after
+it (`"249"`).
+
+Fixed the same way `parseYardLine` already handles this: collect *every* digit run in the OCR
+text (`.match(/\d+/g)`), take the first as `down`, take the **last** as `distance` (capped to
+its last two digits) — so a spurious digit-like glyph inserted between the down and distance
+values gets skipped rather than mistaken for the answer.
+
+Confirmed against the batch: `"3R0&249"` now parses to `{down:3, distance:49}` (up from the
+wrong `{down:3, distance:0}`) and `"3R0&6"` now correctly resolves to `{down:3, distance:6}`
+instead of what the old regex would have produced (`0`, for the same reason). Overall
+down-distance non-null hit-rate holds at 9/18 — this was a correctness fix for values that
+were already being populated, not a hit-rate fix; the field's low hit-rate is still driven by
+outright OCR content loss (e.g. `"2N0"` for a real "2ND & 2" — the trailing digit just isn't
+there in the recognized text at all) rather than a parsing-logic bug, so yard-line-number and
+the OCR-content-loss cases remain the next things worth chasing.
+
 ## Implementation
 
 Scaffolding lives in `apps/api/src/modules/scorebug-ocr/`:

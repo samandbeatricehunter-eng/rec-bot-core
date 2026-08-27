@@ -151,11 +151,15 @@ function parsePlayClock(text: string): number | null {
 
 function parseDownDistance(text: string): { down: number; distance: number } | "kickoff" | null {
   if (/KICK/i.test(text)) return "kickoff";
+  // Takes the FIRST digit run as down and the LAST as distance, not "the first two digit runs"
+  // -- a misread ordinal letter (e.g. "RD" -> "0") commonly inserts a spurious middle digit run
+  // between the real down and the real distance (confirmed: "3RD & 24" OCR'd as "3R0&249" was
+  // parsing as down=3, distance=0 -- the misread "D"->"0" -- instead of the real distance "24").
   const normalized = normalizeDigits(text);
-  const match = normalized.match(/(\d)\D+(\d{1,2})/);
-  if (!match) return null;
-  const down = Number(match[1]);
-  const distance = Number(match[2]);
+  const digitRuns = normalized.match(/\d+/g);
+  if (!digitRuns || digitRuns.length < 2) return null;
+  const down = Number(digitRuns[0]);
+  const distance = Number(digitRuns[digitRuns.length - 1].slice(-2));
   if (down < 1 || down > 4) return null;
   return { down, distance };
 }
