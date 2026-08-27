@@ -134,11 +134,32 @@ clip, pulled live from Cloudflare Stream at `t=2s`, 1920×1080). Non-null hit ra
 **Takeaway:** every field is *accurate when it returns a non-null result*, and hit-rate improved
 substantially once the PSM bug was found. Remaining gaps: quarter/game-clock still miss on
 roughly half the frames (font-legibility issue with certain digits/letters, not a region
-problem), and this sample batch never happened to contain a directional possession or "down"
-yard-line frame to validate those two cases against. Likely next steps: per-field preprocessing
-variants (mirroring how `box-score.parser.ocr.ts` runs multiple threshold/CLAHE variants and
-merges results) to recover the quarter/clock misses, and pulling more samples specifically
-looking for a directional possession/yard-line frame.
+problem).
+
+## A real directional test case, and a new limitation it exposed
+
+Went looking specifically for a confirmed directional possession frame to validate the
+classifier against (this sample batch had none). Found one on the MNF-branded clip
+(`60ea1bc9809bc41107e50ddc3d08dc4f`, pulled at `t=1s`): a clean, sharp frame reading
+`ATL 0 ▶ 0 NO`, `1ST 4:39`, `:33`, `2ND & 2`, `▲40` — a genuine kickoff/pre-snap wide shot with
+a directional glyph, exactly what was missing.
+
+**The parser returned nothing usable on it** — not because of a classifier bug, but because
+this frame's camera framing is different: it's a **pre-snap wide shot with no milestone/ticker
+banner below the main scorebug row**. Every calibration sample so far had that second ticker
+row present, which pushes the whole bottom-bar assembly up the frame. Without it, the actual
+scorebug row sits roughly 40px lower (measured: `1ST 4:39 :33` lands around y=1010-1075 on this
+frame vs. y≈970-1030 on the calibration reference) — outside the currently-configured y-band
+entirely, so every field misses.
+
+**This means the scorebug's on-screen position isn't fully fixed** — it depends on which
+broadcast/camera state Madden is in (at minimum: standard live play with the ticker, vs. a
+pre-snap/kickoff wide shot without one). The x-positions may shift too on this second framing,
+not just the y-band — not yet measured. **Not fixed in this pass** — this needs its own
+calibration pass (precise region measurement for the no-ticker framing, the same way the
+primary band was measured) plus a way to detect which framing a given frame is in before
+picking which band to crop. Flagging this now rather than silently declaring the region table
+complete: it currently only covers the "ticker present" framing.
 
 ## Implementation
 
