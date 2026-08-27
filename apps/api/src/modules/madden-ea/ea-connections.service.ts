@@ -1098,6 +1098,17 @@ export async function importEaDatasetsWithProgress(
       const restored = await restorePlayerPhotos(leagueId, photoByEaId, photoByName);
       if (restored > 0) console.log(`[EA] Restored ${restored} player photo(s).`);
     }
+
+    // A commissioner renaming a real roster spot to a retired legend's name (e.g. "OJ Simpson")
+    // doesn't change that spot's madden_player_id, so restorePlayerPhotos's EA-ID tier keeps
+    // carrying the ORIGINAL real player's photo forward on every re-import regardless of the
+    // rename -- confirmed live (OJ Simpson showing Tyjae Spears' photo). Run unconditionally,
+    // after restore, so a legend-named row always ends up on the legend's real photo.
+    const legendOverrides = await applyLegendNameOverrides(leagueId).catch((error) => {
+      console.error("[WARN] Failed to apply legend name photo overrides (non-fatal):", error);
+      return 0;
+    });
+    if (legendOverrides > 0) console.log(`[EA] Applied ${legendOverrides} legend name photo override(s).`);
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
@@ -1264,6 +1275,29 @@ async function restorePlayerPhotos(
     );
   }
   return updates.length;
+}
+
+/** Backfills photo_url from the legend catalog for any player with NO photo at all whose
+ *  current name normalizes to match a legend -- see the call site's comment. Deliberately only
+ *  fills a blank rather than overriding a non-null photo: a real, currently-rostered player can
+ *  legitimately share a legend's exact name (e.g. the real Von Miller), and blindly forcing
+ *  every name match onto the legend's portrait would wrongly clobber that real player's own
+ *  correct photo. An already-wrong non-null case (a legend rename inheriting the renamed-FROM
+ *  player's old photo via restorePlayerPhotos' EA-ID tier) needs a one-off manual check instead,
+ *  since telling the two situations apart isn't safely automatable here. */
+async function applyLegendNameOverrides(leagueId: string): Promise<number> {
+  const result = await getPgPool().query(
+    `update rec_players p
+        set photo_url = c.photo_url
+       from rec_legend_catalog c
+      where p.league_id = $1
+        and (p.photo_url is null or p.photo_url = '')
+        and c.photo_url is not null
+        and lower(regexp_replace(regexp_replace(c.name, '[''".,-]', '', 'g'), '\\s+', ' ', 'g'))
+          = lower(regexp_replace(regexp_replace(p.full_name, '[''".,-]', '', 'g'), '\\s+', ' ', 'g'))`,
+    [leagueId],
+  );
+  return result.rowCount ?? 0;
 }
 
 /**
