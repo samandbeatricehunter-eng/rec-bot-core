@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  IconBuzz, IconHeadlines, IconMatchups, IconStats, IconBracket, IconTeam, IconMgmt, IconGear,
-  IconChevronDown,
+  IconBuzz, IconHeadlines, IconMatchups, IconStats, IconBracket, IconTeam, IconMgmt,
+  IconWager, IconRules, IconRetire, IconChevronDown,
 } from "./icons.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
 
@@ -62,12 +62,13 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
         <IconBracket /><span>Standings</span>
       </NavLink>
 
-      <Dropdown label="Stats" icon={<IconStats />} active={isActive(path, `${base}/stats`) || isActive(path, `${base}/career-stats`) || isActive(path, `${base}/records`) || isActive(path, `${base}/history`)}>
+      <Dropdown label="Stats" icon={<IconStats />} active={isActive(path, `${base}/stats`) || isActive(path, `${base}/career-stats`) || isActive(path, `${base}/records`) || isActive(path, `${base}/history`) || isActive(path, `${base}/playoff-bracket`)}>
         {(close) => <>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/stats`); }}>Season Stats</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/career-stats`); }}>Career Stats</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/records`); }}>League Records</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/history`); }}>League History</button>
+          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/playoff-bracket`); }}>Playoff Bracket</button>
         </>}
       </Dropdown>
 
@@ -81,17 +82,23 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
         </>}
       </Dropdown>
 
-      <Dropdown label="" ariaLabel="More options" icon={<IconGear />} active={isActive(path, `${base}/rules`) || isActive(path, `${base}/mgmt`)}>
-        {(close) => <>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "wager")); }}>Place a Wager</button>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rules`); }}>League Rules</button>
-          {isCommissioner ? (
-            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/mgmt`); }}>League Management</button>
-          ) : (
-            <button type="button" role="menuitem" className="site-account-menu-item is-danger" onClick={() => { close(); navigate(openModalHref(leagueId, "retire")); }}>Retire from League</button>
-          )}
-        </>}
-      </Dropdown>
+      <button type="button" className="site-header-row3-btn" onClick={() => navigate(openModalHref(leagueId, "wager"))}>
+        <IconWager /><span>Wagers</span>
+      </button>
+
+      <NavLink to={`${base}/rules`} className={["site-header-row3-btn", isActive(path, `${base}/rules`) ? "is-active" : ""].filter(Boolean).join(" ")}>
+        <IconRules /><span>Rules</span>
+      </NavLink>
+
+      {isCommissioner ? (
+        <NavLink to={`${base}/mgmt`} className={["site-header-row3-btn", isActive(path, `${base}/mgmt`) ? "is-active" : ""].filter(Boolean).join(" ")}>
+          <IconMgmt /><span>League Mgmt</span>
+        </NavLink>
+      ) : (
+        <button type="button" className="site-header-row3-btn is-danger" onClick={() => navigate(openModalHref(leagueId, "retire"))}>
+          <IconRetire /><span>Retire</span>
+        </button>
+      )}
     </nav>
   );
 }

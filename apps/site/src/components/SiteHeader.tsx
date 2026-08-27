@@ -1,12 +1,10 @@
-import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import type { SiteLeagueSummary } from "../lib/site-api.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { TeamLogo } from "@rec/hub-ui";
-import { IconChevronDown, IconGear, IconHome, IconLeagues, IconComp } from "./icons.js";
+import { IconChevronDown, IconHome, IconLeagues, IconComp } from "./icons.js";
 import { LeagueRow3 } from "./LeagueRow3.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
 
@@ -24,41 +22,16 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
   });
 }
 
-/** Row 1: brand, username, inbox bell, account gear. Global, identical on every page. */
+/** Row 1: brand, username/account menu, inbox bell. Global, identical on every page. The
+ * account menu (My Account / Help / Sign Out) lives inside ProfileChip's own trigger button now
+ * -- see ProfileChip.tsx -- rather than a separate gear icon out here. */
 function HeaderRow1() {
-  const auth = useAuth();
-  const navigate = useNavigate();
-  const { triggerRef, open: gearOpen, setOpen: setGearOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
-  const [signOutBusy, setSignOutBusy] = useState(false);
-
-  async function handleSignOut() {
-    setSignOutBusy(true);
-    try {
-      await auth.signOut();
-    } finally {
-      setSignOutBusy(false);
-      setGearOpen(false);
-    }
-  }
-
   return (
     <div className="site-header-row1">
       <NavLink to="/home" className="site-header-brand">REC-Leagues.com</NavLink>
       <div className="site-header-row1-end">
         <ProfileChip />
         <NotificationsBell />
-        <div className="site-header-gear">
-          <button ref={triggerRef} type="button" className="site-header-icon-btn" aria-label="Settings" aria-expanded={gearOpen} onClick={() => setGearOpen((v) => !v)}>
-            <IconGear />
-          </button>
-          <Panel className="site-header-dropdown-panel" role="menu">
-            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/account"); }}>My Account</button>
-            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setGearOpen(false); navigate("/help"); }}>Help / FAQ</button>
-            <button type="button" role="menuitem" className="site-account-menu-item is-danger" disabled={signOutBusy} onClick={() => void handleSignOut()}>
-              {signOutBusy ? "Signing out…" : "Sign Out"}
-            </button>
-          </Panel>
-        </div>
       </div>
     </div>
   );

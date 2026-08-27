@@ -47,13 +47,14 @@ import "../../../web/src/styles/hub-layout.css";
 import "../../../web/src/styles/hub-features.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt";
+type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt" | "playoff-bracket";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
   // manage-league/teams/link otherwise match the "/team" substring below and get
   // misrouted to the My Team view instead of League Mgmt.
   if (pathname.includes("/mgmt")) return "mgmt";
+  if (pathname.includes("/playoff-bracket")) return "playoff-bracket";
   if (pathname.includes("/matchups")) return "matchups";
   if (pathname.includes("/news")) return "news";
   if (pathname.includes("/team")) return "team";
@@ -142,11 +143,11 @@ class HubErrorBoundary extends Component<
   }
 }
 
-const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records">, string> = {
+const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "playoff-bracket">, string> = {
   buzz: "buzz", news: "news", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
 };
 
-function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records"> | null {
+function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "playoff-bracket"> | null {
   if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
   if (section === "league" && subTab === "news") return "news";
   if (section === "team") return "team";
@@ -409,6 +410,8 @@ export function LeagueHubPage() {
                     <FantasyDraftBoardPage />
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />
+                  ) : view === "playoff-bracket" ? (
+                    <NflPlayoffBracket />
                   ) : view === "rules" ? (
                     <RulesHome />
                   ) : view === "history" ? (

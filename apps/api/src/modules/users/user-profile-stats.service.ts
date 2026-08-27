@@ -512,14 +512,22 @@ export function resolveTeamSchool(team: {
   if (name && nick && name.length > nick.length && name.toLowerCase().endsWith(nick.toLowerCase())) {
     return name.slice(0, name.length - nick.length).trim();
   }
-  // Standard (non-relocated) Madden teams are seeded with just the mascot in `name`
-  // ("Falcons") and no display_city/display_nick at all — nothing above can derive a
-  // city for them. Fall back to the static NFL catalog by abbreviation ("ATL" ->
-  // "Atlanta Falcons") and strip the known mascot off the end.
+  // Standard (non-relocated) Madden teams with no display_city/display_nick come in two seeded
+  // shapes: some store just the mascot in `name` ("Falcons"), others store the full "City
+  // Mascot" string ("Arizona Cardinals") -- confirmed directly, a standard Cardinals team was
+  // rendering "ARIZONA CARDINALS" (name, unstripped) next to "CARDINALS" (mascot) on the
+  // matchup card because this function returned null for it and the caller fell back to the
+  // full name. Handle the "just the mascot" shape via the static NFL catalog by abbreviation
+  // ("ATL" -> "Atlanta Falcons"), and the "already the full name" shape by stripping the
+  // mascot (from resolveTeamNick's last-word fallback) directly off the end of `name`.
   if (!team.is_relocated && team.abbreviation && name) {
     const catalogName = getTeamByAbbreviation(team.abbreviation.toUpperCase())?.name?.trim();
     if (catalogName && catalogName.length > name.length && catalogName.toLowerCase().endsWith(name.toLowerCase())) {
       return catalogName.slice(0, catalogName.length - name.length).trim();
+    }
+    const mascot = resolveTeamNick(team);
+    if (mascot && name.length > mascot.length && name.toLowerCase().endsWith(mascot.toLowerCase())) {
+      return name.slice(0, name.length - mascot.length).trim();
     }
   }
   return null;

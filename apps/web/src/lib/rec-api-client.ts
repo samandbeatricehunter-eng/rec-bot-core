@@ -732,6 +732,8 @@ export const recApi = {
     recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/state", { method: "POST", body: JSON.stringify({ guildId }) }),
   getNflPlayoffPicture: (guildId: string) =>
     recApiFetch<import("../types/api.js").NflPlayoffPicture>("/v1/standings/nfl-playoff-picture", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getNflPlayoffBracketSnapshot: (guildId: string) =>
+    recApiFetch<{ seasonNumber: number; picture: import("../types/api.js").NflPlayoffPicture } | null>("/v1/standings/nfl-playoff-bracket-snapshot", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveCfpTop25: (input: { guildId: string; rankings: Array<{ rank: number; teamId: string; conferenceChampion: boolean }> }) =>
     recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/top-25", { method: "POST", body: JSON.stringify(input) }),
   generateCfpBracket: (input: { guildId: string; seeds?: Array<{ seed: number; teamId: string }> }) =>

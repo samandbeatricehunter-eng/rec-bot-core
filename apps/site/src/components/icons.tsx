@@ -291,3 +291,19 @@ export function IconBracket(props: IconProps) {
 export function IconChevronDown(props: IconProps) {
   return base(props, <path d="M6 9l6 6 6-6" />);
 }
+
+/** Three slider tracks with a knob on each, at staggered positions -- the account-menu trigger
+ * icon (replaces the username initial + the separate gear button it used to sit next to). */
+export function IconSliders(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M4 6h16" />
+      <circle cx="15" cy="6" r="2.1" />
+      <path d="M4 12h16" />
+      <circle cx="9" cy="12" r="2.1" />
+      <path d="M4 18h16" />
+      <circle cx="12" cy="18" r="2.1" />
+    </>,
+  );
+}

@@ -171,6 +171,7 @@ export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
   const [picture, setPicture] = useState<NflPlayoffPicture | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{ seasonNumber: number; picture: NflPlayoffPicture } | null | undefined>(undefined);
 
   useEffect(() => {
     recApi.getNflPlayoffPicture(guildId)
@@ -178,14 +179,39 @@ export function NflPlayoffBracket() {
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load the playoff picture."));
   }, [guildId]);
 
+  // Once the live picture comes back not-yet-unlocked (new season's week has reset below the
+  // projection threshold), check for a settled bracket from the most recently completed season
+  // instead of just showing "not unlocked yet" over a postseason that already happened.
+  useEffect(() => {
+    if (!picture || picture.showBracket) return;
+    recApi.getNflPlayoffBracketSnapshot(guildId)
+      .then(setSnapshot)
+      .catch(() => setSnapshot(null));
+  }, [guildId, picture]);
+
   return (
     <div className="nfl-bracket-page">
       <PageHeader title="Playoff Bracket" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
       {error && <ErrorState message={error} />}
       {!picture && !error && <LoadingState label="Loading the playoff picture…" />}
 
-      {picture && !picture.showBracket && (
+      {picture && !picture.showBracket && snapshot === undefined && <LoadingState label="Checking for a settled bracket…" />}
+
+      {picture && !picture.showBracket && snapshot === null && (
         <Card><p className="nfl-bracket-empty">The playoff picture unlocks starting Week 12 of the regular season, once there's enough of a season to project seeding from.</p></Card>
+      )}
+
+      {picture && !picture.showBracket && snapshot && (
+        <>
+          <div className="nfl-bracket-meta">
+            <span className="is-live">● Final — Season {snapshot.seasonNumber}</span>
+          </div>
+          <Card><DesktopBracket picture={snapshot.picture} /></Card>
+          <p className="nfl-bracket-legend">
+            This season's postseason is complete. The next live playoff picture unlocks starting
+            Week 12 of the new regular season.
+          </p>
+        </>
       )}
 
       {picture && picture.showBracket && (

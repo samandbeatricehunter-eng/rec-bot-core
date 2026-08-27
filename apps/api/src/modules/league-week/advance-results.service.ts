@@ -36,6 +36,7 @@ import { getGlobalEconomyConfig } from "../economy/global-economy-config.service
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
 import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
+import { snapshotNflPlayoffBracket } from "../standings/nfl-bracket.service.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
   custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
@@ -363,7 +364,7 @@ async function publishMaddenPlayoffPicture(input: {
     ? `${stageLabel(input.seasonStage, input.weekNumber, input.game)} Playoff Bracket Update`
     : `Week ${input.weekNumber} NFL Playoff Picture`;
   const siteUrl = process.env.REC_SITE_URL ?? "https://rec-leagues.com";
-  const body = `This week's NFL Playoff Picture is live and reseeds automatically as results come in — check the bracket on the site: ${siteUrl}/l/${input.leagueId}/mgmt/playoff-bracket`;
+  const body = `This week's NFL Playoff Picture is live and reseeds automatically as results come in — check the bracket on the site: ${siteUrl}/l/${input.leagueId}/playoff-bracket`;
   await publishTransitionStory({ guildId: input.guildId, headline, body, primaryAngle, storyType: "article" });
   await recordHubAnnouncement({ guildId: input.guildId, title: headline, body });
 }
@@ -990,6 +991,16 @@ export async function completeAdvanceWeek(input: {
   // see the settle trigger further below, which fires when the league advances OUT of it.
   if (isPostseasonEnd) {
     await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
+  }
+
+  // Playoff bracket snapshot: the live bracket page (public, member-visible) naturally hides
+  // itself once the new season's week resets below the projection threshold -- this preserves
+  // the just-finished bracket in league history instead of letting it just disappear. Madden
+  // only (the NFL bracket concept doesn't apply to CFB's dynasty pipeline).
+  if (isPostseasonEnd && String(context.rec_leagues.game ?? "").startsWith("madden")) {
+    await snapshotNflPlayoffBracket(context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] snapshotNflPlayoffBracket failed after advance (non-fatal):", err);
+    });
   }
 
   // Power rankings/SOS/ratings are short-TTL cached (see compute-cache.ts) — an advance

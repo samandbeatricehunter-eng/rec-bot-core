@@ -10,6 +10,19 @@ function teamMetaLine(rank: number | null, record: string | null): string | null
   return parts.length ? parts.join(" · ") : null;
 }
 
+/** Guards against a school/mascot pair that's really the same string twice (e.g. a school of
+ * "Arizona Cardinals" next to a mascot of "Cardinals") -- upstream should already split these
+ * (see resolveTeamSchool), but this keeps the card from ever visibly duplicating a team name
+ * even if some other data path feeds it an unsplit pair. */
+function schoolLine(schoolName: string, mascot: string): string | null {
+  const school = schoolName.trim();
+  if (!school) return null;
+  const normalizedSchool = school.toLowerCase();
+  const normalizedMascot = mascot.trim().toLowerCase();
+  if (!normalizedMascot || normalizedSchool === normalizedMascot || normalizedSchool.endsWith(normalizedMascot)) return null;
+  return school;
+}
+
 function readableText(hex: string) {
   const value = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) || 0);
@@ -146,7 +159,7 @@ export function MatchupCard({
       <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
         <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
         <span className="rec-matchup-card__team-text">
-          <small>{game.awayTeamName}</small>
+          {schoolLine(game.awayTeamName, game.awayTeamMascot) && <small>{schoolLine(game.awayTeamName, game.awayTeamMascot)}</small>}
           <strong>{game.awayTeamMascot}</strong>
           {teamMetaLine(game.awayTeamRank, game.awayTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.awayTeamRank, game.awayTeamRecord)}</em>}
         </span>
@@ -163,7 +176,7 @@ export function MatchupCard({
       </div>
       <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
         <span className="rec-matchup-card__team-text">
-          <small>{game.homeTeamName}</small>
+          {schoolLine(game.homeTeamName, game.homeTeamMascot) && <small>{schoolLine(game.homeTeamName, game.homeTeamMascot)}</small>}
           <strong>{game.homeTeamMascot}</strong>
           {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
         </span>

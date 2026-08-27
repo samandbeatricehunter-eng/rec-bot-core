@@ -438,3 +438,34 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
     champion,
   };
 }
+
+/** Persists the finished bracket into league history once the postseason actually completes --
+ * called on the same terminal-stage -> offseason boundary as every other end-of-season
+ * automation (see advance-results.service.ts). No-ops if the bracket never reached a champion
+ * (e.g. the league closed out before/without playing the postseason), so a snapshot only ever
+ * represents a genuinely settled bracket. Upserts on (league_id, season_number) so a
+ * commissioner correction that re-triggers this boundary doesn't create duplicate rows. */
+export async function snapshotNflPlayoffBracket(leagueId: string, seasonNumber: number): Promise<void> {
+  const picture = await getNflPlayoffPicture(leagueId, seasonNumber);
+  if (!picture.champion) return;
+  await getPgPool().query(
+    `insert into rec_league_playoff_bracket_snapshots(league_id,season_number,bracket,champion_team_id)
+     values($1,$2,$3,$4)
+     on conflict(league_id,season_number) do update set bracket=$3,champion_team_id=$4,created_at=now()`,
+    [leagueId, seasonNumber, JSON.stringify(picture), picture.champion.teamId],
+  );
+}
+
+/** Most recent settled bracket for a league, if any -- the public/member-facing bracket page
+ * falls back to this once the live picture's `showBracket` goes false again (new season's
+ * week resets below the playoff-picture threshold), so a finished postseason stays visible
+ * as a historical result instead of just disappearing. */
+export async function getLatestNflPlayoffBracketSnapshot(leagueId: string): Promise<{ seasonNumber: number; picture: NflPlayoffPicture } | null> {
+  const result = await getPgPool().query(
+    `select season_number,bracket from rec_league_playoff_bracket_snapshots where league_id=$1 order by season_number desc limit 1`,
+    [leagueId],
+  );
+  const row = result.rows[0] as { season_number: number; bracket: NflPlayoffPicture } | undefined;
+  if (!row) return null;
+  return { seasonNumber: Number(row.season_number), picture: row.bracket };
+}

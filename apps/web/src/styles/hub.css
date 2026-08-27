@@ -3799,15 +3799,15 @@ button.poty:disabled {
 .hub-standings-bracket-round { margin-top:16px; }
 .hub-standings-bracket-round h3 { margin:0 0 8px; color:var(--accent-bright); font-family:var(--font-display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
 .hub-standings-bracket-game { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700; }
-.hub-hero-comparison-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(155px, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 58px; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.hub-hero-comparison-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(155px, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 64px; padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .hub-hero-comparison-row > div { display: flex; flex-direction: column; min-width: 0; }
 .hub-hero-comparison-row > div:last-child { align-items: flex-end; text-align: right; }
-.hub-hero-comparison-row > div strong { font-family: var(--font-display); font-size: 18px; }
-.hub-hero-comparison-row > div small { color: var(--text-muted); font-size: 10px; }
-.hub-hero-comparison-row > span { color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
+.hub-hero-comparison-row > div strong { font-family: var(--font-display); font-size: 23px; }
+.hub-hero-comparison-row > div small { color: var(--text-muted); font-size: 13px; }
+.hub-hero-comparison-row > span { color: var(--text-secondary); font-size: 14px; font-weight: 800; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
 .hub-hero-prediction { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 16px; background: color-mix(in srgb, var(--accent) 10%, rgba(0,0,0,.25)); text-align: center; }
-.hub-hero-prediction > span { color: var(--text-muted); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-.hub-hero-prediction strong { font-family: var(--font-display); font-size: clamp(20px, 3vw, 29px); text-transform: uppercase; }
+.hub-hero-prediction > span { color: var(--text-muted); font-size: 13px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.hub-hero-prediction strong { font-family: var(--font-display); font-size: clamp(24px, 3vw, 34px); text-transform: uppercase; }
 .hub-hero-prediction strong em { padding: 0 7px; color: var(--accent-bright); font-style: normal; }
 .hub-hero-prediction small { color: var(--text-muted); }
 
@@ -3875,7 +3875,7 @@ button.poty:disabled {
   .hub-hero-breakdown-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .hub-hero-breakdown-head > span { grid-column: 1 / -1; grid-row: 1; }
   .hub-hero-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(112px, 1.2fr) minmax(0, 1fr); gap: 7px; padding-inline: 10px; }
-  .hub-hero-comparison-row > div strong { font-size: 15px; }
+  .hub-hero-comparison-row > div strong { font-size: 18px; }
   .hub-season-snapshot > header { align-items: flex-start; flex-direction: column; gap: 2px; }
   .hub-season-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-hero-action-pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }

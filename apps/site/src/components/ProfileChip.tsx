@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { siteApi, type EntitlementSummary, type LinkProfileResponse } from "../lib/site-api.js";
-import { formatUserIdentity } from "../lib/user-identity.js";
+import { siteApi, type LinkProfileResponse } from "../lib/site-api.js";
+import { useHeaderMenu } from "./HeaderMenu.js";
+import { IconSliders } from "./icons.js";
 
-function tierLabel(entitlements: EntitlementSummary | null | undefined) {
-  const tier = entitlements?.tier ?? "none";
-  if (tier === "platinum") return "Platinum";
-  if (tier === "gold") return "Gold";
-  return "Member";
-}
-
+/** Username + account-menu trigger. The trigger button (left of the name) doubles as what used
+ * to be a separate far-right gear icon opening My Account / Help / Sign Out -- merged here so
+ * there's one account control instead of two. Shows the site username only: no Discord name in
+ * parentheses (formatUserIdentity's job elsewhere, e.g. AccountHub's linked-accounts section, is
+ * to surface that; the header is not the place for it) and no subscription tier. */
 export function ProfileChip() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<LinkProfileResponse | null>(null);
+  const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
+  const [signOutBusy, setSignOutBusy] = useState(false);
 
   useEffect(() => {
     if (auth.status !== "signed-in") {
@@ -36,23 +38,33 @@ export function ProfileChip() {
 
   if (auth.status !== "signed-in") return null;
 
-  const name = profile
-    ? formatUserIdentity(profile)
-    : auth.user.email?.split("@")[0] ?? "Member";
-  const initial = String(name).slice(0, 1).toUpperCase();
-  const tier = tierLabel(profile?.entitlements);
+  const name = profile?.username?.trim() || profile?.displayName?.trim() || auth.user.email?.split("@")[0] || "Member";
+
+  async function handleSignOut() {
+    setSignOutBusy(true);
+    try {
+      await auth.signOut();
+    } finally {
+      setSignOutBusy(false);
+      setOpen(false);
+    }
+  }
 
   return (
     <div className="site-profile-chip">
-      <Link to="/account" className="site-profile-link" title="My Account">
-        <span className="site-profile-avatar" aria-hidden>
-          {initial}
-        </span>
-        <span className="site-profile-meta">
-          <strong>{name}</strong>
-          <span>{tier}</span>
-        </span>
-      </Link>
+      <button ref={triggerRef} type="button" className="site-profile-avatar-btn" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <IconSliders />
+      </button>
+      <span className="site-profile-meta">
+        <strong>{name}</strong>
+      </span>
+      <Panel className="site-header-dropdown-panel" role="menu">
+        <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setOpen(false); navigate("/account"); }}>My Account</button>
+        <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { setOpen(false); navigate("/help"); }}>Help / FAQ</button>
+        <button type="button" role="menuitem" className="site-account-menu-item is-danger" disabled={signOutBusy} onClick={() => void handleSignOut()}>
+          {signOutBusy ? "Signing out…" : "Sign Out"}
+        </button>
+      </Panel>
     </div>
   );
 }
