@@ -3,15 +3,32 @@
 ## Wired lifecycle
 
 1. A confirmed Twitch/YouTube/TikTok session is posted to its matchup as before.
-2. `postConfirmedSession` creates a durable `rec_stream_capture_jobs` row.
-3. The 30-second worker resolves the public stream with `yt-dlp`, captures it with FFmpeg, and
-   stops when the streaming provider reports the account offline.
-4. The worker samples the recording every three seconds with the calibrated scorebug parser.
-   A score increase creates a 30-second event clip (12 seconds before the detected change),
-   uploads it to Cloudflare Stream, and stores its OCR context in `rec_stream_event_clips`.
-5. League advance creates a `rec_weekly_recap_jobs` row for the completed week. The worker
-   selects up to twelve detected clips, downloads their Cloudflare MP4s, joins them with the
-   hardcoded intro/outro, applies the hardcoded overlay and music, and uploads the result.
+2. `postConfirmedSession` creates a durable `rec_stream_capture_jobs` row (`phase 0`,
+   `phase_started_at = now()`).
+3. The 30-second worker resolves the public stream with `yt-dlp` and captures it with FFmpeg.
+   A resolve failure, or a successful recording that never yields a usable scorebug frame,
+   counts against a 10-minute budget measured from `phase_started_at` (covers "the game hasn't
+   kicked off yet"). Running out of that budget on the first attempt (`phase 0`) parks the job in
+   `cooldown` for 5 minutes, then gives it exactly one more 10-minute attempt (`phase 1`) before
+   marking it `failed` for good. `runStreamingSweep`'s offline detection calls
+   `requestStreamAutoclipStop`, which stops an active recording and updates the site's live status
+   the same way it already does for the stream-confirmed post itself.
+4. While `capturing`, a lightweight probe grabs one live frame roughly once a minute (straight
+   from the stream, not the in-progress recording file) to confirm OCR is actually reading a
+   scorebug; once confirmed, the recording runs uninterrupted until the stream ends.
+5. The worker samples the finished recording every three seconds with the calibrated scorebug
+   parser. A score increase creates a 30-second event clip (12 seconds before the detected
+   change), scores it with `computeClipValue` (points scored, lead change/tying play, closeness,
+   and a late-game clutch bonus that only applies when the game is still actually in doubt --
+   see `stream-autoclip.service.ts`), uploads it to Cloudflare Stream, and stores its OCR context
+   plus `value_score` in `rec_stream_event_clips`.
+6. League advance creates a `rec_weekly_recap_jobs` row for the completed week. The worker picks
+   up to twelve clips via `selectRecapClips`: each game's importance is its single best clip, and
+   games are filled in importance order (up to 3 clips each) until the budget is spent -- so a
+   dramatic nailbiter can contribute more clips than a blowout with one early lead change, and a
+   blowout with no late drama may contribute nothing. Selected clips are downloaded from
+   Cloudflare, joined with the hardcoded intro/outro, overlay, and music, and uploaded as the
+   final recap.
 
 ## API service requirements
 

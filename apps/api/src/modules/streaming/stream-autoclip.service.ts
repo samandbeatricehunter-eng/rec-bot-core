@@ -23,6 +23,17 @@ const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_BIN?.trim() || "ffprobe";
 const RESOLVER = process.env.STREAM_RESOLVER_BIN?.trim() || "yt-dlp";
 
+// A stream's game may not have kicked off yet when a coach posts the link, so the resolver (and,
+// once recording starts, the OCR check below) is allowed to keep failing for a while before this
+// is treated as a real problem. Budget is measured against `phase_started_at`, which covers BOTH
+// repeated resolve failures and a successful recording that never produces a usable scorebug
+// frame -- either way, "no usable stream after this long" means the same thing. Phase 0 is the
+// first window; if it runs out, the job waits out COOLDOWN_MS once, then gets exactly one more
+// window (phase 1) before being abandoned for good.
+const INITIAL_BUDGET_MS = 10 * 60_000;
+const COOLDOWN_MS = 5 * 60_000;
+const PROBE_INTERVAL_MS = 60_000;
+
 function missingTable(error: any) {
   return ["42P01", "PGRST205"].includes(String(error?.code ?? ""));
 }
@@ -32,21 +43,28 @@ async function commandAvailable(command: string) {
   catch { return false; }
 }
 
+async function updateJob(id: string, patch: Record<string, unknown>) {
+  await supabase.from("rec_stream_capture_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+}
+
 export async function enqueueStreamAutoclip(input: { sessionId: string; leagueId: string; gameId: string; streamUrl: string }) {
+  const now = new Date().toISOString();
   const result = await supabase.from("rec_stream_capture_jobs").upsert({
     streaming_session_id: input.sessionId,
     league_id: input.leagueId,
     game_id: input.gameId,
     stream_url: input.streamUrl,
     status: "pending",
-    updated_at: new Date().toISOString(),
+    phase: 0,
+    phase_started_at: now,
+    updated_at: now,
   }, { onConflict: "streaming_session_id", ignoreDuplicates: true });
   if (result.error && !missingTable(result.error)) throw result.error;
 }
 
 export async function requestStreamAutoclipStop(sessionId: string) {
   const result = await supabase.from("rec_stream_capture_jobs").update({ status: "stop_requested", updated_at: new Date().toISOString() })
-    .eq("streaming_session_id", sessionId).in("status", ["pending", "capturing"]);
+    .eq("streaming_session_id", sessionId).in("status", ["pending", "capturing", "retry", "cooldown"]);
   if (result.error && !missingTable(result.error)) throw result.error;
   activeCaptures.get(sessionId)?.kill("SIGINT");
 }
@@ -58,35 +76,106 @@ async function resolveMediaUrl(streamUrl: string) {
   return resolved;
 }
 
+// Shared budget check for both "can't even resolve/start" and "recorded but nothing usable yet"
+// failures -- see the constants' doc comment above for the phase/cooldown/abandon shape.
+async function handleAttemptFailure(job: any, message: string) {
+  const elapsed = Date.now() - new Date(job.phase_started_at).getTime();
+  if (elapsed < INITIAL_BUDGET_MS) {
+    await updateJob(job.id, { status: "retry", last_error: message, attempt_count: Number(job.attempt_count ?? 0) + 1 });
+    return;
+  }
+  if (Number(job.phase ?? 0) === 0) {
+    await updateJob(job.id, {
+      status: "cooldown", cooldown_until: new Date(Date.now() + COOLDOWN_MS).toISOString(),
+      last_error: `${message} (10-minute window used up -- waiting 5 minutes before one more try.)`,
+    });
+  } else {
+    await updateJob(job.id, { status: "failed", last_error: `Abandoned after two attempts: ${message}` });
+  }
+}
+
 async function startCapture(job: any) {
   if (activeCaptures.has(job.streaming_session_id)) return;
   const configured = await Promise.all([commandAvailable(FFMPEG), commandAvailable(RESOLVER)]);
   if (configured.some((ready) => !ready)) {
-    await supabase.from("rec_stream_capture_jobs").update({
-      status: "awaiting_configuration",
-      last_error: `Install ${FFMPEG} and ${RESOLVER} on the API image (or set FFMPEG_BIN / STREAM_RESOLVER_BIN).`,
-      updated_at: new Date().toISOString(),
-    }).eq("id", job.id);
+    await updateJob(job.id, { status: "awaiting_configuration", last_error: `Install ${FFMPEG} and ${RESOLVER} on the API image (or set FFMPEG_BIN / STREAM_RESOLVER_BIN).` });
     return;
   }
+
+  let mediaUrl: string;
+  try {
+    mediaUrl = await resolveMediaUrl(job.stream_url);
+  } catch (error) {
+    await handleAttemptFailure(job, error instanceof Error ? error.message : "Stream resolver failed.");
+    return;
+  }
+
   await mkdir(WORK_DIR, { recursive: true });
   const capturePath = path.join(WORK_DIR, `${job.id}.mkv`);
-  const mediaUrl = await resolveMediaUrl(job.stream_url);
   const child = spawn(FFMPEG, ["-nostdin", "-y", "-i", mediaUrl, "-map", "0:v:0", "-map", "0:a?", "-c", "copy", capturePath], { stdio: ["ignore", "ignore", "pipe"] });
   activeCaptures.set(job.streaming_session_id, child);
   let stderr = "";
   child.stderr?.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-4000); });
-  await supabase.from("rec_stream_capture_jobs").update({ status: "capturing", capture_path: capturePath, started_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
+  await updateJob(job.id, {
+    status: "capturing", capture_path: capturePath, started_at: new Date().toISOString(), last_error: null,
+    first_usable_frame_at: null, last_probe_at: null,
+  });
   child.once("close", async (code) => {
     activeCaptures.delete(job.streaming_session_id);
     const exists = await stat(capturePath).then((item) => item.size > 0).catch(() => false);
-    await supabase.from("rec_stream_capture_jobs").update({
-      status: exists ? "processing" : "retry",
-      ended_at: new Date().toISOString(),
-      last_error: exists ? null : `FFmpeg capture exited ${code ?? "without a code"}: ${stderr}`,
-      updated_at: new Date().toISOString(),
-    }).eq("id", job.id);
+    if (exists) {
+      await updateJob(job.id, { status: "processing", ended_at: new Date().toISOString(), last_error: null });
+      return;
+    }
+    // Nothing was captured (immediate disconnect, DRM, etc.) -- this counts as a failed attempt
+    // against the same budget as a resolve failure, not a silent "processing" of an empty file.
+    const fresh = await supabase.from("rec_stream_capture_jobs").select("*").eq("id", job.id).maybeSingle();
+    if (fresh.data) await handleAttemptFailure(fresh.data, `FFmpeg capture exited ${code ?? "without a code"} with no data: ${stderr}`);
   });
+}
+
+// Spot-checks an in-progress recording by grabbing one live frame straight from the stream (not
+// the growing capture file -- an unfinalized mkv's duration/seek behavior is unreliable while
+// it's still being written) roughly once a minute, and gives up on this attempt once the phase
+// budget elapses with no usable frame ever seen -- see the module doc comment for why this exists
+// (a recording that never has usable OCR data would otherwise just run until the stream ends).
+async function monitorCapturingJob(job: any) {
+  if (job.first_usable_frame_at) return;
+  const sinceProbe = job.last_probe_at ? Date.now() - new Date(job.last_probe_at).getTime() : Infinity;
+  if (sinceProbe >= PROBE_INTERVAL_MS) {
+    await updateJob(job.id, { last_probe_at: new Date().toISOString() });
+    try {
+      const mediaUrl = await resolveMediaUrl(job.stream_url);
+      const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-i", mediaUrl, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
+      const parsed = await parseScorebugFrameAuto(frame);
+      if (parsed.isLiveScorebug && parsed.awayScore != null && parsed.homeScore != null) {
+        await updateJob(job.id, { first_usable_frame_at: new Date().toISOString(), last_error: null });
+        return;
+      }
+    } catch {
+      // Transient (game hasn't kicked off, brief resolver hiccup) -- the elapsed check below
+      // still governs whether this has gone on too long.
+    }
+  }
+
+  const elapsed = Date.now() - new Date(job.phase_started_at).getTime();
+  if (elapsed >= INITIAL_BUDGET_MS) {
+    activeCaptures.get(job.streaming_session_id)?.kill("SIGINT");
+    activeCaptures.delete(job.streaming_session_id);
+    await handleAttemptFailure(job, "No usable scorebug frames detected in the first 10 minutes of recording.");
+  }
+}
+
+async function promoteDueCooldowns() {
+  const due = await supabase.from("rec_stream_capture_jobs").select("id").eq("status", "cooldown").lte("cooldown_until", new Date().toISOString());
+  if (due.error) { if (!missingTable(due.error)) console.error("[ERROR] Failed to load cooldown stream capture jobs (non-fatal):", due.error); return; }
+  for (const row of due.data ?? []) {
+    await updateJob(row.id, {
+      status: "retry", phase: 1, phase_started_at: new Date().toISOString(),
+      cooldown_until: null, first_usable_frame_at: null, last_probe_at: null, capture_path: null,
+      last_error: "Retrying after the 5-minute cooldown -- this is the final attempt.",
+    });
+  }
 }
 
 async function outputBuffer(command: string, args: string[]): Promise<Buffer> {
@@ -118,18 +207,64 @@ function downDistanceText(value: Awaited<ReturnType<typeof parseScorebugFrameAut
   return value === "kickoff" ? "KICKOFF" : value ? `${value.down} & ${value.distance}` : null;
 }
 
+function parseClockSeconds(clock: string | null): number | null {
+  const match = clock ? /^(\d{1,2}):(\d{2})$/.exec(clock.trim()) : null;
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+// A clip's value is about game-deciding drama, not just "a score happened" -- a go-ahead score in
+// the final minute of a one-score game is a very different clip than a garbage-time score in a
+// blowout, even though both are "the score changed." Weighs: how many points, whether it changed
+// or tied the lead, how close the game is after the play, and (only when the game is still
+// actually in doubt) how little time is left. Used both to rank clips within a game and to decide
+// which games get more of the recap's limited clip budget (see selectRecapClips).
+export function computeClipValue(input: {
+  quarter: string | null; gameClock: string | null;
+  awayBefore: number; homeBefore: number; awayAfter: number; homeAfter: number;
+}): number {
+  const pointsScored = Math.max(0, (input.awayAfter - input.awayBefore) + (input.homeAfter - input.homeBefore));
+  const marginBefore = Math.abs(input.awayBefore - input.homeBefore);
+  const marginAfter = Math.abs(input.awayAfter - input.homeAfter);
+  const leadBefore = Math.sign(input.awayBefore - input.homeBefore);
+  const leadAfter = Math.sign(input.awayAfter - input.homeAfter);
+  const leadChanged = marginBefore > 0 && leadAfter !== 0 && leadBefore !== leadAfter;
+  const tyingPlay = marginBefore > 0 && marginAfter === 0;
+
+  let value = pointsScored * 3;
+  if (leadChanged) value += 25;
+  if (tyingPlay) value += 20;
+  value += Math.max(0, 15 - marginAfter);
+
+  const quarterNum = input.quarter === "OT" ? 5 : Number(input.quarter ?? 0);
+  const gameStillInDoubt = marginAfter <= 16; // roughly two scores -- a blowout gets no clutch bonus regardless of clock
+  if (quarterNum >= 4 && gameStillInDoubt) {
+    const secondsRemaining = input.quarter === "OT" ? 0 : (parseClockSeconds(input.gameClock) ?? 900);
+    if (secondsRemaining <= 120) value += 30;
+    else if (secondsRemaining <= 300) value += 20;
+    else if (secondsRemaining <= 600) value += 10;
+  }
+  return Math.round(value * 10) / 10;
+}
+
 async function processCapture(job: any) {
   if (!job.capture_path) throw new Error("Capture job has no recording path.");
   const game = await supabase.from("rec_games").select("season_number,week_number").eq("id", job.game_id).maybeSingle();
   if (!game.data) throw new Error("Capture game no longer exists.");
   const duration = await durationSeconds(job.capture_path);
   let previous: { away: number; home: number } | null = null;
-  const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>> }> = [];
+  const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number }> = [];
   for (let second = 3; second < duration; second += 3) {
     const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-ss", String(second), "-i", job.capture_path, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
     const parsed = await parseScorebugFrameAuto(frame);
     if (!parsed.isLiveScorebug || parsed.awayScore == null || parsed.homeScore == null) continue;
-    if (previous && (parsed.awayScore > previous.away || parsed.homeScore > previous.home)) events.push({ second, parsed });
+    if (previous && (parsed.awayScore > previous.away || parsed.homeScore > previous.home)) {
+      const value = computeClipValue({
+        quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
+        awayBefore: previous.away, homeBefore: previous.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
+      });
+      events.push({ second, parsed, value });
+    }
     previous = { away: parsed.awayScore, home: parsed.homeScore };
   }
   for (const [index, event] of events.entries()) {
@@ -144,10 +279,10 @@ async function processCapture(job: any) {
       quarter: event.parsed.quarter == null ? null : String(event.parsed.quarter), game_clock: event.parsed.gameClock,
       down_distance: downDistanceText(event.parsed.downDistance), yard_line: event.parsed.yardLine,
       possession: event.parsed.possession, cloudflare_stream_uid: media.uid, playback_url: media.playbackUrl,
-      ocr_payload: event.parsed,
+      value_score: event.value, ocr_payload: event.parsed,
     }, { onConflict: "capture_job_id,event_second,event_type" });
   }
-  await supabase.from("rec_stream_capture_jobs").update({ status: "completed", last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
+  await updateJob(job.id, { status: "completed", last_error: null });
 }
 
 export async function enqueueWeeklyHighlightRecap(input: { leagueId: string; seasonNumber: number; weekNumber: number }) {
@@ -155,19 +290,52 @@ export async function enqueueWeeklyHighlightRecap(input: { leagueId: string; sea
   if (result.error && !missingTable(result.error)) throw result.error;
 }
 
+const RECAP_CLIP_BUDGET = 12;
+const RECAP_PER_GAME_CAP = 3;
+
+// Which clips make the recap, and how many per game, is driven by value_score -- not just
+// chronological order. Each game's "importance" is its single most valuable clip (its most
+// dramatic moment); games are filled in importance order, each contributing up to
+// RECAP_PER_GAME_CAP of its own best clips, until the total budget is spent. A nailbiter that
+// produced three genuinely great moments can outweigh a blowout's one early lead change, and a
+// blowout with no late drama may contribute nothing at all.
+function selectRecapClips<T extends { game_id: string; value_score: number; event_second: number }>(clips: T[]): T[] {
+  const byGame = new Map<string, T[]>();
+  for (const clip of clips) byGame.set(clip.game_id, [...(byGame.get(clip.game_id) ?? []), clip]);
+  const games = [...byGame.entries()]
+    .map(([gameId, gameClips]) => ({ gameId, gameClips: [...gameClips].sort((a, b) => b.value_score - a.value_score), importance: Math.max(...gameClips.map((c) => c.value_score)) }))
+    .sort((a, b) => b.importance - a.importance);
+
+  const selected: T[] = [];
+  for (const game of games) {
+    if (selected.length >= RECAP_CLIP_BUDGET) break;
+    const room = Math.min(RECAP_PER_GAME_CAP, RECAP_CLIP_BUDGET - selected.length);
+    // Keep this game's own chosen clips in the order they happened once picked by value.
+    selected.push(...game.gameClips.slice(0, room).sort((a, b) => a.event_second - b.event_second));
+  }
+  return selected;
+}
+
 async function processRecap(job: any) {
   for (const asset of Object.values(RECAP_ASSETS)) if (!await stat(asset).then(() => true).catch(() => false)) {
     await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: `Missing hardcoded recap asset: ${asset}`, updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
-  const clips = await supabase.from("rec_stream_event_clips").select("id,cloudflare_stream_uid,event_second").eq("league_id", job.league_id).eq("season_number", job.season_number).eq("week_number", job.week_number).not("cloudflare_stream_uid", "is", null).order("event_second").limit(12);
-  if (!clips.data?.length) {
+  const allClips = await supabase.from("rec_stream_event_clips").select("id,cloudflare_stream_uid,event_second,game_id,value_score")
+    .eq("league_id", job.league_id).eq("season_number", job.season_number).eq("week_number", job.week_number).not("cloudflare_stream_uid", "is", null);
+  if (allClips.error) throw allClips.error;
+  if (!allClips.data?.length) {
     await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", last_error: "No OCR score-change clips were available for this week.", updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
-  await supabase.from("rec_stream_event_clips").update({ selected_for_recap: true }).in("id", clips.data.map((clip) => clip.id));
+  const clips = selectRecapClips(allClips.data as Array<{ id: string; cloudflare_stream_uid: string; event_second: number; game_id: string; value_score: number }>);
+  if (!clips.length) {
+    await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", last_error: "No clips scored highly enough to include in this week's recap.", updated_at: new Date().toISOString() }).eq("id", job.id);
+    return;
+  }
+  await supabase.from("rec_stream_event_clips").update({ selected_for_recap: true }).in("id", clips.map((clip) => clip.id));
   const downloaded: string[] = [];
-  for (const [index, clip] of clips.data.entries()) {
+  for (const [index, clip] of clips.entries()) {
     const download = await enableStreamDownload(String(clip.cloudflare_stream_uid));
     if (!download.ready) {
       await supabase.from("rec_weekly_recap_jobs").update({ status: "retry", last_error: "Selected clips are still encoding downloadable MP4s in Cloudflare Stream.", updated_at: new Date().toISOString() }).eq("id", job.id);
@@ -197,23 +365,28 @@ async function processRecap(job: any) {
 }
 
 export async function runStreamAutoclipSweep() {
+  await promoteDueCooldowns();
+
   const stranded = await supabase.from("rec_stream_capture_jobs").select("id,streaming_session_id,status,capture_path").in("status", ["capturing", "stop_requested"]);
   if (!stranded.error) for (const job of stranded.data ?? []) {
     if (activeCaptures.has(job.streaming_session_id)) continue;
     const hasCapture = job.capture_path ? await stat(job.capture_path).then((item) => item.size > 0).catch(() => false) : false;
-    await supabase.from("rec_stream_capture_jobs").update({ status: hasCapture ? "processing" : "retry", updated_at: new Date().toISOString() }).eq("id", job.id);
+    await updateJob(job.id, { status: hasCapture ? "processing" : "retry" });
   }
+
   const pending = await supabase.from("rec_stream_capture_jobs").select("*").in("status", ["pending", "retry"]).order("created_at").limit(2);
   if (pending.error) { if (missingTable(pending.error)) return; throw pending.error; }
-  for (const job of pending.data ?? []) await startCapture(job).catch(async (error) => {
-    await supabase.from("rec_stream_capture_jobs").update({ status: "retry", attempt_count: Number(job.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString() }).eq("id", job.id);
-  });
+  for (const job of pending.data ?? []) await startCapture(job).catch((error) => handleAttemptFailure(job, error instanceof Error ? error.message : String(error)));
+
+  const capturing = await supabase.from("rec_stream_capture_jobs").select("*").eq("status", "capturing");
+  if (!capturing.error) for (const job of capturing.data ?? []) await monitorCapturingJob(job).catch((error) => console.error("[ERROR] Failed to monitor stream capture job (non-fatal):", job.id, error));
+
   if (processing) return;
   const ready = await supabase.from("rec_stream_capture_jobs").select("*").eq("status", "processing").order("ended_at").limit(1).maybeSingle();
   if (ready.data) {
     processing = true;
     try { await processCapture(ready.data); }
-    catch (error) { await supabase.from("rec_stream_capture_jobs").update({ status: "processing", attempt_count: Number(ready.data.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString() }).eq("id", ready.data.id); }
+    catch (error) { await updateJob(ready.data.id, { status: "processing", attempt_count: Number(ready.data.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error) }); }
     finally { processing = false; }
   }
   const recap = await supabase.from("rec_weekly_recap_jobs").select("*").in("status", ["pending", "retry"]).order("created_at").limit(1).maybeSingle();

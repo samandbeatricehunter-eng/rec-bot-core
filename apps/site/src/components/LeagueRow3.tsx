@@ -62,13 +62,12 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
         <IconBracket /><span>Standings</span>
       </NavLink>
 
-      <Dropdown label="Stats" icon={<IconStats />} active={isActive(path, `${base}/stats`) || isActive(path, `${base}/career-stats`) || isActive(path, `${base}/records`) || isActive(path, `${base}/history`) || isActive(path, `${base}/playoff-bracket`)}>
+      <Dropdown label="Stats" icon={<IconStats />} active={isActive(path, `${base}/stats`) || isActive(path, `${base}/career-stats`) || isActive(path, `${base}/records`) || isActive(path, `${base}/history`)}>
         {(close) => <>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/stats`); }}>Season Stats</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/career-stats`); }}>Career Stats</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/records`); }}>League Records</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/history`); }}>League History</button>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/playoff-bracket`); }}>Playoff Bracket</button>
         </>}
       </Dropdown>
 

@@ -51,22 +51,25 @@ function ConferenceStandings({ teams }: { teams: PowerRankingTeam[] }) {
       {grouped.map(([conference, list]) => (
         <section key={conference} className="hub-standings-conference">
           <h3>{conference}</h3>
-          <table className="hub-standings-table">
-            <thead><tr><th>Team</th><th>W</th><th>L</th><th>T</th></tr></thead>
-            <tbody>
-              {list.map((team) => (
-                <tr key={team.teamId}>
-                  <td><span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}</span>{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}</span></td>
-                  <td>{team.wins}</td>
-                  <td>{team.losses}</td>
-                  <td>{team.ties}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="hub-standings-rows">
+            {list.map((team, index) => (
+              <div key={team.teamId} className={`hub-standings-row${team.playoffMarker === "Y" || team.playoffMarker === "Z" ? " is-division-leader" : ""}`}>
+                <span className="hub-standings-seed">{index + 1}</span>
+                <TeamLogo abbreviation={team.abbr} alt={team.teamName} />
+                <span className="hub-standings-name">{team.teamName}{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}</span>
+                <span className="hub-standings-record">{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`}</span>
+              </div>
+            ))}
+          </div>
         </section>
       ))}
     </div>
+  );
+}
+
+function PlayoffMarkerKey({ className }: { className: string }) {
+  return (
+    <p className={className}><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p>
   );
 }
 
@@ -84,7 +87,7 @@ function PowerRankingsCard({ teams }: { teams: PowerRankingTeam[] }) {
         ))}
       </div>
       {!teams.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}
-      <p className="hub-stats-playoff-key"><span>X · Playoff berth</span><span>Y · Division secured</span><span>Z · First-round bye</span></p>
+      <PlayoffMarkerKey className="hub-stats-playoff-key" />
     </Card>
   );
 }
@@ -166,6 +169,7 @@ export function LeagueStandingsHome() {
             <button type="button" onClick={() => navigate(`/l/${hub.league.id}/sos`)}><strong>S.O.S.</strong><span>Strength of Schedule</span></button>
             <button type="button" disabled={!bracketAvailable} title={bracketAvailable ? "Open playoff bracket" : isMadden ? "Playoff bracket unlocks in Week 12" : "Playoff bracket unlocks once the Top 25 is released"} onClick={() => navigate(`/l/${hub.league.id}/playoff-bracket`)}><strong>Playoff Bracket</strong><span>{bracketAvailable ? "View bracket" : isMadden ? "Unlocks Week 12" : "Unlocks at Top 25"}</span></button>
           </div>
+          <PlayoffMarkerKey className="hub-standings-key" />
           <Card><h2 style={{ marginTop: 0 }}>Conference Standings</h2><ConferenceStandings teams={teams} /></Card>
           <PowerRankingsCard teams={teams} />
         </>
