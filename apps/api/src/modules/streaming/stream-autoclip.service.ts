@@ -454,10 +454,13 @@ async function pickRandomMusicTrack(): Promise<string | null> {
 }
 
 async function processRecap(job: any) {
-  if (!await stat(RECAP_ASSETS.intro).then(() => true).catch(() => false) || !await stat(RECAP_ASSETS.overlay).then(() => true).catch(() => false)) {
-    await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: "Missing hardcoded recap asset: intro.mp4 or overlay.png.", updated_at: new Date().toISOString() }).eq("id", job.id);
+  if (!await stat(RECAP_ASSETS.intro).then(() => true).catch(() => false)) {
+    await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: "Missing hardcoded recap asset: intro.mp4.", updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
+  // overlay.png is decorative (a branding graphic composited on top of the video) -- unlike
+  // intro.mp4/music, its absence shouldn't block the whole recap from generating.
+  const hasOverlay = await stat(RECAP_ASSETS.overlay).then(() => true).catch(() => false);
   const musicTrack = await pickRandomMusicTrack();
   if (!musicTrack) {
     await supabase.from("rec_weekly_recap_jobs").update({ status: "awaiting_assets", last_error: "No music tracks found in assets/weekly-recap/music/.", updated_at: new Date().toISOString() }).eq("id", job.id);
@@ -522,16 +525,20 @@ async function processRecap(job: any) {
   const output = path.join(WORK_DIR, `${job.id}-weekly-recap.mp4`);
   const args: string[] = ["-y"];
   for (const video of videos) args.push("-i", video);
-  const overlayIndex = videos.length;
-  const musicIndex = videos.length + 1;
-  args.push("-loop", "1", "-i", RECAP_ASSETS.overlay, "-stream_loop", "-1", "-i", musicTrack);
+  const overlayIndex = hasOverlay ? videos.length : -1;
+  const musicIndex = hasOverlay ? videos.length + 1 : videos.length;
+  if (hasOverlay) args.push("-loop", "1", "-i", RECAP_ASSETS.overlay);
+  args.push("-stream_loop", "-1", "-i", musicTrack);
   const videoFilters = videos.map((_, index) => `[${index}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30,setsar=1,setpts=PTS-STARTPTS[v${index}]`);
   const concatInputs = videos.map((_, index) => `[v${index}]`).join("");
   // loudnorm brings every track (they're not all mastered to the same level) to a consistent
   // broadcast-style loudness; afade tapers it out over the last 3 seconds instead of cutting off
   // hard when -shortest truncates the looped track to the video's length.
   const audioFilter = `[${musicIndex}:a]loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${fadeStart.toFixed(2)}:d=${fadeDuration}[aout]`;
-  const filter = `${videoFilters.join(";")};${concatInputs}concat=n=${videos.length}:v=1:a=0[base];[base][${overlayIndex}:v]overlay=0:0:format=auto[v];${audioFilter}`;
+  const baseFilter = `${videoFilters.join(";")};${concatInputs}concat=n=${videos.length}:v=1:a=0[base]`;
+  const filter = hasOverlay
+    ? `${baseFilter};[base][${overlayIndex}:v]overlay=0:0:format=auto[v];${audioFilter}`
+    : `${baseFilter};[base]copy[v];${audioFilter}`;
   args.push("-filter_complex", filter, "-map", "[v]", "-map", "[aout]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", output);
   await execFileAsync(FFMPEG, args, { timeout: 20 * 60_000, maxBuffer: 4 * 1024 * 1024 });
   const media = await uploadVideo(output, { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id }, 20 * 60);
