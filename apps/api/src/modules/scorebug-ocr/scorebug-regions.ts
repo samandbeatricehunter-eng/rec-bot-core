@@ -17,8 +17,11 @@ export const SCOREBUG_REGIONS = {
   // actually landing on crest/quarter/clock respectively. Re-measured via a vertical brightness
   // projection + direct crop verification against the black quarter/clock/play-clock box.
   quarter: { x0: 0.657, x1: 0.695, y0: 0.898, y1: 0.954 },
-  gameClock: { x0: 0.697, x1: 0.737, y0: 0.898, y1: 0.954 },
-  playClock: { x0: 0.745, x1: 0.792, y0: 0.898, y1: 0.954 },
+  // gameClock's x1 was 0.737 (cutting the seconds' last digit off mid-stroke, confirmed by
+  // direct crop inspection -- "1:05" was rendering as "1:0" with the "5" sliced away).
+  // Widened to the actual gap before playClock's white box, verified against the same frame.
+  gameClock: { x0: 0.697, x1: 0.749, y0: 0.898, y1: 0.954 },
+  playClock: { x0: 0.754, x1: 0.792, y0: 0.898, y1: 0.954 },
   downDistance: { x0: 0.818, x1: 0.917, y0: 0.898, y1: 0.954 },
   // Split from one combined region into the direction glyph (▲/▼, shape-classified like
   // possessionGlyph) and the yard number itself (OCR'd) -- verified against a direct 5x crop of

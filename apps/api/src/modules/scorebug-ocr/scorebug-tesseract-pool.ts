@@ -1,4 +1,4 @@
-// Dedicated Tesseract worker pool for scorebug OCR -- deliberately separate from the box-score
+// Dedicated Tesseract worker pools for scorebug OCR -- deliberately separate from the box-score
 // module's pool (box-score.parser.types.ts) rather than sharing it, because scorebug crops need
 // a different page-segmentation mode. Box-score crops are large, document-like regions where
 // Tesseract's default full-page segmentation (PSM 3) works fine; scorebug crops are tiny,
@@ -7,55 +7,65 @@
 // PSM 3 read as empty text read correctly as "02" under PSM.SINGLE_LINE. Sharing one scheduler
 // across two different desired PSMs isn't safe (per-job parameter overrides aren't a thing in
 // tesseract.js's scheduler API), so this gets its own small pool instead.
+//
+// Two pools, not one, for the same reason: a single shared character whitelist broad enough to
+// cover every field (digits + ordinal letters + KICKOFF's letters) let Tesseract substitute a
+// whitelisted letter for a digit-shaped glyph in purely-numeric fields -- confirmed directly,
+// clock fields started reading "3:2C"/"8:0C"/"1:0F" (a stray C/F standing in for what should be
+// a trailing "0"/"5") only after the whitelist was broadened to include those letters for
+// "KICKOFF"/ordinals. Numeric-only fields (scores, clocks, yard line) get a tight
+// digits-and-colon-only whitelist; only quarter and down/distance (which can legitimately read
+// "4TH" or "KICKOFF") get the broader one.
 import Tesseract from "tesseract.js";
 
 const OCR_POOL_SIZE = Number(process.env.SCOREBUG_OCR_WORKER_POOL_SIZE ?? 2);
 
-let _scheduler: Tesseract.Scheduler | null = null;
-let _schedulerInitializing: Promise<Tesseract.Scheduler> | null = null;
+export type ScorebugWhitelistKind = "numeric" | "label";
 
-async function getScheduler(): Promise<Tesseract.Scheduler> {
-  if (_scheduler) return _scheduler;
-  if (_schedulerInitializing) return _schedulerInitializing;
-  _schedulerInitializing = (async () => {
+const WHITELISTS: Record<ScorebugWhitelistKind, string> = {
+  numeric: "0123456789:",
+  label: "0123456789:&STNDRHKCOFITstndrhkcofit",
+};
+
+const schedulers = new Map<ScorebugWhitelistKind, Tesseract.Scheduler>();
+const schedulerInitializing = new Map<ScorebugWhitelistKind, Promise<Tesseract.Scheduler>>();
+
+async function getScheduler(kind: ScorebugWhitelistKind): Promise<Tesseract.Scheduler> {
+  const existing = schedulers.get(kind);
+  if (existing) return existing;
+  const inFlight = schedulerInitializing.get(kind);
+  if (inFlight) return inFlight;
+
+  const initializing = (async () => {
     const scheduler = Tesseract.createScheduler();
     const workers = await Promise.all(
       Array.from({ length: Math.max(1, OCR_POOL_SIZE) }, async () => {
         const worker = await Tesseract.createWorker("eng");
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-          // Every scorebug field is one of: digits, a score/clock separator, or a handful of
-          // ordinal/label letters (1ST/2ND/3RD/4TH/OT, KICKOFF). Restricting Tesseract's full
-          // English-dictionary model to just this set fixed a real, confirmed miss: without a
-          // whitelist, "4th" consistently read as "ath" (dropping the "4" entirely) across
-          // every preprocessing threshold tried -- a language-model bias, not an image-quality
-          // problem, since the exact same crop read correctly once digits were guaranteed to be
-          // in-vocabulary. One whitelist shared by every field (rather than per-field, which
-          // the pooled scheduler can't do without a per-job parameter race) since it only needs
-          // to be a superset, not exact.
-          tessedit_char_whitelist: "0123456789:&STNDRHKCOFITstndrhkcofit",
+          tessedit_char_whitelist: WHITELISTS[kind],
         });
         return worker;
       }),
     );
     for (const worker of workers) scheduler.addWorker(worker);
-    _scheduler = scheduler;
-    _schedulerInitializing = null;
+    schedulers.set(kind, scheduler);
+    schedulerInitializing.delete(kind);
     return scheduler;
   })();
-  return _schedulerInitializing;
+  schedulerInitializing.set(kind, initializing);
+  return initializing;
 }
 
 export async function recognizeScorebugField(
+  kind: ScorebugWhitelistKind,
   ...args: Parameters<Tesseract.Worker["recognize"]>
 ): Promise<Tesseract.RecognizeResult> {
-  const scheduler = await getScheduler();
+  const scheduler = await getScheduler(kind);
   return scheduler.addJob("recognize", ...args);
 }
 
 export async function terminateScorebugTesseractWorker() {
-  if (_scheduler) {
-    await _scheduler.terminate();
-    _scheduler = null;
-  }
+  await Promise.all([...schedulers.values()].map((scheduler) => scheduler.terminate()));
+  schedulers.clear();
 }

@@ -2,7 +2,7 @@
 // route or job yet -- see docs/scorebug-ocr-regions.md for the calibration behind the crop
 // regions and stress-test.ts for how this gets exercised against real highlight frames.
 import sharp from "sharp";
-import { recognizeScorebugField } from "./scorebug-tesseract-pool.js";
+import { recognizeScorebugField, type ScorebugWhitelistKind } from "./scorebug-tesseract-pool.js";
 import { flattenPageWords } from "../box-score/box-score.parser.ocr.js";
 import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels, type FractionalRegion, type ScorebugFieldName } from "./scorebug-regions.js";
 
@@ -52,9 +52,24 @@ async function preprocessFieldCrop(buffer: Buffer, variant: FieldPreprocessVaria
   return pipeline.negate().resize(width * 3, height * 3, { fit: "fill" }).png().toBuffer();
 }
 
-async function ocrWithVariant(crop: Buffer, variant: FieldPreprocessVariant): Promise<ScorebugFieldResult> {
+// Only quarter and down/distance can legitimately contain letters ("4TH", "KICKOFF"); every
+// other field is digits and a separator only. See scorebug-tesseract-pool.ts for why this needs
+// to be two separate whitelists/pools rather than one shared one.
+const FIELD_WHITELIST_KIND: Record<ScorebugFieldName, ScorebugWhitelistKind> = {
+  awayScore: "numeric",
+  possessionGlyph: "numeric", // unused (shape-classified, not OCR'd), kept for type completeness
+  homeScore: "numeric",
+  quarter: "label",
+  gameClock: "numeric",
+  playClock: "numeric",
+  downDistance: "label",
+  yardLineDirection: "numeric", // unused (shape-classified, not OCR'd), kept for type completeness
+  yardLine: "numeric",
+};
+
+async function ocrWithVariant(crop: Buffer, variant: FieldPreprocessVariant, whitelistKind: ScorebugWhitelistKind): Promise<ScorebugFieldResult> {
   const processed = await preprocessFieldCrop(crop, variant);
-  const result = await recognizeScorebugField(processed, undefined, { blocks: true });
+  const result = await recognizeScorebugField(whitelistKind, processed, undefined, { blocks: true });
   const words = flattenPageWords(result.data);
   if (!words.length) return { rawText: "", confidence: 0 };
   const rawText = words.map((w) => w.text.trim()).filter(Boolean).join(" ");
@@ -80,11 +95,12 @@ function looksLikeRealField(rawText: string): boolean {
 async function ocrRegion(frameBuffer: Buffer, regions: ScorebugRegionSet, fieldName: ScorebugFieldName, frameWidth: number, frameHeight: number): Promise<ScorebugFieldResult> {
   const pixels = regionToPixels(regions[fieldName], frameWidth, frameHeight);
   const crop = await sharp(frameBuffer).extract(pixels).toBuffer();
-  const attempt = await ocrWithVariant(crop, "default");
+  const whitelistKind = FIELD_WHITELIST_KIND[fieldName];
+  const attempt = await ocrWithVariant(crop, "default", whitelistKind);
   if (looksLikeRealField(attempt.rawText)) return attempt;
-  const clahe = await ocrWithVariant(crop, "clahe");
+  const clahe = await ocrWithVariant(crop, "clahe", whitelistKind);
   if (looksLikeRealField(clahe.rawText)) return clahe;
-  const lowThreshold = await ocrWithVariant(crop, "lowThreshold");
+  const lowThreshold = await ocrWithVariant(crop, "lowThreshold", whitelistKind);
   if (looksLikeRealField(lowThreshold.rawText)) return lowThreshold;
   // None of the three produced anything digit-shaped -- return empty rather than whichever
   // variant's non-digit noise happened to run last, so a caller can tell "no data" apart from

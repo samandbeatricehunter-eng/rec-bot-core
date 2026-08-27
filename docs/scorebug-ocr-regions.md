@@ -295,10 +295,41 @@ just fed the wrong ink data on this framing.
 | Yard-line direction | 12/18 |
 | Possession glyph | 17/18 classified, confirmed correct on the one frame with known ground truth |
 
-**Still open**: game clock, play clock, down-distance, and yard-line-number hit-rates remain the
-areas with the most room left (roughly half the batch each). All seven bugs found this session
-were caught by actually running the parser against real frames and checking specific results
-against manually-verified ground truth — not by re-eyeballing crops or assuming a fix worked.
+## Bug #8: one shared whitelist let letters stand in for digits, and bug #9: a truncated crop
+
+Two more found by reading the failure patterns across the whole batch instead of one frame at a
+time. Game/play clock kept reading a stray letter in place of the last digit
+(`3:2C`, `8:0C`, `1:0F`) — traced to the bug #6 whitelist fix itself: broadening it to cover
+"KICKOFF"'s letters (needed for down/distance) also let Tesseract substitute those letters for
+digit-shaped glyphs in the purely-numeric fields. Fixed by splitting into two whitelists routed
+to two separate pools (`scorebug-tesseract-pool.ts`): `numeric` (`0-9:` only) for scores/clocks/
+yard line, `label` (digits + ordinal/KICKOFF letters) for quarter and down/distance only.
+
+Separately, `gameClock` was consistently missing its last digit even on the numeric whitelist
+(`1:0` instead of `1:05`) — direct crop inspection showed why: the region's right edge sliced
+straight through the final digit's stroke. Widened `gameClock`'s `x1` from 0.737 to 0.749 (into
+real, verified empty space before `playClock`'s white box starts) and re-confirmed against the
+reference frame: `1:05` now reads correctly and completely.
+
+## Final numbers for this session (after all nine fixes)
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 15/18 correct |
+| Quarter | 15/18 |
+| Game clock | 14/18 — up from 9/18 immediately prior, 6/18 at the very start of this session |
+| Play clock | 13/18 — up from 10/18 |
+| Away/home score | 11/18, 13/18 |
+| Down & distance | 9/18 |
+| Yard line (number) | 10/18 |
+| Yard-line direction | 12/18 |
+| Possession glyph | 17/18 classified, confirmed correct on the one directional ground-truth frame |
+
+**Still open**: down-distance and yard-line-number remain the fields with the most room left —
+worth the same "read the actual failure text, don't guess" treatment the other fields already
+got. Every one of the nine bugs found this session was caught by actually running the parser
+against real frames and checking specific results against manually-verified ground truth, not
+by re-eyeballing crops or assuming a fix worked.
 
 ## Implementation
 
