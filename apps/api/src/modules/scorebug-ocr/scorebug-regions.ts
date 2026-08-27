@@ -43,8 +43,15 @@ export const SCOREBUG_REGIONS_NO_TICKER = {
   gameClock: { x0: 0.697, x1: 0.732, y0: 0.949, y1: 0.991 },
   playClock: { x0: 0.738, x1: 0.784, y0: 0.949, y1: 0.991 },
   downDistance: { x0: 0.825, x1: 0.870, y0: 0.949, y1: 0.991 },
-  yardLineDirection: { x0: 0.914, x1: 0.924, y0: 0.949, y1: 0.991 },
-  yardLine: { x0: 0.924, x1: 0.948, y0: 0.949, y1: 0.991 },
+  // yardLineDirection/yardLine were badly miscalibrated: a column-brightness projection against
+  // the ground-truth frame ("▲40") showed the old yardLineDirection band (0.914-0.924, pixels
+  // 1755-1774) was actually landing on a diagonal on-field yard-marker stripe at 1756-1770 --
+  // not the triangle at all, which sits at 1801-1810 -- and yardLine (0.924-0.948, 1774-1820)
+  // only caught the triangle's tail plus half of "40" (the real digits run 1817-1844). Both
+  // re-measured directly off the same column projection; the digits get extra right padding
+  // since 2-digit yard numbers vary in width.
+  yardLineDirection: { x0: 0.936, x1: 0.945, y0: 0.949, y1: 0.991 },
+  yardLine: { x0: 0.944, x1: 0.965, y0: 0.949, y1: 0.991 },
 } as const satisfies Record<string, FractionalRegion>;
 
 export type ScorebugFieldName = keyof typeof SCOREBUG_REGIONS;

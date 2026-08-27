@@ -352,8 +352,77 @@ instead of what the old regex would have produced (`0`, for the same reason). Ov
 down-distance non-null hit-rate holds at 9/18 — this was a correctness fix for values that
 were already being populated, not a hit-rate fix; the field's low hit-rate is still driven by
 outright OCR content loss (e.g. `"2N0"` for a real "2ND & 2" — the trailing digit just isn't
-there in the recognized text at all) rather than a parsing-logic bug, so yard-line-number and
-the OCR-content-loss cases remain the next things worth chasing.
+there in the recognized text at all) rather than a parsing-logic bug.
+
+## Bug #11: no-ticker yard-line region was cropping the wrong pixels entirely
+
+Moved on to yard-line-number, the other "still open" field. A frame with otherwise
+high-confidence OCR (`9d57dc737a880ea5a4b816211d0d3798.jpg`: away/home/quarter/clock/play-clock
+all correct at 87-96% confidence) was still coming back with a totally empty `yardLine`. Cropped
+the exact `SCOREBUG_REGIONS_NO_TICKER.yardLine`/`yardLineDirection` regions directly and found
+the real bug: the no-ticker framing's original calibration for these two fields was simply
+wrong. A column-brightness projection against the confirmed ground-truth frame (`▲40`) showed
+the old `yardLineDirection` band (pixels 1755-1774) was actually landing on a **diagonal
+on-field yard-marker stripe** at 1756-1770 — an unrelated background line, not the triangle at
+all, which sits at 1801-1810 — and the old `yardLine` band (1774-1820) only caught the
+triangle's tail plus half of "40" (the real digits run 1817-1844, wider than the configured
+crop). Re-measured both directly off the projection and widened `yardLine`'s right edge for
+padding since 2-digit yard numbers vary in width.
+
+Confirmed against both known frames: `▲40` → `40`, `▼44` (formerly-blank frame) → `44`. Batch
+yard-line-number hit-rate went 10/18 → 13/18.
+
+## Bug #12: sharp's chained `.normalise().threshold()` silently drops data on narrow crops
+
+While debugging Bug #11, the yard-line-direction *shape classifier* was still returning
+`"unknown"` on both now-correctly-cropped ground-truth frames (`▲40` and `▼44`), even though the
+crop itself was confirmed correct by eye. Dumped the crop's raw grayscale pixel values directly
+and found a real, sharp-triangle-shaped brightness pattern (values up to ~100) — then dumped the
+exact same buffer after `computeMassImbalance`'s pipeline (`.flatten().grayscale().normalise()
+.threshold(120)`) and every single pixel came back `0`. Isolated further: running `.normalise()`
+alone in that same chain correctly stretched contrast to a 0-251 range (confirmed by dumping
+those values), but adding `.threshold(120)` immediately after it **in the same pipeline** before
+`.raw()` silently returned all-zero data — reproduced consistently on the 17px-wide
+`yardLineDirection` crop, while the wider (41px) `possessionGlyph` crop was unaffected by the
+same chain. Materializing `.normalise()`'s output as a separate buffer first, then thresholding
+that in a second pipeline stage, gave the correct triangle shape every time — confirming this is
+a real sharp/libvips quirk with chaining those two operations together on some crop sizes, not a
+misunderstanding of what either operator does alone.
+
+Fixed by removing sharp's `.threshold()` call from `computeMassImbalance` entirely and doing the
+dark/light split manually in JS on `.normalise()`'s raw output (same 120 cutoff, just applied by
+hand instead of via a second chained sharp operator) — this sidesteps the quirk regardless of
+its exact root cause and is deterministically correct.
+
+This turned out to be the real reason the direction/possession shape classifiers had been
+under-performing all session, not a polarity or region problem on top of an already-working
+pipeline. Confirmed against both ground-truth frames: `▲40` → `up`, `▼44` → `down` (previously
+`unknown` on both, despite Bug #7's polarity fix already being logically correct). Batch results:
+yard-line-direction 12/18 → 17/18, possession 17/18 → 18/18 (full).
+
+## Final numbers for this session (after all twelve fixes)
+
+| Field | Hit rate |
+|---|---|
+| Live-scorebug classification | 15/18 correct |
+| Quarter | 15/18 |
+| Game clock | 14/18 |
+| Play clock | 13/18 |
+| Away/home score | 10/18, 14/18 |
+| Down & distance | 9/18, correct-when-non-null after bug #10 |
+| Yard line (number) | 13/18 |
+| Yard-line direction | 17/18 |
+| Possession glyph | 18/18 classified, 18/18 correct on all known/inferable cases |
+
+**Still open**: down-distance's low hit-rate is now confirmed to be outright OCR content loss on
+the numeric-whitelist crop (not a parsing-logic gap), and away/home score's misses are similarly
+mostly blank-crop cases rather than misparses — both would need either a crop/preprocessing
+improvement or accepting the ceiling PSM.SINGLE_LINE + a tight whitelist can reach on these tiny
+snippets. Every fix this session (twelve in total) was caught by actually running the parser
+against real frames and checking specific results against manually-verified ground truth, not by
+re-eyeballing crops or assuming a fix worked — including this session's biggest one (bug #12),
+which was invisible from the region math or the crop images alone and only surfaced by dumping
+raw pixel buffers at each pipeline stage.
 
 ## Implementation
 

@@ -187,7 +187,13 @@ function parseYardLine(text: string): number | null {
 // point).
 async function computeMassImbalance(frameBuffer: Buffer, region: FractionalRegion, frameWidth: number, frameHeight: number, axis: "horizontal" | "vertical"): Promise<number | null> {
   const pixels = regionToPixels(region, frameWidth, frameHeight);
-  const crop = sharp(frameBuffer).extract(pixels).flatten({ background: { r: 0, g: 0, b: 0 } }).grayscale().normalise().threshold(120);
+  // Threshold manually in JS on the normalised raw data rather than chaining sharp's
+  // .threshold() after .normalise() in one pipeline -- confirmed directly that chaining the two
+  // in a single pipeline silently returns all-zero data for some crop sizes (reproduced on the
+  // 17px-wide yardLineDirection crop; the 41px-wide possessionGlyph crop was unaffected), while
+  // materializing .normalise()'s raw output first and thresholding at 120 by hand gives the
+  // correct triangle shape every time.
+  const crop = sharp(frameBuffer).extract(pixels).flatten({ background: { r: 0, g: 0, b: 0 } }).grayscale().normalise();
   const { data, info } = await crop.raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
   if (width < 2 || height < 2) return null;
@@ -195,12 +201,12 @@ async function computeMassImbalance(frameBuffer: Buffer, region: FractionalRegio
   // Polarity isn't fixed -- the primary framing's score area is a light background with a dark
   // glyph, but the no-ticker framing's is a solid black background with a white/light glyph.
   // The glyph is always the minority of pixels in a small, mostly-background crop after
-  // threshold(), regardless of which absolute brightness it is, so count both polarities first
+  // thresholding, regardless of which absolute brightness it is, so count both polarities first
   // and treat whichever is rarer as ink.
   let darkCount = 0;
   let lightCount = 0;
   for (let i = 0; i < data.length; i++) {
-    if ((data[i] ?? 0) < 128) darkCount++; else lightCount++;
+    if ((data[i] ?? 0) < 120) darkCount++; else lightCount++;
   }
   const inkIsDark = darkCount <= lightCount;
 
@@ -210,7 +216,7 @@ async function computeMassImbalance(frameBuffer: Buffer, region: FractionalRegio
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const value = data[y * width + x] ?? 0;
-      const isDark = value < 128;
+      const isDark = value < 120;
       const ink = isDark === inkIsDark ? 1 : 0;
       const inFirstHalf = axis === "horizontal" ? x < midpoint : y < midpoint;
       if (inFirstHalf) firstHalfMass += ink; else secondHalfMass += ink;
