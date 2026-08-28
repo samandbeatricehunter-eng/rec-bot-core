@@ -21,12 +21,16 @@ function Section({ title, games }: { title: string; games: WeeklyMatchupBoardRen
       <h2 style={{ margin: 0, color: "#fff", fontFamily: "var(--font-display)", fontSize: 20, letterSpacing: "0.08em", textTransform: "uppercase" }}>{title}</h2>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
         {games.map((game) => (
-          <div key={game.gameId} style={{ width: 420 }}>
+          // MatchupCard's team-name font uses clamp(...,Nvw,...) sized against the full page
+          // viewport, not this tile's own width -- at a narrow tile (previously 420px) that
+          // produces a font far too large for the available column, wrapping every letter onto
+          // its own line and stretching the card absurdly tall. Widening the tile close to half
+          // the board gives that vw-driven font enough real column width to wrap normally,
+          // which is what actually fixes the height -- keeping cards landscape, 2 per row.
+          <div key={game.gameId} style={{ width: 900 }}>
             {/* Deliberately NOT renderMode="discord" -- that mode hardcodes a fixed 3.4rem,
               non-wrapping team-name font sized for a single 1600px-wide Discord embed card
-              (see matchup-render.ts), which clips badly at this grid tile's width. Default
-              "site" mode uses clamp()-based responsive sizing driven by viewport width, which
-              stays legible at any tile width on this fixed 1920px-wide render canvas. */}
+              (see matchup-render.ts), which clips badly at this grid tile's width. */}
             <MatchupCard game={game} showReactions={false} passive />
           </div>
         ))}

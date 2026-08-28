@@ -30,8 +30,8 @@ const RESOLVER = process.env.STREAM_RESOLVER_BIN?.trim() || "yt-dlp";
 // Pre/post-roll around a detected score-change frame -- shared by processCapture (which cuts
 // the clip) and processRecap (which needs each clip's known duration up front to time the
 // weekly recap's music fade-out without re-probing every downloaded clip).
-const CLIP_PRE_ROLL_SECONDS = 15;
-const CLIP_POST_ROLL_SECONDS = 10;
+const CLIP_PRE_ROLL_SECONDS = 20;
+const CLIP_POST_ROLL_SECONDS = 5;
 const CLIP_DURATION_SECONDS = CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS;
 
 // A stream's game may not have kicked off yet when a coach posts the link, so the resolver (and,
@@ -310,10 +310,17 @@ export function computeClipValue(input: {
   const leadChanged = marginBefore > 0 && leadAfter !== 0 && leadBefore !== leadAfter;
   const tyingPlay = marginBefore > 0 && marginAfter === 0;
 
-  let value = pointsScored * 3;
+  // Points scored is the single biggest driver of a play's own significance -- weighted enough
+  // that a touchdown clearly separates from a field goal instead of both just nudging the score.
+  let value = pointsScored * 5;
   if (leadChanged) value += 25;
   if (tyingPlay) value += 20;
-  if (input.turnover) value += 25;
+  // A turnover's value isn't flat -- it's highest when the game was still close beforehand (it
+  // had real potential to swing the outcome) and lowest in a blowout (it changes nothing that
+  // mattered). marginBefore is what the game looked like the instant before the takeaway, i.e.
+  // the turnover's actual context, not marginAfter (which the shared closeness bonus below
+  // already covers for the resulting field position/score).
+  if (input.turnover) value += 25 + Math.max(0, 10 - marginBefore);
   value += Math.max(0, 15 - marginAfter);
 
   const quarterNum = input.quarter === "OT" ? 5 : Number(input.quarter ?? 0);
@@ -381,7 +388,17 @@ async function processCapture(job: any) {
       && confirmed!.possession !== "neutral" && confirmed!.possession !== "unknown"
       && reading.possession !== "neutral" && reading.possession !== "unknown"
       && reading.possession !== confirmed!.possession;
-    if (scored) {
+    // Extra points and routine field goals fired constantly and bloated the recap with clips
+    // nobody wanted (confirmed live: a ~6-minute recap full of PAT/FG clutter). An extra point is
+    // never clip-worthy on its own -- always exactly +1, always suppressed. A field goal (+3) is
+    // only clip-worthy when the game is actually on the line: inside 2:00 of the 2nd or 4th
+    // quarter, or in overtime -- a 3rd-quarter or garbage-time field goal isn't.
+    const pointsScored = Math.max(1, reading.away - confirmed!.away, reading.home - confirmed!.home);
+    const clockSeconds = parseClockSeconds(parsed.gameClock);
+    const inClutchWindow = parsed.quarter === "OT" || ((parsed.quarter === 2 || parsed.quarter === 4) && clockSeconds != null && clockSeconds <= 120);
+    const isExtraPoint = pointsScored === 1;
+    const isRoutineFieldGoal = pointsScored === 3 && !inClutchWindow;
+    if (scored && !isExtraPoint && !isRoutineFieldGoal) {
       const value = computeClipValue({
         quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
         awayBefore: confirmed!.away, homeBefore: confirmed!.home, awayAfter: reading.away, homeAfter: reading.home,
