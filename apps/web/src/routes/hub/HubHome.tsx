@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
@@ -479,12 +479,14 @@ export function FinancialLedger({ summary }: { summary: any }) {
 
 function ScheduleWeekList({
   weeks,
+  game,
   currentWeek,
   highlightCounts,
   onUploadBoxScore,
   onUploadHighlight,
 }: {
   weeks: TeamScheduleManualState["weeks"];
+  game?: LeagueGame;
   currentWeek?: number;
   highlightCounts?: Record<number, number>;
   onUploadBoxScore?: (week: TeamScheduleManualState["weeks"][number]) => void;
@@ -498,7 +500,8 @@ function ScheduleWeekList({
       const highlightCount = highlightCounts?.[week.weekNumber] ?? 0;
       const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
       const missingHighlight = eligibleForActions && highlightCount < 2;
-      return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}${week.matchupCard ? " has-card" : ""}`}>
+      const isPostseasonUndetermined = !week.alreadyConfirmed && !week.isBye && Boolean(game) && week.weekNumber > regularSeasonWeeks(game!);
+      return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : isPostseasonUndetermined ? "postseason-tbd" : "missing"}${week.matchupCard ? " has-card" : ""}`}>
       {week.matchupCard ? (
         <div className="hub-schedule-mini-card hub-schedule-week-info">
           <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
@@ -507,7 +510,9 @@ function ScheduleWeekList({
       ) : (
       <div className="hub-schedule-week-info">
         <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-        {week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
+        {week.isBye ? <strong>Bye Week</strong>
+          : game && week.weekNumber > regularSeasonWeeks(game) ? <strong className="hub-schedule-postseason-tbd">Postseason — Not Yet Determined</strong>
+          : <strong className="hub-schedule-missing">Missing Matchup</strong>}
       </div>
       )}
       <div className="hub-schedule-week-aside">
@@ -2198,6 +2203,7 @@ export function HubHome() {
         // results get recorded, so it's available for both games.
         : <ScheduleWeekList
             weeks={mySchedule.weeks}
+            game={mySchedule.game as LeagueGame}
             currentWeek={hub.league.weekNumber}
             highlightCounts={myHighlightCounts ?? undefined}
             onUploadBoxScore={isCfbLeague ? setScheduleBoxScoreWeek : undefined}
