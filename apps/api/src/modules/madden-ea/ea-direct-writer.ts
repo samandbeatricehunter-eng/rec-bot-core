@@ -273,6 +273,40 @@ export async function directWriteSchedule(
     }
     written += 1;
   }
+
+  // Madden's real NFL-style schedule gives every team exactly one bye week, but nothing ever
+  // recorded that fact anywhere -- rec_team_byes was only ever written by CFB's manual
+  // schedule-builder commit flow, so a Madden bye week and a genuinely missing/unscheduled
+  // matchup looked identical to every reader (My Schedule, standings, etc). A bye is simply a
+  // team that doesn't appear in this week's EA schedule payload at all: derive it from the rows
+  // actually written above (not a broader rec_games scan, since a team missing from THIS
+  // import's payload for THIS week is the actual bye signal) and record it, once, per team.
+  if (phase === "regular_season" && rawRows.length) {
+    const scheduledTeamIds = new Set<string>();
+    for (const row of rawRows) {
+      const homeTeamId = num(row, ["homeTeamId", "home_team_id"]);
+      const awayTeamId = num(row, ["awayTeamId", "away_team_id"]);
+      const homeUuid = homeTeamId != null ? teamUuidFromMap(teamByMaddenId, String(homeTeamId)) : null;
+      const awayUuid = awayTeamId != null ? teamUuidFromMap(teamByMaddenId, String(awayTeamId)) : null;
+      if (homeUuid) scheduledTeamIds.add(homeUuid);
+      if (awayUuid) scheduledTeamIds.add(awayUuid);
+    }
+    const byeTeamIds = teams.rows.map((team) => team.id).filter((id) => !scheduledTeamIds.has(id));
+    // A payload covering only a handful of teams (a partial/re-sent export) would otherwise mark
+    // everyone else as "on bye" -- only trust this when the week's payload looks like a real full
+    // slate (at most a couple of teams unaccounted for, matching one real bye pairing gap).
+    if (byeTeamIds.length > 0 && byeTeamIds.length <= 2) {
+      for (const teamId of byeTeamIds) {
+        await pool.query(
+          `insert into rec_team_byes (id, league_id, season_number, team_id, week_number, bye_type, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, 'regular_season', now())
+           on conflict (league_id, season_number, team_id, week_number) do nothing`,
+          [leagueId, seasonNumber, teamId, displayWeek],
+        );
+      }
+    }
+  }
+
   return written;
 }
 
