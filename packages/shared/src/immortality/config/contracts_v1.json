@@ -1,0 +1,86 @@
+{
+  "rookie_contract": {
+    "seasons": [
+      1,
+      2,
+      3
+    ],
+    "per_season_coins": {
+      "top_10": 2500,
+      "rest_round_1": 2200,
+      "round_2": 1900,
+      "round_3": 1600,
+      "round_4": 1300,
+      "round_5": 1100,
+      "round_6": 900,
+      "round_7": 750
+    }
+  },
+  "performance_contracts": {
+    "contract_2_seasons": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "contract_3_seasons": [
+      8,
+      9,
+      10
+    ],
+    "score_weights": {
+      "position_normalized_production": 0.7,
+      "awards_and_milestones": 0.2,
+      "postseason_impact": 0.1
+    },
+    "bands": [
+      {
+        "min": 90,
+        "max": 100,
+        "tier": "Immortal Market",
+        "coins_per_season": 3500
+      },
+      {
+        "min": 80,
+        "max": 89.999,
+        "tier": "Superstar",
+        "coins_per_season": 3000
+      },
+      {
+        "min": 70,
+        "max": 79.999,
+        "tier": "Elite",
+        "coins_per_season": 2500
+      },
+      {
+        "min": 60,
+        "max": 69.999,
+        "tier": "Star",
+        "coins_per_season": 2100
+      },
+      {
+        "min": 45,
+        "max": 59.999,
+        "tier": "Starter",
+        "coins_per_season": 1700
+      },
+      {
+        "min": 30,
+        "max": 44.999,
+        "tier": "Prove It",
+        "coins_per_season": 1300
+      },
+      {
+        "min": 0,
+        "max": 29.999,
+        "tier": "Minimum",
+        "coins_per_season": 1000
+      }
+    ]
+  },
+  "characteristic_interactions": {
+    "Great Negotiator": "After the normal Contract II/III value is determined, multiply the offer by 1.20.",
+    "Known Commodity": "For Contract II/III, floor the player's base offer at the Elite band (2500 coins/season) before other bonuses.",
+    "stacked": "Known Commodity establishes the floor first; Great Negotiator then multiplies that result by 1.20. Example: poor window -> Elite floor 2500 -> Negotiator -> 3000 coins/season."
+  }
+}

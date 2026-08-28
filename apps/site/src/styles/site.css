@@ -4202,3 +4202,14 @@ h1, h2, h3, .site-wordmark {
   .site-header-brand { font-size: 14px; }
   .site-header-row2-detail:not(:last-child) { display: none; }
 }
+
+.rise-page { display: flex; flex-direction: column; gap: var(--space-4); max-width: 960px; margin: 0 auto; padding: var(--space-4); }
+.rise-hero h1 { margin: 4px 0 8px; }
+.rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); }
+.rise-side-tabs, .rise-actions, .rise-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.rise-stage-nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.rise-stage-nav button { border: var(--card-border); background: var(--card-bg); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
+.rise-stage-nav button.is-active { border-color: var(--gold, #d4a843); }
+.rise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
+.rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.rise-question { display: flex; flex-direction: column; gap: var(--space-2); }

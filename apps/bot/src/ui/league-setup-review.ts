@@ -6,11 +6,12 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from "discord.js";
-import { fairSimRuleLabel, forceWinRuleLabel, getDefaultNflSeasonLabelForGame, type MaddenLeagueGame } from "@rec/shared";
+import { fairSimRuleLabel, forceWinRuleLabel, getDefaultNflSeasonLabelForGame, RISE_TO_IMMORTALITY_LOCKED_SETTINGS, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import {
   LEAGUE_GAME_OPTIONS,
   LEAGUE_SETUP_CUSTOM_IDS,
+  isRiseToImmortalityDraft,
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory
 } from "./league-setup-types.js";
@@ -62,7 +63,7 @@ import {
   findCoachModeSubSetting
 } from "./league-setup-gameplay.js";
 import { buildFeatureDecisionWindow } from "./league-setup-purchases.js";
-import { buildGameSelectWindow, buildLeagueTypeWindow } from "./league-setup-core.js";
+import { buildGameSelectWindow, buildImmortalityPositionWindow, buildLeagueTypeWindow, buildRiseLockedEconomyWindow } from "./league-setup-core.js";
 
 function formatFwFsRules(draft: LeagueSetupDraft): { fairSim: string; forceWin: string } {
   const fwRegular = draft.forceWinRulesRegular.map((k) => forceWinRuleLabel(k));
@@ -142,10 +143,11 @@ function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
 
 export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: LeagueSetupSettingsCategory) {
   const isCfb = draft.game === "cfb_27";
+  const isRise = isRiseToImmortalityDraft(draft);
   if (!category) {
     const categoryChoices = [
       option("Features", "category:features"),
-      option("Purchases", "category:purchases"),
+      ...(isRise ? [] : [option("Purchases", "category:purchases")]),
       option("Server Setup", "category:server"),
       option("Rules & Policies", "category:rules"),
       ...(isCfb ? [option("Dynasty Settings", "category:dynasty")] : []),
@@ -172,7 +174,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
 
   const categoryOptions: Record<LeagueSetupSettingsCategory, StringSelectMenuOptionBuilder[]> = {
     features: [
-      option("Economy", "economy"),
+      ...(isRise ? [] : [option("Economy", "economy")]),
       option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
       ...(isCfb ? [] : [option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")])
     ],
@@ -214,8 +216,10 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Custom Playbooks Allowed?", "custom_playbooks_allowed"),
       option("Coach Ability Restrictions", "coach_abilities_restricted"),
       option("Position Change Policy", "position_changes"),
-      option("Trade Approval Policy", "trade_approval"),
-      option("CPU Trading", "cpu_trading")
+      ...(isRise ? [] : [
+        option("Trade Approval Policy", "trade_approval"),
+        option("CPU Trading", "cpu_trading"),
+      ]),
     ],
     dynasty: [
       option("Dynasty Structure", "dynasty_structure"),
@@ -250,11 +254,13 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Sliders Adjusted", "sliders_adjusted"),
       option("Quarter Length", "quarter_length"),
       option("Accelerated Clock", "accelerated_clock_enabled"),
-      option("Salary Cap", "salary_cap"),
-      option("Trade Deadline", "trade_deadline"),
+      ...(isRise ? [] : [
+        option("Salary Cap", "salary_cap"),
+        option("Trade Deadline", "trade_deadline"),
+      ]),
       option("Abilities", "abilities"),
       option("Wear & Tear", "wear_and_tear"),
-      option("Injuries", "injury_policy"),
+      ...(isRise ? [] : [option("Injuries", "injury_policy")]),
       option("Advance Timing", "advance_timing")
     ],
     franchise: [
@@ -333,12 +339,30 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
     .addFields(
       {
         name: "Identity",
-        value: [`Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`, `Type: ${fmt(draft.leagueType)}`, "Starts: Season 1, Training Camp", `Default Schedule: ${draft.seedDefaultSchedule == null ? "Not answered" : draft.seedDefaultSchedule ? `Seed ${defaultScheduleSeasonLabel(draft.game) ?? "NFL"} regular season` : "Skip seeding"}`].join("\n"),
+        value: [
+          `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
+          `Type: ${fmt(draft.leagueType)}`,
+          ...(isRiseToImmortalityDraft(draft)
+            ? [`Offense position: ${draft.immortalityOffensePosition}`, `Defense position: ${draft.immortalityDefensePosition}`]
+            : []),
+          "Starts: Season 1, Training Camp",
+          `Default Schedule: ${draft.seedDefaultSchedule == null ? "Not answered" : draft.seedDefaultSchedule ? `Seed ${defaultScheduleSeasonLabel(draft.game) ?? "NFL"} regular season` : "Skip seeding"}`,
+        ].join("\n"),
         inline: true
       },
       {
         name: "Features",
-        value: [
+        value: isRiseToImmortalityDraft(draft)
+          ? [
+              "Store purchases: Off",
+              "Attribute upgrades: Player XP",
+              "Coins: Annual contracts only",
+              `Injuries: ${fmt(draft.injuryPolicy)}`,
+              `Wear & Tear: ${yesNo(draft.wearAndTearEnabled)}`,
+              `Salary cap: ${yesNo(draft.salaryCapEnabled)}`,
+              "Trades: Off",
+            ].join("\n")
+          : [
           `Economy: ${yesNo(draft.coinEconomyEnabled)}`,
           `Custom Players: ${yesNo(draft.customPlayersEnabled)}`,
           `Legends: ${yesNo(draft.legendsEnabled)}`,
@@ -587,6 +611,8 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
+    case "immortality_offense_position": return buildImmortalityPositionWindow(draft, "offense");
+    case "immortality_defense_position": return buildImmortalityPositionWindow(draft, "defense");
     case "track_rosters": return buildCfbToggleWindow(draft, "CFB Setup: Track Rosters", LEAGUE_SETUP_CUSTOM_IDS.trackRosters, "Seed this league's initial rosters from the CFB 27 baseline roster dataset? Every team starts with the game-year reference roster instead of an empty one.", "Track Rosters from baseline?");
     case "dynasty_structure": return buildDynastyStructureWindow(draft);
     case "recruiting_difficulty": return buildRecruitingDifficultyWindow(draft);
@@ -596,7 +622,7 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "conference_assignments": return buildConferenceAssignmentsWindow(draft);
     case "home_field_advantage": return buildCfbToggleWindow(draft, "CFB Setup: Home-Field Advantage", LEAGUE_SETUP_CUSTOM_IDS.homeFieldAdvantage, "Enable Home-Field Advantage? Hostile road environments shake the play-art and pressure the visiting offense.", "Home-Field Advantage enabled?");
     case "stadium_pulse": return buildCfbToggleWindow(draft, "CFB Setup: Stadium Pulse", LEAGUE_SETUP_CUSTOM_IDS.stadiumPulse, "Enable Stadium Pulse? Crowd energy builds with momentum and affects the on-field atmosphere.", "Stadium Pulse enabled?");
-    case "economy": return buildFeatureDecisionWindow(draft);
+    case "economy": return isRiseToImmortalityDraft(draft) ? buildRiseLockedEconomyWindow(draft) : buildFeatureDecisionWindow(draft);
     case "custom_players":
     case "legends":
     case "dev_upgrades":
@@ -665,6 +691,34 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
 }
 
 export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
+  if (isRiseToImmortalityDraft(draft)) {
+    draft.game = "madden_27";
+    const locked = RISE_TO_IMMORTALITY_LOCKED_SETTINGS;
+    draft.coinEconomyEnabled = locked.coinEconomyEnabled;
+    draft.customPlayersEnabled = locked.customPlayersEnabled;
+    draft.customPlayersSeasonCap = locked.customPlayersSeasonCap;
+    draft.legendsEnabled = locked.legendsEnabled;
+    draft.legendsSeasonCap = locked.legendsSeasonCap;
+    draft.devUpgradesEnabled = locked.devUpgradesEnabled;
+    draft.devUpgradesSeasonCap = locked.devUpgradesSeasonCap;
+    draft.ageResetsEnabled = locked.ageResetsEnabled;
+    draft.ageResetsSeasonCap = locked.ageResetsSeasonCap;
+    draft.attributePurchasesEnabled = locked.attributePurchasesEnabled;
+    draft.coreAttributePurchasesSeasonCap = locked.coreAttributePurchasesSeasonCap;
+    draft.nonCoreAttributePurchasesSeasonCap = locked.nonCoreAttributePurchasesSeasonCap;
+    draft.playerTraitPurchasesEnabled = locked.playerTraitPurchasesEnabled;
+    draft.contractAdjustmentPurchasesEnabled = locked.contractAdjustmentPurchasesEnabled;
+    draft.contractPurchasesSeasonCap = locked.contractPurchasesSeasonCap;
+    draft.salaryCapEnabled = locked.salaryCapEnabled;
+    draft.tradeDeadlineEnabled = locked.tradeDeadlineEnabled;
+    draft.cpuTradingPolicy = locked.cpuTradingPolicy;
+    draft.cpuTradingAllowed = locked.cpuTradingAllowed;
+    draft.tradeApprovalPolicy = locked.tradeApprovalPolicy;
+    draft.injuryPolicy = locked.injuryPolicy;
+    draft.wearAndTearEnabled = locked.wearAndTearEnabled;
+    draft.abilitiesEnabled = locked.abilitiesEnabled;
+  }
+
   // CFB: Team Builder availability is coupled to the dynasty structure.
   // Mixed Teams ⇒ team builder on; Real Teams ⇒ off.
   draft.teamBuilderAllowed = draft.dynastyType === "mixed";

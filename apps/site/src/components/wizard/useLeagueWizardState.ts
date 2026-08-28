@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import {
   AFC_TEAMS, CFB_27_TEAMS, LEAGUE_SLIDER_CATALOG_VERSION, NFC_TEAMS, defaultLeagueSliderValues,
+  applyRiseToImmortalityLockedSettings,
 } from "@rec/shared";
 import { type SiteOpenTeam } from "../../lib/site-api.js";
 import {
@@ -36,6 +37,8 @@ export function useLeagueWizardState() {
   const [crossPlayEnabled, setCrossPlayEnabled] = useState(true);
   const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");
   const [leagueType, setLeagueType] = useState("");
+  const [immortalityOffensePosition, setImmortalityOffensePosition] = useState("QB");
+  const [immortalityDefensePosition, setImmortalityDefensePosition] = useState("MIKE");
   const [name, setName] = useState("");
   const [leagueLogoFile, setLeagueLogoFile] = useState<File | null>(null);
   const [customMaxMembers, setCustomMaxMembers] = useState(false);
@@ -201,11 +204,13 @@ export function useLeagueWizardState() {
   }, [existingCategories, newRuleCategory]);
 
   const collectConfig = useCallback(() => {
-    return {
+    const payload = {
       isOnline,
       crossPlayEnabled,
       requiredConsole: crossPlayEnabled ? undefined : requiredConsole,
       leagueType: leagueType || undefined,
+      immortalityOffensePosition: leagueType === "rise_to_immortality" ? immortalityOffensePosition : undefined,
+      immortalityDefensePosition: leagueType === "rise_to_immortality" ? immortalityDefensePosition : undefined,
       maxMembers: customMaxMembers ? maxMembers : 32,
       activeRostersEnabled: isCfb ? true : undefined,
       trackRostersEnabled: isCfb ? true : undefined,
@@ -329,8 +334,17 @@ export function useLeagueWizardState() {
       coachXpSetting: isCfb ? coachXpSetting : undefined,
       leaguePassword: leaguePassword || undefined,
     };
+    if (leagueType === "rise_to_immortality" || templateId === "rise_to_immortality") {
+      return {
+        ...applyRiseToImmortalityLockedSettings(payload),
+        immortalityOffensePosition,
+        immortalityDefensePosition,
+      };
+    }
+    return payload;
   }, [
     game, isOnline, crossPlayEnabled, requiredConsole, leagueType, customMaxMembers, maxMembers, name, leaguePassword,
+    immortalityOffensePosition, immortalityDefensePosition, templateId,
     seasonNumber, seasonStage, currentWeek, skipToStage, skipToStageValue,
     regularSeasonStreamingRequirement, regularSeasonStreamingSide,
     postseasonStreamingRequirement, postseasonStreamingSide,
@@ -539,6 +553,10 @@ export function useLeagueWizardState() {
     setRequiredConsole,
     leagueType,
     setLeagueType,
+    immortalityOffensePosition,
+    setImmortalityOffensePosition,
+    immortalityDefensePosition,
+    setImmortalityDefensePosition,
     name,
     setName,
     leagueLogoFile,

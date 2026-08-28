@@ -355,6 +355,66 @@ export type SiteLeagueSummary = {
   currentWeek?: number | null;
   matchupKind?: "h2h" | "cpu" | "bye" | "offseason" | "none";
   matchupLabel?: string;
+  rosterType?: string | null;
+};
+
+export type ImmortalityInterviewQuestion = {
+  number: number;
+  question: string;
+  options: Array<{ text: string }>;
+};
+
+export type ImmortalityCharacteristic = {
+  key: string;
+  displayName: string;
+  positionGroup: string;
+  slotCost: number;
+  effect: string;
+  tags: string[];
+};
+
+export type ImmortalityHubResponse = {
+  league: {
+    id: string;
+    leagueId: string;
+    chapterState: string;
+    chapter: string;
+    offensePosition: string;
+    defensePosition: string;
+    creationPointBudget: number;
+    originsOpen: boolean;
+  };
+  prospects: Array<Record<string, unknown>>;
+  catalogs: {
+    characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
+    persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
+    playstyle: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
+  };
+};
+
+export type ImmortalityIdentityInput = {
+  firstName: string;
+  lastName: string;
+  age: number;
+  hometown?: string;
+  hometownState?: string;
+  college?: string | null;
+  jerseyNumber: number;
+  heightInches: number;
+  weightLbs: number;
+  bodyType?: string;
+};
+
+export type ImmortalityIqState = {
+  attemptId: string;
+  currentQuestion: number;
+  questionExpiresAt: string;
+  completed: boolean;
+  iqScore: number | null;
+  awareness: number | null;
+  playRecognition: number | null;
+  question: { number: number; question: string; options: string[] } | null;
+  optionOrder: number[];
 };
 
 export type SiteLeagueTickerItem = {
@@ -987,6 +1047,36 @@ export const siteApi = {
   },
   createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; [key: string]: unknown }) {
     return request<{ league: { id: string; name: string; game: string } }>("/v1/site-leagues/create", input);
+  },
+  immortalityHub(guildId: string) {
+    return request<ImmortalityHubResponse>("/v1/immortality/hub", { guildId });
+  },
+  immortalitySaveIdentity(input: { guildId: string; side: "offense" | "defense"; identity: ImmortalityIdentityInput }) {
+    return request<Record<string, unknown>>("/v1/immortality/prospect/identity", input);
+  },
+  immortalityStartIq(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<ImmortalityIqState>("/v1/immortality/iq/start", input);
+  },
+  immortalityAnswerIq(input: { guildId: string; side: "offense" | "defense"; questionNumber: number; selectedPresentedIndex: number | null }) {
+    return request<ImmortalityIqState>("/v1/immortality/iq/answer", input);
+  },
+  immortalitySubmitPersona(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
+    return request<{ label: string; primary: string; secondary: string; scores: Record<string, number> }>("/v1/immortality/interview/persona", input);
+  },
+  immortalitySubmitPlaystyle(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
+    return request<{ primaryArchetype: string; secondaryArchetype: string; blend: { kind: string } }>("/v1/immortality/interview/playstyle", input);
+  },
+  immortalitySelectCharacteristics(input: { guildId: string; side: "offense" | "defense"; keys: string[] }) {
+    return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);
+  },
+  immortalityEvaluateCreation(input: { guildId: string; side: "offense" | "defense"; spent: Record<string, number> }) {
+    return request<{ estimatedOvr?: number; estimated_ovr?: number; creationPointsSpent?: number; creation_points_spent?: number; spentPoints?: number }>("/v1/immortality/creation/evaluate", input);
+  },
+  immortalityTransitionState(input: { guildId: string; toState: string }) {
+    return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);
+  },
+  immortalitySolveDraft(guildId: string) {
+    return request<{ assignments?: unknown[] }>("/v1/immortality/draft/solve", { guildId });
   },
   async uploadLeagueLogo(leagueId: string, file: File) {
     const base = requireApiBaseUrl();

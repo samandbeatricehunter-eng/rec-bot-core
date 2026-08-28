@@ -64,6 +64,7 @@ import { pushRoutes } from "./modules/push/push.routes.js";
 import { pollsRoutes } from "./modules/polls/polls.routes.js";
 import { draftPicksRoutes } from "./modules/draft-picks/draft-picks.routes.js";
 import { tradesRoutes } from "./modules/trades/trades.routes.js";
+import { immortalityRoutes } from "./modules/immortality/immortality.routes.js";
 import { fantasyDraftRoutes } from "./modules/fantasy-draft/fantasy-draft.routes.js";
 import { publicLeagueRoutes } from "./modules/public-league/public-league.routes.js";
 import { standingsRoutes } from "./modules/standings/standings.routes.js";
@@ -130,6 +131,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await pollsRoutes(app);
   await draftPicksRoutes(app);
   await tradesRoutes(app);
+  await immortalityRoutes(app);
   await fantasyDraftRoutes(app);
   await publicLeagueRoutes(app);
   await standingsRoutes(app);

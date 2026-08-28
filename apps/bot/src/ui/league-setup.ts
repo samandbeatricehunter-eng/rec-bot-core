@@ -16,6 +16,7 @@ export {
   createDefaultLeagueSetupDraft,
   getPreviousLeagueSetupStep,
   getNextLeagueSetupStep,
+  isRiseToImmortalityDraft,
   LEAGUE_GAME_OPTIONS,
   type LeagueSetupSettingsCategory,
   type LeagueGame,

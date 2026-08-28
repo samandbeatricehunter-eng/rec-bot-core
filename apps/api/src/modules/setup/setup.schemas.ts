@@ -46,7 +46,9 @@ export const CreateLeagueSchema = z.object({
   // here — league creation picks the game-aware default (see defaultDataModeForGame in
   // setup.service.ts) when this is omitted; settings saves always send it explicitly.
   dataMode: z.enum(["import", "box_scores", "manual"]).optional(),
-  leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
+  leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters", "rise_to_immortality"]).default("regular_rosters"),
+  immortalityOffensePosition: z.enum(["QB", "HB", "WR", "TE"]).optional(),
+  immortalityDefensePosition: z.enum(["CB", "FS", "SS", "MIKE"]).optional(),
   // Madden only, custom_rosters only: a wizard-step confirmation asked right after picking
   // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false
   // (no preseed) so commissioners who want a truly blank roster get one without an extra step.

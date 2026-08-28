@@ -1,0 +1,114 @@
+{
+  "mode_name": "REC: Rise to Immortality",
+  "version": "v1-build-spec",
+  "max_seasons": 10,
+  "competition_layers": [
+    "team_success",
+    "created_player_success"
+  ],
+  "created_players_per_user": {
+    "offense": 1,
+    "defense": 1
+  },
+  "supported_position_groups": {
+    "QB": [
+      "QB"
+    ],
+    "HB": [
+      "HB"
+    ],
+    "WR_TE": [
+      "WR",
+      "TE"
+    ],
+    "DB": [
+      "CB",
+      "FS",
+      "SS"
+    ],
+    "LB": [
+      "MIKE"
+    ]
+  },
+  "madden_rules": {
+    "player_lock": false,
+    "trades_allowed": false,
+    "salary_cap": false,
+    "injuries": false,
+    "fatigue": true,
+    "wear_and_tear": true
+  },
+  "origins": {
+    "iq_start": 80,
+    "iq_max": 140,
+    "iq_questions": 12,
+    "iq_points_per_correct": 5,
+    "seconds_per_question": 25,
+    "timeout_behavior": "record_no_answer_zero_points_and_auto_advance",
+    "back_navigation": false,
+    "characteristic_slots": 6,
+    "characteristics_selected_before_creation_points": true,
+    "baseline_ovr_target": "68-72, centered near 70, derived from active Madden 27 baseline dataset",
+    "post_creation_typical_ovr_target": "76-82",
+    "post_creation_exceptional_target": "83-84; 85+ should be rare"
+  },
+  "draft": {
+    "rookie_draft": "virtual draft that assigns each user's two created players to the same franchise",
+    "team_reveal_after_second_player": true,
+    "team_fantasy_draft_manual_rounds": 3,
+    "remainder_simulated": true
+  },
+  "contracts": [
+    {
+      "name": "Rookie Contract",
+      "seasons": [
+        1,
+        2,
+        3
+      ],
+      "salary_basis": "rookie draft position"
+    },
+    {
+      "name": "Second Contract",
+      "seasons": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "salary_basis": "performance during seasons 1-3"
+    },
+    {
+      "name": "Legacy Contract",
+      "seasons": [
+        8,
+        9,
+        10
+      ],
+      "salary_basis": "performance during seasons 4-7"
+    }
+  ],
+  "xp": {
+    "sources": [
+      "weekly challenges",
+      "season milestones",
+      "career milestones",
+      "awards",
+      "playoff achievements",
+      "championships"
+    ],
+    "team_xp_default_unlock": "when created player reaches his development ceiling",
+    "player_to_team_xp_conversion": {
+      "player_xp": 4,
+      "team_xp": 3
+    },
+    "team_player_characteristic_override": "allows Team XP spending from career start"
+  },
+  "immortality": {
+    "offensive_winner_count": 1,
+    "defensive_winner_count": 1,
+    "self_vote_allowed": false,
+    "career_score_weight": 0.7,
+    "league_vote_weight": 0.3
+  }
+}

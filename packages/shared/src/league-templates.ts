@@ -1,4 +1,4 @@
-export type LeagueTemplateId = "rec_recommended" | "normal_regs" | "hardcore_regs" | "normal_fantasy" | "fantasy_free_for_all";
+export type LeagueTemplateId = "rec_recommended" | "normal_regs" | "hardcore_regs" | "normal_fantasy" | "fantasy_free_for_all" | "rise_to_immortality";
 export type LeagueTemplateGame = "madden" | "cfb";
 
 export interface LeagueTemplateMeta {
@@ -88,10 +88,11 @@ export const MADDEN_LEAGUE_TEMPLATES: LeagueTemplateMeta[] = [
   { id:"hardcore_regs", name:"Hardcore Regs", tagline:"Competitive and highly regulated", description:"Strict play calling, standard injuries, difficult CPU trades, and narrow purchase limits." },
   { id:"normal_fantasy", name:"Normal Fantasy", tagline:"Structured fantasy rosters", description:"Fantasy rosters with normal REC rules and the full Madden economy." },
   { id:"fantasy_free_for_all", name:"Fantasy Free-For-All", tagline:"Casual and wide open", description:"Fantasy rosters, open gameplay and trading, and unlimited enabled purchases." },
+  { id:"rise_to_immortality", name:"Rise to Immortality", tagline:"10-season player-career RPG", description:"Madden 27 only. Create one offensive and one defensive cornerstone. Store purchases are off — Player XP upgrades ratings, then Team XP. Coins come from annual contracts, not weekly payouts." },
 ];
 
 export const CFB_LEAGUE_TEMPLATES: LeagueTemplateMeta[] = MADDEN_LEAGUE_TEMPLATES
-  .filter((template) => !["normal_fantasy","fantasy_free_for_all"].includes(template.id))
+  .filter((template) => !["normal_fantasy","fantasy_free_for_all","rise_to_immortality"].includes(template.id))
   .map((template) => ({ ...template, description: template.id === "rec_recommended"
     ? "Heisman gameplay, REC rules, automatic roster tracking, custom players, and Campus Legends."
     : template.id === "normal_regs"
@@ -141,6 +142,13 @@ function maddenPreset(id: LeagueTemplateId): LeagueTemplatePreset {
     customPlayersEnabled:true, customPlayersSeasonCap:2, legendsEnabled:true, legendsSeasonCap:2, devUpgradesEnabled:true, devUpgradesSeasonCap:2,
     ageResetsEnabled:true, ageResetsSeasonCap:1, attributePurchasesEnabled:true, coreAttributePurchasesSeasonCap:2,
     nonCoreAttributePurchasesSeasonCap:25, coreAttributes:CORE_STANDARD, contractAdjustmentPurchasesEnabled:true, contractPurchasesSeasonCap:2 };
+  if (id === "rise_to_immortality") return { ...p, leagueType:"rise_to_immortality", injuryPolicy:"off", salaryCapEnabled:false, tradeDeadlineEnabled:false,
+    tradeApprovalPolicy:"no_approval_required", cpuTradingPolicy:"not_allowed", cpuTradesSeasonCap:0, positionChangePolicy:"restricted",
+    wearAndTearEnabled:true, abilitiesEnabled:true, coinEconomyEnabled:true,
+    customPlayersEnabled:false, customPlayersSeasonCap:0, legendsEnabled:false, legendsSeasonCap:0,
+    devUpgradesEnabled:false, devUpgradesSeasonCap:0, ageResetsEnabled:false, ageResetsSeasonCap:0,
+    attributePurchasesEnabled:false, coreAttributePurchasesSeasonCap:0, nonCoreAttributePurchasesSeasonCap:0, coreAttributes:[],
+    contractAdjustmentPurchasesEnabled:false, contractPurchasesSeasonCap:0 };
   return { ...p, leagueType:"fantasy_draft", difficulty:"all_pro", acceleratedClockEnabled:false, injuryPolicy:"off", wearAndTearEnabled:false,
     tradeDifficulty:"very_easy", freeAgentMotivationImpact:"off", tradeDeadlineEnabled:false, positionChangePolicy:"open",
     fourthDownRuleTypeRegular:"none", fourthDownRuleTypePlayoff:"none", offensivePlayCallCooldownEnabled:false, defensivePlayCallCooldownEnabled:false,
@@ -167,6 +175,7 @@ export const NORMAL_CORE_ATTRIBUTES = CORE_STANDARD;
 export const ALL_MADDEN_ATTRIBUTE_CODES = CORE_STANDARD;
 
 export function getLeagueTemplatePreset(game: "madden_26"|"madden_27"|"cfb_27", id: LeagueTemplateId): LeagueTemplatePreset | null {
+  if (id === "rise_to_immortality") return game === "madden_27" ? MADDEN_TEMPLATE_PRESETS[id] : null;
   return game === "cfb_27" ? CFB_TEMPLATE_PRESETS[id] ?? null : MADDEN_TEMPLATE_PRESETS[id];
 }
 
@@ -184,7 +193,14 @@ export function describeTemplateSettings(preset: LeagueTemplatePreset, game: Lea
       {label:"Postseason",value:`${preset.postseasonStreamingRequirement} (${preset.postseasonStreamingSide})`},
       {label:"Game of the Week",value:`${preset.gotwStreamingRequirement} (${preset.gotwStreamingSide})`},
     ]},
-    { key:"economy", label:"Economy", blurb:"Enabled purchases and season limits.", rows:[
+    { key:"economy", label:"Economy", blurb: preset.leagueType === "rise_to_immortality"
+      ? "Store purchases are off. Attribute growth is Player XP; coins are annual contract payments."
+      : "Enabled purchases and season limits.", rows: preset.leagueType === "rise_to_immortality" ? [
+      {label:"Store purchases",value:"Off"},
+      {label:"Attribute upgrades",value:"Player XP (weekly / season / career)"},
+      {label:"Team upgrades",value:"Team XP after ceiling (or Team Player)"},
+      {label:"Coins",value:"Annual contracts only"},
+    ] : [
       {label:"Custom players",value:preset.customPlayersEnabled ? `${preset.customPlayersSeasonCap || "Unlimited"}/season` : "Off"},
       {label:"Legends",value:preset.legendsEnabled ? `${preset.legendsSeasonCap || "Unlimited"}/season` : "Off"},
       {label:"Attributes",value:preset.attributePurchasesEnabled ? `${preset.coreAttributePurchasesSeasonCap || "Unlimited"}/core attribute` : "Off"},

@@ -1,0 +1,573 @@
+{
+  "scoring": {
+    "primary_answer_points": 2,
+    "related_secondary_points": 1,
+    "blend_rules": {
+      "clear_primary": "75/25",
+      "near_tie_within_2_points": "65/35",
+      "dominant_primary": "80/20"
+    }
+  },
+  "groups": {
+    "QB": [
+      {
+        "number": 6,
+        "question": "It's 3rd-and-8. Your first read is covered.",
+        "options": [
+          {
+            "text": "Work methodically through the progression.",
+            "primary_archetype": "Field General"
+          },
+          {
+            "text": "Attack the tight downfield window anyway.",
+            "primary_archetype": "Strong Arm"
+          },
+          {
+            "text": "Escape the pocket and create something with your legs.",
+            "primary_archetype": "Scrambler"
+          },
+          {
+            "text": "Extend the play while continuing to look downfield.",
+            "primary_archetype": "Improviser"
+          }
+        ]
+      },
+      {
+        "number": 7,
+        "question": "Which quarterback trait do you value most?",
+        "options": [
+          {
+            "text": "Accuracy",
+            "primary_archetype": "Field General"
+          },
+          {
+            "text": "Arm strength",
+            "primary_archetype": "Strong Arm"
+          },
+          {
+            "text": "Mobility",
+            "primary_archetype": "Scrambler"
+          },
+          {
+            "text": "Ability to create when the play breaks down",
+            "primary_archetype": "Improviser"
+          }
+        ]
+      },
+      {
+        "number": 8,
+        "question": "The defense repeatedly brings pressure.",
+        "options": [
+          {
+            "text": "Identify it pre-snap and change protection.",
+            "primary_archetype": "Field General"
+          },
+          {
+            "text": "Make them pay by attacking vertically.",
+            "primary_archetype": "Strong Arm"
+          },
+          {
+            "text": "Escape the rush and force them to chase you.",
+            "primary_archetype": "Scrambler"
+          },
+          {
+            "text": "Move the pocket and create a throwing opportunity.",
+            "primary_archetype": "Improviser"
+          }
+        ]
+      },
+      {
+        "number": 9,
+        "question": "From midfield you get one-on-one coverage outside.",
+        "options": [
+          {
+            "text": "Take the matchup only if the read confirms it.",
+            "primary_archetype": "Field General"
+          },
+          {
+            "text": "Give my receiver a chance deep.",
+            "primary_archetype": "Strong Arm"
+          },
+          {
+            "text": "Move until either the receiver or a running lane appears.",
+            "primary_archetype": "Scrambler"
+          },
+          {
+            "text": "Manipulate the play until I create the matchup I want.",
+            "primary_archetype": "Improviser"
+          }
+        ]
+      },
+      {
+        "number": 10,
+        "question": "How should defenders describe playing against you?",
+        "options": [
+          {
+            "text": "He always knew what we were doing.",
+            "primary_archetype": "Field General"
+          },
+          {
+            "text": "He could make throws nobody else could.",
+            "primary_archetype": "Strong Arm"
+          },
+          {
+            "text": "We could never keep him contained.",
+            "primary_archetype": "Scrambler"
+          },
+          {
+            "text": "The play was never over when he had the ball.",
+            "primary_archetype": "Improviser"
+          }
+        ]
+      }
+    ],
+    "HB": [
+      {
+        "number": 6,
+        "question": "A run develops with a narrow crease inside and space available outside. What is your instinct?",
+        "options": [
+          {
+            "text": "Read the blocks and take the correct lane.",
+            "primary_archetype": "Complete/Vision"
+          },
+          {
+            "text": "Lower the shoulder and attack the crease.",
+            "primary_archetype": "Power"
+          },
+          {
+            "text": "Bounce outside and hunt the explosive play.",
+            "primary_archetype": "Elusive"
+          },
+          {
+            "text": "Make the first defender miss and improvise.",
+            "primary_archetype": "All-Purpose"
+          }
+        ]
+      },
+      {
+        "number": 7,
+        "question": "What matters most to you as a runner?",
+        "options": [
+          {
+            "text": "Vision",
+            "primary_archetype": "Complete/Vision"
+          },
+          {
+            "text": "Power",
+            "primary_archetype": "Power"
+          },
+          {
+            "text": "Speed",
+            "primary_archetype": "Elusive"
+          },
+          {
+            "text": "Versatility",
+            "primary_archetype": "All-Purpose"
+          }
+        ]
+      },
+      {
+        "number": 8,
+        "question": "It's 3rd-and-4.",
+        "options": [
+          {
+            "text": "Find the crease and get the needed yards.",
+            "primary_archetype": "Complete/Vision"
+          },
+          {
+            "text": "Run through contact.",
+            "primary_archetype": "Power"
+          },
+          {
+            "text": "Get me into space.",
+            "primary_archetype": "Elusive"
+          },
+          {
+            "text": "Use me in the passing game.",
+            "primary_archetype": "All-Purpose"
+          }
+        ]
+      },
+      {
+        "number": 9,
+        "question": "One safety stands between you and the end zone.",
+        "options": [
+          {
+            "text": "Set him up and make the correct cut.",
+            "primary_archetype": "Complete/Vision"
+          },
+          {
+            "text": "Run through him.",
+            "primary_archetype": "Power"
+          },
+          {
+            "text": "Beat him to open grass.",
+            "primary_archetype": "Elusive"
+          },
+          {
+            "text": "Make him miss.",
+            "primary_archetype": "All-Purpose"
+          }
+        ]
+      },
+      {
+        "number": 10,
+        "question": "What reputation do you want?",
+        "options": [
+          {
+            "text": "Complete back",
+            "primary_archetype": "Complete/Vision"
+          },
+          {
+            "text": "Punishing runner",
+            "primary_archetype": "Power"
+          },
+          {
+            "text": "Home-run threat",
+            "primary_archetype": "Elusive"
+          },
+          {
+            "text": "Matchup nightmare",
+            "primary_archetype": "All-Purpose"
+          }
+        ]
+      }
+    ],
+    "WR_TE": [
+      {
+        "number": 6,
+        "question": "You are pressed at the line. How do you want to win?",
+        "options": [
+          {
+            "text": "Win with technique and leverage.",
+            "primary_archetype": "Technician/Possession"
+          },
+          {
+            "text": "Beat the defender physically.",
+            "primary_archetype": "Physical"
+          },
+          {
+            "text": "Get vertical as quickly as possible.",
+            "primary_archetype": "Vertical/Deep Threat"
+          },
+          {
+            "text": "Use movement and leverage to create space.",
+            "primary_archetype": "RAC/Hybrid"
+          }
+        ]
+      },
+      {
+        "number": 7,
+        "question": "Which trait would you rather be elite at?",
+        "options": [
+          {
+            "text": "Route running",
+            "primary_archetype": "Technician/Possession"
+          },
+          {
+            "text": "Contested catches",
+            "primary_archetype": "Physical"
+          },
+          {
+            "text": "Vertical production",
+            "primary_archetype": "Vertical/Deep Threat"
+          },
+          {
+            "text": "Yards after catch / versatility",
+            "primary_archetype": "RAC/Hybrid"
+          }
+        ]
+      },
+      {
+        "number": 8,
+        "question": "It's 3rd-and-7.",
+        "options": [
+          {
+            "text": "Separate exactly at the sticks.",
+            "primary_archetype": "Technician/Possession"
+          },
+          {
+            "text": "Win through contact.",
+            "primary_archetype": "Physical"
+          },
+          {
+            "text": "Attack beyond the marker.",
+            "primary_archetype": "Vertical/Deep Threat"
+          },
+          {
+            "text": "Catch underneath and create the first down myself.",
+            "primary_archetype": "RAC/Hybrid"
+          }
+        ]
+      },
+      {
+        "number": 9,
+        "question": "Which matchup do you prefer?",
+        "options": [
+          {
+            "text": "A technical cover defender.",
+            "primary_archetype": "Technician/Possession"
+          },
+          {
+            "text": "A physical press defender.",
+            "primary_archetype": "Physical"
+          },
+          {
+            "text": "One-on-one without safety help.",
+            "primary_archetype": "Vertical/Deep Threat"
+          },
+          {
+            "text": "A slower linebacker or safety in space.",
+            "primary_archetype": "RAC/Hybrid"
+          }
+        ]
+      },
+      {
+        "number": 10,
+        "question": "What should defenses fear most?",
+        "options": [
+          {
+            "text": "Precision",
+            "primary_archetype": "Technician/Possession"
+          },
+          {
+            "text": "Physicality",
+            "primary_archetype": "Physical"
+          },
+          {
+            "text": "Speed",
+            "primary_archetype": "Vertical/Deep Threat"
+          },
+          {
+            "text": "Versatility",
+            "primary_archetype": "RAC/Hybrid"
+          }
+        ]
+      }
+    ],
+    "DB": [
+      {
+        "number": 6,
+        "question": "You are isolated against the offense's best receiving threat.",
+        "options": [
+          {
+            "text": "Stay technically sound and erase the route.",
+            "primary_archetype": "Coverage/Shutdown"
+          },
+          {
+            "text": "Hunt the quarterback and attack the football.",
+            "primary_archetype": "Ball Hawk"
+          },
+          {
+            "text": "Disrupt the receiver physically.",
+            "primary_archetype": "Physical/Run Support"
+          },
+          {
+            "text": "Study the concept and anticipate where the ball is going.",
+            "primary_archetype": "Processor/Field General"
+          }
+        ]
+      },
+      {
+        "number": 7,
+        "question": "What matters most to you as a defensive back?",
+        "options": [
+          {
+            "text": "Coverage ability",
+            "primary_archetype": "Coverage/Shutdown"
+          },
+          {
+            "text": "Ball skills",
+            "primary_archetype": "Ball Hawk"
+          },
+          {
+            "text": "Physicality and tackling",
+            "primary_archetype": "Physical/Run Support"
+          },
+          {
+            "text": "Recognition and communication",
+            "primary_archetype": "Processor/Field General"
+          }
+        ]
+      },
+      {
+        "number": 8,
+        "question": "Third-and-long. What is your priority?",
+        "options": [
+          {
+            "text": "Do not surrender the first down.",
+            "primary_archetype": "Coverage/Shutdown"
+          },
+          {
+            "text": "Create a takeaway.",
+            "primary_archetype": "Ball Hawk"
+          },
+          {
+            "text": "Disrupt timing and punish the catch.",
+            "primary_archetype": "Physical/Run Support"
+          },
+          {
+            "text": "Diagnose the route combination.",
+            "primary_archetype": "Processor/Field General"
+          }
+        ]
+      },
+      {
+        "number": 9,
+        "question": "You get beaten for a big play. What is the adjustment?",
+        "options": [
+          {
+            "text": "Fix the technique.",
+            "primary_archetype": "Coverage/Shutdown"
+          },
+          {
+            "text": "Steal one back later.",
+            "primary_archetype": "Ball Hawk"
+          },
+          {
+            "text": "Challenge the receiver physically.",
+            "primary_archetype": "Physical/Run Support"
+          },
+          {
+            "text": "Identify the route tell or concept that beat you.",
+            "primary_archetype": "Processor/Field General"
+          }
+        ]
+      },
+      {
+        "number": 10,
+        "question": "How should quarterbacks describe you?",
+        "options": [
+          {
+            "text": "Nowhere to throw.",
+            "primary_archetype": "Coverage/Shutdown"
+          },
+          {
+            "text": "One mistake becomes a turnover.",
+            "primary_archetype": "Ball Hawk"
+          },
+          {
+            "text": "Receivers pay for entering my area.",
+            "primary_archetype": "Physical/Run Support"
+          },
+          {
+            "text": "He knew where the play was going.",
+            "primary_archetype": "Processor/Field General"
+          }
+        ]
+      }
+    ],
+    "LB": [
+      {
+        "number": 6,
+        "question": "You see run action while a route develops behind it.",
+        "options": [
+          {
+            "text": "Maintain coverage responsibility.",
+            "primary_archetype": "Coverage LB"
+          },
+          {
+            "text": "Find the passing lane and hunt the ball.",
+            "primary_archetype": "Playmaker"
+          },
+          {
+            "text": "Attack the run immediately.",
+            "primary_archetype": "Run Stopper/Enforcer"
+          },
+          {
+            "text": "Diagnose the concept before committing.",
+            "primary_archetype": "Field General"
+          }
+        ]
+      },
+      {
+        "number": 7,
+        "question": "Which play is most satisfying?",
+        "options": [
+          {
+            "text": "Perfect coverage.",
+            "primary_archetype": "Coverage LB"
+          },
+          {
+            "text": "An interception or forced turnover.",
+            "primary_archetype": "Playmaker"
+          },
+          {
+            "text": "Stuffing the runner.",
+            "primary_archetype": "Run Stopper/Enforcer"
+          },
+          {
+            "text": "Calling out the play before the snap.",
+            "primary_archetype": "Field General"
+          }
+        ]
+      },
+      {
+        "number": 8,
+        "question": "The offense repeatedly attacks with quick passes.",
+        "options": [
+          {
+            "text": "Tighten the windows.",
+            "primary_archetype": "Coverage LB"
+          },
+          {
+            "text": "Bait the quarterback into a mistake.",
+            "primary_archetype": "Playmaker"
+          },
+          {
+            "text": "Punish receivers crossing my area.",
+            "primary_archetype": "Run Stopper/Enforcer"
+          },
+          {
+            "text": "Recognize the concept and adjust the defense.",
+            "primary_archetype": "Field General"
+          }
+        ]
+      },
+      {
+        "number": 9,
+        "question": "It's 4th-and-1.",
+        "options": [
+          {
+            "text": "Execute my gap and coverage responsibility.",
+            "primary_archetype": "Coverage LB"
+          },
+          {
+            "text": "Track the football and make the decisive play.",
+            "primary_archetype": "Playmaker"
+          },
+          {
+            "text": "Meet the runner in the hole.",
+            "primary_archetype": "Run Stopper/Enforcer"
+          },
+          {
+            "text": "Identify the intended run before the snap.",
+            "primary_archetype": "Field General"
+          }
+        ]
+      },
+      {
+        "number": 10,
+        "question": "What reputation do you want?",
+        "options": [
+          {
+            "text": "Complete coverage linebacker",
+            "primary_archetype": "Coverage LB"
+          },
+          {
+            "text": "Turnover creator",
+            "primary_archetype": "Playmaker"
+          },
+          {
+            "text": "Enforcer",
+            "primary_archetype": "Run Stopper/Enforcer"
+          },
+          {
+            "text": "Quarterback of the defense",
+            "primary_archetype": "Field General"
+          }
+        ]
+      }
+    ]
+  }
+}

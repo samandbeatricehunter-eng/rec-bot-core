@@ -598,6 +598,11 @@ export async function createPurchaseRequest(input: {
     .maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load purchase settings. Please try again.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
+  const { isRiseToImmortalityLeagueType } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
+  if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Rise to Immortality does not use the store. Attribute upgrades spend Player XP, not coins. Age resets, contracts, dev upgrades, legends, and custom players are not available in this mode.");
+  }
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
   // CFB dev trait progression is earned in-game, not purchased — dev upgrades are a
   // Madden-only purchase type regardless of the league's own dev_upgrades_enabled setting.

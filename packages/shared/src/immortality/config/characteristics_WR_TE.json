@@ -1,0 +1,208 @@
+{
+  "position_group": "WR_TE",
+  "available_slots": 6,
+  "characteristics": [
+    {
+      "name": "Born With Quick Feet",
+      "slot_cost": 1,
+      "effect": "AGI and COD cost 15% less.",
+      "why_it_costs_that": "Core separation/YAC movement.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Naturally Fast",
+      "slot_cost": 3,
+      "effect": "SPD and ACC cost 12% less.",
+      "why_it_costs_that": "Premium receiving athleticism.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Explosive First Step",
+      "slot_cost": 1,
+      "effect": "ACC costs 18% less.",
+      "why_it_costs_that": "Narrow burst discount.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Natural Athlete",
+      "slot_cost": 2,
+      "effect": "AGI, COD, JMP and ACC each cost 8% less.",
+      "why_it_costs_that": "Broad athletic package.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Natural Hands",
+      "slot_cost": 1,
+      "effect": "CTH costs 15% less and CIT 8% less.",
+      "why_it_costs_that": "Core receiving package.",
+      "tags": "hands",
+      "synergy": []
+    },
+    {
+      "name": "Body Control",
+      "slot_cost": 1,
+      "effect": "JMP costs 15% less and SPC 10% less.",
+      "why_it_costs_that": "Catch-point package.",
+      "tags": "hands",
+      "synergy": []
+    },
+    {
+      "name": "Route Savant",
+      "slot_cost": 2,
+      "effect": "SRR and MRR cost 12% less; DRR 8% less.",
+      "why_it_costs_that": "Three route ratings.",
+      "tags": "routes",
+      "synergy": []
+    },
+    {
+      "name": "Sudden Release",
+      "slot_cost": 1,
+      "effect": "RLS costs 18% less.",
+      "why_it_costs_that": "Focused press-beating tool.",
+      "tags": "routes",
+      "synergy": []
+    },
+    {
+      "name": "Vertical Tracker",
+      "slot_cost": 1,
+      "effect": "DRR and SPC cost 10% less; JMP 8% less.",
+      "why_it_costs_that": "Vertical receiving package.",
+      "tags": "routes",
+      "synergy": []
+    },
+    {
+      "name": "Possession Specialist",
+      "slot_cost": 1,
+      "effect": "CIT costs 15% less; CTH and SRR 6% less.",
+      "why_it_costs_that": "Chain-moving profile.",
+      "tags": "hands",
+      "synergy": []
+    },
+    {
+      "name": "YAC Natural",
+      "slot_cost": 2,
+      "effect": "COD, BTK and BCV cost 10% less.",
+      "why_it_costs_that": "Broad after-catch value.",
+      "tags": "yac",
+      "synergy": []
+    },
+    {
+      "name": "Contested-Catch Monster",
+      "slot_cost": 2,
+      "effect": "CIT and SPC cost 15% less.",
+      "why_it_costs_that": "Two high-impact catch ratings.",
+      "tags": "hands",
+      "synergy": []
+    },
+    {
+      "name": "Slot Technician",
+      "slot_cost": 1,
+      "effect": "SRR and COD cost 10% less.",
+      "why_it_costs_that": "Focused slot profile.",
+      "tags": "routes",
+      "synergy": []
+    },
+    {
+      "name": "Deep Threat DNA",
+      "slot_cost": 2,
+      "effect": "SPD 8%, DRR 12%, RLS 6% cheaper.",
+      "why_it_costs_that": "Cascades strongly with Naturally Fast, therefore premium.",
+      "tags": "routes",
+      "synergy": [
+        "Naturally Fast"
+      ]
+    },
+    {
+      "name": "Red-Zone Weapon",
+      "slot_cost": 1,
+      "effect": "JMP and SPC cost 8% less. TD-based weekly challenges pay +1 bonus XP, max +1/week.",
+      "why_it_costs_that": "Situational + XP.",
+      "tags": "hands",
+      "synergy": []
+    },
+    {
+      "name": "Versatile Weapon",
+      "slot_cost": 2,
+      "effect": "Secondary-role attributes cost 10% less: WR ball-carrier ratings; TE crossover receiving/blocking ratings.",
+      "why_it_costs_that": "Broad position-dependent package.",
+      "tags": "versatility",
+      "synergy": []
+    },
+    {
+      "name": "Blocking Pride",
+      "slot_cost": 1,
+      "effect": "TE only: RBK/PBK/impact-blocking ratings cost 12% less. WR receives 10% cheaper blocking ratings if exposed by Madden.",
+      "why_it_costs_that": "Lower direct OVR impact.",
+      "tags": "blocking",
+      "synergy": []
+    },
+    {
+      "name": "Third-Down Target",
+      "slot_cost": 1,
+      "effect": "Reception/first-down style weekly challenges pay +1 XP when completed, max +1/week.",
+      "why_it_costs_that": "Performance based.",
+      "tags": "xp",
+      "synergy": []
+    },
+    {
+      "name": "Faster Developer",
+      "slot_cost": 3,
+      "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
+      "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
+      "tags": "progression",
+      "synergy": []
+    },
+    {
+      "name": "Team Player",
+      "slot_cost": 2,
+      "effect": "Team XP functionality is unlocked from Season 1. The player may convert his earned Player XP to Team XP at the normal 4:3 rate even before reaching his personal ceiling. XP already spent on teammates cannot be reclaimed.",
+      "why_it_costs_that": "Creates roster-wide value years earlier than normal.",
+      "tags": "team",
+      "synergy": []
+    },
+    {
+      "name": "Great Negotiator",
+      "slot_cost": 2,
+      "effect": "All REC Coin contract offers are increased by 20% after the normal contract-value calculation. Applies to Contracts II and III; Rookie Contract remains draft-slot based unless league configuration enables rookie negotiation bonuses.",
+      "why_it_costs_that": "Meaningful recurring economy bonus.",
+      "tags": "contract",
+      "synergy": []
+    },
+    {
+      "name": "Known Commodity",
+      "slot_cost": 3,
+      "effect": "For Contracts II and III, the player's performance component can never produce an offer below the 'Elite' salary band. The contract engine values him as an established ceiling-level asset even after a poor contract window.",
+      "why_it_costs_that": "Removes most downside risk from the career economy.",
+      "tags": "contract",
+      "synergy": []
+    },
+    {
+      "name": "Competitive Drive",
+      "slot_cost": 1,
+      "effect": "Completing all three issued weekly challenges grants +2 bonus Player XP, once per league week.",
+      "why_it_costs_that": "Requires performance rather than granting passive ratings.",
+      "tags": "xp",
+      "synergy": []
+    },
+    {
+      "name": "Film Junkie",
+      "slot_cost": 2,
+      "effect": "Future AWR upgrades cost 20% less Player XP. Defensive players also receive 20% cheaper PRC upgrades. Does not change IQ-test results.",
+      "why_it_costs_that": "Permanent discount on highly valuable mental attributes.",
+      "tags": "mental",
+      "synergy": []
+    },
+    {
+      "name": "Generational Ceiling",
+      "slot_cost": 3,
+      "effect": "Starting development trait is Star rather than Normal. The player is eligible for future Superstar/X-Factor promotion challenges through performance. No direct ratings are added.",
+      "why_it_costs_that": "A major career-long ceiling advantage.",
+      "tags": "dev",
+      "synergy": []
+    }
+  ]
+}

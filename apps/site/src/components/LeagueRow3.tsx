@@ -34,14 +34,21 @@ function Dropdown({ label, ariaLabel, icon, active, children }: { label: string;
   );
 }
 
-export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isCommissioner: boolean }) {
+export function LeagueRow3({ leagueId, isCommissioner, rosterType }: { leagueId: string; isCommissioner: boolean; rosterType?: string | null }) {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
   const base = `/l/${leagueId}`;
+  const isRise = rosterType === "rise_to_immortality";
 
   return (
     <nav className="site-header-row3" aria-label="League">
+      {isRise ? (
+        <NavLink to={`${base}/rise`} className={["site-header-row3-btn", isActive(path, `${base}/rise`) ? "is-active" : ""].filter(Boolean).join(" ")}>
+          <IconTeam /><span>Rise</span>
+        </NavLink>
+      ) : null}
+
       <NavLink to={`${base}/buzz`} className={["site-header-row3-btn", isActive(path, `${base}/buzz`) ? "is-active" : ""].filter(Boolean).join(" ")}>
         <IconBuzz /><span>Overview</span>
       </NavLink>
@@ -71,19 +78,27 @@ export function LeagueRow3({ leagueId, isCommissioner }: { leagueId: string; isC
         </>}
       </Dropdown>
 
-      <Dropdown label="My Team" icon={<IconTeam />} active={isActive(path, `${base}/team`) || isActive(path, `${base}/roster`) || isActive(path, `${base}/trades`) || isActive(path, `${base}/store`)}>
+      <Dropdown label="My Team" icon={<IconTeam />} active={isActive(path, `${base}/team`) || isActive(path, `${base}/roster`) || isActive(path, `${base}/trades`) || isActive(path, `${base}/store`) || isActive(path, `${base}/rise`)}>
         {(close) => <>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "schedule")); }}>Schedule</button>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/roster`); }}>Rosters</button>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/trades`); }}>Trade Center</button>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/store`); }}>Store</button>
+          {isRise ? (
+            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rise`); }}>Origins / Class</button>
+          ) : (
+            <>
+              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/trades`); }}>Trade Center</button>
+              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/store`); }}>Store</button>
+            </>
+          )}
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "financials")); }}>Financials</button>
         </>}
       </Dropdown>
 
+      {isRise ? null : (
       <button type="button" className="site-header-row3-btn" onClick={() => navigate(openModalHref(leagueId, "wager"))}>
         <IconWager /><span>Wagers</span>
       </button>
+      )}
 
       <NavLink to={`${base}/rules`} className={["site-header-row3-btn", isActive(path, `${base}/rules`) ? "is-active" : ""].filter(Boolean).join(" ")}>
         <IconRules /><span>Rules</span>

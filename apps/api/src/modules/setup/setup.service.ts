@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys, type LeagueTemplateId } from "@rec/shared";
+import { LEAGUE_SLIDER_CATALOG_VERSION, REC_ROUTE_CHANNELS, getLeagueTemplatePreset, resolveLeagueSliderValues, sanitizeFairSimRuleKeys, sanitizeForceWinRuleKeys, shouldApplyRiseToImmortality, applyRiseToImmortalityLockedSettings, RISE_TO_IMMORTALITY_LEAGUE_TYPE, type LeagueTemplateId } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -20,13 +20,46 @@ import {
   assertCanCreateLeague,
   resolveRecUserIdByDiscordId,
 } from "../subscriptions/entitlements.service.js";
+import { createImmortalityLeagueRow } from "../immortality/immortality.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
   UpdateServerRoutesInput
 } from "./setup.schemas.js";
 
-/** CFB has no EA import pipeline — only Madden leagues default to "import"; everything else starts on box scores. */
+function applyModeLocks<T extends Record<string, unknown>>(input: T): T {
+  if (!shouldApplyRiseToImmortality({
+    game: String(input.game ?? ""),
+    leagueType: input.leagueType ? String(input.leagueType) : null,
+    templateId: input.templateId ? String(input.templateId) : null,
+  })) {
+    return input;
+  }
+  if (input.game !== "madden_27") {
+    throw new ApiError(400, "Rise to Immortality is a Madden 27 franchise type.");
+  }
+  return applyRiseToImmortalityLockedSettings(input);
+}
+
+async function maybeCreateImmortalityLeague(input: {
+  leagueId: string;
+  leagueType?: string | null;
+  templateId?: string | null;
+  game?: string | null;
+  offensePosition?: string;
+  defensePosition?: string;
+  actorUserId?: string | null;
+}) {
+  if (!shouldApplyRiseToImmortality(input)) return;
+  const offense = input.offensePosition ?? "QB";
+  const defense = input.defensePosition ?? "MIKE";
+  await createImmortalityLeagueRow({
+    leagueId: input.leagueId,
+    offensePosition: offense as "QB" | "HB" | "WR" | "TE",
+    defensePosition: defense as "CB" | "FS" | "SS" | "MIKE",
+    actorUserId: input.actorUserId ?? null,
+  });
+}
 function defaultDataModeForGame(game: string | undefined): "import" | "box_scores" {
   return game?.startsWith("madden_") ? "import" : "box_scores";
 }
@@ -139,7 +172,7 @@ export async function registerServer(input: RegisterServerInput) {
 }
 
 export async function createLeagueForServer(input: CreateLeagueInput) {
-  input = normalizeLeagueSetupInput(input);
+  input = applyModeLocks(normalizeLeagueSetupInput(input)) as CreateLeagueInput;
 
   let ownerUserId: string | null = null;
   if (input.requestedByDiscordId) {
@@ -389,6 +422,16 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     source: "manual_admin_entry"
   });
 
+  await maybeCreateImmortalityLeague({
+    leagueId: league.data.id,
+    leagueType: input.leagueType,
+    templateId: null,
+    game: input.game,
+    offensePosition: input.immortalityOffensePosition,
+    defensePosition: input.immortalityDefensePosition,
+    actorUserId: ownerUserId,
+  });
+
   const defaultTeams = await createDefaultTeamsForGuild({
     guildId: input.guildId,
     requestedByDiscordId: input.requestedByDiscordId ?? null,
@@ -439,14 +482,14 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   //   doc §3), in which case it behaves exactly like regular_rosters.
   let maddenBaselineSeed: Awaited<ReturnType<typeof applyMaddenBaselineToLeague>> | null = null;
   if ((input.game === "madden_26" || input.game === "madden_27") &&
-      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
+      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
         (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
     const activeMaddenDataset = await getActiveMaddenDataset();
     if (activeMaddenDataset) {
       maddenBaselineSeed = await applyMaddenBaselineToLeague({
         league_id: league.data.id,
         dataset_id: activeMaddenDataset.id,
-        fantasyDraftMode: input.leagueType === "fantasy_draft",
+        fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
       });
     }
   }
@@ -660,6 +703,8 @@ export async function createUnclaimedLeague(input: {
   leaguePassword?: string | null;
   leagueType?: string;
   templateId?: string | null;
+  immortalityOffensePosition?: string;
+  immortalityDefensePosition?: string;
   initialTeamAbbreviation: string;
   maxMembers?: number;
   customRostersPreseedRequested?: boolean;
@@ -790,6 +835,7 @@ export async function createUnclaimedLeague(input: {
 }) {
   const name = input.name.trim();
   if (!name) throw new ApiError(400, "Enter a league name.");
+  input = applyModeLocks(input as Record<string, unknown>) as typeof input;
   await assertCanCreateLeague(input.requestedByUserId, input.game);
 
   const isCfbGame = input.game === "cfb_27";
@@ -830,6 +876,16 @@ export async function createUnclaimedLeague(input: {
     const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
     if (configuration.error) throw new ApiError(500, "We couldn't save league configuration. Please try again.", configuration.error);
 
+    await maybeCreateImmortalityLeague({
+      leagueId: league.data.id,
+      leagueType: input.leagueType,
+      templateId: input.templateId,
+      game: input.game,
+      offensePosition: input.immortalityOffensePosition,
+      defensePosition: input.immortalityDefensePosition,
+      actorUserId: input.requestedByUserId,
+    });
+
     await upsertConferenceRules(league.data.id, input.conferenceRules);
 
     const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
@@ -862,7 +918,7 @@ export async function createUnclaimedLeague(input: {
     // that function's comment above its own applyMaddenBaselineToLeague call for the full
     // leagueType decision table.
     if ((input.game === "madden_26" || input.game === "madden_27") &&
-        (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" ||
+        (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
           (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
       const activeMaddenDataset = await getActiveMaddenDataset();
       if (activeMaddenDataset) {
@@ -873,14 +929,14 @@ export async function createUnclaimedLeague(input: {
         await applyMaddenBaselineToLeague({
           league_id: league.data.id,
           dataset_id: activeMaddenDataset.id,
-          fantasyDraftMode: input.leagueType === "fantasy_draft",
+          fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
         }).catch(async (err) => {
           console.error("[ERROR] Failed to apply Madden baseline roster to new league, retrying once:", err);
           try {
             await applyMaddenBaselineToLeague({
               league_id: league.data.id,
               dataset_id: activeMaddenDataset.id,
-              fantasyDraftMode: input.leagueType === "fantasy_draft",
+              fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
             });
           } catch (retryErr) {
             console.error("[ERROR] Failed to apply Madden baseline roster again after retry:", retryErr);
@@ -1324,10 +1380,11 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 
 export async function getLeagueConfigAsDraft(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const [league, config, conferenceRulesResult] = await Promise.all([
+  const [league, config, conferenceRulesResult, immortality] = await Promise.all([
     supabase.from("rec_leagues").select("name,game").eq("id", context.leagueId).single(),
     supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle(),
-    supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId)
+    supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId),
+    supabase.from("rec_immortality_leagues").select("offense_position,defense_position").eq("league_id", context.leagueId).maybeSingle(),
   ]);
   if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   const c = config.data ?? {};
@@ -1350,6 +1407,8 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
+    immortalityOffensePosition: immortality.data?.offense_position ?? "QB",
+    immortalityDefensePosition: immortality.data?.defense_position ?? "MIKE",
     dataMode: c.data_mode ?? defaultDataModeForGame(league.data.game),
     activeRostersEnabled: c.active_rosters_enabled ?? true,
     trackRostersEnabled: c.track_rosters_enabled ?? false,

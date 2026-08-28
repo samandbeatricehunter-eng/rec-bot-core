@@ -19,6 +19,7 @@ const ROSTER_TYPE_OPTIONS = [
   { value: "", label: "Any roster type" },
   { value: "fantasy_draft", label: "Fantasy Draft" },
   { value: "regular_rosters", label: "Regs" },
+  { value: "rise_to_immortality", label: "Rise to Immortality" },
 ];
 
 type Tab = "search" | "mine";

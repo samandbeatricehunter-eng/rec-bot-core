@@ -21,6 +21,7 @@ import {
   CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY,
   CHAMP_GAME_CRITERIA_OPTIONS, CHAMP_GAME_LOCATION_OPTIONS, COACH_FIRING_OPTIONS,
   CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS, GAME_OPTIONS,
+  IMMORTALITY_DEFENSE_POSITIONS, IMMORTALITY_OFFENSE_POSITIONS,
   INJURY_OPTIONS, MADDEN_DIFFICULTY, MADDEN_LEAGUE_TYPES,
   PLAYER_EDIT_PERMISSION_OPTIONS, POSITION_CHANGE_OPTIONS, SEASON_EXPERIENCE_OPTIONS,
   STREAMING_OPTIONS, STREAMING_SIDE_OPTIONS, TRADE_APPROVAL_OPTIONS, TRADE_DIFFICULTY_OPTIONS,
@@ -47,6 +48,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     setRequiredConsole,
     leagueType,
     setLeagueType,
+    immortalityOffensePosition,
+    setImmortalityOffensePosition,
+    immortalityDefensePosition,
+    setImmortalityDefensePosition,
     name,
     setName,
     leagueLogoFile,
@@ -310,6 +315,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     PURCHASE_DEADLINE_TYPES,
     PURCHASE_DEADLINE_STAGES,
   } = useLeagueWizardState();
+
+  const isRise = leagueType === "rise_to_immortality" || templateId === "rise_to_immortality";
 
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -619,6 +626,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       const preset = getLeagueTemplatePreset(option.value, "rec_recommended");
                       if (preset) applyTemplate(preset);
                       setCoachModeEnabled(false);
+                      if (option.value !== "madden_27" && leagueType === "rise_to_immortality") {
+                        setLeagueType("");
+                      }
                     }}>{option.label}</button>
                 ))}
               </div>
@@ -724,7 +734,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             {isMadden && (templateId === null || templateId === "rec_recommended") && (
               <Section title="League Type">
                 <p className="site-muted">Choose how rosters are populated. This cannot be changed after creation.</p>
-                {MADDEN_LEAGUE_TYPES.map((option) => (
+                {MADDEN_LEAGUE_TYPES.filter((option) => option.value !== "rise_to_immortality" || game === "madden_27").map((option) => (
                   <label key={option.value} className={`wizard-option-card ${leagueType === option.value ? "wizard-option-card-active" : ""}`}>
                     <input type="radio" name="leagueType" value={option.value} checked={leagueType === option.value}
                       disabled={option.value === "custom_rosters"} onChange={() => setLeagueType(option.value)} className="sr-only" />
@@ -732,6 +742,21 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                     <span className="site-muted">{option.desc}</span>
                   </label>
                 ))}
+              </Section>
+            )}
+
+            {isRise && game === "madden_27" && (
+              <Section title="Cornerstone Positions">
+                <p className="site-muted">
+                  Every user creates one offensive and one defensive cornerstone at these league-wide positions.
+                  The other positions on each side are not available.
+                </p>
+                <SelectField label="Offensive position" hint="Universal for the whole league."
+                  value={immortalityOffensePosition} onChange={setImmortalityOffensePosition}
+                  options={[...IMMORTALITY_OFFENSE_POSITIONS]} />
+                <SelectField label="Defensive position" hint="Universal for the whole league. MIKE maps to MLB in Madden."
+                  value={immortalityDefensePosition} onChange={setImmortalityDefensePosition}
+                  options={[...IMMORTALITY_DEFENSE_POSITIONS]} />
               </Section>
             )}
 
@@ -743,7 +768,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(1)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={!game || (isMadden && !leagueType)} onClick={() => setStep(3)}>Next</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={!game || (isMadden && !leagueType) || (isRise && (!immortalityOffensePosition || !immortalityDefensePosition))} onClick={() => setStep(3)}>Next</button>
             </div>
           </>
         )}
@@ -861,8 +886,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               {advanceTiming === "other" && (
                 <TextField label="Custom timing" value={advanceTimingOther} onChange={setAdvanceTimingOther} placeholder="e.g. Sunday 8pm ET" />
               )}
-              <SelectField label="Injury policy" hint="Controls in-game injury frequency."
-                value={injuryPolicy} onChange={setInjuryPolicy} options={INJURY_OPTIONS} />
+              <SelectField label="Injury policy" hint={isRise ? "Locked off for Rise to Immortality. Wear & tear stays on." : "Controls in-game injury frequency."}
+                value={isRise ? "off" : injuryPolicy} onChange={setInjuryPolicy} options={INJURY_OPTIONS} />
               <CheckboxGroupField label="Force win rules — regular season" hint="When any of these apply, a coach can request (or a commissioner can grant) a Force Win."
                 value={forceWinRulesRegular} onChange={setForceWinRulesRegular}
                 options={FORCE_WIN_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))} />
@@ -905,6 +930,13 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 checked={customPlaybooksAllowed} onChange={setCustomPlaybooksAllowed} />
             </Section>
 
+            {isRise ? (
+              <Section title="Economy">
+                <div className="wizard-notice">
+                  <strong>Store purchases are off.</strong> Player XP upgrades ratings, then Team XP. Coins are annual contract payments only — not weekly, EOS, highlight, or GOTW payouts. Age resets, legends, custom players, contract buys, and coin attribute purchases are not available.
+                </div>
+              </Section>
+            ) : (
             <Section title="Economy">
               <ToggleField label="Enable coin economy" hint="Master switch — turning this on enables a points-based economy where users spend coins on custom players, legends, dev upgrades, and more."
                 desc="The coin economy gives every user a coin balance they earn from activity, then spend on roster upgrades. Keep this off if you want a no-transaction league."
@@ -1028,6 +1060,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 </>
               )}
             </Section>
+            )}
 
             <Section title="Custom Rules">
               <p className="site-muted">Define league rules that users will see when reviewing league info. Rules are organized by category and displayed in order.</p>
@@ -1117,6 +1150,12 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 </Section>
 
                 <Section title="Salary Cap &amp; Trades">
+                  {isRise ? (
+                    <div className="wizard-notice">
+                      <strong>Locked for Rise to Immortality.</strong> Salary cap off, trades off, CPU trading not allowed. Franchises are assigned in the virtual rookie draft.
+                    </div>
+                  ) : (
+                    <>
                   <ToggleField label="Salary cap enabled" hint="Enforce the NFL salary cap in-game." checked={salaryCapEnabled} onChange={setSalaryCapEnabled} />
                   <ToggleField label="Trade deadline enabled" hint="Lock trades after the NFL trade deadline passes." checked={tradeDeadlineEnabled} onChange={setTradeDeadlineEnabled} />
                   <SelectField label="Trade approval policy" hint="Controls whether user trades are immediate or must be approved."
@@ -1127,6 +1166,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                     <SelectField label="CPU trades allowed per team, per season" hint="Counts only trades where at least one side is CPU-controlled. Zero means unlimited."
                       value={String(cpuTradesSeasonCap)} onChange={(value) => setCpuTradesSeasonCap(Number(value))}
                       options={[0, 1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: value === 0 ? "Unlimited" : String(value) }))} />
+                  )}
+                    </>
                   )}
                 </Section>
 

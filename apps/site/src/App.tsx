@@ -16,6 +16,7 @@ const TournamentDetailPage = lazy(() => import("./routes/TournamentDetail.js").t
 const HomePage = lazy(() => import("./routes/Home.js").then((m) => ({ default: m.HomePage })));
 const LeaguesPage = lazy(() => import("./routes/Leagues.js").then((m) => ({ default: m.LeaguesPage })));
 const LeagueHubPage = lazy(() => import("./routes/LeagueHub.js").then((m) => ({ default: m.LeagueHubPage })));
+const RiseOriginsPage = lazy(() => import("./routes/RiseOrigins.js").then((m) => ({ default: m.RiseOriginsPage })));
 const Pricing = lazy(() => import("./routes/Pricing.js").then((m) => ({ default: m.Pricing })));
 const SignUp = lazy(() => import("./routes/SignUp.js").then((m) => ({ default: m.SignUp })));
 const SignUpComplete = lazy(() => import("./routes/SignUpComplete.js").then((m) => ({ default: m.SignUpComplete })));
@@ -264,6 +265,7 @@ function Routed() {
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/friends" element={<Friends />} />
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/rise" element={<RiseOriginsPage />} />
         <Route path="/l/:leagueId/news" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups/:gameId" element={<LegacyMatchupRedirect />} />

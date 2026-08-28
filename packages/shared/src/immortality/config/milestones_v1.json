@@ -1,0 +1,276 @@
+{
+  "rules": {
+    "weekly_challenges_per_player": 3,
+    "weekly_xp": {
+      "bronze": 1,
+      "silver": 2,
+      "gold": 3
+    },
+    "seasonal_xp": {
+      "tier1": 8,
+      "tier2": 15,
+      "tier3": 25
+    },
+    "career_xp": {
+      "minor": 20,
+      "major": 35,
+      "historic": 50
+    }
+  },
+  "QB": {
+    "weekly": {
+      "bronze": [
+        "250 passing yards",
+        "2 passing TD",
+        "65% completion on 20+ attempts",
+        "25 rushing yards"
+      ],
+      "silver": [
+        "300 passing yards + 2 TD",
+        "3 total TD",
+        "70% completion on 20+ attempts",
+        "0 turnovers on 20+ attempts"
+      ],
+      "gold": [
+        "350 passing yards + 3 TD",
+        "4 total TD",
+        "300+ passing yards with 0 INT",
+        "100+ passer rating with 3 TD"
+      ]
+    },
+    "season": [
+      "3,500 pass yds / 25 pass TD",
+      "4,000 pass yds / 35 pass TD / 65% completion",
+      "4,500 pass yds / 45 pass TD / 40 total TD with <=10 turnovers"
+    ],
+    "career": [
+      "20,000 pass yds / 150 pass TD",
+      "30,000 pass yds / 250 pass TD",
+      "40,000 pass yds / 350 pass TD / 4,000 rush yds"
+    ]
+  },
+  "HB": {
+    "weekly": {
+      "bronze": [
+        "75 rushing yards",
+        "100 scrimmage yards",
+        "1 TD",
+        "4 receptions"
+      ],
+      "silver": [
+        "100 rushing yards",
+        "125 scrimmage yards",
+        "2 TD",
+        "5.0 YPC on 15+ carries"
+      ],
+      "gold": [
+        "150 rushing yards",
+        "175 scrimmage yards",
+        "3 total TD",
+        "100 rush + 50 receiving yards"
+      ]
+    },
+    "season": [
+      "1,000 rush yds / 10 total TD",
+      "1,500 scrimmage yds / 15 total TD / 50 receptions",
+      "1,500 rush yds / 2,000 scrimmage yds / 20 total TD"
+    ],
+    "career": [
+      "5,000 rush yds / 50 total TD",
+      "8,000 rush yds / 80 total TD",
+      "12,000 rush yds / 100 total TD / 15,000 scrimmage yds"
+    ]
+  },
+  "WR": {
+    "weekly": {
+      "bronze": [
+        "5 receptions",
+        "75 receiving yards",
+        "1 TD",
+        "20 YPR on 3+ catches"
+      ],
+      "silver": [
+        "100 receiving yards",
+        "7 receptions",
+        "2 TD",
+        "125 scrimmage yards"
+      ],
+      "gold": [
+        "150 receiving yards",
+        "10 receptions",
+        "150 yards + 2 TD",
+        "3 receiving TD"
+      ]
+    },
+    "season": [
+      "1,000 rec yds / 8 TD",
+      "1,300 rec yds / 80 rec / 12 TD",
+      "1,600 rec yds / 100 rec / 15 TD"
+    ],
+    "career": [
+      "6,000 rec yds / 50 TD",
+      "10,000 rec yds / 75 TD",
+      "14,000 rec yds / 100 TD / 1,000 receptions"
+    ]
+  },
+  "TE": {
+    "weekly": {
+      "bronze": [
+        "4 receptions",
+        "50 receiving yards",
+        "1 TD",
+        "3 first-down receptions if stat is available"
+      ],
+      "silver": [
+        "75 receiving yards",
+        "6 receptions",
+        "2 TD",
+        "100 scrimmage yards"
+      ],
+      "gold": [
+        "100 receiving yards",
+        "8 receptions",
+        "100 yards + 2 TD",
+        "3 TD"
+      ]
+    },
+    "season": [
+      "700 rec yds / 6 TD",
+      "900 rec yds / 70 rec / 9 TD",
+      "1,100 rec yds / 85 rec / 12 TD"
+    ],
+    "career": [
+      "4,000 rec yds / 35 TD",
+      "7,000 rec yds / 60 TD",
+      "10,000 rec yds / 80 TD / 800 receptions"
+    ]
+  },
+  "CB": {
+    "weekly": {
+      "bronze": [
+        "1 pass deflection",
+        "4 tackles",
+        "1 TFL",
+        "1 sack or supported equivalent"
+      ],
+      "silver": [
+        "1 INT",
+        "2 pass deflections",
+        "1 forced fumble",
+        "6 tackles + 1 impact play"
+      ],
+      "gold": [
+        "2 INT",
+        "defensive TD",
+        "3 PD + INT",
+        "2 total takeaways"
+      ]
+    },
+    "season": [
+      "4 INT / 10 PD",
+      "6 INT / 15 PD / 3 forced turnovers",
+      "8 INT / 20 PD / 2 defensive TD"
+    ],
+    "career": [
+      "15 INT / 50 PD",
+      "25 INT / 100 PD",
+      "40 INT / 150 PD / 10 defensive TD"
+    ]
+  },
+  "FS": {
+    "weekly": {
+      "bronze": [
+        "5 tackles",
+        "1 pass deflection",
+        "1 TFL",
+        "1 sack/pressure if available"
+      ],
+      "silver": [
+        "1 INT",
+        "7 tackles",
+        "1 forced fumble",
+        "2 pass deflections"
+      ],
+      "gold": [
+        "2 INT",
+        "defensive TD",
+        "INT + forced fumble",
+        "10 tackles + takeaway"
+      ]
+    },
+    "season": [
+      "4 INT / 70 tackles",
+      "6 INT / 90 tackles / 3 forced turnovers",
+      "8 INT / 100 tackles / 2 defensive TD"
+    ],
+    "career": [
+      "15 INT / 500 tackles",
+      "25 INT / 750 tackles",
+      "40 INT / 1,000 tackles / 10 defensive TD"
+    ]
+  },
+  "SS": {
+    "weekly": {
+      "bronze": [
+        "5 tackles",
+        "1 TFL",
+        "1 pass deflection",
+        "1 impact play if available"
+      ],
+      "silver": [
+        "8 tackles",
+        "1 INT",
+        "1 forced fumble",
+        "2 TFL"
+      ],
+      "gold": [
+        "12 tackles",
+        "2 takeaways",
+        "defensive TD",
+        "sack + takeaway + 6 tackles"
+      ]
+    },
+    "season": [
+      "80 tackles / 3 forced turnovers",
+      "100 tackles / 5 INT / 10 TFL",
+      "120 tackles / 8 combined sacks+INT / 5 forced turnovers"
+    ],
+    "career": [
+      "500 tackles / 10 INT",
+      "750 tackles / 20 INT",
+      "1,000 tackles / 30 INT / 30 FF+sacks combined"
+    ]
+  },
+  "MIKE": {
+    "weekly": {
+      "bronze": [
+        "7 tackles",
+        "1 TFL",
+        "1 pass deflection",
+        "0.5-1 sack"
+      ],
+      "silver": [
+        "10 tackles",
+        "2 TFL",
+        "1 sack",
+        "1 takeaway"
+      ],
+      "gold": [
+        "15 tackles",
+        "3 TFL",
+        "2 sacks",
+        "10 tackles + sack + takeaway"
+      ]
+    },
+    "season": [
+      "100 tackles / 10 TFL",
+      "120 tackles / 15 TFL / 6 sacks",
+      "140 tackles / 20 TFL / 10 sacks / 5 forced turnovers"
+    ],
+    "career": [
+      "600 tackles / 50 TFL",
+      "900 tackles / 80 TFL / 30 sacks",
+      "1,200 tackles / 120 TFL / 50 sacks / 20 forced turnovers"
+    ]
+  }
+}

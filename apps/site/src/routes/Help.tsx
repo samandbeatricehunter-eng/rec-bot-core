@@ -85,6 +85,10 @@ const SECTIONS: FaqSection[] = [
         a: "Coins are a virtual in-league currency earned from stat payouts, wagers, and approved highlights. Spend them in the League Store on Dev Trait upgrades, attribute points, contract adjustments, Campus Legends/Custom Recruits, and more.",
       },
       {
+        q: "What is Rise to Immortality?",
+        a: "A Madden 27 10-season franchise type. Every user creates one offensive and one defensive cornerstone at league-wide positions. The store, weekly coin payouts, age resets, legends, and contract buys are off. Player XP upgrades ratings; coins are annual contract payments only. Origins (IQ, interviews, traits, Creation Points) is website-only.",
+      },
+      {
         q: "How do wagers work?",
         a: "Challenge another member to a coin wager on an upcoming matchup (moneyline, spread, or total). Wagers settle automatically once that game's result is logged, with a grace period before an unresolved wager is refunded.",
       },

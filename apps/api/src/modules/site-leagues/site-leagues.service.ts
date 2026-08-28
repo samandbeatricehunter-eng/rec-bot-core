@@ -66,6 +66,7 @@ export type SiteLeagueSummary = {
   currentWeek: number | null;
   matchupKind: "h2h" | "cpu" | "bye" | "offseason" | "none";
   matchupLabel: string;
+  rosterType: string | null;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -183,6 +184,7 @@ export async function listMySiteLeagues(input: {
       currentWeek: null,
       matchupKind: "none",
       matchupLabel: "No matchup",
+      rosterType: null,
     };
   });
 
@@ -195,6 +197,12 @@ export async function listMySiteLeagues(input: {
           l.season_stage,
           l.current_week,
           l.game,
+          (
+            select c.roster_type
+            from rec_league_configuration c
+            where c.league_id = l.id
+            limit 1
+          ) as roster_type,
           (
             select count(distinct user_id)::int
             from (
@@ -266,6 +274,7 @@ export async function listMySiteLeagues(input: {
       }
       league.seasonStage = stage;
       league.currentWeek = week;
+      league.rosterType = row.roster_type ? String(row.roster_type) : null;
       league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
       if (!stageHasScheduledGames(stage, game)) {
         league.matchupKind = "offseason";

@@ -13,6 +13,21 @@ export const MADDEN_LEAGUE_TYPES = [
   { value: "regular_rosters", label: "Regular Rosters", desc: "Start with real NFL rosters. Trades, free agency, and the draft work as expected." },
   { value: "fantasy_draft", label: "Fantasy Draft", desc: "Every team is emptied and users draft brand-new rosters from scratch. You can schedule a draft date at the end of setup." },
   { value: "custom_rosters", label: "Custom Rosters", desc: "Import a custom roster file before starting. Useful for roster sharing communities." },
+  { value: "rise_to_immortality", label: "Rise to Immortality", desc: "Madden 27 10-season career RPG. Create one offensive and one defensive cornerstone. Store purchases are off — Player XP upgrades ratings. Coins are annual contracts only." },
+] as const;
+
+export const IMMORTALITY_OFFENSE_POSITIONS = [
+  { value: "QB", label: "Quarterback" },
+  { value: "HB", label: "Halfback" },
+  { value: "WR", label: "Wide Receiver" },
+  { value: "TE", label: "Tight End" },
+] as const;
+
+export const IMMORTALITY_DEFENSE_POSITIONS = [
+  { value: "CB", label: "Cornerback" },
+  { value: "FS", label: "Free Safety" },
+  { value: "SS", label: "Strong Safety" },
+  { value: "MIKE", label: "MIKE Linebacker" },
 ] as const;
 
 export const MADDEN_DIFFICULTY = [

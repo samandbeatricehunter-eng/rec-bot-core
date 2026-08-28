@@ -29,6 +29,61 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
   };
 }
 
+export function buildImmortalityPositionWindow(draft: LeagueSetupDraft, side: "offense" | "defense") {
+  const isOffense = side === "offense";
+  const embed = baseEmbed(
+    isOffense ? "Rise to Immortality: Offensive Position" : "Rise to Immortality: Defensive Position",
+    draft,
+  ).setDescription([
+    `League: **${draft.name}**`,
+    "",
+    isOffense
+      ? "Every user creates one offensive cornerstone at the **same** position. Pick the league-wide offensive slot."
+      : "Every user creates one defensive cornerstone at the **same** position. Pick the league-wide defensive slot.",
+    "",
+    "This cannot change after the league is created. Nobody creates the other positions on that side.",
+  ].join("\n"));
+
+  return {
+    embeds: [embed],
+    components: [
+      selectRow(
+        isOffense ? LEAGUE_SETUP_CUSTOM_IDS.immortalityOffense : LEAGUE_SETUP_CUSTOM_IDS.immortalityDefense,
+        isOffense ? "Select the offensive position" : "Select the defensive position",
+        isOffense
+          ? [
+              option("Quarterback", "QB"),
+              option("Halfback", "HB"),
+              option("Wide Receiver", "WR"),
+              option("Tight End", "TE"),
+            ]
+          : [
+              option("Cornerback", "CB"),
+              option("Free Safety", "FS"),
+              option("Strong Safety", "SS"),
+              option("MIKE Linebacker", "MIKE"),
+            ],
+      ),
+      buildNavigationRow(),
+    ],
+  };
+}
+
+export function buildRiseLockedEconomyWindow(draft: LeagueSetupDraft) {
+  const embed = baseEmbed("Rise to Immortality: Economy", draft).setDescription([
+    `League: **${draft.name}**`,
+    "",
+    "Store purchases are **off** in this mode. Player XP upgrades ratings; Team XP unlocks later.",
+    "Coins are **annual contract payments only** — no weekly, EOS, highlight, or GOTW coin payouts.",
+    "",
+    "Use Next to continue server setup.",
+  ].join("\n"));
+  return {
+    embeds: [embed],
+    components: [buildNavigationRow()],
+  };
+}
+
 export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
   if (draft.game === "cfb_27") {
     const embed = baseEmbed("CFB Setup: Active Rosters", draft)
@@ -58,7 +113,10 @@ export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.leagueType, "Select league type", [
         option("Regular Rosters", "regular_rosters"),
         option("Fantasy Draft", "fantasy_draft"),
-        option("Custom Rosters", "custom_rosters")
+        option("Custom Rosters", "custom_rosters"),
+        ...(draft.game === "madden_27"
+          ? [option("Rise to Immortality", "rise_to_immortality", "10-season career RPG. Store off; Player XP upgrades.")]
+          : []),
       ]),
       buildNavigationRow()
     ]

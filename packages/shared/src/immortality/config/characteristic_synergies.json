@@ -1,0 +1,60 @@
+{
+  "stacking_rules": {
+    "discount_order": "largest first",
+    "second_overlapping_discount_effectiveness": 0.5,
+    "third_overlapping_discount_effectiveness": 0.25,
+    "max_total_attribute_discount": 0.3,
+    "economic_multipliers": "apply floors first, then percentage bonuses",
+    "xp_multipliers": "sum additive percentage bonuses unless explicitly specified, then apply to earned XP before rounding"
+  },
+  "synergies": [
+    {
+      "name": "Negotiation Powerhouse",
+      "requires": [
+        "Great Negotiator",
+        "Known Commodity"
+      ],
+      "effect": "Known Commodity first floors Contract II/III at the Elite band. Great Negotiator then applies +20% to that resulting offer. This is intentionally one of the strongest economic combinations and costs all 5 of the player's 6 slots."
+    },
+    {
+      "name": "Accelerated Superstar Path",
+      "requires": [
+        "Faster Developer",
+        "Generational Ceiling"
+      ],
+      "effect": "Player begins at Star, earns +15% XP, and receives dev-promotion challenge checks 50% more often until X-Factor. Costs all 6 slots, so the player sacrifices every other natural gift."
+    },
+    {
+      "name": "Franchise Builder",
+      "requires": [
+        "Faster Developer",
+        "Team Player"
+      ],
+      "effect": "Faster XP acquisition can be diverted to Team XP from Season 1. This accelerates teammate development but necessarily slows the Immortal's own ratings growth whenever XP is diverted."
+    },
+    {
+      "name": "Natural Burner",
+      "requires": [
+        "Naturally Fast",
+        "Born With Quick Feet"
+      ],
+      "effect": "SPD/ACC receive the premium Naturally Fast discount while AGI/COD receive Quick Feet discounts. No extra hidden percentage is added; the cascade comes from covering four elite movement ratings. Costs 4 slots."
+    },
+    {
+      "name": "Deep-Speed Specialist",
+      "requires": [
+        "Naturally Fast",
+        "Deep Threat DNA"
+      ],
+      "effect": "For WR/TE, the largest applicable discount applies first and overlapping SPD-related discounts stack at 50% effectiveness, subject to the universal 30% maximum discount on any one rating."
+    },
+    {
+      "name": "Student of the Game",
+      "requires": [
+        "Film Junkie",
+        "Field General Mind"
+      ],
+      "effect": "LB only. Mental-rating discounts stack using diminishing returns and remain capped at 30%. IQ-derived starting values are never modified."
+    }
+  ]
+}

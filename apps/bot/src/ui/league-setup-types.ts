@@ -79,6 +79,8 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   coachAbilitiesRestrictionInput: "rec:league_setup:coach_abilities_restriction_input",
   reviewJump: "rec:league_setup:review_jump",
   backToReview: "rec:league_setup:back_to_review",
+  immortalityOffense: "rec:league_setup:immortality_offense",
+  immortalityDefense: "rec:league_setup:immortality_defense",
   purchaseCapPrefix: "rec:league_setup:purchase_cap",
   purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
   purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
@@ -130,6 +132,8 @@ export const LEAGUE_GAME_OPTIONS: Record<LeagueGame, string> = {
 export type LeagueSetupStep =
   | "game"
   | "league_type"
+  | "immortality_offense_position"
+  | "immortality_defense_position"
   | "track_rosters"
   | "dynasty_structure"
   | "recruiting_difficulty"
@@ -209,7 +213,9 @@ export type LeagueSetupDraft = {
   game: LeagueGame;
   leaguePassword?: string | null;
   step: LeagueSetupStep;
-  leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters";
+  leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters" | "rise_to_immortality";
+  immortalityOffensePosition: "QB" | "HB" | "WR" | "TE";
+  immortalityDefensePosition: "CB" | "FS" | "SS" | "MIKE";
   /** CFB 27 only: replaces League Type. On = ratings/styles track real-world changes; off = static. */
   activeRostersEnabled: boolean;
   /** CFB 27 only: seed the league's initial rosters from the CFB 27 baseline dataset at creation. */
@@ -340,6 +346,8 @@ export type LeagueSetupDraft = {
 const STEP_ORDER: LeagueSetupStep[] = [
   "game",
   "league_type",
+  "immortality_offense_position",
+  "immortality_defense_position",
   "track_rosters",
   "dynasty_structure",
   "recruiting_difficulty",
@@ -421,6 +429,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     leaguePassword: null,
     step: "game",
     leagueType: "regular_rosters",
+    immortalityOffensePosition: "QB",
+    immortalityDefensePosition: "MIKE",
     activeRostersEnabled: true,
     trackRostersEnabled: false,
     seasonWeek: "training_camp",
@@ -574,12 +584,23 @@ function streamingUserSettingApplies(requirement: LeagueSetupDraft["regularSeaso
   return requirement === "required" || requirement === "recommended";
 }
 
+export function isRiseToImmortalityDraft(draft: Pick<LeagueSetupDraft, "leagueType">): boolean {
+  return draft.leagueType === "rise_to_immortality";
+}
+
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
   const isCfb = draft.game === "cfb_27";
+  const isRise = isRiseToImmortalityDraft(draft);
 
   // The CFB dynasty block (dynasty_structure … stadium_pulse) sits between league_type and
   // economy. Madden titles skip the entire block; CFB walks through it via STEP_ORDER.
-  if (step === "league_type" && !isCfb) return "economy";
+  // Rise to Immortality picks the league-wide cornerstone positions, then skips store setup.
+  if (step === "league_type" && !isCfb) {
+    if (isRise) return "immortality_offense_position";
+    return "economy";
+  }
+  if (step === "immortality_offense_position") return "immortality_defense_position";
+  if (step === "immortality_defense_position") return "server_setup";
 
   // CFB has Campus Legends (a plain toggle rendered by buildPurchaseSettingWindow) but no
   // Age Resets or Contract Purchases — skip those purchase steps.
@@ -616,6 +637,11 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // (recruiting/staff/budget management) are CFB-only, so Madden jumps straight to Ball Hawk.
   if (!isCfb && step === "coach_mode_coach_suggestions") return "ball_hawk";
 
+  // Rise to Immortality locks trades, salary cap, and injuries — skip those questions.
+  if (isRise && step === "coach_abilities_restricted") return "difficulty";
+  if (isRise && step === "accelerated_clock_seconds") return "abilities";
+  if (isRise && step === "wear_and_tear") return "advance_timing";
+
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
 
@@ -632,7 +658,11 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
 
   // Skip accelerated clock seconds question if accelerated clock is disabled.
   // CFB then skips straight past the Madden-only salary cap / trade deadline / abilities toggles.
-  if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return isCfb ? "wear_and_tear" : "salary_cap";
+  if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) {
+    if (isCfb) return "wear_and_tear";
+    if (isRise) return "abilities";
+    return "salary_cap";
+  }
 
   // Offensive: limit and cooldown are independent features, each with its own enable toggle.
   if (step === "offensive_limits_enabled" && !draft.offensivePlayCallLimitsEnabled) return "offensive_cooldown_enabled";
