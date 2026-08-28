@@ -2538,6 +2538,19 @@ h1, h2, h3, .site-wordmark {
   font-size: 0.82rem;
   font-weight: 400;
 }
+.site-tournament-bye-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  cursor: pointer;
+}
+.site-tournament-bye-pick input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
 .site-tournament-entrant-list .site-profile-actions {
   margin: 0;
 }

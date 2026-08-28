@@ -1246,8 +1246,8 @@ export const siteApi = {
   cancelTournament(tournamentId: string) {
     return request<{ ok: true }>("/v1/tournaments/cancel", { tournamentId });
   },
-  lockTournament(tournamentId: string) {
-    return request<SiteTournamentDetail>("/v1/tournaments/lock", { tournamentId });
+  lockTournament(tournamentId: string, manualByeUserIds?: string[]) {
+    return request<SiteTournamentDetail>("/v1/tournaments/lock", { tournamentId, manualByeUserIds });
   },
   joinTournament(input: { tournamentId: string; teamAbbr?: string | null; gamerTag: string }) {
     return request<SiteTournamentDetail>("/v1/tournaments/join", input);

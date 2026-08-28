@@ -560,6 +560,8 @@ export function TournamentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const [byeUserIds, setByeUserIds] = useState<string[]>([]);
 
   async function reload() {
     const next = await siteApi.getTournament(tournamentId);
@@ -672,7 +674,7 @@ export function TournamentDetailPage() {
           </>
         ) : null}
         {isAdmin && row.status === "open" ? (
-          <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.lockTournament(row.id))}>
+          <button className="site-btn site-btn-primary" disabled={busy} onClick={() => setLockModalOpen(true)}>
             Lock bracket
           </button>
         ) : null}
@@ -682,6 +684,56 @@ export function TournamentDetailPage() {
           </button>
         ) : null}
       </div>
+      {lockModalOpen ? (
+        <div className="site-modal" role="dialog" aria-modal="true">
+          <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => setLockModalOpen(false)} />
+          <div className="site-modal-panel">
+            <h2>Lock bracket</h2>
+            <p>
+              {approved.length} entrants approved. Any byes needed to fill the bracket are assigned
+              at random by default — optionally designate specific entrants to receive one instead.
+            </p>
+            {approved.length ? (
+              <ul className="site-tournament-entrant-list">
+                {approved.map((entrant) => (
+                  <li key={entrant.userId}>
+                    <label className="site-tournament-bye-pick">
+                      <input
+                        type="checkbox"
+                        checked={byeUserIds.includes(entrant.userId)}
+                        onChange={() => setByeUserIds((current) => (
+                          current.includes(entrant.userId)
+                            ? current.filter((id) => id !== entrant.userId)
+                            : [...current, entrant.userId]
+                        ))}
+                      />
+                      <span className="site-tournament-entrant-info">
+                        <strong>{entrant.displayName}</strong>
+                        {entrant.teamName ? <span className="site-tournament-entrant-team">{entrant.teamName}</span> : null}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setLockModalOpen(false)}>Cancel</button>
+              <button
+                type="button"
+                className="site-btn site-btn-primary"
+                disabled={busy}
+                onClick={() => void act(async () => {
+                  await siteApi.lockTournament(row.id, byeUserIds);
+                  setLockModalOpen(false);
+                  setByeUserIds([]);
+                })}
+              >
+                {busy ? "Locking…" : "Lock Bracket"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {row.registrationOpen && !row.joined ? (
         <form
           className="site-tournament-register"
