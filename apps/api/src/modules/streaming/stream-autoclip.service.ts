@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
+import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls, uploadLargeStreamVideo } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { parseScorebugFrameAuto } from "../scorebug-ocr/scorebug-parser.js";
@@ -656,7 +656,14 @@ async function processRecap(job: any) {
     : `${baseFilter};[base]copy[v];${audioFilter}`;
   args.push("-filter_complex", filter, "-map", "[v]", "-map", "[aout]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", output);
   await execFileAsync(FFMPEG, args, { timeout: 20 * 60_000, maxBuffer: 4 * 1024 * 1024 });
-  const media = await uploadVideo(output, { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id }, 20 * 60);
+  // The concatenated, re-encoded recap regularly exceeds the 200MB cap on uploadVideo's simple
+  // multipart upload (confirmed live: a real recap upload 413'd) -- go through Stream's TUS
+  // resumable-upload path instead, which has no such limit.
+  const media = await uploadLargeStreamVideo({
+    filePath: output,
+    meta: { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id },
+    maxDurationSeconds: 20 * 60,
+  });
   await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", output_stream_uid: media.uid, playback_url: media.playbackUrl, last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
   await postRecapToHighlightReel(job, media);
 }

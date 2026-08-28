@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { env } from "../config/env.js";
 import { bestEffort } from "./best-effort.js";
 import { ApiError } from "./errors.js";
@@ -216,6 +217,66 @@ export async function enableStreamDownload(uid: string): Promise<{ url: string; 
     throw new ApiError(502, `Failed to enable Stream download for ${uid} (${detail}).`);
   }
   return { url: payload.result.default.url, ready: payload.result.default.status === "ready" };
+}
+
+/**
+ * Cloudflare's one-shot Direct Creator Upload endpoint (createStreamDirectUpload, a plain
+ * multipart POST) caps at 200MB -- fine for individual autoclip clips but not for the weekly
+ * recap, which concatenates and re-encodes a whole week's clips into one file that regularly
+ * exceeds that (confirmed live: a real recap upload 413'd). Larger files need Stream's TUS
+ * resumable-upload protocol instead: a creation request returns a per-video PATCH URL (via the
+ * `Location` response header) and the video's uid (via `stream-media-id`), then the whole file
+ * is PATCHed to that URL in one shot -- fine for anything up to a few GB, well past what a
+ * single-week recap will ever produce.
+ */
+export async function uploadLargeStreamVideo(input: {
+  filePath: string;
+  meta?: Record<string, string>;
+  maxDurationSeconds?: number;
+}): Promise<{ uid: string; playbackUrl: string }> {
+  const { accountId, apiToken } = requireStreamConfig();
+  const fileBuffer = await readFile(input.filePath);
+  const metaEntries: Record<string, string> = {
+    maxdurationseconds: String(input.maxDurationSeconds ?? HIGHLIGHT_MAX_DURATION_SECONDS),
+    requiresignedurls: "false",
+    ...(input.meta ?? {}),
+  };
+  const uploadMetadata = Object.entries(metaEntries)
+    .map(([key, value]) => `${key} ${Buffer.from(value).toString("base64")}`)
+    .join(",");
+  const createResponse = await fetch(`${STREAM_API}/accounts/${accountId}/stream`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Tus-Resumable": "1.0.0",
+      "Upload-Length": String(fileBuffer.byteLength),
+      "Upload-Metadata": uploadMetadata,
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const uid = createResponse.headers.get("stream-media-id");
+  const location = createResponse.headers.get("location");
+  if (!createResponse.ok || !uid || !location) {
+    throw new ApiError(502, `Failed to create Stream TUS upload (HTTP ${createResponse.status}).`);
+  }
+  const patchResponse = await fetch(location, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Tus-Resumable": "1.0.0",
+      "Upload-Offset": "0",
+      "Content-Type": "application/offset+octet-stream",
+    },
+    body: fileBuffer,
+    signal: AbortSignal.timeout(20 * 60_000),
+  });
+  if (!patchResponse.ok) {
+    throw new ApiError(502, `Stream TUS upload failed (HTTP ${patchResponse.status}).`);
+  }
+  // TUS creation doesn't take allowedOrigins the way the JSON direct_upload/copy endpoints do --
+  // apply it as a follow-up edit, same call already used to repair pre-fix videos.
+  await updateStreamAllowedOrigins(uid).catch((error) => console.error("[WARN] Failed to set allowedOrigins on TUS-uploaded video (non-fatal):", error));
+  return { uid, playbackUrl: streamPlaybackUrls(uid).watch };
 }
 
 /** One-off repair for a video uploaded before streamAllowedOrigins() included Cloudflare's own
