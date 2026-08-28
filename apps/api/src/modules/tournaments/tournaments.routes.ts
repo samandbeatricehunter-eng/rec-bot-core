@@ -266,7 +266,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
   app.post("/v1/tournaments/lock", async (request, reply) => {
     try {
       await requireSiteAdmin(request);
-      const body = z.object({ tournamentId: z.string().uuid() }).parse(request.body ?? {});
+      const body = z.object({ tournamentId: z.string().uuid(), manualByeUserIds: z.array(z.string().uuid()).optional() }).parse(request.body ?? {});
       return reply.send(await lockTournamentBracket(body));
     } catch (error) {
       return sendError(reply, error);

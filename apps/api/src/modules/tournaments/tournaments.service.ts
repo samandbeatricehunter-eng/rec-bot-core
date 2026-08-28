@@ -792,7 +792,16 @@ async function resolveByes(tournamentId: string) {
   }
 }
 
-export async function lockTournamentBracket(input: { tournamentId: string }) {
+function shuffledCopy<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+export async function lockTournamentBracket(input: { tournamentId: string; manualByeUserIds?: string[] }) {
   const tournament = await loadTournament(input.tournamentId);
   if (tournament.event_paused) throw new ApiError(409, "This tournament is closed.");
   if (tournament.status !== "open" && tournament.status !== "draft") {
@@ -804,9 +813,9 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
     `select user_id from rec_site_tournament_entrants where tournament_id = $1 and entry_status = 'approved' order by joined_at asc`,
     [input.tournamentId],
   );
-  const ids = (entrants.rows as Array<{ user_id: string }>).map((row) => row.user_id);
-  if (ids.length < 2) throw new ApiError(409, "Need at least two players to lock a bracket.");
-  if (ids.length > meta.size) throw new ApiError(409, "Too many entrants for this bracket type.");
+  const registeredIds = (entrants.rows as Array<{ user_id: string }>).map((row) => row.user_id);
+  if (registeredIds.length < 2) throw new ApiError(409, "Need at least two players to lock a bracket.");
+  if (registeredIds.length > meta.size) throw new ApiError(409, "Too many entrants for this bracket type.");
 
   // Registration can close under the configured size (confirmed live: a 16-slot tournament
   // locked with only 14 approved entrants) -- locking into the full preset anyway just wastes
@@ -816,9 +825,21 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
   // used -- that's inherent to bracket seeding, not something downsizing removes -- but it does
   // stop a big preset from locking in far more empty slots than the real field needs.
   const fittingType = TOURNAMENT_BRACKET_TYPES
-    .filter((type) => type.style === meta.style && type.size >= ids.length)
+    .filter((type) => type.style === meta.style && type.size >= registeredIds.length)
     .sort((a, b) => a.size - b.size)[0];
   const effectiveBracketType = fittingType && fittingType.size < meta.size ? fittingType.key : tournament.bracket_type;
+  const effectiveSize = tournamentBracketType(effectiveBracketType)!.size;
+
+  // The standard seeded bracket fold always pairs the padded (null) slots -- which padEntrants
+  // always places at the highest seed numbers -- against the LOWEST-numbered real seeds, so
+  // whoever occupies seed 1..byesNeeded is exactly who receives a bye. Registration order used
+  // to decide that outright (earliest registrants = lowest seeds = automatic byes), which is an
+  // arbitrary advantage unrelated to anything competitive. Byes should be handed out at random
+  // instead unless specific entrants are deliberately designated for one.
+  const byesNeeded = Math.max(0, effectiveSize - registeredIds.length);
+  const manualByes = (input.manualByeUserIds ?? []).filter((id) => registeredIds.includes(id)).slice(0, byesNeeded);
+  const remaining = shuffledCopy(registeredIds.filter((id) => !manualByes.includes(id)));
+  const ids = [...manualByes, ...remaining];
 
   const specs = generateTournamentBracket({ bracketType: effectiveBracketType, entrantIds: ids });
   const client = await getPgPool().connect();
