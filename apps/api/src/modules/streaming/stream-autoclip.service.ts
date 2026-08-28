@@ -11,6 +11,7 @@ import { detectStreamPlatform } from "./streaming-labels.js";
 const execFileAsync = promisify(execFile);
 const activeCaptures = new Map<string, ChildProcess>();
 let processing = false;
+let recapProcessing = false;
 
 // Deliberately code-owned production package. Replacing these files changes the league's recap
 // identity without exposing a per-league UI/configuration surface. No outro -- the recap ends on
@@ -713,8 +714,23 @@ export async function runStreamAutoclipSweep() {
     catch (error) { await updateJob(ready.data.id, { status: "processing", attempt_count: Number(ready.data.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error) }); }
     finally { processing = false; }
   }
+  // This sweep is re-invoked every 30s (index.ts) with no guarantee the previous tick's recap
+  // work finished first. processRecap can easily run past 30s (downloading N clips, ffmpeg
+  // board render, a full concat re-encode), and without this guard two overlapping ticks would
+  // both pick up the same "retry" job and run processRecap concurrently -- each writing to the
+  // exact same deterministic file paths (`${job.id}-board.mp4`, `-recap-clip-N.mp4`, etc.),
+  // which is how a real run failed with ffmpeg's "moov atom not found" (one process's ffmpeg
+  // still mid-write to board.mp4 while another process's concat step opened it to read).
+  if (recapProcessing) return;
   const recap = await supabase.from("rec_weekly_recap_jobs").select("*").in("status", ["pending", "retry"]).order("created_at").limit(1).maybeSingle();
-  if (recap.data) await processRecap(recap.data).catch(async (error) => {
-    await supabase.from("rec_weekly_recap_jobs").update({ status: "retry", attempt_count: Number(recap.data.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString() }).eq("id", recap.data.id);
-  });
+  if (recap.data) {
+    recapProcessing = true;
+    try {
+      await processRecap(recap.data);
+    } catch (error) {
+      await supabase.from("rec_weekly_recap_jobs").update({ status: "retry", attempt_count: Number(recap.data.attempt_count ?? 0) + 1, last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString() }).eq("id", recap.data.id);
+    } finally {
+      recapProcessing = false;
+    }
+  }
 }
