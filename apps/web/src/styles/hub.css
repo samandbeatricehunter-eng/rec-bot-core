@@ -470,6 +470,8 @@ button.poty:disabled {
 .hub-schedule-mini-card .rec-matchup-card__result b { font-size: 16px; }
 .hub-schedule-mini-card .rec-matchup-card__result span { font-size: 9px; }
 .hub-schedule-mini-card .rec-matchup-card__center > small { font-size: 8px; }
+.hub-schedule-mini-card .rec-matchup-card__force-win-tag { font-size: 8px; padding: 0 5px; }
+.hub-schedule-mini-card .rec-matchup-card__scheduled-time { font-size: 8px; }
 .hub-schedule-mini-card .hub-score-unofficial { align-self: center; font-size: 11px; }
 .hub-schedule-week {
   display: grid;
@@ -2665,6 +2667,8 @@ button.poty:disabled {
 .rec-matchup-card__team small { font:700 .72rem var(--font-sans); letter-spacing:.14em; text-transform:uppercase; opacity:.78; }
 .rec-matchup-card__team strong { font-family:var(--font-display); font-size:clamp(1.15rem,3.4vw,2.3rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
 .rec-matchup-card__team-meta { display:block; font:800 .74rem var(--font-sans); letter-spacing:.06em; text-transform:uppercase; opacity:.95; margin-top:3px; }
+.rec-matchup-card__force-win-tag { display:inline-block; margin-top:4px; padding:1px 8px; border-radius:999px; background:color-mix(in srgb,var(--team-text) 22%,transparent); font:800 .62rem var(--font-sans); letter-spacing:.06em; text-transform:uppercase; font-style:normal; }
+.rec-matchup-card__scheduled-time { font:800 .66rem var(--font-sans); letter-spacing:.04em; text-transform:uppercase; color:#5b5341; margin-top:2px; }
 
 /* Center medallion — light score bug with glowing accent seams */
 .rec-matchup-card__center { position:relative; z-index:3; display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:0; padding:24px 4px; color:#080a0c; text-align:center; background:linear-gradient(180deg,#fbf8ef,#f2eee3 60%,#e4ddca); box-shadow:inset 0 0 0 1px rgba(0,0,0,.12),inset 0 2px 6px rgba(255,255,255,.7); }

@@ -677,6 +677,8 @@ export type HubMatchupSchedule = {
     isFinal: boolean;
     hasPreliminaryScore: boolean;
     displayStatus: "scheduled" | "live" | "awaiting_result" | "final";
+    scheduledFor: string | null;
+    forceWinSide: "home" | "away" | null;
     wageringOpen: boolean;
     winnerTeamId: string | null;
     boxScoreSubmissionId: string | null;

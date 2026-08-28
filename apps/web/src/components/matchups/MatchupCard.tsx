@@ -23,6 +23,10 @@ function schoolLine(schoolName: string, mascot: string): string | null {
   return school;
 }
 
+function formatScheduledTime(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+}
+
 function readableText(hex: string) {
   const value = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) || 0);
@@ -161,6 +165,7 @@ export function MatchupCard({
         <span className="rec-matchup-card__team-text">
           {schoolLine(game.awayTeamName, game.awayTeamMascot) && <small>{schoolLine(game.awayTeamName, game.awayTeamMascot)}</small>}
           <strong>{game.awayTeamMascot}</strong>
+          {game.forceWinSide === "away" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
           {teamMetaLine(game.awayTeamRank, game.awayTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.awayTeamRank, game.awayTeamRecord)}</em>}
         </span>
       </div>
@@ -171,6 +176,7 @@ export function MatchupCard({
             ? <><b>{game.awayScore}</b><span>Final</span><b>{game.homeScore}</b></>
             : <span className="rec-matchup-card__at">@</span>}
         </div>
+        {!game.isFinal && game.scheduledFor && <span className="rec-matchup-card__scheduled-time">{formatScheduledTime(game.scheduledFor)}</span>}
         {game.matchupType !== "h2h" && <small>CPU</small>}
         {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
       </div>
@@ -178,6 +184,7 @@ export function MatchupCard({
         <span className="rec-matchup-card__team-text">
           {schoolLine(game.homeTeamName, game.homeTeamMascot) && <small>{schoolLine(game.homeTeamName, game.homeTeamMascot)}</small>}
           <strong>{game.homeTeamMascot}</strong>
+          {game.forceWinSide === "home" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
           {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
         </span>
         <TeamLogo abbreviation={game.homeTeamAbbr} logoUrl={game.homeTeamLogoUrl} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />

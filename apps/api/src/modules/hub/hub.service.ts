@@ -1749,17 +1749,24 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     };
   };
   const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
-  const [boxScores, gameReactionsForWeek] = await Promise.all([
+  const [boxScores, gameReactionsForWeek, gameScheduling] = await Promise.all([
     gameIds.length
       ? supabase.from("rec_box_score_submissions").select("id,game_id,status,denied_reason,updated_at").in("game_id", gameIds).in("status", ["pending", "approved", "denied"]).order("updated_at", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     gameIds.length
       ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
       : Promise.resolve({ data: [], error: null }),
+    // Confirmed kickoff time + commissioner-granted Force Win, surfaced on the matchup card
+    // itself instead of requiring a trip into the game channel to see either.
+    gameIds.length
+      ? supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (boxScores.error) throw new ApiError(500, "We couldn't load matchup box-score status. Please try again.", boxScores.error);
   if (gameReactionsForWeek.error) throw new ApiError(500, "We couldn't load matchup reactions. Please try again.", gameReactionsForWeek.error);
+  if (gameScheduling.error) throw new ApiError(500, "We couldn't load matchup scheduling status. Please try again.", gameScheduling.error);
   const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
+  const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
   const mappedGames = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
       const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
       const homeScore = result?.home_score ?? game.home_score ?? null;
@@ -1840,6 +1847,12 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         isFinal,
         hasPreliminaryScore,
         displayStatus,
+        scheduledFor: schedulingByGameId.get(game.id)?.scheduled_for ?? null,
+        forceWinSide: schedulingByGameId.get(game.id)?.fw_flagged
+          ? (schedulingByGameId.get(game.id)?.fw_flagged_for_user_id === game.home_user_id ? "home" as const
+            : schedulingByGameId.get(game.id)?.fw_flagged_for_user_id === game.away_user_id ? "away" as const
+            : null)
+          : null,
         wageringOpen: String(game.status ?? "scheduled").toLowerCase() === "scheduled" && !isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,
