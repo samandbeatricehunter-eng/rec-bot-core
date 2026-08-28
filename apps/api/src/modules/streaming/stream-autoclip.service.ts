@@ -29,7 +29,7 @@ const RESOLVER = process.env.STREAM_RESOLVER_BIN?.trim() || "yt-dlp";
 // Pre/post-roll around a detected score-change frame -- shared by processCapture (which cuts
 // the clip) and processRecap (which needs each clip's known duration up front to time the
 // weekly recap's music fade-out without re-probing every downloaded clip).
-const CLIP_PRE_ROLL_SECONDS = 10;
+const CLIP_PRE_ROLL_SECONDS = 15;
 const CLIP_POST_ROLL_SECONDS = 10;
 const CLIP_DURATION_SECONDS = CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS;
 
@@ -331,7 +331,7 @@ async function processCapture(job: any) {
   // inside the clip's existing 10s pre-roll. down_distance is deliberately excluded from the
   // match check (it changes almost every play and isn't gated behind confirmation) but still
   // carried through from whichever frame completes the confirmation, for the kickoff check below.
-  const CONFIRM_SAMPLES = 2;
+  const CONFIRM_SAMPLES = 3;
   let confirmed: Reading | null = null;
   let candidate: { reading: Reading; count: number; firstSecond: number } | null = null;
   const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number; eventType: "score_change" | "turnover" }> = [];
