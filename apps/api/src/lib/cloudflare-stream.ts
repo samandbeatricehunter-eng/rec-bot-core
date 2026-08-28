@@ -273,9 +273,15 @@ export async function uploadLargeStreamVideo(input: {
   if (!patchResponse.ok) {
     throw new ApiError(502, `Stream TUS upload failed (HTTP ${patchResponse.status}).`);
   }
-  // TUS creation doesn't take allowedOrigins the way the JSON direct_upload/copy endpoints do --
-  // apply it as a follow-up edit, same call already used to repair pre-fix videos.
-  await updateStreamAllowedOrigins(uid).catch((error) => console.error("[WARN] Failed to set allowedOrigins on TUS-uploaded video (non-fatal):", error));
+  // TUS creation's Upload-Metadata headers don't reliably take requireSignedURLs/allowedOrigins
+  // the way the JSON direct_upload/copy endpoints do (confirmed live: a TUS-uploaded video came
+  // back 401 unauthorized on its watch page despite requiresignedurls:false in Upload-Metadata,
+  // implying the account default -- signed URLs required -- won instead). Apply both explicitly
+  // as a follow-up settings edit rather than trusting the metadata handshake.
+  await Promise.all([
+    requireSignedUrlsOff(uid).catch((error) => console.error(`[WARN] Failed to disable requireSignedURLs on TUS-uploaded video ${uid} (non-fatal, video may be unplayable):`, error)),
+    updateStreamAllowedOrigins(uid).catch((error) => console.error(`[WARN] Failed to set allowedOrigins on TUS-uploaded video ${uid} (non-fatal):`, error)),
+  ]);
   return { uid, playbackUrl: streamPlaybackUrls(uid).watch };
 }
 
@@ -294,6 +300,23 @@ export async function updateStreamAllowedOrigins(uid: string): Promise<void> {
   if (!response.ok || !payload?.success) {
     const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
     throw new ApiError(502, `Failed to update Stream allowedOrigins for ${uid} (${detail}).`);
+  }
+}
+
+/** One-off repair for a video created with signed URLs required (e.g. a TUS upload whose
+ * Upload-Metadata requiresignedurls hint the account ignored) -- disables it explicitly. */
+export async function requireSignedUrlsOff(uid: string): Promise<void> {
+  const { accountId, apiToken } = requireStreamConfig();
+  const response = await fetch(`${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}`, {
+    method: "POST",
+    headers: streamHeaders(apiToken),
+    body: JSON.stringify({ requireSignedURLs: false }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const payload = await bestEffort("cloudflare.stream.parse_update_signed_urls", () => response.json(), { entityId: uid }) as { success?: boolean; errors?: Array<{ message?: string }> } | null | undefined;
+  if (!response.ok || !payload?.success) {
+    const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
+    throw new ApiError(502, `Failed to disable requireSignedURLs for ${uid} (${detail}).`);
   }
 }
 

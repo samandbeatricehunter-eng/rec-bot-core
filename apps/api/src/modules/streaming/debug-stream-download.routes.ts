@@ -5,7 +5,7 @@ import { env } from "../../config/env.js";
 import { sendError, ApiError } from "../../lib/errors.js";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
-import { deleteStreamVideo, enableStreamDownload, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
+import { deleteStreamVideo, enableStreamDownload, requireSignedUrlsOff, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
 import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels } from "../scorebug-ocr/scorebug-regions.js";
 
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
@@ -166,6 +166,7 @@ export async function debugStreamDownloadRoutes(app: FastifyInstance) {
       requireDebugStreamKey(request.headers["x-debug-key"]);
       const params = z.object({ uid: z.string().min(1) }).parse(request.params);
       await updateStreamAllowedOrigins(params.uid);
+      await requireSignedUrlsOff(params.uid);
       return reply.send({ fixed: true });
     } catch (error) { return sendError(reply, error); }
   });
