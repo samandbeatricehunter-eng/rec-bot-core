@@ -6,6 +6,7 @@ import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls } fr
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { parseScorebugFrameAuto } from "../scorebug-ocr/scorebug-parser.js";
+import { detectStreamPlatform } from "./streaming-labels.js";
 
 const execFileAsync = promisify(execFile);
 const activeCaptures = new Map<string, ChildProcess>();
@@ -73,6 +74,46 @@ export async function enqueueStreamAutoclip(input: { sessionId: string; leagueId
     updated_at: now,
   }, { onConflict: "streaming_session_id", ignoreDuplicates: true });
   if (result.error && !missingTable(result.error)) throw result.error;
+}
+
+// enqueueStreamAutoclip needs a real rec_streaming_sessions row (streaming_session_id has a hard
+// FK + UNIQUE constraint), which in turn needs a real rec_streaming_accounts row (account_id is
+// NOT NULL there too) -- both of those only otherwise exist for the OAuth-linked Twitch/YouTube/
+// TikTok auto-detection flow (streaming.service.ts). A stream link posted manually -- the site's
+// "share stream" button (shareHubMatchupStream in hub.service.ts) or Discord's #streams channel/
+// "/stream" menu (recordStreamPost in streams.service.ts) -- never went through that flow, so
+// neither of those two (far more commonly used) posting paths ever actually enqueued a capture
+// job at all, despite visibly posting the same "WATCH STREAM" announcement the OAuth flow does.
+// This creates a lightweight synthetic account/session pair purely to satisfy that FK chain --
+// no OAuth tokens, no EventSub wiring, never touched again after this one capture. Reuses an
+// existing account row if the user already has a real linked one for this platform (never
+// overwrites it) instead of blindly upserting, since rec_streaming_accounts has a real
+// UNIQUE(user_id, platform) constraint a naive upsert could clobber.
+export async function enqueueManualStreamAutoclip(input: { userId: string; leagueId: string; gameId: string; streamUrl: string }): Promise<void> {
+  try {
+    const platform = detectStreamPlatform(input.streamUrl);
+    if (platform !== "twitch" && platform !== "youtube" && platform !== "tiktok") return;
+
+    const existingAccount = await supabase.from("rec_streaming_accounts").select("id").eq("user_id", input.userId).eq("platform", platform).maybeSingle();
+    if (existingAccount.error) throw existingAccount.error;
+    let accountId = existingAccount.data?.id as string | undefined;
+    if (!accountId) {
+      const inserted = await supabase.from("rec_streaming_accounts").insert({
+        user_id: input.userId, platform, platform_login: "manual", status: "active",
+      }).select("id").single();
+      if (inserted.error) throw inserted.error;
+      accountId = inserted.data.id;
+    }
+
+    const session = await supabase.from("rec_streaming_sessions").insert({
+      user_id: input.userId, account_id: accountId, platform, stream_url: input.streamUrl, status: "posted", posted_at: new Date().toISOString(),
+    }).select("id").single();
+    if (session.error) throw session.error;
+
+    await enqueueStreamAutoclip({ sessionId: session.data.id, leagueId: input.leagueId, gameId: input.gameId, streamUrl: input.streamUrl });
+  } catch (error) {
+    console.error("[ERROR] Failed to enqueue autoclip for a manually-posted stream (non-fatal):", error);
+  }
 }
 
 export async function requestStreamAutoclipStop(sessionId: string) {
@@ -279,41 +320,62 @@ async function processCapture(job: any) {
   if (league.error) throw league.error;
   if (!game.data) throw new Error("Capture game no longer exists.");
   const duration = await durationSeconds(job.capture_path);
-  let previous: { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"]; downDistance: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["downDistance"] } | null = null;
+  type Reading = { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"]; downDistance: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["downDistance"] };
+  const sameReading = (a: Reading, b: Reading) => a.away === b.away && a.home === b.home && a.possession === b.possession;
+  // A single sampled frame's OCR read is too fragile to trust outright -- confirmed live: video
+  // compression/motion-blur artifacts produced wildly non-monotonic, sometimes impossible scores
+  // (e.g. a "149" point jump) when every sample was taken at face value. Requiring the SAME
+  // away/home/possession reading to repeat across CONFIRM_SAMPLES consecutive 3s samples before
+  // it's trusted as the real game state filters out nearly all of that one-off noise, at the cost
+  // of the event landing (CONFIRM_SAMPLES-1)*3 seconds later than the true moment -- comfortably
+  // inside the clip's existing 10s pre-roll. down_distance is deliberately excluded from the
+  // match check (it changes almost every play and isn't gated behind confirmation) but still
+  // carried through from whichever frame completes the confirmation, for the kickoff check below.
+  const CONFIRM_SAMPLES = 2;
+  let confirmed: Reading | null = null;
+  let candidate: { reading: Reading; count: number; firstSecond: number } | null = null;
   const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number; eventType: "score_change" | "turnover" }> = [];
   for (let second = 3; second < duration; second += 3) {
     const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-ss", String(second), "-i", job.capture_path, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
     const parsed = await parseScorebugFrameAuto(frame);
     if (!parsed.isLiveScorebug || parsed.awayScore == null || parsed.homeScore == null) continue;
-    const scored = Boolean(previous) && (parsed.awayScore > previous!.away || parsed.homeScore > previous!.home);
+    const reading: Reading = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession, downDistance: parsed.downDistance };
+
+    if (candidate && sameReading(candidate.reading, reading)) candidate.count += 1;
+    else candidate = { reading, count: 1, firstSecond: second };
+    if (candidate.count < CONFIRM_SAMPLES) continue;
+    if (confirmed && sameReading(confirmed, reading)) continue;
+
+    const eventSecond = candidate.firstSecond;
+    const scored = Boolean(confirmed) && (reading.away > confirmed!.away || reading.home > confirmed!.home);
     // Every kickoff flips possession as a matter of course -- that's not a takeaway, so it
     // shouldn't compete for clip budget as one. A kick/punt return (or onside recovery) that
     // ends in a touchdown is still caught, just via the score branch below instead of this one,
-    // since `scored` already takes priority over `possessionFlipped` for the same sampled frame.
-    const aroundKickoff = previous?.downDistance === "kickoff" || parsed.downDistance === "kickoff";
+    // since `scored` already takes priority over `possessionFlipped` for the same confirmed change.
+    const aroundKickoff = confirmed?.downDistance === "kickoff" || reading.downDistance === "kickoff";
     // A forced turnover doesn't move the score, so it needs its own signal: the possession
-    // glyph flipping sides between samples. "neutral"/"unknown" reads (dead ball, or a bad OCR
-    // read) are excluded from both sides of the comparison so a flicker through those states
-    // between two frames on the SAME side never reads as a flip.
-    const possessionFlipped = !scored && !aroundKickoff && Boolean(previous)
-      && previous!.possession !== "neutral" && previous!.possession !== "unknown"
-      && parsed.possession !== "neutral" && parsed.possession !== "unknown"
-      && parsed.possession !== previous!.possession;
+    // glyph flipping sides between confirmed readings. "neutral"/"unknown" reads (dead ball, or a
+    // bad OCR read) are excluded from both sides of the comparison so a flicker through those
+    // states between two confirmed readings on the SAME side never reads as a flip.
+    const possessionFlipped = !scored && !aroundKickoff && Boolean(confirmed)
+      && confirmed!.possession !== "neutral" && confirmed!.possession !== "unknown"
+      && reading.possession !== "neutral" && reading.possession !== "unknown"
+      && reading.possession !== confirmed!.possession;
     if (scored) {
       const value = computeClipValue({
         quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
-        awayBefore: previous!.away, homeBefore: previous!.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
+        awayBefore: confirmed!.away, homeBefore: confirmed!.home, awayAfter: reading.away, homeAfter: reading.home,
       });
-      events.push({ second, parsed, value, eventType: "score_change" });
+      events.push({ second: eventSecond, parsed, value, eventType: "score_change" });
     } else if (possessionFlipped) {
       const value = computeClipValue({
         quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
-        awayBefore: previous!.away, homeBefore: previous!.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
+        awayBefore: confirmed!.away, homeBefore: confirmed!.home, awayAfter: reading.away, homeAfter: reading.home,
         turnover: true,
       });
-      events.push({ second, parsed, value, eventType: "turnover" });
+      events.push({ second: eventSecond, parsed, value, eventType: "turnover" });
     }
-    previous = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession, downDistance: parsed.downDistance };
+    confirmed = reading;
   }
   for (const [index, event] of events.entries()) {
     const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);

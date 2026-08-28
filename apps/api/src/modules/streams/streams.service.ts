@@ -295,6 +295,10 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     await markGameStarted({ gameId: lockedGameId }).catch((error) => console.error("[ERROR] Failed to mark game started from Discord stream post (non-fatal):", error));
     const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
     await refreshMatchupsChannelForGame(lockedGameId);
+    if (input.messageUrl) {
+      const { enqueueManualStreamAutoclip } = await import("../streaming/stream-autoclip.service.js");
+      await enqueueManualStreamAutoclip({ userId: account.user_id, leagueId: context.leagueId, gameId: lockedGameId, streamUrl: input.messageUrl });
+    }
   }
 
 
