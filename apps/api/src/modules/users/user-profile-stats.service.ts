@@ -96,16 +96,22 @@ function computeStreak(rows: Array<{ result: "win" | "loss" | "tie"; sortKey: nu
 async function loadActiveStreak(userId: string, leagueId?: string | null, seasonNumber?: number | null): Promise<string> {
   let query = supabase
     .from("rec_game_results")
-    .select("season_number,week_number,is_tie,winning_user_id,home_user_id,away_user_id")
+    .select("season_number,week_number,is_tie,winning_user_id,home_user_id,away_user_id,played_at,created_at")
     .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
   if (leagueId) query = query.eq("league_id", leagueId);
   if (seasonNumber != null) query = query.eq("season_number", seasonNumber);
   const { data, error } = await query;
   if (error) throw error;
 
+  // season_number*1000+week_number is only a valid chronological key WITHIN a single league --
+  // it's meaningless across leagues (confirmed live: a user's career streak, which pools every
+  // league they've ever played in, read "L1" despite their two most recent games being wins,
+  // because a different league's season/week numbers happened to sort after this league's).
+  // played_at is real wall-clock time but is unpopulated on every existing row, so created_at
+  // (when the result was recorded) is the only reliable cross-league ordering signal available.
   const rows = (data ?? []).map((row) => ({
     result: (row.is_tie ? "tie" : row.winning_user_id === userId ? "win" : "loss") as "win" | "loss" | "tie",
-    sortKey: Number(row.season_number ?? 0) * 1000 + Number(row.week_number ?? 0),
+    sortKey: new Date(row.played_at ?? row.created_at ?? 0).getTime(),
   }));
   return computeStreak(rows);
 }
