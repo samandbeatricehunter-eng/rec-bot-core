@@ -663,6 +663,22 @@ async function processRecap(job: any) {
   args.push("-filter_complex", filter, "-map", "[v]", "-map", "[aout]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-maxrate", "2500k", "-bufsize", "5000k", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", output);
   await execFileAsync(FFMPEG, args, { timeout: 20 * 60_000, maxBuffer: 4 * 1024 * 1024 });
   const media = await uploadVideo(output, { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id }, 20 * 60);
+  // Both a "completed" TUS upload and a "completed" simple upload have each separately turned
+  // out to be a video Cloudflare later reports Not Found for (confirmed live, three times) --
+  // the create+upload HTTP calls returning 2xx isn't proof the video survives Cloudflare's own
+  // async ingest validation. Poll its real state before trusting the upload: bail out (retry,
+  // with Cloudflare's own error reason surfaced) on an explicit error state or on the video
+  // vanishing outright, so a future recurrence retries with a real diagnostic instead of
+  // silently completing against a dead uid again.
+  const { inspectStreamVideoRaw } = await import("../../lib/cloudflare-stream.js");
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    const status = await inspectStreamVideoRaw(media.uid);
+    console.log(`[INFO] Recap upload ${media.uid} post-upload check ${attempt + 1}/6:`, JSON.stringify(status));
+    if (!status.exists) throw new Error(`Recap video ${media.uid} vanished shortly after upload (Cloudflare ingest rejected it silently).`);
+    if (status.state === "error") throw new Error(`Recap video ${media.uid} failed Cloudflare ingest: ${status.errorReasonCode ?? "unknown"} ${status.errorReasonText ?? ""}`.trim());
+    if (status.ready) break;
+  }
   await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", output_stream_uid: media.uid, playback_url: media.playbackUrl, last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
   await postRecapToHighlightReel(job, media);
 }

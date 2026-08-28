@@ -161,18 +161,35 @@ export async function inspectStreamVideo(uid: string): Promise<{
   ready: boolean;
   height: number | null;
 }> {
-  if (!uid.trim()) return { exists: false, ready: false, height: null };
+  const raw = await inspectStreamVideoRaw(uid);
+  return { exists: raw.exists, ready: raw.ready, height: raw.height };
+}
+
+/** Same lookup as inspectStreamVideo but keeps Cloudflare's raw state/error fields -- needed to
+ * diagnose why a video that uploaded successfully (2xx from both the create and upload/PATCH
+ * calls) can still fail Cloudflare's own async ingest validation and disappear minutes later
+ * (confirmed live, three times, across both the TUS and simple-upload paths). */
+export async function inspectStreamVideoRaw(uid: string): Promise<{
+  exists: boolean;
+  ready: boolean;
+  height: number | null;
+  state: string | null;
+  errorReasonCode: string | null;
+  errorReasonText: string | null;
+  raw: unknown;
+}> {
+  if (!uid.trim()) return { exists: false, ready: false, height: null, state: null, errorReasonCode: null, errorReasonText: null, raw: null };
   const { accountId, apiToken } = requireStreamConfig();
   const response = await fetch(
     `${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}`,
     { headers: streamHeaders(apiToken), signal: AbortSignal.timeout(20_000) },
   );
-  if (response.status === 404) return { exists: false, ready: false, height: null };
+  if (response.status === 404) return { exists: false, ready: false, height: null, state: null, errorReasonCode: null, errorReasonText: null, raw: null };
   const payload = await bestEffort("cloudflare.stream.parse_inspect", () => response.json(), { entityId: uid }) as {
     success?: boolean;
     result?: {
       readyToStream?: boolean;
-      status?: { state?: string };
+      status?: { state?: string; errorReasonCode?: string; errorReasonText?: string };
       input?: { height?: number };
     };
   } | null | undefined;
@@ -188,6 +205,10 @@ export async function inspectStreamVideo(uid: string): Promise<{
       Number.isFinite(Number(payload.result.input?.height))
         ? Number(payload.result.input?.height)
         : null,
+    state: payload.result.status?.state ?? null,
+    errorReasonCode: payload.result.status?.errorReasonCode ?? null,
+    errorReasonText: payload.result.status?.errorReasonText ?? null,
+    raw: payload.result,
   };
 }
 
