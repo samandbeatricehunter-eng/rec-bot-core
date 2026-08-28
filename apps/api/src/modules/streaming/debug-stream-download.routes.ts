@@ -10,9 +10,8 @@ import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels } from "..
 
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 
-// execFile's buffered stdout isn't reliable for binary image data (Sharp rejected it as "unsupported
-// image format" even though generic viewers tolerated it) -- mirrors outputBuffer() in
-// stream-autoclip.service.ts, which is what the real OCR pipeline uses to feed Sharp successfully.
+// Mirrors outputBuffer() in stream-autoclip.service.ts, the pattern the real OCR pipeline uses
+// to extract a single frame as a Buffer for Sharp to decode.
 async function ffmpegFrameBuffer(args: string[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -100,7 +99,7 @@ export async function debugStreamDownloadRoutes(app: FastifyInstance) {
           left += (c.width ?? 0) + 12;
           return entry;
         });
-        return sharp({ create: { width: rowWidth, height: rowHeight, channels: 3, background: "#333" } }).composite(composites).toBuffer();
+        return sharp({ create: { width: rowWidth, height: rowHeight, channels: 3, background: "#333" } }).composite(composites).png().toBuffer();
       }
 
       const [tickerRow, noTickerRow] = await Promise.all([cropRow(SCOREBUG_REGIONS), cropRow(SCOREBUG_REGIONS_NO_TICKER)]);
