@@ -723,7 +723,7 @@ export async function getHub(guildId: string, discordId: string) {
     // Order by the game's own week first (falling back to created_at within a week) so a
     // highlight submitted late for an earlier week slots back into that week's place in the
     // rotation instead of jumping to the front just because it was uploaded recently.
-    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }).limit(HUB_HIGHLIGHT_LIMIT),
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,title,source,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }).limit(HUB_HIGHLIGHT_LIMIT),
     getWeeklyH2hGames(guildId),
     Promise.all([
       getUserMenuProfileByDiscordId(discordId, guildId, { baselineP }),

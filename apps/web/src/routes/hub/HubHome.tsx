@@ -1868,7 +1868,7 @@ export function HubHome() {
         </SectionFrame>
         <SectionFrame
           eyebrow="Community clips"
-          title="Highlight Reel"
+          title={`Weekly Recap - Season ${hub.league.seasonNumber}`}
           className="hub-highlight-section"
         >
           {activeHighlight ? <div className="hub-highlight-carousel">
@@ -1887,12 +1887,12 @@ export function HubHome() {
               <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} onError={() => { setDeadHighlightIds((ids) => ids.includes(activeHighlight.id) ? ids : [...ids, activeHighlight.id]); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta">
                 <div className="hub-highlight-meta-title">
-                  <strong>{activeHighlight.matchupLabel ?? activeHighlight.team?.name ?? activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong>
-                  <small className="hub-highlight-participants">
+                  <strong>{activeHighlight.source === "weekly_recap" ? activeHighlight.title : (activeHighlight.matchupLabel ?? activeHighlight.team?.name ?? activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Highlight")}</strong>
+                  {activeHighlight.source !== "weekly_recap" && <small className="hub-highlight-participants">
                     {activeHighlight.matchupParticipants
                       ? `H2H: @${activeHighlight.matchupParticipants.away} VS @${activeHighlight.matchupParticipants.home}`
                       : `CPU: @${activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Member"}`}
-                  </small>
+                  </small>}
                 </div>
                 <span>{activeHighlightIndex + 1} of {highlightCount}{" \u00B7 "}Season {activeHighlight.season_number}{" \u00B7 "}{activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span>
               </div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>

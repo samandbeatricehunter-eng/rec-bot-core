@@ -35,6 +35,15 @@ export function streamAllowedOrigins(): string[] {
     "http://localhost:5174",
     "http://127.0.0.1:5174",
   ];
+  // Cloudflare's own hosted watch page (watch.cloudflarestream.com, or this account's
+  // customer-*.cloudflarestream.com) sets its own domain as parentOrigin when it requests the
+  // playback manifest -- without it in the allow list, opening a bare "watch" link directly
+  // (as opposed to embedding the video via <iframe> on one of the origins above) 403s on the
+  // manifest request even though the video itself has requireSignedURLs:false. Every Stream
+  // video needs to support being opened as a plain shareable link, not just embedded on-site.
+  const streamHost = (env.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN ?? "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (streamHost) defaults.push(streamHost);
+  defaults.push("watch.cloudflarestream.com", "iframe.videodelivery.net");
   // Stream expects hostnames (example.com), not full URLs — full URLs cause 400 Bad Request.
   return [...new Set([...defaults, ...fromEnv])]
     .map((origin) => {
@@ -207,6 +216,24 @@ export async function enableStreamDownload(uid: string): Promise<{ url: string; 
     throw new ApiError(502, `Failed to enable Stream download for ${uid} (${detail}).`);
   }
   return { url: payload.result.default.url, ready: payload.result.default.status === "ready" };
+}
+
+/** One-off repair for a video uploaded before streamAllowedOrigins() included Cloudflare's own
+ * watch-page domains -- re-applies the current (correct) allow list to an already-existing
+ * video. New uploads don't need this; createStreamDirectUpload already sends the fixed list. */
+export async function updateStreamAllowedOrigins(uid: string): Promise<void> {
+  const { accountId, apiToken } = requireStreamConfig();
+  const response = await fetch(`${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}`, {
+    method: "POST",
+    headers: streamHeaders(apiToken),
+    body: JSON.stringify({ allowedOrigins: streamAllowedOrigins() }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const payload = await bestEffort("cloudflare.stream.parse_update_origins", () => response.json(), { entityId: uid }) as { success?: boolean; errors?: Array<{ message?: string }> } | null | undefined;
+  if (!response.ok || !payload?.success) {
+    const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
+    throw new ApiError(502, `Failed to update Stream allowedOrigins for ${uid} (${detail}).`);
+  }
 }
 
 export function verifyStreamWebhookSignature(rawBody: string, signatureHeader: string | undefined): boolean {

@@ -543,6 +543,35 @@ async function processRecap(job: any) {
   await execFileAsync(FFMPEG, args, { timeout: 20 * 60_000, maxBuffer: 4 * 1024 * 1024 });
   const media = await uploadVideo(output, { name: `REC weekly recap S${job.season_number} W${job.week_number}`, leagueId: job.league_id }, 20 * 60);
   await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", output_stream_uid: media.uid, playback_url: media.playbackUrl, last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
+  await postRecapToHighlightReel(job, media);
+}
+
+// Surfaces the finished recap in the same Hub "Highlight Reel" carousel individual highlight
+// uploads use (rec_highlight_posts), rather than a separate, disconnected viewing surface --
+// non-fatal since the recap itself (rec_weekly_recap_jobs row + Cloudflare video) already
+// exists regardless of whether this post succeeds. user_id has a NOT NULL FK with no natural
+// single uploader for a whole-week compilation, so it's attributed to the league owner, mirroring
+// the existing owner-as-system-actor convention used for other automated league-wide content
+// (see commissioner-pending-summary.ts's `owner_user_id as user_id`).
+async function postRecapToHighlightReel(job: any, media: { uid: string; playbackUrl: string }): Promise<void> {
+  const league = await supabase.from("rec_leagues").select("name,owner_user_id").eq("id", job.league_id).maybeSingle();
+  if (league.error || !league.data?.owner_user_id) {
+    console.error("[WARN] Could not attribute weekly recap highlight post (missing league owner, non-fatal):", league.error);
+    return;
+  }
+  const stage = String(job.season_stage ?? "regular_season");
+  const stageLabel = stage === "regular_season"
+    ? `Week ${job.week_number} Recap`
+    : `${stage.replace(/_/g, " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase())} Recap`;
+  const now = new Date().toISOString();
+  const inserted = await supabase.from("rec_highlight_posts").insert({
+    id: crypto.randomUUID(), league_id: job.league_id, user_id: league.data.owner_user_id, team_id: null,
+    season_number: job.season_number, week_number: job.week_number, season_stage: stage,
+    title: `${stageLabel}, Season ${job.season_number}, ${league.data.name}`, source: "weekly_recap",
+    cloudflare_stream_uid: media.uid, storage_provider: "cloudflare_stream", media_status: "ready",
+    playback_url: media.playbackUrl, hub_visible: true, created_at: now, updated_at: now,
+  });
+  if (inserted.error) console.error("[WARN] Failed to post weekly recap to the Highlight Reel (non-fatal):", inserted.error);
 }
 
 export async function runStreamAutoclipSweep() {

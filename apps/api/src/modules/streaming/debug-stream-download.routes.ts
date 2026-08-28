@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { sendError, ApiError } from "../../lib/errors.js";
-import { enableStreamDownload } from "../../lib/cloudflare-stream.js";
+import { enableStreamDownload, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
 
 function requireDebugStreamKey(header: string | string[] | undefined) {
   if (!env.DEBUG_STREAM_KEY) throw new ApiError(404, "Not found.");
@@ -30,6 +30,15 @@ export async function debugStreamDownloadRoutes(app: FastifyInstance) {
         result = await enableStreamDownload(params.uid);
       }
       return reply.send(result);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/debug/stream-fix-origins/:uid", async (request, reply) => {
+    try {
+      requireDebugStreamKey(request.headers["x-debug-key"]);
+      const params = z.object({ uid: z.string().min(1) }).parse(request.params);
+      await updateStreamAllowedOrigins(params.uid);
+      return reply.send({ fixed: true });
     } catch (error) { return sendError(reply, error); }
   });
 }
