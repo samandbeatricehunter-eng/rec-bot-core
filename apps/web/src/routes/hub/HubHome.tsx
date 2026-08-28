@@ -2221,19 +2221,13 @@ export function HubHome() {
             : scheduleLeagueLoading || !scheduleLeagueData ? <p className="hub-empty">Loading league schedule...</p>
             : scheduleLeagueData.isOffseason ? <p className="hub-empty">No games this week — the league is in the offseason ({scheduleLeagueData.offseasonStageLabel ?? "Offseason"}).</p>
             : !scheduleLeagueData.games.length ? <p className="hub-empty">No games scheduled for Week {scheduleLeagueData.selectedWeek}.</p>
-            : <div className="hub-schedule-week-list">{scheduleLeagueData.games.map((game) => (
-                <article key={game.gameId} className={`hub-schedule-week ${game.displayStatus === "final" ? "cpu" : game.displayStatus === "live" ? "live" : game.displayStatus === "awaiting_result" ? "awaiting-result" : "missing"}`}>
-                  <span className="hub-schedule-week-label">{game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "Human vs CPU" : "CPU"}</span>
-                  <strong>{game.awayTeamName} at {game.homeTeamName}</strong>
-                  {game.displayStatus === "final" ? <b className="hub-final-score">{game.awayScore}-{game.homeScore}</b>
-                    : game.displayStatus === "awaiting_result" ? (
-                      game.homeScore != null && game.awayScore != null
-                        ? <span className="hub-muted hub-score-unofficial">{game.awayScore}-{game.homeScore} (unofficial)</span>
-                        : <span className="hub-muted">Played — awaiting result</span>
-                    )
-                    : game.displayStatus === "live" ? <span className="hub-live-badge">LIVE</span>
-                    : <span className="hub-muted">Not yet played</span>}
-                </article>
+            : <div className="hub-schedule-week-list-cards">{scheduleLeagueData.games.map((game) => (
+                <div key={game.gameId} className="hub-schedule-mini-card">
+                  <MatchupCard game={game} showReactions={false} passive />
+                  {game.displayStatus === "awaiting_result" && game.homeScore != null && game.awayScore != null ? (
+                    <span className="hub-muted hub-score-unofficial">{game.awayScore}-{game.homeScore} (unofficial)</span>
+                  ) : null}
+                </div>
               ))}</div>}
         </div>
       )}

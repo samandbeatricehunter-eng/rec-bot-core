@@ -454,6 +454,23 @@ button.poty:disabled {
 .interview-qa-answer { margin: 8px 0 0; color: var(--text-secondary); font-size: var(--text-md); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hub-interview-question-preview { margin: 0; padding: var(--space-2) var(--space-3); border-left: 2px solid var(--gold); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
 .hub-schedule-week-list { display: flex; flex-direction: column; gap: var(--space-2); max-height: 60vh; overflow-y: auto; }
+.hub-schedule-week-list-cards { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.hub-schedule-mini-card { display: flex; flex-direction: column; gap: 4px; }
+/* Shrinks the full-size MatchupCard (built for the hero/matchups page) down to a compact row
+   for the season-schedule list, where a whole week's worth of games need to fit without each
+   one eating 130px+ of vertical space. */
+.hub-schedule-mini-card .rec-matchup-card { min-height: 56px; border-radius: 10px; box-shadow: none; }
+.hub-schedule-mini-card .rec-matchup-card__team { padding: 8px clamp(8px, 3vw, 16px); gap: 6px; }
+.hub-schedule-mini-card .rec-matchup-card__team-logo { width: 26px; height: 26px; }
+.hub-schedule-mini-card .rec-matchup-card__team small,
+.hub-schedule-mini-card .rec-matchup-card__team-meta,
+.hub-schedule-mini-card .rec-matchup-card__ctag { display: none; }
+.hub-schedule-mini-card .rec-matchup-card__team strong { font-size: 12px; }
+.hub-schedule-mini-card .rec-matchup-card__center { padding: 8px 4px; }
+.hub-schedule-mini-card .rec-matchup-card__result b { font-size: 16px; }
+.hub-schedule-mini-card .rec-matchup-card__result span { font-size: 9px; }
+.hub-schedule-mini-card .rec-matchup-card__center > small { font-size: 8px; }
+.hub-schedule-mini-card .hub-score-unofficial { align-self: center; font-size: 11px; }
 .hub-schedule-week {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
