@@ -35,6 +35,7 @@ export type ScheduleTeam = {
 
 export type TeamScheduleManualWeek = {
   weekNumber: number;
+  matchupCard: HubMatchupGame | null;
   alreadyConfirmed: boolean;
   confirmedOpponentTeamId: string | null;
   confirmedOpponentName: string | null;

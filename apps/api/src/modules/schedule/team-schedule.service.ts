@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isCfb, maxSeasonWeek } from "@rec/shared";
+import { CFB_TEAM_PRIMARY_COLORS, isCfb, maxSeasonWeek, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -9,7 +9,7 @@ import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_N
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
-import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { assignKnownRivalryToGame, ensureLeagueRivalries, loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 type ConfirmedWeek = {
@@ -17,6 +17,8 @@ type ConfirmedWeek = {
   weekNumber: number;
   homeTeamId: string;
   awayTeamId: string;
+  homeUserId: string | null;
+  awayUserId: string | null;
   opponentTeamId: string;
   opponentName: string;
   homeAway: "home" | "away";
@@ -46,6 +48,8 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
         weekNumber: week.weekNumber,
         homeTeamId: game.home_team_id,
         awayTeamId: game.away_team_id,
+        homeUserId: game.home_user_id ?? null,
+        awayUserId: game.away_user_id ?? null,
         opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
         opponentName: formatTeamDisplayName(opponent) ?? opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
@@ -235,6 +239,7 @@ export async function previewCfbTeamScheduleImport(input: {
 // come from @rec/shared's game-aware helpers, so no CFB-only guard is needed here.
 export type TeamScheduleManualWeek = {
   weekNumber: number;
+  matchupCard: any | null;
   alreadyConfirmed: boolean;
   confirmedOpponentTeamId: string | null;
   confirmedOpponentName: string | null;
@@ -266,7 +271,7 @@ export async function getTeamScheduleManualState(input: {
 
   const teams = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_abbr,display_city,display_nick,conference,is_relocated")
+    .select("id,name,abbreviation,display_abbr,display_city,display_nick,conference,is_relocated,primary_color,logo_url,original_abbreviation")
     .eq("league_id", leagueId);
   if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
   const teamRows = teams.data ?? [];
@@ -278,6 +283,26 @@ export async function getTeamScheduleManualState(input: {
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
   const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
   const rivalries = await loadGameRivalries(gameDescriptors.map((game) => game.id));
+
+  // Force Win + confirmed kickoff time for the mini matchup card each week renders -- same
+  // rec_game_scheduling source getHubMatchupSchedule reads for the Matchups page.
+  const isCfbLeague = isCfb(context.rec_leagues.game);
+  const gameScheduling = gameDescriptors.length
+    ? await supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameDescriptors.map((g) => g.id))
+    : { data: [] as any[], error: null };
+  if (gameScheduling.error) throw new ApiError(500, "Failed to load matchup scheduling status.", gameScheduling.error);
+  const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
+  const teamById = new Map<string, any>(teamRows.map((row: any) => [row.id, row]));
+  const catalogColorFor = (row: any) => {
+    if (row?.primary_color && String(row.primary_color).toUpperCase() !== "#FFFFFF") return row.primary_color;
+    const colorMap = isCfbLeague ? CFB_TEAM_PRIMARY_COLORS : NFL_TEAM_PRIMARY_COLORS;
+    return colorMap[String(row?.abbreviation ?? "").toUpperCase()] ?? row?.primary_color ?? "#FFFFFF";
+  };
+  const cardLogo = (row: any) => {
+    if (isCfbLeague || !row) return { abbr: null as string | null, logoUrl: null as string | null };
+    if (row.logo_url) return { abbr: null, logoUrl: row.logo_url };
+    return { abbr: row.is_relocated ? row.original_abbreviation ?? row.abbreviation ?? null : row.abbreviation ?? null, logoUrl: null };
+  };
 
   const byeRows = await supabase.from("rec_team_byes").select("week_number,bye_type").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
   if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
@@ -293,8 +318,60 @@ export async function getTeamScheduleManualState(input: {
   for (let weekNumber = firstWeek; weekNumber <= lastWeek; weekNumber++) {
     const confirmed = confirmedByWeek.get(weekNumber);
     const extra = confirmed ? resultsAndSubmissions.get(confirmed.gameId) : undefined;
+    const scheduling = confirmed ? schedulingByGameId.get(confirmed.gameId) : null;
+    const homeRow = confirmed ? teamById.get(confirmed.homeTeamId) : null;
+    const awayRow = confirmed ? teamById.get(confirmed.awayTeamId) : null;
+    const isFinal = Boolean(extra?.result);
+    const matchupCard = confirmed ? {
+      gameId: confirmed.gameId,
+      weekNumber,
+      matchupType: confirmed.matchupType === "h2h" ? "h2h" as const : "human_cpu" as const,
+      involvesMe: true,
+      viewerSide: confirmed.homeAway,
+      isGameOfWeek: false,
+      gotw: null,
+      homeTeamId: confirmed.homeTeamId,
+      awayTeamId: confirmed.awayTeamId,
+      homeTeamName: formatTeamDisplayName(homeRow) ?? homeRow?.name ?? "Home",
+      awayTeamName: formatTeamDisplayName(awayRow) ?? awayRow?.name ?? "Away",
+      homeTeamMascot: resolveTeamNick(homeRow) ?? homeRow?.name ?? "Home",
+      awayTeamMascot: resolveTeamNick(awayRow) ?? awayRow?.name ?? "Away",
+      homeTeamColor: catalogColorFor(homeRow),
+      awayTeamColor: catalogColorFor(awayRow),
+      homeTeamAbbr: cardLogo(homeRow).abbr,
+      awayTeamAbbr: cardLogo(awayRow).abbr,
+      homeTeamLogoUrl: cardLogo(homeRow).logoUrl,
+      awayTeamLogoUrl: cardLogo(awayRow).logoUrl,
+      homeTeamRank: null,
+      awayTeamRank: null,
+      homeTeamRecord: null,
+      awayTeamRecord: null,
+      rivalryName: rivalries.get(confirmed.gameId)?.details?.rivalry_name ?? null,
+      homeConference: homeRow?.conference ?? null,
+      awayConference: awayRow?.conference ?? null,
+      homeScore: extra?.result?.homeScore ?? null,
+      awayScore: extra?.result?.awayScore ?? null,
+      isFinal,
+      hasPreliminaryScore: !isFinal && extra?.result != null,
+      displayStatus: isFinal ? "final" as const : "scheduled" as const,
+      scheduledFor: scheduling?.scheduled_for ?? null,
+      forceWinSide: scheduling?.fw_flagged
+        ? (scheduling.fw_flagged_for_user_id === confirmed.homeUserId ? "home" as const
+          : scheduling.fw_flagged_for_user_id === confirmed.awayUserId ? "away" as const
+          : null)
+        : null,
+      wageringOpen: false,
+      winnerTeamId: null,
+      boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
+      boxScoreStatus: extra?.boxScoreStatus ?? null,
+      boxScoreDeniedReason: null,
+      reactionCounts: { love: 0, like: 0, goty: 0, dislike: 0, poop: 0 },
+      myReactions: [] as Array<"love" | "like" | "goty" | "dislike" | "poop">,
+      streams: [] as never[],
+    } : null;
     weeks.push({
       weekNumber,
+      matchupCard,
       alreadyConfirmed: Boolean(confirmed),
       confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
       confirmedOpponentName: confirmed?.opponentName ?? null,

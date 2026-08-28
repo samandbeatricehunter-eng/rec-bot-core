@@ -191,15 +191,6 @@ function ProfileStats({ values, hideBoxScoresUploaded }: { values: Record<string
   return rows.length ? <div className="hub-profile-stat-list">{rows.map(([key, value]) => <div key={key}><span>{displayLabel(key)}</span><strong>{typeof value === "number" ? value.toLocaleString() : String(value)}</strong></div>)}</div> : <p className="hub-empty">No stats recorded yet.</p>;
 }
 
-function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
-  const result = week.result;
-  if (!result || result.homeScore == null || result.awayScore == null) return null;
-  const teamScore = week.confirmedHomeAway === "home" ? result.homeScore : result.awayScore;
-  const opponentScore = week.confirmedHomeAway === "home" ? result.awayScore : result.homeScore;
-  if (result.isTie || teamScore === opponentScore) return `Tie ${teamScore}-${opponentScore}`;
-  return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
-}
-
 export function RankChange({ change }: { change: number | null | undefined }) {
   if (change == null) return <span className="hub-rank-change">New</span>;
   if (change === 0) return <span className="hub-rank-change">No change</span>;
@@ -501,22 +492,24 @@ function ScheduleWeekList({
 }) {
   return <div className="hub-schedule-week-list">
     {weeks.map((week) => {
-      const resultLabel = scheduleResultLabel(week);
       const eligibleForActions =
         week.alreadyConfirmed && !week.isBye && Boolean(week.gameId) &&
         (currentWeek == null || week.weekNumber <= currentWeek);
       const highlightCount = highlightCounts?.[week.weekNumber] ?? 0;
       const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
       const missingHighlight = eligibleForActions && highlightCount < 2;
-      return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
+      return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}${week.matchupCard ? " has-card" : ""}`}>
+      {week.matchupCard ? (
+        <div className="hub-schedule-mini-card hub-schedule-week-info">
+          <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
+          <MatchupCard game={week.matchupCard} showReactions={false} passive />
+        </div>
+      ) : (
       <div className="hub-schedule-week-info">
         <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-        {week.alreadyConfirmed ? <>
-          <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
-          <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
-          {resultLabel ? <b className="hub-final-score">{resultLabel}</b> : <span className="hub-muted">Not yet played</span>}
-        </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
+        {week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
       </div>
+      )}
       <div className="hub-schedule-week-aside">
         {onUploadHighlight ? <span className="hub-schedule-highlight-chip">Highlights {highlightCount}/2</span> : null}
         {(onUploadBoxScore && missingBoxScore) || (onUploadHighlight && missingHighlight) ? (
