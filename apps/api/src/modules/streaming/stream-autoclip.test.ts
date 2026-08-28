@@ -47,3 +47,22 @@ test("a lead change is worth more than a same-team extension of an existing lead
   });
   assert.ok(leadChange > extension, `expected lead change (${leadChange}) > lead extension (${extension})`);
 });
+
+test("a forced turnover scores higher than a no-op moment with the same score/clock context", () => {
+  const context = { quarter: "4", gameClock: "3:00", awayBefore: 17, homeBefore: 20, awayAfter: 17, homeAfter: 20 };
+  const turnover = computeClipValue({ ...context, turnover: true });
+  const noOp = computeClipValue(context);
+  assert.ok(turnover > noOp, `expected turnover (${turnover}) > no-op (${noOp})`);
+});
+
+test("a late-game turnover in a one-score game outscores an early turnover in a blowout", () => {
+  const clutchTurnover = computeClipValue({
+    quarter: "4", gameClock: "1:00",
+    awayBefore: 20, homeBefore: 24, awayAfter: 20, homeAfter: 24, turnover: true,
+  });
+  const garbageTimeTurnover = computeClipValue({
+    quarter: "1", gameClock: "10:00",
+    awayBefore: 35, homeBefore: 10, awayAfter: 35, homeAfter: 10, turnover: true,
+  });
+  assert.ok(clutchTurnover > garbageTimeTurnover, `expected clutch turnover (${clutchTurnover}) > garbage-time turnover (${garbageTimeTurnover})`);
+});

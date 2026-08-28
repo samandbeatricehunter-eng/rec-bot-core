@@ -236,6 +236,10 @@ function parseClockSeconds(clock: string | null): number | null {
 export function computeClipValue(input: {
   quarter: string | null; gameClock: string | null;
   awayBefore: number; homeBefore: number; awayAfter: number; homeAfter: number;
+  /** A possession-flip event with no score change (a forced turnover) -- scored on the same
+   * closeness/clutch-time terms as a score, plus a flat bonus comparable to a lead change,
+   * since a takeaway is just as game-deciding as the points it often prevents or sets up. */
+  turnover?: boolean;
 }): number {
   const pointsScored = Math.max(0, (input.awayAfter - input.awayBefore) + (input.homeAfter - input.homeBefore));
   const marginBefore = Math.abs(input.awayBefore - input.homeBefore);
@@ -248,6 +252,7 @@ export function computeClipValue(input: {
   let value = pointsScored * 3;
   if (leadChanged) value += 25;
   if (tyingPlay) value += 20;
+  if (input.turnover) value += 25;
   value += Math.max(0, 15 - marginAfter);
 
   const quarterNum = input.quarter === "OT" ? 5 : Number(input.quarter ?? 0);
@@ -274,20 +279,36 @@ async function processCapture(job: any) {
   if (league.error) throw league.error;
   if (!game.data) throw new Error("Capture game no longer exists.");
   const duration = await durationSeconds(job.capture_path);
-  let previous: { away: number; home: number } | null = null;
-  const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number }> = [];
+  let previous: { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"] } | null = null;
+  const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number; eventType: "score_change" | "turnover" }> = [];
   for (let second = 3; second < duration; second += 3) {
     const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-ss", String(second), "-i", job.capture_path, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
     const parsed = await parseScorebugFrameAuto(frame);
     if (!parsed.isLiveScorebug || parsed.awayScore == null || parsed.homeScore == null) continue;
-    if (previous && (parsed.awayScore > previous.away || parsed.homeScore > previous.home)) {
+    const scored = Boolean(previous) && (parsed.awayScore > previous!.away || parsed.homeScore > previous!.home);
+    // A forced turnover doesn't move the score, so it needs its own signal: the possession
+    // glyph flipping sides between samples. "neutral"/"unknown" reads (dead ball, or a bad OCR
+    // read) are excluded from both sides of the comparison so a flicker through those states
+    // between two frames on the SAME side never reads as a flip.
+    const possessionFlipped = !scored && Boolean(previous)
+      && previous!.possession !== "neutral" && previous!.possession !== "unknown"
+      && parsed.possession !== "neutral" && parsed.possession !== "unknown"
+      && parsed.possession !== previous!.possession;
+    if (scored) {
       const value = computeClipValue({
         quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
-        awayBefore: previous.away, homeBefore: previous.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
+        awayBefore: previous!.away, homeBefore: previous!.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
       });
-      events.push({ second, parsed, value });
+      events.push({ second, parsed, value, eventType: "score_change" });
+    } else if (possessionFlipped) {
+      const value = computeClipValue({
+        quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
+        awayBefore: previous!.away, homeBefore: previous!.home, awayAfter: parsed.awayScore, homeAfter: parsed.homeScore,
+        turnover: true,
+      });
+      events.push({ second, parsed, value, eventType: "turnover" });
     }
-    previous = { away: parsed.awayScore, home: parsed.homeScore };
+    previous = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession };
   }
   for (const [index, event] of events.entries()) {
     const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);
@@ -296,7 +317,7 @@ async function processCapture(job: any) {
     await supabase.from("rec_stream_event_clips").upsert({
       capture_job_id: job.id, league_id: job.league_id, game_id: job.game_id,
       season_number: Number(league.data?.season_number ?? 1), week_number: Number(game.data.week_number ?? 1),
-      event_type: "score_change", event_second: event.second,
+      event_type: event.eventType, event_second: event.second,
       away_score: event.parsed.awayScore, home_score: event.parsed.homeScore,
       quarter: event.parsed.quarter == null ? null : String(event.parsed.quarter), game_clock: event.parsed.gameClock,
       down_distance: downDistanceText(event.parsed.downDistance), yard_line: event.parsed.yardLine,
