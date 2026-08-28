@@ -22,7 +22,12 @@ function Section({ title, games }: { title: string; games: WeeklyMatchupBoardRen
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
         {games.map((game) => (
           <div key={game.gameId} style={{ width: 420 }}>
-            <MatchupCard game={game} renderMode="discord" showReactions={false} />
+            {/* Deliberately NOT renderMode="discord" -- that mode hardcodes a fixed 3.4rem,
+              non-wrapping team-name font sized for a single 1600px-wide Discord embed card
+              (see matchup-render.ts), which clips badly at this grid tile's width. Default
+              "site" mode uses clamp()-based responsive sizing driven by viewport width, which
+              stays legible at any tile width on this fixed 1920px-wide render canvas. */}
+            <MatchupCard game={game} showReactions={false} passive />
           </div>
         ))}
       </div>

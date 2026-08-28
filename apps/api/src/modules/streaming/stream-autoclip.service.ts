@@ -282,9 +282,13 @@ async function processCapture(job: any) {
     }
     previous = { away: parsed.awayScore, home: parsed.homeScore };
   }
+  // Pre/post-roll around the detected score-change frame -- trimmed down from an initial
+  // 12s-before/18s-after (30s total) after live testing showed too much dead time on both ends.
+  const CLIP_PRE_ROLL_SECONDS = 2;
+  const CLIP_POST_ROLL_SECONDS = 13;
   for (const [index, event] of events.entries()) {
     const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);
-    await execFileAsync(FFMPEG, ["-y", "-ss", String(Math.max(0, event.second - 12)), "-i", job.capture_path, "-t", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-movflags", "+faststart", clipPath], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+    await execFileAsync(FFMPEG, ["-y", "-ss", String(Math.max(0, event.second - CLIP_PRE_ROLL_SECONDS)), "-i", job.capture_path, "-t", String(CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-movflags", "+faststart", clipPath], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
     const media = await uploadVideo(clipPath, { name: `REC auto-clip W${game.data.week_number}`, captureJobId: job.id, gameId: job.game_id }, 45);
     await supabase.from("rec_stream_event_clips").upsert({
       capture_job_id: job.id, league_id: job.league_id, game_id: job.game_id,
