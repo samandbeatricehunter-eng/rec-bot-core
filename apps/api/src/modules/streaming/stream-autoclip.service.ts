@@ -279,18 +279,23 @@ async function processCapture(job: any) {
   if (league.error) throw league.error;
   if (!game.data) throw new Error("Capture game no longer exists.");
   const duration = await durationSeconds(job.capture_path);
-  let previous: { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"] } | null = null;
+  let previous: { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"]; downDistance: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["downDistance"] } | null = null;
   const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number; eventType: "score_change" | "turnover" }> = [];
   for (let second = 3; second < duration; second += 3) {
     const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-ss", String(second), "-i", job.capture_path, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
     const parsed = await parseScorebugFrameAuto(frame);
     if (!parsed.isLiveScorebug || parsed.awayScore == null || parsed.homeScore == null) continue;
     const scored = Boolean(previous) && (parsed.awayScore > previous!.away || parsed.homeScore > previous!.home);
+    // Every kickoff flips possession as a matter of course -- that's not a takeaway, so it
+    // shouldn't compete for clip budget as one. A kick/punt return (or onside recovery) that
+    // ends in a touchdown is still caught, just via the score branch below instead of this one,
+    // since `scored` already takes priority over `possessionFlipped` for the same sampled frame.
+    const aroundKickoff = previous?.downDistance === "kickoff" || parsed.downDistance === "kickoff";
     // A forced turnover doesn't move the score, so it needs its own signal: the possession
     // glyph flipping sides between samples. "neutral"/"unknown" reads (dead ball, or a bad OCR
     // read) are excluded from both sides of the comparison so a flicker through those states
     // between two frames on the SAME side never reads as a flip.
-    const possessionFlipped = !scored && Boolean(previous)
+    const possessionFlipped = !scored && !aroundKickoff && Boolean(previous)
       && previous!.possession !== "neutral" && previous!.possession !== "unknown"
       && parsed.possession !== "neutral" && parsed.possession !== "unknown"
       && parsed.possession !== previous!.possession;
@@ -308,7 +313,7 @@ async function processCapture(job: any) {
       });
       events.push({ second, parsed, value, eventType: "turnover" });
     }
-    previous = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession };
+    previous = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession, downDistance: parsed.downDistance };
   }
   for (const [index, event] of events.entries()) {
     const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);
