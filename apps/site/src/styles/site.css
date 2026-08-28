@@ -2758,7 +2758,8 @@ h1, h2, h3, .site-wordmark {
   opacity: 0.92;
 }
 .site-bracket-team-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px 26px 1fr auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -2821,6 +2822,19 @@ h1, h2, h3, .site-wordmark {
 .site-bracket-match > .site-tournament-wagers {
   padding: 8px 10px;
   border-top: 1px solid var(--border);
+}
+/* Narrow viewports (confirmed live: a phone-width screenshot showing one cramped scrollable
+   column with a tiny horizontal scrollbar) drop the side-by-side round columns entirely and
+   stack every round's matches in one normal top-to-bottom flow instead -- the same responsive
+   strategy the league playoff bracket (.nfl-bracket) uses at its own mobile breakpoint. */
+@media (max-width: 720px) {
+  .site-bracket {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+  .site-bracket-column {
+    min-width: 0;
+  }
 }
 .site-tournament-report {
   display: flex;
