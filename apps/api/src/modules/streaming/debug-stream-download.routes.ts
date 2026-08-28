@@ -5,7 +5,7 @@ import { env } from "../../config/env.js";
 import { sendError, ApiError } from "../../lib/errors.js";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
-import { enableStreamDownload, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
+import { deleteStreamVideo, enableStreamDownload, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
 import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels } from "../scorebug-ocr/scorebug-regions.js";
 
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
@@ -142,6 +142,22 @@ export async function debugStreamDownloadRoutes(app: FastifyInstance) {
         .resize(pixels.width * query.scale, pixels.height * query.scale, { kernel: "nearest" })
         .png().toBuffer();
       return reply.header("content-type", "image/png").header("x-frame-size", `${frameWidth}x${frameHeight}`).header("x-crop-px", `${pixels.left},${pixels.top},${pixels.width},${pixels.height}`).send(output);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bulk-delete garbage test clips from Cloudflare Stream -- cleanup for a live test run, not a
+  // production feature. Deletes best-effort (one failure doesn't stop the rest) and reports which
+  // uids failed.
+  app.post("/v1/debug/stream-bulk-delete", async (request, reply) => {
+    try {
+      requireDebugStreamKey(request.headers["x-debug-key"]);
+      const body = z.object({ uids: z.array(z.string().min(1)).min(1).max(500) }).parse(request.body ?? {});
+      const failures: Array<{ uid: string; error: string }> = [];
+      for (const uid of body.uids) {
+        try { await deleteStreamVideo(uid); }
+        catch (error) { failures.push({ uid, error: error instanceof Error ? error.message : String(error) }); }
+      }
+      return reply.send({ deleted: body.uids.length - failures.length, failed: failures });
     } catch (error) { return sendError(reply, error); }
   });
 
