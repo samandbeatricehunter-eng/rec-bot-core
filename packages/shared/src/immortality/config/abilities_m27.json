@@ -1,36 +1,16 @@
 {
   "_meta": {
-    "version": "immortality-abilities-m27-v1",
+    "version": "immortality-abilities-m27-ovr-gates-v2",
     "game": "madden_27",
-    "officialNumericFloorsPublished": false,
+    "assignmentModel": "REC assigns the ability identity when the created player's position, playstyle archetype, and estimated OVR meet a franchise gate. Madden still upgrades Bronze/Silver/Gold from in-game ratings; REC does not set tier.",
     "sources": [
-      "EA Madden NFL 27 ratings catalog (apps/api/scripts/data/madden27/madden27_ea_abilities_catalog.json)",
-      "EA Madden NFL 27 launch roster (madden27_ea_players.csv, 2362 players)",
-      "EA Gameplay Deep Dive: Madden abilities are Bronze/Silver/Gold and stack; Bronze is elite, not a starter tier",
-      "EA Franchise Deep Dive: Franchise tiers upgrade from relevant ratings as the player progresses",
-      "CFB 26 Dynasty Deep Dive analog: physical ability tiers require attribute floors (e.g. Platinum Shifty 97 COD + 96 ACC). Madden 27 uses three tiers instead of five",
-      "Madden Tools / Madden School Madden 26 franchise gates (archetype + OVR 70/80/85/90) \u2014 legacy, not M27. Madden Tools still labels its pages as Madden 26 as of 2026-08-28",
-      "MUT.GG MUT 26 discounted-bucket example (Short Route KO 94 MCV, Medium Route KO 96 MCV) \u2014 Ultimate Team only, not Franchise",
-      "abilities.clutchtrait.com Madden 27 datamine: confirms Bronze/Silver/Gold effect stacking; does not publish rating floors"
+      "EA Madden NFL 27 ratings catalog",
+      "EA Madden NFL 27 launch roster (madden27_ea_players.csv)",
+      "Madden Tools franchise position + archetype + OVR gates (pages still labeled Madden 26 as of 2026-08-28)",
+      "Madden School Madden 27 Bronze assignment rows for Inside Shade and Lurker",
+      "EA Gameplay Deep Dive: Bronze/Silver/Gold stack in Madden and are rating-driven"
     ],
-    "tierModel": {
-      "bronze": "Elite entry. Default 88 primary, or launch-roster observed min (clamped 82-90) when n>=3.",
-      "silver": "bronze + 5, cap 95",
-      "gold": "at least 96; X-Factors require Gold"
-    },
-    "grantModel": {
-      "maxEquipped": 4,
-      "events": {
-        "weekly_gold": 1,
-        "season_tier1": 1,
-        "season_tier3": 1,
-        "career_minor": 1,
-        "career_major": 1,
-        "career_historic": 1,
-        "award": 1,
-        "championship": 1
-      }
-    }
+    "maxEquipped": 4
   },
   "abilities": [
     {
@@ -38,13 +18,30 @@
       "name": "Ironman",
       "description": "Players with this ability avoid any ratings penalties associated with playing outside of their primary position",
       "kind": "superstar",
-      "primary": "AWR",
-      "secondary": "STA",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "AWR",
+        "secondary": "STA"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 83,
@@ -60,23 +57,32 @@
         }
       ],
       "rtiPositions": [
+        "WR",
         "CB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "166",
       "name": "Run Protector",
       "description": "Blockers with this ability reduce a rusher's chances of using most quick run block shed moves.",
       "kind": "superstar",
-      "primary": "RBK",
-      "secondary": "IBL",
-      "floors": {
-        "bronze": 84,
-        "silver": 89,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "RBK",
+        "secondary": "IBL"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 88,
@@ -95,22 +101,32 @@
           "count": 2
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "165",
       "name": "Pass Protector",
       "description": "Blockers with this ability reduce a rusher's chances of using most quick pass block shed moves.",
       "kind": "superstar",
-      "primary": "PBK",
-      "secondary": "PBF",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "PBK",
+        "secondary": "PBF"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 93,
@@ -129,22 +145,50 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "161",
       "name": "Steamroller",
       "description": "Ballcarriers with this ability retain more of their forward momentum during tackles while travelling at high speeds.",
       "kind": "superstar",
-      "primary": "TRK",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "TRK",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 91,
@@ -160,23 +204,33 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "HB",
+        "WR",
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_37",
       "name": "Phenom",
       "description": "Some athletes defy classification as much as they defy boundaries. When they enter the zone, they are highly likely to win the first interaction they have with a defender.",
       "kind": "xfactor",
-      "primary": "COD",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "COD",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 92,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 92,
@@ -195,20 +249,18 @@
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "066",
       "name": "Edge Protector",
       "description": "Blockers with this ability reduce an edge pass rusher's chances of using a quick block shed move.",
       "kind": "superstar",
-      "primary": "PBK",
-      "secondary": "PBF",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PBK",
+        "secondary": "PBF"
       },
+      "gates": [],
       "observed": {
         "holders": 4,
         "ovrMin": 86,
@@ -232,13 +284,11 @@
       "name": "Dual Threat",
       "description": "The most devastating defensive players often excel via versatility. When they enter the zone, they have an increased chance of defeating pass blocks, and knocking catches loose.",
       "kind": "xfactor",
-      "primary": "FMV",
-      "secondary": "BSH",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "BSH"
       },
+      "gates": [],
       "observed": {
         "holders": 1,
         "ovrMin": 98,
@@ -255,20 +305,28 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "Z_35",
       "name": "Bottleneck",
       "description": "Bottleneck defenders realize that the best way to stop a route is to act early. When they enter the zone, they are highly likely to dominantly win any man press encounter.",
       "kind": "xfactor",
-      "primary": "PRS",
-      "secondary": "MCV",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "PRS",
+        "secondary": "MCV"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -284,23 +342,40 @@
         }
       ],
       "rtiPositions": [
-        "FS"
+        "CB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_33",
       "name": "Ankle Breaker",
       "description": "Truly devastating receiving threats are the ones that catch and can't be caught. When they enter the zone, they have increased fakeout rates on spin/juke/hurdle after the catch.",
       "kind": "xfactor",
-      "primary": "JKM",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "JKM",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_default"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_default"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 90,
@@ -324,20 +399,37 @@
         "WR"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_32",
       "name": "YAC 'Em Up",
       "description": "The best physical receivers don't just come down with the ball, they carry it home. When they enter the zone, they are nearly guaranteed to break their first post-catch tackle.",
       "kind": "xfactor",
-      "primary": "BTK",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BTK",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 93,
@@ -357,25 +449,50 @@
         }
       ],
       "rtiPositions": [
-        "TE",
         "WR",
-        "HB"
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_28",
       "name": "Universal Coverage",
       "description": "The most physical coverage defenders prevent catches from happening even when their target has hands on the ball. When they enter the zone, they are nearly guaranteed knockouts.",
       "kind": "xfactor",
-      "primary": "MCV",
-      "secondary": "ZCV",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "ZCV"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 97,
@@ -395,26 +512,23 @@
         }
       ],
       "rtiPositions": [
-        "MIKE",
         "CB",
         "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_27",
       "name": "Relentless",
       "description": "The most tenacious defenders beat their blocks by sheer force of will. When they enter the zone, their rush move attempts are free.",
       "kind": "xfactor",
-      "primary": "STA",
-      "secondary": "FMV",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "STA",
+        "secondary": "FMV"
       },
+      "gates": [],
       "observed": {
         "holders": 2,
         "ovrMin": 94,
@@ -431,20 +545,37 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "Z_24",
       "name": "Truzz",
       "description": "The most effective ball carriers prioritize maintaining possession over all else. When they enter the zone, no tackles made against them will result in a fumble.",
       "kind": "xfactor",
-      "primary": "CAR",
-      "secondary": "BTK",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "CAR",
+        "secondary": "BTK"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_default"
+        },
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_default"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 94,
@@ -460,23 +591,59 @@
         }
       ],
       "rtiPositions": [
-        "QB"
+        "QB",
+        "HB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_23",
       "name": "Momentum Shift",
       "description": "Momentum Shift players demoralize their opponents. When they enter the zone, all on field opponents are knocked out of the zone or lose any progress towards entering the zone.",
       "kind": "xfactor",
-      "primary": "POW",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "POW",
+        "secondary": "PMV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 94,
@@ -491,22 +658,35 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "rtiPositions": [
+        "MIKE",
+        "CB",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_21",
       "name": "Brick Wall",
       "description": "While in the pocket, passers with this ability are almost guaranteed to break the first sack attempt by any blitzing defender",
       "kind": "xfactor",
-      "primary": "TRK",
-      "secondary": "TOU",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TRK",
+        "secondary": "TOU"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 60,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -525,20 +705,37 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_19",
       "name": "Freight Train",
       "description": "Freight Trains are relentless runners who refuse to go down on first contact. When they enter the zone, this ability increases their chance to break the next tackle.",
       "kind": "xfactor",
-      "primary": "TRK",
-      "secondary": "BTK",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TRK",
+        "secondary": "BTK"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 95,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "HB",
+          "archetypes": [
+            "Power"
+          ],
+          "ovrMin": 95,
+          "maddenArchetype": "Power Back",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 93,
@@ -554,23 +751,59 @@
         }
       ],
       "rtiPositions": [
+        "QB",
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_18",
       "name": "Reinforcement",
       "description": "The game's top defenders excel in all situations. When they enter the zone, this ability increases their chance of defeating run blocks, and disrupting catches via tackles.",
       "kind": "xfactor",
-      "primary": "POW",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "POW",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 90,
@@ -590,25 +823,24 @@
         }
       ],
       "rtiPositions": [
-        "SS",
         "MIKE",
-        "FS"
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_15",
       "name": "Unstoppable Force",
       "description": "Elite pass rushers are a mix of strength, speed, and tenacity. When they enter the zone, this ability increases their win rate and block shed speed against one-on-one pass blocks.",
       "kind": "xfactor",
-      "primary": "FMV",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 90,
-        "silver": 94,
-        "gold": 97
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "PMV"
       },
+      "gates": [],
       "observed": {
         "holders": 4,
         "ovrMin": 89,
@@ -636,13 +868,39 @@
       "name": "First One Free",
       "description": "Some players thrive on making defenders look silly. When they enter the zone, this ability increases their fakeout rate on the next juke, spin or hurdle.",
       "kind": "xfactor",
-      "primary": "JKM",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "JKM",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "HB",
+          "archetypes": [
+            "Elusive"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Elusive Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 95,
@@ -658,23 +916,33 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "QB",
+        "HB",
+        "WR"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_11",
       "name": "Run & Gun",
       "description": "Many passers use a combination of mobility and aggressiveness to make big plays. When they enter the zone, they have elite accuracy while throwing on the run.",
       "kind": "xfactor",
-      "primary": "RUN",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "RUN",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 60,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 82,
@@ -693,20 +961,56 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_10",
       "name": "Shutdown",
       "description": "Shutdown defenders have the talent to erase receivers from the game. When they enter the zone, their coverage is tighter and interceptions are more frequent on contested catches.",
       "kind": "xfactor",
-      "primary": "MCV",
-      "secondary": "ZCV",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "ZCV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 92,
@@ -730,25 +1034,43 @@
         }
       ],
       "rtiPositions": [
+        "MIKE",
         "CB",
         "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_07",
       "name": "Double Me",
       "description": "Aggressive receivers overpower defenders and attack the football. When they enter the zone, this ability increases their success rate on aggressive catches against single coverage.",
       "kind": "xfactor",
-      "primary": "CTH",
-      "secondary": "SPC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "SPC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Deep Threat",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 70,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 8,
         "ovrMin": 91,
@@ -772,20 +1094,28 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_06",
       "name": "Bazooka",
       "description": "Quarterbacks with generational arms have the power to stretch any defense to its breaking point. When they enter the zone, their maximum throw distance is increased",
       "kind": "xfactor",
-      "primary": "THP",
-      "secondary": "DAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "THP",
+        "secondary": "DAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 60,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 93,
@@ -804,20 +1134,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_04",
       "name": "Pro Reads",
       "description": "For great quarterbacks, vision and anticipation are paramount. When they enter the zone, their first open receiver is highlighted and they ignore defensive pressure.",
       "kind": "xfactor",
-      "primary": "AWR",
-      "secondary": "PAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "AWR",
+        "secondary": "PAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 60,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 92,
@@ -836,20 +1174,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_03",
       "name": "Dots",
       "description": "Accurate passers know that ball placement is the difference between a touchdown and a turnover. When they enter the zone, all passes are thrown with elite accuracy and result in more completions",
       "kind": "xfactor",
-      "primary": "SAC",
-      "secondary": "MAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "MAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 60,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 99,
@@ -868,20 +1214,18 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "Z_02",
       "name": "Fearmonger",
       "description": "Some pass rushers intimidate quarterbacks with their sheer presence. When they enter the zone, they can apply significant pressure on quarterbacks even while engaged with blockers.",
       "kind": "xfactor",
-      "primary": "PMV",
-      "secondary": "BSH",
-      "floors": {
-        "bronze": 90,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PMV",
+        "secondary": "BSH"
       },
+      "gates": [],
       "observed": {
         "holders": 2,
         "ovrMin": 94,
@@ -898,20 +1242,28 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "160",
       "name": "Deep Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 20+ yards from the LoS",
       "kind": "superstar",
-      "primary": "DRR",
-      "secondary": "SPC",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "DRR",
+        "secondary": "SPC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "RAC/Hybrid"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Playmaker",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 89,
@@ -930,20 +1282,18 @@
         "WR"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "148",
       "name": "Interior Threat",
       "description": "Defenders with this ability are slightly more likely to use faster, more dominant pass rush moves while rushing from the interior of the defense, and have more favorable disengage angles.",
       "kind": "superstar",
-      "primary": "PMV",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PMV",
+        "secondary": "STR"
       },
+      "gates": [],
       "observed": {
         "holders": 5,
         "ovrMin": 87,
@@ -967,13 +1317,11 @@
       "name": "Linchpin",
       "description": "Players with this ability grant improved blocking to the entire offensive line.",
       "kind": "superstar",
-      "primary": "AWR",
-      "secondary": "PBK",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "AWR",
+        "secondary": "PBK"
       },
+      "gates": [],
       "observed": {
         "holders": 1,
         "ovrMin": 95,
@@ -990,20 +1338,18 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "146",
       "name": "Zen Kicker",
       "description": "Kickers with this ability experience a slower kicking meter for better power and accuracy on kicks over 45 yards.",
       "kind": "superstar",
-      "primary": "KAC",
-      "secondary": "KPW",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "KAC",
+        "secondary": "KPW"
       },
+      "gates": [],
       "observed": {
         "holders": 2,
         "ovrMin": 80,
@@ -1020,20 +1366,28 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "144",
       "name": "3rd Down Threat",
       "description": "On 3rd down, receivers with this ability have a better chance to win contested catches against single coverage up to 25 yards from the line of scrimmage.",
       "kind": "superstar",
-      "primary": "CTH",
-      "secondary": "CIT",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "CIT"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 91,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 91,
@@ -1052,20 +1406,28 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "143",
       "name": "High Point Deadeye",
       "description": "Passers with this ability have elite accuracy on unpressured high point throws under 20 yards.",
       "kind": "superstar",
-      "primary": "DAC",
-      "secondary": "THP",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "DAC",
+        "secondary": "THP"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -1084,20 +1446,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "142",
       "name": "Inside Shade",
       "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage and inside the numbers",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Man to Man",
+          "source": "madden_school"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 88,
@@ -1116,20 +1486,28 @@
         "CB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_school"
     },
     {
       "id": "141",
       "name": "Outside Shade",
       "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage and outside the numbers",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 97,
@@ -1148,20 +1526,37 @@
         "CB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "140",
       "name": "Demoralizer",
       "description": "Defenders with this ability will cause increased fatigue penalties when tackling a ballcarrier with a hit-stick tackle.",
       "kind": "superstar",
-      "primary": "POW",
-      "secondary": "TAK",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "POW",
+        "secondary": "TAK"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 92,
@@ -1184,20 +1579,28 @@
         "MIKE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "137",
       "name": "On The Ball",
       "description": "Players with this ability are much less likely to be fooled by WR runoffs",
       "kind": "superstar",
-      "primary": "CTH",
-      "secondary": "MCV",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "MCV"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -1216,20 +1619,28 @@
         "CB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "136",
       "name": "Runoff Elite",
       "description": "Players with this ability will distract defenders for longer with their runoffs",
       "kind": "superstar",
-      "primary": "RLS",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "RLS",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Deep Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 89,
@@ -1248,20 +1659,82 @@
         "WR"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "134",
       "name": "Recuperation",
       "description": "Players with this ability will recover from the effects of Wear and Tear and fatigue at a slightly increased rate between plays.",
       "kind": "superstar",
-      "primary": "STA",
-      "secondary": "INJ",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "STA",
+        "secondary": "INJ"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 83,
@@ -1281,23 +1754,37 @@
         }
       ],
       "rtiPositions": [
-        "CB"
+        "HB",
+        "WR",
+        "TE",
+        "MIKE",
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "133",
       "name": "Backlash",
       "description": "Ballcarriers with this ability will cause increased fatigue penalties against their tackler when tackled via a non-conservative tackle.",
       "kind": "superstar",
-      "primary": "BTK",
-      "secondary": "TRK",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "BTK",
+        "secondary": "TRK"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Power"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Power Back",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 93,
@@ -1316,20 +1803,46 @@
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "132",
       "name": "Deflator",
       "description": "Defenders with this ability will cause increased fatigue penalties when tackling a ballcarrier with a non-conservative tackle.",
       "kind": "superstar",
-      "primary": "TAK",
-      "secondary": "POW",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TAK",
+        "secondary": "POW"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 87,
@@ -1349,23 +1862,33 @@
         }
       ],
       "rtiPositions": [
-        "MIKE"
+        "MIKE",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "129",
       "name": "Fearless",
       "description": "Passers with this ability have a reduced chance to be impacted by throw penalties caused by defensive pressure while on the run",
       "kind": "superstar",
-      "primary": "TUP",
-      "secondary": "TOU",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TUP",
+        "secondary": "TOU"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 7,
         "ovrMin": 80,
@@ -1384,20 +1907,55 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "126",
       "name": "Reach For It",
       "description": "Ballcarriers with this ability will have a slightly reduced fumble chance while reaching for extra yards during tackles",
       "kind": "superstar",
-      "primary": "CTH",
-      "secondary": "BTK",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "BTK"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 89,
@@ -1413,23 +1971,34 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "HB",
+        "WR",
+        "TE",
+        "MIKE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "123",
       "name": "One Step Ahead",
       "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 90,
@@ -1449,24 +2018,60 @@
         }
       ],
       "rtiPositions": [
-        "CB",
-        "FS"
+        "CB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "122",
       "name": "Outmatched",
       "description": "Defenders with this ability have a slightly improved chance to force catch knockouts against running backs",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "STR"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 90,
@@ -1487,24 +2092,32 @@
       ],
       "rtiPositions": [
         "MIKE",
-        "SS",
-        "CB"
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "120",
       "name": "Adrenaline Rush",
       "description": "Pass rushers with this ability will heal some of their fatigue after sacking the QB",
       "kind": "superstar",
-      "primary": "ACC",
-      "secondary": "FMV",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "ACC",
+        "secondary": "FMV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 89,
@@ -1519,22 +2132,41 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "119",
       "name": "Energizer",
       "description": "Ballcarriers with this ability will replenish a small portion of their stamina upon successfully performing any skill move",
       "kind": "superstar",
-      "primary": "STA",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "STA",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 92,
@@ -1550,23 +2182,22 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "HB",
+        "WR"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "118",
       "name": "El Toro",
       "description": "Defenders with this ability have a slightly improved chance to receive dominant bull rush wins when their stamina is full. This consumes a large amount of additional stamina.",
       "kind": "superstar",
-      "primary": "PMV",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PMV",
+        "secondary": "STR"
       },
+      "gates": [],
       "observed": {
         "holders": 9,
         "ovrMin": 87,
@@ -1594,13 +2225,11 @@
       "name": "Max Effort",
       "description": "Defenders with this ability will ignore one bar of blocker resistance when attempting pass rush moves with effort",
       "kind": "superstar",
-      "primary": "STA",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "STA",
+        "secondary": "ACC"
       },
+      "gates": [],
       "observed": {
         "holders": 5,
         "ovrMin": 88,
@@ -1628,13 +2257,49 @@
       "name": "Medium Route KO",
       "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus medium routes 10-20 yards from the LoS",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 87,
@@ -1650,25 +2315,24 @@
         }
       ],
       "rtiPositions": [
+        "MIKE",
         "CB",
         "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "114",
       "name": "Swim Club",
       "description": "Defenders with this ability will ignore one bar of blocker resistance when attempting swim/club pass rush moves",
       "kind": "superstar",
-      "primary": "FMV",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "ACC"
       },
+      "gates": [],
       "observed": {
         "holders": 3,
         "ovrMin": 94,
@@ -1696,13 +2360,11 @@
       "name": "Mr. Big Stop",
       "description": "Defenders with this ability will start 3rd or 4th down with slightly increased fatigue replenishment",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "TAK",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "TAK"
       },
+      "gates": [],
       "observed": {
         "holders": 1,
         "ovrMin": 89,
@@ -1719,20 +2381,28 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "112",
       "name": "B.O.G.O.",
       "description": "Defenders with this ability are granted a free pass rush move once per play after spending stamina to perform one",
       "kind": "superstar",
-      "primary": "PMV",
-      "secondary": "FMV",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PMV",
+        "secondary": "FMV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 88,
@@ -1751,22 +2421,22 @@
           "count": 2
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "110",
       "name": "Unpredictable",
       "description": "Defenders with this ability are less likely to increase their blocker's resistance bars when performing shed wins",
       "kind": "superstar",
-      "primary": "FMV",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "PMV"
       },
+      "gates": [],
       "observed": {
         "holders": 7,
         "ovrMin": 79,
@@ -1794,13 +2464,11 @@
       "name": "Instant Rebate",
       "description": "Defenders with this ability are refunded stamina when they successfully shed blocks",
       "kind": "superstar",
-      "primary": "FMV",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "PMV"
       },
+      "gates": [],
       "observed": {
         "holders": 2,
         "ovrMin": 87,
@@ -1821,20 +2489,48 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "107",
       "name": "Lumberjack",
       "description": "Defenders with this ability have a slightly increased success rate and cause more fumbles when cut-sticking ballcarriers.",
       "kind": "superstar",
-      "primary": "POW",
-      "secondary": "TAK",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "POW",
+        "secondary": "TAK"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 93,
@@ -1850,23 +2546,51 @@
         }
       ],
       "rtiPositions": [
+        "MIKE",
+        "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "106",
       "name": "Out My Way",
       "description": "Defenders with this ability will have a slightly increased chance to win impact blocks against receivers.",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "POW",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "POW"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 90,
@@ -1891,23 +2615,41 @@
       ],
       "rtiPositions": [
         "MIKE",
+        "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "105",
       "name": "Tank",
       "description": "Ballcarriers with this ability have an increased chance to break hit-stick tackle attempts made on them.",
       "kind": "superstar",
-      "primary": "TRK",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TRK",
+        "secondary": "STR"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Power"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Power Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 84,
@@ -1931,20 +2673,55 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "104",
       "name": "No Outsiders",
       "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping outside zone plays.",
       "kind": "superstar",
-      "primary": "PUR",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PUR",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Run Support",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 6,
         "ovrMin": 86,
@@ -1963,22 +2740,43 @@
           "count": 2
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "MIKE",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "103",
       "name": "Inside Stuff",
       "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping inside run plays.",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "STR"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 79,
@@ -1993,22 +2791,22 @@
           "count": 3
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "102",
       "name": "Goal Line Stuff",
       "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping runs within 5 yards of the goal line.",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "STR"
       },
+      "gates": [],
       "observed": {
         "holders": 1,
         "ovrMin": 94,
@@ -2025,20 +2823,18 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "101",
       "name": "Puller Elite",
       "description": "Blockers with this ability will frequently attempt slightly improved pull blocks vs. DBs",
       "kind": "superstar",
-      "primary": "LBK",
-      "secondary": "AGI",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "LBK",
+        "secondary": "AGI"
       },
+      "gates": [],
       "observed": {
         "holders": 1,
         "ovrMin": 94,
@@ -2055,20 +2851,18 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "100",
       "name": "Nasty Streak",
       "description": "Blockers with this ability will dominantly win impact blocks against linebackers and defensive backs when playing as a lineman or fullback.",
       "kind": "superstar",
-      "primary": "RBK",
-      "secondary": "IBL",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "RBK",
+        "secondary": "IBL"
       },
+      "gates": [],
       "observed": {
         "holders": 4,
         "ovrMin": 94,
@@ -2100,13 +2894,21 @@
       "name": "All Day",
       "description": "Blockers with this ability will allow less frequent shed attempts by their block target",
       "kind": "superstar",
-      "primary": "PBK",
-      "secondary": "STA",
-      "floors": {
-        "bronze": 89,
-        "silver": 94,
-        "gold": 97
+      "upgradesWith": {
+        "primary": "PBK",
+        "secondary": "STA"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Blocking",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 91,
@@ -2121,22 +2923,32 @@
           "count": 3
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "097",
       "name": "Threat Detector",
       "description": "Players with this ability will highlight any user defenders.",
       "kind": "superstar",
-      "primary": "AWR",
-      "secondary": "PBK",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "AWR",
+        "secondary": "PBK"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 92,
@@ -2155,22 +2967,22 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "096",
       "name": "Extra Credit",
       "description": "Pass rushers with this ability pay a slightly reduced stamina cost for each move they attempt",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "PMV"
       },
+      "gates": [],
       "observed": {
         "holders": 2,
         "ovrMin": 85,
@@ -2191,20 +3003,28 @@
       ],
       "rtiPositions": [],
       "rtiEligible": false,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "095",
       "name": "Screen Protector",
       "description": "Blockers with this ability will dominantly win impact blocks on screen plays",
       "kind": "superstar",
-      "primary": "PBK",
-      "secondary": "AWR",
-      "floors": {
-        "bronze": 83,
-        "silver": 88,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PBK",
+        "secondary": "AWR"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Blocking",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 91,
@@ -2223,22 +3043,41 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "092",
       "name": "Evasive",
       "description": "Ballcarriers with this ability have steerable juke and spin animations.",
       "kind": "superstar",
-      "primary": "COD",
-      "secondary": "JKM",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "COD",
+        "secondary": "JKM"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Elusive"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Elusive Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 92,
@@ -2254,23 +3093,32 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "HB",
+        "WR"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "091",
       "name": "Gift-Wrapped",
       "description": "Passers with this ability have a better chance to complete passes to uncovered halfbacks.",
       "kind": "superstar",
-      "primary": "SAC",
-      "secondary": "AWR",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "AWR"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 86,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 86,
@@ -2289,20 +3137,56 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "089",
       "name": "Lurker",
       "description": "Defenders with this ability can make spectacular interceptions while lurking in zones, and are more likely to attempt and succeed at diving swats/catches.",
       "kind": "superstar",
-      "primary": "PRC",
-      "secondary": "ZCV",
-      "floors": {
-        "bronze": 89,
-        "silver": 94,
-        "gold": 97
+      "upgradesWith": {
+        "primary": "PRC",
+        "secondary": "ZCV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_school"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Run Support",
+          "source": "madden_school"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Physical/Run Support"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Run Support",
+          "source": "madden_school"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Overall",
+          "source": "madden_school"
+        }
+      ],
       "observed": {
         "holders": 12,
         "ovrMin": 87,
@@ -2330,26 +3214,34 @@
         }
       ],
       "rtiPositions": [
-        "CB",
-        "FS",
         "MIKE",
-        "SS"
+        "FS",
+        "SS",
+        "CB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_school"
     },
     {
       "id": "087",
       "name": "Secure Protector",
       "description": "Blockers with this ability reduce a rusher's chances of using a quick block shed move.",
       "kind": "superstar",
-      "primary": "PBK",
-      "secondary": "PBP",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "PBK",
+        "secondary": "PBP"
       },
+      "gates": [
+        {
+          "position": "TE",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Blocking",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 86,
@@ -2364,22 +3256,32 @@
           "count": 4
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "084",
       "name": "Deep Route KO",
       "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus deep routes 20+ yards from the LoS",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 88,
@@ -2395,24 +3297,60 @@
         }
       ],
       "rtiPositions": [
-        "CB",
-        "FS"
+        "CB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "083",
       "name": "Acrobat",
       "description": "Players with this ability are more likely to succeed at catching tipped passes",
       "kind": "superstar",
-      "primary": "JMP",
-      "secondary": "SPC",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "JMP",
+        "secondary": "SPC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 6,
         "ovrMin": 87,
@@ -2429,26 +3367,60 @@
       ],
       "rtiPositions": [
         "WR",
-        "TE",
         "CB",
         "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "082",
       "name": "Juke Box",
       "description": "Ballcarriers with this ability have steerable juke animations.",
       "kind": "superstar",
-      "primary": "JKM",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "JKM",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Scrambler"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Scrambler",
+          "source": "madden_tools"
+        },
+        {
+          "position": "HB",
+          "archetypes": [
+            "Elusive"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Elusive Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 86,
@@ -2468,25 +3440,34 @@
         }
       ],
       "rtiPositions": [
-        "HB",
         "QB",
-        "WR"
+        "HB",
+        "WR",
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "078",
       "name": "Inside Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws inside the numbers (except on high throws).",
       "kind": "superstar",
-      "primary": "MAC",
-      "secondary": "SAC",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MAC",
+        "secondary": "SAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 83,
@@ -2505,20 +3486,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "077",
       "name": "Human Joystick",
       "description": "Ballcarriers with this ability can quickly shift momentum, change direction, and turn the corner without sacrificing speed.",
       "kind": "superstar",
-      "primary": "COD",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 89,
-        "silver": 94,
-        "gold": 97
+      "upgradesWith": {
+        "primary": "COD",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Elusive"
+          ],
+          "ovrMin": 95,
+          "maddenArchetype": "Elusive Back",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 86,
@@ -2537,20 +3526,46 @@
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "073",
       "name": "Matchup Nightmare",
       "description": "Receivers with this ability make sharper cuts and frequently win contested catches when covered by linebackers and linemen.",
       "kind": "superstar",
-      "primary": "CTH",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "All-Purpose"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Receiving Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Physical",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 88,
@@ -2570,23 +3585,33 @@
         }
       ],
       "rtiPositions": [
+        "HB",
+        "WR",
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "072",
       "name": "Backfield Mismatch",
       "description": "Running backs with this ability have slightly improved catch in traffic and route running when coming out of the backfield against linebackers and linemen.",
       "kind": "superstar",
-      "primary": "CTH",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "CTH",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "All-Purpose"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Receiving Back",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 88,
@@ -2605,20 +3630,55 @@
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "071",
       "name": "Secure Tackler",
       "description": "Defenders with this ability have an increased chance to avoid fakeouts.",
       "kind": "superstar",
-      "primary": "TAK",
-      "secondary": "PUR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TAK",
+        "secondary": "PUR"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools_inherited"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 10,
         "ovrMin": 85,
@@ -2647,24 +3707,33 @@
       ],
       "rtiPositions": [
         "MIKE",
-        "SS",
-        "FS"
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "070",
       "name": "Enforcer",
       "description": "Defenders with this ability allow fewer broken tackles when hit-sticking ballcarriers - regardless of the runner's size or power.",
       "kind": "superstar",
-      "primary": "POW",
-      "secondary": "TAK",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "POW",
+        "secondary": "TAK"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 97,
@@ -2684,24 +3753,31 @@
         }
       ],
       "rtiPositions": [
-        "MIKE",
-        "SS"
+        "MIKE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "068",
       "name": "Under Pressure",
       "description": "Defenders with this ability can apply pressure to the quarterback from a slightly improved distance.",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "PMV",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "PMV"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 88,
@@ -2720,22 +3796,22 @@
           "count": 1
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "067",
       "name": "Post Up",
       "description": "Blockers with this ability have a slightly increased chance to win any double team block they are engaged in.",
       "kind": "superstar",
-      "primary": "IBL",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "IBL",
+        "secondary": "STR"
       },
+      "gates": [],
       "observed": {
         "holders": 5,
         "ovrMin": 90,
@@ -2767,13 +3843,32 @@
       "name": "Deep In Zone KO",
       "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in deep zone coverage, 20+ yards from the LoS and inside the hash marks.",
       "kind": "superstar",
-      "primary": "ZCV",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "ZCV",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "FS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 91,
@@ -2789,23 +3884,41 @@
         }
       ],
       "rtiPositions": [
-        "FS"
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "063",
       "name": "Red Zone Threat",
       "description": "When in the red zone, receivers with this ability have a better chance to win contested catches against single coverage.",
       "kind": "superstar",
-      "primary": "CIT",
-      "secondary": "JMP",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "CIT",
+        "secondary": "JMP"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Physical",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 91,
@@ -2821,23 +3934,52 @@
         }
       ],
       "rtiPositions": [
-        "WR"
+        "WR",
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "062",
       "name": "Deep Out Zone KO",
       "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in deep zone coverage, 20+ yards from the LoS and outside the hash marks.",
       "kind": "superstar",
-      "primary": "ZCV",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "ZCV",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Coverage/Shutdown",
+            "Ball Hawk"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 88,
@@ -2858,23 +4000,60 @@
       ],
       "rtiPositions": [
         "CB",
+        "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "061",
       "name": "Mid Zone KO",
       "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in any mid-field zone coverage, less than 20 yards from the LoS inside the numbers and 10-20 outside.",
       "kind": "superstar",
-      "primary": "ZCV",
-      "secondary": "PRC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "ZCV",
+        "secondary": "PRC"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 90,
@@ -2894,25 +4073,71 @@
         }
       ],
       "rtiPositions": [
-        "SS",
         "MIKE",
-        "FS"
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "060",
       "name": "Flat Zone KO",
       "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in any flat zone coverage, less than 10 yards from the LoS and outside the hash marks.",
       "kind": "superstar",
-      "primary": "ZCV",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "ZCV",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "Ball Hawk"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Zone",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 80,
@@ -2936,26 +4161,24 @@
         }
       ],
       "rtiPositions": [
-        "SS",
-        "CB",
         "MIKE",
-        "FS"
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "059",
       "name": "Edge Threat",
       "description": "Defenders with this ability are slightly more likely to use faster, more dominant pass rush moves while rushing from the edge of the defense, and have more favorable disengage angles.",
       "kind": "superstar",
-      "primary": "FMV",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "FMV",
+        "secondary": "SPD"
       },
+      "gates": [],
       "observed": {
         "holders": 16,
         "ovrMin": 85,
@@ -2983,13 +4206,30 @@
       "name": "Run Stopper",
       "description": "Defenders with this ability do not need to spend stamina on shed attempts during a run play",
       "kind": "superstar",
-      "primary": "BSH",
-      "secondary": "TAK",
-      "floors": {
-        "bronze": 84,
-        "silver": 89,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSH",
+        "secondary": "TAK"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        },
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Run Stopper/Enforcer"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Nose Tackle",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 88,
@@ -3004,22 +4244,41 @@
           "count": 3
         }
       ],
-      "rtiPositions": [],
-      "rtiEligible": false,
-      "confidence": "empirical_roster"
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "madden_tools"
     },
     {
       "id": "057",
       "name": "Deep In Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 20+ yards from the LoS, inside the numbers",
       "kind": "superstar",
-      "primary": "DRR",
-      "secondary": "CIT",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "DRR",
+        "secondary": "CIT"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Deep Threat",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 90,
@@ -3043,20 +4302,37 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "055",
       "name": "Deep Out Elite",
       "description": "Receivers with this ability catch more consistently while catching passes 20+ yards from the LoS, outside the numbers",
       "kind": "superstar",
-      "primary": "DRR",
-      "secondary": "SPC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "DRR",
+        "secondary": "SPC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Deep Threat",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 7,
         "ovrMin": 85,
@@ -3080,20 +4356,37 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "054",
       "name": "Mid In Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 10-20 yards from the LoS, inside the numbers",
       "kind": "superstar",
-      "primary": "MRR",
-      "secondary": "CTH",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MRR",
+        "secondary": "CTH"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 8,
         "ovrMin": 82,
@@ -3117,20 +4410,37 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "053",
       "name": "Mid Out Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 10-20 yards from the LoS, outside the numbers",
       "kind": "superstar",
-      "primary": "MRR",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MRR",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Physical",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 10,
         "ovrMin": 83,
@@ -3158,20 +4468,46 @@
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "052",
       "name": "Short In Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 10 yards from the LoS, inside the numbers",
       "kind": "superstar",
-      "primary": "SRR",
-      "secondary": "CTH",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SRR",
+        "secondary": "CTH"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "All-Purpose"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Receiving Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 7,
         "ovrMin": 83,
@@ -3191,24 +4527,51 @@
         }
       ],
       "rtiPositions": [
+        "HB",
         "WR",
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "051",
       "name": "Short Out Elite",
       "description": "Receivers with this ability catch more consistently while catching passes less than 10 yards from the LoS, outside the numbers",
       "kind": "superstar",
-      "primary": "SRR",
-      "secondary": "CIT",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SRR",
+        "secondary": "CIT"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Physical",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 8,
         "ovrMin": 82,
@@ -3228,24 +4591,51 @@
         }
       ],
       "rtiPositions": [
+        "HB",
         "WR",
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "049",
       "name": "Bench Press",
       "description": "Defenders with this ability apply bonus fatigue to their man coverage target after a successful press win",
       "kind": "superstar",
-      "primary": "PRS",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "PRS",
+        "secondary": "STR"
       },
+      "gates": [
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 75,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -3261,23 +4651,42 @@
         }
       ],
       "rtiPositions": [
-        "FS"
+        "CB",
+        "FS",
+        "SS"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "047",
       "name": "Slot-O-Matic",
       "description": "When lined up in the slot, receivers with this ability make faster cuts and have better hands when catching passes less than 8 yards from the LoS",
       "kind": "superstar",
-      "primary": "SRR",
-      "secondary": "COD",
-      "floors": {
-        "bronze": 85,
-        "silver": 90,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SRR",
+        "secondary": "COD"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Slot",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Technician/Possession"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Possession",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 83,
@@ -3293,23 +4702,32 @@
         }
       ],
       "rtiPositions": [
-        "WR"
+        "WR",
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "043",
       "name": "Gunslinger",
       "description": "QB has slightly increased pass anim speed when throwing under pressure.",
       "kind": "superstar",
-      "primary": "THP",
-      "secondary": "SAC",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "THP",
+        "secondary": "SAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 97,
@@ -3328,20 +4746,37 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "039",
       "name": "Extender",
       "description": "While in the pocket, passers with this ability have a slightly improved chance to break the first sack attempt by a blitzing defensive back.",
       "kind": "superstar",
-      "primary": "BSK",
-      "secondary": "SPD",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "BSK",
+        "secondary": "SPD"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        },
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 4,
         "ovrMin": 82,
@@ -3360,20 +4795,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "037",
       "name": "Clutch",
       "description": "When playing from behind, players with this ability can easily enter the Zone.",
       "kind": "superstar",
-      "primary": "AWR",
-      "secondary": "CAR",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "AWR",
+        "secondary": "CAR"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 95,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 96,
@@ -3392,20 +4835,28 @@
         "HB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "empirical_roster"
     },
     {
       "id": "035",
       "name": "Fastbreak",
       "description": "Passers with this ability receive better blocking support on designed quarterback run plays.",
       "kind": "superstar",
-      "primary": "SPD",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 87,
-        "silver": 92,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SPD",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Scrambler"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Scrambler",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 82,
@@ -3424,20 +4875,56 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "034",
       "name": "Short Route KO",
       "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus short routes less than 10 yards from the LoS",
       "kind": "superstar",
-      "primary": "MCV",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "MCV",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "MIKE",
+          "archetypes": [
+            "Coverage LB",
+            "Playmaker"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Pass Coverage",
+          "source": "madden_tools"
+        },
+        {
+          "position": "CB",
+          "archetypes": [
+            "Coverage/Shutdown"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Man",
+          "source": "madden_tools"
+        },
+        {
+          "position": "FS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        },
+        {
+          "position": "SS",
+          "archetypes": [
+            "Processor/Field General"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Hybrid",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 87,
@@ -3457,26 +4944,34 @@
         }
       ],
       "rtiPositions": [
-        "CB",
         "MIKE",
+        "CB",
         "FS",
         "SS"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "029",
       "name": "Sideline Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws outside the numbers (except on high throws).",
       "kind": "superstar",
-      "primary": "SAC",
-      "secondary": "DAC",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "DAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 80,
@@ -3495,20 +4990,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "028",
       "name": "No-Look Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured cross-body throws up to 20 yards (except on high throws).",
       "kind": "superstar",
-      "primary": "SAC",
-      "secondary": "AWR",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "AWR"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 2,
         "ovrMin": 93,
@@ -3527,20 +5030,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "023",
       "name": "Lofting Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured lob and touch throws while their feet are set (except on high throws).",
       "kind": "superstar",
-      "primary": "DAC",
-      "secondary": "THP",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "DAC",
+        "secondary": "THP"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 99,
@@ -3559,20 +5070,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "022",
       "name": "Long Range Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured deep throws while their feet are set (except on high throws).",
       "kind": "superstar",
-      "primary": "DAC",
-      "secondary": "THP",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "DAC",
+        "secondary": "THP"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Strong Arm"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Strong Arm",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 90,
@@ -3591,20 +5110,37 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "016",
       "name": "Route Technician",
       "description": "Receivers with this ability have a high success rate when creating separation on the last cut of any route.",
       "kind": "superstar",
-      "primary": "SRR",
-      "secondary": "MRR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SRR",
+        "secondary": "MRR"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "RAC/Hybrid"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Playmaker",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "Vertical/Deep Threat"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Vertical Threat",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 90,
@@ -3629,24 +5165,31 @@
       ],
       "rtiPositions": [
         "WR",
-        "HB",
         "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "013",
       "name": "Roaming Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws while their feet are set outside the pocket (except on high throws).",
       "kind": "superstar",
-      "primary": "RUN",
-      "secondary": "MAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "RUN",
+        "secondary": "MAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 90,
@@ -3665,20 +5208,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "011",
       "name": "Red Zone Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws while throwing in the red zone (except on high throws).",
       "kind": "superstar",
-      "primary": "SAC",
-      "secondary": "MAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "MAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 93,
@@ -3697,20 +5248,28 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "010",
       "name": "Pocket Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws while their feet are set in the pocket (except on high throws).",
       "kind": "superstar",
-      "primary": "SAC",
-      "secondary": "MAC",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "SAC",
+        "secondary": "MAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Field General"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Field General",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 88,
@@ -3729,20 +5288,18 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "009",
       "name": "Tough Nut",
       "description": "Blockers with this ability have an increased number of blocker resistance points.",
       "kind": "superstar",
-      "primary": "TOU",
-      "secondary": "PBK",
-      "floors": {
-        "bronze": 86,
-        "silver": 91,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "TOU",
+        "secondary": "PBK"
       },
+      "gates": [],
       "observed": {
         "holders": 6,
         "ovrMin": 88,
@@ -3778,13 +5335,21 @@
       "name": "Dashing Deadeye",
       "description": "Passers with this ability have elite accuracy on all unpressured throws under 40 yards while running outside the pocket (except on high throws).",
       "kind": "superstar",
-      "primary": "RUN",
-      "secondary": "SAC",
-      "floors": {
-        "bronze": 88,
-        "silver": 93,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "RUN",
+        "secondary": "SAC"
       },
+      "gates": [
+        {
+          "position": "QB",
+          "archetypes": [
+            "Improviser"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Improviser",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 3,
         "ovrMin": 82,
@@ -3803,20 +5368,46 @@
         "QB"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "007",
       "name": "Bruiser",
       "description": "Ballcarriers with this ability have more powerful truck and stiff arm animations and a larger timing window for perfect attempts.",
       "kind": "superstar",
-      "primary": "TRK",
-      "secondary": "SFA",
-      "floors": {
-        "bronze": 90,
-        "silver": 95,
-        "gold": 98
+      "upgradesWith": {
+        "primary": "TRK",
+        "secondary": "SFA"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Power"
+          ],
+          "ovrMin": 90,
+          "maddenArchetype": "Power Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "WR",
+          "archetypes": [
+            "Physical"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Physical",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 1,
         "ovrMin": 91,
@@ -3832,23 +5423,42 @@
         }
       ],
       "rtiPositions": [
-        "HB"
+        "HB",
+        "WR",
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "modeled_plus_thin_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "004",
       "name": "Arm Bar",
       "description": "Ballcarriers with this ability have more powerful stiff arm animations and have a larger timing window for landing perfect stiff arms",
       "kind": "superstar",
-      "primary": "SFA",
-      "secondary": "STR",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "SFA",
+        "secondary": "STR"
       },
+      "gates": [
+        {
+          "position": "HB",
+          "archetypes": [
+            "Power"
+          ],
+          "ovrMin": 85,
+          "maddenArchetype": "Power Back",
+          "source": "madden_tools"
+        },
+        {
+          "position": "TE",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 80,
+          "maddenArchetype": "Any",
+          "source": "madden_tools"
+        }
+      ],
       "observed": {
         "holders": 5,
         "ovrMin": 89,
@@ -3869,24 +5479,31 @@
       ],
       "rtiPositions": [
         "HB",
-        "TE",
-        "QB"
+        "TE"
       ],
       "rtiEligible": true,
-      "confidence": "empirical_roster"
+      "confidence": "madden_tools"
     },
     {
       "id": "169",
       "name": "Quick Jump",
       "description": "Players with this ability have a slightly reduced stamina cost and slightly longer perfect window for jumping snaps.",
       "kind": "superstar",
-      "primary": "JMP",
-      "secondary": "ACC",
-      "floors": {
-        "bronze": 82,
-        "silver": 87,
-        "gold": 96
+      "upgradesWith": {
+        "primary": "JMP",
+        "secondary": "ACC"
       },
+      "gates": [
+        {
+          "position": "WR",
+          "archetypes": [
+            "any"
+          ],
+          "ovrMin": 77,
+          "maddenArchetype": null,
+          "source": "empirical_roster"
+        }
+      ],
       "observed": {
         "holders": 36,
         "ovrMin": 77,

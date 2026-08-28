@@ -6,18 +6,28 @@ export const ABILITY_FORMULA_VERSION = FORMULA_VERSIONS.abilities;
 export const MAX_EQUIPPED_ABILITIES = 4;
 
 export type AbilityKind = "superstar" | "xfactor";
-export type AbilityTier = "none" | "bronze" | "silver" | "gold";
+export type AbilityGateSource =
+  | "madden_tools"
+  | "madden_tools_inherited"
+  | "madden_tools_default"
+  | "madden_school"
+  | "empirical_roster";
 
-export type AbilityFloors = { bronze: number; silver: number; gold: number };
+export type AbilityGate = {
+  position: ImmortalityPosition;
+  archetypes: string[];
+  ovrMin: number;
+  maddenArchetype: string | null;
+  source: AbilityGateSource;
+};
 
 export type Madden27Ability = {
   id: string;
   name: string;
   description: string;
   kind: AbilityKind;
-  primary: string;
-  secondary: string | null;
-  floors: AbilityFloors;
+  upgradesWith: { primary: string; secondary: string | null };
+  gates: AbilityGate[];
   observed: {
     holders: number;
     ovrMin: number | null;
@@ -29,18 +39,7 @@ export type Madden27Ability = {
   launchPositions: Array<{ position: string; count: number }>;
   rtiPositions: ImmortalityPosition[];
   rtiEligible: boolean;
-  confidence: "empirical_roster" | "modeled_plus_thin_roster";
-};
-
-export const ABILITY_GRANT_SLOTS: Record<string, number> = {
-  weekly_gold: 1,
-  season_tier1: 1,
-  season_tier3: 1,
-  career_minor: 1,
-  career_major: 1,
-  career_historic: 1,
-  award: 1,
-  championship: 1,
+  confidence: "madden_tools" | "madden_school" | "empirical_roster";
 };
 
 const catalog = abilitiesJson as unknown as { _meta: unknown; abilities: Madden27Ability[] };
@@ -57,66 +56,73 @@ export function abilityById(id: string): Madden27Ability | null {
   return catalog.abilities.find((ability) => ability.id === id) ?? null;
 }
 
-export function abilityGrantSlotsForEvent(eventType: string): number {
-  return ABILITY_GRANT_SLOTS[eventType] ?? 0;
+export function playerArchetypes(primary: string | null | undefined, secondary?: string | null): string[] {
+  return [primary, secondary].map((value) => String(value ?? "").trim()).filter(Boolean);
 }
 
-export function cappedAbilitySlots(earnedSlots: number): number {
-  return Math.max(0, Math.min(MAX_EQUIPPED_ABILITIES, Math.floor(earnedSlots)));
+export function gatesForPosition(ability: Pick<Madden27Ability, "gates">, position: ImmortalityPosition): AbilityGate[] {
+  return ability.gates.filter((gate) => gate.position === position);
 }
 
-export function resolveAbilityTier(
-  ability: Pick<Madden27Ability, "floors" | "primary" | "secondary">,
-  attributes: Record<string, number | null | undefined>,
-): AbilityTier {
-  const primary = Number(attributes[ability.primary] ?? 0);
-  const secondary = ability.secondary ? Number(attributes[ability.secondary] ?? 0) : primary;
-  const rating = Math.min(primary, secondary);
-  if (!Number.isFinite(rating) || rating < ability.floors.bronze) return "none";
-  if (rating >= ability.floors.gold) return "gold";
-  if (rating >= ability.floors.silver) return "silver";
-  return "bronze";
+export function matchingAbilityGate(input: {
+  ability: Pick<Madden27Ability, "gates">;
+  position: ImmortalityPosition;
+  archetypes: string[];
+  estimatedOvr: number;
+}): AbilityGate | null {
+  const ovr = Number(input.estimatedOvr);
+  if (!Number.isFinite(ovr)) return null;
+  const matches = gatesForPosition(input.ability, input.position).filter((gate) => {
+    if (ovr < gate.ovrMin) return false;
+    return gate.archetypes.includes("any") || gate.archetypes.some((name) => input.archetypes.includes(name));
+  });
+  if (!matches.length) return null;
+  return matches.reduce((best, gate) => (gate.ovrMin > best.ovrMin ? gate : best));
 }
 
-export function abilityMeetsInGameFloor(
-  ability: Pick<Madden27Ability, "floors" | "primary" | "secondary" | "kind">,
-  attributes: Record<string, number | null | undefined>,
-): boolean {
-  const tier = resolveAbilityTier(ability, attributes);
-  if (ability.kind === "xfactor") return tier === "gold";
-  return tier !== "none";
+function assignmentBlockReason(input: {
+  ability: Madden27Ability;
+  position: ImmortalityPosition;
+  archetypes: string[];
+  estimatedOvr: number;
+}): string {
+  const posGates = gatesForPosition(input.ability, input.position);
+  if (!posGates.length) return "That ability is not available at this position.";
+  const archetypeGates = posGates.filter((gate) => (
+    gate.archetypes.includes("any") || gate.archetypes.some((name) => input.archetypes.includes(name))
+  ));
+  if (!archetypeGates.length) {
+    const needed = [...new Set(posGates.flatMap((gate) => gate.archetypes.includes("any") ? ["any playstyle"] : gate.archetypes))];
+    const have = input.archetypes[0] ? ` Your playstyle is ${input.archetypes.join(" / ")}.` : "";
+    return `Needs ${needed.join(" or ")} at ${input.position}.${have}`;
+  }
+  const needOvr = Math.min(...archetypeGates.map((gate) => gate.ovrMin));
+  const label = archetypeGates[0]?.maddenArchetype && archetypeGates[0].maddenArchetype !== "Any"
+    ? ` (${archetypeGates[0].maddenArchetype})`
+    : "";
+  return `Needs ${needOvr}+ OVR${label}. Currently ${Math.floor(input.estimatedOvr) || 0}.`;
 }
 
 export function canSelectAbility(input: {
   ability: Madden27Ability;
   position: ImmortalityPosition;
-  attributes: Record<string, number | null | undefined>;
-  earnedSlots: number;
+  archetypes: string[];
+  estimatedOvr: number;
   equippedCount: number;
   alreadyEquipped: boolean;
-}): { ok: true; tier: AbilityTier } | { ok: false; error: string; tier: AbilityTier } {
-  const tier = resolveAbilityTier(input.ability, input.attributes);
+}): { ok: true; gate: AbilityGate } | { ok: false; error: string; gate: AbilityGate | null } {
   if (!input.ability.rtiPositions.includes(input.position)) {
-    return { ok: false, error: "That ability is not available at this position.", tier };
+    return { ok: false, error: "That ability is not available at this position.", gate: null };
   }
   if (input.alreadyEquipped) {
-    return { ok: false, error: "That ability is already equipped.", tier };
+    return { ok: false, error: "That ability is already assigned.", gate: matchingAbilityGate(input) };
   }
-  const slots = cappedAbilitySlots(input.earnedSlots);
-  if (input.equippedCount >= slots) {
-    return { ok: false, error: `You have ${slots} ability slot${slots === 1 ? "" : "s"} from performance. Earn more Gold weeks, season milestones, or awards.`, tier };
+  if (input.equippedCount >= MAX_EQUIPPED_ABILITIES) {
+    return { ok: false, error: "You can assign up to 4 abilities. Remove one first.", gate: matchingAbilityGate(input) };
   }
-  if (input.ability.kind === "xfactor" && slots < 3) {
-    return { ok: false, error: "X-Factor abilities unlock after three performance grants.", tier };
+  const gate = matchingAbilityGate(input);
+  if (!gate) {
+    return { ok: false, error: assignmentBlockReason(input), gate: null };
   }
-  if (!abilityMeetsInGameFloor(input.ability, input.attributes)) {
-    const need = input.ability.kind === "xfactor" ? input.ability.floors.gold : input.ability.floors.bronze;
-    const extra = input.ability.secondary ? ` and ${input.ability.floors.bronze} ${input.ability.secondary}` : "";
-    return {
-      ok: false,
-      error: `Madden needs ${need}+ ${input.ability.primary}${extra} before this ability applies in-game. Raise the rating with Player XP first.`,
-      tier,
-    };
-  }
-  return { ok: true, tier };
+  return { ok: true, gate };
 }

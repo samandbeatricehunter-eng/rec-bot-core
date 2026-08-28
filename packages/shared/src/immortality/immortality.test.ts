@@ -29,11 +29,9 @@ import {
   spendCreationPoints,
   stackDiscounts,
   abilityById,
-  abilityGrantSlotsForEvent,
   canSelectAbility,
-  cappedAbilitySlots,
   madden27AbilityCatalog,
-  resolveAbilityTier,
+  matchingAbilityGate,
   rtiAbilitiesForPosition,
   validateCharacteristicSelection,
 } from "./index.js";
@@ -246,7 +244,7 @@ test("creation point spend is recalculated server-side against budget", () => {
   assert.equal(over.ok, false);
 });
 
-test("Madden 27 ability catalog covers the EA ratings list and RTI positions", () => {
+test("Madden 27 abilities assign from franchise OVR gates, not REC-controlled tiers", () => {
   const all = madden27AbilityCatalog();
   assert.equal(all.length, 114);
   assert.ok(all.some((row) => row.kind === "xfactor"));
@@ -255,31 +253,76 @@ test("Madden 27 ability catalog covers the EA ratings list and RTI positions", (
   assert.ok(qb.some((row) => row.name === "Fearless"));
   assert.ok(qb.some((row) => row.name === "Bazooka"));
   assert.ok(mike.some((row) => row.name === "Lurker"));
+
   const shutdown = abilityById("Z_10");
-  assert.equal(shutdown?.primary, "MCV");
-  assert.equal(resolveAbilityTier(shutdown!, { MCV: 89, ZCV: 96 }), "none");
-  assert.equal(resolveAbilityTier(shutdown!, { MCV: 91, ZCV: 91 }), "bronze");
-  assert.equal(resolveAbilityTier(shutdown!, { MCV: 96, ZCV: 96 }), "gold");
-  assert.equal(abilityGrantSlotsForEvent("weekly_gold"), 1);
-  assert.equal(abilityGrantSlotsForEvent("season_tier2"), 0);
-  assert.equal(cappedAbilitySlots(9), 4);
-  const blocked = canSelectAbility({
-    ability: shutdown!,
+  assert.ok(shutdown);
+  assert.equal(matchingAbilityGate({
+    ability: shutdown, position: "CB", archetypes: ["Coverage/Shutdown"], estimatedOvr: 69,
+  }), null);
+  assert.equal(matchingAbilityGate({
+    ability: shutdown, position: "CB", archetypes: ["Coverage/Shutdown"], estimatedOvr: 70,
+  })?.ovrMin, 70);
+  assert.equal(canSelectAbility({
+    ability: shutdown,
     position: "CB",
-    attributes: { MCV: 96, ZCV: 96 },
-    earnedSlots: 1,
+    archetypes: ["Ball Hawk"],
+    estimatedOvr: 90,
     equippedCount: 0,
     alreadyEquipped: false,
-  });
-  assert.equal(blocked.ok, false);
-  const allowed = canSelectAbility({
-    ability: shutdown!,
+  }).ok, false);
+  assert.equal(canSelectAbility({
+    ability: shutdown,
     position: "CB",
-    attributes: { MCV: 96, ZCV: 96 },
-    earnedSlots: 3,
+    archetypes: ["Coverage/Shutdown"],
+    estimatedOvr: 70,
     equippedCount: 0,
     alreadyEquipped: false,
-  });
-  assert.equal(allowed.ok, true);
+  }).ok, true);
+
+  const bazooka = abilityById("Z_06");
+  assert.ok(bazooka);
+  assert.equal(canSelectAbility({
+    ability: bazooka,
+    position: "QB",
+    archetypes: ["Field General"],
+    estimatedOvr: 99,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  }).ok, false);
+  assert.equal(canSelectAbility({
+    ability: bazooka,
+    position: "QB",
+    archetypes: ["Strong Arm"],
+    estimatedOvr: 60,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  }).ok, true);
+
+  const lurker = abilityById("089");
+  assert.ok(lurker);
+  assert.equal(canSelectAbility({
+    ability: lurker,
+    position: "CB",
+    archetypes: ["Ball Hawk"],
+    estimatedOvr: 85,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  }).ok, true);
+  assert.equal(canSelectAbility({
+    ability: lurker,
+    position: "MIKE",
+    archetypes: ["Run Stopper/Enforcer"],
+    estimatedOvr: 95,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  }).ok, false);
+  assert.equal(canSelectAbility({
+    ability: lurker,
+    position: "MIKE",
+    archetypes: ["Coverage LB"],
+    estimatedOvr: 90,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  }).ok, true);
 });
 

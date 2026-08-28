@@ -399,18 +399,19 @@ export type ImmortalityAbilityCard = {
   name: string;
   description?: string;
   kind: string;
-  primary?: string | null;
-  secondary?: string | null;
-  floors?: { bronze: number; silver: number; gold: number } | null;
-  confidence?: string;
-  tier: string;
+  ovrMin?: number | null;
+  archetypes?: string[];
+  maddenArchetype?: string | null;
+  upgradesWith?: { primary: string; secondary: string | null } | null;
+  confidence?: string | null;
   selectable?: boolean;
   blockedReason?: string | null;
-  meetsFloor?: boolean;
 };
 
 export type ImmortalityAbilityState = {
-  earnedSlots: number;
+  estimatedOvr: number;
+  archetype: string | null;
+  archetypes: string[];
   slots: number;
   maxEquipped: number;
   equipped: ImmortalityAbilityCard[];

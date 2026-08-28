@@ -42,12 +42,11 @@ import {
   completePairUserIds,
   seedFranchisePickOrder,
   type DraftGradeSnapshot,
-  abilityGrantSlotsForEvent,
   abilityById,
   canSelectAbility,
-  cappedAbilitySlots,
+  playerArchetypes,
   rtiAbilitiesForPosition,
-  resolveAbilityTier,
+  matchingAbilityGate,
   MAX_EQUIPPED_ABILITIES,
   scoreIqAttempt,
   scorePersonaInterview,
@@ -354,7 +353,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
   const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
-  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, abilityGrants, equippedAbilities] = await Promise.all([
+  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, equippedAbilities] = await Promise.all([
     prospectIds.length
       ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
@@ -370,7 +369,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       : Promise.resolve({ data: [], error: null }),
     supabase.from("rec_immortality_prospects").select("id,first_name,last_name,position").eq("immortality_league_id", league.id),
     prospectIds.length
-      ? supabase.from("rec_immortality_ability_grants").select("prospect_id,slots").in("prospect_id", prospectIds)
+      ? supabase.from("rec_immortality_playstyle_results").select("prospect_id,primary_archetype,secondary_archetype").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
       ? supabase.from("rec_immortality_prospect_abilities").select("prospect_id,ability_id,ability_name,kind").in("prospect_id", prospectIds)
@@ -457,52 +456,61 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       const id = String(row.id);
       const position = row.position as ImmortalityPosition;
       const build = (builds.data ?? []).find((item) => String(item.prospect_id) === id);
-      const attributes = (build?.final_attributes ?? {}) as Record<string, number>;
-      const earnedSlots = (abilityGrants.data ?? [])
-        .filter((grant) => String(grant.prospect_id) === id)
-        .reduce((sum, grant) => sum + Number(grant.slots ?? 0), 0);
-      const slots = cappedAbilitySlots(earnedSlots);
+      const playstyle = (playstyles.data ?? []).find((item) => String(item.prospect_id) === id);
+      const estimatedOvr = Number(build?.estimated_ovr ?? 0);
+      const archetypes = playerArchetypes(
+        playstyle ? String(playstyle.primary_archetype) : null,
+        playstyle?.secondary_archetype ? String(playstyle.secondary_archetype) : null,
+      );
       const equippedRows = (equippedAbilities.data ?? []).filter((item) => String(item.prospect_id) === id);
       const equipped = equippedRows.map((item) => {
         const ability = abilityById(String(item.ability_id));
-        const tier = ability ? resolveAbilityTier(ability, attributes) : "none";
+        const gate = ability ? matchingAbilityGate({ ability, position, archetypes, estimatedOvr }) : null;
         return {
           id: String(item.ability_id),
           name: String(item.ability_name),
           kind: String(item.kind),
-          tier,
-          primary: ability?.primary ?? null,
-          secondary: ability?.secondary ?? null,
-          floors: ability?.floors ?? null,
           description: ability?.description ?? "",
-          meetsFloor: ability ? resolveAbilityTier(ability, attributes) !== "none" : false,
+          ovrMin: gate?.ovrMin ?? ability?.gates.find((entry) => entry.position === position)?.ovrMin ?? null,
+          archetypes: gate?.archetypes ?? ability?.gates.find((entry) => entry.position === position)?.archetypes ?? [],
+          maddenArchetype: gate?.maddenArchetype ?? null,
+          upgradesWith: ability?.upgradesWith ?? null,
+          confidence: ability?.confidence ?? null,
         };
       });
       const eligible = rtiAbilitiesForPosition(position).map((ability) => {
-        const tier = resolveAbilityTier(ability, attributes);
         const check = canSelectAbility({
           ability,
           position,
-          attributes,
-          earnedSlots,
+          archetypes,
+          estimatedOvr,
           equippedCount: equipped.length,
           alreadyEquipped: equipped.some((row) => row.id === ability.id),
         });
+        const posGate = ability.gates.find((entry) => entry.position === position);
         return {
           id: ability.id,
           name: ability.name,
           description: ability.description,
           kind: ability.kind,
-          primary: ability.primary,
-          secondary: ability.secondary,
-          floors: ability.floors,
+          ovrMin: (check.ok ? check.gate.ovrMin : posGate?.ovrMin) ?? null,
+          archetypes: (check.ok ? check.gate.archetypes : posGate?.archetypes) ?? [],
+          maddenArchetype: (check.ok ? check.gate.maddenArchetype : posGate?.maddenArchetype) ?? null,
+          upgradesWith: ability.upgradesWith,
           confidence: ability.confidence,
-          tier,
           selectable: check.ok,
           blockedReason: check.ok ? null : check.error,
         };
       });
-      return [id, { earnedSlots, slots, maxEquipped: MAX_EQUIPPED_ABILITIES, equipped, eligible }];
+      return [id, {
+        estimatedOvr,
+        archetype: archetypes[0] ?? null,
+        archetypes,
+        slots: equipped.length,
+        maxEquipped: MAX_EQUIPPED_ABILITIES,
+        equipped,
+        eligible,
+      }];
     })),
     catalogs: {
       characteristics: {
@@ -966,24 +974,7 @@ export async function creditXpEvent(input: {
     if (inserted.error.code === "23505") return { duplicate: true };
     throw new ApiError(500, "Could not record XP.", inserted.error);
   }
-  const granted = await maybeGrantAbilitySlot(input.prospectId, input.eventType, input.sourceId);
-  return { duplicate: false, row: inserted.data, abilityGrant: granted };
-}
-
-async function maybeGrantAbilitySlot(prospectId: string, eventType: string, sourceId: string) {
-  const slots = abilityGrantSlotsForEvent(eventType);
-  if (slots <= 0) return { granted: false, slots: 0 };
-  const inserted = await supabase.from("rec_immortality_ability_grants").insert({
-    prospect_id: prospectId,
-    event_type: eventType,
-    source_id: sourceId,
-    slots,
-  }).select("*").maybeSingle();
-  if (inserted.error) {
-    if (inserted.error.code === "23505") return { granted: false, duplicate: true, slots: 0 };
-    throw new ApiError(500, "Could not record the ability grant.", inserted.error);
-  }
-  return { granted: true, slots, row: inserted.data };
+  return { duplicate: false, row: inserted.data };
 }
 
 async function syncProspectAbilitiesToPlayer(prospect: { id: string; player_id?: string | null }) {
@@ -1016,18 +1007,21 @@ export async function selectImmortalityAbility(input: {
   if (!prospect) throw new ApiError(400, "Prospect not found.");
   const ability = abilityById(input.abilityId);
   if (!ability) throw new ApiError(404, "Unknown Madden 27 ability.");
-  const [build, grants, equipped] = await Promise.all([
-    supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", prospect.id).maybeSingle(),
-    supabase.from("rec_immortality_ability_grants").select("slots").eq("prospect_id", prospect.id),
+  const [build, playstyle, equipped] = await Promise.all([
+    supabase.from("rec_immortality_creation_builds").select("estimated_ovr").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_prospect_abilities").select("ability_id").eq("prospect_id", prospect.id),
   ]);
-  const attributes = (build.data?.final_attributes ?? {}) as Record<string, number>;
-  const earnedSlots = (grants.data ?? []).reduce((sum, row) => sum + Number(row.slots ?? 0), 0);
+  const estimatedOvr = Number(build.data?.estimated_ovr ?? 0);
+  const archetypes = playerArchetypes(
+    playstyle.data ? String(playstyle.data.primary_archetype) : null,
+    playstyle.data?.secondary_archetype ? String(playstyle.data.secondary_archetype) : null,
+  );
   const check = canSelectAbility({
     ability,
     position: prospect.position as ImmortalityPosition,
-    attributes,
-    earnedSlots,
+    archetypes,
+    estimatedOvr,
     equippedCount: (equipped.data ?? []).length,
     alreadyEquipped: (equipped.data ?? []).some((row) => String(row.ability_id) === ability.id),
   });
@@ -1040,7 +1034,7 @@ export async function selectImmortalityAbility(input: {
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not equip that ability.", saved.error);
   await syncProspectAbilitiesToPlayer(prospect);
-  return { equipped: saved.data, tier: check.tier };
+  return { equipped: saved.data, gate: check.gate };
 }
 
 export async function removeImmortalityAbility(input: {

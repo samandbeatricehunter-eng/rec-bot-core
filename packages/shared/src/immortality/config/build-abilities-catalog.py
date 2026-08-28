@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Build Madden 27 ability floors from the EA launch roster + curated primary ratings.
+"""Build Madden 27 ability assignment gates for Rise to Immortality.
 
-EA did not publish per-ability numeric unlock tables for Madden 27 Franchise.
-This script records:
-  - official catalog id/label/description/type from EA ratings
-  - positions that actually have the ability on the launch roster
-  - observed min/median of the curated primary rating among those holders
-  - modeled Bronze/Silver/Gold floors (Madden Bronze = elite, per EA Gameplay Deep Dive)
+REC assigns the ability identity only. Madden still owns Bronze/Silver/Gold from
+in-game ratings. Assignment uses franchise position + archetype + OVR floors from
+Madden Tools (M26-labeled pages, used for M27) with Madden School M27 overlays
+and launch-roster observed OVR mins as fallback.
 """
 from __future__ import annotations
 
 import csv
 import json
+import re
 import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -19,7 +18,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[5]
 CSV_PATH = ROOT / "apps/api/scripts/data/madden27/madden27_ea_players.csv"
 CATALOG_PATH = ROOT / "apps/api/scripts/data/madden27/madden27_ea_abilities_catalog.json"
+TOOLS_PATH = Path(__file__).with_name("madden_tools_ability_gates.json")
 OUT_PATH = Path(__file__).with_name("abilities_m27.json")
+
+RTI_POS = {"QB", "HB", "WR", "TE", "CB", "FS", "SS", "MIKE"}
+POS_ALIAS = {"WILL": "MIKE", "SAM": "MIKE", "MLB": "MIKE", "LB": "MIKE"}
+
+# Tools name (or EA label) aliases onto the EA ratings catalog entry.
+NAME_ALIASES = {
+    "Extender": ["Anchored Extender", "Agile Extender"],
+}
+
+# Madden School M27 Bronze assignment rows fetched 2026-08-28.
+SCHOOL_GATES = {
+    "Inside Shade": [
+        {"position": "CB", "maddenArchetype": "Man to Man", "ovrMin": 85},
+    ],
+    "Lurker": [
+        {"position": "MIKE", "maddenArchetype": "Pass Coverage", "ovrMin": 90},
+        {"position": "CB", "maddenArchetype": None, "ovrMin": 85},
+        {"position": "FS", "maddenArchetype": "Run Support", "ovrMin": 85},
+        {"position": "SS", "maddenArchetype": "Run Support", "ovrMin": 85},
+    ],
+}
 
 CODE_TO_COL = {
     "SPD": "speed", "ACC": "acceleration", "AGI": "agility", "COD": "change_of_direction",
@@ -39,8 +60,7 @@ CODE_TO_COL = {
     "ZCV": "zone_coverage", "PRS": "press", "KPW": "kick_power", "KAC": "kick_accuracy",
 }
 
-# Curated primary (and optional secondary) ratings from ability text + how the launch
-# roster actually clusters. These are the ratings Franchise would check for tiering.
+# Ratings Madden uses to upgrade Bronze→Silver→Gold. Informational only.
 PRIMARY: dict[str, dict] = {
     "3rd Down Threat": {"primary": "CTH", "secondary": "CIT"},
     "Acrobat": {"primary": "JMP", "secondary": "SPC"},
@@ -158,32 +178,76 @@ PRIMARY: dict[str, dict] = {
     "YAC 'Em Up": {"primary": "BTK", "secondary": "COD"},
 }
 
-RTI_POS = {"QB", "HB", "WR", "TE", "CB", "FS", "SS", "MIKE"}
-POS_ALIAS = {"WILL": "MIKE", "SAM": "MIKE", "MLB": "MIKE"}
 
-# Extra logical positions for created-player eligibility even if launch roster is thin.
-EXTRA_POS = {
-    "Juke Box": ["QB", "HB", "WR"],
-    "Acrobat": ["WR", "TE", "CB", "FS", "SS"],
-    "Lurker": ["CB", "FS", "SS", "MIKE"],
-    "Secure Tackler": ["SS", "MIKE", "FS"],
-    "Flat Zone KO": ["CB", "FS", "SS", "MIKE"],
-    "Mid Zone KO": ["FS", "SS", "MIKE"],
-    "Short Route KO": ["CB", "FS", "SS", "MIKE"],
-    "Medium Route KO": ["CB", "FS", "SS"],
-    "Deep Route KO": ["CB", "FS"],
-    "Route Technician": ["WR", "TE", "HB"],
-    "Arm Bar": ["HB", "TE", "QB"],
-    "Tank": ["HB", "TE"],
-    "Ankle Breaker": ["HB", "WR"],
-    "YAC 'Em Up": ["WR", "TE", "HB"],
-    "Double Me": ["WR", "TE"],
-    "Shutdown": ["CB", "FS", "SS"],
-    "Universal Coverage": ["CB", "FS", "SS", "MIKE"],
-    "Reinforcement": ["SS", "MIKE", "FS"],
-    "Enforcer": ["SS", "MIKE"],
-    "Outmatched": ["MIKE", "SS", "CB"],
-}
+def norm_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def rti_position(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    mapped = POS_ALIAS.get(raw, raw)
+    return mapped if mapped in RTI_POS else None
+
+
+def map_archetypes(position: str, madden: str | None) -> list[str]:
+    if not madden or madden.strip().upper() in {"ANY", "OVERALL"}:
+        return ["any"]
+    name = madden.strip()
+    table = {
+        "QB": {
+            "Field General": ["Field General"],
+            "Strong Arm": ["Strong Arm"],
+            "Scrambler": ["Scrambler"],
+            "Improviser": ["Improviser"],
+            "West Coast": ["Field General"],
+        },
+        "HB": {
+            "Elusive Back": ["Elusive"],
+            "Power Back": ["Power"],
+            "Receiving Back": ["All-Purpose"],
+            "Elusive": ["Elusive"],
+            "Power": ["Power"],
+            "Receiving": ["All-Purpose"],
+            "Complete": ["Complete/Vision"],
+        },
+        "WR": {
+            "Deep Threat": ["Vertical/Deep Threat"],
+            "Playmaker": ["RAC/Hybrid"],
+            "Physical": ["Physical"],
+            "Slot": ["Technician/Possession"],
+        },
+        "TE": {
+            "Vertical Threat": ["Vertical/Deep Threat"],
+            "Possession": ["Technician/Possession"],
+            "Physical": ["Physical"],
+            "Blocking": ["Physical"],
+        },
+        "CB": {
+            "Man": ["Coverage/Shutdown"],
+            "Man to Man": ["Coverage/Shutdown"],
+            "Zone": ["Ball Hawk"],
+            "Slot": ["Processor/Field General"],
+        },
+        "FS": {
+            "Zone": ["Coverage/Shutdown", "Ball Hawk"],
+            "Hybrid": ["Processor/Field General"],
+            "Run Support": ["Physical/Run Support"],
+        },
+        "SS": {
+            "Zone": ["Coverage/Shutdown", "Ball Hawk"],
+            "Hybrid": ["Processor/Field General"],
+            "Run Support": ["Physical/Run Support"],
+        },
+        "MIKE": {
+            "Pass Coverage": ["Coverage LB", "Playmaker"],
+            "Field General": ["Field General"],
+            "Run Stopper": ["Run Stopper/Enforcer"],
+            "Nose Tackle": ["Run Stopper/Enforcer"],
+        },
+    }
+    mapped = table.get(position, {}).get(name)
+    return mapped if mapped else ["any"]
 
 
 def vals(holders, col):
@@ -198,32 +262,120 @@ def vals(holders, col):
     return out
 
 
-def floors_for(kind: str, observed_min: int | None, n: int) -> dict:
-    """Madden 27 Bronze is elite (EA Gameplay Deep Dive), not CFB's starter bronze.
+def normalize_ovr(kind: str, raw: int | None, sibling_mins: list[int]) -> tuple[int, str]:
+    if raw not in (None, 0):
+        return int(raw), "madden_tools"
+    if sibling_mins:
+        return min(sibling_mins), "madden_tools_inherited"
+    return (90 if kind == "xfactor" else 70), "madden_tools_default"
 
-    Modeled defaults: Bronze 88 / Silver 93 / Gold 96 on the primary rating.
-    When the launch roster has 3+ holders, bronze is the observed primary min,
-    clamped into the elite band so one outlier cannot tank the floor.
-    X-Factors sit at Gold — they are the stacked end of the same tier track.
-    """
-    default_bronze = 88
-    if observed_min is not None and n >= 3:
-        bronze = max(82, min(90, observed_min))
-    elif observed_min is not None:
-        bronze = max(85, min(90, observed_min if observed_min >= 80 else default_bronze))
-    else:
-        bronze = default_bronze
-    silver = min(95, bronze + 5)
-    gold = min(99, max(96, bronze + 8))
-    if kind == "xFactor":
-        bronze = max(bronze, 90)
-        silver = max(silver, 93)
-        gold = max(gold, 96)
-    return {"bronze": bronze, "silver": silver, "gold": gold}
+
+def gate_key(gate: dict) -> tuple:
+    return (gate["position"], tuple(gate["archetypes"]), gate["ovrMin"])
+
+
+def add_gate(gates: list[dict], gate: dict) -> None:
+    key = gate_key(gate)
+    existing = next((item for item in gates if gate_key(item) == key), None)
+    if existing:
+        if gate["source"] == "madden_school" and existing["source"] != "madden_school":
+            existing["source"] = "madden_school"
+            existing["maddenArchetype"] = gate.get("maddenArchetype") or existing.get("maddenArchetype")
+        return
+    same_pos_ovr = [
+        item for item in gates
+        if item["position"] == gate["position"] and item["ovrMin"] == gate["ovrMin"]
+    ]
+    if gate["archetypes"] == ["any"] and any(item["archetypes"] != ["any"] for item in same_pos_ovr):
+        return
+    if gate["archetypes"] != ["any"]:
+        gates[:] = [
+            item for item in gates
+            if not (
+                item["position"] == gate["position"]
+                and item["ovrMin"] == gate["ovrMin"]
+                and item["archetypes"] == ["any"]
+                and item["source"] != "madden_school"
+            )
+        ]
+    gates.append(gate)
+
+
+def tools_rows_for(label: str, ea_id: str, tools_by_ea: dict, tools_by_name: dict) -> list[dict]:
+    rows = []
+    if ea_id in tools_by_ea:
+        rows.append(tools_by_ea[ea_id])
+    names = [label, *NAME_ALIASES.get(label, [])]
+    for name in names:
+        hit = tools_by_name.get(norm_name(name))
+        if hit and hit not in rows:
+            rows.append(hit)
+    return rows
+
+
+def gates_from_tools(kind: str, rows: list[dict]) -> list[dict]:
+    criteria = []
+    for row in rows:
+        criteria.extend(row.get("criteria") or [])
+    sibling_mins = [int(c["ovrMin"]) for c in criteria if c.get("ovrMin") not in (None, 0)]
+    gates: list[dict] = []
+    for c in criteria:
+        pos = rti_position(c.get("position"))
+        if not pos:
+            continue
+        ovr, source = normalize_ovr(kind, c.get("ovrMin"), sibling_mins)
+        madden = c.get("archetype")
+        add_gate(gates, {
+            "position": pos,
+            "archetypes": map_archetypes(pos, madden),
+            "ovrMin": ovr,
+            "maddenArchetype": madden if madden else "Any",
+            "source": source,
+        })
+    return gates
+
+
+def gates_from_school(label: str) -> list[dict]:
+    gates = []
+    for row in SCHOOL_GATES.get(label, []):
+        pos = rti_position(row["position"])
+        if not pos:
+            continue
+        madden = row.get("maddenArchetype")
+        add_gate(gates, {
+            "position": pos,
+            "archetypes": map_archetypes(pos, madden),
+            "ovrMin": int(row["ovrMin"]),
+            "maddenArchetype": madden if madden else "Overall",
+            "source": "madden_school",
+        })
+    return gates
+
+
+def empirical_gates(kind: str, rti_positions: list[str], ovr_min: int | None) -> list[dict]:
+    floor = ovr_min if ovr_min is not None else (90 if kind == "xfactor" else 75)
+    floor = max(60, min(95, int(floor)))
+    return [{
+        "position": pos,
+        "archetypes": ["any"],
+        "ovrMin": floor,
+        "maddenArchetype": None,
+        "source": "empirical_roster",
+    } for pos in rti_positions]
 
 
 def main() -> None:
     catalog = json.loads(CATALOG_PATH.read_text())
+    tools = json.loads(TOOLS_PATH.read_text())
+    tools_by_ea = {}
+    tools_by_name = {}
+    for row in tools["abilities"]:
+        ea = str(row.get("eaId") or "")
+        if ea:
+            tools_by_ea[ea] = row
+        if row.get("name"):
+            tools_by_name[norm_name(row["name"])] = row
+
     with CSV_PATH.open(newline="") as f:
         rows = list(csv.DictReader(f))
     holders: dict[str, list] = defaultdict(list)
@@ -234,85 +386,90 @@ def main() -> None:
     abilities = []
     for item in catalog:
         label = item["label"]
-        kind = item["type"]["id"]
+        kind = "xfactor" if item["type"]["id"] == "xFactor" else "superstar"
         mapping = PRIMARY[label]
         primary = mapping["primary"]
         secondary = mapping.get("secondary")
-        col = CODE_TO_COL[primary]
         group = holders[label]
-        primary_vals = vals(group, col)
+        primary_vals = vals(group, CODE_TO_COL[primary])
         secondary_vals = vals(group, CODE_TO_COL[secondary]) if secondary else []
         ovr_vals = vals(group, "overall")
         pos_counts = Counter(POS_ALIAS.get(r["position"], r["position"]) for r in group)
-        positions = [p for p, _ in pos_counts.most_common()]
-        for extra in EXTRA_POS.get(label, []):
-            if extra not in positions:
-                positions.append(extra)
-        observed_min = int(min(primary_vals)) if primary_vals else None
-        observed_med = int(round(statistics.median(primary_vals))) if primary_vals else None
-        floors = floors_for(kind, observed_min, len(group))
-        rti_positions = [p for p in positions if p in RTI_POS]
+        launch_rti = [p for p, _ in pos_counts.most_common() if p in RTI_POS]
+
+        tools_rows = tools_rows_for(label, str(item["id"]), tools_by_ea, tools_by_name)
+        gates = gates_from_tools(kind, tools_rows)
+        for gate in gates_from_school(label):
+            add_gate(gates, gate)
+        if not gates:
+            gates = empirical_gates(kind, launch_rti, int(min(ovr_vals)) if ovr_vals else None)
+
+        rti_positions = []
+        for gate in gates:
+            if gate["position"] not in rti_positions:
+                rti_positions.append(gate["position"])
+        source_set = {g["source"] for g in gates}
+        if "madden_school" in source_set:
+            confidence = "madden_school"
+        elif any(s.startswith("madden_tools") for s in source_set):
+            confidence = "madden_tools"
+        else:
+            confidence = "empirical_roster"
+
         abilities.append({
             "id": item["id"],
             "name": label,
             "description": item["description"],
-            "kind": "xfactor" if kind == "xFactor" else "superstar",
-            "primary": primary,
-            "secondary": secondary,
-            "floors": floors,
+            "kind": kind,
+            "upgradesWith": {
+                "primary": primary,
+                "secondary": secondary,
+            },
+            "gates": gates,
             "observed": {
                 "holders": len(group),
                 "ovrMin": int(min(ovr_vals)) if ovr_vals else None,
                 "ovrMedian": int(round(statistics.median(ovr_vals))) if ovr_vals else None,
-                "primaryMin": observed_min,
-                "primaryMedian": observed_med,
+                "primaryMin": int(min(primary_vals)) if primary_vals else None,
+                "primaryMedian": int(round(statistics.median(primary_vals))) if primary_vals else None,
                 "secondaryMin": int(min(secondary_vals)) if secondary_vals else None,
             },
             "launchPositions": [{"position": p, "count": c} for p, c in pos_counts.most_common()],
             "rtiPositions": rti_positions,
             "rtiEligible": bool(rti_positions),
-            "confidence": "empirical_roster" if len(group) >= 3 else "modeled_plus_thin_roster",
+            "confidence": confidence,
         })
 
     payload = {
         "_meta": {
-            "version": "immortality-abilities-m27-v1",
+            "version": "immortality-abilities-m27-ovr-gates-v2",
             "game": "madden_27",
-            "officialNumericFloorsPublished": False,
+            "assignmentModel": (
+                "REC assigns the ability identity when the created player's position, "
+                "playstyle archetype, and estimated OVR meet a franchise gate. "
+                "Madden still upgrades Bronze/Silver/Gold from in-game ratings; REC does not set tier."
+            ),
             "sources": [
-                "EA Madden NFL 27 ratings catalog (apps/api/scripts/data/madden27/madden27_ea_abilities_catalog.json)",
-                "EA Madden NFL 27 launch roster (madden27_ea_players.csv, 2362 players)",
-                "EA Gameplay Deep Dive: Madden abilities are Bronze/Silver/Gold and stack; Bronze is elite, not a starter tier",
-                "EA Franchise Deep Dive: Franchise tiers upgrade from relevant ratings as the player progresses",
-                "CFB 26 Dynasty Deep Dive analog: physical ability tiers require attribute floors (e.g. Platinum Shifty 97 COD + 96 ACC). Madden 27 uses three tiers instead of five",
-                "Madden Tools / Madden School Madden 26 franchise gates (archetype + OVR 70/80/85/90) — legacy, not M27. Madden Tools still labels its pages as Madden 26 as of 2026-08-28",
-                "MUT.GG MUT 26 discounted-bucket example (Short Route KO 94 MCV, Medium Route KO 96 MCV) — Ultimate Team only, not Franchise",
-                "abilities.clutchtrait.com Madden 27 datamine: confirms Bronze/Silver/Gold effect stacking; does not publish rating floors",
+                "EA Madden NFL 27 ratings catalog",
+                "EA Madden NFL 27 launch roster (madden27_ea_players.csv)",
+                "Madden Tools franchise position + archetype + OVR gates (pages still labeled Madden 26 as of 2026-08-28)",
+                "Madden School Madden 27 Bronze assignment rows for Inside Shade and Lurker",
+                "EA Gameplay Deep Dive: Bronze/Silver/Gold stack in Madden and are rating-driven",
             ],
-            "tierModel": {
-                "bronze": "Elite entry. Default 88 primary, or launch-roster observed min (clamped 82-90) when n>=3.",
-                "silver": "bronze + 5, cap 95",
-                "gold": "at least 96; X-Factors require Gold",
-            },
-            "grantModel": {
-                "maxEquipped": 4,
-                "events": {
-                    "weekly_gold": 1,
-                    "season_tier1": 1,
-                    "season_tier3": 1,
-                    "career_minor": 1,
-                    "career_major": 1,
-                    "career_historic": 1,
-                    "award": 1,
-                    "championship": 1,
-                },
-            },
+            "maxEquipped": 4,
         },
         "abilities": abilities,
     }
     OUT_PATH.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {len(abilities)} abilities to {OUT_PATH}")
     print("rti eligible", sum(1 for a in abilities if a["rtiEligible"]))
+    print("confidence", Counter(a["confidence"] for a in abilities))
+    lurker = next(a for a in abilities if a["name"] == "Lurker")
+    print("lurker gates", lurker["gates"])
+    bazooka = next(a for a in abilities if a["name"] == "Bazooka")
+    print("bazooka gates", bazooka["gates"])
+    shutdown = next(a for a in abilities if a["name"] == "Shutdown")
+    print("shutdown gates", shutdown["gates"])
 
 
 if __name__ == "__main__":

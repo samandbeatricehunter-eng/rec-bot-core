@@ -1,0 +1,6808 @@
+{
+  "_meta": {
+    "source": "https://madden.tools/abilities/players/{id}-{slug}",
+    "scrapedAt": "2026-08-28",
+    "gameLabel": "Madden Tools still labels pages as Madden 26 franchise gates; used for Madden 27 assignment",
+    "count": 185
+  },
+  "abilities": [
+    {
+      "slug": "1-recuperation",
+      "toolsId": 1,
+      "eaId": "134",
+      "name": "Recuperation",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": "8",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Utility",
+          "archetypeUrl": "/archetypes/offense/FB/utility"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        },
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "2-short-out-elite",
+      "toolsId": 2,
+      "eaId": "051",
+      "name": "Short Out Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "3-mid-out-elite",
+      "toolsId": 3,
+      "eaId": "053",
+      "name": "Mid Out Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "8",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Utility",
+          "archetypeUrl": "/archetypes/offense/FB/utility"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "4-gambit",
+      "toolsId": 4,
+      "eaId": null,
+      "name": "Gambit",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "5-pocket-deadeye",
+      "toolsId": 5,
+      "eaId": "010",
+      "name": "Pocket Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "6-quick-draw",
+      "toolsId": 6,
+      "eaId": null,
+      "name": "Quick Draw",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "7-second-wind",
+      "toolsId": 7,
+      "eaId": null,
+      "name": "Second Wind",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "8-nasty-streak",
+      "toolsId": 8,
+      "eaId": "100",
+      "name": "Nasty Streak",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "9",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "9-post-up",
+      "toolsId": 9,
+      "eaId": "067",
+      "name": "Post Up",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "10-chuck-out",
+      "toolsId": 10,
+      "eaId": null,
+      "name": "Chuck Out",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "11-on-the-ball",
+      "toolsId": 11,
+      "eaId": "137",
+      "name": "On The Ball",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "12-deep-route-ko",
+      "toolsId": 12,
+      "eaId": "084",
+      "name": "Deep Route KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        }
+      ]
+    },
+    {
+      "slug": "13-edge-threat",
+      "toolsId": 13,
+      "eaId": "059",
+      "name": "Edge Threat",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "14-no-outsiders",
+      "toolsId": 14,
+      "eaId": "104",
+      "name": "No Outsiders",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "15-pass-committed",
+      "toolsId": 15,
+      "eaId": null,
+      "name": "Pass Committed",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "16-run-gun",
+      "toolsId": 16,
+      "eaId": "Z_11",
+      "name": "Run & Gun",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "17-fearless",
+      "toolsId": 17,
+      "eaId": "129",
+      "name": "Fearless",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "18-sideline-deadeye",
+      "toolsId": 18,
+      "eaId": "029",
+      "name": "Sideline Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "19-set-feet-lead",
+      "toolsId": 19,
+      "eaId": null,
+      "name": "Set Feet Lead",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "20-red-zone-deadeye",
+      "toolsId": 20,
+      "eaId": "011",
+      "name": "Red Zone Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "21-inside-deadeye",
+      "toolsId": 21,
+      "eaId": "078",
+      "name": "Inside Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "22-runoff-elite",
+      "toolsId": 22,
+      "eaId": "136",
+      "name": "Runoff Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "11",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Deep Threat",
+          "archetypeUrl": "/archetypes/offense/WR/deep-threat"
+        }
+      ]
+    },
+    {
+      "slug": "23-acrobat",
+      "toolsId": 23,
+      "eaId": "083",
+      "name": "Acrobat",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "51",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "51",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "24-deep-out-elite",
+      "toolsId": 24,
+      "eaId": "055",
+      "name": "Deep Out Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "11",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Deep Threat",
+          "archetypeUrl": "/archetypes/offense/WR/deep-threat"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "25-double-me",
+      "toolsId": 25,
+      "eaId": "Z_07",
+      "name": "Double Me",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "11",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Deep Threat",
+          "archetypeUrl": "/archetypes/offense/WR/deep-threat"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "26-mid-in-elite",
+      "toolsId": 26,
+      "eaId": "054",
+      "name": "Mid In Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "27-route-technician",
+      "toolsId": 27,
+      "eaId": "016",
+      "name": "Route Technician",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "10",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Playmaker",
+          "archetypeUrl": "/archetypes/offense/WR/playmaker"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "28-short-in-elite",
+      "toolsId": 28,
+      "eaId": "052",
+      "name": "Short In Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "7",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Receiving Back",
+          "archetypeUrl": "/archetypes/offense/HB/receiving-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "12",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "29-grab-n-go",
+      "toolsId": 29,
+      "eaId": null,
+      "name": "Grab-N-Go",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "7",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Receiving Back",
+          "archetypeUrl": "/archetypes/offense/HB/receiving-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "10",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Playmaker",
+          "archetypeUrl": "/archetypes/offense/WR/playmaker"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "30-shutdown",
+      "toolsId": 30,
+      "eaId": "Z_10",
+      "name": "Shutdown",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "57",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "57",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        }
+      ]
+    },
+    {
+      "slug": "31-outside-shade",
+      "toolsId": 31,
+      "eaId": "141",
+      "name": "Outside Shade",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        }
+      ]
+    },
+    {
+      "slug": "32-short-route-ko",
+      "toolsId": 32,
+      "eaId": "034",
+      "name": "Short Route KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "57",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "57",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        }
+      ]
+    },
+    {
+      "slug": "33-tip-drill",
+      "toolsId": 33,
+      "eaId": null,
+      "name": "Tip Drill",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "34-secure-protector",
+      "toolsId": 34,
+      "eaId": "087",
+      "name": "Secure Protector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "9",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "9",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "35-omniscient",
+      "toolsId": 35,
+      "eaId": null,
+      "name": "Omniscient",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "36-puller-elite",
+      "toolsId": 36,
+      "eaId": "101",
+      "name": "Puller Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        }
+      ]
+    },
+    {
+      "slug": "37-reinforcement",
+      "toolsId": 37,
+      "eaId": "Z_18",
+      "name": "Reinforcement",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "38-out-my-way",
+      "toolsId": 38,
+      "eaId": "106",
+      "name": "Out My Way",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "39-demoralizer",
+      "toolsId": 39,
+      "eaId": "140",
+      "name": "Demoralizer",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "40-bazooka",
+      "toolsId": 40,
+      "eaId": "Z_06",
+      "name": "Bazooka",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "41-dashing-deadeye",
+      "toolsId": 41,
+      "eaId": "008",
+      "name": "Dashing Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "42-fastbreak",
+      "toolsId": 42,
+      "eaId": "035",
+      "name": "Fastbreak",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "3",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Scrambler",
+          "archetypeUrl": "/archetypes/offense/QB/scrambler"
+        }
+      ]
+    },
+    {
+      "slug": "43-gunslinger",
+      "toolsId": 43,
+      "eaId": "043",
+      "name": "Gunslinger",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "44-swim-club",
+      "toolsId": 44,
+      "eaId": "114",
+      "name": "Swim Club",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "45-b-o-g-o",
+      "toolsId": 45,
+      "eaId": "112",
+      "name": "B.O.G.O.",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "46-max-effort",
+      "toolsId": 46,
+      "eaId": "117",
+      "name": "Max Effort",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "47-reach-elite",
+      "toolsId": 47,
+      "eaId": null,
+      "name": "Reach Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "48-juke-box",
+      "toolsId": 48,
+      "eaId": "082",
+      "name": "Juke Box",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "3",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Scrambler",
+          "archetypeUrl": "/archetypes/offense/QB/scrambler"
+        },
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "12",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "49-backfield-mismatch",
+      "toolsId": 49,
+      "eaId": "072",
+      "name": "Backfield Mismatch",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "7",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Receiving Back",
+          "archetypeUrl": "/archetypes/offense/HB/receiving-back"
+        },
+        {
+          "position": "FB",
+          "archetypeLock": "8",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Utility",
+          "archetypeUrl": "/archetypes/offense/FB/utility"
+        }
+      ]
+    },
+    {
+      "slug": "50-reach-for-it",
+      "toolsId": 50,
+      "eaId": "126",
+      "name": "Reach For It",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "51-matador",
+      "toolsId": 51,
+      "eaId": null,
+      "name": "Matador",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "9",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "9",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": "24",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "24",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "24",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "24",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "24",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        }
+      ]
+    },
+    {
+      "slug": "52-mid-zone-ko",
+      "toolsId": 52,
+      "eaId": "061",
+      "name": "Mid Zone KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "12",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "53-pick-artist",
+      "toolsId": 53,
+      "eaId": null,
+      "name": "Pick Artist",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "54-unstoppable-force",
+      "toolsId": 54,
+      "eaId": "Z_15",
+      "name": "Unstoppable Force",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "55-strip-specialist",
+      "toolsId": 55,
+      "eaId": null,
+      "name": "Strip Specialist",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "56-el-toro",
+      "toolsId": 56,
+      "eaId": "118",
+      "name": "El Toro",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "57-under-pressure",
+      "toolsId": 57,
+      "eaId": "068",
+      "name": "Under Pressure",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "58-steamroller",
+      "toolsId": 58,
+      "eaId": "161",
+      "name": "Steamroller",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "59-matchup-nightmare",
+      "toolsId": 59,
+      "eaId": "073",
+      "name": "Matchup Nightmare",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "7",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Receiving Back",
+          "archetypeUrl": "/archetypes/offense/HB/receiving-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "60-unfakeable",
+      "toolsId": 60,
+      "eaId": null,
+      "name": "Unfakeable",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "61-lumberjack",
+      "toolsId": 61,
+      "eaId": "107",
+      "name": "Lumberjack",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "62-flat-zone-ko",
+      "toolsId": 62,
+      "eaId": "060",
+      "name": "Flat Zone KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "63-slot-o-matic",
+      "toolsId": 63,
+      "eaId": "047",
+      "name": "Slot-O-Matic",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "12",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "64-lifeguard",
+      "toolsId": 64,
+      "eaId": null,
+      "name": "Lifeguard",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        }
+      ]
+    },
+    {
+      "slug": "65-pass-lead-elite",
+      "toolsId": 65,
+      "eaId": null,
+      "name": "Pass Lead Elite",
+      "typeId": "superstarAbility",
+      "criteria": []
+    },
+    {
+      "slug": "66-high-point-deadeye",
+      "toolsId": 66,
+      "eaId": "143",
+      "name": "High Point Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": []
+    },
+    {
+      "slug": "67-all-day",
+      "toolsId": 67,
+      "eaId": "099",
+      "name": "All Day",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "9",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "9",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "68-red-zone-threat",
+      "toolsId": 68,
+      "eaId": "063",
+      "name": "Red Zone Threat",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "69-secure-tackler",
+      "toolsId": 69,
+      "eaId": "071",
+      "name": "Secure Tackler",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "70-lurker",
+      "toolsId": 70,
+      "eaId": "089",
+      "name": "Lurker",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "44",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "71-run-stuffer",
+      "toolsId": 71,
+      "eaId": null,
+      "name": "Run Stuffer",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "72-run-stopper",
+      "toolsId": 72,
+      "eaId": "058",
+      "name": "Run Stopper",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "73-inside-stuff",
+      "toolsId": 73,
+      "eaId": "103",
+      "name": "Inside Stuff",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "74-pass-protector",
+      "toolsId": 74,
+      "eaId": "165",
+      "name": "Pass Protector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "75-natural-talent",
+      "toolsId": 75,
+      "eaId": null,
+      "name": "Natural Talent",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "76-deep-out-zone-ko",
+      "toolsId": 76,
+      "eaId": "062",
+      "name": "Deep Out Zone KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "77-extra-credit",
+      "toolsId": 77,
+      "eaId": "096",
+      "name": "Extra Credit",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "78-tireless-runner",
+      "toolsId": 78,
+      "eaId": null,
+      "name": "Tireless Runner",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "79-deep-in-elite",
+      "toolsId": 79,
+      "eaId": "057",
+      "name": "Deep In Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "11",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Deep Threat",
+          "archetypeUrl": "/archetypes/offense/WR/deep-threat"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "80-anchored-extender",
+      "toolsId": 80,
+      "eaId": null,
+      "name": "Anchored Extender",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "81-gutsy-scrambler",
+      "toolsId": 81,
+      "eaId": null,
+      "name": "Gutsy Scrambler",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "3",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Scrambler",
+          "archetypeUrl": "/archetypes/offense/QB/scrambler"
+        }
+      ]
+    },
+    {
+      "slug": "82-yac-em-up",
+      "toolsId": 82,
+      "eaId": "Z_32",
+      "name": "YAC 'Em Up",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "83-adrenaline-rush",
+      "toolsId": 83,
+      "eaId": "120",
+      "name": "Adrenaline Rush",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "84-zen-kicker",
+      "toolsId": 84,
+      "eaId": "146",
+      "name": "Zen Kicker",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "K",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "P",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "85-precision-kicker",
+      "toolsId": 85,
+      "eaId": null,
+      "name": "Precision Kicker",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "K",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "P",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "86-leap-frog",
+      "toolsId": 86,
+      "eaId": null,
+      "name": "Leap Frog",
+      "typeId": "superstarAbility",
+      "criteria": []
+    },
+    {
+      "slug": "87-no-look-deadeye",
+      "toolsId": 87,
+      "eaId": "028",
+      "name": "No-Look Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "88-momentum-shift",
+      "toolsId": 88,
+      "eaId": "Z_23",
+      "name": "Momentum Shift",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "89-goal-line-stuff",
+      "toolsId": 89,
+      "eaId": "102",
+      "name": "Goal Line Stuff",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "90-interior-threat",
+      "toolsId": 90,
+      "eaId": "148",
+      "name": "Interior Threat",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "DT",
+          "archetypeLock": "35",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/DT/power-rusher-dt"
+        }
+      ]
+    },
+    {
+      "slug": "91-threat-detector",
+      "toolsId": 91,
+      "eaId": "097",
+      "name": "Threat Detector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "92-linchpin",
+      "toolsId": 92,
+      "eaId": "147",
+      "name": "Linchpin",
+      "typeId": "superstarAbility",
+      "criteria": []
+    },
+    {
+      "slug": "93-screen-protector",
+      "toolsId": 93,
+      "eaId": "095",
+      "name": "Screen Protector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FB",
+          "archetypeLock": "9",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "9",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        },
+        {
+          "position": "LT",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "29",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Agile",
+          "archetypeUrl": "/archetypes/offense/LT/agile-lt"
+        }
+      ]
+    },
+    {
+      "slug": "94-bench-press",
+      "toolsId": 94,
+      "eaId": "049",
+      "name": "Bench Press",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "95-inside-shade",
+      "toolsId": 95,
+      "eaId": "142",
+      "name": "Inside Shade",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        }
+      ]
+    },
+    {
+      "slug": "96-run-protector",
+      "toolsId": 96,
+      "eaId": "166",
+      "name": "Run Protector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "97-stonewall",
+      "toolsId": 97,
+      "eaId": null,
+      "name": "Stonewall",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "98-arm-bar",
+      "toolsId": 98,
+      "eaId": "004",
+      "name": "Arm Bar",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "99-goal-line-back",
+      "toolsId": 99,
+      "eaId": null,
+      "name": "Goal Line Back",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "100-escape-artist",
+      "toolsId": 100,
+      "eaId": null,
+      "name": "Escape Artist",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "101-roaming-deadeye",
+      "toolsId": 101,
+      "eaId": "013",
+      "name": "Roaming Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "102-edge-protector",
+      "toolsId": 102,
+      "eaId": "066",
+      "name": "Edge Protector",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "103-ankle-breaker",
+      "toolsId": 103,
+      "eaId": "Z_33",
+      "name": "Ankle Breaker",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "104-evasive",
+      "toolsId": 104,
+      "eaId": "092",
+      "name": "Evasive",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "105-zone-hawk",
+      "toolsId": 105,
+      "eaId": null,
+      "name": "Zone Hawk",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "51",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "51",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "106-outmatched",
+      "toolsId": 106,
+      "eaId": "122",
+      "name": "Outmatched",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "57",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "57",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        }
+      ]
+    },
+    {
+      "slug": "107-lurk-artist",
+      "toolsId": 107,
+      "eaId": null,
+      "name": "Lurk Artist",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "47",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/MIKE/pass-coverage-mike"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "43",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/SAM/pass-coverage-sam"
+        }
+      ]
+    },
+    {
+      "slug": "108-relentless",
+      "toolsId": 108,
+      "eaId": "Z_27",
+      "name": "Relentless",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "109-rac-em-up",
+      "toolsId": 109,
+      "eaId": null,
+      "name": "RAC 'em Up",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "110-deep-in-zone-ko",
+      "toolsId": 110,
+      "eaId": "064",
+      "name": "Deep In Zone KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "51",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    },
+    {
+      "slug": "111-fool-me-once",
+      "toolsId": 111,
+      "eaId": null,
+      "name": "Fool Me Once",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LG",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "C",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RG",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "RT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "112-first-one-free",
+      "toolsId": 112,
+      "eaId": "Z_14",
+      "name": "First One Free",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "12",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        }
+      ]
+    },
+    {
+      "slug": "113-energizer",
+      "toolsId": 113,
+      "eaId": "119",
+      "name": "Energizer",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "114-human-joystick",
+      "toolsId": 114,
+      "eaId": "077",
+      "name": "Human Joystick",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        }
+      ]
+    },
+    {
+      "slug": "115-max-security",
+      "toolsId": 115,
+      "eaId": null,
+      "name": "Max Security",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "116-agile-extender",
+      "toolsId": 116,
+      "eaId": null,
+      "name": "Agile Extender",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "117-unpredictable",
+      "toolsId": 117,
+      "eaId": "110",
+      "name": "Unpredictable",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "118-mr-big-stop",
+      "toolsId": 118,
+      "eaId": "113",
+      "name": "Mr. Big Stop",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "119-tackle-supreme",
+      "toolsId": 119,
+      "eaId": null,
+      "name": "Tackle Supreme",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "120-form-tackler",
+      "toolsId": 120,
+      "eaId": null,
+      "name": "Form Tackler",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "121-ironman",
+      "toolsId": 121,
+      "eaId": "168",
+      "name": "Ironman",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "122-blitz",
+      "toolsId": 122,
+      "eaId": null,
+      "name": "Blitz",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "123-enforcer-supreme",
+      "toolsId": 123,
+      "eaId": null,
+      "name": "Enforcer Supreme",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "DT",
+          "archetypeLock": "41",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": "46",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Run Stopper",
+          "archetypeUrl": "/archetypes/defense/WILL/run-stopper-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "48",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Run Stopper",
+          "archetypeUrl": "/archetypes/defense/MIKE/run-stopper-mike"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "45",
+          "ovrMin": 99,
+          "minSlot": 4,
+          "maxSlot": 4,
+          "archetype": "Run Stopper",
+          "archetypeUrl": "/archetypes/defense/SAM/run-stopper-sam"
+        }
+      ]
+    },
+    {
+      "slug": "124-fearmonger",
+      "toolsId": 124,
+      "eaId": "Z_02",
+      "name": "Fearmonger",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "125-one-step-ahead",
+      "toolsId": 125,
+      "eaId": "123",
+      "name": "One Step Ahead",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        }
+      ]
+    },
+    {
+      "slug": "126-slot-apprentice",
+      "toolsId": 126,
+      "eaId": null,
+      "name": "Slot Apprentice",
+      "typeId": null,
+      "criteria": []
+    },
+    {
+      "slug": "127-tank",
+      "toolsId": 127,
+      "eaId": "105",
+      "name": "Tank",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        },
+        {
+          "position": "FB",
+          "archetypeLock": "8",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Utility",
+          "archetypeUrl": "/archetypes/offense/FB/utility"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "17",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Possession",
+          "archetypeUrl": "/archetypes/offense/TE/possession"
+        }
+      ]
+    },
+    {
+      "slug": "128-balance-beam",
+      "toolsId": 128,
+      "eaId": null,
+      "name": "Balance Beam",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "FB",
+          "archetypeLock": "8",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Utility",
+          "archetypeUrl": "/archetypes/offense/FB/utility"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "129-defensive-rally",
+      "toolsId": 129,
+      "eaId": null,
+      "name": "Defensive Rally",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "130-bruiser",
+      "toolsId": 130,
+      "eaId": "007",
+      "name": "Bruiser",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "131-film-study",
+      "toolsId": 131,
+      "eaId": null,
+      "name": "Film Study",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "132-instant-rebate",
+      "toolsId": 132,
+      "eaId": "109",
+      "name": "Instant Rebate",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "133-deflator",
+      "toolsId": 133,
+      "eaId": "132",
+      "name": "Deflator",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "55",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Run Support",
+          "archetypeUrl": "/archetypes/defense/FS/run-support-fs"
+        }
+      ]
+    },
+    {
+      "slug": "134-truzz",
+      "toolsId": 134,
+      "eaId": "Z_24",
+      "name": "Truzz",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "135-tight-out",
+      "toolsId": 135,
+      "eaId": null,
+      "name": "Tight Out",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "136-freight-train",
+      "toolsId": 136,
+      "eaId": "Z_19",
+      "name": "Freight Train",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        }
+      ]
+    },
+    {
+      "slug": "137-backlash",
+      "toolsId": 137,
+      "eaId": "133",
+      "name": "Backlash",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        }
+      ]
+    },
+    {
+      "slug": "138-closer",
+      "toolsId": 138,
+      "eaId": null,
+      "name": "Closer",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "K",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "P",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "139-enforcer",
+      "toolsId": 139,
+      "eaId": "070",
+      "name": "Enforcer",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "140-bottleneck",
+      "toolsId": 140,
+      "eaId": "Z_35",
+      "name": "Bottleneck",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "50",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Man",
+          "archetypeUrl": "/archetypes/defense/CB/man-cb"
+        }
+      ]
+    },
+    {
+      "slug": "141-honorary-lineman",
+      "toolsId": 141,
+      "eaId": null,
+      "name": "Honorary Lineman",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        }
+      ]
+    },
+    {
+      "slug": "142-wrecking-ball",
+      "toolsId": 142,
+      "eaId": null,
+      "name": "Wrecking Ball",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "143-outside-apprentice",
+      "toolsId": 143,
+      "eaId": null,
+      "name": "Outside Apprentice",
+      "typeId": null,
+      "criteria": []
+    },
+    {
+      "slug": "144-lofting-deadeye",
+      "toolsId": 144,
+      "eaId": "023",
+      "name": "Lofting Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "145-focused-kicker",
+      "toolsId": 145,
+      "eaId": null,
+      "name": "Focused Kicker",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "K",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "P",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "146-edge-threat-elite",
+      "toolsId": 146,
+      "eaId": null,
+      "name": "Edge Threat Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "147-conductor",
+      "toolsId": 147,
+      "eaId": null,
+      "name": "Conductor",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "148-return-man",
+      "toolsId": 148,
+      "eaId": null,
+      "name": "Return Man",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "149-medium-route-ko",
+      "toolsId": 149,
+      "eaId": "115",
+      "name": "Medium Route KO",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "44",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Coverage",
+          "archetypeUrl": "/archetypes/defense/WILL/pass-coverage-will"
+        },
+        {
+          "position": "CB",
+          "archetypeLock": "12",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "57",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "57",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        }
+      ]
+    },
+    {
+      "slug": "150-persistent",
+      "toolsId": 150,
+      "eaId": null,
+      "name": "Persistent",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "LEDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "151-bulldozer",
+      "toolsId": 151,
+      "eaId": null,
+      "name": "Bulldozer",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "3",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Scrambler",
+          "archetypeUrl": "/archetypes/offense/QB/scrambler"
+        },
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        },
+        {
+          "position": "FB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "TE",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "152-comeback",
+      "toolsId": 152,
+      "eaId": null,
+      "name": "Comeback",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "153-spin-cycle",
+      "toolsId": 153,
+      "eaId": null,
+      "name": "Spin Cycle",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "3",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Scrambler",
+          "archetypeUrl": "/archetypes/offense/QB/scrambler"
+        },
+        {
+          "position": "HB",
+          "archetypeLock": "6",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Elusive Back",
+          "archetypeUrl": "/archetypes/offense/HB/elusive-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": "12",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Slot",
+          "archetypeUrl": "/archetypes/offense/WR/slot"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "154-homer",
+      "toolsId": 154,
+      "eaId": null,
+      "name": "Homer",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "155-unspun",
+      "toolsId": 155,
+      "eaId": null,
+      "name": "Unspun",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "19",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "19",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "19",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "156-crusher",
+      "toolsId": 156,
+      "eaId": null,
+      "name": "Crusher",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "157-sleight-of-hand",
+      "toolsId": 157,
+      "eaId": null,
+      "name": "Sleight of Hand",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "158-run-committed",
+      "toolsId": 158,
+      "eaId": null,
+      "name": "Run Committed",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": null,
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "41",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "159-selfless",
+      "toolsId": 159,
+      "eaId": null,
+      "name": "Selfless",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WILL",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "160-tear-proof",
+      "toolsId": 160,
+      "eaId": null,
+      "name": "Tear Proof",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "LG",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "C",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RG",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "24",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power",
+          "archetypeUrl": "/archetypes/offense/LT/power-lt"
+        }
+      ]
+    },
+    {
+      "slug": "161-spinner",
+      "toolsId": 161,
+      "eaId": null,
+      "name": "Spinner",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "37",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Speed Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/speed-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "162-short-elite",
+      "toolsId": 162,
+      "eaId": null,
+      "name": "Short Elite",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "5",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Back",
+          "archetypeUrl": "/archetypes/offense/HB/power-back"
+        },
+        {
+          "position": "WR",
+          "archetypeLock": null,
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "163-mid-elite",
+      "toolsId": 163,
+      "eaId": null,
+      "name": "Mid Elite",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "10",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Playmaker",
+          "archetypeUrl": "/archetypes/offense/WR/playmaker"
+        }
+      ]
+    },
+    {
+      "slug": "164-ripper",
+      "toolsId": 164,
+      "eaId": null,
+      "name": "Ripper",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "165-safety-valve",
+      "toolsId": 165,
+      "eaId": null,
+      "name": "Safety Valve",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "184-dots",
+      "toolsId": 184,
+      "eaId": "Z_03",
+      "name": "Dots",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "185-pro-reads",
+      "toolsId": 185,
+      "eaId": "Z_04",
+      "name": "Pro Reads",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "186-blitz-radar",
+      "toolsId": 186,
+      "eaId": null,
+      "name": "Blitz Radar",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "2",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Improviser",
+          "archetypeUrl": "/archetypes/offense/QB/improviser"
+        }
+      ]
+    },
+    {
+      "slug": "187-brick-wall",
+      "toolsId": 187,
+      "eaId": "Z_21",
+      "name": "Brick Wall",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "188-omaha",
+      "toolsId": 188,
+      "eaId": null,
+      "name": "Omaha",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "4",
+          "ovrMin": 60,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "189-protected",
+      "toolsId": 189,
+      "eaId": null,
+      "name": "Protected",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": null,
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "190-long-range-deadeye",
+      "toolsId": 190,
+      "eaId": "022",
+      "name": "Long Range Deadeye",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "QB",
+          "archetypeLock": "1",
+          "ovrMin": 90,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Strong Arm",
+          "archetypeUrl": "/archetypes/offense/QB/strong-arm"
+        }
+      ]
+    },
+    {
+      "slug": "191-satellite",
+      "toolsId": 191,
+      "eaId": null,
+      "name": "Satellite",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "192-playmaker",
+      "toolsId": 192,
+      "eaId": null,
+      "name": "Playmaker",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "HB",
+          "archetypeLock": "7",
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Receiving Back",
+          "archetypeUrl": "/archetypes/offense/HB/receiving-back"
+        }
+      ]
+    },
+    {
+      "slug": "193-grab-and-smash",
+      "toolsId": 193,
+      "eaId": null,
+      "name": "Grab And Smash",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "13",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Physical",
+          "archetypeUrl": "/archetypes/offense/WR/physical"
+        },
+        {
+          "position": "TE",
+          "archetypeLock": "18",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Vertical Threat",
+          "archetypeUrl": "/archetypes/offense/TE/vertical-threat"
+        }
+      ]
+    },
+    {
+      "slug": "194-vanguard",
+      "toolsId": 194,
+      "eaId": null,
+      "name": "Vanguard",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "TE",
+          "archetypeLock": "9",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Blocking",
+          "archetypeUrl": "/archetypes/offense/TE/blocking-te"
+        }
+      ]
+    },
+    {
+      "slug": "195-tough-nut",
+      "toolsId": 195,
+      "eaId": "009",
+      "name": "Tough Nut",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "LT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        },
+        {
+          "position": "RT",
+          "archetypeLock": "19",
+          "ovrMin": 80,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Pass Protector",
+          "archetypeUrl": "/archetypes/offense/LT/pass-protector-lt"
+        }
+      ]
+    },
+    {
+      "slug": "196-double-or-nothing",
+      "toolsId": 196,
+      "eaId": null,
+      "name": "Double Or Nothing",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "LEDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "DT",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        },
+        {
+          "position": "REDGE",
+          "archetypeLock": "34",
+          "ovrMin": 85,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Power Rusher",
+          "archetypeUrl": "/archetypes/defense/LEDGE/power-rusher-ledge"
+        }
+      ]
+    },
+    {
+      "slug": "197-extra-pop",
+      "toolsId": 197,
+      "eaId": null,
+      "name": "Extra Pop",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SAM",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "SS",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "198-mind-reader",
+      "toolsId": 198,
+      "eaId": null,
+      "name": "Mind Reader",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": "4",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Field General",
+          "archetypeUrl": "/archetypes/offense/QB/field-general"
+        }
+      ]
+    },
+    {
+      "slug": "199-avalanche",
+      "toolsId": 199,
+      "eaId": null,
+      "name": "Avalanche",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "MIKE",
+          "archetypeLock": "41",
+          "ovrMin": 95,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Nose Tackle",
+          "archetypeUrl": "/archetypes/defense/DT/nose-tackle-dt"
+        }
+      ]
+    },
+    {
+      "slug": "200-universal-coverage",
+      "toolsId": 200,
+      "eaId": "Z_28",
+      "name": "Universal Coverage",
+      "typeId": "xFactor",
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": null,
+          "ovrMin": 0,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        },
+        {
+          "position": "FS",
+          "archetypeLock": "57",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        },
+        {
+          "position": "SS",
+          "archetypeLock": "57",
+          "ovrMin": 70,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": "Hybrid",
+          "archetypeUrl": "/archetypes/defense/FS/hybrid-fs"
+        }
+      ]
+    },
+    {
+      "slug": "201-clutch-kicker",
+      "toolsId": 201,
+      "eaId": null,
+      "name": "Clutch Kicker",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "K",
+          "archetypeLock": null,
+          "ovrMin": 75,
+          "minSlot": null,
+          "maxSlot": null,
+          "archetype": null,
+          "archetypeUrl": null
+        }
+      ]
+    },
+    {
+      "slug": "202-deep-elite",
+      "toolsId": 202,
+      "eaId": "160",
+      "name": "Deep Elite",
+      "typeId": "superstarAbility",
+      "criteria": [
+        {
+          "position": "WR",
+          "archetypeLock": "10",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Playmaker",
+          "archetypeUrl": "/archetypes/offense/WR/playmaker"
+        }
+      ]
+    },
+    {
+      "slug": "203-deep-zone-ko",
+      "toolsId": 203,
+      "eaId": null,
+      "name": "Deep Zone KO",
+      "typeId": null,
+      "criteria": [
+        {
+          "position": "CB",
+          "archetypeLock": "51",
+          "ovrMin": 90,
+          "minSlot": 3,
+          "maxSlot": null,
+          "archetype": "Zone",
+          "archetypeUrl": "/archetypes/defense/CB/zone-cb"
+        }
+      ]
+    }
+  ]
+}

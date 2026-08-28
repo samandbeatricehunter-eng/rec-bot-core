@@ -131,7 +131,6 @@ export function RiseXpPage() {
           guildId={guildId}
           side={side}
           state={hub?.abilities?.[prospectId] ?? null}
-          attributes={attributes}
           setError={setError}
           onSaved={reload}
         />
@@ -141,22 +140,21 @@ export function RiseXpPage() {
 }
 
 function AbilityPanel({
-  guildId, side, state, attributes, setError, onSaved,
+  guildId, side, state, setError, onSaved,
 }: {
   guildId: string;
   side: Side;
   state: ImmortalityAbilityState | null;
-  attributes: Record<string, number>;
   setError: (value: string | null) => void;
   onSaved: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const earned = state?.earnedSlots ?? 0;
-  const slots = state?.slots ?? 0;
   const equipped = state?.equipped ?? [];
   const eligible = state?.eligible ?? [];
   const ready = eligible.filter((row) => row.selectable);
   const locked = eligible.filter((row) => !row.selectable && !equipped.some((item) => item.id === row.id));
+  const ovr = state?.estimatedOvr ?? 0;
+  const archetype = state?.archetype ?? "your playstyle";
 
   async function select(row: ImmortalityAbilityCard) {
     setBusy(row.id); setError(null);
@@ -182,40 +180,40 @@ function AbilityPanel({
     <section className="rise-card">
       <h2>Abilities</h2>
       <p className="site-muted">
-        {slots} of {state?.maxEquipped ?? 4} slots unlocked from performance ({earned} grant{earned === 1 ? "" : "s"}).
-        X-Factors need 3 grants. Bronze/Silver/Gold in Madden tracks {ready[0]?.primary ? "the listed rating floors" : "the primary rating"} — XP the attribute before the ability will apply in-game.
+        Assign up to {state?.maxEquipped ?? 4} Madden 27 abilities once this player's OVR and playstyle meet the franchise floor.
+        REC only chooses which ability is on the card — Madden still sets Bronze/Silver/Gold from in-game ratings.
+        Current build: {ovr || "—"} OVR · {archetype}.
       </p>
-      <h3>Equipped</h3>
-      {!equipped.length ? <p className="site-muted">None yet. Earn a Gold weekly challenge, season milestone, or award.</p> : (
+      <h3>Assigned</h3>
+      {!equipped.length ? <p className="site-muted">None yet. Raise OVR with Player XP or pick abilities that match this playstyle.</p> : (
         <ul className="rise-ability-list">
           {equipped.map((row) => (
             <li key={row.id} className="rise-ability-item">
               <div>
                 <strong>{row.name}</strong> <span className={`rise-stock rise-stock-${row.kind === "xfactor" ? "rising" : "holding"}`}>{row.kind}</span>
-                <span className={`rise-stock rise-stock-${row.tier === "gold" ? "rising" : row.tier === "none" ? "sliding" : "new"}`}>{row.tier}</span>
                 <p className="site-muted">{row.description}</p>
-                {row.floors && row.primary ? (
-                  <p className="site-muted">{row.primary} {attributes[row.primary] ?? "—"} · Bronze {row.floors.bronze} / Silver {row.floors.silver} / Gold {row.floors.gold}</p>
-                ) : null}
+                <p className="site-muted">
+                  {row.ovrMin ? `${row.ovrMin}+ OVR` : "OVR floor"}
+                  {row.maddenArchetype ? ` · ${row.maddenArchetype}` : ""}
+                  {row.upgradesWith?.primary ? ` · Madden upgrades with ${row.upgradesWith.primary}` : ""}
+                </p>
               </div>
               <button type="button" className="site-btn site-btn-ghost" disabled={busy === row.id} onClick={() => void remove(row)}>Remove</button>
             </li>
           ))}
         </ul>
       )}
-      <h3>Ready to equip</h3>
-      {!ready.length ? <p className="site-muted">No abilities currently meet both a free slot and the Madden rating floor.</p> : (
+      <h3>Ready to assign</h3>
+      {!ready.length ? <p className="site-muted">No abilities currently meet this player's OVR and playstyle.</p> : (
         <ul className="rise-ability-list">
           {ready.map((row) => (
             <li key={row.id} className="rise-ability-item">
               <div>
-                <strong>{row.name}</strong> <span className="rise-stock rise-stock-new">{row.tier}</span>
+                <strong>{row.name}</strong> <span className="rise-stock rise-stock-new">{row.ovrMin ? `${row.ovrMin}+ OVR` : "ready"}</span>
                 <p className="site-muted">{row.description}</p>
-                {row.floors && row.primary ? (
-                  <p className="site-muted">{row.primary} {attributes[row.primary] ?? "—"} / {row.floors.bronze}+ bronze</p>
-                ) : null}
+                {row.maddenArchetype ? <p className="site-muted">{row.maddenArchetype}{row.upgradesWith?.primary ? ` · upgrades with ${row.upgradesWith.primary}` : ""}</p> : null}
               </div>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy === row.id} onClick={() => void select(row)}>Equip</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy === row.id} onClick={() => void select(row)}>Assign</button>
             </li>
           ))}
         </ul>
