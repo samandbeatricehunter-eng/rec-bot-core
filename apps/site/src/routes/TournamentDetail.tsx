@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { TeamLogo } from "@rec/hub-ui";
 import { TOURNAMENT_HIGHLIGHT_COINS, TOURNAMENT_REQUIRED_RULES, americanFromDecimal } from "@rec/shared";
 import {
   siteApi,
@@ -76,71 +77,77 @@ function TournamentBracket({
   onAcceptWager: (wagerId: string) => void;
   onToggleBetting: (matchId: string, open: boolean) => void;
 }) {
-  const grouped = useMemo(() => {
-    const bySide = new Map<string, SiteTournamentDetail["matches"]>();
+  // One column per (side, round) — winners rounds first, then losers rounds, then the grand
+  // final — the same left-to-right round progression as the league playoff bracket, just with
+  // this tournament's actual shape (single/double elim, variable round counts) instead of the
+  // NFL's fixed 7-seed conference structure.
+  const columns = useMemo(() => {
+    const bySideRound = new Map<string, SiteTournamentDetail["matches"]>();
     for (const match of detail.matches) {
-      const list = bySide.get(match.side) ?? [];
+      const key = `${match.side}:${match.round}`;
+      const list = bySideRound.get(key) ?? [];
       list.push(match);
-      bySide.set(match.side, list);
+      bySideRound.set(key, list);
     }
-    return ["winners", "losers", "grand_final"]
-      .map((side) => ({ side, matches: bySide.get(side) ?? [] }))
-      .filter((group) => group.matches.length);
+    const sideOrder: Record<string, number> = { winners: 0, losers: 1, grand_final: 2 };
+    return [...bySideRound.entries()]
+      .map(([key, matches]) => {
+        const [side, roundText] = key.split(":");
+        return { side, round: Number(roundText), matches: [...matches].sort((a, b) => a.slot - b.slot) };
+      })
+      .sort((a, b) => sideOrder[a.side] - sideOrder[b.side] || a.round - b.round);
   }, [detail.matches]);
+
+  const seedByUserId = useMemo(
+    () => new Map(detail.entrants.map((entrant) => [entrant.userId, entrant.seed])),
+    [detail.entrants],
+  );
 
   if (!detail.matches.length) {
     return <p className="site-muted">The bracket appears when registration closes and the host locks it.</p>;
   }
 
+  const columnLabel = (side: string, round: number) =>
+    side === "grand_final" ? "Grand Final" : `${side === "winners" ? "Winners" : "Losers"} · Round ${round}`;
+
   return (
-    <div className="site-tournament-bracket">
-      {grouped.map((group) => (
-        <section key={group.side}>
-          <h4>
-            {group.side === "winners" ? "Winners bracket" : group.side === "losers" ? "Losers bracket" : "Grand final"}
-          </h4>
-          <ol>
-            {group.matches.map((match) => {
-              const youId = recUserId ?? detail.entrants.find((entrant) => entrant.isYou)?.userId;
-              const inMatch = Boolean(youId && (youId === match.playerA?.userId || youId === match.playerB?.userId));
-              const canReport =
-                match.status === "ready" &&
-                Boolean(match.playerA && match.playerB) &&
-                (isAdmin || inMatch);
-              const matchWagers = wagers.filter((wager) => wager.matchId === match.id);
-              return (
-                <li key={match.id} className={match.status === "complete" || match.status === "bye" ? "is-done" : ""}>
-                  <div>
-                    <strong>
-                      {match.playerA?.displayName ?? "TBD"}
-                      {match.playerA?.teamName ? ` · ${match.playerA.teamName}` : ""}
-                      {match.requiredStreamerUserId && match.requiredStreamerUserId === match.playerA?.userId ? <small> Must stream</small> : null}
-                    </strong>
-                    <span>vs</span>
-                    <strong>
-                      {match.playerB?.displayName ?? "TBD"}
-                      {match.playerB?.teamName ? ` · ${match.playerB.teamName}` : ""}
-                      {match.requiredStreamerUserId && match.requiredStreamerUserId === match.playerB?.userId ? <small> Must stream</small> : null}
-                    </strong>
-                  </div>
-                  {match.scheduledAt ? (
-                    <p className="site-muted">Scheduled for {new Date(match.scheduledAt).toLocaleString()}</p>
-                  ) : null}
+    <div className="site-bracket">
+      {columns.map((column) => (
+        <div className="site-bracket-column" key={`${column.side}:${column.round}`}>
+          <h4 className="site-bracket-column-title">{columnLabel(column.side, column.round)}</h4>
+          {column.matches.map((match) => {
+            const youId = recUserId ?? detail.entrants.find((entrant) => entrant.isYou)?.userId;
+            const inMatch = Boolean(youId && (youId === match.playerA?.userId || youId === match.playerB?.userId));
+            const canReport =
+              match.status === "ready" &&
+              Boolean(match.playerA && match.playerB) &&
+              (isAdmin || inMatch);
+            const matchWagers = wagers.filter((wager) => wager.matchId === match.id);
+            const winnerId = match.winnerUserId;
+            return (
+              <div key={match.id} className={`site-bracket-match${match.status === "complete" || match.status === "bye" ? " is-done" : ""}`}>
+                <BracketTeamRow player={match.playerA} seed={match.playerA ? seedByUserId.get(match.playerA.userId) ?? null : null} score={match.playerAScore} isWinner={Boolean(winnerId) && winnerId === match.playerA?.userId} mustStream={match.requiredStreamerUserId === match.playerA?.userId} />
+                <BracketTeamRow player={match.playerB} seed={match.playerB ? seedByUserId.get(match.playerB.userId) ?? null : null} score={match.playerBScore} isWinner={Boolean(winnerId) && winnerId === match.playerB?.userId} mustStream={match.requiredStreamerUserId === match.playerB?.userId} />
+                <div className="site-bracket-match-meta">
+                  {match.scheduledAt ? <span>Scheduled for {new Date(match.scheduledAt).toLocaleString()}</span> : null}
                   {match.streamUrl ? (
-                    <p className="site-muted">
-                      Stream: <a href={match.streamUrl} target="_blank" rel="noreferrer">{match.streamUrl}</a>
-                    </p>
+                    <span>Stream: <a href={match.streamUrl} target="_blank" rel="noreferrer">{match.streamUrl}</a></span>
                   ) : null}
                   {match.status === "pending_review" ? (
-                    <em>Result submitted — awaiting admin review.</em>
+                    <span>Result submitted — awaiting admin review.</span>
                   ) : match.winnerDisplayName ? (
-                    <em>
+                    <span>
                       {match.status === "bye" ? "Bye: " : match.resultMethod === "concede" ? "Concede: " : match.resultMethod === "opponent_quit" ? "Opponent quit: " : "Final: "}
                       {match.winnerDisplayName} won
-                      {match.playerAScore != null && match.playerBScore != null ? ` (${match.playerAScore}–${match.playerBScore})` : ""}
-                    </em>
-                  ) : null}
-                  {inMatch && youId && match.status === "ready" && !match.winnerDisplayName ? (
+                    </span>
+                  ) : match.status === "ready" ? (
+                    <span>Waiting on a result</span>
+                  ) : (
+                    <span>Waiting on players</span>
+                  )}
+                </div>
+                {inMatch && youId && match.status === "ready" && !match.winnerDisplayName ? (
+                  <div className="site-bracket-match-meta">
                     <TournamentMatchScheduling
                       match={match}
                       youId={youId}
@@ -149,39 +156,57 @@ function TournamentBracket({
                       onRespond={(proposalId, action, counterForUtc) => onRespondToProposal(match.id, proposalId, action, counterForUtc)}
                       onRequestReschedule={() => onRequestReschedule(match.id)}
                     />
-                  ) : null}
-                  {(inMatch || isAdmin) && match.status !== "bye" ? (
-                    <MatchUploads
-                      match={match}
-                      busy={busy}
-                      canReport={canReport}
-                      canStream={isAdmin || (Boolean(youId) && youId === match.requiredStreamerUserId)}
-                      onReport={(input) => onReport({ matchId: match.id, ...input })}
-                      onSaveStream={(url) => onSaveStream(match.id, url)}
-                      onUploadHighlight={(file) => onUploadHighlight(match.id, file)}
-                    />
-                  ) : !match.winnerDisplayName ? (
-                    <em>{match.status === "ready" ? "Waiting on a screenshot result" : "Waiting on players"}</em>
-                  ) : null}
-                  {match.playerA && match.playerB && match.status !== "bye" ? (
-                    <MatchWagers
-                      tournamentId={detail.tournament.id}
-                      match={match}
-                      wagers={matchWagers}
-                      busy={busy}
-                      isAdmin={isAdmin}
-                      youId={youId ?? null}
-                      onPlace={(input) => onPlaceWager({ matchId: match.id, ...input })}
-                      onAccept={onAcceptWager}
-                      onToggleBetting={(open) => onToggleBetting(match.id, open)}
-                    />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
+                  </div>
+                ) : null}
+                {(inMatch || isAdmin) && match.status !== "bye" ? (
+                  <MatchUploads
+                    match={match}
+                    busy={busy}
+                    canReport={canReport}
+                    canStream={isAdmin || (Boolean(youId) && youId === match.requiredStreamerUserId)}
+                    onReport={(input) => onReport({ matchId: match.id, ...input })}
+                    onSaveStream={(url) => onSaveStream(match.id, url)}
+                    onUploadHighlight={(file) => onUploadHighlight(match.id, file)}
+                  />
+                ) : null}
+                {match.playerA && match.playerB && match.status !== "bye" ? (
+                  <MatchWagers
+                    tournamentId={detail.tournament.id}
+                    match={match}
+                    wagers={matchWagers}
+                    busy={busy}
+                    isAdmin={isAdmin}
+                    youId={youId ?? null}
+                    onPlace={(input) => onPlaceWager({ matchId: match.id, ...input })}
+                    onAccept={onAcceptWager}
+                    onToggleBetting={(open) => onToggleBetting(match.id, open)}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       ))}
+    </div>
+  );
+}
+
+function BracketTeamRow({ player, seed, score, isWinner, mustStream }: {
+  player: SiteTournamentDetail["matches"][number]["playerA"];
+  seed: number | null;
+  score: number | null;
+  isWinner: boolean;
+  mustStream: boolean;
+}) {
+  return (
+    <div className={`site-bracket-team-row${isWinner ? " is-winner" : ""}`}>
+      <span className="site-bracket-seed">{seed ? `#${seed}` : ""}</span>
+      <TeamLogo abbreviation={player?.teamAbbr ?? null} alt={player?.teamName ?? player?.displayName ?? "TBD"} className="site-bracket-team-logo" />
+      <span className="site-bracket-team-name">
+        <strong>{player?.displayName ?? "TBD"}</strong>
+        {player?.teamName ? <small>{player.teamName}{mustStream ? " · Must stream" : ""}</small> : mustStream ? <small>Must stream</small> : null}
+      </span>
+      <span className="site-bracket-score">{score ?? ""}</span>
     </div>
   );
 }
@@ -218,106 +243,131 @@ function MatchUploads({
   const [streamOpen, setStreamOpen] = useState(false);
   const [streamUrl, setStreamUrl] = useState(match.streamUrl ?? "");
   const [highlightOpen, setHighlightOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const needsScreenshot = method === "final_screenshot";
   const canSubmit = Boolean(winnerUserId) && (!needsScreenshot || Boolean(file));
 
+  function submitReport() {
+    onReport({
+      winnerUserId,
+      resultMethod: method,
+      file,
+      playerAScore: playerAScore === "" ? null : Number(playerAScore),
+      playerBScore: playerBScore === "" ? null : Number(playerBScore),
+      boxScore: null,
+    });
+    setReportOpen(false);
+  }
+
   return (
     <div className="site-tournament-report">
       <div className="site-tournament-report-actions">
         {canStream ? (
-          <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen((open) => !open)}>
+          <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen(true)}>
             {match.streamUrl ? "Update stream" : "Share Stream"}
           </button>
         ) : null}
-        <button type="button" className="site-btn site-btn-ghost" onClick={() => setHighlightOpen((open) => !open)}>
+        <button type="button" className="site-btn site-btn-ghost" onClick={() => setHighlightOpen(true)}>
           Upload Highlight
         </button>
+        {canReport ? (
+          <button type="button" className="site-btn site-btn-primary" onClick={() => setReportOpen(true)}>
+            Report Result
+          </button>
+        ) : null}
       </div>
 
       {streamOpen && canStream ? (
-        <div className="site-tournament-report-panel">
-          <p className="site-muted">Sharing your stream marks this game as started.</p>
-          <label className="site-field">
-            <span>Stream link</span>
-            <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} placeholder="https://" />
-          </label>
-          <button type="button" className="site-btn site-btn-primary" disabled={busy || !streamUrl.trim()} onClick={() => { onSaveStream(streamUrl); setStreamOpen(false); }}>
-            Save stream
-          </button>
+        <div className="site-modal" role="dialog" aria-modal="true">
+          <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => setStreamOpen(false)} />
+          <div className="site-modal-panel">
+            <h2>Share your stream</h2>
+            <p>Sharing your stream marks this game as started.</p>
+            <label className="site-field">
+              <span>Stream link</span>
+              <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} placeholder="https://" />
+            </label>
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStreamOpen(false)}>Cancel</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || !streamUrl.trim()} onClick={() => { onSaveStream(streamUrl); setStreamOpen(false); }}>
+                Save stream
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
       {highlightOpen ? (
-        <div className="site-tournament-report-panel">
-          <label className="site-field">
-            <span>Highlight clip (up to 2 videos, ≤45s, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
-            <input
-              type="file"
-              accept="video/*"
-              disabled={busy}
-              onChange={(event) => {
-                const next = event.target.files?.[0];
-                event.target.value = "";
-                if (!next) return;
-                setNotice(`Uploading ${next.name}…`);
-                onUploadHighlight(next);
-              }}
-            />
-          </label>
-          {notice ? <p className="site-muted">{notice}</p> : null}
+        <div className="site-modal" role="dialog" aria-modal="true">
+          <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => setHighlightOpen(false)} />
+          <div className="site-modal-panel">
+            <h2>Upload a highlight</h2>
+            <label className="site-field">
+              <span>Highlight clip (up to 2 videos, ≤45s, {TOURNAMENT_HIGHLIGHT_COINS} coins if approved)</span>
+              <input
+                type="file"
+                accept="video/*"
+                disabled={busy}
+                onChange={(event) => {
+                  const next = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!next) return;
+                  setNotice(`Uploading ${next.name}…`);
+                  onUploadHighlight(next);
+                }}
+              />
+            </label>
+            {notice ? <p>{notice}</p> : null}
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setHighlightOpen(false)}>Close</button>
+            </div>
+          </div>
         </div>
       ) : null}
 
-      {canReport ? (
-        <div className="site-tournament-report-panel">
-          <label className="site-field">
-            <span>Result</span>
-            <select className="site-select" value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
-              <option value="final_screenshot">Final score screenshot</option>
-              <option value="concede">Opponent conceded</option>
-              <option value="opponent_quit">Opponent quit out</option>
-            </select>
-          </label>
-          <label className="site-field">
-            <span>{method === "concede" ? "Winner (other player conceded)" : method === "opponent_quit" ? "Winner (other player quit out)" : "Winner"}</span>
-            <select className="site-select" value={winnerUserId} onChange={(event) => setWinnerUserId(event.target.value)}>
-              {match.playerA ? <option value={match.playerA.userId}>{match.playerA.displayName}</option> : null}
-              {match.playerB ? <option value={match.playerB.userId}>{match.playerB.displayName}</option> : null}
-            </select>
-          </label>
-          <label className="site-field">
-            <span>{match.playerA?.displayName ?? "Player A"} score</span>
-            <input type="number" min={0} value={playerAScore} onChange={(event) => setPlayerAScore(event.target.value)} />
-          </label>
-          <label className="site-field">
-            <span>{match.playerB?.displayName ?? "Player B"} score</span>
-            <input type="number" min={0} value={playerBScore} onChange={(event) => setPlayerBScore(event.target.value)} />
-          </label>
-          {needsScreenshot ? (
+      {reportOpen && canReport ? (
+        <div className="site-modal" role="dialog" aria-modal="true">
+          <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => setReportOpen(false)} />
+          <div className="site-modal-panel">
+            <h2>Report result</h2>
             <label className="site-field">
-              <span>Required screenshot</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+              <span>Result</span>
+              <select className="site-select" value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
+                <option value="final_screenshot">Final score screenshot</option>
+                <option value="concede">Opponent conceded</option>
+                <option value="opponent_quit">Opponent quit out</option>
+              </select>
             </label>
-          ) : null}
-          <button
-            type="button"
-            className="site-btn site-btn-primary"
-            disabled={busy || !canSubmit}
-            onClick={() => {
-              onReport({
-                winnerUserId,
-                resultMethod: method,
-                file,
-                playerAScore: playerAScore === "" ? null : Number(playerAScore),
-                playerBScore: playerBScore === "" ? null : Number(playerBScore),
-                boxScore: null,
-              });
-            }}
-          >
-            Submit results
-          </button>
+            <label className="site-field">
+              <span>{method === "concede" ? "Winner (other player conceded)" : method === "opponent_quit" ? "Winner (other player quit out)" : "Winner"}</span>
+              <select className="site-select" value={winnerUserId} onChange={(event) => setWinnerUserId(event.target.value)}>
+                {match.playerA ? <option value={match.playerA.userId}>{match.playerA.displayName}</option> : null}
+                {match.playerB ? <option value={match.playerB.userId}>{match.playerB.displayName}</option> : null}
+              </select>
+            </label>
+            <label className="site-field">
+              <span>{match.playerA?.displayName ?? "Player A"} score</span>
+              <input type="number" min={0} value={playerAScore} onChange={(event) => setPlayerAScore(event.target.value)} />
+            </label>
+            <label className="site-field">
+              <span>{match.playerB?.displayName ?? "Player B"} score</span>
+              <input type="number" min={0} value={playerBScore} onChange={(event) => setPlayerBScore(event.target.value)} />
+            </label>
+            {needsScreenshot ? (
+              <label className="site-field">
+                <span>Required screenshot</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+              </label>
+            ) : null}
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setReportOpen(false)}>Cancel</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || !canSubmit} onClick={submitReport}>
+                Submit results
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
@@ -353,6 +403,7 @@ function MatchWagers({
   onToggleBetting: (open: boolean) => void;
 }) {
   const inMatch = youId === match.playerA?.userId || youId === match.playerB?.userId;
+  const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<SiteTournamentWagerOptions | null>(null);
   const [mode, setMode] = useState<"house" | "parlay" | "peer">("house");
   const [market, setMarket] = useState("");
@@ -386,99 +437,110 @@ function MatchWagers({
 
   return (
     <div className="site-tournament-wagers">
-      <h5>Sportsbook {match.bettingOpen ? "" : "· closed"}</h5>
-      {isAdmin ? (
-        <button type="button" className="site-btn site-btn-ghost" disabled={busy || match.status === "complete"} onClick={() => onToggleBetting(!match.bettingOpen)}>
-          {match.bettingOpen ? "Close betting" : "Open betting"}
-        </button>
-      ) : null}
-      {match.bettingOpen && match.status !== "complete" && options ? (
-        <div className="site-tournament-report">
-          <div className="site-tournament-wager-markets">
-            <button type="button" className={mode === "house" ? "is-active" : ""} onClick={() => setMode("house")}>House</button>
-            <button type="button" className={mode === "parlay" ? "is-active" : ""} onClick={() => setMode("parlay")}>3-pick parlay</button>
-            <button type="button" className={mode === "peer" ? "is-active" : ""} onClick={() => setMode("peer")}>Peer</button>
-          </div>
-          {mode === "parlay" ? <p className="site-muted">Choose exactly three different stat-line Over/Under picks from this match.</p> : null}
-          <div className="site-tournament-wager-markets">
-            {visibleMarkets.map((item) => (
-              <button
-                key={item.market}
-                type="button"
-                className={item.market === market ? "is-active" : ""}
-                onClick={() => {
-                  setMarket(item.market);
-                  setPick(item.sides[0]?.pick ?? "");
-                }}
-              >
-                {item.label}
+      <button type="button" className="site-btn site-btn-ghost" onClick={() => setOpen(true)}>
+        Sportsbook{match.bettingOpen ? "" : " · closed"}{wagers.length ? ` · ${wagers.length}` : ""}
+      </button>
+      {open ? (
+        <div className="site-modal" role="dialog" aria-modal="true">
+          <button type="button" className="site-modal-backdrop" aria-label="Close" onClick={() => setOpen(false)} />
+          <div className="site-modal-wide">
+            <button type="button" className="site-modal-close" aria-label="Close" onClick={() => setOpen(false)}>×</button>
+            <h2>Sportsbook {match.bettingOpen ? "" : "· closed"}</h2>
+            {isAdmin ? (
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy || match.status === "complete"} onClick={() => onToggleBetting(!match.bettingOpen)}>
+                {match.bettingOpen ? "Close betting" : "Open betting"}
               </button>
-            ))}
-          </div>
-          {selected ? (
-            <div className="site-tournament-wager-markets">
-              {selected.sides.map((side) => (
+            ) : null}
+            {match.bettingOpen && match.status !== "complete" && options ? (
+              <div className="site-tournament-report">
+                <div className="site-tournament-wager-markets">
+                  <button type="button" className={mode === "house" ? "is-active" : ""} onClick={() => setMode("house")}>House</button>
+                  <button type="button" className={mode === "parlay" ? "is-active" : ""} onClick={() => setMode("parlay")}>3-pick parlay</button>
+                  <button type="button" className={mode === "peer" ? "is-active" : ""} onClick={() => setMode("peer")}>Peer</button>
+                </div>
+                {mode === "parlay" ? <p className="site-muted">Choose exactly three different stat-line Over/Under picks from this match.</p> : null}
+                <div className="site-tournament-wager-markets">
+                  {visibleMarkets.map((item) => (
+                    <button
+                      key={item.market}
+                      type="button"
+                      className={item.market === market ? "is-active" : ""}
+                      onClick={() => {
+                        setMarket(item.market);
+                        setPick(item.sides[0]?.pick ?? "");
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {selected ? (
+                  <div className="site-tournament-wager-markets">
+                    {selected.sides.map((side) => (
+                      <button
+                        key={side.pick}
+                        type="button"
+                        className={side.pick === pick ? "is-active" : ""}
+                        onClick={() => setPick(side.pick)}
+                      >
+                        {side.label} · {americanFromDecimal(side.odds)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {mode === "parlay" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="site-btn site-btn-ghost"
+                      disabled={parlay.length >= 3 || !market || !pick}
+                      onClick={() => {
+                        const label = `${selected?.label ?? market}: ${selected?.sides.find((side) => side.pick === pick)?.label ?? pick}`;
+                        setParlay([...parlay.filter((leg) => leg.marketKey !== market), { marketKey: market, pick, label }].slice(0, 3));
+                      }}
+                    >
+                      Add selection · {parlay.length}/3
+                    </button>
+                    <ul className="site-tournament-entrants">
+                      {parlay.map((leg) => <li key={leg.marketKey}>{leg.label}</li>)}
+                    </ul>
+                  </>
+                ) : null}
+                <label className="site-field">
+                  <span>Stake</span>
+                  <input type="number" min={10} value={stake} onChange={(event) => setStake(event.target.value)} />
+                </label>
                 <button
-                  key={side.pick}
                   type="button"
-                  className={side.pick === pick ? "is-active" : ""}
-                  onClick={() => setPick(side.pick)}
+                  className="site-btn site-btn-primary"
+                  disabled={busy || !market || !pick || (mode === "parlay" && parlay.length !== 3)}
+                  onClick={() => {
+                    if (mode === "parlay") {
+                      onPlace({ wagerKind: "house", marketKey: "parlay", pick: "parlay", stake: Number(stake), isParlay: true, legs: parlay });
+                      return;
+                    }
+                    onPlace({ wagerKind: mode === "peer" ? "peer" : "house", marketKey: market, pick, stake: Number(stake) });
+                  }}
                 >
-                  {side.label} · {americanFromDecimal(side.odds)}
+                  {mode === "peer" ? "Post peer wager" : mode === "parlay" ? "Place 3-pick parlay" : "Place bet"}
                 </button>
+              </div>
+            ) : null}
+            <ul className="site-tournament-entrants">
+              {wagers.map((wager) => (
+                <li key={wager.id}>
+                  {wager.isParlay ? "Parlay" : wager.wagerKind === "peer" ? "Peer" : "House"}
+                  {" · "}{wager.userDisplayName} on {wager.pickDisplayName}
+                  {" · "}{wager.stake} coins · {wager.status}
+                  {wager.status === "open" && wager.wagerKind === "peer" && wager.userId !== youId ? (
+                    <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => onAccept(wager.id)}>Accept opposite side</button>
+                  ) : null}
+                </li>
               ))}
-            </div>
-          ) : null}
-          {mode === "parlay" ? (
-            <>
-              <button
-                type="button"
-                className="site-btn site-btn-ghost"
-                disabled={parlay.length >= 3 || !market || !pick}
-                onClick={() => {
-                  const label = `${selected?.label ?? market}: ${selected?.sides.find((side) => side.pick === pick)?.label ?? pick}`;
-                  setParlay([...parlay.filter((leg) => leg.marketKey !== market), { marketKey: market, pick, label }].slice(0, 3));
-                }}
-              >
-                Add selection · {parlay.length}/3
-              </button>
-              <ul className="site-tournament-entrants">
-                {parlay.map((leg) => <li key={leg.marketKey}>{leg.label}</li>)}
-              </ul>
-            </>
-          ) : null}
-          <label className="site-field">
-            <span>Stake</span>
-            <input type="number" min={10} value={stake} onChange={(event) => setStake(event.target.value)} />
-          </label>
-          <button
-            type="button"
-            className="site-btn site-btn-primary"
-            disabled={busy || !market || !pick || (mode === "parlay" && parlay.length !== 3)}
-            onClick={() => {
-              if (mode === "parlay") {
-                onPlace({ wagerKind: "house", marketKey: "parlay", pick: "parlay", stake: Number(stake), isParlay: true, legs: parlay });
-                return;
-              }
-              onPlace({ wagerKind: mode === "peer" ? "peer" : "house", marketKey: market, pick, stake: Number(stake) });
-            }}
-          >
-            {mode === "peer" ? "Post peer wager" : mode === "parlay" ? "Place 3-pick parlay" : "Place bet"}
-          </button>
+            </ul>
+          </div>
         </div>
       ) : null}
-      <ul className="site-tournament-entrants">
-        {wagers.map((wager) => (
-          <li key={wager.id}>
-            {wager.isParlay ? "Parlay" : wager.wagerKind === "peer" ? "Peer" : "House"}
-            {" · "}{wager.userDisplayName} on {wager.pickDisplayName}
-            {" · "}{wager.stake} coins · {wager.status}
-            {wager.status === "open" && wager.wagerKind === "peer" && wager.userId !== youId ? (
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => onAccept(wager.id)}>Accept opposite side</button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -718,20 +780,25 @@ export function TournamentDetailPage() {
         <>
           <h4>Entrants ({approved.length}{row.bracketSize ? ` / ${row.bracketSize}` : ""})</h4>
           {approved.length || pending.length ? (
-            <ul className="site-tournament-entrants">
+            <ul className="site-tournament-entrant-list">
               {approved.map((entrant) => (
                 <li key={entrant.userId}>
-                  {entrant.seed ? `#${entrant.seed} ` : ""}
-                  {entrant.displayName}
-                  {entrant.teamName ? ` · ${entrant.teamName}` : ""}
-                  {entrant.isYou ? " (you)" : ""}
+                  <span className="site-tournament-entrant-seed">{entrant.seed ? `#${entrant.seed}` : ""}</span>
+                  <TeamLogo abbreviation={entrant.teamAbbr} alt={entrant.teamName ?? entrant.displayName} className="site-bracket-team-logo" />
+                  <span className="site-tournament-entrant-info">
+                    <strong>{entrant.displayName}{entrant.isYou ? " (you)" : ""}</strong>
+                    {entrant.teamName ? <span className="site-tournament-entrant-team">{entrant.teamName}</span> : null}
+                  </span>
                 </li>
               ))}
               {pending.map((entrant) => (
                 <li key={entrant.userId} className="is-pending">
-                  Pending: {entrant.displayName}
-                  {entrant.teamName ? ` · ${entrant.teamName}` : ""}
-                  {entrant.isYou ? " (you)" : ""}
+                  <span className="site-tournament-entrant-seed">Pending</span>
+                  <TeamLogo abbreviation={entrant.teamAbbr} alt={entrant.teamName ?? entrant.displayName} className="site-bracket-team-logo" />
+                  <span className="site-tournament-entrant-info">
+                    <strong>{entrant.displayName}{entrant.isYou ? " (you)" : ""}</strong>
+                    {entrant.teamName ? <span className="site-tournament-entrant-team">{entrant.teamName}</span> : null}
+                  </span>
                 </li>
               ))}
             </ul>

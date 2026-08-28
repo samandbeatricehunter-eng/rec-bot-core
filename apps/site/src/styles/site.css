@@ -2503,21 +2503,35 @@ h1, h2, h3, .site-wordmark {
   flex-direction: column;
   gap: 8px;
 }
-.site-tournament-admin .site-tournament-entrant-list li {
+.site-tournament-entrant-list li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(8, 10, 14, 0.4);
 }
+.site-tournament-admin .site-tournament-entrant-list li {
+  justify-content: space-between;
+}
+.site-tournament-entrant-list li.is-pending {
+  opacity: 0.7;
+}
+.site-tournament-entrant-seed {
+  width: 44px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
 .site-tournament-entrant-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 .site-tournament-entrant-team {
   color: var(--text-muted);
@@ -2664,10 +2678,6 @@ h1, h2, h3, .site-wordmark {
   gap: 8px;
   align-items: center;
 }
-.site-tournament-bracket li small {
-  color: var(--text-muted);
-  font-weight: 400;
-}
 .site-tournament-layout {
   display: grid;
   gap: var(--space-4);
@@ -2711,30 +2721,106 @@ h1, h2, h3, .site-wordmark {
   flex-wrap: wrap;
   gap: 8px 14px;
 }
-.site-tournament-bracket section {
-  margin-top: var(--space-3);
+/* —— Tournament bracket: round-columned layout mirroring the league playoff bracket's visual
+   language (seed + logo + name team rows, grouped into round columns left-to-right) instead of
+   plain stacked text paragraphs. —— */
+.site-bracket {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
 }
-.site-tournament-bracket ol {
-  list-style: none;
+.site-bracket-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 240px;
+  flex-shrink: 0;
+}
+.site-bracket-column-title {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
-.site-tournament-bracket li {
+.site-bracket-match {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-raised);
 }
-.site-tournament-bracket li > div {
+.site-bracket-match.is-done {
+  opacity: 0.92;
+}
+.site-bracket-team-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.site-bracket-team-row + .site-bracket-team-row {
+  border-top: 1px solid var(--border);
+}
+.site-bracket-team-row.is-winner {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.site-bracket-team-row.is-winner .site-bracket-team-name strong {
+  color: var(--accent-bright, var(--accent));
+}
+.site-bracket-seed {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.site-bracket-team-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.site-bracket-team-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.site-bracket-team-name strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-bracket-team-name small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.site-bracket-score {
+  font-weight: 800;
+  font-size: 15px;
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.site-bracket-match-meta {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.site-bracket-match > .site-tournament-report,
+.site-bracket-match > .site-tournament-wagers {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
 }
 .site-tournament-report {
   display: flex;
@@ -2745,15 +2831,6 @@ h1, h2, h3, .site-wordmark {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-.site-tournament-report-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
 }
 .site-hero-switcher {
   align-self: center;
