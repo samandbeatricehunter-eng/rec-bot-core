@@ -49,6 +49,7 @@ async function maybeCreateImmortalityLeague(input: {
   offensePosition?: string;
   defensePosition?: string;
   actorUserId?: string | null;
+  teamPool?: "default_nfl" | "custom_32";
 }) {
   if (!shouldApplyRiseToImmortality(input)) return;
   const offense = input.offensePosition ?? "QB";
@@ -58,6 +59,7 @@ async function maybeCreateImmortalityLeague(input: {
     offensePosition: offense as "QB" | "HB" | "WR" | "TE",
     defensePosition: defense as "CB" | "FS" | "SS" | "MIKE",
     actorUserId: input.actorUserId ?? null,
+    teamPool: input.teamPool,
   });
 }
 function defaultDataModeForGame(game: string | undefined): "import" | "box_scores" {
@@ -430,6 +432,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     offensePosition: input.immortalityOffensePosition,
     defensePosition: input.immortalityDefensePosition,
     actorUserId: ownerUserId,
+    teamPool: input.immortalityTeamPool,
   });
 
   const defaultTeams = await createDefaultTeamsForGuild({
@@ -705,7 +708,9 @@ export async function createUnclaimedLeague(input: {
   templateId?: string | null;
   immortalityOffensePosition?: string;
   immortalityDefensePosition?: string;
-  initialTeamAbbreviation: string;
+  immortalityTeamPool?: "default_nfl" | "custom_32";
+  immortalityCustomTeams?: Array<{ replacesAbbreviation: string; city: string; nick: string; abbreviation: string }>;
+  initialTeamAbbreviation?: string;
   maxMembers?: number;
   customRostersPreseedRequested?: boolean;
   isOnline?: boolean;
@@ -884,6 +889,7 @@ export async function createUnclaimedLeague(input: {
       offensePosition: input.immortalityOffensePosition,
       defensePosition: input.immortalityDefensePosition,
       actorUserId: input.requestedByUserId,
+      teamPool: input.immortalityTeamPool,
     });
 
     await upsertConferenceRules(league.data.id, input.conferenceRules);
@@ -894,9 +900,15 @@ export async function createUnclaimedLeague(input: {
       await seedMaddenDraftPicks(league.data.id, input.game);
     }
 
-    const initialTeam = defaultTeams.teams.find((team) =>
-      String(team.abbreviation).toUpperCase() === input.initialTeamAbbreviation.trim().toUpperCase());
-    if (!initialTeam) throw new ApiError(400, "The selected team is not available for this game.");
+    const isRise = shouldApplyRiseToImmortality({
+      game: input.game,
+      leagueType: input.leagueType,
+      templateId: input.templateId,
+    });
+    if (isRise && input.immortalityTeamPool === "custom_32" && input.immortalityCustomTeams?.length) {
+      const { applyImmortalityCustomTeamSlots } = await import("../immortality/immortality.service.js");
+      await applyImmortalityCustomTeamSlots(league.data.id, input.immortalityCustomTeams);
+    }
 
     const membership = await supabase.from("rec_league_memberships").upsert(
       { league_id: league.data.id, user_id: input.requestedByUserId, status: "active", role: "commissioner" },
@@ -904,15 +916,23 @@ export async function createUnclaimedLeague(input: {
     );
     if (membership.error) throw new ApiError(500, "We couldn't create the commissioner membership. Please try again.", membership.error);
 
-    const assignment = await supabase.from("rec_team_assignments").insert({
-      league_id: league.data.id,
-      team_id: initialTeam.id,
-      user_id: input.requestedByUserId,
-      assignment_status: "active",
-      source: "manual_admin_entry",
-      notes: "Authority: commissioner; assigned atomically during league creation",
-    }).select("*").single();
-    if (assignment.error) throw new ApiError(500, "We couldn't assign the commissioner's team. Please try again.", assignment.error);
+    let assignment: { data: unknown } | null = null;
+    if (!isRise) {
+      if (!input.initialTeamAbbreviation?.trim()) throw new ApiError(400, "Pick a team before creating the league.");
+      const initialTeam = defaultTeams.teams.find((team) =>
+        String(team.abbreviation).toUpperCase() === input.initialTeamAbbreviation!.trim().toUpperCase());
+      if (!initialTeam) throw new ApiError(400, "The selected team is not available for this game.");
+      const inserted = await supabase.from("rec_team_assignments").insert({
+        league_id: league.data.id,
+        team_id: initialTeam.id,
+        user_id: input.requestedByUserId,
+        assignment_status: "active",
+        source: "manual_admin_entry",
+        notes: "Authority: commissioner; assigned atomically during league creation",
+      }).select("*").single();
+      if (inserted.error) throw new ApiError(500, "We couldn't assign the commissioner's team. Please try again.", inserted.error);
+      assignment = inserted;
+    }
 
     // Same Madden baseline-roster logic as createLeagueForServer (Discord-first flow) — see
     // that function's comment above its own applyMaddenBaselineToLeague call for the full
@@ -982,7 +1002,12 @@ export async function createUnclaimedLeague(input: {
       source: "manual_admin_entry",
     });
 
-    return { league: league.data, configuration: configuration.data, defaultTeams: defaultTeams.teams, assignment: assignment.data };
+    return {
+      league: league.data,
+      configuration: configuration.data,
+      defaultTeams: defaultTeams.teams,
+      assignment: assignment?.data ?? null,
+    };
   } catch (err) {
     const rollback = await supabase.rpc("rec_delete_league", { p_league_id: league.data.id });
     if (rollback.error) {

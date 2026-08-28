@@ -130,6 +130,11 @@ export type PlaceHouseWagerInput = {
 export async function placeHouseWager(input: PlaceHouseWagerInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
+  const { isRiseToImmortalityLeagueType } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
+  if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Wagers are not available in Rise to Immortality.");
+  }
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
@@ -321,6 +326,11 @@ export type PlacePeerWagerInput = {
 export async function placePeerWager(input: PlacePeerWagerInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
+  const { isRiseToImmortalityLeagueType } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
+  if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Wagers are not available in Rise to Immortality.");
+  }
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
@@ -766,6 +776,11 @@ export type PlaceParlayInput = {
 export async function placeParlay(input: PlaceParlayInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
+  const { isRiseToImmortalityLeagueType } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
+  if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Wagers are not available in Rise to Immortality.");
+  }
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);

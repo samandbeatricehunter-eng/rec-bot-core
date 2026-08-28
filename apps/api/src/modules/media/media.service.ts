@@ -308,7 +308,11 @@ export async function maybeCreateWeeklyPayoutReview(input: {
     .limit(highlightConfig.highlightWeeklyPaidLimit);
   if (existingPaid.error) throw new ApiError(500, "We couldn't check highlight payout status. Please try again.", existingPaid.error);
   const paidCount = (existingPaid.data ?? []).length;
-  const amount = paidCount >= highlightConfig.highlightWeeklyPaidLimit ? 0 : highlightConfig.highlight;
+  const { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", input.leagueId).maybeSingle();
+  const isRise = isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""));
+  const highlightAmount = isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT : highlightConfig.highlight;
+  const amount = paidCount >= highlightConfig.highlightWeeklyPaidLimit ? 0 : highlightAmount;
 
   const review = await supabase
     .from("rec_highlight_payout_reviews")

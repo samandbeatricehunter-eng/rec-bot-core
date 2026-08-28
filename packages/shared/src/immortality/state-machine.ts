@@ -6,8 +6,8 @@ const TRANSITIONS: Record<ImmortalityState, readonly ImmortalityState[]> = {
   SETUP: ["REGISTRATION"],
   REGISTRATION: ["ORIGINS"],
   ORIGINS: ["ORIGINS_COMPLETE"],
-  ORIGINS_COMPLETE: ["ROOKIE_DRAFT_PREP"],
-  ROOKIE_DRAFT_PREP: ["ROOKIE_DRAFT_LIVE"],
+  ORIGINS_COMPLETE: ["ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_COMPLETE"],
+  ROOKIE_DRAFT_PREP: ["ROOKIE_DRAFT_LIVE", "ROOKIE_DRAFT_COMPLETE"],
   ROOKIE_DRAFT_LIVE: ["ROOKIE_DRAFT_COMPLETE"],
   ROOKIE_DRAFT_COMPLETE: ["TEAM_DRAFT"],
   TEAM_DRAFT: ["FRANCHISE_ACTIVE"],
@@ -80,4 +80,16 @@ export function franchisePlayOpen(state: ImmortalityState): boolean {
 
 export function hallVotingOpen(state: ImmortalityState): boolean {
   return state === "IMMORTALITY_VOTING";
+}
+
+/** Full league hub (matchups, My Team, schedule) after the virtual rookie draft assigns franchises. */
+export function riseHubUnlocked(state: ImmortalityState): boolean {
+  return state === "ROOKIE_DRAFT_COMPLETE"
+    || state === "TEAM_DRAFT"
+    || state === "FRANCHISE_ACTIVE"
+    || state === "OFFSEASON"
+    || state === "IMMORTALITY_PREP"
+    || state === "IMMORTALITY_VOTING"
+    || state === "IMMORTALITY_REVEAL"
+    || state === "ARCHIVED";
 }

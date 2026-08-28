@@ -1,4 +1,4 @@
-import { CFB_27_TEAMS, stageHasScheduledGames, stageLabel } from "@rec/shared";
+import { CFB_27_TEAMS, isRiseToImmortalityLeagueType, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
@@ -67,6 +67,8 @@ export type SiteLeagueSummary = {
   matchupKind: "h2h" | "cpu" | "bye" | "offseason" | "none";
   matchupLabel: string;
   rosterType: string | null;
+  riseChapterState: string | null;
+  riseHubUnlocked: boolean;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -185,6 +187,8 @@ export async function listMySiteLeagues(input: {
       matchupKind: "none",
       matchupLabel: "No matchup",
       rosterType: null,
+      riseChapterState: null,
+      riseHubUnlocked: true,
     };
   });
 
@@ -203,6 +207,12 @@ export async function listMySiteLeagues(input: {
             where c.league_id = l.id
             limit 1
           ) as roster_type,
+          (
+            select i.chapter_state
+            from rec_immortality_leagues i
+            where i.league_id = l.id
+            limit 1
+          ) as rise_chapter_state,
           (
             select count(distinct user_id)::int
             from (
@@ -275,6 +285,14 @@ export async function listMySiteLeagues(input: {
       league.seasonStage = stage;
       league.currentWeek = week;
       league.rosterType = row.roster_type ? String(row.roster_type) : null;
+      if (isRiseToImmortalityLeagueType(String(league.rosterType ?? ""))) {
+        const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";
+        league.riseChapterState = chapter;
+        league.riseHubUnlocked = riseHubUnlocked(chapter);
+      } else {
+        league.riseChapterState = null;
+        league.riseHubUnlocked = true;
+      }
       league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
       if (!stageHasScheduledGames(stage, game)) {
         league.matchupKind = "offseason";
@@ -459,6 +477,14 @@ export async function requestSiteLeagueTeam(input: {
     );
     if (banned.rows[0]) throw new ApiError(403, "You are not eligible to join this league.");
 
+    const roster = await client.query(
+      `select roster_type from rec_league_configuration where league_id = $1 limit 1`,
+      [input.leagueId],
+    );
+    if (isRiseToImmortalityLeagueType(String(roster.rows[0]?.roster_type ?? ""))) {
+      throw new ApiError(400, "Rise to Immortality leagues use a registration pool. Join the pool instead of requesting a team.");
+    }
+
     const membership = await client.query(
       `
         select 1 from rec_league_memberships
@@ -533,6 +559,90 @@ export async function requestSiteLeagueTeam(input: {
     await client.query("commit");
     void notifyLeagueCommissionersOfPendingItem(input.leagueId);
     return { ok: true, requestId };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function joinRiseToImmortalityPool(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ ok: true; membership: "created" | "existing" }> {
+  const pool = getPgPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const league = await client.query(
+      `
+        select l.id, coalesce(l.max_members, 32)::int as max_members, c.roster_type
+        from rec_leagues l
+        left join rec_league_configuration c on c.league_id = l.id
+        where l.id = $1
+        limit 1
+        for update of l
+      `,
+      [input.leagueId],
+    );
+    const row = league.rows[0] as { id: string; max_members: number; roster_type: string | null } | undefined;
+    if (!row) throw new ApiError(404, "League not found.");
+    if (!isRiseToImmortalityLeagueType(String(row.roster_type ?? ""))) {
+      throw new ApiError(400, "This league is not a Rise to Immortality registration pool.");
+    }
+    const banned = await client.query(
+      `select 1 from rec_league_bans b join rec_leagues l on l.id=$1
+       where b.banned_user_id=$2 and b.active=true and (b.expires_at is null or b.expires_at>now())
+         and ((b.scope='league' and b.league_id=$1) or (b.scope='owner_all_leagues' and b.owner_user_id=l.owner_user_id))
+       limit 1`,
+      [input.leagueId, input.recUserId],
+    );
+    if (banned.rows[0]) throw new ApiError(403, "You are not eligible to join this league.");
+
+    const existing = await client.query(
+      `
+        select 1 from rec_league_memberships
+        where league_id = $1 and user_id = $2 and status = 'active'
+        union all
+        select 1 from rec_team_assignments
+        where league_id = $1 and user_id = $2
+          and assignment_status = 'active' and ended_at is null
+        limit 1
+      `,
+      [input.leagueId, input.recUserId],
+    );
+    if (existing.rows[0]) {
+      await client.query("commit");
+      return { ok: true, membership: "existing" };
+    }
+
+    const counts = await client.query(
+      `
+        select count(distinct user_id)::int as member_count
+        from (
+          select user_id from rec_league_memberships where league_id = $1
+          union
+          select user_id from rec_team_assignments
+          where league_id = $1 and assignment_status = 'active' and ended_at is null and user_id is not null
+        ) members
+      `,
+      [input.leagueId],
+    );
+    if (Number(counts.rows[0]?.member_count ?? 0) >= Number(row.max_members)) {
+      throw new ApiError(409, "This league's registration pool is full.");
+    }
+
+    await client.query(
+      `
+        insert into rec_league_memberships (league_id, user_id, status, role)
+        values ($1, $2, 'active', 'member')
+        on conflict (league_id, user_id) do update set status = 'active'
+      `,
+      [input.leagueId, input.recUserId],
+    );
+    await client.query("commit");
+    return { ok: true, membership: "created" };
   } catch (error) {
     await client.query("rollback");
     throw error;

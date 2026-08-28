@@ -69,12 +69,36 @@ export function buildImmortalityPositionWindow(draft: LeagueSetupDraft, side: "o
   };
 }
 
+export function buildImmortalityTeamPoolWindow(draft: LeagueSetupDraft) {
+  const embed = baseEmbed("Rise to Immortality: Team Pool", draft).setDescription([
+    `League: **${draft.name}**`,
+    "",
+    "Do not assign yourself a team at create. Users who register go into a **pool**.",
+    "After the virtual rookie draft they are linked to franchises on the site and Discord automatically. Unused clubs stay CPU.",
+    "",
+    "• **Default NFL** — keep the 32 named NFL teams.",
+    "• **Custom 32** — replace named NFL slots on the website after create.",
+  ].join("\n"));
+  return {
+    embeds: [embed],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.immortalityTeamPool, "Select the team pool", [
+        option("Default 32 NFL teams", "default_nfl"),
+        option("32 custom teams (install on the site)", "custom_32"),
+      ]),
+      buildNavigationRow(),
+    ],
+  };
+}
+
 export function buildRiseLockedEconomyWindow(draft: LeagueSetupDraft) {
   const embed = baseEmbed("Rise to Immortality: Economy", draft).setDescription([
     `League: **${draft.name}**`,
     "",
     "Store purchases are **off** in this mode. Player XP upgrades ratings; Team XP unlocks later.",
-    "Coins are **annual contract payments only** — no weekly, EOS, highlight, or GOTW coin payouts.",
+    "Coins pay **annual contracts**, **2 highlights/week at 150**, **GOTW**, and **interviews**. No wagers, member articles, or store purchases.",
+    "Users register into a **pool**. The virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU.",
+    "Discord is for announcements, renders, and status updates. Origins, IQ, interviews, and builds stay on the website.",
     "",
     "Use Next to continue server setup.",
   ].join("\n"));

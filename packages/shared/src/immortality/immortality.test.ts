@@ -4,12 +4,16 @@ import {
   applyRiseToImmortalityLockedSettings,
   assignProspectPairs,
   canConvertToTeamXp,
+  spendAttributePlusOne,
   canTransition,
+  riseHubUnlocked,
   CHARACTERISTIC_SLOT_BUDGET,
   characteristicCatalog,
   discountedXpCost,
   gradeIqSubmission,
+  isAllowedRiseToImmortalityCoinSource,
   isBlockedStandardCoinSource,
+  riseToImmortalityAllowsCoinCredit,
   isIqTimedOut,
   MAX_ATTRIBUTE_DISCOUNT,
   rejectSelfVote,
@@ -38,16 +42,33 @@ test("Rise to Immortality is a Madden 27 template that disables store purchases"
   assert.ok(RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES.includes("legend"));
 });
 
-test("standard coin sources are blocked; contracts are not", () => {
+test("standard coin sources are blocked; contracts, highlights, GOTW, and interviews are not", () => {
   assert.equal(isBlockedStandardCoinSource("eos_payout"), true);
   assert.equal(isBlockedStandardCoinSource("player_of_week"), true);
-  assert.equal(isBlockedStandardCoinSource("immortality_contract"), false);
+  assert.equal(isBlockedStandardCoinSource("wager"), true);
+  assert.equal(isAllowedRiseToImmortalityCoinSource("immortality_contract"), true);
+  assert.equal(isAllowedRiseToImmortalityCoinSource("highlight"), true);
+  assert.equal(isAllowedRiseToImmortalityCoinSource("gotw"), true);
+  assert.equal(riseToImmortalityAllowsCoinCredit("media", "interview_payout"), true);
+  assert.equal(riseToImmortalityAllowsCoinCredit("media", "article_payout"), false);
+  assert.equal(riseToImmortalityAllowsCoinCredit("wager"), false);
 });
 
 test("state machine only allows forward chapter transitions", () => {
   assert.equal(canTransition("ORIGINS", "ORIGINS_COMPLETE"), true);
   assert.equal(canTransition("ORIGINS", "FRANCHISE_ACTIVE"), false);
   assert.equal(canTransition("FRANCHISE_ACTIVE", "OFFSEASON"), true);
+  assert.equal(canTransition("ORIGINS_COMPLETE", "ROOKIE_DRAFT_COMPLETE"), true);
+  assert.equal(canTransition("ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_COMPLETE"), true);
+  assert.equal(canTransition("ROOKIE_DRAFT_LIVE", "ROOKIE_DRAFT_COMPLETE"), true);
+});
+
+test("the usual league hub unlocks after the rookie draft assigns franchises", () => {
+  assert.equal(riseHubUnlocked("REGISTRATION"), false);
+  assert.equal(riseHubUnlocked("ORIGINS"), false);
+  assert.equal(riseHubUnlocked("ROOKIE_DRAFT_LIVE"), false);
+  assert.equal(riseHubUnlocked("ROOKIE_DRAFT_COMPLETE"), true);
+  assert.equal(riseHubUnlocked("FRANCHISE_ACTIVE"), true);
 });
 
 test("IQ timeout cannot be bypassed and back-navigation is impossible", () => {
@@ -117,6 +138,11 @@ test("Team Player can convert XP immediately; others wait for ceiling", () => {
   assert.equal(canConvertToTeamXp({ currentOvr: 78, devTrait: "normal", teamPlayer: false }), false);
   assert.equal(canConvertToTeamXp({ currentOvr: 90, devTrait: "normal", teamPlayer: false }), true);
   assert.equal(discountedXpCost(84, 0.2), Math.round(5 * 0.8));
+  const spend = spendAttributePlusOne({ currentValue: 84, discount: 0.2, currentOvr: 78, ceiling: 90, availableXp: 4 });
+  assert.equal(spend.ok, true);
+  if (spend.ok) assert.equal(spend.cost, 4);
+  const short = spendAttributePlusOne({ currentValue: 84, discount: 0, currentOvr: 78, ceiling: 90, availableXp: 4 });
+  assert.equal(short.ok, false);
 });
 
 test("draft solver assigns both prospects to the same unique franchise", () => {

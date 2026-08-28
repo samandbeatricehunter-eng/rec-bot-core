@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   CONFERENCE_ORDER, FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS,
+  NFL_TEAMS,
   type MaddenAttributeCode,
 } from "@rec/shared";
 import { siteApi } from "../lib/site-api.js";
@@ -52,6 +53,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     setImmortalityOffensePosition,
     immortalityDefensePosition,
     setImmortalityDefensePosition,
+    immortalityTeamPool,
+    setImmortalityTeamPool,
+    immortalityCustomTeams,
+    setImmortalityCustomTeams,
     name,
     setName,
     leagueLogoFile,
@@ -526,8 +531,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   // component state (collectConfig) and is sent in one shot at the end, so abandoning the
   // wizard at any earlier step leaves nothing behind in the database.
   async function finishWizard() {
-    if (!game || !name.trim() || !selectedTeamId) {
-      setError("Choose your team before creating the league.");
+    if (!game || !name.trim() || (!isRise && !selectedTeamId)) {
+      setError(isRise ? "Name the league before creating it." : "Choose your team before creating the league.");
       return;
     }
     setBusy(true);
@@ -535,7 +540,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     try {
       let createdId = leagueId;
       if (!createdId) {
-        const payload = { name: name.trim(), game, templateId: templateId ?? undefined, initialTeamAbbreviation: selectedTeamId, ...collectConfig() };
+        const payload = isRise
+          ? { name: name.trim(), game, templateId: templateId ?? undefined, ...collectConfig() }
+          : { name: name.trim(), game, templateId: templateId ?? undefined, initialTeamAbbreviation: selectedTeamId, ...collectConfig() };
         const result = await siteApi.createLeague(payload);
         createdId = result.league.id;
         setLeagueId(createdId);
@@ -544,13 +551,9 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         await siteApi.uploadLeagueLogo(createdId, leagueLogoFile);
         setLeagueLogoFile(null);
       }
-      // Team picker keys off the shared default-team catalog (abbreviation) because the league
-      // doesn't exist until now; resolve it to the real team id before completing the wizard.
-      if (leagueId && selectedTeamId && createdId) {
+      if (!isRise && leagueId && selectedTeamId && createdId) {
         const open = await siteApi.listOpenLeagueTeams(createdId);
         const team = open.teams.find((t) => t.abbreviation === selectedTeamId);
-        // Don't silently continue to the success screen if the assignment can't be resolved —
-        // it would tell the commissioner they got a team they never actually got.
         if (!team) throw new Error("That team is no longer available in this league. Try assigning a team again.");
         await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
       }
@@ -1315,24 +1318,65 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 7 && (
           <>
-            <Section title="Team Assignment">
-              <p className="site-muted">Pick your team. You will be assigned as the head commissioner for this team.</p>
-              <div className="wizard-team-grid">
-                {teamOptions.map((team) => (
-                  <button key={team.id} type="button"
-                    className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
-                    onClick={() => setSelectedTeamId(team.id)}>
-                    <strong>{team.name}</strong>
-                    {team.mascot && <span className="site-muted">{team.mascot}</span>}
-                    {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
+            {isRise ? (
+              <Section title="Team Pool">
+                <p className="site-muted">
+                  Skip a personal team for now. Registered users go into a pool. After the virtual rookie draft they are linked to franchises on the site and Discord automatically. Unused clubs stay CPU.
+                </p>
+                <div className="wizard-team-grid">
+                  <button type="button"
+                    className={`wizard-team-card ${immortalityTeamPool === "default_nfl" ? "wizard-team-card-active" : ""}`}
+                    onClick={() => setImmortalityTeamPool("default_nfl")}>
+                    <strong>Default 32 NFL teams</strong>
+                    <span className="site-muted">Keep the named NFL clubs. Humans are assigned at the rookie draft.</span>
                   </button>
-                ))}
-              </div>
-            </Section>
+                  <button type="button"
+                    className={`wizard-team-card ${immortalityTeamPool === "custom_32" ? "wizard-team-card-active" : ""}`}
+                    onClick={() => setImmortalityTeamPool("custom_32")}>
+                    <strong>32 custom teams</strong>
+                    <span className="site-muted">Replace named NFL slots. Leave a row blank to keep that NFL club.</span>
+                  </button>
+                </div>
+                {immortalityTeamPool === "custom_32" ? (
+                  <div className="wizard-custom-team-list" style={{ marginTop: 16, display: "grid", gap: 8, maxHeight: 360, overflow: "auto" }}>
+                    {NFL_TEAMS.map((team) => {
+                      const slot = immortalityCustomTeams[team.abbreviation] ?? { city: "", nick: "", abbreviation: "" };
+                      const update = (patch: Partial<typeof slot>) => setImmortalityCustomTeams((current) => ({
+                        ...current,
+                        [team.abbreviation]: { ...slot, ...patch },
+                      }));
+                      return (
+                        <div key={team.abbreviation} className="site-field" style={{ display: "grid", gridTemplateColumns: "7rem 1fr 1fr 5rem", gap: 8, alignItems: "center" }}>
+                          <strong>{team.abbreviation}</strong>
+                          <input className="site-input" placeholder="City" value={slot.city} onChange={(event) => update({ city: event.target.value })} />
+                          <input className="site-input" placeholder="Nickname" value={slot.nick} onChange={(event) => update({ nick: event.target.value })} />
+                          <input className="site-input" placeholder="Abbr" maxLength={5} value={slot.abbreviation} onChange={(event) => update({ abbreviation: event.target.value })} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </Section>
+            ) : (
+              <Section title="Team Assignment">
+                <p className="site-muted">Pick your team. You will be assigned as the head commissioner for this team.</p>
+                <div className="wizard-team-grid">
+                  {teamOptions.map((team) => (
+                    <button key={team.id} type="button"
+                      className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
+                      onClick={() => setSelectedTeamId(team.id)}>
+                      <strong>{team.name}</strong>
+                      {team.mascot && <span className="site-muted">{team.mascot}</span>}
+                      {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
+                    </button>
+                  ))}
+                </div>
+              </Section>
+            )}
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
-                {busy ? "Finishing..." : "Assign Team & Finish"}
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || (!isRise && !selectedTeamId)} onClick={() => void finishWizard()}>
+                {busy ? "Finishing..." : isRise ? "Create League" : "Assign Team & Finish"}
               </button>
             </div>
           </>
@@ -1342,7 +1386,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           <>
             <Section title="Your League is Ready">
               <p className="site-muted">
-                <strong>{name || "Your league"}</strong> was created{selectedTeamId ? ` and you were assigned the ${selectedTeamId}` : ""}. You can manage settings, add users, and assign teams anytime from the league hub.
+                <strong>{name || "Your league"}</strong> was created{isRise ? ". Users register into a pool, then the virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU." : selectedTeamId ? ` and you were assigned the ${selectedTeamId}` : ""}. You can manage settings, add users, and assign teams anytime from the league hub.
               </p>
             </Section>
 

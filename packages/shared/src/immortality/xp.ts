@@ -31,6 +31,30 @@ export function discountedXpCost(currentValue: number, discount: number): number
   return Math.max(1, Math.round(raw * (1 - Math.min(0.3, Math.max(0, discount)))));
 }
 
+export function ledgerXpBalance(rows: Array<{ player_xp_delta?: number | null; team_xp_delta?: number | null }>): { playerXp: number; teamXp: number } {
+  return rows.reduce(
+    (sum, row) => ({
+      playerXp: sum.playerXp + Number(row.player_xp_delta ?? 0),
+      teamXp: sum.teamXp + Number(row.team_xp_delta ?? 0),
+    }),
+    { playerXp: 0, teamXp: 0 },
+  );
+}
+
+export function spendAttributePlusOne(input: {
+  currentValue: number;
+  discount: number;
+  currentOvr: number;
+  ceiling: number;
+  availableXp: number;
+}): { ok: true; cost: number; nextValue: number } | { ok: false; error: string } {
+  if (input.currentOvr >= input.ceiling) return { ok: false, error: "This player is at his development ceiling." };
+  if (input.currentValue >= 99) return { ok: false, error: "That rating is already maxed." };
+  const cost = discountedXpCost(input.currentValue, input.discount);
+  if (input.availableXp < cost) return { ok: false, error: `Need ${cost} Player XP.` };
+  return { ok: true, cost, nextValue: input.currentValue + 1 };
+}
+
 export function applyXpEarnBonus(amount: number, modifiers: CharacteristicModifiers): number {
   return Math.round(amount * (1 + modifiers.xpEarnBonus));
 }

@@ -356,6 +356,8 @@ export type SiteLeagueSummary = {
   matchupKind?: "h2h" | "cpu" | "bye" | "offseason" | "none";
   matchupLabel?: string;
   rosterType?: string | null;
+  riseChapterState?: string | null;
+  riseHubUnlocked?: boolean;
 };
 
 export type ImmortalityInterviewQuestion = {
@@ -383,8 +385,15 @@ export type ImmortalityHubResponse = {
     defensePosition: string;
     creationPointBudget: number;
     originsOpen: boolean;
+    riseHubUnlocked?: boolean;
+    teamPool?: string;
+    highlightPayout?: number;
   };
   prospects: Array<Record<string, unknown>>;
+  builds?: Array<Record<string, unknown>>;
+  xp?: Record<string, { playerXp: number; teamXp: number }>;
+  pool?: { registeredCount: number; linkedCount: number };
+  draftStatus?: string | null;
   catalogs: {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
     persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
@@ -829,6 +838,11 @@ export const siteApi = {
       teamId,
     });
   },
+  joinRisePool(leagueId: string) {
+    return request<{ ok: true; membership: "created" | "existing" }>("/v1/site-leagues/join-pool", {
+      leagueId,
+    });
+  },
   searchInviteTargets(input: { query?: string; limit?: number } = {}) {
     return request<{ users: Array<{ userId: string; username: string; displayName: string }> }>(
       "/v1/site-league-invites/search",
@@ -1076,7 +1090,10 @@ export const siteApi = {
     return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);
   },
   immortalitySolveDraft(guildId: string) {
-    return request<{ assignments?: unknown[] }>("/v1/immortality/draft/solve", { guildId });
+    return request<{ assignments?: unknown[]; linked?: unknown[]; linkFailures?: unknown[] }>("/v1/immortality/draft/solve", { guildId });
+  },
+  immortalitySpendXp(input: { guildId: string; side: "offense" | "defense"; attributeCode: string }) {
+    return request<{ attributeCode: string; nextValue: number; cost: number; estimatedOvr: number; playerXp: number }>("/v1/immortality/xp/spend", input);
   },
   async uploadLeagueLogo(leagueId: string, file: File) {
     const base = requireApiBaseUrl();

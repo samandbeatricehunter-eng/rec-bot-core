@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import {
-  AFC_TEAMS, CFB_27_TEAMS, LEAGUE_SLIDER_CATALOG_VERSION, NFC_TEAMS, defaultLeagueSliderValues,
+  AFC_TEAMS, CFB_27_TEAMS, LEAGUE_SLIDER_CATALOG_VERSION, NFL_TEAMS, NFC_TEAMS, defaultLeagueSliderValues,
   applyRiseToImmortalityLockedSettings,
 } from "@rec/shared";
 import { type SiteOpenTeam } from "../../lib/site-api.js";
@@ -39,6 +39,8 @@ export function useLeagueWizardState() {
   const [leagueType, setLeagueType] = useState("");
   const [immortalityOffensePosition, setImmortalityOffensePosition] = useState("QB");
   const [immortalityDefensePosition, setImmortalityDefensePosition] = useState("MIKE");
+  const [immortalityTeamPool, setImmortalityTeamPool] = useState<"default_nfl" | "custom_32">("default_nfl");
+  const [immortalityCustomTeams, setImmortalityCustomTeams] = useState<Record<string, { city: string; nick: string; abbreviation: string }>>({});
   const [name, setName] = useState("");
   const [leagueLogoFile, setLeagueLogoFile] = useState<File | null>(null);
   const [customMaxMembers, setCustomMaxMembers] = useState(false);
@@ -211,6 +213,19 @@ export function useLeagueWizardState() {
       leagueType: leagueType || undefined,
       immortalityOffensePosition: leagueType === "rise_to_immortality" ? immortalityOffensePosition : undefined,
       immortalityDefensePosition: leagueType === "rise_to_immortality" ? immortalityDefensePosition : undefined,
+      immortalityTeamPool: leagueType === "rise_to_immortality" ? immortalityTeamPool : undefined,
+      immortalityCustomTeams: leagueType === "rise_to_immortality" && immortalityTeamPool === "custom_32"
+        ? NFL_TEAMS.flatMap((team) => {
+          const slot = immortalityCustomTeams[team.abbreviation];
+          if (!slot?.city.trim() || !slot?.nick.trim() || !slot?.abbreviation.trim()) return [];
+          return [{
+            replacesAbbreviation: team.abbreviation,
+            city: slot.city.trim(),
+            nick: slot.nick.trim(),
+            abbreviation: slot.abbreviation.trim().toUpperCase(),
+          }];
+        })
+        : undefined,
       maxMembers: customMaxMembers ? maxMembers : 32,
       activeRostersEnabled: isCfb ? true : undefined,
       trackRostersEnabled: isCfb ? true : undefined,
@@ -339,12 +354,25 @@ export function useLeagueWizardState() {
         ...applyRiseToImmortalityLockedSettings(payload),
         immortalityOffensePosition,
         immortalityDefensePosition,
+        immortalityTeamPool,
+        immortalityCustomTeams: leagueType === "rise_to_immortality" && immortalityTeamPool === "custom_32"
+          ? NFL_TEAMS.flatMap((team) => {
+            const slot = immortalityCustomTeams[team.abbreviation];
+            if (!slot?.city.trim() || !slot?.nick.trim() || !slot?.abbreviation.trim()) return [];
+            return [{
+              replacesAbbreviation: team.abbreviation,
+              city: slot.city.trim(),
+              nick: slot.nick.trim(),
+              abbreviation: slot.abbreviation.trim().toUpperCase(),
+            }];
+          })
+          : undefined,
       };
     }
     return payload;
   }, [
     game, isOnline, crossPlayEnabled, requiredConsole, leagueType, customMaxMembers, maxMembers, name, leaguePassword,
-    immortalityOffensePosition, immortalityDefensePosition, templateId,
+    immortalityOffensePosition, immortalityDefensePosition, immortalityTeamPool, immortalityCustomTeams, templateId,
     seasonNumber, seasonStage, currentWeek, skipToStage, skipToStageValue,
     regularSeasonStreamingRequirement, regularSeasonStreamingSide,
     postseasonStreamingRequirement, postseasonStreamingSide,
@@ -557,6 +585,10 @@ export function useLeagueWizardState() {
     setImmortalityOffensePosition,
     immortalityDefensePosition,
     setImmortalityDefensePosition,
+    immortalityTeamPool,
+    setImmortalityTeamPool,
+    immortalityCustomTeams,
+    setImmortalityCustomTeams,
     name,
     setName,
     leagueLogoFile,

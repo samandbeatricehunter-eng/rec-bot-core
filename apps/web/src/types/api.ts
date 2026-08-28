@@ -536,7 +536,7 @@ export type ChatMessage = { id: string; author_discord_id: string; author_displa
 
 export type HubReactionKey = "love" | "like" | "dislike" | "poop" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY" | "MVP_PLAY" | "MOSSED" | "STEAMROLLER" | "FAWKKKK" | "SNATCHED" | "RIP";
 export type HubResponse = {
-  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string; fantasyDraftStatus: string };
+  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string; fantasyDraftStatus: string; rosterType?: string | null; riseChapterState?: string | null; riseHubUnlocked?: boolean };
   canManageLeague: boolean;
   commissionerTier: "commissioner" | "co_commissioner" | null;
   store: { enabled: boolean; cfbSeasonOneLocked: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };

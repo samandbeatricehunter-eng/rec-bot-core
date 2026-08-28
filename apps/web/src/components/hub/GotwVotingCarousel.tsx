@@ -17,7 +17,7 @@ type GotwVotingCarouselProps = {
   games: HubMatchupGame[];
   guessingRecord: GotwGuessingRecordsResponse["mine"] | null | undefined;
   onVote: (pollId: string, selectedTeamId: string) => Promise<void>;
-  onOpenWager: (game: HubMatchupGame) => void;
+  onOpenWager?: (game: HubMatchupGame) => void;
 };
 
 export function GotwVotingCarousel({
@@ -71,7 +71,7 @@ export function GotwVotingCarousel({
 
   const totalVotes = poll.awayVotes + poll.homeVotes;
   const awayShare = totalVotes ? Math.round((poll.awayVotes / totalVotes) * 100) : 50;
-  const canPlaceWager = !game.involvesMe && game.matchupType === "h2h" && game.wageringOpen && !game.isFinal;
+  const canPlaceWager = Boolean(onOpenWager) && !game.involvesMe && game.matchupType === "h2h" && game.wageringOpen && !game.isFinal;
   const preview = previewByGame[game.gameId] ?? null;
 
   function move(direction: -1 | 1) {
@@ -129,7 +129,7 @@ export function GotwVotingCarousel({
               <span><strong>Matchup &amp; wager details</strong><small>Scouting, prediction and current lines</small></span>
               {drawerOpen ? <ChevronUp size={19} /> : <ChevronDown size={19} />}
             </button>
-            {canPlaceWager ? <Button variant="primary" size="compact" className="hub-gotw-wager-button" onClick={() => onOpenWager(game)}><Coins size={15} /> Place a Wager</Button> : null}
+            {canPlaceWager && onOpenWager ? <Button variant="primary" size="compact" className="hub-gotw-wager-button" onClick={() => onOpenWager(game)}><Coins size={15} /> Place a Wager</Button> : null}
           </div>
 
           {guessingRecord ? <p className="hub-gotw-record">Your record: {guessingRecord.wins}-{guessingRecord.losses}{guessingRecord.ties ? `-${guessingRecord.ties}` : ""}{guessingRecord.current_streak > 1 ? ` · ${guessingRecord.current_streak}-game streak` : ""}</p> : null}

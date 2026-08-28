@@ -258,7 +258,7 @@ function RankingListSearch<T>({
 function MaddenMyTeamGrid({
   coachName, my, profile, heroRank, heroUserScore, selectSection, viewMySchedule,
   setMediaModal, mediaPortal, setPowerRankingsModalOpen, setBankModalOpen,
-  setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId,
+  setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId, isRise, riseHubUnlocked,
 }: {
   coachName: string;
   my: any;
@@ -275,6 +275,8 @@ function MaddenMyTeamGrid({
   setCareerStatsModalOpen: (value: boolean) => void;
   onOpenWagers: () => void;
   leagueId: string;
+  isRise?: boolean;
+  riseHubUnlocked?: boolean;
 }) {
   return <>
     <div className="hub-stat-grid">
@@ -290,13 +292,17 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/<wbr />Article</strong><span>Media desk</span></button>
+          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>{isRise ? "Interview" : <>Interview/<wbr />Article</>}</strong><span>Media desk</span></button>
         </div>
       </div>
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Team</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
+          {isRise ? (
+            <Link className="hub-my-team-btn" to={`/l/${leagueId}/rise`}><strong>Origins</strong><span>Class &amp; builds</span></Link>
+          ) : (
+            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
+          )}
           <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Roster</strong><span>Manage players</span></button>
           <Link className="hub-my-team-btn" to={`/l/${leagueId}/stats`}><strong>League Stats</strong><span>By category &amp; leaders</span></Link>
           <button type="button" className="hub-my-team-btn" onClick={() => setCareerStatsModalOpen(true)}><strong>Career Stats</strong><span>League career</span></button>
@@ -313,9 +319,15 @@ function MaddenMyTeamGrid({
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Finance</p>
         <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
+          {isRise ? (
+            riseHubUnlocked ? <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/upgrades`}><strong>Player XP</strong><span>Attribute upgrades</span></Link> : null
+          ) : (
+            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
+          )}
           <button type="button" className="hub-my-team-btn" onClick={() => setBankModalOpen(true)}><strong>Bank</strong><span>Wallet &amp; transfers</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={onOpenWagers}><strong>Wagers</strong><span>Sportsbook</span></button>
+          {isRise ? null : (
+            <button type="button" className="hub-my-team-btn" onClick={onOpenWagers}><strong>Wagers</strong><span>Sportsbook</span></button>
+          )}
           <button type="button" className="hub-my-team-btn" onClick={() => setFinancialModalOpen(true)}><strong>Financial Profile</strong><span>Earnings &amp; ledger</span></button>
         </div>
       </div>
@@ -656,10 +668,10 @@ export function HubHome() {
   useEffect(() => {
     const requested = searchParams.get("openModal");
     if (!requested) return;
-    if (requested === "interview" || requested === "article") setMediaModal(requested);
-    else if (requested === "schedule") void viewMySchedule();
+    if (requested === "interview" || (requested === "article" && hub?.league.rosterType !== "rise_to_immortality")) setMediaModal(requested);
+    else if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
     else if (requested === "financials") setFinancialModalOpen(true);
-    else if (requested === "wager") openSportsbook();
+    else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") openSportsbook();
     else if (requested === "retire") { setRetireError(null); setRetireModalOpen(true); }
     const next = new URLSearchParams(searchParams);
     next.delete("openModal");
@@ -1372,6 +1384,8 @@ export function HubHome() {
   }
   const readyGuildId = auth.status === "ready" ? auth.guildId : null;
   const boxScoreMode = hubChrome.currentLeague?.dataMode === "box_scores";
+  const isRise = hub.league.rosterType === "rise_to_immortality";
+  const riseHubUnlocked = !isRise || hub.league.riseHubUnlocked === true;
   const headlines = hub.headlines ?? [];
   const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
@@ -1463,6 +1477,8 @@ export function HubHome() {
         setCareerStatsModalOpen={setCareerStatsModalOpen}
         onOpenWagers={() => openSportsbook("board")}
         leagueId={hub.league.id}
+        isRise={isRise}
+        riseHubUnlocked={riseHubUnlocked}
       />}
       {hub.league.game !== "cfb_27" && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
@@ -1700,7 +1716,13 @@ export function HubHome() {
               {auth.status === "ready" && heroMatchup?.matchupType === "h2h" && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroMatchup.gameId} reloadKey={matchupReloadKey} />}
             </header>
 
-            {heroMatchup ? <div className="hub-hero-matchup-stack">
+            {isRise && !riseHubUnlocked ? (
+              <div className="hub-hero-no-matchup">
+                <strong>Registration pool</strong>
+                <span>Complete Origins on the Rise page. After the virtual rookie draft you are linked to a franchise on the site and Discord, and this hub switches to the full league UI. Unused teams stay CPU.</span>
+                <Link className="hub-my-team-btn" to={`/l/${hub.league.id}/rise`} style={{ marginTop: 12, display: "inline-flex" }}><strong>Open Origins</strong><span>Create your class</span></Link>
+              </div>
+            ) : heroMatchup ? <div className="hub-hero-matchup-stack">
               {/* Not `passive` on the card itself -- this wrapper's onClick needs the click to
                * bubble up from the card; the reaction row below (reactionsBelow) is a separate
                * sibling, not inside this clickable area, so it's unaffected either way. */}
@@ -1744,6 +1766,18 @@ export function HubHome() {
             <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
               <p className="hub-eyebrow">Quick actions</p>
               <div className="hub-gameday-actions hub-quick-actions-row">
+                {isRise ? (
+                  <>
+                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Origins</strong><span>Class &amp; builds</span></button>
+                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Player XP</strong><span>Attribute upgrades</span></button> : null}
+                    <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Media desk</span></button>
+                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button> : null}
+                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
+                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button> : null}
+                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button> : null}
+                  </>
+                ) : (
+                  <>
                 <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/<wbr />Article</strong><span>Media desk</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
@@ -1753,13 +1787,15 @@ export function HubHome() {
                 {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
                 <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
+                  </>
+                )}
               </div>
             </div>
             <details className="hub-ways-paid">
               <summary><span>Ways To Get Paid</span><small><CoinAmount amount={hub.waysToGetPaid.weeklyEarned} /> earned of <CoinAmount amount={hub.waysToGetPaid.weeklyPotential} /> potential this week</small></summary>
               <div className="hub-ways-paid-body">
                 <section><h3>Weekly</h3><div className="hub-ways-paid-list">{hub.waysToGetPaid.weeklyItems.map((item) => <p key={item.key}>{item.label} to earn <CoinAmount amount={item.amount} />{item.limit > 1 ? " per submission" : ""} — <strong>{item.current}/{item.limit}</strong> submitted this week.{item.note ? ` ${item.note}.` : ""}</p>)}</div><p className="hub-muted">{hub.waysToGetPaid.wagerHint}</p></section>
-                <section><h3>Season Long</h3><p>Track your exact tier, threshold, current statistic, progress, and projected payout below.</p><EosPayoutProgressPanel /></section>
+                {isRise ? null : <section><h3>Season Long</h3><p>Track your exact tier, threshold, current statistic, progress, and projected payout below.</p><EosPayoutProgressPanel /></section>}
               </div>
             </details>
           </section>
@@ -1767,16 +1803,16 @@ export function HubHome() {
 
         {manageFundsOpen && auth.status === "ready" && <ManageFundsModal guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setManageFundsOpen(false)} />}
 
-        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
+        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && !isRise && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
           <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
         )}
 
-        {auth.status === "ready" && gotwGames.length ? <GotwVotingCarousel
+        {auth.status === "ready" && riseHubUnlocked && gotwGames.length ? <GotwVotingCarousel
           guildId={auth.guildId}
           games={gotwGames}
           guessingRecord={gotwGuessing?.mine}
           onVote={voteGotw}
-          onOpenWager={(game) => void openWager(game)}
+          onOpenWager={isRise ? undefined : (game) => void openWager(game)}
         /> : null}
 
         <LiveGamesCard liveStreams={hub.liveStreams} />
@@ -2146,10 +2182,10 @@ export function HubHome() {
         </> : <div className="hub-peer-board hub-peer-board-tab"><h3>Open Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · <CoinAmount amount={wager.stake} /> · {displayLabel(wager.challengeType)}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>}
       </>}
     </div></Modal>}
-    {mediaModal && <Modal title="Interview/Article" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
+    {mediaModal && <Modal title={isRise ? "Interview" : "Interview/Article"} onClose={() => setMediaModal(null)}><div className="hub-media-modal">
       <div className="rec-matchup-tabs" role="tablist" aria-label="Media submission type">
         <button type="button" role="tab" aria-selected={mediaModal === "interview"} className={mediaModal === "interview" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("interview"); }}>Interview</button>
-        <button type="button" role="tab" aria-selected={mediaModal === "article"} className={mediaModal === "article" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("article"); }}>Article</button>
+        {isRise ? null : <button type="button" role="tab" aria-selected={mediaModal === "article"} className={mediaModal === "article" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("article"); }}>Article</button>}
       </div>
       {mediaModal === "article" && <>
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}

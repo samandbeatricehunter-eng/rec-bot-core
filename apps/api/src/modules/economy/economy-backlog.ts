@@ -73,10 +73,10 @@ async function backlogPayout(input: CreditOrBacklogInput): Promise<{ backlogged:
 
 /** Non-positive amounts (badge penalties, zero-amount no-ops) always apply immediately — only a real payout waits on the economy floor. */
 export async function creditOrBacklog(input: CreditOrBacklogInput): Promise<{ backlogged: boolean; ledgerId: string | null }> {
-  const { isBlockedStandardCoinSource, isRiseToImmortalityLeagueType, isAllowedRiseToImmortalityCoinSource } = await import("@rec/shared");
+  const { isRiseToImmortalityLeagueType, riseToImmortalityAllowsCoinCredit } = await import("@rec/shared");
   const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", input.leagueId).maybeSingle();
   if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
-    if (isBlockedStandardCoinSource(input.source) || !isAllowedRiseToImmortalityCoinSource(input.source)) {
+    if (!riseToImmortalityAllowsCoinCredit(input.source, input.transactionType)) {
       return { backlogged: false, ledgerId: null };
     }
   }

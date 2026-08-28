@@ -63,7 +63,7 @@ import {
   findCoachModeSubSetting
 } from "./league-setup-gameplay.js";
 import { buildFeatureDecisionWindow } from "./league-setup-purchases.js";
-import { buildGameSelectWindow, buildImmortalityPositionWindow, buildLeagueTypeWindow, buildRiseLockedEconomyWindow } from "./league-setup-core.js";
+import { buildGameSelectWindow, buildImmortalityPositionWindow, buildImmortalityTeamPoolWindow, buildLeagueTypeWindow, buildRiseLockedEconomyWindow } from "./league-setup-core.js";
 
 function formatFwFsRules(draft: LeagueSetupDraft): { fairSim: string; forceWin: string } {
   const fwRegular = draft.forceWinRulesRegular.map((k) => forceWinRuleLabel(k));
@@ -343,7 +343,11 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
           `Type: ${fmt(draft.leagueType)}`,
           ...(isRiseToImmortalityDraft(draft)
-            ? [`Offense position: ${draft.immortalityOffensePosition}`, `Defense position: ${draft.immortalityDefensePosition}`]
+            ? [
+              `Offense position: ${draft.immortalityOffensePosition}`,
+              `Defense position: ${draft.immortalityDefensePosition}`,
+              `Team pool: ${draft.immortalityTeamPool === "custom_32" ? "32 custom (install on site)" : "Default NFL"}`,
+            ]
             : []),
           "Starts: Season 1, Training Camp",
           `Default Schedule: ${draft.seedDefaultSchedule == null ? "Not answered" : draft.seedDefaultSchedule ? `Seed ${defaultScheduleSeasonLabel(draft.game) ?? "NFL"} regular season` : "Skip seeding"}`,
@@ -356,7 +360,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           ? [
               "Store purchases: Off",
               "Attribute upgrades: Player XP",
-              "Coins: Annual contracts only",
+              "Coins: contracts, 2 highlights/week at 150, GOTW, interviews",
+              "Wagers: Off",
+              "Member articles: Off",
               `Injuries: ${fmt(draft.injuryPolicy)}`,
               `Wear & Tear: ${yesNo(draft.wearAndTearEnabled)}`,
               `Salary cap: ${yesNo(draft.salaryCapEnabled)}`,
@@ -613,6 +619,7 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "league_type": return buildLeagueTypeWindow(draft);
     case "immortality_offense_position": return buildImmortalityPositionWindow(draft, "offense");
     case "immortality_defense_position": return buildImmortalityPositionWindow(draft, "defense");
+    case "immortality_team_pool": return buildImmortalityTeamPoolWindow(draft);
     case "track_rosters": return buildCfbToggleWindow(draft, "CFB Setup: Track Rosters", LEAGUE_SETUP_CUSTOM_IDS.trackRosters, "Seed this league's initial rosters from the CFB 27 baseline roster dataset? Every team starts with the game-year reference roster instead of an empty one.", "Track Rosters from baseline?");
     case "dynasty_structure": return buildDynastyStructureWindow(draft);
     case "recruiting_difficulty": return buildRecruitingDifficultyWindow(draft);
@@ -717,6 +724,7 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.injuryPolicy = locked.injuryPolicy;
     draft.wearAndTearEnabled = locked.wearAndTearEnabled;
     draft.abilitiesEnabled = locked.abilitiesEnabled;
+    draft.linkTeamsAfterSetup = false;
   }
 
   // CFB: Team Builder availability is coupled to the dynasty structure.

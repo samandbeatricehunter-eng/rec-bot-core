@@ -25,6 +25,7 @@ import {
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
   isPurchaseFeatureStep,
+  isRiseToImmortalityDraft,
   LEAGUE_SETUP_CUSTOM_IDS,
   setCoreAttributesForGroup,
   setLeagueSetupFeatureAnswer,
@@ -228,6 +229,7 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.immortalityOffense: draft.immortalityOffensePosition = value as LeagueSetupDraft["immortalityOffensePosition"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.immortalityDefense: draft.immortalityDefensePosition = value as LeagueSetupDraft["immortalityDefensePosition"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.immortalityTeamPool: draft.immortalityTeamPool = value as LeagueSetupDraft["immortalityTeamPool"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.activeRosters: draft.activeRostersEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.trackRosters: draft.trackRostersEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
@@ -819,7 +821,9 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
       isCfb
         ? `CFB Teams: **${result.defaultTeams?.length ?? 136} default teams** seeded automatically`
-        : "NFL Teams: **32 default teams** seeded automatically",
+        : isRiseToImmortalityDraft(draft)
+          ? "Users register into a **pool**. The virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU. Discord is for announcements, renders, and status."
+          : "NFL Teams: **32 default teams** seeded automatically",
       ...roleWarnings,
       ...(scheduleNote ? ["", scheduleNote] : []),
       "",

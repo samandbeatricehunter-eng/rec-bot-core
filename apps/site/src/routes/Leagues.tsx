@@ -267,6 +267,8 @@ function LeagueSearchCard({
   const templateMeta = league.templateId ? LEAGUE_TEMPLATES.find((t) => t.id === league.templateId) ?? null : null;
   const [showAllSettings, setShowAllSettings] = useState(false);
   const leagueAbbreviation = league.name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 4).toUpperCase() || "REC";
+  const isRise = league.rosterType === "rise_to_immortality";
+  const poolFull = isRise && league.memberCount >= 32;
 
   return (
     <article className={["site-league-search-card", expanded ? "is-expanded" : ""].join(" ")}>
@@ -309,8 +311,8 @@ function LeagueSearchCard({
               <strong>{league.seasonStageLabel}</strong>
             </div>
             <div>
-              <span>Open teams</span>
-              <strong>{league.openTeamCount}</strong>
+              <span>{isRise ? "Registration pool" : "Open teams"}</span>
+              <strong>{isRise ? league.memberCount : league.openTeamCount}</strong>
             </div>
           </div>
 
@@ -591,14 +593,16 @@ function LeagueSearchCard({
               type="button"
               className="site-btn site-btn-primary"
               onClick={league.isMember ? onOpen : onRequestTeam}
-              disabled={!league.isMember && league.openTeamCount === 0}
+              disabled={!league.isMember && (isRise ? poolFull : league.openTeamCount === 0)}
               title={
                 league.isMember
                   ? "Open hub"
-                  : "Join from Discord or request a team first"
+                  : isRise
+                    ? "Join the registration pool. Franchises are assigned at the rookie draft."
+                    : "Join from Discord or request a team first"
               }
             >
-              {league.isMember ? "Open hub" : "Request Team"}
+              {league.isMember ? "Open hub" : isRise ? "Join pool" : "Request Team"}
             </button>
           </div>
         </div>
@@ -608,12 +612,12 @@ function LeagueSearchCard({
             type="button"
             className="site-btn site-btn-primary"
             onClick={league.isMember ? onOpen : onRequestTeam}
-            disabled={!league.isMember && league.openTeamCount === 0}
+            disabled={!league.isMember && (isRise ? poolFull : league.openTeamCount === 0)}
             title={
-              league.isMember ? "Open hub" : "Join from Discord or request a team first"
+              league.isMember ? "Open hub" : isRise ? "Join the registration pool" : "Join from Discord or request a team first"
             }
           >
-            {league.isMember ? "Open" : "Request Team"}
+            {league.isMember ? "Open" : isRise ? "Join pool" : "Request Team"}
           </button>
         </div>
       )}
@@ -668,6 +672,7 @@ export function LeaguesPage() {
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestSent, setRequestSent] = useState(false);
+  const [requestJoinedPool, setRequestJoinedPool] = useState(false);
 
   const [pendingInvites, setPendingInvites] = useState<SiteLeagueInvitePending[]>([]);
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -836,6 +841,9 @@ export function LeaguesPage() {
     setRequestTeamId("");
     setRequestError(null);
     setRequestSent(false);
+    setRequestJoinedPool(false);
+    setRequestPendingTeamId(null);
+    if (league.rosterType === "rise_to_immortality") return;
     setRequestBusy(true);
     try {
       const result = await siteApi.listOpenLeagueTeams(league.id);
@@ -844,6 +852,21 @@ export function LeaguesPage() {
       if (!result.pendingTeamId && result.teams[0]) setRequestTeamId(result.teams[0].id);
     } catch (err) {
       setRequestError(err instanceof Error ? err.message : "Could not load open teams.");
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
+  async function submitPoolJoin() {
+    if (!requestLeague) return;
+    setRequestBusy(true);
+    setRequestError(null);
+    try {
+      await siteApi.joinRisePool(requestLeague.id);
+      setRequestJoinedPool(true);
+      void hub.refreshLeagues();
+    } catch (err) {
+      setRequestError(err instanceof Error ? err.message : "Could not join the pool.");
     } finally {
       setRequestBusy(false);
     }
@@ -1202,7 +1225,27 @@ export function LeaguesPage() {
         <div className="site-modal-backdrop" role="presentation" onMouseDown={() => setRequestLeague(null)}>
           <section className="site-modal site-team-request-modal" role="dialog" aria-modal="true" aria-labelledby="team-request-title" onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="site-modal-close" onClick={() => setRequestLeague(null)} aria-label="Close">×</button>
-            <h2 id="team-request-title">Request a team in {requestLeague.name}</h2>
+            <h2 id="team-request-title">{requestLeague.rosterType === "rise_to_immortality" ? `Join ${requestLeague.name}` : `Request a team in ${requestLeague.name}`}</h2>
+            {requestLeague.rosterType === "rise_to_immortality" ? (
+              <>
+                <p className="site-muted">
+                  You join a registration pool — no team yet. After the virtual rookie draft you are linked to a franchise on the site and Discord automatically.
+                </p>
+                {requestJoinedPool ? (
+                  <p className="site-success">You are in the pool. Open the league to complete Origins.</p>
+                ) : (
+                  <button type="button" className="site-btn site-btn-primary" disabled={requestBusy} onClick={() => void submitPoolJoin()}>
+                    {requestBusy ? "Joining…" : "Join the pool"}
+                  </button>
+                )}
+                {requestJoinedPool ? (
+                  <button type="button" className="site-btn site-btn-ghost" onClick={() => { const id = requestLeague.id; setRequestLeague(null); openLeague(id); }}>
+                    Open league
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
             <p className="site-muted">Choose one available team. The league commissioner will review your request.</p>
             {!requestLeague.crossPlayEnabled && requestLeague.requiredConsole && (
               <p className="site-muted"><strong>This league is for {consoleLabel(requestLeague.requiredConsole)} only.</strong></p>
@@ -1228,6 +1271,8 @@ export function LeaguesPage() {
               </>
             ) : !requestBusy ? <p>No teams are currently available.</p> : null}
             {requestSent ? <p className="site-success">Request submitted.</p> : null}
+              </>
+            )}
             {requestError ? <p className="site-auth-error">{requestError}</p> : null}
           </section>
         </div>

@@ -81,6 +81,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   backToReview: "rec:league_setup:back_to_review",
   immortalityOffense: "rec:league_setup:immortality_offense",
   immortalityDefense: "rec:league_setup:immortality_defense",
+  immortalityTeamPool: "rec:league_setup:immortality_team_pool",
   purchaseCapPrefix: "rec:league_setup:purchase_cap",
   purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
   purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
@@ -134,6 +135,7 @@ export type LeagueSetupStep =
   | "league_type"
   | "immortality_offense_position"
   | "immortality_defense_position"
+  | "immortality_team_pool"
   | "track_rosters"
   | "dynasty_structure"
   | "recruiting_difficulty"
@@ -216,6 +218,7 @@ export type LeagueSetupDraft = {
   leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters" | "rise_to_immortality";
   immortalityOffensePosition: "QB" | "HB" | "WR" | "TE";
   immortalityDefensePosition: "CB" | "FS" | "SS" | "MIKE";
+  immortalityTeamPool: "default_nfl" | "custom_32";
   /** CFB 27 only: replaces League Type. On = ratings/styles track real-world changes; off = static. */
   activeRostersEnabled: boolean;
   /** CFB 27 only: seed the league's initial rosters from the CFB 27 baseline dataset at creation. */
@@ -348,6 +351,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "league_type",
   "immortality_offense_position",
   "immortality_defense_position",
+  "immortality_team_pool",
   "track_rosters",
   "dynasty_structure",
   "recruiting_difficulty",
@@ -431,6 +435,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     leagueType: "regular_rosters",
     immortalityOffensePosition: "QB",
     immortalityDefensePosition: "MIKE",
+    immortalityTeamPool: "default_nfl",
     activeRostersEnabled: true,
     trackRostersEnabled: false,
     seasonWeek: "training_camp",
@@ -600,7 +605,8 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
     return "economy";
   }
   if (step === "immortality_offense_position") return "immortality_defense_position";
-  if (step === "immortality_defense_position") return "server_setup";
+  if (step === "immortality_defense_position") return "immortality_team_pool";
+  if (step === "immortality_team_pool") return "server_setup";
 
   // CFB has Campus Legends (a plain toggle rendered by buildPurchaseSettingWindow) but no
   // Age Resets or Contract Purchases — skip those purchase steps.
@@ -670,7 +676,10 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
 
   // Defensive: limit and cooldown are independent features, each with its own enable toggle.
   if (step === "defensive_limits_enabled" && !draft.defensivePlayCallLimitsEnabled) return "defensive_cooldown_enabled";
-  if (step === "defensive_cooldown_enabled" && !draft.defensivePlayCallCooldownEnabled) return "team_linking_optional";
+  if (step === "defensive_cooldown_enabled" && !draft.defensivePlayCallCooldownEnabled) {
+    return isRise ? "activity_requirements" : "team_linking_optional";
+  }
+  if (isRise && step === "defensive_cooldown") return "activity_requirements";
 
   const index = STEP_ORDER.indexOf(step);
   return STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)];

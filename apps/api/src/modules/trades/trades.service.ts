@@ -211,6 +211,7 @@ export async function proposeTrade(input: {
   offeredLegs: LegInput[]; requestedLegs: LegInput[]; offeredCoins: number; requestedCoins: number;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const { isRiseToImmortalityLeagueType } = await import("@rec/shared");
   const seasonNumber = resolveSeasonNumber(context);
   const userId = await userIdFromDiscord(input.discordId);
   if (!userId) throw new ApiError(404, "REC account not found.");
@@ -218,8 +219,11 @@ export async function proposeTrade(input: {
   if (proposingTeamId === input.receivingTeamId) throw new ApiError(400, "You can't trade with your own team.");
   if (input.offeredCoins < 0 || input.requestedCoins < 0) throw new ApiError(400, "Coin amounts can't be negative.");
 
-  const config = await supabase.from("rec_league_configuration").select("trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
+  const config = await supabase.from("rec_league_configuration").select("roster_type,trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load trade settings. Please try again.", config.error);
+  if (isRiseToImmortalityLeagueType(String(config.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Trades are not available in Rise to Immortality.");
+  }
   const approvalPolicy = config.data?.trade_approval_policy ?? "competition_committee_review";
   const cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
 

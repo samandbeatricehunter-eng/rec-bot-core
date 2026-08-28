@@ -11,7 +11,9 @@ import {
   combinedModifiers,
   convertPlayerXpToTeamXp,
   DEFAULT_CREATION_POINT_BUDGET,
+  DEV_OVR_CEILING,
   displayOvrFor,
+  ledgerXpBalance,
   draftValueFromProfile,
   FORMULA_VERSIONS,
   gradeIqSubmission,
@@ -33,25 +35,31 @@ import {
   publicPlaystyleQuestions,
   projectedRoundFromRank,
   rejectSelfVote,
+  RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT,
   RISE_TO_IMMORTALITY_LEAGUE_TYPE,
+  riseHubUnlocked,
   scoreIqAttempt,
   scorePersonaInterview,
   scorePlaystyleInterview,
   scorePerformanceContract,
   shouldApplyRiseToImmortality,
+  spendAttributePlusOne,
   spendCreationPoints,
   startingDevTrait,
   toPublicIqQuestion,
   validateCharacteristicSelection,
+  MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY,
+  NFL_TEAMS,
   type ImmortalityDefensePosition,
   type ImmortalityOffensePosition,
   type ImmortalityState,
   type ImmortalityPosition,
+  type RiseToImmortalityTeamPool,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
-import { MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY } from "@rec/shared";
+import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId } from "../league-context/league-context.service.js";
+import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 
 async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   if (isSiteOnlyDiscordId(discordId)) {
@@ -62,6 +70,20 @@ async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
   if (account.error || !account.data?.user_id) throw new ApiError(401, "Link your REC profile before continuing.");
   return String(account.data.user_id);
+}
+
+async function discordIdForRecUser(userId: string): Promise<string> {
+  const accounts = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", userId);
+  const real = (accounts.data ?? []).find((row) => row.discord_id && !isSiteOnlyDiscordId(String(row.discord_id)));
+  if (real?.discord_id) return String(real.discord_id);
+  return siteOnlyDiscordId(userId);
+}
+
+function membershipAuthority(role: unknown): "member" | "commissioner" | "co_commissioner" {
+  const value = String(role ?? "").toLowerCase();
+  if (value === "co_commissioner") return "co_commissioner";
+  if (value === "commissioner" || value === "head_commissioner") return "commissioner";
+  return "member";
 }
 
 export async function loadImmortalityLeague(leagueId: string) {
@@ -81,6 +103,7 @@ export async function createImmortalityLeagueRow(input: {
   offensePosition: ImmortalityOffensePosition;
   defensePosition: ImmortalityDefensePosition;
   actorUserId?: string | null;
+  teamPool?: RiseToImmortalityTeamPool;
 }) {
   if (!isImmortalityOffensePosition(input.offensePosition)) {
     throw new ApiError(400, "Pick a universal offensive position: QB, HB, WR, or TE.");
@@ -93,6 +116,7 @@ export async function createImmortalityLeagueRow(input: {
     chapter_state: "REGISTRATION",
     offense_position: input.offensePosition,
     defense_position: input.defensePosition,
+    team_pool: input.teamPool === "custom_32" ? "custom_32" : "default_nfl",
     creation_point_budget: DEFAULT_CREATION_POINT_BUDGET,
     formula_versions: FORMULA_VERSIONS,
   }).select("*").single();
@@ -162,18 +186,56 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("immortality_league_id", league.id)
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
+  const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
+  const [builds, ledgers, traits, draftClass, hallNominees] = await Promise.all([
+    prospectIds.length
+      ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_xp_ledger").select("prospect_id,player_xp_delta,team_xp_delta,event_type,created_at").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_prospect_characteristics").select("prospect_id,characteristic_key").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from("rec_immortality_draft_classes").select("id,status").eq("immortality_league_id", league.id).maybeSingle(),
+    league.chapter_state === "IMMORTALITY_VOTING" || league.chapter_state === "IMMORTALITY_REVEAL"
+      ? supabase.from("rec_immortality_prospects").select("id,user_id,side,first_name,last_name,position").eq("immortality_league_id", league.id)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const xpByProspect = new Map<string, { playerXp: number; teamXp: number }>();
+  for (const id of prospectIds) {
+    const rows = (ledgers.data ?? []).filter((row) => row.prospect_id === id);
+    xpByProspect.set(id, ledgerXpBalance(rows));
+  }
+  const chapterState = league.chapter_state as ImmortalityState;
+  const [poolMembers, linkedAssignments] = await Promise.all([
+    supabase.from("rec_league_memberships").select("user_id,role").eq("league_id", context.leagueId).eq("status", "active"),
+    supabase.from("rec_team_assignments").select("user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
+  ]);
   return {
     league: {
       id: league.id,
       leagueId: context.leagueId,
       chapterState: league.chapter_state,
-      chapter: chapterForState(league.chapter_state as ImmortalityState),
+      chapter: chapterForState(chapterState),
       offensePosition: league.offense_position,
       defensePosition: league.defense_position,
       creationPointBudget: league.creation_point_budget,
-      originsOpen: originsOpen(league.chapter_state as ImmortalityState),
+      originsOpen: originsOpen(chapterState),
+      riseHubUnlocked: riseHubUnlocked(chapterState),
+      teamPool: league.team_pool ?? "default_nfl",
+      highlightPayout: RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT,
+    },
+    pool: {
+      registeredCount: (poolMembers.data ?? []).length,
+      linkedCount: (linkedAssignments.data ?? []).length,
     },
     prospects: prospects.data ?? [],
+    builds: builds.data ?? [],
+    xp: Object.fromEntries(prospectIds.map((id) => [id, xpByProspect.get(id) ?? { playerXp: 0, teamXp: 0 }])),
+    traits: traits.data ?? [],
+    hallNominees: hallNominees.data ?? [],
+    draftStatus: draftClass.data?.status ?? null,
     catalogs: {
       characteristics: {
         offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map(({ key, displayName, positionGroup, slotCost, effect, tags }) => ({
@@ -627,6 +689,9 @@ export async function convertXp(input: { guildId: string; discordId: string; sid
   const currentOvr = Number(build.data?.estimated_ovr ?? 70);
   const allowed = canConvertToTeamXp({ currentOvr, devTrait: startingDevTrait(modifiers), teamPlayer: modifiers.teamXpFromSeason1 });
   if (!allowed) throw new ApiError(400, "Team XP unlocks after this player reaches his current development ceiling.");
+  const ledger = await supabase.from("rec_immortality_xp_ledger").select("player_xp_delta,team_xp_delta").eq("prospect_id", prospect.id);
+  const available = ledgerXpBalance(ledger.data ?? []).playerXp;
+  if (available < input.playerXp) throw new ApiError(400, "Not enough Player XP to convert.");
   const converted = convertPlayerXpToTeamXp(input.playerXp);
   if ("error" in converted) throw new ApiError(400, converted.error);
   const sourceId = `convert:${prospect.id}:${Date.now()}`;
@@ -641,12 +706,133 @@ export async function convertXp(input: { guildId: string; discordId: string; sid
   return converted;
 }
 
+export async function spendPlayerXp(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  attributeCode: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Prospect not found.");
+  const code = input.attributeCode.toUpperCase();
+  const rosterKey = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[code as keyof typeof MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY];
+  if (!rosterKey) throw new ApiError(400, "Unknown attribute.");
+  const [traits, build, ledger] = await Promise.all([
+    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_creation_builds").select("*").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_xp_ledger").select("player_xp_delta,team_xp_delta").eq("prospect_id", prospect.id),
+  ]);
+  if (!build.data) throw new ApiError(400, "Finish Creation Points before spending Player XP.");
+  const catalog = characteristicCatalog(positionGroupFor(prospect.position as ImmortalityPosition));
+  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
+  const modifiers = combinedModifiers(selected);
+  const attributes = { ...((build.data.final_attributes ?? {}) as Record<string, number>) };
+  const currentValue = Number(attributes[code] ?? 0);
+  const currentOvr = Number(build.data.estimated_ovr ?? displayOvrFor(prospect.position as ImmortalityPosition, attributes));
+  const available = ledgerXpBalance(ledger.data ?? []).playerXp;
+  const result = spendAttributePlusOne({
+    currentValue,
+    discount: modifiers.xpDiscounts[code] ?? 0,
+    currentOvr,
+    ceiling: DEV_OVR_CEILING[startingDevTrait(modifiers)],
+    availableXp: available,
+  });
+  if (!result.ok) throw new ApiError(400, result.error);
+  attributes[code] = result.nextValue;
+  const nextOvr = displayOvrFor(prospect.position as ImmortalityPosition, attributes);
+  const sourceId = `attr:${code}:${currentValue}`;
+  const inserted = await supabase.from("rec_immortality_xp_ledger").insert({
+    prospect_id: prospect.id,
+    event_type: "attribute_upgrade",
+    source_id: sourceId,
+    player_xp_delta: -result.cost,
+    team_xp_delta: 0,
+    formula_version: FORMULA_VERSIONS.xp,
+  }).select("*").maybeSingle();
+  if (inserted.error) {
+    if (inserted.error.code === "23505") throw new ApiError(409, "That upgrade was already applied.");
+    throw new ApiError(500, "Could not spend Player XP.", inserted.error);
+  }
+  await supabase.from("rec_immortality_creation_builds").update({
+    final_attributes: attributes,
+    estimated_ovr: nextOvr,
+    updated_at: new Date().toISOString(),
+  }).eq("prospect_id", prospect.id);
+  if (prospect.player_id) {
+    const player = await supabase.from("rec_players").select("attributes").eq("id", prospect.player_id).maybeSingle();
+    const nextAttrs = { ...((player.data?.attributes ?? {}) as Record<string, unknown>), [rosterKey]: result.nextValue };
+    await supabase.from("rec_players").update({ attributes: nextAttrs, overall_rating: nextOvr, updated_at: new Date().toISOString() }).eq("id", prospect.player_id);
+  }
+  return { attributeCode: code, nextValue: result.nextValue, cost: result.cost, estimatedOvr: nextOvr, playerXp: available - result.cost };
+}
+
+export type ImmortalityCustomTeamSlot = {
+  replacesAbbreviation: string;
+  city: string;
+  nick: string;
+  abbreviation: string;
+};
+
+export async function applyImmortalityCustomTeamSlots(leagueId: string, slots: ImmortalityCustomTeamSlot[]) {
+  if (!slots.length) return { updated: 0 };
+  const teams = await supabase.from("rec_teams").select("id,abbreviation,original_abbreviation").eq("league_id", leagueId);
+  if (teams.error) throw new ApiError(500, "Could not load teams.", teams.error);
+  let updated = 0;
+  for (const slot of slots) {
+    const replaces = slot.replacesAbbreviation.trim().toUpperCase();
+    const catalog = NFL_TEAMS.find((team) => team.abbreviation === replaces);
+    if (!catalog) throw new ApiError(400, `Unknown NFL slot ${replaces}.`);
+    const match = (teams.data ?? []).find((team) =>
+      String(team.abbreviation).toUpperCase() === replaces
+      || String(team.original_abbreviation ?? "").toUpperCase() === replaces
+    );
+    if (!match) continue;
+    const name = [slot.city.trim(), slot.nick.trim()].filter(Boolean).join(" ") || catalog.name;
+    const result = await supabase.from("rec_teams").update({
+      name,
+      display_city: slot.city.trim() || null,
+      display_nick: slot.nick.trim() || null,
+      display_abbr: slot.abbreviation.trim().toUpperCase() || null,
+      is_relocated: true,
+      original_abbreviation: catalog.abbreviation,
+      updated_at: new Date().toISOString(),
+    }).eq("id", match.id);
+    if (result.error) throw new ApiError(500, `Could not install custom team for ${replaces}.`, result.error);
+    updated += 1;
+  }
+  await supabase.from("rec_immortality_leagues").update({
+    team_pool: "custom_32",
+    updated_at: new Date().toISOString(),
+  }).eq("league_id", leagueId);
+  return { updated };
+}
+
+export async function installImmortalityCustomTeams(input: {
+  guildId: string;
+  discordId: string;
+  slots: ImmortalityCustomTeamSlot[];
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const result = await applyImmortalityCustomTeamSlots(context.leagueId, input.slots);
+  await supabase.from("rec_immortality_audit_log").insert({
+    immortality_league_id: league.id,
+    actor_user_id: userId,
+    event_type: "custom_teams_installed",
+    payload: { count: result.updated },
+  });
+  return result;
+}
+
 export async function solveRookieDraft(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const league = await requireImmortalityLeague(context.leagueId);
-  if (!canTransition(league.chapter_state as ImmortalityState, "ROOKIE_DRAFT_PREP")
-    && league.chapter_state !== "ORIGINS_COMPLETE"
-    && league.chapter_state !== "ROOKIE_DRAFT_PREP") {
+  const chapterState = league.chapter_state as ImmortalityState;
+  if (!canTransition(chapterState, "ROOKIE_DRAFT_COMPLETE") && chapterState !== "ROOKIE_DRAFT_COMPLETE") {
     throw new ApiError(400, "The rookie draft cannot be solved yet.");
   }
   const userId = await recUserIdFromDiscordId(discordId);
@@ -687,13 +873,61 @@ export async function solveRookieDraft(guildId: string, discordId: string) {
     const inserted = await supabase.from("rec_immortality_draft_assignments").insert(rows);
     if (inserted.error) throw new ApiError(500, "Could not save draft assignments.", inserted.error);
   }
+  for (const pair of assigned) {
+    await supabase.from("rec_immortality_user_team_assignments").upsert({
+      immortality_league_id: league.id,
+      user_id: pair.userId,
+      team_id: pair.teamId,
+      revealed_at: new Date().toISOString(),
+    });
+  }
+  const memberships = assigned.length
+    ? await supabase
+      .from("rec_league_memberships")
+      .select("user_id,role")
+      .eq("league_id", context.leagueId)
+      .in("user_id", assigned.map((pair) => pair.userId))
+    : { data: [] as Array<{ user_id: string; role: string | null }>, error: null };
+  const roleByUser = new Map((memberships.data ?? []).map((row) => [String(row.user_id), String(row.role ?? "member")]));
+  const linked: Array<{ userId: string; teamId: string; discordId: string }> = [];
+  const linkFailures: Array<{ userId: string; teamId: string; error: string }> = [];
+  for (const pair of assigned) {
+    try {
+      const discordId = await discordIdForRecUser(pair.userId);
+      await linkUserToTeam({
+        guildId,
+        discordId,
+        teamId: pair.teamId,
+        authority: membershipAuthority(roleByUser.get(pair.userId)),
+      });
+      linked.push({ userId: pair.userId, teamId: pair.teamId, discordId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not link that user to a team.";
+      console.error(`[WARN] Rise rookie draft could not link user ${pair.userId} to team ${pair.teamId}:`, error);
+      linkFailures.push({ userId: pair.userId, teamId: pair.teamId, error: message });
+    }
+  }
+  const fromState = league.chapter_state as ImmortalityState;
+  if (fromState !== "ROOKIE_DRAFT_COMPLETE") {
+    await supabase.from("rec_immortality_leagues").update({
+      chapter_state: "ROOKIE_DRAFT_COMPLETE",
+      updated_at: new Date().toISOString(),
+    }).eq("id", league.id);
+    await supabase.from("rec_immortality_state_history").insert({
+      immortality_league_id: league.id,
+      from_state: fromState,
+      to_state: "ROOKIE_DRAFT_COMPLETE",
+      actor_user_id: userId,
+      note: "Virtual rookie draft assigned franchises",
+    });
+  }
   await supabase.from("rec_immortality_audit_log").insert({
     immortality_league_id: league.id,
     actor_user_id: userId,
     event_type: "draft_solved",
-    payload: { users: users.length, franchises: franchises.length },
+    payload: { users: users.length, franchises: franchises.length, linked: linked.length, linkFailures: linkFailures.length },
   });
-  return { assignments: assigned };
+  return { assignments: assigned, linked, linkFailures };
 }
 
 export async function castHallVote(input: {

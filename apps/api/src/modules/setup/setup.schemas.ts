@@ -49,6 +49,13 @@ export const CreateLeagueSchema = z.object({
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters", "rise_to_immortality"]).default("regular_rosters"),
   immortalityOffensePosition: z.enum(["QB", "HB", "WR", "TE"]).optional(),
   immortalityDefensePosition: z.enum(["CB", "FS", "SS", "MIKE"]).optional(),
+  immortalityTeamPool: z.enum(["default_nfl", "custom_32"]).optional(),
+  immortalityCustomTeams: z.array(z.object({
+    replacesAbbreviation: z.string().trim().min(2).max(5),
+    city: z.string().trim().min(1).max(40),
+    nick: z.string().trim().min(1).max(40),
+    abbreviation: z.string().trim().min(2).max(5),
+  })).max(32).optional(),
   // Madden only, custom_rosters only: a wizard-step confirmation asked right after picking
   // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false
   // (no preseed) so commissioners who want a truly blank roster get one without an extra step.

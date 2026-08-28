@@ -80,7 +80,10 @@ export function RiseOriginsPage() {
         <h1>{hub?.league.chapter.replaceAll("_", " ") ?? "Origins"}</h1>
         <p className="site-muted">
           Chapter state: {hub?.league.chapterState ?? "…"}. League positions: {hub?.league.offensePosition ?? "—"} / {hub?.league.defensePosition ?? "—"}.
-          Store purchases are off — Player XP upgrades ratings. Coins are annual contracts only.
+          Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at 150, GOTW, and interviews.
+          {hub?.league.riseHubUnlocked
+            ? " Franchises are assigned — the usual league hub is unlocked."
+            : ` You are in the registration pool${hub?.pool ? ` (${hub.pool.registeredCount} registered)` : ""}. The virtual rookie draft links you to a team on the site and Discord.`}
         </p>
       </header>
 
@@ -95,16 +98,16 @@ export function RiseOriginsPage() {
               <button key={state} type="button" className="site-btn site-btn-primary" disabled={busy}
                 onClick={async () => {
                   setBusy(true); setError(null);
-                  try { await siteApi.immortalityTransitionState({ guildId, toState: state }); await reload(); }
+                  try { await siteApi.immortalityTransitionState({ guildId, toState: state }); await reload(); await hubCtx.refreshLeagues(); }
                   catch (err) { setError(err instanceof Error ? err.message : "Could not advance."); }
                   finally { setBusy(false); }
                 }}>Open {state.replaceAll("_", " ")}</button>
             ))}
-            {hub.league.chapterState === "ROOKIE_DRAFT_LIVE" ? (
+            {["ORIGINS_COMPLETE", "ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_LIVE"].includes(hub.league.chapterState) && hub.draftStatus !== "solved" ? (
               <button type="button" className="site-btn site-btn-primary" disabled={busy}
                 onClick={async () => {
                   setBusy(true); setError(null);
-                  try { await siteApi.immortalitySolveDraft(guildId); await reload(); }
+                  try { await siteApi.immortalitySolveDraft(guildId); await reload(); await hubCtx.refreshLeagues(); }
                   catch (err) { setError(err instanceof Error ? err.message : "Could not solve the draft."); }
                   finally { setBusy(false); }
                 }}>Solve rookie draft</button>

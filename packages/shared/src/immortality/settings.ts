@@ -22,25 +22,34 @@ export const RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES = [
 
 export type RiseToImmortalityForbiddenPurchase = (typeof RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES)[number];
 
+export const RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT = 150;
+export const RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT = 2;
+
+export const RISE_TO_IMMORTALITY_TEAM_POOLS = ["default_nfl", "custom_32"] as const;
+export type RiseToImmortalityTeamPool = (typeof RISE_TO_IMMORTALITY_TEAM_POOLS)[number];
+
 /**
- * Standard coin payout sources that must not credit wallets in this mode. Contract salary
- * is the only coin grant — it uses source `immortality_contract`.
+ * Standard coin sources that stay off in this mode. Allowed credits are listed separately:
+ * annual contracts, two weekly highlights, GOTW guessing, and interviews.
  */
 export const RISE_TO_IMMORTALITY_BLOCKED_COIN_SOURCES = [
   "eos_payout",
   "eos_award",
-  "highlight",
   "stream",
   "player_of_week",
-  "interview",
   "article",
-  "gotw",
   "scheduling_bonus",
   "box_score",
   "badge",
+  "wager",
 ] as const;
 
-export const RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES = ["immortality_contract"] as const;
+export const RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES = [
+  "immortality_contract",
+  "highlight",
+  "gotw",
+  "interview",
+] as const;
 
 export const RISE_TO_IMMORTALITY_LOCKED_SETTINGS = {
   game: RISE_TO_IMMORTALITY_GAME,
@@ -132,4 +141,11 @@ export function isBlockedStandardCoinSource(source: string): boolean {
 
 export function isAllowedRiseToImmortalityCoinSource(source: string): boolean {
   return (RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES as readonly string[]).includes(source);
+}
+
+/** Interviews credit through source `media` + transactionType `interview_payout`. Articles use the same source and must not pay. */
+export function riseToImmortalityAllowsCoinCredit(source: string, transactionType?: string): boolean {
+  if (isAllowedRiseToImmortalityCoinSource(source)) return true;
+  if (source === "media" && transactionType === "interview_payout") return true;
+  return false;
 }

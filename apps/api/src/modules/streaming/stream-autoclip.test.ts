@@ -19,9 +19,9 @@ test("a blowout score gets no late-game bonus even with little time left", () =>
     quarter: "4", gameClock: "1:30",
     awayBefore: 14, homeBefore: 35, awayAfter: 14, homeAfter: 42,
   });
-  // Base (7 pts * 3 = 21) only -- no lead change, no tying play, margin too big for the
+  // Base (7 pts * 5 = 35) only -- no lead change, no tying play, margin too big for the
   // closeness or clutch bonuses.
-  assert.equal(value, 21);
+  assert.equal(value, 35);
 });
 
 test("a tying score late in a close game scores higher than an early tying score", () => {

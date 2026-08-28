@@ -7,6 +7,7 @@ import {
   convertXp,
   evaluateCreationBuild,
   getImmortalityHub,
+  installImmortalityCustomTeams,
   publicCharacteristicCatalog,
   selectCharacteristics,
   solveRookieDraft,
@@ -14,6 +15,7 @@ import {
   submitIqAnswer,
   submitPersona,
   submitPlaystyle,
+  spendPlayerXp,
   transitionImmortalityState,
   upsertProspectIdentity,
 } from "./immortality.service.js";
@@ -125,6 +127,31 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Team XP conversion is website-only.");
       return reply.send(await convertXp({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/xp/spend", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ attributeCode: z.string().trim().min(3).max(3) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Player XP upgrades are website-only.");
+      return reply.send(await spendPlayerXp({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/teams/custom", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        slots: z.array(z.object({
+          replacesAbbreviation: z.string().trim().min(2).max(5),
+          city: z.string().trim().min(1).max(40),
+          nick: z.string().trim().min(1).max(40),
+          abbreviation: z.string().trim().min(2).max(5),
+        })).min(1).max(32),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Custom team install requires a website session.");
+      return reply.send(await installImmortalityCustomTeams({ guildId: body.guildId, discordId: auth.discordId, slots: body.slots }));
     } catch (error) { return sendError(reply, error); }
   });
 
