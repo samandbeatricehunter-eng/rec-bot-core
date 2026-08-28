@@ -219,15 +219,21 @@ export async function enableStreamDownload(uid: string): Promise<{ url: string; 
   return { url: payload.result.default.url, ready: payload.result.default.status === "ready" };
 }
 
+// Cloudflare's TUS chunk size must be a multiple of 256KiB (except the final chunk) -- 50MiB
+// rounded to that boundary. A prior version of this function sent the entire file as one PATCH;
+// confirmed live that this silently produces a video that Cloudflare later reports "Not Found"
+// (the upload never actually finalized server-side despite the PATCH itself returning 2xx) --
+// real chunking, matching Cloudflare's own documented TUS example, is what actually works.
+const TUS_CHUNK_BYTES = 50 * 1024 * 1024;
+
 /**
  * Cloudflare's one-shot Direct Creator Upload endpoint (createStreamDirectUpload, a plain
  * multipart POST) caps at 200MB -- fine for individual autoclip clips but not for the weekly
  * recap, which concatenates and re-encodes a whole week's clips into one file that regularly
  * exceeds that (confirmed live: a real recap upload 413'd). Larger files need Stream's TUS
  * resumable-upload protocol instead: a creation request returns a per-video PATCH URL (via the
- * `Location` response header) and the video's uid (via `stream-media-id`), then the whole file
- * is PATCHed to that URL in one shot -- fine for anything up to a few GB, well past what a
- * single-week recap will ever produce.
+ * `Location` response header) and the video's uid (via `stream-media-id`), then the file is
+ * PATCHed to that URL in chunks, each one's resulting Upload-Offset verified before the next.
  */
 export async function uploadLargeStreamVideo(input: {
   filePath: string;
@@ -259,29 +265,49 @@ export async function uploadLargeStreamVideo(input: {
   if (!createResponse.ok || !uid || !location) {
     throw new ApiError(502, `Failed to create Stream TUS upload (HTTP ${createResponse.status}).`);
   }
-  const patchResponse = await fetch(location, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      "Tus-Resumable": "1.0.0",
-      "Upload-Offset": "0",
-      "Content-Type": "application/offset+octet-stream",
-    },
-    body: fileBuffer,
-    signal: AbortSignal.timeout(20 * 60_000),
+  let offset = 0;
+  while (offset < fileBuffer.byteLength) {
+    const end = Math.min(offset + TUS_CHUNK_BYTES, fileBuffer.byteLength);
+    const chunk = fileBuffer.subarray(offset, end);
+    const patchResponse = await fetch(location, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Tus-Resumable": "1.0.0",
+        "Upload-Offset": String(offset),
+        "Content-Type": "application/offset+octet-stream",
+      },
+      body: chunk,
+      signal: AbortSignal.timeout(3 * 60_000),
+    });
+    if (!patchResponse.ok) {
+      throw new ApiError(502, `Stream TUS upload failed at offset ${offset}/${fileBuffer.byteLength} (HTTP ${patchResponse.status}).`);
+    }
+    const reportedOffset = Number(patchResponse.headers.get("upload-offset"));
+    if (!Number.isFinite(reportedOffset) || reportedOffset !== end) {
+      throw new ApiError(502, `Stream TUS upload offset mismatch (expected ${end}, got ${patchResponse.headers.get("upload-offset")}) -- upload may be corrupt.`);
+    }
+    offset = end;
+  }
+  // Confirm the video actually exists server-side before trusting the upload -- a single giant
+  // PATCH used to "succeed" here without the video ever really finalizing (see TUS_CHUNK_BYTES
+  // comment); chunking should prevent that, but this is what actually catches it if it recurs
+  // instead of silently completing the job against a dead uid.
+  const verify = await fetch(`${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}`, {
+    headers: streamHeaders(apiToken), signal: AbortSignal.timeout(20_000),
   });
-  if (!patchResponse.ok) {
-    throw new ApiError(502, `Stream TUS upload failed (HTTP ${patchResponse.status}).`);
+  if (!verify.ok) {
+    throw new ApiError(502, `Stream TUS upload finished but video ${uid} is not retrievable afterward (HTTP ${verify.status}).`);
   }
   // TUS creation's Upload-Metadata headers don't reliably take requireSignedURLs/allowedOrigins
   // the way the JSON direct_upload/copy endpoints do (confirmed live: a TUS-uploaded video came
   // back 401 unauthorized on its watch page despite requiresignedurls:false in Upload-Metadata,
   // implying the account default -- signed URLs required -- won instead). Apply both explicitly
-  // as a follow-up settings edit rather than trusting the metadata handshake.
-  await Promise.all([
-    requireSignedUrlsOff(uid).catch((error) => console.error(`[WARN] Failed to disable requireSignedURLs on TUS-uploaded video ${uid} (non-fatal, video may be unplayable):`, error)),
-    updateStreamAllowedOrigins(uid).catch((error) => console.error(`[WARN] Failed to set allowedOrigins on TUS-uploaded video ${uid} (non-fatal):`, error)),
-  ]);
+  // as a required follow-up rather than trusting the metadata handshake or swallowing a failure
+  // here -- either one failing means the video is unplayable, so the job should retry, not
+  // silently report success.
+  await requireSignedUrlsOff(uid);
+  await updateStreamAllowedOrigins(uid);
   return { uid, playbackUrl: streamPlaybackUrls(uid).watch };
 }
 
