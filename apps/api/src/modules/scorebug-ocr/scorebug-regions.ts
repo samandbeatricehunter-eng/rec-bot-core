@@ -3,39 +3,34 @@
 // for how these were derived and what's still approximate.
 export type FractionalRegion = { x0: number; x1: number; y0: number; y1: number };
 
-// Pixel-measured against a5eefdc3d94cb4cf00f9e9a50fcf2661 (a 1920x1080 M27 highlight frame,
-// "CAR 25 x 28 NO", "4th 1:05", ":02", "3RD & 7", "▲39") -- see docs/scorebug-ocr-regions.md.
-// The original visual-estimate pass had the vertical band ~30px too high (catching letter tops
-// / the crest artwork above the bar instead of the text itself); these were re-derived by
-// cropping generous bands and reading exact pixel boundaries off them directly.
+// Re-measured 2026-08-28 against a real live-captured Twitch VOD frame (rec_stream_capture_jobs
+// id 4c6debdb-daa8-445e-af97-72dd5258b6cc, second=2487, ground truth "CIN 10 x 24 DEN", "2nd
+// 0:26", ":40", "2ND & 10", "▲41") -- the first time this calibration was ever validated against
+// genuine live-capture footage rather than a static reference frame. The whole y-band was
+// landing almost entirely on grass above the bar (confirmed via direct crop: the old y0=0.898
+// caught nothing but field, and y1=0.954 cut off before the real text even started) -- every
+// field needed the same ~0.049 downward shift, verified one at a time via direct crop inspection
+// exactly like the original calibration's own methodology. x-positions were mostly already
+// correct; only homeScore and quarter needed small nudges (both were clipping a character at
+// their old x0). The previous calibration frame was apparently a rendered highlight/replay
+// screen, not genuine live gameplay HUD -- explaining why it never surfaced this until a real
+// live capture was actually run through this diagnostic.
 export const SCOREBUG_REGIONS = {
-  awayScore: { x0: 0.341, x1: 0.380, y0: 0.898, y1: 0.954 },
-  possessionGlyph: { x0: 0.383, x1: 0.404, y0: 0.898, y1: 0.954 },
-  homeScore: { x0: 0.406, x1: 0.447, y0: 0.898, y1: 0.954 },
-  // First pass placed these one slot too far left -- the away team's crest box is wider than
-  // the initial visual estimate accounted for, so "quarter"/"gameClock"/"playClock" were
-  // actually landing on crest/quarter/clock respectively. Re-measured via a vertical brightness
-  // projection + direct crop verification against the black quarter/clock/play-clock box.
-  quarter: { x0: 0.657, x1: 0.695, y0: 0.898, y1: 0.954 },
-  // gameClock's x1 was 0.737 (cutting the seconds' last digit off mid-stroke, confirmed by
-  // direct crop inspection -- "1:05" was rendering as "1:0" with the "5" sliced away).
-  // Widened to the actual gap before playClock's white box, verified against the same frame.
-  gameClock: { x0: 0.697, x1: 0.749, y0: 0.898, y1: 0.954 },
-  // playClock's own y0 is nudged down from the shared 0.898 -- its white box has a dark top
-  // border that the shared band was catching, and that border renders as a solid full-width
-  // "ink" bar after threshold+negate (confirmed by dumping raw pixel rows), which was enough to
-  // make a real ":21" read back as "1" or nothing at all. Confirmed directly: shifting just this
-  // field's y0 down past the border fixed both known ":21" failures and didn't touch gameClock/
-  // quarter (tested with the same shift -- gameClock was unaffected either way, and quarter got
-  // *worse* under the same shift, so this had to stay a playClock-only change, not a move to the
-  // shared band).
-  playClock: { x0: 0.754, x1: 0.792, y0: 0.910, y1: 0.954 },
-  downDistance: { x0: 0.818, x1: 0.917, y0: 0.898, y1: 0.954 },
-  // Split from one combined region into the direction glyph (▲/▼, shape-classified like
-  // possessionGlyph) and the yard number itself (OCR'd) -- verified against a direct 5x crop of
-  // "▲39": triangle at ~0.940-0.955, digits at ~0.955-0.985.
-  yardLineDirection: { x0: 0.940, x1: 0.955, y0: 0.898, y1: 0.954 },
-  yardLine: { x0: 0.955, x1: 0.985, y0: 0.898, y1: 0.954 },
+  awayScore: { x0: 0.341, x1: 0.380, y0: 0.947, y1: 0.990 },
+  possessionGlyph: { x0: 0.383, x1: 0.404, y0: 0.947, y1: 0.990 },
+  // x0 nudged from 0.406 -- the old value clipped the "2" of a 2-digit home score.
+  homeScore: { x0: 0.401, x1: 0.447, y0: 0.947, y1: 0.990 },
+  // x0/x1 nudged right from 0.657/0.695 -- the old window left dead space on the left and
+  // clipped the "d" of "2nd" on the right.
+  quarter: { x0: 0.665, x1: 0.703, y0: 0.947, y1: 0.990 },
+  gameClock: { x0: 0.697, x1: 0.749, y0: 0.947, y1: 0.990 },
+  // playClock keeps a small y0 nudge below the shared band, same rationale as before this
+  // recalibration: its white box has a dark top border that risks reading as solid "ink" after
+  // threshold+negate right at the shared band's top edge.
+  playClock: { x0: 0.754, x1: 0.792, y0: 0.951, y1: 0.990 },
+  downDistance: { x0: 0.818, x1: 0.917, y0: 0.947, y1: 0.990 },
+  yardLineDirection: { x0: 0.940, x1: 0.955, y0: 0.947, y1: 0.990 },
+  yardLine: { x0: 0.955, x1: 0.985, y0: 0.947, y1: 0.990 },
 } as const satisfies Record<string, FractionalRegion>;
 
 // Second framing: pre-snap/kickoff wide shots don't render the milestone/ticker row below the
