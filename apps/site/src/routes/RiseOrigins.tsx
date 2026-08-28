@@ -4,6 +4,7 @@ import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
+  type ImmortalityDraftGrade,
   type ImmortalityHubResponse,
   type ImmortalityIqState,
   type ImmortalityInterviewQuestion,
@@ -62,6 +63,12 @@ export function RiseOriginsPage() {
     return () => { cancelled = true; };
   }, [guildId, isRise]);
 
+  useEffect(() => {
+    if (!guildId || !isRise || hub?.draftBoard?.frozen) return;
+    const id = window.setInterval(() => { void reload(); }, 20000);
+    return () => window.clearInterval(id);
+  }, [guildId, isRise, hub?.draftBoard?.frozen, reload]);
+
   if (selected && !isRise) {
     return <Navigate replace to={`/l/${leagueId}/buzz`} />;
   }
@@ -92,7 +99,12 @@ export function RiseOriginsPage() {
       {isCommissioner && hub ? (
         <section className="rise-card">
           <h2>Commissioner</h2>
-          <p className="site-muted">Advance the chapter or run the virtual rookie draft. Origins stays website-only.</p>
+          <p className="site-muted">
+            Draft grades stay live until you solve. Rank and projected round move after every Origins stage and when someone new enters the class.
+            Solve assigns complete offense + defense pairs only — unfinished players stay in the pool as CPU.
+            The first pick of a pair hides the franchise; the second pick reveals it. Unused NFL slots stay CPU.
+            After this, members run a 3-round team fantasy draft in Madden (not tracked here).
+          </p>
           <div className="rise-actions">
             {nextStates.map((state) => (
               <button key={state} type="button" className="site-btn site-btn-primary" disabled={busy}
@@ -116,6 +128,14 @@ export function RiseOriginsPage() {
         </section>
       ) : null}
 
+      {hub?.draftBoard ? (
+        <DraftStockPanel
+          board={hub.draftBoard}
+          offensePosition={hub.league.offensePosition}
+          defensePosition={hub.league.defensePosition}
+        />
+      ) : null}
+
       <div className="rise-side-tabs">
         {(["offense", "defense"] as const).map((value) => (
           <button key={value} type="button"
@@ -136,14 +156,14 @@ export function RiseOriginsPage() {
       {!hub ? <p className="site-muted">Loading your class…</p> : (
         <>
           {stage === "identity" ? (
-            <IdentityForm guildId={guildId} side={side} position={position ?? ""} prospect={prospectFor(hub, side)}
+            <IdentityForm key={side} guildId={guildId} side={side} position={position ?? ""} prospect={prospectFor(hub, side)}
               onSaved={reload} setError={setError} setBusy={setBusy} busy={busy} />
           ) : null}
           {stage === "iq" ? (
-            <IqPanel guildId={guildId} side={side} setError={setError} />
+            <IqPanel key={side} guildId={guildId} side={side} setError={setError} onSaved={reload} />
           ) : null}
           {stage === "persona" ? (
-            <InterviewPanel title="Persona interview" questions={hub.catalogs.persona[side]}
+            <InterviewPanel key={`${side}-persona`} title="Persona interview" questions={hub.catalogs.persona[side]}
               onSubmit={async (answers) => {
                 const result = await siteApi.immortalitySubmitPersona({ guildId, side, answers });
                 await reload();
@@ -151,7 +171,7 @@ export function RiseOriginsPage() {
               }} setError={setError} />
           ) : null}
           {stage === "playstyle" ? (
-            <InterviewPanel title="Playstyle interview" questions={hub.catalogs.playstyle[side]}
+            <InterviewPanel key={`${side}-playstyle`} title="Playstyle interview" questions={hub.catalogs.playstyle[side]}
               onSubmit={async (answers) => {
                 const result = await siteApi.immortalitySubmitPlaystyle({ guildId, side, answers });
                 await reload();
@@ -159,17 +179,120 @@ export function RiseOriginsPage() {
               }} setError={setError} />
           ) : null}
           {stage === "characteristics" ? (
-            <CharacteristicsPanel guildId={guildId} side={side} catalog={hub.catalogs.characteristics[side]}
+            <CharacteristicsPanel key={side} guildId={guildId} side={side} catalog={hub.catalogs.characteristics[side]}
               onSaved={reload} setError={setError} />
           ) : null}
           {stage === "creation" ? (
-            <CreationPanel guildId={guildId} side={side} budget={hub.league.creationPointBudget}
-              setError={setError} />
+            <CreationPanel key={side} guildId={guildId} side={side} budget={hub.league.creationPointBudget}
+              setError={setError} onSaved={reload} />
           ) : null}
         </>
       )}
 
       <p className="site-muted"><Link to={`/l/${leagueId}/buzz`}>Back to league overview</Link></p>
+    </div>
+  );
+}
+
+function stockLabel(stock: string) {
+  if (stock === "rising") return "Rising";
+  if (stock === "sliding") return "Sliding";
+  if (stock === "holding") return "Holding";
+  return "New";
+}
+
+function prospectDisplayName(row: ImmortalityDraftGrade) {
+  const name = `${row.firstName} ${row.lastName}`.trim();
+  return name || (row.side === "offense" ? "Offense prospect" : "Defense prospect");
+}
+
+function DraftStockPanel({
+  board,
+  offensePosition,
+  defensePosition,
+}: {
+  board: NonNullable<ImmortalityHubResponse["draftBoard"]>;
+  offensePosition: string;
+  defensePosition: string;
+}) {
+  return (
+    <section className="rise-card">
+      <h2>Draft stock</h2>
+      <p className="site-muted">
+        {board.frozen
+          ? "The virtual draft is solved — these grades are locked."
+          : "Grades update after each Origins stage and whenever another player in the class moves. Projected round is relative to this side of the class, not a fixed 32."}
+        {" "}{board.readyPairCount} complete pair{board.readyPairCount === 1 ? "" : "s"} of {board.poolCount} registered.
+      </p>
+      <div className="rise-stock-row">
+        <MyGradeCard label={`Your offense (${offensePosition || "—"})`} grade={board.mine.offense} />
+        <MyGradeCard label={`Your defense (${defensePosition || "—"})`} grade={board.mine.defense} />
+      </div>
+      <ClassBoard title={`Offense class — ${offensePosition || "OFF"}`} rows={board.offense} />
+      <ClassBoard title={`Defense class — ${defensePosition || "DEF"}`} rows={board.defense} />
+    </section>
+  );
+}
+
+function MyGradeCard({ label, grade }: { label: string; grade: ImmortalityDraftGrade | null }) {
+  return (
+    <div className="rise-grade-card">
+      <p className="site-muted">{label}</p>
+      {!grade ? (
+        <p>Save identity to enter the class board.</p>
+      ) : (
+        <>
+          <div className="rise-grade-mark">{grade.gradeLabel}</div>
+          <p>
+            Round {grade.projectedRound} · Rank {grade.classRank} of {grade.classSize}
+            <span className={`rise-stock rise-stock-${grade.stock}`}>{stockLabel(grade.stock)}</span>
+          </p>
+          <p className="site-muted">
+            Fall range R{grade.preferredMin}–R{grade.preferredMax}
+            {grade.ready ? "" : " · Finish Creation Points to become draft-eligible."}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ClassBoard({ title, rows }: { title: string; rows: ImmortalityDraftGrade[] }) {
+  if (!rows.length) {
+    return (
+      <div>
+        <h3>{title}</h3>
+        <p className="site-muted">No prospects on the board yet.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rise-board-wrap">
+      <h3>{title}</h3>
+      <table className="rise-board">
+        <thead>
+          <tr>
+            <th>Rk</th>
+            <th>Player</th>
+            <th>Grade</th>
+            <th>Round</th>
+            <th>Stock</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.prospectId} className={row.mine ? "is-mine" : undefined}>
+              <td>{row.classRank}</td>
+              <td>{prospectDisplayName(row)}{row.position ? ` · ${row.position}` : ""}</td>
+              <td>{row.gradeLabel}</td>
+              <td>R{row.projectedRound}</td>
+              <td><span className={`rise-stock rise-stock-${row.stock}`}>{stockLabel(row.stock)}</span></td>
+              <td className="rise-ready">{row.ready ? (row.mine ? "You" : "Ready") : "In progress"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -252,7 +375,11 @@ function IdentityForm({
   );
 }
 
-function IqPanel({ guildId, side, setError }: { guildId: string; side: Side; setError: (value: string | null) => void }) {
+function IqPanel({
+  guildId, side, setError, onSaved,
+}: {
+  guildId: string; side: Side; setError: (value: string | null) => void; onSaved: () => Promise<void>;
+}) {
   const [state, setState] = useState<ImmortalityIqState | null>(null);
   const [busy, setBusy] = useState(false);
   const remainingMs = useCountdown(state?.questionExpiresAt ?? null, Boolean(state && !state.completed));
@@ -281,6 +408,11 @@ function IqPanel({ guildId, side, setError }: { guildId: string; side: Side; set
     void answer(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainingMs, state?.completed, state?.currentQuestion]);
+
+  useEffect(() => {
+    if (!state?.completed) return;
+    void onSaved();
+  }, [state?.completed, onSaved]);
 
   return (
     <section className="rise-card">
@@ -392,9 +524,9 @@ function CharacteristicsPanel({
 }
 
 function CreationPanel({
-  guildId, side, budget, setError,
+  guildId, side, budget, setError, onSaved,
 }: {
-  guildId: string; side: Side; budget: number; setError: (value: string | null) => void;
+  guildId: string; side: Side; budget: number; setError: (value: string | null) => void; onSaved: () => Promise<void>;
 }) {
   const [spent, setSpent] = useState<Record<string, number>>({});
   const [result, setResult] = useState<string | null>(null);
@@ -421,7 +553,12 @@ function CreationPanel({
           try {
             const cleaned = Object.fromEntries(Object.entries(spent).filter(([, value]) => value > 0));
             const next = await siteApi.immortalityEvaluateCreation({ guildId, side, spent: cleaned });
-            setResult(`Estimated OVR ${next.estimatedOvr ?? next.estimated_ovr ?? "—"}. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? used} CP.`);
+            const grade = next.draftGrade;
+            const gradeText = grade
+              ? ` Draft grade ${grade.gradeLabel ?? "—"} · R${grade.projectedRound ?? "—"} · #${grade.classRank ?? "—"} of ${grade.classSize ?? "—"} · ${stockLabel(String(grade.stock ?? "new"))}.`
+              : "";
+            setResult(`Estimated OVR ${next.estimatedOvr ?? next.estimated_ovr ?? "—"}. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? used} CP.${gradeText}`);
+            await onSaved();
           } catch (err) {
             setError(err instanceof Error ? err.message : "Could not evaluate that build.");
           } finally { setBusy(false); }

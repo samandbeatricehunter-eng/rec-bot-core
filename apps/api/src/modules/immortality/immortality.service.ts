@@ -38,6 +38,17 @@ import {
   RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT,
   RISE_TO_IMMORTALITY_LEAGUE_TYPE,
   riseHubUnlocked,
+  rankDraftClass,
+  completePairUserIds,
+  seedFranchisePickOrder,
+  type DraftGradeSnapshot,
+  abilityGrantSlotsForEvent,
+  abilityById,
+  canSelectAbility,
+  cappedAbilitySlots,
+  rtiAbilitiesForPosition,
+  resolveAbilityTier,
+  MAX_EQUIPPED_ABILITIES,
   scoreIqAttempt,
   scorePersonaInterview,
   scorePlaystyleInterview,
@@ -176,10 +187,166 @@ async function loadProspectForUser(immortalityLeagueId: string, userId: string, 
   return row.data;
 }
 
+const ORIGINS_STEPS = ["identity", "iq", "persona", "playstyle", "characteristics", "creation"] as const;
+
+async function bumpOriginsStep(prospectId: string, current: unknown, next: (typeof ORIGINS_STEPS)[number]) {
+  const from = ORIGINS_STEPS.indexOf(String(current ?? "identity") as (typeof ORIGINS_STEPS)[number]);
+  const to = ORIGINS_STEPS.indexOf(next);
+  if (to < 0 || to <= from) return;
+  await supabase.from("rec_immortality_prospects").update({
+    origins_step: next,
+    updated_at: new Date().toISOString(),
+  }).eq("id", prospectId);
+}
+
+export async function refreshImmortalityDraftBoardForLeague(leagueId: string) {
+  const league = await loadImmortalityLeague(leagueId);
+  if (!league) return { grades: [] as ReturnType<typeof rankDraftClass> };
+  return refreshImmortalityDraftBoard(String(league.id), String(league.league_id));
+}
+
+function snapshotFromGradeRow(row: Record<string, unknown>): DraftGradeSnapshot {
+  return {
+    prospectId: String(row.prospect_id ?? row.prospectId),
+    userId: String(row.user_id ?? row.userId),
+    side: (row.side === "defense" ? "defense" : "offense"),
+    rawScore: Number(row.raw_score ?? row.rawScore ?? 0),
+    stageScores: (row.stage_scores ?? row.stageScores ?? {}) as DraftGradeSnapshot["stageScores"],
+    draftValue: Number(row.draft_value ?? row.draftValue ?? 0),
+    classRank: Number(row.class_rank ?? row.classRank ?? 1),
+    classSize: Number(row.class_size ?? row.classSize ?? 1),
+    projectedRound: Number(row.projected_round ?? row.projectedRound ?? 4),
+    preferredMin: Number(row.preferred_min ?? row.preferredMin ?? 3),
+    preferredMax: Number(row.preferred_max ?? row.preferredMax ?? 5),
+    gradeLabel: String(row.grade_label ?? row.gradeLabel ?? "B"),
+    stock: (String(row.stock ?? "new") as DraftGradeSnapshot["stock"]),
+    ready: Boolean(row.ready),
+  };
+}
+
+export async function refreshImmortalityDraftBoard(immortalityLeagueId: string, recLeagueId?: string): Promise<{ grades: DraftGradeSnapshot[]; frozen: boolean }> {
+  const draftClass = await supabase.from("rec_immortality_draft_classes").select("status").eq("immortality_league_id", immortalityLeagueId).maybeSingle();
+  if (draftClass.data?.status === "solved") {
+    const frozen = await supabase.from("rec_immortality_draft_grades").select("*").eq("immortality_league_id", immortalityLeagueId);
+    return { grades: (frozen.data ?? []).map((row) => snapshotFromGradeRow(row as Record<string, unknown>)), frozen: true };
+  }
+  const prospects = await supabase.from("rec_immortality_prospects").select("id,user_id,side,first_name,last_name,position,origins_step").eq("immortality_league_id", immortalityLeagueId);
+  if (prospects.error) throw new ApiError(500, "Could not load the draft class.", prospects.error);
+  const rows = prospects.data ?? [];
+  const ids = rows.map((row) => String(row.id));
+  const [iq, persona, playstyle, traits, builds, previous, leagueRow] = await Promise.all([
+    ids.length ? supabase.from("rec_immortality_iq_attempts").select("prospect_id,completed_at,iq_score").in("prospect_id", ids) : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ids.length ? supabase.from("rec_immortality_persona_results").select("prospect_id").in("prospect_id", ids) : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ids.length ? supabase.from("rec_immortality_playstyle_results").select("prospect_id,blend").in("prospect_id", ids) : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ids.length ? supabase.from("rec_immortality_prospect_characteristics").select("prospect_id,characteristic_key,slot_cost").in("prospect_id", ids) : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ids.length ? supabase.from("rec_immortality_creation_builds").select("prospect_id,estimated_ovr").in("prospect_id", ids) : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    supabase.from("rec_immortality_draft_grades").select("prospect_id,class_rank,draft_value").eq("immortality_league_id", immortalityLeagueId),
+    recLeagueId
+      ? Promise.resolve({ data: { league_id: recLeagueId } })
+      : supabase.from("rec_immortality_leagues").select("league_id,offense_position,defense_position").eq("id", immortalityLeagueId).maybeSingle(),
+  ]);
+  const iqBy = new Map<string, Record<string, unknown>>((iq.data ?? []).map((row) => [String((row as Record<string, unknown>).prospect_id), row as Record<string, unknown>]));
+  const personaBy = new Set((persona.data ?? []).map((row) => String((row as Record<string, unknown>).prospect_id)));
+  const playstyleBy = new Map<string, Record<string, unknown>>((playstyle.data ?? []).map((row) => [String((row as Record<string, unknown>).prospect_id), row as Record<string, unknown>]));
+  const traitsBy = new Map<string, Array<{ characteristic_key: string; slot_cost: number }>>();
+  for (const row of traits.data ?? []) {
+    const list = traitsBy.get(String(row.prospect_id)) ?? [];
+    list.push({ characteristic_key: String(row.characteristic_key), slot_cost: Number(row.slot_cost ?? 0) });
+    traitsBy.set(String(row.prospect_id), list);
+  }
+  const buildBy = new Map<string, Record<string, unknown>>((builds.data ?? []).map((row) => [String((row as Record<string, unknown>).prospect_id), row as Record<string, unknown>]));
+  const prevBy = new Map<string, Record<string, unknown>>((previous.data ?? []).map((row) => [String((row as Record<string, unknown>).prospect_id), row as Record<string, unknown>]));
+  const immortality = recLeagueId
+    ? await supabase.from("rec_immortality_leagues").select("offense_position,defense_position,league_id").eq("id", immortalityLeagueId).maybeSingle()
+    : { data: leagueRow.data as { offense_position?: string; defense_position?: string; league_id?: string } | null };
+  const inputs = rows.map((row) => {
+    const selectedKeys = (traitsBy.get(String(row.id)) ?? []).map((item) => item.characteristic_key);
+    const catalog = characteristicCatalog(positionGroupFor((row.position ?? (row.side === "offense" ? immortality.data?.offense_position : immortality.data?.defense_position)) as ImmortalityPosition));
+    const selected = catalog.filter((item) => selectedKeys.includes(item.key));
+    const modifiers = combinedModifiers(selected);
+    const blend = (playstyleBy.get(String(row.id))?.blend ?? null) as { kind?: "dominant" | "clear" | "near_tie" } | null;
+    const prev = prevBy.get(String(row.id));
+    const ovr = buildBy.get(String(row.id))?.estimated_ovr;
+    return {
+      prospectId: String(row.id),
+      userId: String(row.user_id),
+      side: row.side as "offense" | "defense",
+      firstName: row.first_name ? String(row.first_name) : null,
+      lastName: row.last_name ? String(row.last_name) : null,
+      iqCompleted: Boolean(iqBy.get(String(row.id))?.completed_at),
+      iqScore: iqBy.get(String(row.id))?.iq_score != null ? Number(iqBy.get(String(row.id))?.iq_score) : null,
+      personaCompleted: personaBy.has(String(row.id)),
+      playstyleBlendKind: blend?.kind ?? null,
+      characteristicSlotCost: (traitsBy.get(String(row.id)) ?? []).reduce((sum, item) => sum + item.slot_cost, 0),
+      startDevStar: Boolean(modifiers.startDevStar),
+      estimatedOvr: ovr == null ? null : Number(ovr),
+      previousClassRank: prev?.class_rank != null ? Number(prev.class_rank) : null,
+      previousDraftValue: prev?.draft_value != null ? Number(prev.draft_value) : null,
+    };
+  });
+  const grades = rankDraftClass(inputs);
+  if (grades.length) {
+    const upserted = await supabase.from("rec_immortality_draft_grades").upsert(grades.map((grade) => {
+      const prev = prevBy.get(grade.prospectId);
+      return {
+        prospect_id: grade.prospectId,
+        immortality_league_id: immortalityLeagueId,
+        user_id: grade.userId,
+        side: grade.side,
+        raw_score: grade.rawScore,
+        stage_scores: grade.stageScores,
+        draft_value: grade.draftValue,
+        class_rank: grade.classRank,
+        class_size: grade.classSize,
+        projected_round: grade.projectedRound,
+        preferred_min: grade.preferredMin,
+        preferred_max: grade.preferredMax,
+        grade_label: grade.gradeLabel,
+        stock: grade.stock,
+        ready: grade.ready,
+        previous_class_rank: prev?.class_rank ?? null,
+        previous_draft_value: prev?.draft_value ?? null,
+        updated_at: new Date().toISOString(),
+      };
+    }), { onConflict: "prospect_id" });
+    if (upserted.error) throw new ApiError(500, "Could not update draft stock.", upserted.error);
+    for (const grade of grades) {
+      if (!buildBy.has(grade.prospectId)) continue;
+      await supabase.from("rec_immortality_creation_builds").update({
+        draft_value: grade.draftValue,
+        projected_round: grade.projectedRound,
+      }).eq("prospect_id", grade.prospectId);
+    }
+  }
+  const resolvedLeagueId = recLeagueId ?? String(immortality.data?.league_id ?? "");
+  if (resolvedLeagueId) await ensureDraftOrders(immortalityLeagueId, resolvedLeagueId);
+  return { grades, frozen: false };
+}
+
+async function ensureDraftOrders(immortalityLeagueId: string, leagueId: string) {
+  const teams = await supabase.from("rec_teams").select("id").eq("league_id", leagueId);
+  const existing = await supabase.from("rec_immortality_draft_orders").select("team_id,pick_order").eq("immortality_league_id", immortalityLeagueId);
+  const have = new Set((existing.data ?? []).map((row) => String(row.team_id)));
+  const missing = (teams.data ?? []).map((row) => String(row.id)).filter((id) => !have.has(id));
+  if (!missing.length) return;
+  const maxOrder = (existing.data ?? []).reduce((max, row) => Math.max(max, Number(row.pick_order ?? 0)), 0);
+  const seeded = seedFranchisePickOrder(leagueId, missing);
+  const inserted = await supabase.from("rec_immortality_draft_orders").insert(
+    seeded.map((row, index) => ({
+      immortality_league_id: immortalityLeagueId,
+      team_id: row.teamId,
+      pick_order: maxOrder + index + 1,
+      participating: false,
+    })),
+  );
+  if (inserted.error) throw new ApiError(500, "Could not seed franchise draft order.", inserted.error);
+}
+
 export async function getImmortalityHub(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const league = await requireImmortalityLeague(context.leagueId);
   const userId = await recUserIdFromDiscordId(discordId);
+  const board = await refreshImmortalityDraftBoard(String(league.id), context.leagueId);
   const prospects = await supabase
     .from("rec_immortality_prospects")
     .select("*")
@@ -187,7 +354,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
   const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
-  const [builds, ledgers, traits, draftClass, hallNominees] = await Promise.all([
+  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, abilityGrants, equippedAbilities] = await Promise.all([
     prospectIds.length
       ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
@@ -201,6 +368,13 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     league.chapter_state === "IMMORTALITY_VOTING" || league.chapter_state === "IMMORTALITY_REVEAL"
       ? supabase.from("rec_immortality_prospects").select("id,user_id,side,first_name,last_name,position").eq("immortality_league_id", league.id)
       : Promise.resolve({ data: [], error: null }),
+    supabase.from("rec_immortality_prospects").select("id,first_name,last_name,position").eq("immortality_league_id", league.id),
+    prospectIds.length
+      ? supabase.from("rec_immortality_ability_grants").select("prospect_id,slots").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_prospect_abilities").select("prospect_id,ability_id,ability_name,kind").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const xpByProspect = new Map<string, { playerXp: number; teamXp: number }>();
   for (const id of prospectIds) {
@@ -208,10 +382,42 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     xpByProspect.set(id, ledgerXpBalance(rows));
   }
   const chapterState = league.chapter_state as ImmortalityState;
-  const [poolMembers, linkedAssignments] = await Promise.all([
+  const [poolMembers, linkedAssignments, storedGrades] = await Promise.all([
     supabase.from("rec_league_memberships").select("user_id,role").eq("league_id", context.leagueId).eq("status", "active"),
     supabase.from("rec_team_assignments").select("user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
+    supabase.from("rec_immortality_draft_grades").select("*").eq("immortality_league_id", league.id),
   ]);
+  const nameByProspect = new Map<string, { firstName: string; lastName: string; position: string }>((classProspects.data ?? []).map((row) => [String(row.id), {
+    firstName: row.first_name ? String(row.first_name) : "",
+    lastName: row.last_name ? String(row.last_name) : "",
+    position: String(row.position ?? ""),
+  }]));
+  const publicGrades = (storedGrades.data ?? []).map((row) => {
+    const name = nameByProspect.get(String(row.prospect_id));
+    return {
+      prospectId: String(row.prospect_id),
+      userId: String(row.user_id),
+      side: String(row.side),
+      firstName: name?.firstName ?? "",
+      lastName: name?.lastName ?? "",
+      position: name?.position ?? "",
+      classRank: Number(row.class_rank),
+      classSize: Number(row.class_size),
+      projectedRound: Number(row.projected_round),
+      preferredMin: Number(row.preferred_min),
+      preferredMax: Number(row.preferred_max),
+      gradeLabel: String(row.grade_label),
+      stock: String(row.stock),
+      draftValue: Number(row.draft_value),
+      ready: Boolean(row.ready),
+      mine: String(row.user_id) === userId,
+    };
+  }).sort((a, b) => a.projectedRound - b.projectedRound || a.classRank - b.classRank);
+  const readyUserIds = completePairUserIds(publicGrades.map((row) => ({
+    userId: row.userId,
+    side: row.side as "offense" | "defense",
+    ready: row.ready,
+  })));
   return {
     league: {
       id: league.id,
@@ -230,12 +436,74 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       registeredCount: (poolMembers.data ?? []).length,
       linkedCount: (linkedAssignments.data ?? []).length,
     },
+    draftBoard: {
+      frozen: board.frozen === true,
+      readyPairCount: readyUserIds.length,
+      poolCount: (poolMembers.data ?? []).length,
+      offense: publicGrades.filter((row) => row.side === "offense"),
+      defense: publicGrades.filter((row) => row.side === "defense"),
+      mine: {
+        offense: publicGrades.find((row) => row.mine && row.side === "offense") ?? null,
+        defense: publicGrades.find((row) => row.mine && row.side === "defense") ?? null,
+      },
+    },
     prospects: prospects.data ?? [],
     builds: builds.data ?? [],
     xp: Object.fromEntries(prospectIds.map((id) => [id, xpByProspect.get(id) ?? { playerXp: 0, teamXp: 0 }])),
     traits: traits.data ?? [],
     hallNominees: hallNominees.data ?? [],
     draftStatus: draftClass.data?.status ?? null,
+    abilities: Object.fromEntries((prospects.data ?? []).map((row) => {
+      const id = String(row.id);
+      const position = row.position as ImmortalityPosition;
+      const build = (builds.data ?? []).find((item) => String(item.prospect_id) === id);
+      const attributes = (build?.final_attributes ?? {}) as Record<string, number>;
+      const earnedSlots = (abilityGrants.data ?? [])
+        .filter((grant) => String(grant.prospect_id) === id)
+        .reduce((sum, grant) => sum + Number(grant.slots ?? 0), 0);
+      const slots = cappedAbilitySlots(earnedSlots);
+      const equippedRows = (equippedAbilities.data ?? []).filter((item) => String(item.prospect_id) === id);
+      const equipped = equippedRows.map((item) => {
+        const ability = abilityById(String(item.ability_id));
+        const tier = ability ? resolveAbilityTier(ability, attributes) : "none";
+        return {
+          id: String(item.ability_id),
+          name: String(item.ability_name),
+          kind: String(item.kind),
+          tier,
+          primary: ability?.primary ?? null,
+          secondary: ability?.secondary ?? null,
+          floors: ability?.floors ?? null,
+          description: ability?.description ?? "",
+          meetsFloor: ability ? resolveAbilityTier(ability, attributes) !== "none" : false,
+        };
+      });
+      const eligible = rtiAbilitiesForPosition(position).map((ability) => {
+        const tier = resolveAbilityTier(ability, attributes);
+        const check = canSelectAbility({
+          ability,
+          position,
+          attributes,
+          earnedSlots,
+          equippedCount: equipped.length,
+          alreadyEquipped: equipped.some((row) => row.id === ability.id),
+        });
+        return {
+          id: ability.id,
+          name: ability.name,
+          description: ability.description,
+          kind: ability.kind,
+          primary: ability.primary,
+          secondary: ability.secondary,
+          floors: ability.floors,
+          confidence: ability.confidence,
+          tier,
+          selectable: check.ok,
+          blockedReason: check.ok ? null : check.error,
+        };
+      });
+      return [id, { earnedSlots, slots, maxEquipped: MAX_EQUIPPED_ABILITIES, equipped, eligible }];
+    })),
     catalogs: {
       characteristics: {
         offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map(({ key, displayName, positionGroup, slotCost, effect, tags }) => ({
@@ -307,6 +575,8 @@ export async function upsertProspectIdentity(input: {
     ? await supabase.from("rec_immortality_prospects").update(payload).eq("id", existing.id).select("*").single()
     : await supabase.from("rec_immortality_prospects").insert(payload).select("*").single();
   if (result.error) throw new ApiError(500, "Could not save prospect identity.", result.error);
+  await bumpOriginsStep(String(result.data.id), existing?.origins_step, "identity");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result.data;
 }
 
@@ -380,6 +650,14 @@ async function finishOrAdvance(attemptId: string, submittedQuestion: number) {
       play_recognition_result: scored.playRecognition,
     }).eq("id", attemptId).is("completed_at", null).select("*").maybeSingle();
     if (updated.error) throw new ApiError(500, "Could not complete IQ test.", updated.error);
+    const prospectId = updated.data?.prospect_id ? String(updated.data.prospect_id) : null;
+    if (prospectId) {
+      const prospect = await supabase.from("rec_immortality_prospects").select("id,immortality_league_id,origins_step").eq("id", prospectId).maybeSingle();
+      if (prospect.data) {
+        await bumpOriginsStep(String(prospect.data.id), prospect.data.origins_step, "iq");
+        await refreshImmortalityDraftBoard(String(prospect.data.immortality_league_id));
+      }
+    }
     return;
   }
   await supabase.from("rec_immortality_iq_attempts").update({
@@ -484,6 +762,8 @@ export async function submitPersona(input: {
     formula_version: result.formulaVersion,
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save persona results.", saved.error);
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "persona");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result;
 }
 
@@ -511,6 +791,8 @@ export async function submitPlaystyle(input: {
     formula_version: result.formulaVersion,
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save playstyle results.", saved.error);
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "playstyle");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result;
 }
 
@@ -540,6 +822,8 @@ export async function selectCharacteristics(input: {
     );
     if (inserted.error) throw new ApiError(500, "Could not save characteristics.", inserted.error);
   }
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "characteristics");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return { slotCost: validated.slotCost, selected: validated.selected, modifiers: combinedModifiers(validated.selected) };
 }
 
@@ -640,6 +924,9 @@ export async function evaluateCreationBuild(input: {
     updated_at: new Date().toISOString(),
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save creation build.", saved.error);
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "creation");
+  const board = await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  const grade = board.grades.find((row) => row.prospectId === String(prospect.id));
   return {
     remaining: spent.remaining,
     spentPoints: spent.spentPoints,
@@ -647,6 +934,13 @@ export async function evaluateCreationBuild(input: {
     estimatedOvr: ovr,
     startingDev: startingDevTrait(modifiers),
     build: saved.data,
+    draftGrade: grade ? {
+      gradeLabel: grade.gradeLabel,
+      classRank: grade.classRank,
+      classSize: grade.classSize,
+      projectedRound: grade.projectedRound,
+      stock: grade.stock,
+    } : null,
   };
 }
 
@@ -672,7 +966,101 @@ export async function creditXpEvent(input: {
     if (inserted.error.code === "23505") return { duplicate: true };
     throw new ApiError(500, "Could not record XP.", inserted.error);
   }
-  return { duplicate: false, row: inserted.data };
+  const granted = await maybeGrantAbilitySlot(input.prospectId, input.eventType, input.sourceId);
+  return { duplicate: false, row: inserted.data, abilityGrant: granted };
+}
+
+async function maybeGrantAbilitySlot(prospectId: string, eventType: string, sourceId: string) {
+  const slots = abilityGrantSlotsForEvent(eventType);
+  if (slots <= 0) return { granted: false, slots: 0 };
+  const inserted = await supabase.from("rec_immortality_ability_grants").insert({
+    prospect_id: prospectId,
+    event_type: eventType,
+    source_id: sourceId,
+    slots,
+  }).select("*").maybeSingle();
+  if (inserted.error) {
+    if (inserted.error.code === "23505") return { granted: false, duplicate: true, slots: 0 };
+    throw new ApiError(500, "Could not record the ability grant.", inserted.error);
+  }
+  return { granted: true, slots, row: inserted.data };
+}
+
+async function syncProspectAbilitiesToPlayer(prospect: { id: string; player_id?: string | null }) {
+  if (!prospect.player_id) return;
+  const equipped = await supabase.from("rec_immortality_prospect_abilities").select("ability_id,ability_name,kind").eq("prospect_id", prospect.id);
+  const payload = (equipped.data ?? []).map((row) => {
+    const ability = abilityById(String(row.ability_id));
+    return {
+      name: String(row.ability_name),
+      description: ability?.description ?? "",
+      type: String(row.kind),
+    };
+  });
+  await supabase.from("rec_players").update({
+    abilities: payload,
+    updated_at: new Date().toISOString(),
+  }).eq("id", prospect.player_id);
+}
+
+export async function selectImmortalityAbility(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  abilityId: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Prospect not found.");
+  const ability = abilityById(input.abilityId);
+  if (!ability) throw new ApiError(404, "Unknown Madden 27 ability.");
+  const [build, grants, equipped] = await Promise.all([
+    supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_ability_grants").select("slots").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_prospect_abilities").select("ability_id").eq("prospect_id", prospect.id),
+  ]);
+  const attributes = (build.data?.final_attributes ?? {}) as Record<string, number>;
+  const earnedSlots = (grants.data ?? []).reduce((sum, row) => sum + Number(row.slots ?? 0), 0);
+  const check = canSelectAbility({
+    ability,
+    position: prospect.position as ImmortalityPosition,
+    attributes,
+    earnedSlots,
+    equippedCount: (equipped.data ?? []).length,
+    alreadyEquipped: (equipped.data ?? []).some((row) => String(row.ability_id) === ability.id),
+  });
+  if (!check.ok) throw new ApiError(400, check.error);
+  const saved = await supabase.from("rec_immortality_prospect_abilities").insert({
+    prospect_id: prospect.id,
+    ability_id: ability.id,
+    ability_name: ability.name,
+    kind: ability.kind,
+  }).select("*").single();
+  if (saved.error) throw new ApiError(500, "Could not equip that ability.", saved.error);
+  await syncProspectAbilitiesToPlayer(prospect);
+  return { equipped: saved.data, tier: check.tier };
+}
+
+export async function removeImmortalityAbility(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  abilityId: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Prospect not found.");
+  const removed = await supabase.from("rec_immortality_prospect_abilities")
+    .delete()
+    .eq("prospect_id", prospect.id)
+    .eq("ability_id", input.abilityId);
+  if (removed.error) throw new ApiError(500, "Could not remove that ability.", removed.error);
+  await syncProspectAbilitiesToPlayer(prospect);
+  return { ok: true };
 }
 
 export async function convertXp(input: { guildId: string; discordId: string; side: "offense" | "defense"; playerXp: number }) {
@@ -836,22 +1224,40 @@ export async function solveRookieDraft(guildId: string, discordId: string) {
     throw new ApiError(400, "The rookie draft cannot be solved yet.");
   }
   const userId = await recUserIdFromDiscordId(discordId);
-  const prospects = await supabase.from("rec_immortality_prospects").select("id,user_id,side").eq("immortality_league_id", league.id);
-  const builds = await supabase.from("rec_immortality_creation_builds").select("prospect_id,draft_value,projected_round,estimated_ovr");
-  const teams = await supabase.from("rec_teams").select("id").eq("league_id", context.leagueId);
-  const users = [...new Set((prospects.data ?? []).map((row) => String(row.user_id)))];
-  const franchises = (teams.data ?? []).slice(0, users.length).map((team, index) => ({ teamId: String(team.id), pickOrder: index + 1 }));
-  const draftProspects = (prospects.data ?? []).map((row) => {
-    const build = (builds.data ?? []).find((item) => item.prospect_id === row.id);
-    return {
+  const board = await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  const grades = await supabase.from("rec_immortality_draft_grades").select("*").eq("immortality_league_id", league.id);
+  const readyUserIds = completePairUserIds((grades.data ?? []).map((row) => ({
+    userId: String(row.user_id),
+    side: row.side as "offense" | "defense",
+    ready: Boolean(row.ready),
+  })));
+  if (!readyUserIds.length) {
+    throw new ApiError(400, "No one has finished both Origins players yet. The virtual draft needs complete offense + defense pairs.");
+  }
+  await ensureDraftOrders(league.id, context.leagueId);
+  const orders = await supabase.from("rec_immortality_draft_orders").select("team_id,pick_order").eq("immortality_league_id", league.id).order("pick_order", { ascending: true });
+  if (orders.error) throw new ApiError(500, "Could not load franchise pick order.", orders.error);
+  const participating = (orders.data ?? []).slice(0, readyUserIds.length);
+  await supabase.from("rec_immortality_draft_orders").update({ participating: false }).eq("immortality_league_id", league.id);
+  if (participating.length) {
+    await supabase.from("rec_immortality_draft_orders").update({ participating: true })
+      .eq("immortality_league_id", league.id)
+      .in("team_id", participating.map((row) => String(row.team_id)));
+  }
+  const franchises = participating.map((row) => ({ teamId: String(row.team_id), pickOrder: Number(row.pick_order) }));
+  const readySet = new Set(readyUserIds);
+  const draftProspects = (grades.data ?? [])
+    .filter((row) => readySet.has(String(row.user_id)))
+    .map((row) => ({
       userId: String(row.user_id),
-      prospectId: String(row.id),
+      prospectId: String(row.prospect_id),
       side: row.side as "offense" | "defense",
-      draftValue: Number(build?.draft_value ?? 50),
-      projectedRound: Number(build?.projected_round ?? 4),
-    };
-  });
+      draftValue: Number(row.draft_value ?? 50),
+      projectedRound: Number(row.projected_round ?? 4),
+    }));
   const assigned = assignProspectPairs({ prospects: draftProspects, franchises });
+  const poolCount = new Set((grades.data ?? []).map((row) => String(row.user_id))).size;
+  const skipped = poolCount - readyUserIds.length;
   const draftClass = await supabase.from("rec_immortality_draft_classes").upsert({
     immortality_league_id: league.id,
     status: "solved",
@@ -925,9 +1331,16 @@ export async function solveRookieDraft(guildId: string, discordId: string) {
     immortality_league_id: league.id,
     actor_user_id: userId,
     event_type: "draft_solved",
-    payload: { users: users.length, franchises: franchises.length, linked: linked.length, linkFailures: linkFailures.length },
+    payload: {
+      users: readyUserIds.length,
+      skipped,
+      franchises: franchises.length,
+      linked: linked.length,
+      linkFailures: linkFailures.length,
+      frozenGrades: (board.grades as unknown[]).length,
+    },
   });
-  return { assignments: assigned, linked, linkFailures };
+  return { assignments: assigned, linked, linkFailures, readyPairCount: readyUserIds.length, skippedIncompletePairs: skipped };
 }
 
 export async function castHallVote(input: {

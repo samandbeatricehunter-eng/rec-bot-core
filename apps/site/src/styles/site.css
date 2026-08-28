@@ -4213,3 +4213,22 @@ h1, h2, h3, .site-wordmark {
 .rise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
 .rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
+.rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.rise-grade-card { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }
+.rise-grade-mark { font-size: 2rem; font-weight: 700; line-height: 1; }
+.rise-stock { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: middle; }
+.rise-stock-rising { background: #1e4d32; color: #8dffb0; }
+.rise-stock-sliding { background: #4d1e1e; color: #ffb0b0; }
+.rise-stock-holding { background: #3d3a1e; color: #ffe08d; }
+.rise-stock-new { background: #1e334d; color: #9dc7ff; }
+.rise-board-wrap { overflow-x: auto; }
+.rise-board { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rise-board th, .rise-board td { text-align: left; padding: 8px 10px; border-bottom: var(--card-border); white-space: nowrap; }
+.rise-board tr.is-mine { background: color-mix(in srgb, var(--gold, #d4a843) 12%, transparent); }
+.rise-ready { color: var(--muted, #9aa3b2); font-size: 12px; }
+.rise-ability-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.rise-ability-item { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }
+.rise-ability-locked { max-height: 280px; overflow: auto; }
+@media (max-width: 720px) {
+  .rise-stock-row { grid-template-columns: 1fr; }
+}

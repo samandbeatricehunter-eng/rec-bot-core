@@ -18,6 +18,8 @@ import {
   spendPlayerXp,
   transitionImmortalityState,
   upsertProspectIdentity,
+  selectImmortalityAbility,
+  removeImmortalityAbility,
 } from "./immortality.service.js";
 import { IMMORTALITY_STATES } from "@rec/shared";
 
@@ -136,6 +138,24 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Player XP upgrades are website-only.");
       return reply.send(await spendPlayerXp({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/abilities/select", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ abilityId: z.string().trim().min(1).max(20) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Ability selection is website-only.");
+      return reply.send(await selectImmortalityAbility({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/abilities/remove", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ abilityId: z.string().trim().min(1).max(20) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Ability selection is website-only.");
+      return reply.send(await removeImmortalityAbility({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

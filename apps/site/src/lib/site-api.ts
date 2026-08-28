@@ -375,6 +375,48 @@ export type ImmortalityCharacteristic = {
   tags: string[];
 };
 
+export type ImmortalityDraftGrade = {
+  prospectId: string;
+  userId: string;
+  side: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+  classRank: number;
+  classSize: number;
+  projectedRound: number;
+  preferredMin: number;
+  preferredMax: number;
+  gradeLabel: string;
+  stock: string;
+  draftValue: number;
+  ready: boolean;
+  mine: boolean;
+};
+
+export type ImmortalityAbilityCard = {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  primary?: string | null;
+  secondary?: string | null;
+  floors?: { bronze: number; silver: number; gold: number } | null;
+  confidence?: string;
+  tier: string;
+  selectable?: boolean;
+  blockedReason?: string | null;
+  meetsFloor?: boolean;
+};
+
+export type ImmortalityAbilityState = {
+  earnedSlots: number;
+  slots: number;
+  maxEquipped: number;
+  equipped: ImmortalityAbilityCard[];
+  eligible: ImmortalityAbilityCard[];
+};
+
 export type ImmortalityHubResponse = {
   league: {
     id: string;
@@ -394,6 +436,15 @@ export type ImmortalityHubResponse = {
   xp?: Record<string, { playerXp: number; teamXp: number }>;
   pool?: { registeredCount: number; linkedCount: number };
   draftStatus?: string | null;
+  draftBoard?: {
+    frozen: boolean;
+    readyPairCount: number;
+    poolCount: number;
+    offense: ImmortalityDraftGrade[];
+    defense: ImmortalityDraftGrade[];
+    mine: { offense: ImmortalityDraftGrade | null; defense: ImmortalityDraftGrade | null };
+  };
+  abilities?: Record<string, ImmortalityAbilityState>;
   catalogs: {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
     persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
@@ -1084,16 +1135,35 @@ export const siteApi = {
     return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);
   },
   immortalityEvaluateCreation(input: { guildId: string; side: "offense" | "defense"; spent: Record<string, number> }) {
-    return request<{ estimatedOvr?: number; estimated_ovr?: number; creationPointsSpent?: number; creation_points_spent?: number; spentPoints?: number }>("/v1/immortality/creation/evaluate", input);
+    return request<{
+      estimatedOvr?: number;
+      estimated_ovr?: number;
+      creationPointsSpent?: number;
+      creation_points_spent?: number;
+      spentPoints?: number;
+      draftGrade?: { gradeLabel?: string; classRank?: number; classSize?: number; projectedRound?: number; stock?: string } | null;
+    }>("/v1/immortality/creation/evaluate", input);
   },
   immortalityTransitionState(input: { guildId: string; toState: string }) {
     return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);
   },
   immortalitySolveDraft(guildId: string) {
-    return request<{ assignments?: unknown[]; linked?: unknown[]; linkFailures?: unknown[] }>("/v1/immortality/draft/solve", { guildId });
+    return request<{
+      assignments?: unknown[];
+      linked?: unknown[];
+      linkFailures?: unknown[];
+      readyPairCount?: number;
+      skippedIncompletePairs?: number;
+    }>("/v1/immortality/draft/solve", { guildId });
   },
   immortalitySpendXp(input: { guildId: string; side: "offense" | "defense"; attributeCode: string }) {
     return request<{ attributeCode: string; nextValue: number; cost: number; estimatedOvr: number; playerXp: number }>("/v1/immortality/xp/spend", input);
+  },
+  immortalitySelectAbility(input: { guildId: string; side: "offense" | "defense"; abilityId: string }) {
+    return request<{ equipped?: unknown; tier?: string }>("/v1/immortality/abilities/select", input);
+  },
+  immortalityRemoveAbility(input: { guildId: string; side: "offense" | "defense"; abilityId: string }) {
+    return request<{ ok: boolean }>("/v1/immortality/abilities/remove", input);
   },
   async uploadLeagueLogo(leagueId: string, file: File) {
     const base = requireApiBaseUrl();

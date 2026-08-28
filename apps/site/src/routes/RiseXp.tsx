@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
-import { siteApi, type ImmortalityHubResponse } from "../lib/site-api.js";
+import { siteApi, type ImmortalityAbilityCard, type ImmortalityAbilityState, type ImmortalityHubResponse } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
 
@@ -70,6 +70,8 @@ export function RiseXpPage() {
         <h1>Player XP</h1>
         <p className="site-muted">
           Store purchases stay off. Spend Player XP to raise one rating at a time on your {position ?? "cornerstone"}.
+          Madden 27 abilities are a performance bonus — Gold weeks, season milestones, and awards grant slots.
+          The ability only applies in-game once the rating floor is met (Bronze/Silver/Gold).
         </p>
       </header>
 
@@ -123,6 +125,112 @@ export function RiseXpPage() {
           </>
         )}
       </section>
+
+      {prospectId ? (
+        <AbilityPanel
+          guildId={guildId}
+          side={side}
+          state={hub?.abilities?.[prospectId] ?? null}
+          attributes={attributes}
+          setError={setError}
+          onSaved={reload}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function AbilityPanel({
+  guildId, side, state, attributes, setError, onSaved,
+}: {
+  guildId: string;
+  side: Side;
+  state: ImmortalityAbilityState | null;
+  attributes: Record<string, number>;
+  setError: (value: string | null) => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const earned = state?.earnedSlots ?? 0;
+  const slots = state?.slots ?? 0;
+  const equipped = state?.equipped ?? [];
+  const eligible = state?.eligible ?? [];
+  const ready = eligible.filter((row) => row.selectable);
+  const locked = eligible.filter((row) => !row.selectable && !equipped.some((item) => item.id === row.id));
+
+  async function select(row: ImmortalityAbilityCard) {
+    setBusy(row.id); setError(null);
+    try {
+      await siteApi.immortalitySelectAbility({ guildId, side, abilityId: row.id });
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not equip that ability.");
+    } finally { setBusy(null); }
+  }
+
+  async function remove(row: ImmortalityAbilityCard) {
+    setBusy(row.id); setError(null);
+    try {
+      await siteApi.immortalityRemoveAbility({ guildId, side, abilityId: row.id });
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove that ability.");
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <section className="rise-card">
+      <h2>Abilities</h2>
+      <p className="site-muted">
+        {slots} of {state?.maxEquipped ?? 4} slots unlocked from performance ({earned} grant{earned === 1 ? "" : "s"}).
+        X-Factors need 3 grants. Bronze/Silver/Gold in Madden tracks {ready[0]?.primary ? "the listed rating floors" : "the primary rating"} — XP the attribute before the ability will apply in-game.
+      </p>
+      <h3>Equipped</h3>
+      {!equipped.length ? <p className="site-muted">None yet. Earn a Gold weekly challenge, season milestone, or award.</p> : (
+        <ul className="rise-ability-list">
+          {equipped.map((row) => (
+            <li key={row.id} className="rise-ability-item">
+              <div>
+                <strong>{row.name}</strong> <span className={`rise-stock rise-stock-${row.kind === "xfactor" ? "rising" : "holding"}`}>{row.kind}</span>
+                <span className={`rise-stock rise-stock-${row.tier === "gold" ? "rising" : row.tier === "none" ? "sliding" : "new"}`}>{row.tier}</span>
+                <p className="site-muted">{row.description}</p>
+                {row.floors && row.primary ? (
+                  <p className="site-muted">{row.primary} {attributes[row.primary] ?? "—"} · Bronze {row.floors.bronze} / Silver {row.floors.silver} / Gold {row.floors.gold}</p>
+                ) : null}
+              </div>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy === row.id} onClick={() => void remove(row)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Ready to equip</h3>
+      {!ready.length ? <p className="site-muted">No abilities currently meet both a free slot and the Madden rating floor.</p> : (
+        <ul className="rise-ability-list">
+          {ready.map((row) => (
+            <li key={row.id} className="rise-ability-item">
+              <div>
+                <strong>{row.name}</strong> <span className="rise-stock rise-stock-new">{row.tier}</span>
+                <p className="site-muted">{row.description}</p>
+                {row.floors && row.primary ? (
+                  <p className="site-muted">{row.primary} {attributes[row.primary] ?? "—"} / {row.floors.bronze}+ bronze</p>
+                ) : null}
+              </div>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy === row.id} onClick={() => void select(row)}>Equip</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Locked</h3>
+      <ul className="rise-ability-list rise-ability-locked">
+        {locked.slice(0, 12).map((row) => (
+          <li key={row.id} className="rise-ability-item">
+            <div>
+              <strong>{row.name}</strong>
+              <p className="site-muted">{row.blockedReason ?? "Not available yet."}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

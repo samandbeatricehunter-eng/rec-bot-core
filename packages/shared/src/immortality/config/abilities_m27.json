@@ -1,0 +1,3923 @@
+{
+  "_meta": {
+    "version": "immortality-abilities-m27-v1",
+    "game": "madden_27",
+    "officialNumericFloorsPublished": false,
+    "sources": [
+      "EA Madden NFL 27 ratings catalog (apps/api/scripts/data/madden27/madden27_ea_abilities_catalog.json)",
+      "EA Madden NFL 27 launch roster (madden27_ea_players.csv, 2362 players)",
+      "EA Gameplay Deep Dive: Madden abilities are Bronze/Silver/Gold and stack; Bronze is elite, not a starter tier",
+      "EA Franchise Deep Dive: Franchise tiers upgrade from relevant ratings as the player progresses",
+      "CFB 26 Dynasty Deep Dive analog: physical ability tiers require attribute floors (e.g. Platinum Shifty 97 COD + 96 ACC). Madden 27 uses three tiers instead of five",
+      "Madden Tools / Madden School Madden 26 franchise gates (archetype + OVR 70/80/85/90) \u2014 legacy, not M27. Madden Tools still labels its pages as Madden 26 as of 2026-08-28",
+      "MUT.GG MUT 26 discounted-bucket example (Short Route KO 94 MCV, Medium Route KO 96 MCV) \u2014 Ultimate Team only, not Franchise",
+      "abilities.clutchtrait.com Madden 27 datamine: confirms Bronze/Silver/Gold effect stacking; does not publish rating floors"
+    ],
+    "tierModel": {
+      "bronze": "Elite entry. Default 88 primary, or launch-roster observed min (clamped 82-90) when n>=3.",
+      "silver": "bronze + 5, cap 95",
+      "gold": "at least 96; X-Factors require Gold"
+    },
+    "grantModel": {
+      "maxEquipped": 4,
+      "events": {
+        "weekly_gold": 1,
+        "season_tier1": 1,
+        "season_tier3": 1,
+        "career_minor": 1,
+        "career_major": 1,
+        "career_historic": 1,
+        "award": 1,
+        "championship": 1
+      }
+    }
+  },
+  "abilities": [
+    {
+      "id": "168",
+      "name": "Ironman",
+      "description": "Players with this ability avoid any ratings penalties associated with playing outside of their primary position",
+      "kind": "superstar",
+      "primary": "AWR",
+      "secondary": "STA",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 83,
+        "ovrMedian": 83,
+        "primaryMin": 74,
+        "primaryMedian": 74,
+        "secondaryMin": 99
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "166",
+      "name": "Run Protector",
+      "description": "Blockers with this ability reduce a rusher's chances of using most quick run block shed moves.",
+      "kind": "superstar",
+      "primary": "RBK",
+      "secondary": "IBL",
+      "floors": {
+        "bronze": 84,
+        "silver": 89,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 88,
+        "ovrMedian": 93,
+        "primaryMin": 84,
+        "primaryMedian": 96,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 3
+        },
+        {
+          "position": "RG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "165",
+      "name": "Pass Protector",
+      "description": "Blockers with this ability reduce a rusher's chances of using most quick pass block shed moves.",
+      "kind": "superstar",
+      "primary": "PBK",
+      "secondary": "PBF",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 93,
+        "ovrMedian": 95,
+        "primaryMin": 94,
+        "primaryMedian": 94,
+        "secondaryMin": 93
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 2
+        },
+        {
+          "position": "LG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "161",
+      "name": "Steamroller",
+      "description": "Ballcarriers with this ability retain more of their forward momentum during tackles while travelling at high speeds.",
+      "kind": "superstar",
+      "primary": "TRK",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 91,
+        "ovrMedian": 92,
+        "primaryMin": 90,
+        "primaryMedian": 90,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_37",
+      "name": "Phenom",
+      "description": "Some athletes defy classification as much as they defy boundaries. When they enter the zone, they are highly likely to win the first interaction they have with a defender.",
+      "kind": "xfactor",
+      "primary": "COD",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 92,
+        "ovrMedian": 92,
+        "primaryMin": 92,
+        "primaryMedian": 92,
+        "secondaryMin": 95
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "066",
+      "name": "Edge Protector",
+      "description": "Blockers with this ability reduce an edge pass rusher's chances of using a quick block shed move.",
+      "kind": "superstar",
+      "primary": "PBK",
+      "secondary": "PBF",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 86,
+        "ovrMedian": 90,
+        "primaryMin": 87,
+        "primaryMedian": 90,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_40",
+      "name": "Dual Threat",
+      "description": "The most devastating defensive players often excel via versatility. When they enter the zone, they have an increased chance of defeating pass blocks, and knocking catches loose.",
+      "kind": "xfactor",
+      "primary": "FMV",
+      "secondary": "BSH",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 98,
+        "ovrMedian": 98,
+        "primaryMin": 97,
+        "primaryMedian": 97,
+        "secondaryMin": 80
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_35",
+      "name": "Bottleneck",
+      "description": "Bottleneck defenders realize that the best way to stop a route is to act early. When they enter the zone, they are highly likely to dominantly win any man press encounter.",
+      "kind": "xfactor",
+      "primary": "PRS",
+      "secondary": "MCV",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 98,
+        "primaryMedian": 98,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "FS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_33",
+      "name": "Ankle Breaker",
+      "description": "Truly devastating receiving threats are the ones that catch and can't be caught. When they enter the zone, they have increased fakeout rates on spin/juke/hurdle after the catch.",
+      "kind": "xfactor",
+      "primary": "JKM",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 90,
+        "ovrMedian": 94,
+        "primaryMin": 79,
+        "primaryMedian": 85,
+        "secondaryMin": 81
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 1
+        },
+        {
+          "position": "WR",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB",
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_32",
+      "name": "YAC 'Em Up",
+      "description": "The best physical receivers don't just come down with the ball, they carry it home. When they enter the zone, they are nearly guaranteed to break their first post-catch tackle.",
+      "kind": "xfactor",
+      "primary": "BTK",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 93,
+        "ovrMedian": 96,
+        "primaryMin": 78,
+        "primaryMedian": 80,
+        "secondaryMin": 76
+      },
+      "launchPositions": [
+        {
+          "position": "TE",
+          "count": 2
+        },
+        {
+          "position": "WR",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "TE",
+        "WR",
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_28",
+      "name": "Universal Coverage",
+      "description": "The most physical coverage defenders prevent catches from happening even when their target has hands on the ball. When they enter the zone, they are nearly guaranteed knockouts.",
+      "kind": "xfactor",
+      "primary": "MCV",
+      "secondary": "ZCV",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 97,
+        "ovrMedian": 98,
+        "primaryMin": 77,
+        "primaryMedian": 88,
+        "secondaryMin": 86
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 1
+        },
+        {
+          "position": "CB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE",
+        "CB",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_27",
+      "name": "Relentless",
+      "description": "The most tenacious defenders beat their blocks by sheer force of will. When they enter the zone, their rush move attempts are free.",
+      "kind": "xfactor",
+      "primary": "STA",
+      "secondary": "FMV",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 94,
+        "ovrMedian": 96,
+        "primaryMin": 87,
+        "primaryMedian": 92,
+        "secondaryMin": 96
+      },
+      "launchPositions": [
+        {
+          "position": "LEDG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_24",
+      "name": "Truzz",
+      "description": "The most effective ball carriers prioritize maintaining possession over all else. When they enter the zone, no tackles made against them will result in a fumble.",
+      "kind": "xfactor",
+      "primary": "CAR",
+      "secondary": "BTK",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 94,
+        "ovrMedian": 94,
+        "primaryMin": 70,
+        "primaryMedian": 70,
+        "secondaryMin": 82
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_23",
+      "name": "Momentum Shift",
+      "description": "Momentum Shift players demoralize their opponents. When they enter the zone, all on field opponents are knocked out of the zone or lose any progress towards entering the zone.",
+      "kind": "xfactor",
+      "primary": "POW",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 94,
+        "ovrMedian": 94,
+        "primaryMin": 86,
+        "primaryMedian": 86,
+        "secondaryMin": 95
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_21",
+      "name": "Brick Wall",
+      "description": "While in the pocket, passers with this ability are almost guaranteed to break the first sack attempt by any blitzing defender",
+      "kind": "xfactor",
+      "primary": "TRK",
+      "secondary": "TOU",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 54,
+        "primaryMedian": 54,
+        "secondaryMin": 93
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_19",
+      "name": "Freight Train",
+      "description": "Freight Trains are relentless runners who refuse to go down on first contact. When they enter the zone, this ability increases their chance to break the next tackle.",
+      "kind": "xfactor",
+      "primary": "TRK",
+      "secondary": "BTK",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 93,
+        "ovrMedian": 94,
+        "primaryMin": 88,
+        "primaryMedian": 90,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_18",
+      "name": "Reinforcement",
+      "description": "The game's top defenders excel in all situations. When they enter the zone, this ability increases their chance of defeating run blocks, and disrupting catches via tackles.",
+      "kind": "xfactor",
+      "primary": "POW",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 90,
+        "ovrMedian": 92,
+        "primaryMin": 88,
+        "primaryMedian": 90,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "SS",
+          "count": 2
+        },
+        {
+          "position": "MIKE",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "SS",
+        "MIKE",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_15",
+      "name": "Unstoppable Force",
+      "description": "Elite pass rushers are a mix of strength, speed, and tenacity. When they enter the zone, this ability increases their win rate and block shed speed against one-on-one pass blocks.",
+      "kind": "xfactor",
+      "primary": "FMV",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 90,
+        "silver": 94,
+        "gold": 97
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 89,
+        "ovrMedian": 93,
+        "primaryMin": 89,
+        "primaryMedian": 92,
+        "secondaryMin": 83
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 2
+        },
+        {
+          "position": "LEDG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_14",
+      "name": "First One Free",
+      "description": "Some players thrive on making defenders look silly. When they enter the zone, this ability increases their fakeout rate on the next juke, spin or hurdle.",
+      "kind": "xfactor",
+      "primary": "JKM",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 95,
+        "ovrMedian": 96,
+        "primaryMin": 96,
+        "primaryMedian": 96,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_11",
+      "name": "Run & Gun",
+      "description": "Many passers use a combination of mobility and aggressiveness to make big plays. When they enter the zone, they have elite accuracy while throwing on the run.",
+      "kind": "xfactor",
+      "primary": "RUN",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 82,
+        "ovrMedian": 91,
+        "primaryMin": 88,
+        "primaryMedian": 91,
+        "secondaryMin": 83
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_10",
+      "name": "Shutdown",
+      "description": "Shutdown defenders have the talent to erase receivers from the game. When they enter the zone, their coverage is tighter and interceptions are more frequent on contested catches.",
+      "kind": "xfactor",
+      "primary": "MCV",
+      "secondary": "ZCV",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 92,
+        "ovrMedian": 93,
+        "primaryMin": 80,
+        "primaryMedian": 85,
+        "secondaryMin": 88
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 2
+        },
+        {
+          "position": "FS",
+          "count": 2
+        },
+        {
+          "position": "SS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_07",
+      "name": "Double Me",
+      "description": "Aggressive receivers overpower defenders and attack the football. When they enter the zone, this ability increases their success rate on aggressive catches against single coverage.",
+      "kind": "xfactor",
+      "primary": "CTH",
+      "secondary": "SPC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 8,
+        "ovrMin": 91,
+        "ovrMedian": 94,
+        "primaryMin": 91,
+        "primaryMedian": 97,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "Z_06",
+      "name": "Bazooka",
+      "description": "Quarterbacks with generational arms have the power to stretch any defense to its breaking point. When they enter the zone, their maximum throw distance is increased",
+      "kind": "xfactor",
+      "primary": "THP",
+      "secondary": "DAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 93,
+        "ovrMedian": 96,
+        "primaryMin": 97,
+        "primaryMedian": 98,
+        "secondaryMin": 82
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_04",
+      "name": "Pro Reads",
+      "description": "For great quarterbacks, vision and anticipation are paramount. When they enter the zone, their first open receiver is highlighted and they ignore defensive pressure.",
+      "kind": "xfactor",
+      "primary": "AWR",
+      "secondary": "PAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 92,
+        "ovrMedian": 92,
+        "primaryMin": 93,
+        "primaryMedian": 93,
+        "secondaryMin": 83
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_03",
+      "name": "Dots",
+      "description": "Accurate passers know that ball placement is the difference between a touchdown and a turnover. When they enter the zone, all passes are thrown with elite accuracy and result in more completions",
+      "kind": "xfactor",
+      "primary": "SAC",
+      "secondary": "MAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 99,
+        "ovrMedian": 99,
+        "primaryMin": 99,
+        "primaryMedian": 99,
+        "secondaryMin": 97
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "Z_02",
+      "name": "Fearmonger",
+      "description": "Some pass rushers intimidate quarterbacks with their sheer presence. When they enter the zone, they can apply significant pressure on quarterbacks even while engaged with blockers.",
+      "kind": "xfactor",
+      "primary": "PMV",
+      "secondary": "BSH",
+      "floors": {
+        "bronze": 90,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 94,
+        "ovrMedian": 94,
+        "primaryMin": 87,
+        "primaryMedian": 88,
+        "secondaryMin": 94
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "160",
+      "name": "Deep Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 20+ yards from the LoS",
+      "kind": "superstar",
+      "primary": "DRR",
+      "secondary": "SPC",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 89,
+        "ovrMedian": 89,
+        "primaryMin": 84,
+        "primaryMedian": 84,
+        "secondaryMin": 98
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "148",
+      "name": "Interior Threat",
+      "description": "Defenders with this ability are slightly more likely to use faster, more dominant pass rush moves while rushing from the interior of the defense, and have more favorable disengage angles.",
+      "kind": "superstar",
+      "primary": "PMV",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 87,
+        "ovrMedian": 93,
+        "primaryMin": 86,
+        "primaryMedian": 86,
+        "secondaryMin": 94
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 5
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "147",
+      "name": "Linchpin",
+      "description": "Players with this ability grant improved blocking to the entire offensive line.",
+      "kind": "superstar",
+      "primary": "AWR",
+      "secondary": "PBK",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 95,
+        "ovrMedian": 95,
+        "primaryMin": 96,
+        "primaryMedian": 96,
+        "secondaryMin": 93
+      },
+      "launchPositions": [
+        {
+          "position": "C",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "146",
+      "name": "Zen Kicker",
+      "description": "Kickers with this ability experience a slower kicking meter for better power and accuracy on kicks over 45 yards.",
+      "kind": "superstar",
+      "primary": "KAC",
+      "secondary": "KPW",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 80,
+        "ovrMedian": 84,
+        "primaryMin": 92,
+        "primaryMedian": 94,
+        "secondaryMin": 99
+      },
+      "launchPositions": [
+        {
+          "position": "K",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "144",
+      "name": "3rd Down Threat",
+      "description": "On 3rd down, receivers with this ability have a better chance to win contested catches against single coverage up to 25 yards from the line of scrimmage.",
+      "kind": "superstar",
+      "primary": "CTH",
+      "secondary": "CIT",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 91,
+        "ovrMedian": 91,
+        "primaryMin": 90,
+        "primaryMedian": 90,
+        "secondaryMin": 86
+      },
+      "launchPositions": [
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "143",
+      "name": "High Point Deadeye",
+      "description": "Passers with this ability have elite accuracy on unpressured high point throws under 20 yards.",
+      "kind": "superstar",
+      "primary": "DAC",
+      "secondary": "THP",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 83,
+        "primaryMedian": 83,
+        "secondaryMin": 96
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "142",
+      "name": "Inside Shade",
+      "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage and inside the numbers",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 88,
+        "ovrMedian": 90,
+        "primaryMin": 87,
+        "primaryMedian": 89,
+        "secondaryMin": 88
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "141",
+      "name": "Outside Shade",
+      "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage and outside the numbers",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 97,
+        "ovrMedian": 97,
+        "primaryMin": 97,
+        "primaryMedian": 97,
+        "secondaryMin": 94
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "140",
+      "name": "Demoralizer",
+      "description": "Defenders with this ability will cause increased fatigue penalties when tackling a ballcarrier with a hit-stick tackle.",
+      "kind": "superstar",
+      "primary": "POW",
+      "secondary": "TAK",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 92,
+        "ovrMedian": 96,
+        "primaryMin": 84,
+        "primaryMedian": 85,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "137",
+      "name": "On The Ball",
+      "description": "Players with this ability are much less likely to be fooled by WR runoffs",
+      "kind": "superstar",
+      "primary": "CTH",
+      "secondary": "MCV",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 74,
+        "primaryMedian": 74,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "136",
+      "name": "Runoff Elite",
+      "description": "Players with this ability will distract defenders for longer with their runoffs",
+      "kind": "superstar",
+      "primary": "RLS",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 89,
+        "ovrMedian": 92,
+        "primaryMin": 86,
+        "primaryMedian": 89,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "134",
+      "name": "Recuperation",
+      "description": "Players with this ability will recover from the effects of Wear and Tear and fatigue at a slightly increased rate between plays.",
+      "kind": "superstar",
+      "primary": "STA",
+      "secondary": "INJ",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 83,
+        "ovrMedian": 90,
+        "primaryMin": 86,
+        "primaryMedian": 92,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "133",
+      "name": "Backlash",
+      "description": "Ballcarriers with this ability will cause increased fatigue penalties against their tackler when tackled via a non-conservative tackle.",
+      "kind": "superstar",
+      "primary": "BTK",
+      "secondary": "TRK",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 93,
+        "ovrMedian": 93,
+        "primaryMin": 92,
+        "primaryMedian": 92,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "132",
+      "name": "Deflator",
+      "description": "Defenders with this ability will cause increased fatigue penalties when tackling a ballcarrier with a non-conservative tackle.",
+      "kind": "superstar",
+      "primary": "TAK",
+      "secondary": "POW",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 87,
+        "ovrMedian": 90,
+        "primaryMin": 88,
+        "primaryMedian": 92,
+        "secondaryMin": 80
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "129",
+      "name": "Fearless",
+      "description": "Passers with this ability have a reduced chance to be impacted by throw penalties caused by defensive pressure while on the run",
+      "kind": "superstar",
+      "primary": "TUP",
+      "secondary": "TOU",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 7,
+        "ovrMin": 80,
+        "ovrMedian": 90,
+        "primaryMin": 82,
+        "primaryMedian": 91,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 7
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "126",
+      "name": "Reach For It",
+      "description": "Ballcarriers with this ability will have a slightly reduced fumble chance while reaching for extra yards during tackles",
+      "kind": "superstar",
+      "primary": "CTH",
+      "secondary": "BTK",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 89,
+        "ovrMedian": 90,
+        "primaryMin": 67,
+        "primaryMedian": 70,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "123",
+      "name": "One Step Ahead",
+      "description": "Defenders with this ability have a slightly increased chance to react much faster to receiver cut moves when in man coverage",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 90,
+        "ovrMedian": 94,
+        "primaryMin": 87,
+        "primaryMedian": 92,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        },
+        {
+          "position": "FS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "122",
+      "name": "Outmatched",
+      "description": "Defenders with this ability have a slightly improved chance to force catch knockouts against running backs",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 90,
+        "ovrMedian": 92,
+        "primaryMin": 70,
+        "primaryMedian": 76,
+        "secondaryMin": 72
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 3
+        },
+        {
+          "position": "SS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE",
+        "SS",
+        "CB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "120",
+      "name": "Adrenaline Rush",
+      "description": "Pass rushers with this ability will heal some of their fatigue after sacking the QB",
+      "kind": "superstar",
+      "primary": "ACC",
+      "secondary": "FMV",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 89,
+        "ovrMedian": 89,
+        "primaryMin": 90,
+        "primaryMedian": 90,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "119",
+      "name": "Energizer",
+      "description": "Ballcarriers with this ability will replenish a small portion of their stamina upon successfully performing any skill move",
+      "kind": "superstar",
+      "primary": "STA",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 92,
+        "ovrMedian": 94,
+        "primaryMin": 94,
+        "primaryMedian": 94,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "118",
+      "name": "El Toro",
+      "description": "Defenders with this ability have a slightly improved chance to receive dominant bull rush wins when their stamina is full. This consumes a large amount of additional stamina.",
+      "kind": "superstar",
+      "primary": "PMV",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 9,
+        "ovrMin": 87,
+        "ovrMedian": 94,
+        "primaryMin": 78,
+        "primaryMedian": 88,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 8
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "117",
+      "name": "Max Effort",
+      "description": "Defenders with this ability will ignore one bar of blocker resistance when attempting pass rush moves with effort",
+      "kind": "superstar",
+      "primary": "STA",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 88,
+        "ovrMedian": 89,
+        "primaryMin": 86,
+        "primaryMedian": 89,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 3
+        },
+        {
+          "position": "LEDG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "115",
+      "name": "Medium Route KO",
+      "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus medium routes 10-20 yards from the LoS",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 87,
+        "ovrMedian": 87,
+        "primaryMin": 87,
+        "primaryMedian": 87,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "114",
+      "name": "Swim Club",
+      "description": "Defenders with this ability will ignore one bar of blocker resistance when attempting swim/club pass rush moves",
+      "kind": "superstar",
+      "primary": "FMV",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 94,
+        "ovrMedian": 96,
+        "primaryMin": 68,
+        "primaryMedian": 74,
+        "secondaryMin": 75
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 2
+        },
+        {
+          "position": "LEDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "113",
+      "name": "Mr. Big Stop",
+      "description": "Defenders with this ability will start 3rd or 4th down with slightly increased fatigue replenishment",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "TAK",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 89,
+        "ovrMedian": 89,
+        "primaryMin": 81,
+        "primaryMedian": 81,
+        "secondaryMin": 82
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "112",
+      "name": "B.O.G.O.",
+      "description": "Defenders with this ability are granted a free pass rush move once per play after spending stamina to perform one",
+      "kind": "superstar",
+      "primary": "PMV",
+      "secondary": "FMV",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 88,
+        "ovrMedian": 89,
+        "primaryMin": 76,
+        "primaryMedian": 86,
+        "secondaryMin": 73
+      },
+      "launchPositions": [
+        {
+          "position": "LEDG",
+          "count": 2
+        },
+        {
+          "position": "DT",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "110",
+      "name": "Unpredictable",
+      "description": "Defenders with this ability are less likely to increase their blocker's resistance bars when performing shed wins",
+      "kind": "superstar",
+      "primary": "FMV",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 7,
+        "ovrMin": 79,
+        "ovrMedian": 92,
+        "primaryMin": 68,
+        "primaryMedian": 74,
+        "secondaryMin": 78
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 6
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "109",
+      "name": "Instant Rebate",
+      "description": "Defenders with this ability are refunded stamina when they successfully shed blocks",
+      "kind": "superstar",
+      "primary": "FMV",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 87,
+        "ovrMedian": 90,
+        "primaryMin": 80,
+        "primaryMedian": 88,
+        "secondaryMin": 77
+      },
+      "launchPositions": [
+        {
+          "position": "LEDG",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "107",
+      "name": "Lumberjack",
+      "description": "Defenders with this ability have a slightly increased success rate and cause more fumbles when cut-sticking ballcarriers.",
+      "kind": "superstar",
+      "primary": "POW",
+      "secondary": "TAK",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 93,
+        "ovrMedian": 93,
+        "primaryMin": 92,
+        "primaryMedian": 92,
+        "secondaryMin": 78
+      },
+      "launchPositions": [
+        {
+          "position": "SS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "106",
+      "name": "Out My Way",
+      "description": "Defenders with this ability will have a slightly increased chance to win impact blocks against receivers.",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "POW",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 90,
+        "ovrMedian": 92,
+        "primaryMin": 71,
+        "primaryMedian": 77,
+        "secondaryMin": 84
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        },
+        {
+          "position": "SS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "105",
+      "name": "Tank",
+      "description": "Ballcarriers with this ability have an increased chance to break hit-stick tackle attempts made on them.",
+      "kind": "superstar",
+      "primary": "TRK",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 84,
+        "ovrMedian": 93,
+        "primaryMin": 74,
+        "primaryMedian": 86,
+        "secondaryMin": 75
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 3
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "104",
+      "name": "No Outsiders",
+      "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping outside zone plays.",
+      "kind": "superstar",
+      "primary": "PUR",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 6,
+        "ovrMin": 86,
+        "ovrMedian": 92,
+        "primaryMin": 86,
+        "primaryMedian": 94,
+        "secondaryMin": 83
+      },
+      "launchPositions": [
+        {
+          "position": "LEDG",
+          "count": 4
+        },
+        {
+          "position": "REDG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "103",
+      "name": "Inside Stuff",
+      "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping inside run plays.",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 79,
+        "ovrMedian": 90,
+        "primaryMin": 79,
+        "primaryMedian": 89,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "102",
+      "name": "Goal Line Stuff",
+      "description": "Defenders with this ability have slightly improved run shed moves and disengage angles for a better chance at stopping runs within 5 yards of the goal line.",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 94,
+        "ovrMedian": 94,
+        "primaryMin": 87,
+        "primaryMedian": 87,
+        "secondaryMin": 96
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "101",
+      "name": "Puller Elite",
+      "description": "Blockers with this ability will frequently attempt slightly improved pull blocks vs. DBs",
+      "kind": "superstar",
+      "primary": "LBK",
+      "secondary": "AGI",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 94,
+        "ovrMedian": 94,
+        "primaryMin": 94,
+        "primaryMedian": 94,
+        "secondaryMin": 67
+      },
+      "launchPositions": [
+        {
+          "position": "LG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "100",
+      "name": "Nasty Streak",
+      "description": "Blockers with this ability will dominantly win impact blocks against linebackers and defensive backs when playing as a lineman or fullback.",
+      "kind": "superstar",
+      "primary": "RBK",
+      "secondary": "IBL",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 94,
+        "ovrMedian": 96,
+        "primaryMin": 85,
+        "primaryMedian": 96,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "LG",
+          "count": 2
+        },
+        {
+          "position": "RT",
+          "count": 1
+        },
+        {
+          "position": "LT",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "099",
+      "name": "All Day",
+      "description": "Blockers with this ability will allow less frequent shed attempts by their block target",
+      "kind": "superstar",
+      "primary": "PBK",
+      "secondary": "STA",
+      "floors": {
+        "bronze": 89,
+        "silver": 94,
+        "gold": 97
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 91,
+        "ovrMedian": 92,
+        "primaryMin": 89,
+        "primaryMedian": 92,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "097",
+      "name": "Threat Detector",
+      "description": "Players with this ability will highlight any user defenders.",
+      "kind": "superstar",
+      "primary": "AWR",
+      "secondary": "PBK",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 92,
+        "ovrMedian": 94,
+        "primaryMin": 85,
+        "primaryMedian": 94,
+        "secondaryMin": 88
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 3
+        },
+        {
+          "position": "RG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "096",
+      "name": "Extra Credit",
+      "description": "Pass rushers with this ability pay a slightly reduced stamina cost for each move they attempt",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 85,
+        "ovrMedian": 90,
+        "primaryMin": 81,
+        "primaryMedian": 86,
+        "secondaryMin": 77
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 1
+        },
+        {
+          "position": "LEDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "095",
+      "name": "Screen Protector",
+      "description": "Blockers with this ability will dominantly win impact blocks on screen plays",
+      "kind": "superstar",
+      "primary": "PBK",
+      "secondary": "AWR",
+      "floors": {
+        "bronze": 83,
+        "silver": 88,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 91,
+        "ovrMedian": 94,
+        "primaryMin": 83,
+        "primaryMedian": 90,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 2
+        },
+        {
+          "position": "RG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "092",
+      "name": "Evasive",
+      "description": "Ballcarriers with this ability have steerable juke and spin animations.",
+      "kind": "superstar",
+      "primary": "COD",
+      "secondary": "JKM",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 92,
+        "ovrMedian": 97,
+        "primaryMin": 92,
+        "primaryMedian": 92,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "091",
+      "name": "Gift-Wrapped",
+      "description": "Passers with this ability have a better chance to complete passes to uncovered halfbacks.",
+      "kind": "superstar",
+      "primary": "SAC",
+      "secondary": "AWR",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 86,
+        "ovrMedian": 90,
+        "primaryMin": 90,
+        "primaryMedian": 91,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "089",
+      "name": "Lurker",
+      "description": "Defenders with this ability can make spectacular interceptions while lurking in zones, and are more likely to attempt and succeed at diving swats/catches.",
+      "kind": "superstar",
+      "primary": "PRC",
+      "secondary": "ZCV",
+      "floors": {
+        "bronze": 89,
+        "silver": 94,
+        "gold": 97
+      },
+      "observed": {
+        "holders": 12,
+        "ovrMin": 87,
+        "ovrMedian": 92,
+        "primaryMin": 89,
+        "primaryMedian": 96,
+        "secondaryMin": 74
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 5
+        },
+        {
+          "position": "FS",
+          "count": 3
+        },
+        {
+          "position": "MIKE",
+          "count": 2
+        },
+        {
+          "position": "SS",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "FS",
+        "MIKE",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "087",
+      "name": "Secure Protector",
+      "description": "Blockers with this ability reduce a rusher's chances of using a quick block shed move.",
+      "kind": "superstar",
+      "primary": "PBK",
+      "secondary": "PBP",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 86,
+        "ovrMedian": 93,
+        "primaryMin": 87,
+        "primaryMedian": 94,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "084",
+      "name": "Deep Route KO",
+      "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus deep routes 20+ yards from the LoS",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 88,
+        "ovrMedian": 92,
+        "primaryMin": 87,
+        "primaryMedian": 92,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "083",
+      "name": "Acrobat",
+      "description": "Players with this ability are more likely to succeed at catching tipped passes",
+      "kind": "superstar",
+      "primary": "JMP",
+      "secondary": "SPC",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 6,
+        "ovrMin": 87,
+        "ovrMedian": 90,
+        "primaryMin": 88,
+        "primaryMedian": 96,
+        "secondaryMin": 93
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 6
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE",
+        "CB",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "082",
+      "name": "Juke Box",
+      "description": "Ballcarriers with this ability have steerable juke animations.",
+      "kind": "superstar",
+      "primary": "JKM",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 86,
+        "ovrMedian": 94,
+        "primaryMin": 91,
+        "primaryMedian": 94,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 3
+        },
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB",
+        "QB",
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "078",
+      "name": "Inside Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws inside the numbers (except on high throws).",
+      "kind": "superstar",
+      "primary": "MAC",
+      "secondary": "SAC",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 83,
+        "ovrMedian": 85,
+        "primaryMin": 86,
+        "primaryMedian": 90,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "077",
+      "name": "Human Joystick",
+      "description": "Ballcarriers with this ability can quickly shift momentum, change direction, and turn the corner without sacrificing speed.",
+      "kind": "superstar",
+      "primary": "COD",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 89,
+        "silver": 94,
+        "gold": 97
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 86,
+        "ovrMedian": 94,
+        "primaryMin": 89,
+        "primaryMedian": 92,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "073",
+      "name": "Matchup Nightmare",
+      "description": "Receivers with this ability make sharper cuts and frequently win contested catches when covered by linebackers and linemen.",
+      "kind": "superstar",
+      "primary": "CTH",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 88,
+        "ovrMedian": 89,
+        "primaryMin": 77,
+        "primaryMedian": 84,
+        "secondaryMin": 75
+      },
+      "launchPositions": [
+        {
+          "position": "FB",
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "072",
+      "name": "Backfield Mismatch",
+      "description": "Running backs with this ability have slightly improved catch in traffic and route running when coming out of the backfield against linebackers and linemen.",
+      "kind": "superstar",
+      "primary": "CTH",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 88,
+        "ovrMedian": 94,
+        "primaryMin": 70,
+        "primaryMedian": 76,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "071",
+      "name": "Secure Tackler",
+      "description": "Defenders with this ability have an increased chance to avoid fakeouts.",
+      "kind": "superstar",
+      "primary": "TAK",
+      "secondary": "PUR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 10,
+        "ovrMin": 85,
+        "ovrMedian": 92,
+        "primaryMin": 78,
+        "primaryMedian": 88,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 3
+        },
+        {
+          "position": "MIKE",
+          "count": 3
+        },
+        {
+          "position": "SS",
+          "count": 2
+        },
+        {
+          "position": "LEDG",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "MIKE",
+        "SS",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "070",
+      "name": "Enforcer",
+      "description": "Defenders with this ability allow fewer broken tackles when hit-sticking ballcarriers - regardless of the runner's size or power.",
+      "kind": "superstar",
+      "primary": "POW",
+      "secondary": "TAK",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 97,
+        "ovrMedian": 98,
+        "primaryMin": 84,
+        "primaryMedian": 84,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "MIKE",
+          "count": 1
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "MIKE",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "068",
+      "name": "Under Pressure",
+      "description": "Defenders with this ability can apply pressure to the quarterback from a slightly improved distance.",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "PMV",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 88,
+        "ovrMedian": 91,
+        "primaryMin": 81,
+        "primaryMedian": 87,
+        "secondaryMin": 78
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 2
+        },
+        {
+          "position": "REDG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "067",
+      "name": "Post Up",
+      "description": "Blockers with this ability have a slightly increased chance to win any double team block they are engaged in.",
+      "kind": "superstar",
+      "primary": "IBL",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 90,
+        "ovrMedian": 95,
+        "primaryMin": 90,
+        "primaryMedian": 96,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "RG",
+          "count": 2
+        },
+        {
+          "position": "LT",
+          "count": 2
+        },
+        {
+          "position": "LG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "064",
+      "name": "Deep In Zone KO",
+      "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in deep zone coverage, 20+ yards from the LoS and inside the hash marks.",
+      "kind": "superstar",
+      "primary": "ZCV",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 91,
+        "ovrMedian": 92,
+        "primaryMin": 90,
+        "primaryMedian": 92,
+        "secondaryMin": 95
+      },
+      "launchPositions": [
+        {
+          "position": "FS",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "063",
+      "name": "Red Zone Threat",
+      "description": "When in the red zone, receivers with this ability have a better chance to win contested catches against single coverage.",
+      "kind": "superstar",
+      "primary": "CIT",
+      "secondary": "JMP",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 91,
+        "ovrMedian": 91,
+        "primaryMin": 97,
+        "primaryMedian": 97,
+        "secondaryMin": 97
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "062",
+      "name": "Deep Out Zone KO",
+      "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in deep zone coverage, 20+ yards from the LoS and outside the hash marks.",
+      "kind": "superstar",
+      "primary": "ZCV",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 88,
+        "ovrMedian": 90,
+        "primaryMin": 88,
+        "primaryMedian": 90,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 3
+        },
+        {
+          "position": "SS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "061",
+      "name": "Mid Zone KO",
+      "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in any mid-field zone coverage, less than 20 yards from the LoS inside the numbers and 10-20 outside.",
+      "kind": "superstar",
+      "primary": "ZCV",
+      "secondary": "PRC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 90,
+        "ovrMedian": 92,
+        "primaryMin": 77,
+        "primaryMedian": 86,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "SS",
+          "count": 3
+        },
+        {
+          "position": "MIKE",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "SS",
+        "MIKE",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "060",
+      "name": "Flat Zone KO",
+      "description": "Defenders with this ability have a slightly improved chance to force catch knockouts and react quicker in any flat zone coverage, less than 10 yards from the LoS and outside the hash marks.",
+      "kind": "superstar",
+      "primary": "ZCV",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 80,
+        "ovrMedian": 89,
+        "primaryMin": 76,
+        "primaryMedian": 80,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "SS",
+          "count": 2
+        },
+        {
+          "position": "CB",
+          "count": 2
+        },
+        {
+          "position": "MIKE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "SS",
+        "CB",
+        "MIKE",
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "059",
+      "name": "Edge Threat",
+      "description": "Defenders with this ability are slightly more likely to use faster, more dominant pass rush moves while rushing from the edge of the defense, and have more favorable disengage angles.",
+      "kind": "superstar",
+      "primary": "FMV",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 16,
+        "ovrMin": 85,
+        "ovrMedian": 92,
+        "primaryMin": 80,
+        "primaryMedian": 93,
+        "secondaryMin": 80
+      },
+      "launchPositions": [
+        {
+          "position": "REDG",
+          "count": 10
+        },
+        {
+          "position": "LEDG",
+          "count": 6
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "058",
+      "name": "Run Stopper",
+      "description": "Defenders with this ability do not need to spend stamina on shed attempts during a run play",
+      "kind": "superstar",
+      "primary": "BSH",
+      "secondary": "TAK",
+      "floors": {
+        "bronze": 84,
+        "silver": 89,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 88,
+        "ovrMedian": 92,
+        "primaryMin": 84,
+        "primaryMedian": 92,
+        "secondaryMin": 86
+      },
+      "launchPositions": [
+        {
+          "position": "DT",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "057",
+      "name": "Deep In Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 20+ yards from the LoS, inside the numbers",
+      "kind": "superstar",
+      "primary": "DRR",
+      "secondary": "CIT",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 90,
+        "ovrMedian": 91,
+        "primaryMin": 78,
+        "primaryMedian": 88,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 2
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "055",
+      "name": "Deep Out Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes 20+ yards from the LoS, outside the numbers",
+      "kind": "superstar",
+      "primary": "DRR",
+      "secondary": "SPC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 7,
+        "ovrMin": 85,
+        "ovrMedian": 91,
+        "primaryMin": 71,
+        "primaryMedian": 84,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 5
+        },
+        {
+          "position": "TE",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "054",
+      "name": "Mid In Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 10-20 yards from the LoS, inside the numbers",
+      "kind": "superstar",
+      "primary": "MRR",
+      "secondary": "CTH",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 8,
+        "ovrMin": 82,
+        "ovrMedian": 89,
+        "primaryMin": 75,
+        "primaryMedian": 86,
+        "secondaryMin": 87
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 6
+        },
+        {
+          "position": "TE",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "053",
+      "name": "Mid Out Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 10-20 yards from the LoS, outside the numbers",
+      "kind": "superstar",
+      "primary": "MRR",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 10,
+        "ovrMin": 83,
+        "ovrMedian": 90,
+        "primaryMin": 68,
+        "primaryMedian": 86,
+        "secondaryMin": 76
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 7
+        },
+        {
+          "position": "TE",
+          "count": 2
+        },
+        {
+          "position": "FB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "052",
+      "name": "Short In Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 10 yards from the LoS, inside the numbers",
+      "kind": "superstar",
+      "primary": "SRR",
+      "secondary": "CTH",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 7,
+        "ovrMin": 83,
+        "ovrMedian": 95,
+        "primaryMin": 82,
+        "primaryMedian": 88,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 5
+        },
+        {
+          "position": "TE",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "051",
+      "name": "Short Out Elite",
+      "description": "Receivers with this ability catch more consistently while catching passes less than 10 yards from the LoS, outside the numbers",
+      "kind": "superstar",
+      "primary": "SRR",
+      "secondary": "CIT",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 8,
+        "ovrMin": 82,
+        "ovrMedian": 90,
+        "primaryMin": 77,
+        "primaryMedian": 82,
+        "secondaryMin": 80
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 4
+        },
+        {
+          "position": "TE",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "049",
+      "name": "Bench Press",
+      "description": "Defenders with this ability apply bonus fatigue to their man coverage target after a successful press win",
+      "kind": "superstar",
+      "primary": "PRS",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 98,
+        "primaryMedian": 98,
+        "secondaryMin": 71
+      },
+      "launchPositions": [
+        {
+          "position": "FS",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "FS"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "047",
+      "name": "Slot-O-Matic",
+      "description": "When lined up in the slot, receivers with this ability make faster cuts and have better hands when catching passes less than 8 yards from the LoS",
+      "kind": "superstar",
+      "primary": "SRR",
+      "secondary": "COD",
+      "floors": {
+        "bronze": 85,
+        "silver": 90,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 83,
+        "ovrMedian": 84,
+        "primaryMin": 84,
+        "primaryMedian": 86,
+        "secondaryMin": 92
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "043",
+      "name": "Gunslinger",
+      "description": "QB has slightly increased pass anim speed when throwing under pressure.",
+      "kind": "superstar",
+      "primary": "THP",
+      "secondary": "SAC",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 97,
+        "ovrMedian": 98,
+        "primaryMin": 88,
+        "primaryMedian": 93,
+        "secondaryMin": 97
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "039",
+      "name": "Extender",
+      "description": "While in the pocket, passers with this ability have a slightly improved chance to break the first sack attempt by a blitzing defensive back.",
+      "kind": "superstar",
+      "primary": "BSK",
+      "secondary": "SPD",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 4,
+        "ovrMin": 82,
+        "ovrMedian": 90,
+        "primaryMin": 87,
+        "primaryMedian": 94,
+        "secondaryMin": 84
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 4
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "037",
+      "name": "Clutch",
+      "description": "When playing from behind, players with this ability can easily enter the Zone.",
+      "kind": "superstar",
+      "primary": "AWR",
+      "secondary": "CAR",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 96,
+        "ovrMedian": 96,
+        "primaryMin": 96,
+        "primaryMedian": 96,
+        "secondaryMin": 97
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "035",
+      "name": "Fastbreak",
+      "description": "Passers with this ability receive better blocking support on designed quarterback run plays.",
+      "kind": "superstar",
+      "primary": "SPD",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 87,
+        "silver": 92,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 82,
+        "ovrMedian": 94,
+        "primaryMin": 87,
+        "primaryMedian": 88,
+        "secondaryMin": 90
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "034",
+      "name": "Short Route KO",
+      "description": "Defenders with this ability have a slightly improved chance to succeed at catch tackle knockouts in man-to-man versus short routes less than 10 yards from the LoS",
+      "kind": "superstar",
+      "primary": "MCV",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 87,
+        "ovrMedian": 91,
+        "primaryMin": 69,
+        "primaryMedian": 88,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "CB",
+          "count": 4
+        },
+        {
+          "position": "MIKE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "CB",
+        "MIKE",
+        "FS",
+        "SS"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "029",
+      "name": "Sideline Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws outside the numbers (except on high throws).",
+      "kind": "superstar",
+      "primary": "SAC",
+      "secondary": "DAC",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 80,
+        "ovrMedian": 90,
+        "primaryMin": 86,
+        "primaryMedian": 94,
+        "secondaryMin": 81
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 5
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "028",
+      "name": "No-Look Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured cross-body throws up to 20 yards (except on high throws).",
+      "kind": "superstar",
+      "primary": "SAC",
+      "secondary": "AWR",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 2,
+        "ovrMin": 93,
+        "ovrMedian": 96,
+        "primaryMin": 94,
+        "primaryMedian": 96,
+        "secondaryMin": 98
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 2
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "023",
+      "name": "Lofting Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured lob and touch throws while their feet are set (except on high throws).",
+      "kind": "superstar",
+      "primary": "DAC",
+      "secondary": "THP",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 99,
+        "ovrMedian": 99,
+        "primaryMin": 94,
+        "primaryMedian": 94,
+        "secondaryMin": 95
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "022",
+      "name": "Long Range Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured deep throws while their feet are set (except on high throws).",
+      "kind": "superstar",
+      "primary": "DAC",
+      "secondary": "THP",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 90,
+        "ovrMedian": 92,
+        "primaryMin": 88,
+        "primaryMedian": 92,
+        "secondaryMin": 94
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "016",
+      "name": "Route Technician",
+      "description": "Receivers with this ability have a high success rate when creating separation on the last cut of any route.",
+      "kind": "superstar",
+      "primary": "SRR",
+      "secondary": "MRR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 90,
+        "ovrMedian": 94,
+        "primaryMin": 82,
+        "primaryMedian": 91,
+        "secondaryMin": 78
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 3
+        },
+        {
+          "position": "HB",
+          "count": 1
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "WR",
+        "HB",
+        "TE"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "013",
+      "name": "Roaming Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws while their feet are set outside the pocket (except on high throws).",
+      "kind": "superstar",
+      "primary": "RUN",
+      "secondary": "MAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 90,
+        "ovrMedian": 90,
+        "primaryMin": 92,
+        "primaryMedian": 92,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "011",
+      "name": "Red Zone Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws while throwing in the red zone (except on high throws).",
+      "kind": "superstar",
+      "primary": "SAC",
+      "secondary": "MAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 93,
+        "ovrMedian": 93,
+        "primaryMin": 94,
+        "primaryMedian": 94,
+        "secondaryMin": 89
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "010",
+      "name": "Pocket Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws while their feet are set in the pocket (except on high throws).",
+      "kind": "superstar",
+      "primary": "SAC",
+      "secondary": "MAC",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 88,
+        "ovrMedian": 88,
+        "primaryMin": 96,
+        "primaryMedian": 96,
+        "secondaryMin": 96
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "009",
+      "name": "Tough Nut",
+      "description": "Blockers with this ability have an increased number of blocker resistance points.",
+      "kind": "superstar",
+      "primary": "TOU",
+      "secondary": "PBK",
+      "floors": {
+        "bronze": 86,
+        "silver": 91,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 6,
+        "ovrMin": 88,
+        "ovrMedian": 95,
+        "primaryMin": 86,
+        "primaryMedian": 92,
+        "secondaryMin": 83
+      },
+      "launchPositions": [
+        {
+          "position": "LT",
+          "count": 3
+        },
+        {
+          "position": "C",
+          "count": 1
+        },
+        {
+          "position": "RT",
+          "count": 1
+        },
+        {
+          "position": "RG",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [],
+      "rtiEligible": false,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "008",
+      "name": "Dashing Deadeye",
+      "description": "Passers with this ability have elite accuracy on all unpressured throws under 40 yards while running outside the pocket (except on high throws).",
+      "kind": "superstar",
+      "primary": "RUN",
+      "secondary": "SAC",
+      "floors": {
+        "bronze": 88,
+        "silver": 93,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 3,
+        "ovrMin": 82,
+        "ovrMedian": 93,
+        "primaryMin": 88,
+        "primaryMedian": 96,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "QB",
+          "count": 3
+        }
+      ],
+      "rtiPositions": [
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "007",
+      "name": "Bruiser",
+      "description": "Ballcarriers with this ability have more powerful truck and stiff arm animations and a larger timing window for perfect attempts.",
+      "kind": "superstar",
+      "primary": "TRK",
+      "secondary": "SFA",
+      "floors": {
+        "bronze": 90,
+        "silver": 95,
+        "gold": 98
+      },
+      "observed": {
+        "holders": 1,
+        "ovrMin": 91,
+        "ovrMedian": 91,
+        "primaryMin": 90,
+        "primaryMedian": 90,
+        "secondaryMin": 91
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB"
+      ],
+      "rtiEligible": true,
+      "confidence": "modeled_plus_thin_roster"
+    },
+    {
+      "id": "004",
+      "name": "Arm Bar",
+      "description": "Ballcarriers with this ability have more powerful stiff arm animations and have a larger timing window for landing perfect stiff arms",
+      "kind": "superstar",
+      "primary": "SFA",
+      "secondary": "STR",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 5,
+        "ovrMin": 89,
+        "ovrMedian": 90,
+        "primaryMin": 81,
+        "primaryMedian": 90,
+        "secondaryMin": 78
+      },
+      "launchPositions": [
+        {
+          "position": "HB",
+          "count": 4
+        },
+        {
+          "position": "TE",
+          "count": 1
+        }
+      ],
+      "rtiPositions": [
+        "HB",
+        "TE",
+        "QB"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    },
+    {
+      "id": "169",
+      "name": "Quick Jump",
+      "description": "Players with this ability have a slightly reduced stamina cost and slightly longer perfect window for jumping snaps.",
+      "kind": "superstar",
+      "primary": "JMP",
+      "secondary": "ACC",
+      "floors": {
+        "bronze": 82,
+        "silver": 87,
+        "gold": 96
+      },
+      "observed": {
+        "holders": 36,
+        "ovrMin": 77,
+        "ovrMedian": 89,
+        "primaryMin": 71,
+        "primaryMedian": 89,
+        "secondaryMin": 85
+      },
+      "launchPositions": [
+        {
+          "position": "WR",
+          "count": 15
+        },
+        {
+          "position": "LEDG",
+          "count": 9
+        },
+        {
+          "position": "REDG",
+          "count": 7
+        },
+        {
+          "position": "DT",
+          "count": 5
+        }
+      ],
+      "rtiPositions": [
+        "WR"
+      ],
+      "rtiEligible": true,
+      "confidence": "empirical_roster"
+    }
+  ]
+}

@@ -642,6 +642,12 @@ export async function joinRiseToImmortalityPool(input: {
       [input.leagueId, input.recUserId],
     );
     await client.query("commit");
+    try {
+      const { refreshImmortalityDraftBoardForLeague } = await import("../immortality/immortality.service.js");
+      await refreshImmortalityDraftBoardForLeague(input.leagueId);
+    } catch (error) {
+      console.error("[WARN] Rise draft board refresh after pool join failed:", error);
+    }
     return { ok: true, membership: "created" };
   } catch (error) {
     await client.query("rollback");

@@ -3,6 +3,10 @@ import test from "node:test";
 import {
   applyRiseToImmortalityLockedSettings,
   assignProspectPairs,
+  completePairUserIds,
+  rankDraftClass,
+  seedFranchisePickOrder,
+  stockDirection,
   canConvertToTeamXp,
   spendAttributePlusOne,
   canTransition,
@@ -24,6 +28,13 @@ import {
   shouldApplyRiseToImmortality,
   spendCreationPoints,
   stackDiscounts,
+  abilityById,
+  abilityGrantSlotsForEvent,
+  canSelectAbility,
+  cappedAbilitySlots,
+  madden27AbilityCatalog,
+  resolveAbilityTier,
+  rtiAbilitiesForPosition,
   validateCharacteristicSelection,
 } from "./index.js";
 
@@ -145,6 +156,47 @@ test("Team Player can convert XP immediately; others wait for ceiling", () => {
   assert.equal(short.ok, false);
 });
 
+test("draft stock ranks relative to the class and moves when others join", () => {
+  const first = rankDraftClass([
+    { prospectId: "a", userId: "u1", side: "offense", firstName: "A", lastName: "One", iqCompleted: true, iqScore: 140, estimatedOvr: 84 },
+  ]);
+  assert.equal(first[0]?.classRank, 1);
+  assert.equal(first[0]?.classSize, 1);
+  assert.equal(first[0]?.projectedRound, 1);
+  assert.equal(first[0]?.stock, "new");
+
+  const withPeer = rankDraftClass([
+    { prospectId: "a", userId: "u1", side: "offense", firstName: "A", lastName: "One", iqCompleted: true, iqScore: 110, estimatedOvr: 78, previousClassRank: 1 },
+    { prospectId: "b", userId: "u2", side: "offense", firstName: "B", lastName: "Two", iqCompleted: true, iqScore: 140, estimatedOvr: 84 },
+  ]);
+  const a = withPeer.find((row) => row.prospectId === "a");
+  const b = withPeer.find((row) => row.prospectId === "b");
+  assert.equal(b?.classRank, 1);
+  assert.equal(a?.classRank, 2);
+  assert.equal(a?.classSize, 2);
+  assert.equal(a?.stock, "sliding");
+  assert.equal(stockDirection(2, 1), "rising");
+  assert.ok((b?.draftValue ?? 0) > (a?.draftValue ?? 0));
+});
+
+test("only users with both ready prospects form a complete draft pair", () => {
+  const ready = completePairUserIds([
+    { userId: "u1", side: "offense", ready: true },
+    { userId: "u1", side: "defense", ready: true },
+    { userId: "u2", side: "offense", ready: true },
+    { userId: "u2", side: "defense", ready: false },
+  ]);
+  assert.deepEqual(ready, ["u1"]);
+});
+
+test("franchise pick order is seeded stably from the league id", () => {
+  const first = seedFranchisePickOrder("league-a", ["t3", "t1", "t2"]);
+  const second = seedFranchisePickOrder("league-a", ["t1", "t2", "t3"]);
+  assert.deepEqual(first.map((row) => row.teamId), second.map((row) => row.teamId));
+  assert.equal(first[0]?.pickOrder, 1);
+  assert.equal(first.length, 3);
+});
+
 test("draft solver assigns both prospects to the same unique franchise", () => {
   const users = ["u1", "u2", "u3"];
   const prospects = users.flatMap((userId, index) => [
@@ -164,6 +216,9 @@ test("draft solver assigns both prospects to the same unique franchise", () => {
     assert.equal(row.picks.length, 2);
     assert.equal(row.picks[0]?.teamId, row.picks[1]?.teamId);
     assert.equal(new Set(row.picks.map((pick) => pick.round)).size, 2);
+    const ordered = [...row.picks].sort((a, b) => a.round - b.round);
+    assert.equal(ordered[0]?.revealOwnership, false);
+    assert.equal(ordered[1]?.revealOwnership, true);
   }
 });
 
@@ -190,3 +245,41 @@ test("creation point spend is recalculated server-side against budget", () => {
   });
   assert.equal(over.ok, false);
 });
+
+test("Madden 27 ability catalog covers the EA ratings list and RTI positions", () => {
+  const all = madden27AbilityCatalog();
+  assert.equal(all.length, 114);
+  assert.ok(all.some((row) => row.kind === "xfactor"));
+  const qb = rtiAbilitiesForPosition("QB");
+  const mike = rtiAbilitiesForPosition("MIKE");
+  assert.ok(qb.some((row) => row.name === "Fearless"));
+  assert.ok(qb.some((row) => row.name === "Bazooka"));
+  assert.ok(mike.some((row) => row.name === "Lurker"));
+  const shutdown = abilityById("Z_10");
+  assert.equal(shutdown?.primary, "MCV");
+  assert.equal(resolveAbilityTier(shutdown!, { MCV: 89, ZCV: 96 }), "none");
+  assert.equal(resolveAbilityTier(shutdown!, { MCV: 91, ZCV: 91 }), "bronze");
+  assert.equal(resolveAbilityTier(shutdown!, { MCV: 96, ZCV: 96 }), "gold");
+  assert.equal(abilityGrantSlotsForEvent("weekly_gold"), 1);
+  assert.equal(abilityGrantSlotsForEvent("season_tier2"), 0);
+  assert.equal(cappedAbilitySlots(9), 4);
+  const blocked = canSelectAbility({
+    ability: shutdown!,
+    position: "CB",
+    attributes: { MCV: 96, ZCV: 96 },
+    earnedSlots: 1,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  });
+  assert.equal(blocked.ok, false);
+  const allowed = canSelectAbility({
+    ability: shutdown!,
+    position: "CB",
+    attributes: { MCV: 96, ZCV: 96 },
+    earnedSlots: 3,
+    equippedCount: 0,
+    alreadyEquipped: false,
+  });
+  assert.equal(allowed.ok, true);
+});
+
