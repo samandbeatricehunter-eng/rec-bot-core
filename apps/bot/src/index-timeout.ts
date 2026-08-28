@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
-import { registerGuildCommands } from "./commands.js";
+import { clearGlobalApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, listGuildAdminDiscordIds, replyFullAdminOnly } from "./lib/admin.js";
 import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
@@ -533,6 +533,7 @@ client.once("clientReady", async () => {
   } catch (error) {
     console.error("REC Core API health check failed", error);
   }
+  await clearGlobalApplicationCommands().catch((error) => console.error("Failed to clear global application commands:", error));
   await registerCommandsForVisibleGuilds();
   await Promise.allSettled([...client.guilds.cache.values()].map((guild) => syncRecentHighlightMessages(guild)));
   await recoverOpenActiveChecks(client);
