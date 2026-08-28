@@ -149,13 +149,17 @@ test("Hall self-votes are rejected", () => {
 test("creation point spend is recalculated server-side against budget", () => {
   const result = spendCreationPoints({
     baseline: { SPD: 85, ACC: 84 },
-    spent: { SPD: 90, ACC: 88 },
+    spent: { SPD: 2, ACC: 1 },
     budget: 20,
   });
   assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.attributes.SPD, 87);
+    assert.equal(result.attributes.ACC, 85);
+  }
   const over = spendCreationPoints({
     baseline: { SPD: 85 },
-    spent: { SPD: 99 },
+    spent: { SPD: 5 },
     budget: 5,
   });
   assert.equal(over.ok, false);

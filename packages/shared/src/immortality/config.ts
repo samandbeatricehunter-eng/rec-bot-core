@@ -34,7 +34,7 @@ type RawIqQuestion = {
 };
 
 function loadIqBank(side: ImmortalitySide): IqBankQuestion[] {
-  const raw = (side === "offense" ? iqTestsJson.offense : iqTestsJson.defense) as RawIqQuestion[];
+  const raw = (side === "offense" ? iqTestsJson.offense : iqTestsJson.defense) as unknown as RawIqQuestion[];
   return raw.map((item) => ({
     number: item.number,
     question: item.question,
@@ -51,7 +51,7 @@ type RawPersonaOption = { text: string; dna_points: Record<string, number> };
 type RawPersonaQuestion = { number: number; question: string; options: RawPersonaOption[] };
 
 export function personaQuestionsForSide(side: ImmortalitySide): PersonaQuestion[] {
-  const raw = (side === "offense" ? personaJson.offense : personaJson.defense) as RawPersonaQuestion[];
+  const raw = (side === "offense" ? personaJson.offense : personaJson.defense) as unknown as RawPersonaQuestion[];
   return raw
     .filter((item) => item.number <= 5)
     .map((item) => ({
@@ -68,7 +68,7 @@ type RawPlaystyleOption = { text: string; primary_archetype: string };
 type RawPlaystyleQuestion = { number: number; question: string; options: RawPlaystyleOption[] };
 
 export function playstyleQuestionsForGroup(group: ImmortalityPositionGroup): PlaystyleQuestion[] {
-  const groups = playstyleJson.groups as Record<string, RawPlaystyleQuestion[]>;
+  const groups = playstyleJson.groups as unknown as Record<string, RawPlaystyleQuestion[]>;
   const raw = groups[group] ?? [];
   return raw.map((item) => ({
     number: item.number,

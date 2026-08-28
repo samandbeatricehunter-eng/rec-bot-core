@@ -19,6 +19,7 @@ export function discountedCreationCost(nextValue: number, discount: number): num
 
 export function spendCreationPoints(input: {
   baseline: AttributeMap;
+  /** Rating increases on top of the generated baseline, not absolute ratings. */
   spent: AttributeMap;
   budget?: number;
   discounts?: Record<string, number>;
@@ -26,10 +27,11 @@ export function spendCreationPoints(input: {
   const budget = input.budget ?? DEFAULT_CREATION_POINT_BUDGET;
   const attributes: AttributeMap = { ...input.baseline };
   let spentPoints = 0;
-  for (const [code, rawTarget] of Object.entries(input.spent)) {
+  for (const [code, rawDelta] of Object.entries(input.spent)) {
     const baseline = input.baseline[code] ?? 0;
-    const target = Math.round(rawTarget);
-    if (target < baseline) return { ok: false, error: `${code} cannot be lowered below the generated baseline.` };
+    const delta = Math.round(rawDelta);
+    if (delta < 0) return { ok: false, error: `${code} cannot be lowered below the generated baseline.` };
+    const target = baseline + delta;
     if (target > 99) return { ok: false, error: `${code} cannot exceed 99.` };
     const discount = input.discounts?.[code] ?? 0;
     for (let value = baseline + 1; value <= target; value += 1) {

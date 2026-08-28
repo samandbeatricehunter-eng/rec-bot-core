@@ -401,7 +401,7 @@ function CreationPanel({
   return (
     <section className="rise-card">
       <h2>Creation Points</h2>
-      <p className="site-muted">Test budget is {budget} points. Spend after traits. Baselines come from Madden 27 68–72 OVR, not hand-authored archetypes.</p>
+      <p className="site-muted">Test budget is {budget} points. Values are rating increases on top of the generated 68–72 baseline, not absolute ratings.</p>
       <p>Used {used} / {budget}</p>
       <div className="rise-grid">
         {MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24).map((def) => (
