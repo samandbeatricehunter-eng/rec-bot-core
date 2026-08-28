@@ -25,6 +25,13 @@ const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_BIN?.trim() || "ffprobe";
 const RESOLVER = process.env.STREAM_RESOLVER_BIN?.trim() || "yt-dlp";
 
+// Pre/post-roll around a detected score-change frame -- shared by processCapture (which cuts
+// the clip) and processRecap (which needs each clip's known duration up front to time the
+// weekly recap's music fade-out without re-probing every downloaded clip).
+const CLIP_PRE_ROLL_SECONDS = 10;
+const CLIP_POST_ROLL_SECONDS = 10;
+const CLIP_DURATION_SECONDS = CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS;
+
 // A stream's game may not have kicked off yet when a coach posts the link, so the resolver (and,
 // once recording starts, the OCR check below) is allowed to keep failing for a while before this
 // is treated as a real problem. Budget is measured against `phase_started_at`, which covers BOTH
@@ -282,13 +289,9 @@ async function processCapture(job: any) {
     }
     previous = { away: parsed.awayScore, home: parsed.homeScore };
   }
-  // Pre/post-roll around the detected score-change frame -- trimmed down from an initial
-  // 12s-before/18s-after (30s total) after live testing showed too much dead time on both ends.
-  const CLIP_PRE_ROLL_SECONDS = 2;
-  const CLIP_POST_ROLL_SECONDS = 13;
   for (const [index, event] of events.entries()) {
     const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);
-    await execFileAsync(FFMPEG, ["-y", "-ss", String(Math.max(0, event.second - CLIP_PRE_ROLL_SECONDS)), "-i", job.capture_path, "-t", String(CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-movflags", "+faststart", clipPath], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+    await execFileAsync(FFMPEG, ["-y", "-ss", String(Math.max(0, event.second - CLIP_PRE_ROLL_SECONDS)), "-i", job.capture_path, "-t", String(CLIP_DURATION_SECONDS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-movflags", "+faststart", clipPath], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
     const media = await uploadVideo(clipPath, { name: `REC auto-clip W${game.data.week_number}`, captureJobId: job.id, gameId: job.game_id }, 45);
     await supabase.from("rec_stream_event_clips").upsert({
       capture_job_id: job.id, league_id: job.league_id, game_id: job.game_id,
@@ -518,11 +521,11 @@ async function processRecap(job: any) {
 
   const videos = [RECAP_ASSETS.intro, ...(boardVideoPath ? [boardVideoPath] : []), ...downloaded];
   // Every segment's duration is either known outright (board hold = 6s, each extracted clip =
-  // 30s, both fixed by the ffmpeg args that produced them) or cheap to ask ffprobe for (the
-  // intro, which changes if the asset is ever swapped) -- computed up front so the music track's
-  // fade-out can land exactly at the end of the final video instead of guessing.
+  // CLIP_DURATION_SECONDS, both fixed by the ffmpeg args that produced them) or cheap to ask
+  // ffprobe for (the intro, which changes if the asset is ever swapped) -- computed up front so
+  // the music track's fade-out can land exactly at the end of the final video instead of guessing.
   const introDuration = await durationSeconds(RECAP_ASSETS.intro).catch(() => 14);
-  const totalDuration = introDuration + (boardVideoPath ? 6 : 0) + downloaded.length * 30;
+  const totalDuration = introDuration + (boardVideoPath ? 6 : 0) + downloaded.length * CLIP_DURATION_SECONDS;
   const fadeDuration = 3;
   const fadeStart = Math.max(0, totalDuration - fadeDuration);
 
