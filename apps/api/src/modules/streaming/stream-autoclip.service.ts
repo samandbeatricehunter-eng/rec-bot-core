@@ -233,14 +233,33 @@ async function promoteDueCooldowns() {
   }
 }
 
-async function outputBuffer(command: string, args: string[]): Promise<Buffer> {
+// No timeout here previously -- a single hung ffmpeg frame-extract (bad byte range, an I/O
+// hiccup on the persistent volume, anything) blocked forever with no way out, and since this
+// runs inside processCapture behind runStreamAutoclipSweep's single-job `processing` mutex, one
+// stuck frame permanently wedged the entire autoclip pipeline for every league, not just the
+// stuck job. Confirmed live: a capture job sat at status='processing' with zero progress for
+// 1.5+ hours while the rest of the API kept serving requests fine (the hang was isolated to this
+// one unbounded child process, not the whole event loop).
+async function outputBuffer(command: string, args: string[], timeoutMs = 20_000): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     const chunks: Buffer[] = []; const errors: Buffer[] = [];
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`${command} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     child.stdout?.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     child.stderr?.on("data", (chunk) => errors.push(Buffer.from(chunk)));
-    child.once("error", reject);
-    child.once("close", (code) => code === 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(Buffer.concat(errors).toString("utf8").slice(-2000))));
+    child.once("error", (error) => { if (settled) return; settled = true; clearTimeout(timer); reject(error); });
+    child.once("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      code === 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(Buffer.concat(errors).toString("utf8").slice(-2000)));
+    });
   });
 }
 
