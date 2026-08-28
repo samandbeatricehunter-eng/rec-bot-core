@@ -85,8 +85,7 @@ export async function listH2hMatchupsForUser(userId: string): Promise<StreamingM
       id, league_id, week_number, home_user_id, away_user_id, status,
       home_team:rec_teams!rec_games_home_team_id_fkey(name),
       away_team:rec_teams!rec_games_away_team_id_fkey(name),
-      league:rec_leagues!rec_games_league_id_fkey(id, name, current_week),
-      scheduling:rec_game_scheduling(status, scheduled_for)
+      league:rec_leagues!rec_games_league_id_fkey(id, name, current_week)
     `)
     .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`)
     .not("home_user_id", "is", null)
@@ -109,10 +108,28 @@ export async function listH2hMatchupsForUser(userId: string): Promise<StreamingM
     }
   }
 
+  // rec_game_scheduling's FK to rec_games runs the opposite direction from every other embed in
+  // this query (it's the child, keyed by game_id, not a parent rec_games references by a
+  // *_id column) -- the supabase shim's generic relation resolver only supports the latter
+  // (relationKey() always looks up "${alias}_id" on the base row), so it 500'd looking for a
+  // nonexistent rec_games.scheduling_id (confirmed live: "column scheduling_id does not
+  // exist"). Fetch it as its own batched lookup instead, same pattern as serverNameByLeague.
+  const gameIds = rows.map((row) => String(row.id)).filter(Boolean);
+  const schedulingByGameId = new Map<string, { status: string | null; scheduled_for: string | null }>();
+  if (gameIds.length) {
+    const scheduling = await supabase
+      .from("rec_game_scheduling")
+      .select("game_id, status, scheduled_for")
+      .in("game_id", gameIds);
+    for (const row of scheduling.data ?? []) {
+      schedulingByGameId.set(String((row as any).game_id), { status: (row as any).status ?? null, scheduled_for: (row as any).scheduled_for ?? null });
+    }
+  }
+
   const options: StreamingMatchupOption[] = [];
   for (const row of rows) {
     if (row.home_user_id !== userId && row.away_user_id !== userId) continue;
-    const scheduling = Array.isArray(row.scheduling) ? row.scheduling[0] : row.scheduling;
+    const scheduling = schedulingByGameId.get(String(row.id)) ?? null;
     if (scheduling?.status === "completed") continue;
     const league = row.league;
     const currentWeek = league?.current_week == null ? null : Number(league.current_week);
