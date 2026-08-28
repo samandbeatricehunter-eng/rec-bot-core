@@ -56,7 +56,7 @@ function ConferenceStandings({ teams }: { teams: PowerRankingTeam[] }) {
               <div key={team.teamId} className={`hub-standings-row${team.playoffMarker === "Y" || team.playoffMarker === "Z" ? " is-division-leader" : ""}`}>
                 <span className="hub-standings-seed">{index + 1}</span>
                 <TeamLogo abbreviation={team.abbr} alt={team.teamName} />
-                <span className="hub-standings-name">{team.teamName}{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}</span>
+                <span className="hub-standings-name">{team.teamName}{team.playoffMarker ? <span className="hub-standings-marker"> {team.playoffMarker}</span> : null}{!team.isHuman ? <span className="hub-standings-open-pill">Open</span> : null}</span>
                 <span className="hub-standings-record">{team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`}</span>
               </div>
             ))}
