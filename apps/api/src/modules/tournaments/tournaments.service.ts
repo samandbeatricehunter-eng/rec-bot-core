@@ -1,6 +1,7 @@
 import {
   CFB_27_TEAMS,
   NFL_TEAMS,
+  TOURNAMENT_BRACKET_TYPES,
   TOURNAMENT_HIGHLIGHT_COINS,
   formatTournamentPlayerName,
   generateTournamentBracket,
@@ -807,7 +808,19 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
   if (ids.length < 2) throw new ApiError(409, "Need at least two players to lock a bracket.");
   if (ids.length > meta.size) throw new ApiError(409, "Too many entrants for this bracket type.");
 
-  const specs = generateTournamentBracket({ bracketType: tournament.bracket_type, entrantIds: ids });
+  // Registration can close under the configured size (confirmed live: a 16-slot tournament
+  // locked with only 14 approved entrants) -- locking into the full preset anyway just wastes
+  // slots on TBD-vs-bye pairings nobody will ever fill. Downsize to the smallest same-style
+  // preset that still fits everyone who actually registered. Bracket sizes are only powers of
+  // two, so a non-power-of-two entrant count (like 14) still needs some byes at whatever size is
+  // used -- that's inherent to bracket seeding, not something downsizing removes -- but it does
+  // stop a big preset from locking in far more empty slots than the real field needs.
+  const fittingType = TOURNAMENT_BRACKET_TYPES
+    .filter((type) => type.style === meta.style && type.size >= ids.length)
+    .sort((a, b) => a.size - b.size)[0];
+  const effectiveBracketType = fittingType && fittingType.size < meta.size ? fittingType.key : tournament.bracket_type;
+
+  const specs = generateTournamentBracket({ bracketType: effectiveBracketType, entrantIds: ids });
   const client = await getPgPool().connect();
   try {
     await client.query("begin");
@@ -863,8 +876,8 @@ export async function lockTournamentBracket(input: { tournamentId: string }) {
       seed += 1;
     }
     await client.query(
-      `update rec_site_tournaments set status = 'locked', locked_at = now(), updated_at = now() where id = $1`,
-      [input.tournamentId],
+      `update rec_site_tournaments set status = 'locked', bracket_type = $2, locked_at = now(), updated_at = now() where id = $1`,
+      [input.tournamentId, effectiveBracketType],
     );
     await client.query("commit");
   } catch (error) {
