@@ -658,8 +658,12 @@ export const recApi = {
     recApiFetch<{ reversed: true; ledgerId: string; amount: number }>("/v1/admin-economy/reverse-transaction", { method: "POST", body: JSON.stringify(input) }),
   listLeagueDraftPicks: (guildId: string) =>
     recApiFetch<Array<{ id: string; league_id: string; season_number: number; round: number; original_team_id: string; current_team_id: string; pick_number: number | null }>>("/v1/draft-picks/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  moveDraftPick: (input: { guildId: string; pickId: string; currentTeamId: string }) =>
+  moveDraftPick: (input: { guildId: string; pickId: string; currentTeamId?: string; pickNumber?: number | null; adminNotes?: string }) =>
     recApiFetch<TeamDraftPick>("/v1/draft-picks/update", { method: "POST", body: JSON.stringify(input) }),
+  deleteDraftPick: (input: { guildId: string; pickId: string }) =>
+    recApiFetch<{ deleted: true; pickId: string }>("/v1/draft-picks/delete", { method: "POST", body: JSON.stringify(input) }),
+  generateSeasonDraftPicks: (input: { guildId: string; seasonNumber: number }) =>
+    recApiFetch<{ seasonNumber: number; generated: number }>("/v1/draft-picks/generate-season", { method: "POST", body: JSON.stringify(input) }),
   setUpcomingDraftOrder: (input: { guildId: string; seasonNumber: number; orderedTeamIds: string[] }) =>
     recApiFetch<{ seasonNumber: number; updated: number }>("/v1/draft-picks/set-order", { method: "POST", body: JSON.stringify(input) }),
   proposeTrade: (input: { guildId: string; receivingTeamId: string; offeredLegs: TradeLegInput[]; requestedLegs: TradeLegInput[]; offeredCoins: number; requestedCoins: number }) =>
@@ -1184,4 +1188,16 @@ export const recApi = {
     recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-next", { method: "POST", body: JSON.stringify({ guildId }) }),
   skipFantasyDraftToSpecific: (input: { guildId: string; round: number; pickInRound: number }) =>
     recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-specific", { method: "POST", body: JSON.stringify(input) }),
+  getAnnualDraftState: (guildId: string) =>
+    recApiFetch<FantasyDraftState>("/v1/annual-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  startAnnualDraft: (input: { guildId: string; seasonNumber: number; pickTimerSeconds: number | null }) =>
+    recApiFetch<{ ok: true }>("/v1/annual-draft/start", { method: "POST", body: JSON.stringify(input) }),
+  endAnnualDraft: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/annual-draft/end", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setAnnualDraftTimer: (input: { guildId: string; pickTimerSeconds: number | null }) =>
+    recApiFetch<{ ok: true; pickTimerSeconds: number | null }>("/v1/annual-draft/set-timer", { method: "POST", body: JSON.stringify(input) }),
+  advanceAnnualDraftPick: (guildId: string) =>
+    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/annual-draft/advance", { method: "POST", body: JSON.stringify({ guildId }) }),
+  skipAnnualDraftToSpecific: (input: { guildId: string; round: number; pickInRound: number }) =>
+    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/annual-draft/skip-to-specific", { method: "POST", body: JSON.stringify(input) }),
 };

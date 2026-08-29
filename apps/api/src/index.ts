@@ -9,6 +9,7 @@ import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 import { hasValidInternalApiKey } from "./lib/auth.js";
 import { sweepFantasyDraftTimers } from "./modules/fantasy-draft/fantasy-draft.service.js";
+import { sweepAnnualDraftTimers } from "./modules/fantasy-draft/annual-draft.service.js";
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runTeamWaitlistSweep } from "./modules/team-requests/team-waitlists.service.js";
@@ -72,6 +73,7 @@ catch (error) { app.log.error(error); process.exit(1); }
 // elsewhere) so a 15-second warning threshold is actually caught in time.
 setInterval(() => {
   sweepFantasyDraftTimers().catch((error) => app.log.error({ err: error }, "Fantasy draft timer sweep failed"));
+  sweepAnnualDraftTimers().catch((error) => app.log.error({ err: error }, "Annual draft timer sweep failed"));
 }, 5_000).unref();
 
 // REC Game Scheduling System: 12h-no-attempt / 30m-to-kickoff / kickoff-prompt reminder sweep --

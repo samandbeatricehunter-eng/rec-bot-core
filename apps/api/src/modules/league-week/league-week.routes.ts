@@ -191,6 +191,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           homeScore: z.number().int().min(0).max(200).optional().nullable(),
           awayScore: z.number().int().min(0).max(200).optional().nullable(),
           designation: z.enum(["played", "fair_sim", "force_win"]).optional(),
+          forceWinSide: z.enum(["home", "away"]).optional(),
         })),
         advanceRunId: z.string().uuid().optional().nullable(),
         nextAdvance: z.object({

@@ -855,6 +855,20 @@ button.poty:disabled {
 
 .hub-trade-pool { display: grid; gap: var(--space-3); }
 .hub-trade-pool-table { max-height: 320px; }
+.fantasy-draft-player-name-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.fantasy-draft-player-name-btn > span { min-width: 0; display: flex; flex-direction: column; }
+.fantasy-draft-player-name-btn strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fantasy-draft-player-name-btn small { color: var(--text-muted); }
+.fantasy-draft-player-photo { display: block; width: 38px; height: 38px; min-width: 38px; max-width: 38px; flex: 0 0 38px; object-fit: cover; object-position: top center; border-radius: 6px; background: var(--surface); }
+.fantasy-draft-player-photo-empty { display: grid; place-items: center; color: var(--text-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.fantasy-draft-player-card-header { display: flex; align-items: flex-start; gap: var(--space-4); }
+.fantasy-draft-player-card-photo { display: block; width: 112px; height: 140px; min-width: 112px; max-width: 112px; flex: 0 0 112px; object-fit: cover; object-position: top center; border-radius: var(--radius-md); background: var(--surface); }
+.fantasy-draft-player-card-bio { min-width: 0; flex: 1; }
+@media (max-width: 600px) {
+  .fantasy-draft-player-photo { width: 34px; height: 34px; min-width: 34px; max-width: 34px; flex-basis: 34px; }
+  .fantasy-draft-player-card-header { gap: var(--space-3); }
+  .fantasy-draft-player-card-photo { width: 84px; height: 105px; min-width: 84px; max-width: 84px; flex-basis: 84px; }
+}
 .hub-trade-selected-items { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,.15); }
 .hub-trade-selected-items h5 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
 .hub-trade-selected-items ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }

@@ -293,6 +293,7 @@ type AdvanceGameResultInput = {
   homeScore?: number | null;
   awayScore?: number | null;
   designation?: "played" | "fair_sim" | "force_win";
+  forceWinSide?: "home" | "away";
 };
 
 async function postWeeklyFinalResultsRecap(input: { guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; game: string }) {
@@ -775,8 +776,9 @@ export async function completeAdvanceWeek(input: {
     if (String(context.rec_leagues.game).startsWith("madden")) {
       const eaAuditContext = { source: "tool" as const, actingDiscordId: input.advancedByDiscordId };
       if (result.designation === "force_win") {
-        if (isTie) throw new ApiError(400, "A Force Win must have a winning team. Enter a non-tied score.");
-        if (result.outcome === "home") await eaForceHomeWin(context.leagueId, game.data.id, eaAuditContext);
+        const forceWinSide = result.forceWinSide ?? (isTie ? null : result.outcome);
+        if (!forceWinSide) throw new ApiError(400, "Choose the home or away team for this Force Win.");
+        if (forceWinSide === "home") await eaForceHomeWin(context.leagueId, game.data.id, eaAuditContext);
         else await eaForceAwayWin(context.leagueId, game.data.id, eaAuditContext);
       } else if (result.designation === "fair_sim" || (result.designation === "played" && game.data.advance_outcome_override)) {
         // Fair Sim means neither team is forced. Selecting Played after an earlier FW/FS likewise

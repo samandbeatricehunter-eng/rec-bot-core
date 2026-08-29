@@ -65,6 +65,7 @@ async function getActiveSession(leagueId: string): Promise<SessionRow | null> {
     .from("rec_fantasy_draft_sessions")
     .select("*")
     .eq("league_id", leagueId)
+    .eq("draft_kind", "fantasy")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -327,11 +328,12 @@ export async function getFantasyDraftState(guildId: string, discordId: string, i
 /** Creates a not_started session for a newly created league. Called from setup.service.ts
  * right after the league is created. Idempotent -- safe to call again if one already exists. */
 export async function ensureFantasyDraftSession(leagueId: string): Promise<void> {
-  const existing = await supabase.from("rec_fantasy_draft_sessions").select("id").eq("league_id", leagueId).limit(1).maybeSingle();
+  const existing = await supabase.from("rec_fantasy_draft_sessions").select("id").eq("league_id", leagueId).eq("draft_kind", "fantasy").limit(1).maybeSingle();
   if (existing.error) throw new ApiError(500, "We couldn't check for an existing draft session. Please try again.", existing.error);
   if (existing.data) return;
   const { error } = await supabase.from("rec_fantasy_draft_sessions").insert({
     league_id: leagueId,
+    draft_kind: "fantasy",
     status: "not_started",
   });
   if (error) throw new ApiError(500, "We couldn't create the draft session. Please try again.", error);
@@ -347,6 +349,7 @@ export async function startFantasyDraft(guildId: string, discordId: string, inpu
   if (!session || session.status === "concluded") {
     const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
       league_id: leagueId,
+      draft_kind: "fantasy",
       status: "live",
       draft_type: input.draftType,
       total_rounds: totalRounds,
@@ -556,6 +559,7 @@ export async function sweepFantasyDraftTimers(): Promise<void> {
     .from("rec_fantasy_draft_sessions")
     .select("*")
     .eq("status", "live")
+    .eq("draft_kind", "fantasy")
     .not("pick_timer_seconds", "is", null)
     .not("turn_started_at", "is", null);
   if (error || !data?.length) return;

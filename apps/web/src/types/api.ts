@@ -408,7 +408,7 @@ export type AdvanceWeekGames = {
   games: AdvanceGame[];
   gamesNeedingInput: AdvanceGame[];
 };
-export type AdvanceResultInput = { gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; designation?: "played" | "fair_sim" | "force_win" };
+export type AdvanceResultInput = { gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; designation?: "played" | "fair_sim" | "force_win"; forceWinSide?: "home" | "away" };
 export type GotwCandidateBreakdown = { rivalry: number; parity: number; quality: number; recentForm: number; repeatPenalty: number; total: number };
 export type GotwCandidate = {
   gameId: string; weekNumber: number;
@@ -1138,6 +1138,8 @@ export type FantasyDraftSession = {
   leagueId: string;
   status: FantasyDraftStatus;
   draftType: FantasyDraftType;
+  draftKind?: "fantasy" | "annual";
+  seasonNumber?: number | null;
   orderMode: FantasyDraftOrderMode | null;
   currentRound: number;
   currentPickInRound: number;

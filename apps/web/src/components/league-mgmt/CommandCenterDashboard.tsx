@@ -16,7 +16,7 @@ import { ManageLeagueHome } from "../../routes/league-mgmt/manage-league/ManageL
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
-type GameEntry = { awayScore: string; homeScore: string; designation: "played" | "fair_sim" | "force_win" };
+type GameEntry = { awayScore: string; homeScore: string; designation: "played" | "fair_sim" | "force_win"; forceWinSide?: "home" | "away" };
 type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
 type AdvanceProgress = { stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string };
 
@@ -205,6 +205,8 @@ function AdvanceReadinessSection() {
       return;
     }
     const missing = data.gamesNeedingInput.filter((g) => {
+      const entry = entries[g.gameId];
+      if (entry?.designation === "force_win" && entry.forceWinSide) return false;
       if (isMadden) return !entryHasScores(entries[g.gameId]);
       return involvesHuman(g) && !entryHasScores(entries[g.gameId]);
     });
@@ -223,9 +225,9 @@ function AdvanceReadinessSection() {
       const entry = entries[g.gameId];
       const awayScore = entry?.awayScore ?? (g.awayScore == null ? "" : String(g.awayScore));
       const homeScore = entry?.homeScore ?? (g.homeScore == null ? "" : String(g.homeScore));
-      const outcome = deriveOutcome(awayScore, homeScore);
+      const outcome = entry?.designation === "force_win" && entry.forceWinSide ? entry.forceWinSide : deriveOutcome(awayScore, homeScore);
       if (!outcome) return [];
-      return [{ gameId: g.gameId, outcome, homeScore: Number(homeScore), awayScore: Number(awayScore), designation: entry?.designation ?? g.approvedDesignation ?? "played" }];
+      return [{ gameId: g.gameId, outcome, homeScore: homeScore === "" ? null : Number(homeScore), awayScore: awayScore === "" ? null : Number(awayScore), designation: entry?.designation ?? g.approvedDesignation ?? "played", forceWinSide: entry?.forceWinSide }];
     });
     let progressTimer: number | null = null;
     try {
@@ -365,6 +367,7 @@ function AdvanceReadinessSection() {
               )}
               <div className="advance-game-actions">
                 <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout + clear EA force</option><option value="force_win">Force Win — no payout + set winner in EA</option></select></label>
+                {(entry?.designation ?? g.approvedDesignation) === "force_win" && <label className="advance-score-field"><span>Force win for</span><select className="form-input" value={entry?.forceWinSide ?? ""} onChange={(e) => setEntry(g.gameId, { forceWinSide: e.target.value as "home" | "away" })}><option value="">Choose winner</option><option value="away">{g.awayTeamName} (Away)</option><option value="home">{g.homeTeamName} (Home)</option></select></label>}
                 {/* This league gets its scores from EA import, not box-score submissions — nudging a
                     coach to submit one doesn't apply here (they can't stop a game "missing" a score
                     until the next import runs). The score-entry fields above stay available either way
