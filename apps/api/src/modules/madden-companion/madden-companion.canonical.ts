@@ -102,6 +102,13 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
        conference=coalesce($5,conference), division=coalesce($6,division), ea_username=$7, updated_at=now() where id=$1 and league_id=$2`,
       [existing.rows[0].id, leagueId, sourceId, storedAbbr, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
     );
+    // The identity manifest follows the provider ID discovered by import, while its display
+    // branding and inherited franchise slot remain league-specific and unchanged.
+    await client.query(
+      `update rec_league_team_identities set madden_team_id=$3, updated_at=now()
+       where team_id=$1 and league_id=$2`,
+      [existing.rows[0].id, leagueId, sourceId],
+    );
   }
 }
 

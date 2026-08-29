@@ -21,6 +21,7 @@ import {
   resolveRecUserIdByDiscordId,
 } from "../subscriptions/entitlements.service.js";
 import { createImmortalityLeagueRow } from "../immortality/immortality.service.js";
+import { applyLeagueTeamIdentityOverrides, seedLeagueTeamIdentities, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
@@ -440,6 +441,17 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     requestedByDiscordId: input.requestedByDiscordId ?? null,
     conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
+  const isRiseIdentityLeague = shouldApplyRiseToImmortality({
+    game: input.game,
+    leagueType: input.leagueType,
+    templateId: null,
+  });
+  if (isRiseIdentityLeague) {
+    await seedLeagueTeamIdentities(league.data.id);
+    if (input.immortalityCustomTeams?.length) {
+      await applyLeagueTeamIdentityOverrides(league.data.id, input.immortalityCustomTeams);
+    }
+  }
 
   // Draft capital is independent of roster/template selection. Every Madden league starts
   // with the game-version-specific first three draft classes, including traded ownership.
@@ -709,7 +721,7 @@ export async function createUnclaimedLeague(input: {
   immortalityOffensePosition?: string;
   immortalityDefensePosition?: string;
   immortalityTeamPool?: "default_nfl" | "custom_32";
-  immortalityCustomTeams?: Array<{ replacesAbbreviation: string; city: string; nick: string; abbreviation: string }>;
+  immortalityCustomTeams?: LeagueTeamIdentityOverride[];
   initialTeamAbbreviation?: string;
   maxMembers?: number;
   customRostersPreseedRequested?: boolean;
@@ -905,9 +917,9 @@ export async function createUnclaimedLeague(input: {
       leagueType: input.leagueType,
       templateId: input.templateId,
     });
+    if (isRise) await seedLeagueTeamIdentities(league.data.id);
     if (isRise && input.immortalityTeamPool === "custom_32" && input.immortalityCustomTeams?.length) {
-      const { applyImmortalityCustomTeamSlots } = await import("../immortality/immortality.service.js");
-      await applyImmortalityCustomTeamSlots(league.data.id, input.immortalityCustomTeams);
+      await applyLeagueTeamIdentityOverrides(league.data.id, input.immortalityCustomTeams);
     }
 
     const membership = await supabase.from("rec_league_memberships").upsert(
@@ -1092,6 +1104,37 @@ export async function uploadLeagueLogo(input: { leagueId: string; requestedByUse
   if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   if (!league.data || league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league owner can change its logo.");
   return storeLeagueLogo(input);
+}
+
+export async function uploadLeagueTeamIdentityLogo(input: {
+  leagueId: string;
+  requestedByUserId: string;
+  slot: string;
+  kind: "primary" | "secondary" | "wordmark";
+  buffer: Buffer;
+  contentType: string;
+}) {
+  if (input.buffer.byteLength > 5 * 1024 * 1024) throw new ApiError(400, "Team branding images must be 5 MB or smaller.");
+  if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(input.contentType)) throw new ApiError(400, "Team branding must be PNG, JPEG, or WebP.");
+  const league = await supabase.from("rec_leagues").select("id,owner_user_id").eq("id", input.leagueId).maybeSingle();
+  if (league.error) throw new ApiError(500, "Could not load that league.", league.error);
+  if (!league.data || league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league owner can upload team branding.");
+  const identity = await supabase.from("rec_league_team_identities").select("id,team_id")
+    .eq("league_id", input.leagueId).eq("default_abbreviation", input.slot.trim().toUpperCase()).maybeSingle();
+  if (identity.error || !identity.data) throw new ApiError(404, "That NFL identity slot was not found.", identity.error ?? undefined);
+  const extension = input.contentType === "image/jpeg" ? "jpg" : input.contentType.split("/")[1];
+  const path = `${input.leagueId}/team-identities/${input.slot.toUpperCase()}-${input.kind}-${randomUUID()}.${extension}`;
+  const stored = await supabase.storage.from("rec-media").upload(path, input.buffer, { contentType: input.contentType, cacheControl: "31536000", upsert: false });
+  if (stored.error) throw new ApiError(500, "Could not upload team branding.", stored.error);
+  const logoUrl = supabase.storage.from("rec-media").getPublicUrl(path).data.publicUrl;
+  const column = input.kind === "primary" ? "primary_logo_url" : input.kind === "secondary" ? "secondary_logo_url" : "wordmark_url";
+  const updated = await supabase.from("rec_league_team_identities").update({ [column]: logoUrl, updated_at: new Date().toISOString() }).eq("id", identity.data.id);
+  if (updated.error) {
+    await supabase.storage.from("rec-media").remove([path]);
+    throw new ApiError(500, "Could not save team branding.", updated.error);
+  }
+  if (input.kind === "primary") await supabase.from("rec_teams").update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq("id", identity.data.team_id);
+  return { logoUrl };
 }
 
 export async function uploadGuildLeagueLogo(input: { guildId: string; buffer: Buffer; contentType: string }) {

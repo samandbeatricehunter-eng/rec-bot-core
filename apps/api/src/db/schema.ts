@@ -415,6 +415,34 @@ export const recTeams = pgTable("rec_teams", {
   eaUsername: text("ea_username"),
 });
 
+export const recLeagueTeamIdentities = pgTable("rec_league_team_identities", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  teamId: uuid("team_id").notNull().references(() => recTeams.id),
+  maddenTeamId: text("madden_team_id").notNull(),
+  isCustomIdentity: boolean("is_custom_identity").notNull().default(false),
+  defaultTeamName: text("default_team_name").notNull(),
+  defaultCity: text("default_city").notNull(),
+  defaultAbbreviation: text("default_abbreviation").notNull(),
+  displayTeamName: text("display_team_name").notNull(),
+  displayCity: text("display_city").notNull(),
+  displayAbbreviation: text("display_abbreviation").notNull(),
+  primaryLogoUrl: text("primary_logo_url"),
+  secondaryLogoUrl: text("secondary_logo_url"),
+  wordmarkUrl: text("wordmark_url"),
+  primaryColor: text("primary_color"),
+  secondaryColor: text("secondary_color"),
+  tertiaryColor: text("tertiary_color"),
+  conference: text("conference").notNull(),
+  division: text("division").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+}, (table) => [
+  uniqueIndex("rec_league_team_identities_league_team_key").on(table.leagueId, table.teamId),
+  uniqueIndex("rec_league_team_identities_league_default_abbr_key").on(table.leagueId, table.defaultAbbreviation),
+  index("rec_league_team_identities_madden_idx").on(table.leagueId, table.maddenTeamId),
+]);
+
 export const recLeagueMemberships = pgTable("rec_league_memberships", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),

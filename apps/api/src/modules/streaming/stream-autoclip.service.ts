@@ -688,14 +688,19 @@ async function processRecap(job: any) {
   // vanishing outright, so a future recurrence retries with a real diagnostic instead of
   // silently completing against a dead uid again.
   const { inspectStreamVideoRaw } = await import("../../lib/cloudflare-stream.js");
+  let streamReady = false;
   for (let attempt = 0; attempt < 6; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 5_000));
     const status = await inspectStreamVideoRaw(media.uid);
     console.log(`[INFO] Recap upload ${media.uid} post-upload check ${attempt + 1}/6:`, JSON.stringify(status));
     if (!status.exists) throw new Error(`Recap video ${media.uid} vanished shortly after upload (Cloudflare ingest rejected it silently).`);
     if (status.state === "error") throw new Error(`Recap video ${media.uid} failed Cloudflare ingest: ${status.errorReasonCode ?? "unknown"} ${status.errorReasonText ?? ""}`.trim());
-    if (status.ready) break;
+    if (status.ready) {
+      streamReady = true;
+      break;
+    }
   }
+  if (!streamReady) throw new Error(`Recap video ${media.uid} did not become ready before the verification window expired.`);
   await supabase.from("rec_weekly_recap_jobs").update({ status: "completed", output_stream_uid: media.uid, playback_url: media.playbackUrl, last_error: null, updated_at: new Date().toISOString() }).eq("id", job.id);
   await postRecapToHighlightReel(job, media);
 }

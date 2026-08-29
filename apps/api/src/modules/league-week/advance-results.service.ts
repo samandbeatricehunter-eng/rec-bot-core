@@ -37,6 +37,7 @@ import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
 import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
 import { snapshotNflPlayoffBracket } from "../standings/nfl-bracket.service.js";
+import { eaForceAwayWin, eaForceHomeWin, eaForceNoWin } from "../madden-ea/ea-admin-actions.service.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
   custom_player: "custom players", legend: "legends", attribute: "attribute upgrades",
@@ -732,7 +733,7 @@ export async function completeAdvanceWeek(input: {
     const game = await supabase
       .from("rec_games")
       .select(
-        "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+        "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,bowl_name,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
       )
       .eq("id", result.gameId)
       .eq("league_id", context.leagueId)
@@ -767,6 +768,22 @@ export async function completeAdvanceWeek(input: {
     const losingUserId = isTie ? null : result.outcome === "home" ? awayUserId : homeUserId;
     const winningTeamId = isTie ? null : result.outcome === "home" ? game.data.home_team_id : game.data.away_team_id;
     const losingTeamId = isTie ? null : result.outcome === "home" ? game.data.away_team_id : game.data.home_team_id;
+
+    // Advance Readiness is an explicit commissioner action surface, so FW/FS here must perform
+    // the same real franchise write (and EA audit logging) as /tools. Strict `tool` behavior
+    // prevents REC from advancing while silently ignoring an EA rejection or stale import key.
+    if (String(context.rec_leagues.game).startsWith("madden")) {
+      const eaAuditContext = { source: "tool" as const, actingDiscordId: input.advancedByDiscordId };
+      if (result.designation === "force_win") {
+        if (isTie) throw new ApiError(400, "A Force Win must have a winning team. Enter a non-tied score.");
+        if (result.outcome === "home") await eaForceHomeWin(context.leagueId, game.data.id, eaAuditContext);
+        else await eaForceAwayWin(context.leagueId, game.data.id, eaAuditContext);
+      } else if (result.designation === "fair_sim" || (result.designation === "played" && game.data.advance_outcome_override)) {
+        // Fair Sim means neither team is forced. Selecting Played after an earlier FW/FS likewise
+        // removes that administrative setting from the live franchise.
+        await eaForceNoWin(context.leagueId, game.data.id, eaAuditContext);
+      }
+    }
     const recordsApplyKey = gameResultsApplyKey({
       gameId: game.data.id,
       leagueId: context.leagueId,
@@ -813,6 +830,9 @@ export async function completeAdvanceWeek(input: {
       home_score: homeScore,
       away_score: awayScore,
       status: "completed",
+      advance_outcome_override: result.designation === "force_win" ? "fw" : result.designation === "fair_sim" ? "fs" : null,
+      advance_outcome_marked_by_discord_id: result.designation === "played" ? null : input.advancedByDiscordId,
+      advance_outcome_marked_at: result.designation === "played" ? null : now,
       updated_at: now,
     }).eq("id", game.data.id);
     if (gameUpdate.error) {

@@ -364,7 +364,7 @@ function AdvanceReadinessSection() {
                 </div>
               )}
               <div className="advance-game-actions">
-                {g.isH2h && <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout</option><option value="force_win">Force Win — no payout</option></select></label>}
+                <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout + clear EA force</option><option value="force_win">Force Win — no payout + set winner in EA</option></select></label>
                 {/* This league gets its scores from EA import, not box-score submissions — nudging a
                     coach to submit one doesn't apply here (they can't stop a game "missing" a score
                     until the next import runs). The score-entry fields above stay available either way

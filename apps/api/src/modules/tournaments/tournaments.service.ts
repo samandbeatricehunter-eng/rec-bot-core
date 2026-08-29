@@ -837,7 +837,14 @@ export async function lockTournamentBracket(input: { tournamentId: string; manua
   // arbitrary advantage unrelated to anything competitive. Byes should be handed out at random
   // instead unless specific entrants are deliberately designated for one.
   const byesNeeded = Math.max(0, effectiveSize - registeredIds.length);
-  const manualByes = (input.manualByeUserIds ?? []).filter((id) => registeredIds.includes(id)).slice(0, byesNeeded);
+  const requestedManualByes = input.manualByeUserIds ?? [];
+  if (new Set(requestedManualByes).size !== requestedManualByes.length) {
+    throw new ApiError(400, "The same player cannot be selected for more than one bye.");
+  }
+  const invalidManualByes = requestedManualByes.filter((id) => !registeredIds.includes(id));
+  if (invalidManualByes.length) throw new ApiError(400, "Every manual bye recipient must be an approved entrant.");
+  if (requestedManualByes.length > byesNeeded) throw new ApiError(400, `This bracket has only ${byesNeeded} bye slot(s).`);
+  const manualByes = requestedManualByes;
   const remaining = shuffledCopy(registeredIds.filter((id) => !manualByes.includes(id)));
   const ids = [...manualByes, ...remaining];
 

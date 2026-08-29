@@ -167,6 +167,12 @@ export async function immortalityRoutes(app: FastifyInstance) {
           city: z.string().trim().min(1).max(40),
           nick: z.string().trim().min(1).max(40),
           abbreviation: z.string().trim().min(2).max(5),
+          primaryLogoUrl: z.string().trim().url().optional().nullable(),
+          secondaryLogoUrl: z.string().trim().url().optional().nullable(),
+          wordmarkUrl: z.string().trim().url().optional().nullable(),
+          primaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+          secondaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+          tertiaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
         })).min(1).max(32),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });

@@ -57,6 +57,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     setImmortalityTeamPool,
     immortalityCustomTeams,
     setImmortalityCustomTeams,
+    immortalityTeamLogoFiles,
+    setImmortalityTeamLogoFiles,
     name,
     setName,
     leagueLogoFile,
@@ -550,6 +552,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       if (leagueLogoFile && createdId) {
         await siteApi.uploadLeagueLogo(createdId, leagueLogoFile);
         setLeagueLogoFile(null);
+      }
+      if (createdId) {
+        const uploads = Object.entries(immortalityTeamLogoFiles).flatMap(([slot, files]) =>
+          Object.entries(files).flatMap(([kind, file]) => file
+            ? [siteApi.uploadLeagueTeamIdentityLogo(createdId!, slot, kind as "primary" | "secondary" | "wordmark", file)]
+            : []));
+        await Promise.all(uploads);
+        if (uploads.length) setImmortalityTeamLogoFiles({});
       }
       if (!isRise && leagueId && selectedTeamId && createdId) {
         const open = await siteApi.listOpenLeagueTeams(createdId);
@@ -1319,7 +1329,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         {step === 7 && (
           <>
             {isRise ? (
-              <Section title="Team Pool">
+              <Section title="Team Identity Setup">
                 <p className="site-muted">
                   Skip a personal team for now. Registered users go into a pool. After the virtual rookie draft they are linked to franchises on the site and Discord automatically. Unused clubs stay CPU.
                 </p>
@@ -1333,29 +1343,74 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   <button type="button"
                     className={`wizard-team-card ${immortalityTeamPool === "custom_32" ? "wizard-team-card-active" : ""}`}
                     onClick={() => setImmortalityTeamPool("custom_32")}>
-                    <strong>32 custom teams</strong>
-                    <span className="site-muted">Replace named NFL slots. Leave a row blank to keep that NFL club.</span>
+                    <strong>Custom identity overrides</strong>
+                    <span className="site-muted">Replace any 0–32 NFL slots. Blank rows keep their real NFL identity.</span>
                   </button>
                 </div>
                 {immortalityTeamPool === "custom_32" ? (
+                  <p className="site-muted">Conference, division, schedules, imports, rosters, and stats remain attached to the NFL slot shown on the left.</p>
+                ) : null}
+                {immortalityTeamPool === "custom_32" ? (
                   <div className="wizard-custom-team-list" style={{ marginTop: 16, display: "grid", gap: 8, maxHeight: 360, overflow: "auto" }}>
                     {NFL_TEAMS.map((team) => {
-                      const slot = immortalityCustomTeams[team.abbreviation] ?? { city: "", nick: "", abbreviation: "" };
+                      const slot = immortalityCustomTeams[team.abbreviation] ?? {
+                        city: "", nick: "", abbreviation: "", primaryLogoUrl: "", secondaryLogoUrl: "",
+                        wordmarkUrl: "", primaryColor: "", secondaryColor: "", tertiaryColor: "",
+                      };
                       const update = (patch: Partial<typeof slot>) => setImmortalityCustomTeams((current) => ({
                         ...current,
                         [team.abbreviation]: { ...slot, ...patch },
                       }));
                       return (
-                        <div key={team.abbreviation} className="site-field" style={{ display: "grid", gridTemplateColumns: "7rem 1fr 1fr 5rem", gap: 8, alignItems: "center" }}>
-                          <strong>{team.abbreviation}</strong>
+                        <div key={team.abbreviation} className="site-field" style={{ display: "grid", gridTemplateColumns: "8rem repeat(3, minmax(7rem, 1fr))", gap: 8, alignItems: "center", padding: 12, border: "1px solid var(--site-border)", borderRadius: 10 }}>
+                          <span><strong>{team.abbreviation}</strong><small className="site-muted" style={{ display: "block" }}>{team.conference} {team.division}</small></span>
                           <input className="site-input" placeholder="City" value={slot.city} onChange={(event) => update({ city: event.target.value })} />
                           <input className="site-input" placeholder="Nickname" value={slot.nick} onChange={(event) => update({ nick: event.target.value })} />
                           <input className="site-input" placeholder="Abbr" maxLength={5} value={slot.abbreviation} onChange={(event) => update({ abbreviation: event.target.value })} />
+                          <span className="site-muted">Branding</span>
+                          <input className="site-input" type="url" placeholder="Primary logo URL" value={slot.primaryLogoUrl} onChange={(event) => update({ primaryLogoUrl: event.target.value })} />
+                          <input className="site-input" type="url" placeholder="Secondary logo URL" value={slot.secondaryLogoUrl} onChange={(event) => update({ secondaryLogoUrl: event.target.value })} />
+                          <input className="site-input" type="url" placeholder="Wordmark URL" value={slot.wordmarkUrl} onChange={(event) => update({ wordmarkUrl: event.target.value })} />
+                          <span className="site-muted">Upload</span>
+                          {(["primary", "secondary", "wordmark"] as const).map((kind) => (
+                            <label key={kind} className="site-btn site-btn-secondary site-btn-sm" style={{ overflow: "hidden" }}>
+                              {immortalityTeamLogoFiles[team.abbreviation]?.[kind]?.name ?? `${kind} image`}
+                              <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (!file) return;
+                                setImmortalityTeamLogoFiles((current) => ({
+                                  ...current,
+                                  [team.abbreviation]: { ...current[team.abbreviation], [kind]: file },
+                                }));
+                              }} />
+                            </label>
+                          ))}
+                          <span className="site-muted">Colors</span>
+                          <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
+                          <input className="site-input" placeholder="#Secondary" pattern="#[0-9A-Fa-f]{6}" value={slot.secondaryColor} onChange={(event) => update({ secondaryColor: event.target.value })} />
+                          <input className="site-input" placeholder="#Tertiary" pattern="#[0-9A-Fa-f]{6}" value={slot.tertiaryColor} onChange={(event) => update({ tertiaryColor: event.target.value })} />
                         </div>
                       );
                     })}
                   </div>
                 ) : null}
+                <div style={{ marginTop: 16 }}>
+                  <strong>Final division preview</strong>
+                  <div className="wizard-team-grid" style={{ marginTop: 8 }}>
+                    {(["AFC", "NFC"] as const).flatMap((conference) => ["East", "North", "South", "West"].map((division) => (
+                      <div key={`${conference}-${division}`} className="wizard-team-card" style={{ cursor: "default" }}>
+                        <strong>{conference} {division}</strong>
+                        {NFL_TEAMS.filter((team) => team.conference === conference && team.division === division).map((team) => {
+                          const custom = immortalityCustomTeams[team.abbreviation];
+                          const display = custom?.city.trim() && custom?.nick.trim()
+                            ? `${custom.city.trim()} ${custom.nick.trim()}`
+                            : team.name;
+                          return <span key={team.abbreviation} className="site-muted">{display} ({custom?.abbreviation.trim().toUpperCase() || team.abbreviation})</span>;
+                        })}
+                      </div>
+                    )))}
+                  </div>
+                </div>
               </Section>
             ) : (
               <Section title="Team Assignment">

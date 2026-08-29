@@ -55,6 +55,12 @@ export const CreateLeagueSchema = z.object({
     city: z.string().trim().min(1).max(40),
     nick: z.string().trim().min(1).max(40),
     abbreviation: z.string().trim().min(2).max(5),
+    primaryLogoUrl: z.string().trim().url().optional().nullable(),
+    secondaryLogoUrl: z.string().trim().url().optional().nullable(),
+    wordmarkUrl: z.string().trim().url().optional().nullable(),
+    primaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+    secondaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+    tertiaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
   })).max(32).optional(),
   // Madden only, custom_rosters only: a wizard-step confirmation asked right after picking
   // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false

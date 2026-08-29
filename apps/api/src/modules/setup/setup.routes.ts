@@ -29,6 +29,7 @@ import {
   completeWizard,
   uploadLeagueLogo,
   uploadGuildLeagueLogo,
+  uploadLeagueTeamIdentityLogo,
 } from "./setup.service.js";
 
 const CreateUnclaimedLeagueSchema = z.object({
@@ -45,6 +46,12 @@ const CreateUnclaimedLeagueSchema = z.object({
     city: z.string().trim().min(1).max(40),
     nick: z.string().trim().min(1).max(40),
     abbreviation: z.string().trim().min(2).max(5),
+    primaryLogoUrl: z.string().trim().url().optional().nullable(),
+    secondaryLogoUrl: z.string().trim().url().optional().nullable(),
+    wordmarkUrl: z.string().trim().url().optional().nullable(),
+    primaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+    secondaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
+    tertiaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i).optional().nullable(),
   })).max(32).optional(),
   initialTeamAbbreviation: z.string().trim().min(1).max(12).optional(),
   isOnline: z.boolean().optional(),
@@ -372,6 +379,23 @@ export async function setupRoutes(app: FastifyInstance) {
       if (!file) throw new ApiError(400, "Choose a league logo image.");
       const buffer = await file.toBuffer();
       return reply.send(await uploadLeagueLogo({ leagueId, requestedByUserId: creator.userId, buffer, contentType: file.mimetype }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/site-leagues/team-identity-logo", async (request, reply) => {
+    try {
+      const query = z.object({
+        leagueId: z.string().uuid(),
+        slot: z.string().trim().min(2).max(5),
+        kind: z.enum(["primary", "secondary", "wordmark"]),
+      }).parse(request.query);
+      const creator = await resolveSiteLeagueCreator(request);
+      if (!creator) throw new ApiError(401, "Sign in to upload team branding.");
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Choose a team branding image.");
+      return reply.send(await uploadLeagueTeamIdentityLogo({
+        ...query, requestedByUserId: creator.userId, buffer: await file.toBuffer(), contentType: file.mimetype,
+      }));
     } catch (error) { return sendError(reply, error); }
   });
 

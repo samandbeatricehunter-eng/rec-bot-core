@@ -40,7 +40,18 @@ export function useLeagueWizardState() {
   const [immortalityOffensePosition, setImmortalityOffensePosition] = useState("QB");
   const [immortalityDefensePosition, setImmortalityDefensePosition] = useState("MIKE");
   const [immortalityTeamPool, setImmortalityTeamPool] = useState<"default_nfl" | "custom_32">("default_nfl");
-  const [immortalityCustomTeams, setImmortalityCustomTeams] = useState<Record<string, { city: string; nick: string; abbreviation: string }>>({});
+  const [immortalityCustomTeams, setImmortalityCustomTeams] = useState<Record<string, {
+    city: string;
+    nick: string;
+    abbreviation: string;
+    primaryLogoUrl: string;
+    secondaryLogoUrl: string;
+    wordmarkUrl: string;
+    primaryColor: string;
+    secondaryColor: string;
+    tertiaryColor: string;
+  }>>({});
+  const [immortalityTeamLogoFiles, setImmortalityTeamLogoFiles] = useState<Record<string, Partial<Record<"primary" | "secondary" | "wordmark", File>>>>({});
   const [name, setName] = useState("");
   const [leagueLogoFile, setLeagueLogoFile] = useState<File | null>(null);
   const [customMaxMembers, setCustomMaxMembers] = useState(false);
@@ -223,6 +234,12 @@ export function useLeagueWizardState() {
             city: slot.city.trim(),
             nick: slot.nick.trim(),
             abbreviation: slot.abbreviation.trim().toUpperCase(),
+            primaryLogoUrl: slot.primaryLogoUrl.trim() || undefined,
+            secondaryLogoUrl: slot.secondaryLogoUrl.trim() || undefined,
+            wordmarkUrl: slot.wordmarkUrl.trim() || undefined,
+            primaryColor: slot.primaryColor.trim() || undefined,
+            secondaryColor: slot.secondaryColor.trim() || undefined,
+            tertiaryColor: slot.tertiaryColor.trim() || undefined,
           }];
         })
         : undefined,
@@ -364,6 +381,12 @@ export function useLeagueWizardState() {
               city: slot.city.trim(),
               nick: slot.nick.trim(),
               abbreviation: slot.abbreviation.trim().toUpperCase(),
+              primaryLogoUrl: slot.primaryLogoUrl.trim() || undefined,
+              secondaryLogoUrl: slot.secondaryLogoUrl.trim() || undefined,
+              wordmarkUrl: slot.wordmarkUrl.trim() || undefined,
+              primaryColor: slot.primaryColor.trim() || undefined,
+              secondaryColor: slot.secondaryColor.trim() || undefined,
+              tertiaryColor: slot.tertiaryColor.trim() || undefined,
             }];
           })
           : undefined,
@@ -589,6 +612,8 @@ export function useLeagueWizardState() {
     setImmortalityTeamPool,
     immortalityCustomTeams,
     setImmortalityCustomTeams,
+    immortalityTeamLogoFiles,
+    setImmortalityTeamLogoFiles,
     name,
     setName,
     leagueLogoFile,
