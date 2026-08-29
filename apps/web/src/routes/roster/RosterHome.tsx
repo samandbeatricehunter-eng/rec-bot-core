@@ -12,6 +12,7 @@ import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestMo
 import { ProposeRosterEditModal } from "../../components/hub/ProposeRosterEditModal.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerCard, toPlayerCardData } from "../../components/hub/PlayerCard.js";
+import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 import { Modal } from "../../components/ui/Modal.js";
 import "../../styles/player-card.css";
 
@@ -327,10 +328,20 @@ export function RosterHome() {
                   {sortedPlayers.map((player) => (
                     <tr key={player.id}>
                       <td className="hub-roster-name-col">
-                        <button type="button" className="rec-player-card-name-btn" onClick={() => setCardPlayer(player)}>
-                          {player.fullName}
-                        </button>
-                        <span className="hub-roster-pos">{player.position}</span>
+                        <div className="hub-roster-player-cell">
+                          <PlayerPhoto
+                            photoUrl={player.photoUrl}
+                            alt=""
+                            className="hub-roster-row-photo"
+                            fallback={<span className="hub-roster-row-photo hub-roster-row-photo-fallback">{player.position}</span>}
+                          />
+                          <span className="hub-roster-player-copy">
+                            <button type="button" className="rec-player-card-name-btn" onClick={() => setCardPlayer(player)}>
+                              {player.fullName}
+                            </button>
+                            <span className="hub-roster-pos">{player.position}</span>
+                          </span>
+                        </div>
                       </td>
                       <td>{formatHeight(player.heightInches)}</td>
                       <td>{player.weightLbs != null ? `${player.weightLbs} lbs` : "—"}</td>
