@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import sharp from "sharp";
 import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
@@ -179,14 +180,22 @@ async function startCapture(job: any) {
   child.once("close", async (code) => {
     activeCaptures.delete(job.streaming_session_id);
     const exists = await stat(capturePath).then((item) => item.size > 0).catch(() => false);
+    // This listener fires whenever the process actually exits, which for a SIGINT'd capture
+    // happens some time after monitorCapturingJob's budget-timeout kill() call -- by then
+    // handleAttemptFailure has often already moved the job to "cooldown"/"failed"/"retry".
+    // Since a killed recording almost always still has a non-empty file, this used to
+    // unconditionally stamp "processing" (wiping that decision's last_error) right back over
+    // it. Re-checking the row's current status first means this only acts while the job is
+    // still genuinely "capturing" (or "stop_requested", the user-initiated stop path).
+    const fresh = await supabase.from("rec_stream_capture_jobs").select("*").eq("id", job.id).maybeSingle();
+    if (fresh.data?.status !== "capturing" && fresh.data?.status !== "stop_requested") return;
     if (exists) {
       await updateJob(job.id, { status: "processing", ended_at: new Date().toISOString(), last_error: null });
       return;
     }
     // Nothing was captured (immediate disconnect, DRM, etc.) -- this counts as a failed attempt
     // against the same budget as a resolve failure, not a silent "processing" of an empty file.
-    const fresh = await supabase.from("rec_stream_capture_jobs").select("*").eq("id", job.id).maybeSingle();
-    if (fresh.data) await handleAttemptFailure(fresh.data, `FFmpeg capture exited ${code ?? "without a code"} with no data: ${stderr}`);
+    await handleAttemptFailure(fresh.data, `FFmpeg capture exited ${code ?? "without a code"} with no data: ${stderr}`);
   });
 }
 
@@ -203,14 +212,24 @@ async function monitorCapturingJob(job: any) {
     try {
       const mediaUrl = await resolveMediaUrl(job.stream_url);
       const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-i", mediaUrl, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
+      const meta = await sharp(frame).metadata();
       const parsed = await parseScorebugFrameAuto(frame);
+      // The region calibration (docs/scorebug-ocr-regions.md) was built against 1920x1080
+      // reference frames -- a real live stream's actual resolution varies per streamer (a
+      // non-partnered Twitch broadcaster's single source-quality encode is very often well
+      // under 1080p) and was previously invisible here entirely: a probe that never found a
+      // usable frame left no trace of WHY -- not the resolution, not the OCR reading, nothing.
+      console.log(`[stream-ocr] probe job=${job.id} frame=${meta.width}x${meta.height} framing=${parsed.framing} isLiveScorebug=${parsed.isLiveScorebug} away=${parsed.awayScore} home=${parsed.homeScore} quarter=${parsed.quarter} clock=${parsed.gameClock}`);
       if (parsed.isLiveScorebug && parsed.awayScore != null && parsed.homeScore != null) {
         await updateJob(job.id, { first_usable_frame_at: new Date().toISOString(), last_error: null });
         return;
       }
-    } catch {
+    } catch (error) {
       // Transient (game hasn't kicked off, brief resolver hiccup) -- the elapsed check below
-      // still governs whether this has gone on too long.
+      // still governs whether this has gone on too long. Logged (not swallowed) so a run of
+      // resolver/ffmpeg failures is distinguishable after the fact from a run of frames that
+      // simply never matched a valid scorebug reading.
+      console.error(`[stream-ocr] probe failed job=${job.id}:`, error instanceof Error ? error.message : error);
     }
   }
 
