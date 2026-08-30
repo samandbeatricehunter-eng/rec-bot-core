@@ -877,6 +877,7 @@ button.poty:disabled {
 .fantasy-draft-pool-table th.is-sortable { cursor: pointer; user-select: none; color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; }
 .fantasy-draft-pool-table-name-col { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; }
 .fantasy-draft-pool-table-action-col { min-width: 84px; }
+.hub-trade-devtrait-icon { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; vertical-align: middle; }
 @media (max-width: 640px) {
   .hub-trade-pool-position-select { max-width: none; flex: 1 1 140px; }
   .fantasy-draft-search { flex-basis: 100%; }
