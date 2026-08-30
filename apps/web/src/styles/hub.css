@@ -858,8 +858,29 @@ button.poty:disabled {
 .hub-trade-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); margin-bottom: var(--space-2); }
 .hub-trade-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 
-.hub-trade-pool { display: grid; gap: var(--space-3); }
+.hub-trade-pool { display: grid; gap: var(--space-3); min-width: 0; }
 .hub-trade-pool-table { max-height: 320px; }
+
+/* Asset pool toolbar (position select + search) and roster table for the Trade Builder/Block
+   pools. These had no styling at all, so on narrow screens the unconstrained wide table (one
+   column per attribute) pushed past the viewport and got clipped by the page's overflow-x:clip
+   -- the right side of the pool (and everything to the right of it) was simply unreachable.
+   Wrapped in its own horizontally-scrolling container instead, with the name column pinned. */
+.fantasy-draft-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-2); }
+.fantasy-draft-search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 160px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,.15); color: var(--text-muted); }
+.fantasy-draft-search input { border: none; background: none; color: var(--text-primary); flex: 1; min-width: 0; padding: 8px 0; }
+.fantasy-draft-search input:focus { outline: none; }
+.fantasy-draft-pool-table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.fantasy-draft-pool-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.fantasy-draft-pool-table th, .fantasy-draft-pool-table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left; }
+.fantasy-draft-pool-table tr:last-child td { border-bottom: none; }
+.fantasy-draft-pool-table th.is-sortable { cursor: pointer; user-select: none; color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; }
+.fantasy-draft-pool-table-name-col { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; }
+.fantasy-draft-pool-table-action-col { min-width: 84px; }
+@media (max-width: 640px) {
+  .hub-trade-pool-position-select { max-width: none; flex: 1 1 140px; }
+  .fantasy-draft-search { flex-basis: 100%; }
+}
 .fantasy-draft-player-name-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .fantasy-draft-player-name-btn > span { min-width: 0; display: flex; flex-direction: column; }
 .fantasy-draft-player-name-btn strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
