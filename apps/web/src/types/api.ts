@@ -393,6 +393,9 @@ export type AdvanceGame = {
   awayScore: number | null;
   fwFlaggedForUserId: string | null;
   approvedDesignation: "fair_sim" | "force_win" | null;
+  /** The actual EA Blaze audit trail for this game's most recent Force Win/Fair Sim command --
+   *  proof the write really reached EA (and whether EA accepted it), not just that REC asked. */
+  eaForceWinAction: { side: "home" | "away" | "cleared"; status: "success" | "error"; at: string } | null;
 };
 export type AdvanceWeekGames = {
   league: { id: string; name: string };

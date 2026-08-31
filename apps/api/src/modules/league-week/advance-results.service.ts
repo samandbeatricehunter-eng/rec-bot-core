@@ -460,6 +460,30 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     : { data: [] as any[], error: null };
   const fwFlagByGameId = new Map((fwFlags.data ?? []).map((row: any) => [String(row.game_id), row.fw_flagged_for_user_id as string | null]));
 
+  // `advance_outcome_override` alone can't confirm a Force Win actually reached EA -- the
+  // Commish Tools grant path (matchup-scheduling.service.ts's closeAdministrativeResult) marks
+  // it locally and fires the real Blaze command in the same breath, but that call is
+  // best-effort ("auto"-sourced, errors only logged) so the local flag can be set even if EA
+  // rejected it. rec_ea_admin_actions is the actual audit trail of that Blaze call, so it's the
+  // only source that can say "this was logged and EA accepted it" rather than "REC asked EA to."
+  const eaForceWinActions = gameIds.length
+    ? await supabase.from("rec_ea_admin_actions")
+        .select("target_description,command_name,status,created_at")
+        .eq("league_id", context.leagueId)
+        .in("target_description", gameIds)
+        .in("command_name", ["Mobile_GameSchedule_ForceHomeWin", "Mobile_GameSchedule_ForceAwayWin", "Mobile_GameSchedule_ForceNoWin"])
+        .order("created_at", { ascending: false })
+    : { data: [] as any[], error: null };
+  const eaForceWinActionByGameId = new Map<string, { side: "home" | "away" | "cleared"; status: "success" | "error"; at: string }>();
+  for (const row of eaForceWinActions.data ?? []) {
+    const gameId = String(row.target_description);
+    if (eaForceWinActionByGameId.has(gameId)) continue; // already-seen row is more recent (query is sorted desc)
+    const side = row.command_name === "Mobile_GameSchedule_ForceHomeWin" ? "home" as const
+      : row.command_name === "Mobile_GameSchedule_ForceAwayWin" ? "away" as const
+      : "cleared" as const;
+    eaForceWinActionByGameId.set(gameId, { side, status: row.status, at: row.created_at });
+  }
+
   const mapped = (games ?? []).map((game: any) => {
     const hasBoxScore = boxScoreGameIds.has(String(game.id));
     const resultRow = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
@@ -489,6 +513,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       awayScore: resultRow?.away_score ?? null,
       fwFlaggedForUserId: fwFlagByGameId.get(String(game.id)) ?? null,
       approvedDesignation: game.advance_outcome_override === "fw" ? "force_win" : game.advance_outcome_override === "fs" ? "fair_sim" : null,
+      eaForceWinAction: eaForceWinActionByGameId.get(String(game.id)) ?? null,
     };
   });
 

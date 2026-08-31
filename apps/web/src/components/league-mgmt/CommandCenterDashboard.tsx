@@ -341,7 +341,17 @@ function AdvanceReadinessSection() {
                     {!g.needsInput ? "Played" : schedulingByGameId[g.gameId] === "live" ? "Live" : schedulingByGameId[g.gameId] === "confirmed" ? "Scheduled" : "Not Scheduled"}
                   </Badge>
                 )}
-                {g.fwFlaggedForUserId && (
+                {g.eaForceWinAction?.status === "success" && g.eaForceWinAction.side !== "cleared" ? (
+                  <span title={`EA accepted this Force Win command and REC logged it at ${new Date(g.eaForceWinAction.at).toLocaleString()} -- the in-game result is set.`}>
+                    <Badge status="approved">
+                      FW Applied — {g.eaForceWinAction.side === "home" ? g.homeTeamName : g.awayTeamName} won
+                    </Badge>
+                  </span>
+                ) : g.eaForceWinAction?.status === "error" ? (
+                  <span title="REC tried to send this Force Win to EA and it was rejected -- the in-game result was NOT set. Try again from Commish Tools.">
+                    <Badge status="denied">FW Failed — retry</Badge>
+                  </span>
+                ) : g.fwFlaggedForUserId && (
                   <span title="A coach requested a Force Win after checking in for a confirmed kickoff their opponent missed. Apply it manually if warranted.">
                     <Badge status="pending">FW Requested</Badge>
                   </span>
