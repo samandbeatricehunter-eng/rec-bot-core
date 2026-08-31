@@ -901,6 +901,22 @@ export async function listTradeBlockListings(guildId: string) {
   };
 }
 
+/** Bulk-closes every open trade block listing the moment the regular season ends (called from
+ *  advance-results.service.ts on the regular_season -> postseason transition) -- an offer's
+ *  "looking for" ask is a regular-season roster-need context that goes stale once games stop
+ *  counting toward standings, so it shouldn't linger, visible and biteable, into the postseason. */
+export async function clearTradeBlockAtSeasonEnd(leagueId: string): Promise<{ cleared: number }> {
+  const result = await supabase.from("rec_trade_block_listings")
+    .update({ status: "withdrawn", updated_at: new Date().toISOString() })
+    .eq("league_id", leagueId).eq("status", "open")
+    .select("id");
+  if (result.error) {
+    console.error("[ERROR] clearTradeBlockAtSeasonEnd failed (non-fatal):", result.error);
+    return { cleared: 0 };
+  }
+  return { cleared: (result.data ?? []).length };
+}
+
 export async function withdrawTradeBlockListing(input: { guildId: string; discordId: string; listingId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdFromDiscord(input.discordId);

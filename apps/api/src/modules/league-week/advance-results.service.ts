@@ -32,6 +32,7 @@ import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
+import { clearTradeBlockAtSeasonEnd } from "../trades/trades.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
@@ -1246,6 +1247,14 @@ export async function completeAdvanceWeek(input: {
   if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await cleanupSeasonHighlights(input.guildId, context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] cleanupSeasonHighlights failed after advance (non-fatal):", err);
+    });
+  }
+
+  // Trade block offers are a regular-season roster-need ask -- close every open one out the
+  // moment the regular season ends so stale asks don't sit biteable through the postseason.
+  if (currentStage === "regular_season" && nextTarget.seasonStage !== "regular_season") {
+    await clearTradeBlockAtSeasonEnd(context.leagueId).catch((err) => {
+      console.error("[ERROR] clearTradeBlockAtSeasonEnd failed after advance (non-fatal):", err);
     });
   }
 
