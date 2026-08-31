@@ -13,6 +13,7 @@ import { ProposeRosterEditModal } from "../../components/hub/ProposeRosterEditMo
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerCard, toPlayerCardData } from "../../components/hub/PlayerCard.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
+import { DevTraitIcon } from "../../components/hub/DevTraitIcon.js";
 import { Modal } from "../../components/ui/Modal.js";
 import "../../styles/player-card.css";
 
@@ -152,7 +153,7 @@ export function RosterHome() {
   const [dataMode, setDataMode] = useState<"import" | "box_scores" | "manual" | null>(null);
   const [sortKey, setSortKey] = useState<string>("overallRating");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs"]);
+  const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs", "age"]);
 
   // "" = the signed-in coach's own team (the only case that can show edit controls -- the
   // read endpoint's canEditRosterStatus is purely game-type-based, not ownership-based, so the
@@ -254,25 +255,6 @@ export function RosterHome() {
         </div>
       </div>
 
-      <label className="form-field hub-roster-team-selector">
-        <span className="form-label">Viewing</span>
-        <select
-          className="form-input"
-          value={viewTeamId}
-          onChange={(event) => {
-            setViewTeamId(event.target.value);
-            setGroupFilter("ALL");
-            setView("grid");
-          }}
-        >
-          <option value="">My Team</option>
-          {teams.filter((team) => team.id !== myTeamId).map((team) => (
-            <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
-          ))}
-          <option value={FREE_AGENTS_VIEW}>Free Agents</option>
-        </select>
-      </label>
-
       {addPlayerOpen && <EditRosterRequestModal guildId={guildId} onClose={() => setAddPlayerOpen(false)} onDone={() => { setAddPlayerOpen(false); load(); }} />}
 
       {isOwnTeam && !isMadden && <RosterMovesPanel guildId={guildId} teamId={data.team.id} activePlayers={rosteredPlayers} departedPlayers={departedPlayers} onChanged={load} />}
@@ -301,6 +283,23 @@ export function RosterHome() {
         </div>
       ) : (
         <>
+          <label className="form-field hub-roster-team-selector">
+            <span className="form-label">Viewing</span>
+            <select
+              className="form-input"
+              value={viewTeamId}
+              onChange={(event) => {
+                setViewTeamId(event.target.value);
+                setGroupFilter("ALL");
+              }}
+            >
+              <option value="">My Team</option>
+              {teams.filter((team) => team.id !== myTeamId).map((team) => (
+                <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
+              ))}
+              <option value={FREE_AGENTS_VIEW}>Free Agents</option>
+            </select>
+          </label>
           <label className="form-field hub-roster-group-selector">
             <span className="form-label">Position group</span>
             <select className="form-input" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
@@ -370,6 +369,7 @@ export function RosterHome() {
                     <th className="hub-roster-sortable" onClick={() => toggleSort("heightInches")}>Ht{sortKey === "heightInches" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     <th className="hub-roster-sortable" onClick={() => toggleSort("weightLbs")}>Wt{sortKey === "weightLbs" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     {!isMadden && <th className="hub-roster-sortable" onClick={() => toggleSort("classYear")}>Class{sortKey === "classYear" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>}
+                    {isMadden && <th className="hub-roster-sortable" onClick={() => toggleSort("age")}>Age{sortKey === "age" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>}
                     <th className="hub-roster-sortable" onClick={() => toggleSort("overallRating")}>OVR{sortKey === "overallRating" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</th>
                     {ATTRIBUTE_ALL_KEYS.map((key) => (
                       <th key={key} className="hub-roster-sortable" title={attributeFullName(key)} onClick={() => toggleSort(key)}>
@@ -392,9 +392,12 @@ export function RosterHome() {
                             fallback={<span className="hub-roster-row-photo hub-roster-row-photo-fallback">{player.position}</span>}
                           />
                           <span className="hub-roster-player-copy">
-                            <button type="button" className="rec-player-card-name-btn" onClick={() => setCardPlayer(player)}>
-                              {player.fullName}
-                            </button>
+                            <span className="hub-roster-player-name-row">
+                              <DevTraitIcon devTrait={player.devTrait} />
+                              <button type="button" className="rec-player-card-name-btn" onClick={() => setCardPlayer(player)}>
+                                {player.fullName}
+                              </button>
+                            </span>
                             <span className="hub-roster-pos">{player.position}</span>
                           </span>
                         </div>
@@ -402,13 +405,14 @@ export function RosterHome() {
                       <td>{formatHeight(player.heightInches)}</td>
                       <td>{player.weightLbs != null ? `${player.weightLbs} lbs` : "—"}</td>
                       {!isMadden && <td>{player.classYear ?? "—"}</td>}
+                      {isMadden && <td>{player.age ?? "—"}</td>}
                       <td>
                         {player.overallRating ?? "—"}
                         {player.recentIncrease ? <span className="hub-roster-increase">+{player.recentIncrease}</span> : null}
                       </td>
                       {ATTRIBUTE_ALL_KEYS.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
                       <td>
-                        {viewTeamId !== FREE_AGENTS_VIEW && (
+                        {dataMode === "box_scores" && viewTeamId !== FREE_AGENTS_VIEW && (
                           <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
                             Add Stats
                           </button>
@@ -424,7 +428,7 @@ export function RosterHome() {
                   ))}
                   {sortedPlayers.length === 0 && (
                     <tr>
-                      <td colSpan={(isMadden ? 5 : 6) + ATTRIBUTE_ALL_KEYS.length + (data.canEditRosterStatus && isOwnTeam ? 1 : 0)} className="hub-empty">
+                      <td colSpan={6 + ATTRIBUTE_ALL_KEYS.length + (data.canEditRosterStatus && isOwnTeam ? 1 : 0)} className="hub-empty">
                         No players in this group.
                       </td>
                     </tr>

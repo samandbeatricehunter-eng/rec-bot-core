@@ -645,13 +645,19 @@ button.poty:disabled {
 
 .hub-roster-table-spreadsheet-wrap { overflow: auto; max-height: 34rem; }
 .hub-roster-table-spreadsheet thead th { position: sticky; top: 0; z-index: 2; background: #171b21; }
-.hub-roster-name-col { position: sticky; left: 0; z-index: 1; background: #101318; text-align: left !important; }
+/* min-width is load-bearing: this table also has ~30 narrow attribute columns competing for
+   width under table-layout:auto + width:100%, and without a floor here the browser was
+   shrinking this sticky column's flexible name track down toward zero -- the photo and
+   position code still fit and rendered, but the player's actual name became invisible
+   (0-width, no ellipsis) instead of forcing the table to scroll horizontally as intended. */
+.hub-roster-name-col { position: sticky; left: 0; z-index: 1; background: #101318; text-align: left !important; min-width: 190px; }
 .hub-roster-table-spreadsheet thead .hub-roster-name-col { z-index: 3; background: #171b21; }
 .hub-roster-player-cell { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; }
 .hub-roster-row-photo { display: block; width: 44px; height: 44px; min-width: 44px; max-width: 44px; border-radius: 8px; background: #090b0f; object-fit: cover; object-position: 50% 15%; overflow: hidden; }
 .hub-roster-row-photo-fallback { display: grid; place-items: center; border: 1px solid var(--border); color: var(--text-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .hub-roster-player-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; }
-.hub-roster-player-copy .rec-player-card-name-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-roster-player-name-row { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.hub-roster-player-copy .rec-player-card-name-btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-roster-moves { margin: var(--space-3) 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-roster-moves-toggle { width: 100%; padding: var(--space-2) var(--space-3); background: none; border: none; color: var(--text); font-weight: 700; text-align: left; cursor: pointer; }
 .hub-roster-moves-body { padding: 0 var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }

@@ -10,14 +10,17 @@ const MODES: Array<{ value: DataMode; label: string; hint: string }> = [
 ];
 
 // Bespoke (not schema-driven like settings-fields.ts) because it needs a game-aware option
-// list — CFB has no EA import pipeline, so "Import" is never offered there.
+// list — CFB has no EA import pipeline, so "Import" is never offered there. Madden leagues are
+// Import or Manual only going forward -- Box Scores was the pre-EA-import workflow and isn't
+// offered as a new choice for Madden anymore (a league already on it keeps working; this just
+// stops new leagues, or an existing one switching modes, from picking it again).
 export function DataModeSettings({ game, dataMode, onChange }: {
   game: string;
   dataMode: string;
   onChange: (next: DataMode) => void;
 }) {
   const isMadden = game.startsWith("madden_");
-  const options = isMadden ? MODES : MODES.filter((m) => m.value !== "import");
+  const options = isMadden ? MODES.filter((m) => m.value !== "box_scores") : MODES.filter((m) => m.value !== "import");
   const active = options.find((m) => m.value === dataMode) ?? options[0];
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
-import { MADDEN_PICK_BASELINE_META, normalizeMaddenDevTrait } from "@rec/shared";
+import { MADDEN_PICK_BASELINE_META } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -11,17 +11,10 @@ import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
+import { DevTraitIcon } from "../../components/hub/DevTraitIcon.js";
 
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
-
-// "normal" is the baseline trait every player who isn't Star/Superstar/X-Factor has -- it gets
-// no badge at all (matches the full player card's traitBadgeSrc), not the "hidden"/unscouted icon.
-function DevTraitIcon({ devTrait }: { devTrait: string | null | undefined }) {
-  const tier = normalizeMaddenDevTrait(devTrait);
-  if (tier == null || tier === "normal") return null;
-  return <img className="hub-trade-devtrait-icon" src={`/assets/dev-traits/${tier}.png`} alt={tier} title={tier} loading="lazy" />;
-}
 
 function CollapsibleSection({ title, count, defaultOpen = true, flash = false, children }: {
   title: string;
