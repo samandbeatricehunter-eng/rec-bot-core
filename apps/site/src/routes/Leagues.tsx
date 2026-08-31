@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { CFB_27_TEAMS, NFL_TEAMS } from "@rec/shared";
+import { NFL_TEAMS } from "@rec/shared";
 import { useAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import {
@@ -13,7 +13,7 @@ import {
   type SiteOpenTeam,
 } from "../lib/site-api.js";
 import { CreateLeagueWizard } from "../components/CreateLeagueWizard.js";
-import { LEAGUE_TEMPLATES, MADDEN_LEAGUE_TEMPLATES, CFB_LEAGUE_TEMPLATES } from "../lib/league-templates.js";
+import { LEAGUE_TEMPLATES, MADDEN_LEAGUE_TEMPLATES } from "../lib/league-templates.js";
 
 const ROSTER_TYPE_OPTIONS = [
   { value: "", label: "Any roster type" },
@@ -23,16 +23,9 @@ const ROSTER_TYPE_OPTIONS = [
 ];
 
 type Tab = "search" | "mine";
-type GameKey = "madden_26" | "madden_27" | "cfb_27";
 
 const STANDARD_REC_4TH =
   "Standard REC: past midfield on 4th & 3 or shorter; trailing in the second half may go anytime.";
-
-const GAME_OPTIONS: { value: GameKey; label: string }[] = [
-  { value: "madden_26", label: "Madden 26" },
-  { value: "madden_27", label: "Madden 27" },
-  { value: "cfb_27", label: "CFB 27" },
-];
 
 const MADDEN_DIFFICULTY = [
   { value: "", label: "Any difficulty" },
@@ -40,14 +33,6 @@ const MADDEN_DIFFICULTY = [
   { value: "all_pro", label: "All-Pro" },
   { value: "pro", label: "Pro" },
   { value: "rookie", label: "Rookie" },
-];
-
-const CFB_DIFFICULTY = [
-  { value: "", label: "Any difficulty" },
-  { value: "all_madden", label: "Heisman" },
-  { value: "all_pro", label: "All-American" },
-  { value: "pro", label: "Varsity" },
-  { value: "rookie", label: "Freshman" },
 ];
 
 const STREAM_OPTIONS = [
@@ -101,10 +86,6 @@ function boolTri(value: "" | "true" | "false"): boolean | undefined {
   return undefined;
 }
 
-function isGameKey(value: string): value is GameKey {
-  return value === "madden_26" || value === "madden_27" || value === "cfb_27";
-}
-
 function isCfbGame(game: string) {
   return game === "cfb_27";
 }
@@ -113,15 +94,8 @@ function consoleLabel(console: string) {
   return console === "ps5" ? "PS5" : console === "xbox" ? "Xbox" : console === "pc" ? "PC" : console;
 }
 
-function teamOptionsForGame(game: GameKey) {
-  if (game === "cfb_27") {
-    return [...CFB_27_TEAMS]
-      .map((team) => ({
-        value: team.abbreviation,
-        label: `${team.name} ${team.mascot}`,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }
+// This page only ever searches Madden 27 leagues, so the open-team picker is always NFL teams.
+function teamOptionsForGame() {
   return [...NFL_TEAMS]
     .map((team) => ({
       value: team.abbreviation,
@@ -640,10 +614,8 @@ export function LeaguesPage() {
     siteApi.getLeagueCreatorStatus().then((res) => setCanCreateLeague(res.allowed)).catch(() => setCanCreateLeague(false));
   }, []);
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [game, setGame] = useState(() => {
-    const raw = params.get("game") ?? "";
-    return isGameKey(raw) ? raw : "";
-  });
+  // This page only ever shows Madden 27 leagues -- CFB 27 and Madden 26 aren't offered here.
+  const game = "madden_27";
   const [openTeamAbbr, setOpenTeamAbbr] = useState(params.get("team") ?? "");
   const [difficulty, setDifficulty] = useState(params.get("difficulty") ?? "");
   const [streamingRequirement, setStreamingRequirement] = useState(params.get("stream") ?? "");
@@ -683,36 +655,28 @@ export function LeaguesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isCfb = game === "cfb_27";
-  const difficultyOptions = isCfb ? CFB_DIFFICULTY : MADDEN_DIFFICULTY;
-  const openTeamOptions = useMemo(
-    () => (isGameKey(game) ? teamOptionsForGame(game) : []),
-    [game],
-  );
+  const difficultyOptions = MADDEN_DIFFICULTY;
+  const openTeamOptions = useMemo(() => teamOptionsForGame(), []);
 
-  const filters = useMemo<SiteLeagueSearchFilters | null>(() => {
-    if (!isGameKey(game)) return null;
-    return {
-      q: q.trim() || undefined,
-      game,
-      openTeamAbbr: openTeamAbbr || undefined,
-      difficulty: difficulty || undefined,
-      streamingRequirement: streamingRequirement || undefined,
-      tradeApprovalPolicy: isCfb ? undefined : tradeApprovalPolicy || undefined,
-      coinEconomyEnabled: boolTri(coinEconomy),
-      acceleratedClockEnabled: boolTri(acceleratedClock),
-      offensivePlayCallLimitsEnabled: boolTri(offPlayCall),
-      defensivePlayCallLimitsEnabled: boolTri(defPlayCall),
-      rosterType: isCfb ? undefined : rosterType || undefined,
-      templateId: templateId || undefined,
-      sort: (SORT_OPTIONS.some((o) => o.value === sort)
-        ? sort
-        : "name_asc") as SiteLeagueSearchFilters["sort"],
-      limit: 60,
-    };
-  }, [
-    q,
+  const filters = useMemo<SiteLeagueSearchFilters>(() => ({
+    q: q.trim() || undefined,
     game,
+    openTeamAbbr: openTeamAbbr || undefined,
+    difficulty: difficulty || undefined,
+    streamingRequirement: streamingRequirement || undefined,
+    tradeApprovalPolicy: tradeApprovalPolicy || undefined,
+    coinEconomyEnabled: boolTri(coinEconomy),
+    acceleratedClockEnabled: boolTri(acceleratedClock),
+    offensivePlayCallLimitsEnabled: boolTri(offPlayCall),
+    defensivePlayCallLimitsEnabled: boolTri(defPlayCall),
+    rosterType: rosterType || undefined,
+    templateId: templateId || undefined,
+    sort: (SORT_OPTIONS.some((o) => o.value === sort)
+      ? sort
+      : "name_asc") as SiteLeagueSearchFilters["sort"],
+    limit: 60,
+  }), [
+    q,
     openTeamAbbr,
     difficulty,
     streamingRequirement,
@@ -724,7 +688,6 @@ export function LeaguesPage() {
     rosterType,
     templateId,
     sort,
-    isCfb,
   ]);
 
   useEffect(() => {
@@ -784,12 +747,6 @@ export function LeaguesPage() {
 
   useEffect(() => {
     if (tab !== "search") return;
-    if (!filters) {
-      setResults([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -820,14 +777,6 @@ export function LeaguesPage() {
     const nextParams = new URLSearchParams(params);
     nextParams.set("tab", next);
     setParams(nextParams, { replace: true });
-  }
-
-  function onGameChange(next: string) {
-    setGame(isGameKey(next) ? next : "");
-    setOpenTeamAbbr("");
-    setTradeApprovalPolicy("");
-    setDifficulty("");
-    setRosterType("");
   }
 
   function openLeague(leagueId: string) {
@@ -888,7 +837,7 @@ export function LeaguesPage() {
   }
 
   return (
-    <div className="site-page-card site-leagues-page">
+    <div className="site-leagues-page">
       <div className="site-leagues-header">
         <div>
           <h1>Leagues</h1>
@@ -1000,225 +949,194 @@ export function LeaguesPage() {
         </section>
       ) : (
         <section className="site-leagues-panel">
-          <div className="site-leagues-game-row">
-            <label className="site-field site-leagues-game-field">
-              <span>Game</span>
-              <select
-                className="site-select"
-                value={game}
-                onChange={(e) => onGameChange(e.target.value)}
-                required
-              >
-                <option value="">Select a game</option>
-                {GAME_OPTIONS.map((opt) => (
+          <div className="site-leagues-search-row">
+            <label className="site-field site-leagues-search-field">
+              <span>Search</span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="League name, keyword, commissioner username or Discord"
+              />
+            </label>
+            <label className="site-field">
+              <span>Sort</span>
+              <select className="site-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                {SORT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="site-btn site-btn-ghost site-leagues-filter-toggle"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              {filtersOpen ? "Hide filters" : "Filters"}
+            </button>
           </div>
 
-          {!isGameKey(game) ? (
-            <p className="site-muted site-leagues-empty-prompt">
-              Please select a game to view its leagues.
-            </p>
-          ) : (
-            <>
-              <div className="site-leagues-search-row">
-                <label className="site-field site-leagues-search-field">
-                  <span>Search</span>
-                  <input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="League name, keyword, commissioner username or Discord"
-                  />
-                </label>
-                <label className="site-field">
-                  <span>Sort</span>
-                  <select className="site-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-                    {SORT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="site-btn site-btn-ghost site-leagues-filter-toggle"
-                  onClick={() => setFiltersOpen((open) => !open)}
+          {filtersOpen ? (
+            <div className="site-leagues-filters">
+              <label className="site-field">
+                <span>Open team</span>
+                <select
+                  className="site-select"
+                  value={openTeamAbbr}
+                  onChange={(e) => setOpenTeamAbbr(e.target.value)}
                 >
-                  {filtersOpen ? "Hide filters" : "Filters"}
-                </button>
-              </div>
+                  <option value="">Any open team</option>
+                  {openTeamOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Difficulty</span>
+                <select
+                  className="site-select"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                >
+                  {difficultyOptions.map((opt) => (
+                    <option key={opt.value || "any-diff"} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Streaming</span>
+                <select
+                  className="site-select"
+                  value={streamingRequirement}
+                  onChange={(e) => setStreamingRequirement(e.target.value)}
+                >
+                  {STREAM_OPTIONS.map((opt) => (
+                    <option key={opt.value || "any-stream"} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Roster type</span>
+                <select
+                  className="site-select"
+                  value={rosterType}
+                  onChange={(e) => setRosterType(e.target.value)}
+                >
+                  {ROSTER_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value || "any-roster"} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Template</span>
+                <select
+                  className="site-select"
+                  value={templateId}
+                  onChange={(e) => setTemplateId(e.target.value)}
+                >
+                  <option value="">Any template</option>
+                  {MADDEN_LEAGUE_TEMPLATES.map((tpl) => (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Trade rules</span>
+                <select
+                  className="site-select"
+                  value={tradeApprovalPolicy}
+                  onChange={(e) => setTradeApprovalPolicy(e.target.value)}
+                >
+                  {TRADE_OPTIONS.map((opt) => (
+                    <option key={opt.value || "any-trade"} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Coin economy</span>
+                <select
+                  className="site-select"
+                  value={coinEconomy}
+                  onChange={(e) => setCoinEconomy(e.target.value as "" | "true" | "false")}
+                >
+                  <option value="">Any</option>
+                  <option value="true">On</option>
+                  <option value="false">Off</option>
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Accelerated clock</span>
+                <select
+                  className="site-select"
+                  value={acceleratedClock}
+                  onChange={(e) => setAcceleratedClock(e.target.value as "" | "true" | "false")}
+                >
+                  <option value="">Any</option>
+                  <option value="true">On</option>
+                  <option value="false">Off</option>
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Offensive play-call limits</span>
+                <select
+                  className="site-select"
+                  value={offPlayCall}
+                  onChange={(e) => setOffPlayCall(e.target.value as "" | "true" | "false")}
+                >
+                  <option value="">Any</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </label>
+              <label className="site-field">
+                <span>Defensive play-call limits</span>
+                <select
+                  className="site-select"
+                  value={defPlayCall}
+                  onChange={(e) => setDefPlayCall(e.target.value as "" | "true" | "false")}
+                >
+                  <option value="">Any</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
 
-              {filtersOpen ? (
-                <div className="site-leagues-filters">
-                  <label className="site-field">
-                    <span>Open team</span>
-                    <select
-                      className="site-select"
-                      value={openTeamAbbr}
-                      onChange={(e) => setOpenTeamAbbr(e.target.value)}
-                    >
-                      <option value="">Any open team</option>
-                      {openTeamOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="site-field">
-                    <span>Difficulty</span>
-                    <select
-                      className="site-select"
-                      value={difficulty}
-                      onChange={(e) => setDifficulty(e.target.value)}
-                    >
-                      {difficultyOptions.map((opt) => (
-                        <option key={opt.value || "any-diff"} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="site-field">
-                    <span>Streaming</span>
-                    <select
-                      className="site-select"
-                      value={streamingRequirement}
-                      onChange={(e) => setStreamingRequirement(e.target.value)}
-                    >
-                      {STREAM_OPTIONS.map((opt) => (
-                        <option key={opt.value || "any-stream"} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!isCfb ? (
-                    <label className="site-field">
-                      <span>Roster type</span>
-                      <select
-                        className="site-select"
-                        value={rosterType}
-                        onChange={(e) => setRosterType(e.target.value)}
-                      >
-                        {ROSTER_TYPE_OPTIONS.map((opt) => (
-                          <option key={opt.value || "any-roster"} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                  <label className="site-field">
-                    <span>Template</span>
-                    <select
-                      className="site-select"
-                      value={templateId}
-                      onChange={(e) => setTemplateId(e.target.value)}
-                    >
-                      <option value="">Any template</option>
-                      {(isCfb ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES).map((tpl) => (
-                        <option key={tpl.id} value={tpl.id}>
-                          {tpl.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!isCfb ? (
-                    <label className="site-field">
-                      <span>Trade rules</span>
-                      <select
-                        className="site-select"
-                        value={tradeApprovalPolicy}
-                        onChange={(e) => setTradeApprovalPolicy(e.target.value)}
-                      >
-                        {TRADE_OPTIONS.map((opt) => (
-                          <option key={opt.value || "any-trade"} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                  <label className="site-field">
-                    <span>Coin economy</span>
-                    <select
-                      className="site-select"
-                      value={coinEconomy}
-                      onChange={(e) => setCoinEconomy(e.target.value as "" | "true" | "false")}
-                    >
-                      <option value="">Any</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
-                    </select>
-                  </label>
-                  <label className="site-field">
-                    <span>Accelerated clock</span>
-                    <select
-                      className="site-select"
-                      value={acceleratedClock}
-                      onChange={(e) => setAcceleratedClock(e.target.value as "" | "true" | "false")}
-                    >
-                      <option value="">Any</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
-                    </select>
-                  </label>
-                  <label className="site-field">
-                    <span>Offensive play-call limits</span>
-                    <select
-                      className="site-select"
-                      value={offPlayCall}
-                      onChange={(e) => setOffPlayCall(e.target.value as "" | "true" | "false")}
-                    >
-                      <option value="">Any</option>
-                      <option value="true">Enabled</option>
-                      <option value="false">Disabled</option>
-                    </select>
-                  </label>
-                  <label className="site-field">
-                    <span>Defensive play-call limits</span>
-                    <select
-                      className="site-select"
-                      value={defPlayCall}
-                      onChange={(e) => setDefPlayCall(e.target.value as "" | "true" | "false")}
-                    >
-                      <option value="">Any</option>
-                      <option value="true">Enabled</option>
-                      <option value="false">Disabled</option>
-                    </select>
-                  </label>
-                </div>
-              ) : null}
+          {error ? <p className="site-auth-error">{error}</p> : null}
+          {loading ? <p className="site-muted">Searching leagues...</p> : null}
+          {!loading && !error && results.length === 0 ? (
+            <p className="site-muted">No leagues match those filters.</p>
+          ) : null}
 
-              {error ? <p className="site-auth-error">{error}</p> : null}
-              {loading ? <p className="site-muted">Searching leagues...</p> : null}
-              {!loading && !error && results.length === 0 ? (
-                <p className="site-muted">No leagues match those filters.</p>
-              ) : null}
-
-              <div className="site-league-search-list">
-                {results.map((league) => (
-                  <LeagueSearchCard
-                    key={league.id}
-                    league={league}
-                    memberTier={memberTier}
-                    expanded={expandedId === league.id}
-                    onToggle={() =>
-                      setExpandedId((id) => (id === league.id ? null : league.id))
-                    }
-                    onOpen={() => openLeague(league.id)}
-                    onRequestTeam={() => void openTeamRequest(league)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
+          <div className="site-league-search-list">
+            {results.map((league) => (
+              <LeagueSearchCard
+                key={league.id}
+                league={league}
+                memberTier={memberTier}
+                expanded={expandedId === league.id}
+                onToggle={() =>
+                  setExpandedId((id) => (id === league.id ? null : league.id))
+                }
+                onOpen={() => openLeague(league.id)}
+                onRequestTeam={() => void openTeamRequest(league)}
+              />
+            ))}
+          </div>
         </section>
       )}
       {requestLeague ? (

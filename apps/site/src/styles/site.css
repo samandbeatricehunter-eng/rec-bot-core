@@ -791,6 +791,10 @@ h1, h2, h3, .site-wordmark {
 .site-leagues-page {
   width: min(var(--content-width), 100%);
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-5);
 }
 .site-leagues-header {
   display: flex;
@@ -909,17 +913,6 @@ h1, h2, h3, .site-wordmark {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.2;
-}
-.site-leagues-game-row {
-  margin-bottom: var(--space-4);
-}
-.site-leagues-game-field {
-  max-width: 320px;
-}
-.site-leagues-empty-prompt {
-  margin: var(--space-6) 0;
-  text-align: center;
-  font-size: 15px;
 }
 .site-league-member-star {
   display: inline-block;
