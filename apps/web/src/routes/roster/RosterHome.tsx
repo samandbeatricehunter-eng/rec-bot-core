@@ -133,6 +133,10 @@ function formatHeight(inches: number | null): string {
 
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
+// Sentinel view-selector value for the unassigned player pool -- not a real team id, so it's
+// kept out of the UUID-shaped teamId space entirely rather than risk colliding with one.
+const FREE_AGENTS_VIEW = "__free_agents__";
+
 export function RosterHome() {
   const { guildId } = useReadyAuth();
   const hub = useHubChrome();
@@ -150,14 +154,47 @@ export function RosterHome() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const BASE_SORT_KEYS = new Set(["fullName", "overallRating", "classYear", "heightInches", "weightLbs"]);
 
+  // "" = the signed-in coach's own team (the only case that can show edit controls -- the
+  // read endpoint's canEditRosterStatus is purely game-type-based, not ownership-based, so the
+  // frontend has to be the one to hide mutation UI when browsing someone else's roster).
+  const [viewTeamId, setViewTeamId] = useState<string>("");
+  const isOwnTeam = viewTeamId === "";
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; abbreviation: string; isCpu: boolean; hasSiteAccount: boolean }>>([]);
+  // Captured once from the "" (own-team) fetch so the team dropdown can exclude "my team" from
+  // its "other teams" options even after switching to view someone else's roster or the free
+  // agent pool, once `data.team.id` no longer refers to the signed-in coach's own team.
+  const [myTeamId, setMyTeamId] = useState<string | null>(null);
+
+  useEffect(() => {
+    recApi.listTradeableTeams(guildId).then(setTeams).catch(() => undefined);
+  }, [guildId]);
+
   function load() {
+    if (viewTeamId === FREE_AGENTS_VIEW) {
+      recApi.listRosterPool({ guildId })
+        .then((pool) => setData({
+          team: { id: FREE_AGENTS_VIEW, name: "Free Agents", abbreviation: null },
+          // The pool has no roster-lifecycle concept (no departed/drafted/graduated states) --
+          // every pool player counts as "active" so the existing active/departed split just
+          // shows all of them, same as it already does for a real team's active roster.
+          players: pool.players.map((p) => ({ ...p, rosterStatus: "active" })),
+          positionGroups: pool.positionGroups,
+          draftPicks: [],
+          canEditRosterStatus: false,
+        }))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load free agents."));
+      return;
+    }
     recApi
-      .getTeamRoster({ guildId })
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load your roster."));
+      .getTeamRoster({ guildId, teamId: viewTeamId || undefined })
+      .then((res) => {
+        setData(res);
+        if (!viewTeamId) setMyTeamId(res.team.id);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load that roster."));
   }
 
-  useEffect(load, [guildId]);
+  useEffect(load, [guildId, viewTeamId]);
   useEffect(() => {
     recApi.getLeagueDataMode(guildId).then((res) => setDataMode(res.dataMode)).catch(() => undefined);
   }, [guildId]);
@@ -196,15 +233,15 @@ export function RosterHome() {
   }
 
   if (error) return <ErrorState message={error} />;
-  if (!data) return <LoadingState label="Loading your roster…" />;
+  if (!data) return <LoadingState label="Loading roster…" />;
 
   return (
     <div className="hub-section hub-roster-page">
       <div className="hub-section-heading">
         <div>
-          <p className="hub-eyebrow">Team roster</p>
+          <p className="hub-eyebrow">{viewTeamId === FREE_AGENTS_VIEW ? "Free agent pool" : isOwnTeam ? "Your team roster" : "Team roster"}</p>
           <h2>{data.team.name ?? data.team.abbreviation ?? "Your team"}</h2>
-          <p>{rosteredPlayers.length} players on roster</p>
+          <p>{rosteredPlayers.length} players {viewTeamId === FREE_AGENTS_VIEW ? "unassigned" : "on roster"}</p>
         </div>
         <div className="hub-roster-view-toggle">
           <button type="button" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>
@@ -213,13 +250,32 @@ export function RosterHome() {
           <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Roster List
           </button>
-          {!isMadden && <button type="button" onClick={() => setAddPlayerOpen(true)}>Add Player</button>}
+          {isOwnTeam && !isMadden && <button type="button" onClick={() => setAddPlayerOpen(true)}>Add Player</button>}
         </div>
       </div>
 
+      <label className="form-field hub-roster-team-selector">
+        <span className="form-label">Viewing</span>
+        <select
+          className="form-input"
+          value={viewTeamId}
+          onChange={(event) => {
+            setViewTeamId(event.target.value);
+            setGroupFilter("ALL");
+            setView("grid");
+          }}
+        >
+          <option value="">My Team</option>
+          {teams.filter((team) => team.id !== myTeamId).map((team) => (
+            <option key={team.id} value={team.id}>{team.name}{team.isCpu ? " (CPU)" : ""}</option>
+          ))}
+          <option value={FREE_AGENTS_VIEW}>Free Agents</option>
+        </select>
+      </label>
+
       {addPlayerOpen && <EditRosterRequestModal guildId={guildId} onClose={() => setAddPlayerOpen(false)} onDone={() => { setAddPlayerOpen(false); load(); }} />}
 
-      {!isMadden && <RosterMovesPanel guildId={guildId} teamId={data.team.id} activePlayers={rosteredPlayers} departedPlayers={departedPlayers} onChanged={load} />}
+      {isOwnTeam && !isMadden && <RosterMovesPanel guildId={guildId} teamId={data.team.id} activePlayers={rosteredPlayers} departedPlayers={departedPlayers} onChanged={load} />}
 
       {view === "grid" ? (
         <div className="hub-roster-grade-grid">
@@ -321,7 +377,7 @@ export function RosterHome() {
                       </th>
                     ))}
                     <th />
-                    {data.canEditRosterStatus && <th>Status</th>}
+                    {data.canEditRosterStatus && isOwnTeam && <th>Status</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -352,21 +408,23 @@ export function RosterHome() {
                       </td>
                       {ATTRIBUTE_ALL_KEYS.map((key) => <td key={key}>{player.attributes[key] ?? "—"}</td>)}
                       <td>
-                        <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
-                          Add Stats
-                        </button>
-                        {dataMode === "manual" && (
+                        {viewTeamId !== FREE_AGENTS_VIEW && (
+                          <button type="button" className="btn btn-secondary btn-compact" onClick={() => setStatsPlayer(player)}>
+                            Add Stats
+                          </button>
+                        )}
+                        {isOwnTeam && dataMode === "manual" && (
                           <button type="button" className="btn btn-secondary btn-compact" style={{ marginLeft: "var(--space-2)" }} onClick={() => setProposeEditPlayer(player)}>
                             Propose Edit
                           </button>
                         )}
                       </td>
-                      {data.canEditRosterStatus && <td><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
+                      {data.canEditRosterStatus && isOwnTeam && <td><RosterStatusCell guildId={guildId} player={player} onChanged={load} /></td>}
                     </tr>
                   ))}
                   {sortedPlayers.length === 0 && (
                     <tr>
-                      <td colSpan={(isMadden ? 5 : 6) + ATTRIBUTE_ALL_KEYS.length + (data.canEditRosterStatus ? 1 : 0)} className="hub-empty">
+                      <td colSpan={(isMadden ? 5 : 6) + ATTRIBUTE_ALL_KEYS.length + (data.canEditRosterStatus && isOwnTeam ? 1 : 0)} className="hub-empty">
                         No players in this group.
                       </td>
                     </tr>

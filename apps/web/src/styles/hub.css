@@ -582,6 +582,7 @@ button.poty:disabled {
 .hub-roster-grade-letter[data-grade-letter="F"] { color: #f87171; }
 .hub-roster-grade-meta { font-size: 10px; color: var(--text-muted); }
 .hub-roster-group-selector { max-width: 240px; margin-bottom: var(--space-3); }
+.hub-roster-team-selector { max-width: 280px; margin-bottom: var(--space-4); }
 
 .hub-rules-category h3 { margin: 0 0 var(--space-3); font-size: var(--text-lg); text-transform: uppercase; letter-spacing: .03em; }
 .hub-rules-category h4 { margin: var(--space-3) 0 var(--space-2); font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
