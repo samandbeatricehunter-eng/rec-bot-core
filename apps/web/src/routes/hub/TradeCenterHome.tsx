@@ -15,14 +15,12 @@ import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
 
-function devTraitIconSrc(devTrait: string | null | undefined): string {
-  const tier = normalizeMaddenDevTrait(devTrait) ?? "normal";
-  return `/assets/dev-traits/${tier}.png`;
-}
-
+// "normal" is the baseline trait every player who isn't Star/Superstar/X-Factor has -- it gets
+// no badge at all (matches the full player card's traitBadgeSrc), not the "hidden"/unscouted icon.
 function DevTraitIcon({ devTrait }: { devTrait: string | null | undefined }) {
-  const tier = normalizeMaddenDevTrait(devTrait) ?? "normal";
-  return <img className="hub-trade-devtrait-icon" src={devTraitIconSrc(devTrait)} alt={tier} title={tier} loading="lazy" />;
+  const tier = normalizeMaddenDevTrait(devTrait);
+  if (tier == null || tier === "normal") return null;
+  return <img className="hub-trade-devtrait-icon" src={`/assets/dev-traits/${tier}.png`} alt={tier} title={tier} loading="lazy" />;
 }
 
 function CollapsibleSection({ title, count, defaultOpen = true, flash = false, children }: {
@@ -273,7 +271,7 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
         ) : (
           <ul>
             {selectedPlayers.map((player) => (
-              <li key={player.id}><span><DevTraitIcon devTrait={player.devTrait} /> <strong>{player.fullName}</strong> · {player.position} · {player.overallRating ?? "—"} OVR</span><button type="button" aria-label={`Remove ${player.fullName}`} onClick={() => onToggle({ type: "player", playerId: player.id })}><Trash2 size={14} /></button></li>
+              <li key={player.id}><span><DevTraitIcon devTrait={player.devTrait} /><strong>{player.fullName}</strong> · {player.position} · {player.overallRating ?? "—"} OVR</span><button type="button" aria-label={`Remove ${player.fullName}`} onClick={() => onToggle({ type: "player", playerId: player.id })}><Trash2 size={14} /></button></li>
             ))}
             {selectedPicks.map((pick) => (
               <li key={pick.id}><span>Season {pick.seasonNumber} · Round {pick.round}</span><button type="button" aria-label="Remove pick" onClick={() => onToggle({ type: "pick", draftPickId: pick.id })}><Trash2 size={14} /></button></li>
