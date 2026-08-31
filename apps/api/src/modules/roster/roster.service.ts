@@ -148,11 +148,28 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
   // Exposed here so the roster UI can show the per-player status selector without a round trip.
   const canEditRosterStatus = isCfb(context.rec_leagues.game);
 
+  // Cap room is Madden-only (EA import populates it onto each week's standings snapshot, not a
+  // live figure) and purely informational for the trade builder -- best-effort, non-fatal if
+  // the league has never had a snapshot yet (e.g. a brand-new Madden league before its first
+  // import) or isn't Madden at all.
+  let capRoom: number | null = null;
+  if (isMadden) {
+    const snapshot = await supabase.from("rec_team_standings_snapshots")
+      .select("cap_room")
+      .eq("team_id", teamId)
+      .order("season_number", { ascending: false })
+      .order("week_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    capRoom = snapshot.data?.cap_room ?? null;
+  }
+
   return {
     team: {
       id: team.data.id,
       name: team.data.name,
       abbreviation: team.data.display_abbr || team.data.abbreviation,
+      capRoom,
     },
     players: rows,
     positionGroups,

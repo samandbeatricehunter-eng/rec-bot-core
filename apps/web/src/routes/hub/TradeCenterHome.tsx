@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
-import { MADDEN_PICK_BASELINE_META } from "@rec/shared";
+import { MADDEN_PICK_BASELINE_META, computeRecTeamPositionNeeds } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/Button.js";
 import { ATTRIBUTE_ALL_KEYS, attributeFullName, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 import { DevTraitIcon } from "../../components/hub/DevTraitIcon.js";
+import { teamLogoUrl } from "../../lib/team-logos.js";
 
 const MAX_LEGS = 7;
 const ROSTER_ACTIVE_STATUSES = new Set(["active", "transferred_in"]);
@@ -61,8 +62,117 @@ function describeTradeAssets(trade: Trade, myTeamId: string, myRoster: TeamRoste
   return { youReceive: receiverStr || "Nothing", theyReceive: senderStr || "Nothing" };
 }
 
+/** Same "which side is mine" logic as describeTradeAssets, but returning the raw asset lists
+ * (not pre-joined text) so the pending-trade cards can render them as TradeAssetCards instead
+ * of a plain sentence. Null once value_snapshot hasn't been computed yet -- callers fall back
+ * to describeTradeAssets's "Waiting for evaluator data…" text in that case. */
+function tradeAssetGroups(trade: Trade, myTeamId: string): { youReceive: TradeAssetDisplay[]; theyReceive: TradeAssetDisplay[]; youReceiveCoins: number; theyReceiveCoins: number } | null {
+  const vs = trade.value_snapshot;
+  if (!vs) return null;
+  const amSender = trade.proposing_team_id === myTeamId;
+  return {
+    youReceive: amSender ? vs.receivingAssets : vs.proposingAssets,
+    theyReceive: amSender ? vs.proposingAssets : vs.receivingAssets,
+    youReceiveCoins: amSender ? trade.receiving_coins : trade.proposing_coins,
+    theyReceiveCoins: amSender ? trade.proposing_coins : trade.receiving_coins,
+  };
+}
+
+/** Renders one side of a pending trade's asset snapshot as TradeAssetCards (falls back to a
+ * plain "Nothing" line for an empty side, and a coin total below the cards when non-zero). */
+function TradeAssetSideCards({ assets, coins }: { assets: TradeAssetDisplay[]; coins: number }) {
+  if (assets.length === 0 && coins <= 0) return <p className="hub-empty">Nothing</p>;
+  return (
+    <div className="trade-asset-card-list">
+      {assets.map((asset) => (
+        <TradeAssetCard
+          key={asset.id} kind={asset.type === "pick" ? "pick" : "player"} label={asset.label}
+          position={asset.position} overallRating={asset.overallRating} age={asset.age} devTrait={asset.devTrait}
+        />
+      ))}
+      {coins > 0 && <p className="trade-asset-card-coins">+ {coins.toLocaleString()} coins</p>}
+    </div>
+  );
+}
+
 function legKey(leg: TradeLegInput) {
   return leg.type === "player" ? `player:${leg.playerId}` : `pick:${leg.draftPickId}`;
+}
+
+function formatHeightWeight(heightInches: number | null | undefined, weightLbs: number | null | undefined): string | null {
+  const parts: string[] = [];
+  if (heightInches != null) parts.push(`${Math.floor(heightInches / 12)}'${heightInches % 12}"`);
+  if (weightLbs != null) parts.push(`${weightLbs} lbs`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** One asset row in the redesigned trade card layout -- a player (position/OVR/name/age/height-
+ * weight/dev trait) or a draft pick (year/round/pick number), styled to read as a compact card
+ * rather than a plain text line. Used by both the trade builder's own "selected assets" list
+ * (full RosterPlayer/TeamDraftPick fidelity) and the pending-trade review cards (only what the
+ * server's TradeAssetDisplay snapshot carries) -- every field beyond label/position is optional
+ * so either caller can pass just what it has. */
+function TradeAssetCard({ kind, label, position, overallRating, age, heightInches, weightLbs, devTrait, photoUrl, pickMeta, onRemove }: {
+  kind: "player" | "pick";
+  label: string;
+  position?: string | null;
+  overallRating?: number | null;
+  age?: number | null;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  devTrait?: string | null;
+  photoUrl?: string | null;
+  pickMeta?: string | null;
+  onRemove?: () => void;
+}) {
+  if (kind === "pick") {
+    return (
+      <div className="trade-asset-card trade-asset-card-pick">
+        <span className="trade-asset-card-pick-icon" aria-hidden="true">🏈</span>
+        <div className="trade-asset-card-body">
+          <strong>{label}</strong>
+          {pickMeta && <span className="trade-asset-card-meta">{pickMeta}</span>}
+        </div>
+        {onRemove && <button type="button" className="trade-asset-card-remove" aria-label={`Remove ${label}`} onClick={onRemove}><Trash2 size={14} /></button>}
+      </div>
+    );
+  }
+  const heightWeight = formatHeightWeight(heightInches, weightLbs);
+  return (
+    <div className="trade-asset-card">
+      <PlayerPhoto
+        photoUrl={photoUrl ?? null}
+        alt=""
+        className="trade-asset-card-photo"
+        fallback={<span className="trade-asset-card-photo trade-asset-card-photo-empty">{position}</span>}
+      />
+      {overallRating != null && <span className="trade-asset-card-ovr">{overallRating}</span>}
+      <div className="trade-asset-card-body">
+        <strong>{label}</strong>
+        <span className="trade-asset-card-meta">
+          {position}
+          {age != null ? ` · Age ${age}` : ""}
+          {heightWeight ? ` · ${heightWeight}` : ""}
+        </span>
+        <DevTraitIcon devTrait={devTrait} className="trade-asset-card-devtrait" />
+      </div>
+      {onRemove && <button type="button" className="trade-asset-card-remove" aria-label={`Remove ${label}`} onClick={onRemove}><Trash2 size={14} /></button>}
+    </div>
+  );
+}
+
+/** Top positional needs for a roster, using the same need-score model the trade evaluator
+ * already scores fairness with (packages/shared/trades/trade-value-model.ts) -- computed
+ * client-side from the roster the page already has loaded, no extra API call. */
+function topTeamNeeds(players: Array<{ position: string; overallRating: number | null }>, count = 5): string[] {
+  const needs = computeRecTeamPositionNeeds(players.filter((p) => p.overallRating != null).map((p) => ({ position: p.position, overallRating: p.overallRating! })));
+  return Object.entries(needs).sort((a, b) => b[1] - a[1]).slice(0, count).map(([position]) => position);
+}
+
+function formatCapRoom(capRoom: number | null | undefined): string | null {
+  if (capRoom == null) return null;
+  const millions = capRoom / 1_000_000;
+  return `$${millions.toFixed(1)}M`;
 }
 
 /** Modal opened by tapping a player in a trade pool — mirrors the fantasy draft room's player
@@ -107,12 +217,13 @@ function TradePlayerCardModal({ player, isSelected, onToggle, onClose }: {
  * (position tabs + search, tap a name to open the player card) plus their available draft
  * picks below it, and — mirroring the draft room's board — a running list of the up to 7
  * items selected so far for this side, each removable without reopening the card. */
-function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
+function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled, game }: {
   sideLabel: string;
   roster: TeamRosterResponse | null;
   selected: TradeLegInput[];
   onToggle: (leg: TradeLegInput) => void;
   disabled: boolean;
+  game: string;
 }) {
   const [positionFilter, setPositionFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -262,16 +373,40 @@ function TradeAssetPool({ sideLabel, roster, selected, onToggle, disabled }: {
         {selected.length === 0 ? (
           <p className="hub-empty">Nothing selected yet — tap a player or pick above to add it.</p>
         ) : (
-          <ul>
+          <div className="trade-asset-card-list">
             {selectedPlayers.map((player) => (
-              <li key={player.id}><span><DevTraitIcon devTrait={player.devTrait} /><strong>{player.fullName}</strong> · {player.position} · {player.overallRating ?? "—"} OVR</span><button type="button" aria-label={`Remove ${player.fullName}`} onClick={() => onToggle({ type: "player", playerId: player.id })}><Trash2 size={14} /></button></li>
+              <TradeAssetCard
+                key={player.id} kind="player" label={player.fullName} position={player.position}
+                overallRating={player.overallRating} age={player.age} heightInches={player.heightInches}
+                weightLbs={player.weightLbs} devTrait={player.devTrait} photoUrl={player.photoUrl}
+                onRemove={() => onToggle({ type: "player", playerId: player.id })}
+              />
             ))}
             {selectedPicks.map((pick) => (
-              <li key={pick.id}><span>Season {pick.seasonNumber} · Round {pick.round}</span><button type="button" aria-label="Remove pick" onClick={() => onToggle({ type: "pick", draftPickId: pick.id })}><Trash2 size={14} /></button></li>
+              <TradeAssetCard
+                key={pick.id} kind="pick" label={`${seasonNumberToYear(pick.seasonNumber, game)} Round ${pick.round}`}
+                pickMeta={pick.pickNumber ? `Pick #${pick.pickNumber}` : "Pick TBD"}
+                onRemove={() => onToggle({ type: "pick", draftPickId: pick.id })}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </div>
+
+      {roster && (
+        <div className="trade-team-context">
+          <div>
+            <span className="trade-team-context-label">Team Needs</span>
+            <span>{topTeamNeeds(players).join(", ") || "—"}</span>
+          </div>
+          {roster.team.capRoom != null && (
+            <div>
+              <span className="trade-team-context-label">Cap Room</span>
+              <span>{formatCapRoom(roster.team.capRoom)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {openPlayer && (
         <TradePlayerCardModal
@@ -393,7 +528,7 @@ function TradeBlockPanel({ guildId, myRoster, game, onChanged, onPropose }: {
 
       <h4>Post an Offer</h4>
       {notice && <p className="hub-notice">{notice}</p>}
-      <TradeAssetPool sideLabel="Offering" roster={myRoster} selected={legs} onToggle={toggleLeg} disabled={legs.length >= MAX_LEGS} />
+      <TradeAssetPool sideLabel="Offering" roster={myRoster} selected={legs} onToggle={toggleLeg} disabled={legs.length >= MAX_LEGS} game={game} />
       <label className="form-field">
         <span className="form-label">Coins to include</span>
         <input type="number" min={0} className="form-input" value={coins} onChange={(event) => setCoins(Math.max(0, Number(event.target.value) || 0))} />
@@ -955,6 +1090,7 @@ export function TradeCenterHome() {
           {pendingReceived.length === 0 && pendingSent.length === 0 && <p className="hub-empty">No active trades.</p>}
           {pendingReceived.map((trade) => {
             const { youReceive, theyReceive } = describeTradeAssets(trade, myRoster.team.id, myRoster);
+            const groups = tradeAssetGroups(trade, myRoster.team.id);
             const vs = trade.value_snapshot;
             const badge = vs ? evaluatorBadge(vs, trade.proposing_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.proposing_team_id)?.name ?? "Opponent"), trade.receiving_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.receiving_team_id)?.name ?? "Opponent")) : null;
             return (
@@ -966,11 +1102,11 @@ export function TradeCenterHome() {
                 <div className="hub-trade-pending-sides">
                   <div className="hub-trade-pending-side">
                     <h5>You receive</h5>
-                    <p>{youReceive}</p>
+                    {groups ? <TradeAssetSideCards assets={groups.youReceive} coins={groups.youReceiveCoins} /> : <p>{youReceive}</p>}
                   </div>
                   <div className="hub-trade-pending-side">
                     <h5>They receive</h5>
-                    <p>{theyReceive}</p>
+                    {groups ? <TradeAssetSideCards assets={groups.theyReceive} coins={groups.theyReceiveCoins} /> : <p>{theyReceive}</p>}
                   </div>
                 </div>
                 {vs && (
@@ -996,6 +1132,7 @@ export function TradeCenterHome() {
           })}
           {pendingSent.map((trade) => {
             const { youReceive, theyReceive } = describeTradeAssets(trade, myRoster.team.id, myRoster);
+            const groups = tradeAssetGroups(trade, myRoster.team.id);
             const vs = trade.value_snapshot;
             const badge = vs ? evaluatorBadge(vs, trade.proposing_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.proposing_team_id)?.name ?? "Opponent"), trade.receiving_team_id === myRoster.team.id ? myRoster.team.name ?? "Your team" : (teams.find((t) => t.id === trade.receiving_team_id)?.name ?? "Opponent")) : null;
             return (
@@ -1007,11 +1144,11 @@ export function TradeCenterHome() {
                 <div className="hub-trade-pending-sides">
                   <div className="hub-trade-pending-side">
                     <h5>You offer</h5>
-                    <p>{theyReceive}</p>
+                    {groups ? <TradeAssetSideCards assets={groups.theyReceive} coins={groups.theyReceiveCoins} /> : <p>{theyReceive}</p>}
                   </div>
                   <div className="hub-trade-pending-side">
                     <h5>You request</h5>
-                    <p>{youReceive}</p>
+                    {groups ? <TradeAssetSideCards assets={groups.youReceive} coins={groups.youReceiveCoins} /> : <p>{youReceive}</p>}
                   </div>
                 </div>
                 {vs && (
@@ -1070,16 +1207,22 @@ export function TradeCenterHome() {
 
           <div className="hub-trade-sides">
             <div className="hub-trade-side">
-              <h4>You offer ({offeredLegs.length}/{MAX_LEGS})</h4>
-              <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} />
+              <h4 className="hub-trade-side-heading">
+                {teamLogoUrl(myRoster.team.abbreviation) && <img src={teamLogoUrl(myRoster.team.abbreviation)!} alt="" className="hub-trade-side-logo" />}
+                You offer ({offeredLegs.length}/{MAX_LEGS})
+              </h4>
+              <TradeAssetPool sideLabel="Selected to offer" roster={myRoster} selected={offeredLegs} onToggle={toggleOffered} disabled={offeredLegs.length >= MAX_LEGS} game={hub.currentLeague?.game ?? ""} />
               <label className="form-field">
                 <span className="form-label">Coins to include</span>
                 <input type="number" min={0} className="form-input" value={offeredCoins} onChange={(event) => setOfferedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={opponentIsDiscordOnly} />
               </label>
             </div>
             <div className="hub-trade-side">
-              <h4>You request ({requestedLegs.length}/{MAX_LEGS})</h4>
-              <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} />
+              <h4 className="hub-trade-side-heading">
+                {teamLogoUrl(opponent?.abbreviation) && <img src={teamLogoUrl(opponent?.abbreviation)!} alt="" className="hub-trade-side-logo" />}
+                You request ({requestedLegs.length}/{MAX_LEGS})
+              </h4>
+              <TradeAssetPool sideLabel="Selected to request" roster={opponentRoster} selected={requestedLegs} onToggle={toggleRequested} disabled={requestedLegs.length >= MAX_LEGS} game={hub.currentLeague?.game ?? ""} />
               <label className="form-field">
                 <span className="form-label">Coins to request</span>
                 <input type="number" min={0} className="form-input" value={requestedCoins} onChange={(event) => setRequestedCoins(Math.max(0, Number(event.target.value) || 0))} disabled={!opponentTeamId || opponent?.isCpu || opponentIsDiscordOnly} />

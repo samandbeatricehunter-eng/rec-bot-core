@@ -857,6 +857,8 @@ button.poty:disabled {
 .hub-trade-sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin: var(--space-3) 0; }
 @media (max-width: 700px) { .hub-trade-sides { grid-template-columns: 1fr; } }
 .hub-trade-side h4 { margin: 0 0 var(--space-2); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.hub-trade-side-heading { display: flex; align-items: center; gap: 8px; }
+.hub-trade-side-logo { width: 22px; height: 22px; object-fit: contain; }
 .hub-trade-asset-list { display: grid; gap: var(--space-3); max-height: 320px; overflow-y: auto; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,.15); }
 .hub-trade-asset-group h5 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
 .hub-trade-asset-row { display: flex; align-items: center; gap: var(--space-2); padding: 4px 0; font-size: var(--text-sm); }
@@ -905,11 +907,26 @@ button.poty:disabled {
 }
 .hub-trade-selected-items { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,.15); }
 .hub-trade-selected-items h5 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
-.hub-trade-selected-items ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
-.hub-trade-selected-items li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 4px 0; font-size: var(--text-sm); border-bottom: 1px solid rgba(255,255,255,.06); }
-.hub-trade-selected-items li:last-child { border-bottom: none; }
-.hub-trade-selected-items li button { display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
-.hub-trade-selected-items li button:hover { color: var(--danger); }
+
+/* ── Trade asset cards — the redesigned "one card per player/pick" layout, used by the
+   builder's selected-assets list, replacing the old plain text row. ───────────────────── */
+.trade-asset-card-list { display: grid; gap: 6px; }
+.trade-asset-card { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #0b0f14; }
+.trade-asset-card-photo { width: 36px; height: 36px; min-width: 36px; border-radius: 6px; object-fit: cover; object-position: top center; background: var(--surface); }
+.trade-asset-card-photo-empty { display: grid; place-items: center; color: var(--text-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.trade-asset-card-ovr { flex-shrink: 0; min-width: 28px; text-align: center; font-size: var(--text-md); font-weight: 900; color: #3fbf6f; }
+.trade-asset-card-pick-icon { flex-shrink: 0; width: 36px; height: 36px; display: grid; place-items: center; font-size: 18px; border-radius: 6px; background: var(--surface); }
+.trade-asset-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.trade-asset-card-body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); }
+.trade-asset-card-meta { font-size: var(--text-xs); color: var(--text-muted); }
+.trade-asset-card-devtrait { width: 16px; height: 16px; margin: 2px 0 0; }
+.trade-asset-card-remove { flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
+.trade-asset-card-remove:hover { color: var(--danger); }
+.trade-asset-card-coins { margin: 0; padding: 4px 8px; font-size: var(--text-xs); font-weight: 700; color: var(--gold, #d7a52a); }
+
+.trade-team-context { display: flex; gap: var(--space-4); margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.02); }
+.trade-team-context > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.trade-team-context-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 
 .hub-trade-evaluator-card { margin: var(--space-3) 0; padding: var(--space-4); border-radius: var(--radius-lg, 12px); background: #0b0f14; border: 1px solid rgba(255,255,255,.08); }
 .hub-trade-evaluator-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }

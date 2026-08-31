@@ -907,7 +907,7 @@ export type TeamDraftPick = {
   tradeChain: DraftPickChainLink[];
 };
 export type TeamRosterResponse = {
-  team: { id: string; name: string | null; abbreviation: string | null };
+  team: { id: string; name: string | null; abbreviation: string | null; capRoom?: number | null };
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
   draftPicks: TeamDraftPick[];
