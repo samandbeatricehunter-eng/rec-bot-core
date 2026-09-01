@@ -10,10 +10,13 @@ import {
   getImmortalityHub,
   getOrGenerateTeamOffers,
   installImmortalityCustomTeams,
+  getImmortalityRivalHistory,
+  getImmortalityRivals,
   markImmortalityIntroVideoWatched,
   publicCharacteristicCatalog,
   selectCharacteristics,
   setImmortalityIntroVideo,
+  setImmortalityRival,
   startIqAttempt,
   submitIqAnswer,
   submitBranchingPlaystyle,
@@ -196,6 +199,33 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await markImmortalityIntroVideoWatched({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/rivals/set", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ rivalTeamId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await setImmortalityRival({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/rivals", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await getImmortalityRivals({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/rivals/history", async (request, reply) => {
+    try {
+      const body = SideBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await getImmortalityRivalHistory({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

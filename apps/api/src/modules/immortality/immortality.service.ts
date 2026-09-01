@@ -1292,6 +1292,94 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   return { teamId: input.teamId };
 }
 
+export async function setImmortalityRival(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  rivalTeamId: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const team = await supabase.from("rec_teams").select("id").eq("id", input.rivalTeamId).eq("league_id", context.leagueId).maybeSingle();
+  if (!team.data) throw new ApiError(404, "That team isn't in this league.");
+  const saved = await supabase.from("rec_immortality_rivals").upsert({
+    immortality_league_id: league.id, user_id: userId, side: input.side, rival_team_id: input.rivalTeamId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "immortality_league_id,user_id,side" }).select("*").single();
+  if (saved.error) throw new ApiError(500, "Could not save that rival.", saved.error);
+  return { side: input.side, rivalTeamId: input.rivalTeamId };
+}
+
+export async function getImmortalityRivals(input: { guildId: string; discordId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const [rivals, teamIdentities] = await Promise.all([
+    supabase.from("rec_immortality_rivals").select("side,rival_team_id").eq("immortality_league_id", league.id).eq("user_id", userId),
+    supabase.from("rec_league_team_identities").select("team_id,display_team_name,default_team_name,display_city,default_city,display_abbreviation,default_abbreviation").eq("league_id", context.leagueId),
+  ]);
+  const teamById = new Map((teamIdentities.data ?? []).map((row) => [String(row.team_id), {
+    name: row.display_team_name ?? row.default_team_name,
+    city: row.display_city ?? row.default_city,
+    abbreviation: row.display_abbreviation ?? row.default_abbreviation,
+  }]));
+  const bySide = new Map((rivals.data ?? []).map((row) => [String(row.side), String(row.rival_team_id)]));
+  return {
+    offense: bySide.has("offense") ? { teamId: bySide.get("offense")!, ...(teamById.get(bySide.get("offense")!) ?? { name: null, city: null, abbreviation: null }) } : null,
+    defense: bySide.has("defense") ? { teamId: bySide.get("defense")!, ...(teamById.get(bySide.get("defense")!) ?? { name: null, city: null, abbreviation: null }) } : null,
+  };
+}
+
+/** Logged matchups against this prospect's rival team, most recent first -- computed live from
+ * rec_games + rec_player_weekly_stats rather than a separate log, since those already carry
+ * everything needed (final score, opponent, this player's stat line for that game). */
+export async function getImmortalityRivalHistory(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect?.player_id) return { rivalTeamId: null, games: [] };
+  const [rival, player] = await Promise.all([
+    supabase.from("rec_immortality_rivals").select("rival_team_id").eq("immortality_league_id", league.id).eq("user_id", userId).eq("side", input.side).maybeSingle(),
+    supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle(),
+  ]);
+  const rivalTeamId = rival.data?.rival_team_id ? String(rival.data.rival_team_id) : null;
+  const myTeamId = player.data?.team_id ? String(player.data.team_id) : null;
+  if (!rivalTeamId || !myTeamId) return { rivalTeamId, games: [] };
+  const games = await supabase.from("rec_games")
+    .select("id,week_number,home_team_id,away_team_id,home_score,away_score,status")
+    .eq("league_id", context.leagueId)
+    .eq("status", "final")
+    .or(`and(home_team_id.eq.${myTeamId},away_team_id.eq.${rivalTeamId}),and(home_team_id.eq.${rivalTeamId},away_team_id.eq.${myTeamId})`)
+    .order("week_number", { ascending: false });
+  if (games.error) throw new ApiError(500, "Could not load rival matchup history.", games.error);
+  const gameIds = (games.data ?? []).map((row) => String(row.id));
+  const opponentIds = Array.from(new Set([myTeamId, rivalTeamId]));
+  const [stats, identities] = await Promise.all([
+    gameIds.length ? supabase.from("rec_player_weekly_stats").select("week_number,stats,stat_category").eq("player_id", prospect.player_id).in("week_number", (games.data ?? []).map((row) => row.week_number).filter((w): w is number => w != null)) : Promise.resolve({ data: [] }),
+    supabase.from("rec_league_team_identities").select("team_id,display_team_name,default_team_name").in("team_id", opponentIds).eq("league_id", context.leagueId),
+  ]);
+  const nameByTeam = new Map((identities.data ?? []).map((row) => [String(row.team_id), row.display_team_name ?? row.default_team_name]));
+  const statsByWeek = new Map<number, Record<string, unknown>>();
+  for (const row of stats.data ?? []) {
+    if (row.week_number != null) statsByWeek.set(Number(row.week_number), (row.stats ?? {}) as Record<string, unknown>);
+  }
+  return {
+    rivalTeamId,
+    games: (games.data ?? []).map((row) => {
+      const iAmHome = String(row.home_team_id) === myTeamId;
+      return {
+        weekNumber: row.week_number,
+        opponentName: nameByTeam.get(rivalTeamId) ?? "Rival",
+        myScore: iAmHome ? row.home_score : row.away_score,
+        opponentScore: iAmHome ? row.away_score : row.home_score,
+        statLine: row.week_number != null ? statsByWeek.get(Number(row.week_number)) ?? null : null,
+      };
+    }),
+  };
+}
+
 export async function creditXpEvent(input: {
   prospectId: string;
   eventType: string;

@@ -78,7 +78,7 @@ export function RiseXpPage() {
       {error ? <p className="site-auth-error">{error}</p> : null}
 
       <p>
-        <Link to={`/l/${leagueId}/rise`}>Back to Origins</Link>
+        <Link to={`/l/${leagueId}/rise`}>Back to Origins</Link> · <Link to={`/l/${leagueId}/team/rivals`}>Rivals</Link>
       </p>
 
       <div className="rise-side-tabs">

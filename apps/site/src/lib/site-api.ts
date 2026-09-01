@@ -447,6 +447,13 @@ export type ImmortalityHubResponse = {
   };
   abilities?: Record<string, ImmortalityAbilityState>;
   introVideo?: { url: string | null; watched: boolean };
+  teamIdentities?: Array<{
+    team_id: string;
+    display_team_name?: string | null; default_team_name?: string | null;
+    display_city?: string | null; default_city?: string | null;
+    display_abbreviation?: string | null; default_abbreviation?: string | null;
+    conference?: string | null; division?: string | null;
+  }>;
   owner?: {
     id: string;
     firstName: string | null;
@@ -1176,6 +1183,21 @@ export const siteApi = {
       spentPoints?: number;
       draftGrade?: { gradeLabel?: string; classRank?: number; classSize?: number; projectedRound?: number; stock?: string } | null;
     }>("/v1/immortality/creation/evaluate", input);
+  },
+  immortalityGetRivals(guildId: string) {
+    return request<{
+      offense: { teamId: string; name: string | null; city: string | null; abbreviation: string | null } | null;
+      defense: { teamId: string; name: string | null; city: string | null; abbreviation: string | null } | null;
+    }>("/v1/immortality/rivals", { guildId });
+  },
+  immortalitySetRival(input: { guildId: string; side: "offense" | "defense"; rivalTeamId: string }) {
+    return request<{ side: string; rivalTeamId: string }>("/v1/immortality/rivals/set", input);
+  },
+  immortalityGetRivalHistory(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<{
+      rivalTeamId: string | null;
+      games: Array<{ weekNumber: number | null; opponentName: string; myScore: number | null; opponentScore: number | null; statLine: Record<string, unknown> | null }>;
+    }>("/v1/immortality/rivals/history", input);
   },
   immortalitySetIntroVideo(input: { guildId: string; url: string | null }) {
     return request<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", input);
