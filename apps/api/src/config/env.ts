@@ -49,6 +49,7 @@ const EnvSchema = z.object({
   // server-side (has the account creds) when the public watch page rejects playback due to
   // allowedOrigins -- see debug-stream-download.routes.ts. Unset disables the route entirely.
   DEBUG_STREAM_KEY: z.string().optional(),
+  RTI_VIDEO_UPLOAD_KEY: z.string().optional(),
   // Base URL the custom-player card renders are served from (Cloudflare Images delivery host,
   // e.g. https://imagedelivery.net/<account-hash>). Optional: empty means the API writes the
   // local /assets/custom-player-renders path into rec_players.photo_url (dev).

@@ -5,7 +5,7 @@ import { env } from "../../config/env.js";
 import { sendError, ApiError } from "../../lib/errors.js";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
-import { deleteStreamVideo, enableStreamDownload, requireSignedUrlsOff, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
+import { createStreamDirectUpload, deleteStreamVideo, enableStreamDownload, requireSignedUrlsOff, streamPlaybackUrls, updateStreamAllowedOrigins } from "../../lib/cloudflare-stream.js";
 import { SCOREBUG_REGIONS, SCOREBUG_REGIONS_NO_TICKER, regionToPixels } from "../scorebug-ocr/scorebug-regions.js";
 
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
@@ -37,7 +37,30 @@ function requireDebugStreamKey(header: string | string[] | undefined) {
  * server-side, for pulling a specific video's bytes when the public watch page rejects
  * playback (e.g. allowedOrigins has no match for a bare link opened outside the site).
  * Gated by DEBUG_STREAM_KEY, unset in prod by default -- remove once no longer needed. */
+function requireRtiVideoUploadKey(header: string | string[] | undefined) {
+  if (!env.RTI_VIDEO_UPLOAD_KEY) throw new ApiError(404, "Not found.");
+  const provided = Array.isArray(header) ? header[0] : header;
+  const expected = Buffer.from(env.RTI_VIDEO_UPLOAD_KEY);
+  const actual = Buffer.from(provided ?? "");
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    throw new ApiError(401, "Invalid upload key.");
+  }
+}
+
 export async function debugStreamDownloadRoutes(app: FastifyInstance) {
+  // One-time ops helper: hands back a Cloudflare Stream direct-upload URL so a large local
+  // video file (the Rise to Immortality intro video) can be pushed straight from a terminal
+  // curl without going through any site upload UI. Gated by its own key, separate from
+  // DEBUG_STREAM_KEY, so setting this up doesn't require knowing or rotating that one.
+  app.post("/v1/debug/rti-video-upload-url", async (request, reply) => {
+    try {
+      requireRtiVideoUploadKey(request.headers["x-upload-key"]);
+      const result = await createStreamDirectUpload({ maxDurationSeconds: 1800, meta: { name: "rti-intro-video" } });
+      return reply.send({ uid: result.uid, uploadURL: result.uploadURL, playback: streamPlaybackUrls(result.uid) });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+
   app.get("/v1/debug/stream-download/:uid", async (request, reply) => {
     try {
       requireDebugStreamKey(request.headers["x-debug-key"]);
