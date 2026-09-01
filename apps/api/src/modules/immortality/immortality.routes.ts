@@ -12,6 +12,8 @@ import {
   installImmortalityCustomTeams,
   getImmortalityRivalHistory,
   getImmortalityRivals,
+  getWeeklyMatchupInterview,
+  submitWeeklyMatchupInterview,
   markImmortalityIntroVideoWatched,
   publicCharacteristicCatalog,
   selectCharacteristics,
@@ -226,6 +228,24 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await getImmortalityRivalHistory({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/weekly", async (request, reply) => {
+    try {
+      const body = SideBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await getWeeklyMatchupInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/weekly/submit", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ questionId: z.number().int(), optionIndex: z.number().int().min(0) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await submitWeeklyMatchupInterview({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

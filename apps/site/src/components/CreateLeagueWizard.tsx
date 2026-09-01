@@ -1360,30 +1360,28 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                         ...current,
                         [team.abbreviation]: { ...slot, ...patch },
                       }));
+                      const primaryFile = immortalityTeamLogoFiles[team.abbreviation]?.primary;
+                      const previewSrc = primaryFile ? URL.createObjectURL(primaryFile) : null;
                       return (
                         <div key={team.abbreviation} className="site-field" style={{ display: "grid", gridTemplateColumns: "8rem repeat(3, minmax(7rem, 1fr))", gap: 8, alignItems: "center", padding: 12, border: "1px solid var(--site-border)", borderRadius: 10 }}>
                           <span><strong>{team.abbreviation}</strong><small className="site-muted" style={{ display: "block" }}>{team.conference} {team.division}</small></span>
                           <input className="site-input" placeholder="City" value={slot.city} onChange={(event) => update({ city: event.target.value })} />
                           <input className="site-input" placeholder="Nickname" value={slot.nick} onChange={(event) => update({ nick: event.target.value })} />
                           <input className="site-input" placeholder="Abbr" maxLength={5} value={slot.abbreviation} onChange={(event) => update({ abbreviation: event.target.value })} />
-                          <span className="site-muted">Branding</span>
-                          <input className="site-input" type="url" placeholder="Primary logo URL" value={slot.primaryLogoUrl} onChange={(event) => update({ primaryLogoUrl: event.target.value })} />
-                          <input className="site-input" type="url" placeholder="Secondary logo URL" value={slot.secondaryLogoUrl} onChange={(event) => update({ secondaryLogoUrl: event.target.value })} />
-                          <input className="site-input" type="url" placeholder="Wordmark URL" value={slot.wordmarkUrl} onChange={(event) => update({ wordmarkUrl: event.target.value })} />
-                          <span className="site-muted">Upload</span>
-                          {(["primary", "secondary", "wordmark"] as const).map((kind) => (
-                            <label key={kind} className="site-btn site-btn-secondary site-btn-sm" style={{ overflow: "hidden" }}>
-                              {immortalityTeamLogoFiles[team.abbreviation]?.[kind]?.name ?? `${kind} image`}
-                              <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
-                                const file = event.target.files?.[0];
-                                if (!file) return;
-                                setImmortalityTeamLogoFiles((current) => ({
-                                  ...current,
-                                  [team.abbreviation]: { ...current[team.abbreviation], [kind]: file },
-                                }));
-                              }} />
-                            </label>
-                          ))}
+                          <span className="site-muted">Logo</span>
+                          <label className="site-btn site-btn-secondary site-btn-sm" style={{ overflow: "hidden" }}>
+                            {immortalityTeamLogoFiles[team.abbreviation]?.primary?.name ?? "Upload logo image"}
+                            <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              setImmortalityTeamLogoFiles((current) => ({
+                                ...current,
+                                [team.abbreviation]: { ...current[team.abbreviation], primary: file },
+                              }));
+                            }} />
+                          </label>
+                          {previewSrc ? <img src={previewSrc} alt="" style={{ maxHeight: 32, maxWidth: 60, background: "#222", borderRadius: 4 }} /> : <span />}
+                          <span />
                           <span className="site-muted">Colors</span>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
@@ -1397,20 +1395,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                             <input className="site-input" placeholder="#Tertiary" pattern="#[0-9A-Fa-f]{6}" value={slot.tertiaryColor} onChange={(event) => update({ tertiaryColor: event.target.value })} />
                             <EyeDropperButton onPick={(hex) => update({ tertiaryColor: hex })} />
                           </div>
-                          {(() => {
-                            const primaryFile = immortalityTeamLogoFiles[team.abbreviation]?.primary;
-                            const previewSrc = primaryFile ? URL.createObjectURL(primaryFile) : (slot.primaryLogoUrl.trim() || null);
-                            if (!previewSrc) return null;
-                            return (
-                              <>
-                                <span className="site-muted">Preview</span>
-                                <div style={{ gridColumn: "span 3" }}>
-                                  <img src={previewSrc} alt="" style={{ maxHeight: 64, maxWidth: 120, background: "#222", borderRadius: 6 }} />
-                                  <span className="site-muted" style={{ marginLeft: 8, fontSize: "0.85em" }}>Click "Pick" above, then click a pixel on this logo.</span>
-                                </div>
-                              </>
-                            );
-                          })()}
+                          {previewSrc ? <p className="site-muted" style={{ gridColumn: "span 4", margin: 0, fontSize: "0.85em" }}>Click "Pick" above, then click a pixel on the logo preview to sample its color.</p> : null}
                         </div>
                       );
                     })}

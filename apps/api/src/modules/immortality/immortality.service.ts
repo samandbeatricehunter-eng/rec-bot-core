@@ -65,6 +65,9 @@ import {
   toPublicIqQuestion,
   validateCharacteristicSelection,
   MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY,
+  matchupInterviewPool,
+  selectMatchupInterviewQuestion,
+  scoreMatchupInterviewAnswer,
   type ImmortalityDefensePosition,
   type ImmortalityOffensePosition,
   type ImmortalityState,
@@ -1378,6 +1381,98 @@ export async function getImmortalityRivalHistory(input: { guildId: string; disco
       };
     }),
   };
+}
+
+/** Deterministically picks (or returns the already-picked) media question for the current
+ * week, biased toward the matchup's rivalry/result/high-stakes context when known. Answers
+ * lock for the week once submitted -- resolving a flagged bonus opportunity against the
+ * actual stat line is a manual commissioner call for now, the same way EOS payouts are. */
+export async function getWeeklyMatchupInterview(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const week = Number(context.rec_leagues.current_week ?? 1);
+
+  const existing = await supabase.from("rec_immortality_matchup_interview_answers")
+    .select("*").eq("prospect_id", prospect.id).eq("week_number", week).maybeSingle();
+  if (existing.data) {
+    const pool = matchupInterviewPool();
+    const question = pool.find((item) => item.id === existing.data!.question_id) ?? null;
+    return { season, week, question, answer: existing.data, locked: true };
+  }
+
+  let lastResult: "win" | "loss" | null = null;
+  if (prospect.player_id) {
+    const player = await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle();
+    const teamId = player.data?.team_id ? String(player.data.team_id) : null;
+    if (teamId) {
+      const lastGame = await supabase.from("rec_games")
+        .select("home_team_id,away_team_id,home_score,away_score")
+        .eq("league_id", context.leagueId).eq("status", "final")
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .lt("week_number", week).order("week_number", { ascending: false }).limit(1).maybeSingle();
+      if (lastGame.data && lastGame.data.home_score != null && lastGame.data.away_score != null) {
+        const iAmHome = String(lastGame.data.home_team_id) === teamId;
+        const myScore = iAmHome ? lastGame.data.home_score : lastGame.data.away_score;
+        const theirScore = iAmHome ? lastGame.data.away_score : lastGame.data.home_score;
+        lastResult = myScore > theirScore ? "win" : myScore < theirScore ? "loss" : null;
+      }
+    }
+  }
+  const rival = await supabase.from("rec_immortality_rivals").select("rival_team_id").eq("immortality_league_id", league.id).eq("user_id", userId).eq("side", input.side).maybeSingle();
+  const isRivalryGame = Boolean(rival.data?.rival_team_id);
+
+  const pool = matchupInterviewPool();
+  const question = selectMatchupInterviewQuestion({
+    pool,
+    context: { lastResult, isRivalryGame },
+    seed: `${league.id}:${prospect.id}:${week}`,
+  });
+  return { season, week, question, answer: null, locked: false };
+}
+
+export async function submitWeeklyMatchupInterview(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  questionId: number;
+  optionIndex: number;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const week = Number(context.rec_leagues.current_week ?? 1);
+
+  const pool = matchupInterviewPool();
+  const question = pool.find((item) => item.id === input.questionId);
+  if (!question) throw new ApiError(404, "That question isn't in this week's pool.");
+  const result = scoreMatchupInterviewAnswer({ question, optionIndex: input.optionIndex });
+
+  const saved = await supabase.from("rec_immortality_matchup_interview_answers").insert({
+    immortality_league_id: league.id,
+    prospect_id: prospect.id,
+    side: input.side,
+    season,
+    week_number: week,
+    question_id: question.id,
+    option_index: input.optionIndex,
+    dna_points: result.dnaPoints,
+    bonus_stat_category_hint: result.bonusOpportunity?.statCategoryHint ?? null,
+    bonus_xp_pct: result.bonusOpportunity?.xpBonusPct ?? null,
+    bonus_status: result.bonusOpportunity ? "pending" : "none",
+    formula_version: result.formulaVersion,
+  }).select("*").single();
+  if (saved.error) {
+    if (saved.error.code === "23505") throw new ApiError(409, "This week's interview is already answered.");
+    throw new ApiError(500, "Could not save that answer.", saved.error);
+  }
+  return { question, answer: saved.data };
 }
 
 export async function creditXpEvent(input: {

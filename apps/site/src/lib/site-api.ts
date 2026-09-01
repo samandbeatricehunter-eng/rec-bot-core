@@ -1199,6 +1199,23 @@ export const siteApi = {
       games: Array<{ weekNumber: number | null; opponentName: string; myScore: number | null; opponentScore: number | null; statLine: Record<string, unknown> | null }>;
     }>("/v1/immortality/rivals/history", input);
   },
+  immortalityGetWeeklyInterview(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<{
+      season: number;
+      week: number;
+      locked: boolean;
+      question: {
+        id: number;
+        category: string;
+        question: string;
+        options: Array<{ text: string; bonusOpportunity?: { statCategoryHint: string; xpBonusPct: number } | null }>;
+      } | null;
+      answer: { option_index: number; bonus_stat_category_hint: string | null; bonus_xp_pct: number | null; bonus_status: string } | null;
+    }>("/v1/immortality/interview/weekly", input);
+  },
+  immortalitySubmitWeeklyInterview(input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) {
+    return request<{ question: unknown; answer: Record<string, unknown> }>("/v1/immortality/interview/weekly/submit", input);
+  },
   immortalitySetIntroVideo(input: { guildId: string; url: string | null }) {
     return request<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", input);
   },

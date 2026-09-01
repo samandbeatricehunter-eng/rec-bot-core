@@ -34,6 +34,11 @@ import {
   matchingAbilityGate,
   rtiAbilitiesForPosition,
   validateCharacteristicSelection,
+  matchupInterviewPool,
+  selectMatchupInterviewQuestion,
+  scoreMatchupInterviewAnswer,
+  isCareerRecordBroken,
+  NFL_CAREER_RECORDS,
 } from "./index.js";
 
 test("Rise to Immortality is a Madden 27 template that disables store purchases", () => {
@@ -324,5 +329,50 @@ test("Madden 27 abilities assign from franchise OVR gates, not REC-controlled ti
     equippedCount: 0,
     alreadyEquipped: false,
   }).ok, true);
+});
+
+test("matchup interview pool has real volume and every option is well-formed", () => {
+  const pool = matchupInterviewPool();
+  assert.ok(pool.length >= 100, `expected a substantial pool, got ${pool.length}`);
+  const ids = new Set(pool.map((q) => q.id));
+  assert.equal(ids.size, pool.length, "question ids must be unique");
+  for (const question of pool) {
+    assert.ok(question.options.length >= 3, `question ${question.id} needs multiple options`);
+    for (const option of question.options) {
+      assert.ok(option.text.length > 0);
+      assert.ok(Object.keys(option.dnaPoints).length > 0, `question ${question.id} option missing dna points`);
+    }
+  }
+});
+
+test("matchup interview selection is deterministic per seed and biases toward context", () => {
+  const pool = matchupInterviewPool();
+  const a = selectMatchupInterviewQuestion({ pool, context: { isRivalryGame: true }, seed: "league1:prospect1:3" });
+  const b = selectMatchupInterviewQuestion({ pool, context: { isRivalryGame: true }, seed: "league1:prospect1:3" });
+  assert.equal(a.id, b.id, "same seed must resolve to the same question");
+
+  let rivalryHits = 0;
+  for (let week = 0; week < 50; week++) {
+    const picked = selectMatchupInterviewQuestion({ pool, context: { isRivalryGame: true }, seed: `seedset:${week}` });
+    if (picked.category === "rivalry" || picked.tags.includes("rivalry")) rivalryHits++;
+  }
+  assert.ok(rivalryHits > 5, `expected rivalry context to meaningfully bias selection, got ${rivalryHits}/50`);
+});
+
+test("matchup interview scoring surfaces the flagged bonus opportunity", () => {
+  const pool = matchupInterviewPool();
+  const withBonus = pool.find((q) => q.options.some((o) => o.bonusOpportunity));
+  assert.ok(withBonus, "expected at least one question with a bonus-flagged option");
+  const bonusIndex = withBonus!.options.findIndex((o) => o.bonusOpportunity);
+  const result = scoreMatchupInterviewAnswer({ question: withBonus!, optionIndex: bonusIndex });
+  assert.ok(result.bonusOpportunity);
+  assert.ok(result.bonusOpportunity!.xpBonusPct > 0);
+});
+
+test("NFL career records match the confirmed tackle numbers and gate correctly", () => {
+  assert.equal(NFL_CAREER_RECORDS.tackles_combined.value, 2059);
+  assert.equal(NFL_CAREER_RECORDS.tackles_solo.value, 1568);
+  assert.equal(isCareerRecordBroken("tackles_combined", 2059), false);
+  assert.equal(isCareerRecordBroken("tackles_combined", 2060), true);
 });
 

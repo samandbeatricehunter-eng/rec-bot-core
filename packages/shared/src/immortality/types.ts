@@ -69,6 +69,7 @@ export const FORMULA_VERSIONS = {
   personaDna: "immortality-persona-dna-v1",
   playerTraits: "immortality-player-traits-v1",
   playstyleBranching: "immortality-playstyle-branching-v1",
+  matchupInterview: "immortality-matchup-interview-v1",
 } as const;
 
 export type AttributeCode = string;
