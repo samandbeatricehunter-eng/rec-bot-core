@@ -60,6 +60,22 @@ export async function debugStreamDownloadRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  // A plain <video src> (the intro-video gate's anti-skip controls need direct DOM/JS access
+  // to the element, which an iframe embed doesn't expose) needs a real downloadable MP4, not
+  // the HLS manifest -- this enables and returns that direct file URL for a given upload.
+  app.get("/v1/debug/rti-video-download-url/:uid", async (request, reply) => {
+    try {
+      requireRtiVideoUploadKey(request.headers["x-upload-key"]);
+      const params = z.object({ uid: z.string().min(1) }).parse(request.params);
+      let result = await enableStreamDownload(params.uid);
+      for (let attempt = 0; attempt < 8 && !result.ready; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        result = await enableStreamDownload(params.uid);
+      }
+      return reply.send(result);
+    } catch (error) { return sendError(reply, error); }
+  });
+
 
   app.get("/v1/debug/stream-download/:uid", async (request, reply) => {
     try {
