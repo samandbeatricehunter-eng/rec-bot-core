@@ -32,7 +32,9 @@ const PURCHASE_DEADLINE_STAGES = [
 export function useLeagueWizardState() {
   const [templateId, setTemplateId] = useState<LeagueTemplateId | null>(null);
 
-  const [game, setGame] = useState<GameKey | "">("");
+  // Madden 26 and CFB 27 creation were removed -- Madden 27 is the only game leagues can be
+  // created for now, so it's the fixed default instead of an empty choice the user has to make.
+  const [game, setGame] = useState<GameKey | "">("madden_27");
   const [isOnline, setIsOnline] = useState(true);
   const [crossPlayEnabled, setCrossPlayEnabled] = useState(true);
   const [requiredConsole, setRequiredConsole] = useState<"ps5" | "xbox" | "pc">("ps5");

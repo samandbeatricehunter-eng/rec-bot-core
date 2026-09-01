@@ -21,7 +21,7 @@ import {
   ADVANCE_TIMING_OPTIONS, BALL_HAWK_OPTIONS, CFB_CONFERENCE_REALIGNMENT, CFB_DIFFICULTY,
   CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY,
   CHAMP_GAME_CRITERIA_OPTIONS, CHAMP_GAME_LOCATION_OPTIONS, COACH_FIRING_OPTIONS,
-  CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS, GAME_OPTIONS,
+  CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS,
   IMMORTALITY_DEFENSE_POSITIONS, IMMORTALITY_OFFENSE_POSITIONS,
   INJURY_OPTIONS, MADDEN_DIFFICULTY, MADDEN_LEAGUE_TYPES,
   PLAYER_EDIT_PERMISSION_OPTIONS, POSITION_CHANGE_OPTIONS, SEASON_EXPERIENCE_OPTIONS,
@@ -328,6 +328,17 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
+  // Madden 27 is the only game leagues can be created for now (game state defaults to it), so
+  // apply its recommended template immediately instead of waiting on a game-picker click that
+  // no longer exists.
+  useEffect(() => {
+    if (templateId) return;
+    setTemplateId("rec_recommended");
+    const preset = getLeagueTemplatePreset("madden_27", "rec_recommended");
+    if (preset) applyTemplate(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [inviteFriends, setInviteFriends] = useState<Array<{ userId: string; username: string; displayName: string }>>([]);
   const [sentInvites, setSentInvites] = useState<Array<{ inviteId: string; status: string; invitee: { userId: string; username: string; displayName: string } }>>([]);
   const [inviteSearchQuery, setInviteSearchQuery] = useState("");
@@ -630,25 +641,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 1 && (
           <>
-            <Section title="Game">
-              <p className="site-muted">Choose the game first so REC can offer only compatible templates and settings.</p>
-              <div className="wizard-game-grid">
-                {GAME_OPTIONS.map((option) => (
-                  <button key={option.value} type="button"
-                    className={`wizard-game-card ${game === option.value ? "wizard-game-card-active" : ""}`}
-                    onClick={() => {
-                      setGame(option.value);
-                      setTemplateId("rec_recommended");
-                      const preset = getLeagueTemplatePreset(option.value, "rec_recommended");
-                      if (preset) applyTemplate(preset);
-                      setCoachModeEnabled(false);
-                      if (option.value !== "madden_27" && leagueType === "rise_to_immortality") {
-                        setLeagueType("");
-                      }
-                    }}>{option.label}</button>
-                ))}
-              </div>
-            </Section>
             {(game === "madden_27" || game === "cfb_27") && (
               <Section title="Coach Mode">
                 <ToggleField label="Is this a Coach Mode-only league?" hint="Coach Mode leagues are identified in league search and league advertisements."
