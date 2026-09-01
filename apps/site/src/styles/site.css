@@ -1626,25 +1626,27 @@ h1, h2, h3, .site-wordmark {
   padding: 16px;
   overscroll-behavior: contain;
 }
+/* Sizes to content, capped at near-fullscreen -- NOT a forced fixed height. A forced height
+   (the previous approach) made every sparse step (a short confirmation, a step whose real
+   content hasn't rendered yet) look broken: a mostly-empty black box with text stranded at the
+   top and buttons stranded at the bottom. max-height alone still caps a content-heavy step at
+   one scroll region (.site-modal-wizard-body below owns that scroll, not this element), so
+   nothing here reintroduces the dual-scrollbar bug the fixed height was originally added for. */
 .site-modal.site-modal-wizard > .site-modal-wizard-panel {
   width: min(1120px, calc(100vw - 32px));
-  height: calc(100dvh - 32px);
+  height: auto;
   max-height: calc(100dvh - 32px);
   gap: 0;
   padding: 0;
   overflow: hidden;
 }
-/* The step-0 "Before You Begin" gate is a single short confirmation, not the multi-step form --
-   forcing it into the same near-fullscreen frame as the real wizard left it mostly empty black
-   space with the text stranded at the top and the buttons stranded at the bottom. Size it to its
-   content instead, capped well under the full wizard's footprint. */
+/* The step-0 "Before You Begin" gate and other short confirmation-style steps read better
+   narrower than the full wizard's 1120px frame -- cap width too, not just height. */
 .site-modal.site-modal-wizard > .site-modal-wizard-panel.site-modal-wizard-panel-compact {
   width: min(560px, calc(100vw - 32px));
-  height: auto;
   max-height: min(88vh, 560px);
 }
 .site-modal-wizard-panel-compact .site-modal-wizard-body {
-  flex: 0 1 auto;
   justify-content: center;
 }
 .site-modal-wizard-panel-compact .site-modal-wizard-body > .wizard-warning .site-modal-actions {
@@ -1692,7 +1694,7 @@ h1, h2, h3, .site-wordmark {
   }
   .site-modal.site-modal-wizard > .site-modal-wizard-panel {
     width: 100%;
-    height: 100dvh;
+    height: auto;
     max-height: 100dvh;
     border-radius: 0;
   }

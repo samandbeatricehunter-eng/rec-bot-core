@@ -537,6 +537,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   }
 
   function advance(nextStep: Step) {
+    // Season Setup (step 4) asks about jumping into an existing in-game save mid-season --
+    // meaningless for Rise to Immortality, which always starts a fresh 10-season career from
+    // Origins. Skip straight past it in both directions.
+    if (nextStep === 4 && isRise) { setStep(5); return; }
     setStep(nextStep);
   }
 
@@ -1126,7 +1130,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(4)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(isRise ? 3 : 4)}>Back</button>
               <button type="button" className="site-btn site-btn-primary" onClick={() => advance(6)}>Next</button>
             </div>
           </>

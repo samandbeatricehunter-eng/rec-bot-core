@@ -23,7 +23,7 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
-import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_ARTICLE_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
@@ -841,8 +841,8 @@ export async function getHub(guildId: string, discordId: string) {
   const cfg = storeConfig.data ?? {};
   const isRise = isRiseToImmortalityLeagueType(String((cfg as { roster_type?: string | null }).roster_type ?? ""));
   let weeklyItems = [
-    { key: "interview", label: "Submit an Interview", amount: economy.submissions.interview, current: interviewRows.length, limit: 1, earned: paid(interviewRows) },
-    { key: "article", label: "Submit a custom article", amount: economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
+    { key: "interview", label: "Submit an Interview", amount: isRise ? RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT : economy.submissions.interview, current: interviewRows.length, limit: 1, earned: paid(interviewRows) },
+    { key: "article", label: "Submit a custom article", amount: isRise ? RISE_TO_IMMORTALITY_ARTICLE_PAYOUT : economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
     { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
     { key: "highlights", label: "Post up to 2 game highlights", amount: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT : economy.submissions.highlight, current: Math.min(isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
     { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
@@ -1506,6 +1506,9 @@ export async function submitInterview(input: {
   tagOpponent?: boolean;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", context.leagueId).maybeSingle();
+  const isRiseInterview = isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""));
   const userId = await userIdForDiscord(input.discordId);
   if (input.answers.length !== 3) throw new ApiError(400, "Pick exactly 3 interview questions.");
   const validIds = new Set(INTERVIEW_QUESTIONS.map((question) => question.id));
@@ -1550,7 +1553,7 @@ export async function submitInterview(input: {
     title, body, interview_answers: input.answers, submitter_user_id: userId, submitter_discord_id: input.discordId,
     team_id: assignment?.team_id ?? null, tag_opponent: Boolean(input.tagOpponent), opponent_user_id: opponent?.userId ?? null,
     opponent_discord_id: opponent?.discordId ?? null, opponent_team_id: opponent?.teamId ?? null, game_id: opponent?.gameId ?? null,
-    amount: (await getGlobalEconomyConfig()).submissions.interview, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    amount: isRiseInterview ? RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT : (await getGlobalEconomyConfig()).submissions.interview, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("*").single();
   if (row.error) {
     if (row.error.code === "23505") throw new ApiError(400, "You already submitted an interview for this week.");
@@ -1561,7 +1564,7 @@ export async function submitInterview(input: {
     queue_type: "media", status: "pending", priority: 2, header: "Interview Review",
     summary: `Interview submitted by <@${input.discordId}>${opponent?.discordId ? ` with an opponent callout for <@${opponent.discordId}>` : ""}.`,
     requester_user_id: userId, requester_discord_id: input.discordId, target_user_id: opponent?.userId ?? null, target_discord_id: opponent?.discordId ?? null,
-    team_id: assignment?.team_id ?? null, amount: (await getGlobalEconomyConfig()).submissions.interview, source_table: "rec_media_submissions", source_id: row.data.id,
+    team_id: assignment?.team_id ?? null, amount: isRiseInterview ? RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT : (await getGlobalEconomyConfig()).submissions.interview, source_table: "rec_media_submissions", source_id: row.data.id,
     payload: { submissionType: "interview", title, answers: input.answers, tagOpponent: Boolean(input.tagOpponent), opponentDiscordId: opponent?.discordId ?? null },
   });
   if (inbox.error) throw new ApiError(500, "We couldn't create the interview review notification. Please try again.", inbox.error);

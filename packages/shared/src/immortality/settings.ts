@@ -22,8 +22,10 @@ export const RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES = [
 
 export type RiseToImmortalityForbiddenPurchase = (typeof RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES)[number];
 
-export const RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT = 150;
+export const RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT = 100;
 export const RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT = 2;
+export const RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT = 100;
+export const RISE_TO_IMMORTALITY_ARTICLE_PAYOUT = 100;
 
 export const RISE_TO_IMMORTALITY_TEAM_POOLS = ["default_nfl", "custom_32"] as const;
 export type RiseToImmortalityTeamPool = (typeof RISE_TO_IMMORTALITY_TEAM_POOLS)[number];
@@ -143,9 +145,9 @@ export function isAllowedRiseToImmortalityCoinSource(source: string): boolean {
   return (RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES as readonly string[]).includes(source);
 }
 
-/** Interviews credit through source `media` + transactionType `interview_payout`. Articles use the same source and must not pay. */
+/** Interviews and articles both credit through source `media`, distinguished by transactionType. */
 export function riseToImmortalityAllowsCoinCredit(source: string, transactionType?: string): boolean {
   if (isAllowedRiseToImmortalityCoinSource(source)) return true;
-  if (source === "media" && transactionType === "interview_payout") return true;
+  if (source === "media" && (transactionType === "interview_payout" || transactionType === "article_payout")) return true;
   return false;
 }

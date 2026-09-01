@@ -12,9 +12,27 @@ export const DEV_OVR_CEILING: Record<ImmortalityDevTrait, number> = {
   xfactor: 99,
 };
 
-export const WEEKLY_XP = { bronze: 1, silver: 2, gold: 3 } as const;
-export const SEASON_XP = { tier1: 8, tier2: 15, tier3: 25 } as const;
-export const CAREER_XP = { minor: 20, major: 35, historic: 50 } as const;
+// Player XP is not a direct award -- every challenge/milestone/record grants raw "points" into
+// a running per-side pool (offense and defense never share one), and XP_POINTS_PER_LEVEL points
+// converts to 1 Player XP, flat -- no compounding, the pool just resets toward zero on grant
+// (mod arithmetic, see pointsToXp/pointsTowardNextLevel). Calibrated so a genuinely
+// high-achieving season (mostly gold weeks + a top season-tier milestone) lands at the low end
+// of 20-25 XP, and an all-time season that also breaks a record lands just over it.
+export const XP_POINTS_PER_LEVEL = 6000;
+
+export const WEEKLY_CHALLENGE_POINTS = { bronze: 1000, silver: 2500, gold: 5000 } as const;
+export const SEASON_MILESTONE_POINTS = { tier1: 10000, tier2: 25000, tier3: 50000 } as const;
+export const CAREER_MILESTONE_POINTS = { minor: 200000, major: 400000, historic: 700000 } as const;
+/** Awarded once EVERY time this player sets a league (real-NFL-sourced) record, not a one-time bonus. */
+export const RECORD_SET_BONUS_POINTS = 25000;
+
+export function pointsToXp(totalPoints: number): number {
+  return Math.floor(Math.max(0, totalPoints) / XP_POINTS_PER_LEVEL);
+}
+
+export function pointsTowardNextLevel(totalPoints: number): number {
+  return Math.max(0, totalPoints) % XP_POINTS_PER_LEVEL;
+}
 
 export function xpCostForPlusOne(currentValue: number): number {
   if (currentValue < 70) return 2;
@@ -86,6 +104,8 @@ export function promotionPath(current: ImmortalityDevTrait): ImmortalityDevTrait
   return null;
 }
 
+// TODO: recalibrate against the real ~20-25 XP/season scale above (250 XP would take over
+// ten seasons of saving every point to afford) -- not touched yet, flagging rather than guessing.
 export const DEV_TRAIT_PROMOTION_XP_COST = 250;
 
 export function purchaseDevTraitPromotion(input: {

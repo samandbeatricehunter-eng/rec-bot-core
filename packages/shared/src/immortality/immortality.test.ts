@@ -51,7 +51,7 @@ test("Rise to Immortality is a Madden 27 template that disables store purchases"
   assert.ok(RISE_TO_IMMORTALITY_FORBIDDEN_PURCHASES.includes("legend"));
 });
 
-test("standard coin sources are blocked; contracts, highlights, GOTW, and interviews are not", () => {
+test("standard coin sources are blocked; contracts, highlights, GOTW, interviews, and articles are not", () => {
   assert.equal(isBlockedStandardCoinSource("eos_payout"), true);
   assert.equal(isBlockedStandardCoinSource("player_of_week"), true);
   assert.equal(isBlockedStandardCoinSource("wager"), true);
@@ -59,7 +59,7 @@ test("standard coin sources are blocked; contracts, highlights, GOTW, and interv
   assert.equal(isAllowedRiseToImmortalityCoinSource("highlight"), true);
   assert.equal(isAllowedRiseToImmortalityCoinSource("gotw"), true);
   assert.equal(riseToImmortalityAllowsCoinCredit("media", "interview_payout"), true);
-  assert.equal(riseToImmortalityAllowsCoinCredit("media", "article_payout"), false);
+  assert.equal(riseToImmortalityAllowsCoinCredit("media", "article_payout"), true);
   assert.equal(riseToImmortalityAllowsCoinCredit("wager"), false);
 });
 
