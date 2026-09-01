@@ -367,5 +367,57 @@
         }
       ]
     }
+  ],
+  "owner": [
+    {
+      "number": 1,
+      "question": "Your first season as an owner opens with a brutal, avoidable loss. What's your move?",
+      "options": [
+        { "text": "Address the locker room myself. This starts and ends with me.", "dna_points": { "Leadership": 2, "Composure": 1 } },
+        { "text": "Tell the front office to fix it, whatever it takes, starting now.", "dna_points": { "Competitive Fire": 2 } },
+        { "text": "Remind everyone one loss doesn't define a ten-season plan.", "dna_points": { "Team First": 2, "Composure": 1 } },
+        { "text": "Get in front of the cameras before anyone else can spin the story.", "dna_points": { "Showmanship": 2 } }
+      ]
+    },
+    {
+      "number": 2,
+      "question": "A reporter asks what kind of owner you plan to be.",
+      "options": [
+        { "text": "The kind who's in the building every day, hands on everything.", "dna_points": { "Leadership": 2 } },
+        { "text": "The kind this league remembers for a long time after I'm gone.", "dna_points": { "Legacy Drive": 2 } },
+        { "text": "The kind whose players run through a wall for the guy who backs them.", "dna_points": { "Team First": 2 } },
+        { "text": "Ask me again after the first ring.", "dna_points": { "Competitive Fire": 1, "Showmanship": 1 } }
+      ]
+    },
+    {
+      "number": 3,
+      "question": "Your two rookies are struggling to find their footing early. How do you handle it publicly?",
+      "options": [
+        { "text": "Total patience, on the record. They're mine and I believe in them.", "dna_points": { "Team First": 2, "Composure": 1 } },
+        { "text": "Push them hard, privately, and let results speak for themselves.", "dna_points": { "Competitive Fire": 2 } },
+        { "text": "Frame it as part of the bigger story we're building here.", "dna_points": { "Legacy Drive": 1, "Showmanship": 1 } },
+        { "text": "Take the pressure off them by putting it on myself instead.", "dna_points": { "Leadership": 2 } }
+      ]
+    },
+    {
+      "number": 4,
+      "question": "A rival owner takes a shot at your franchise in the media. Your response?",
+      "options": [
+        { "text": "Fire back, louder. Let them know who they're dealing with.", "dna_points": { "Competitive Fire": 2, "Showmanship": 1 } },
+        { "text": "Say nothing. Let the record speak when it's written.", "dna_points": { "Composure": 2 } },
+        { "text": "Turn it into a moment — this is exactly the rivalry the league needs.", "dna_points": { "Showmanship": 2 } },
+        { "text": "Defend the team, not myself. This isn't about me.", "dna_points": { "Team First": 1, "Leadership": 1 } }
+      ]
+    },
+    {
+      "number": 5,
+      "question": "Ten seasons from now, what do you want people to say about your ownership?",
+      "options": [
+        { "text": "That I built something that outlasted me.", "dna_points": { "Legacy Drive": 2 } },
+        { "text": "That my players always knew exactly where they stood with me.", "dna_points": { "Leadership": 2 } },
+        { "text": "That nobody worked harder to win, ever.", "dna_points": { "Competitive Fire": 2 } },
+        { "text": "That it was never boring watching this franchise.", "dna_points": { "Showmanship": 2 } }
+      ]
+    }
   ]
 }

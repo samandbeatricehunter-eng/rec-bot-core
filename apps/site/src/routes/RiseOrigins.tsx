@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
+import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
@@ -11,7 +11,7 @@ import {
 } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
-type Stage = "identity" | "iq" | "persona" | "playstyle" | "characteristics" | "creation";
+type Stage = "identity" | "iq" | "persona" | "playstyle" | "characteristics" | "creation" | "owner" | "franchise";
 
 const STAGES: { id: Stage; label: string }[] = [
   { id: "identity", label: "Identity" },
@@ -20,6 +20,8 @@ const STAGES: { id: Stage; label: string }[] = [
   { id: "playstyle", label: "Playstyle" },
   { id: "characteristics", label: "Traits" },
   { id: "creation", label: "Creation Points" },
+  { id: "owner", label: "Owner" },
+  { id: "franchise", label: "Franchise" },
 ];
 
 function prospectFor(hub: ImmortalityHubResponse | null, side: Side) {
@@ -100,10 +102,10 @@ export function RiseOriginsPage() {
         <section className="rise-card">
           <h2>Commissioner</h2>
           <p className="site-muted">
-            Draft grades stay live until you solve. Rank and projected round move after every Origins stage and when someone new enters the class.
-            Solve assigns complete offense + defense pairs only — unfinished players stay in the pool as CPU.
-            The first pick of a pair hides the franchise; the second pick reveals it. Unused NFL slots stay CPU.
-            After this, members run a 3-round team fantasy draft in Madden (not tracked here).
+            Draft grades update after every Origins stage and when someone new enters the class, for flavor only —
+            franchises are no longer assigned by a batch draft. Each member's owner is offered 4 random franchises to
+            choose from once their players and owner are finished; after members run a 3-round team fantasy draft in
+            Madden (not tracked here).
           </p>
           <div className="rise-actions">
             {nextStates.map((state) => (
@@ -115,19 +117,15 @@ export function RiseOriginsPage() {
                   finally { setBusy(false); }
                 }}>Open {state.replaceAll("_", " ")}</button>
             ))}
-            {["ORIGINS_COMPLETE", "ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_LIVE"].includes(hub.league.chapterState) && hub.draftStatus !== "solved" ? (
-              <button type="button" className="site-btn site-btn-primary" disabled={busy}
-                onClick={async () => {
-                  setBusy(true); setError(null);
-                  try { await siteApi.immortalitySolveDraft(guildId); await reload(); await hubCtx.refreshLeagues(); }
-                  catch (err) { setError(err instanceof Error ? err.message : "Could not solve the draft."); }
-                  finally { setBusy(false); }
-                }}>Solve rookie draft</button>
-            ) : null}
           </div>
+          <IntroVideoSetting guildId={guildId} currentUrl={hub.introVideo?.url ?? null} onSaved={reload} setError={setError} />
         </section>
       ) : null}
 
+      {hub && hub.introVideo?.url && !hub.introVideo.watched ? (
+        <IntroVideoGate guildId={guildId} url={hub.introVideo.url} onWatched={reload} />
+      ) : (
+        <>
       {hub?.draftBoard ? (
         <DraftStockPanel
           board={hub.draftBoard}
@@ -186,6 +184,15 @@ export function RiseOriginsPage() {
             <CreationPanel key={side} guildId={guildId} side={side} budget={hub.league.creationPointBudget}
               setError={setError} onSaved={reload} />
           ) : null}
+          {stage === "owner" ? (
+            <OwnerPanel guildId={guildId} owner={hub.owner ?? null} personaQuestions={hub.catalogs.persona.owner}
+              onSaved={reload} setError={setError} />
+          ) : null}
+          {stage === "franchise" ? (
+            <FranchisePanel guildId={guildId} teamOffer={hub.teamOffer ?? null} onSaved={reload} setError={setError} />
+          ) : null}
+        </>
+      )}
         </>
       )}
 
@@ -319,7 +326,6 @@ function IdentityForm({
 }) {
   const [firstName, setFirstName] = useState(String(prospect?.first_name ?? ""));
   const [lastName, setLastName] = useState(String(prospect?.last_name ?? ""));
-  const [age, setAge] = useState(Number(prospect?.age ?? 21));
   const [hometown, setHometown] = useState(String(prospect?.hometown ?? ""));
   const [hometownState, setHometownState] = useState(String(prospect?.hometown_state ?? ""));
   const [college, setCollege] = useState(String(prospect?.college ?? ""));
@@ -330,7 +336,6 @@ function IdentityForm({
   useEffect(() => {
     setFirstName(String(prospect?.first_name ?? ""));
     setLastName(String(prospect?.last_name ?? ""));
-    setAge(Number(prospect?.age ?? 21));
     setHometown(String(prospect?.hometown ?? ""));
     setHometownState(String(prospect?.hometown_state ?? ""));
     setCollege(String(prospect?.college ?? ""));
@@ -339,22 +344,27 @@ function IdentityForm({
     setWeightLbs(Number(prospect?.weight_lbs ?? 220));
   }, [prospect]);
 
+  const maxHeight = IMMORTALITY_POSITION_MAX_HEIGHT_INCHES[position as keyof typeof IMMORTALITY_POSITION_MAX_HEIGHT_INCHES] ?? 76;
+  const heightCost = Math.max(0, heightInches - maxHeight) * HEIGHT_OVERAGE_CP_COST_PER_INCH;
+
   return (
     <section className="rise-card">
       <h2>Identity — {position || side}</h2>
-      <p className="site-muted">Age 18–22. Age 18 cannot list a college. This is your created-player class, not Player Lock.</p>
+      <p className="site-muted">Age is fixed at 21 for every prospect. This is your created-player class, not Player Lock.</p>
       <div className="rise-grid">
         <label className="site-field"><span>First name</span><input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
         <label className="site-field"><span>Last name</span><input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
-        <label className="site-field"><span>Age</span><input className="site-input" type="number" min={18} max={22} value={age} onChange={(e) => setAge(Number(e.target.value))} /></label>
         <label className="site-field"><span>Jersey</span><input className="site-input" type="number" min={0} max={99} value={jerseyNumber} onChange={(e) => setJerseyNumber(Number(e.target.value))} /></label>
         <label className="site-field"><span>Hometown</span><input className="site-input" value={hometown} onChange={(e) => setHometown(e.target.value)} /></label>
         <label className="site-field"><span>State</span><input className="site-input" value={hometownState} onChange={(e) => setHometownState(e.target.value)} /></label>
-        <label className="site-field"><span>College {age === 18 ? "(locked at 18)" : ""}</span>
-          <input className="site-input" value={age === 18 ? "" : college} disabled={age === 18} onChange={(e) => setCollege(e.target.value)} /></label>
-        <label className="site-field"><span>Height (inches)</span><input className="site-input" type="number" min={60} max={84} value={heightInches} onChange={(e) => setHeightInches(Number(e.target.value))} /></label>
+        <label className="site-field"><span>College</span><input className="site-input" value={college} onChange={(e) => setCollege(e.target.value)} /></label>
+        <label className="site-field"><span>Height (inches) — {position || side} max is {maxHeight}" before it costs Creation Points</span>
+          <input className="site-input" type="number" min={60} max={90} value={heightInches} onChange={(e) => setHeightInches(Number(e.target.value))} /></label>
         <label className="site-field"><span>Weight (lbs)</span><input className="site-input" type="number" min={140} max={400} value={weightLbs} onChange={(e) => setWeightLbs(Number(e.target.value))} /></label>
       </div>
+      {heightCost > 0 ? (
+        <p className="site-muted">{heightInches - maxHeight}" over the {position || side} max will cost <strong>{heightCost} Creation Points</strong> out of your budget.</p>
+      ) : null}
       <button type="button" className="site-btn site-btn-primary" disabled={busy || !firstName.trim() || !lastName.trim()}
         onClick={async () => {
           setBusy(true); setError(null);
@@ -362,8 +372,8 @@ function IdentityForm({
             await siteApi.immortalitySaveIdentity({
               guildId, side,
               identity: {
-                firstName: firstName.trim(), lastName: lastName.trim(), age, hometown, hometownState,
-                college: age === 18 ? null : college, jerseyNumber, heightInches, weightLbs,
+                firstName: firstName.trim(), lastName: lastName.trim(), hometown, hometownState,
+                college: college.trim() || null, jerseyNumber, heightInches, weightLbs,
               },
             });
             await onSaved();
@@ -417,14 +427,14 @@ function IqPanel({
   return (
     <section className="rise-card">
       <h2>IQ test</h2>
-      <p className="site-muted">12 questions. No back navigation. Timed per question. Answers never include the key.</p>
+      <p className="site-muted">{IQ_QUESTION_COUNT} questions. No back navigation. Timed per question. Answers never include the key.</p>
       {!state ? (
         <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => void start()}>Start IQ test</button>
       ) : state.completed ? (
         <p>IQ {state.iqScore}. Awareness {state.awareness}. Play recognition {state.playRecognition}.</p>
       ) : (
         <>
-          <p>Question {state.currentQuestion} of 12 · {Math.max(0, Math.ceil(remainingMs / 1000))}s left</p>
+          <p>Question {state.currentQuestion} of {IQ_QUESTION_COUNT} · {Math.max(0, Math.ceil(remainingMs / 1000))}s left</p>
           <p>{state.question?.question}</p>
           <div className="rise-options">
             {(state.question?.options ?? []).map((option, index) => (
@@ -557,13 +567,214 @@ function CreationPanel({
             const gradeText = grade
               ? ` Draft grade ${grade.gradeLabel ?? "—"} · R${grade.projectedRound ?? "—"} · #${grade.classRank ?? "—"} of ${grade.classSize ?? "—"} · ${stockLabel(String(grade.stock ?? "new"))}.`
               : "";
-            setResult(`Estimated OVR ${next.estimatedOvr ?? next.estimated_ovr ?? "—"}. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? used} CP.${gradeText}`);
+            setResult(`Build saved. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? used} CP. Your real OVR will come from the league's first game-data import.${gradeText}`);
             await onSaved();
           } catch (err) {
             setError(err instanceof Error ? err.message : "Could not evaluate that build.");
           } finally { setBusy(false); }
         }}>Evaluate build</button>
       {result ? <p>{result}</p> : null}
+    </section>
+  );
+}
+
+function IntroVideoSetting({
+  guildId, currentUrl, onSaved, setError,
+}: {
+  guildId: string;
+  currentUrl: string | null;
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const [url, setUrl] = useState(currentUrl ?? "");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setUrl(currentUrl ?? ""); }, [currentUrl]);
+
+  return (
+    <div className="rise-field-row" style={{ marginTop: 12 }}>
+      <label className="site-field"><span>Intro video URL (members must watch before Origins unlocks; blank disables the gate)</span>
+        <input className="site-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></label>
+      <button type="button" className="site-btn site-btn-secondary" disabled={busy}
+        onClick={async () => {
+          setBusy(true); setError(null);
+          try { await siteApi.immortalitySetIntroVideo({ guildId, url: url.trim() || null }); await onSaved(); }
+          catch (err) { setError(err instanceof Error ? err.message : "Could not save the intro video."); }
+          finally { setBusy(false); }
+        }}>Save intro video</button>
+    </div>
+  );
+}
+
+/** Blocks Origins until the member watches the commissioner's intro video to the end. Native
+ * controls are hidden and seeking past the furthest point actually reached is reverted, so
+ * scrubbing ahead can't skip the requirement -- pausing and rewinding are still fine. */
+function IntroVideoGate({ guildId, url, onWatched }: { guildId: string; url: string; onWatched: () => Promise<void> }) {
+  const [started, setStarted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const maxReached = useRef(0);
+
+  return (
+    <section className="rise-card">
+      <h2>Welcome to Rise to Immortality</h2>
+      <p className="site-muted">Watch this before you begin — you can't create your players until it finishes.</p>
+      {error ? <p className="site-auth-error">{error}</p> : null}
+      <div style={{ position: "relative", maxWidth: 720 }}>
+        <video src={url} controls={false} playsInline style={{ width: "100%", borderRadius: 10, background: "#000" }}
+          onTimeUpdate={(e) => {
+            const t = e.currentTarget.currentTime;
+            if (t > maxReached.current) maxReached.current = t;
+          }}
+          onSeeking={(e) => {
+            if (e.currentTarget.currentTime > maxReached.current + 0.5) e.currentTarget.currentTime = maxReached.current;
+          }}
+          onEnded={async () => {
+            setBusy(true); setError(null);
+            try { await siteApi.immortalityMarkIntroVideoWatched(guildId); await onWatched(); }
+            catch (err) { setError(err instanceof Error ? err.message : "Could not record the video as watched."); }
+            finally { setBusy(false); }
+          }}
+          ref={(node) => {
+            if (node && started) void node.play().catch(() => {});
+          }} />
+        {!started ? (
+          <button type="button" className="site-btn site-btn-primary"
+            style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+            onClick={() => setStarted(true)}>▶ Play intro video</button>
+        ) : null}
+      </div>
+      {busy ? <p className="site-muted">Saving…</p> : null}
+    </section>
+  );
+}
+
+function OwnerPanel({
+  guildId, owner, personaQuestions, onSaved, setError,
+}: {
+  guildId: string;
+  owner: ImmortalityHubResponse["owner"];
+  personaQuestions: ImmortalityInterviewQuestion[];
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const [firstName, setFirstName] = useState(owner?.firstName ?? "");
+  const [lastName, setLastName] = useState(owner?.lastName ?? "");
+  const [headshotUrl, setHeadshotUrl] = useState(owner?.headshotUrl ?? "");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setFirstName(owner?.firstName ?? "");
+    setLastName(owner?.lastName ?? "");
+    setHeadshotUrl(owner?.headshotUrl ?? "");
+  }, [owner]);
+
+  return (
+    <section className="rise-card">
+      <h2>Franchise Owner</h2>
+      <p className="site-muted">
+        Created after your players. This owner purchases one of your four offered franchises and
+        brings your two Origins players aboard.
+      </p>
+      <div className="rise-grid">
+        <img src={headshotUrl.trim() || "/assets/player-cards/player-silhouette.svg"} alt=""
+          style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "50%", background: "#222" }} />
+        <label className="site-field"><span>First name</span><input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
+        <label className="site-field"><span>Last name</span><input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
+        <label className="site-field"><span>Headshot URL (optional)</span>
+          <input className="site-input" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="Leave blank for a generic silhouette" /></label>
+      </div>
+      <button type="button" className="site-btn site-btn-primary" disabled={busy || !firstName.trim() || !lastName.trim()}
+        onClick={async () => {
+          setBusy(true); setError(null);
+          try {
+            await siteApi.immortalitySaveOwnerIdentity({
+              guildId, identity: { firstName: firstName.trim(), lastName: lastName.trim(), headshotUrl: headshotUrl.trim() || null },
+            });
+            await onSaved();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not save your owner.");
+          } finally { setBusy(false); }
+        }}>Save owner</button>
+
+      {owner ? (
+        owner.originsStep === "complete" ? (
+          <p>Personality: <strong>{owner.personaLabel}</strong> ({owner.personaPrimary} / {owner.personaSecondary})</p>
+        ) : (
+          <InterviewPanel title="Owner personality interview" questions={personaQuestions}
+            onSubmit={async (answers) => {
+              const result = await siteApi.immortalitySubmitOwnerPersona({ guildId, answers });
+              await onSaved();
+              return `${result.label} (${result.primary} / ${result.secondary})`;
+            }} setError={setError} />
+        )
+      ) : null}
+    </section>
+  );
+}
+
+function FranchisePanel({
+  guildId, teamOffer, onSaved, setError,
+}: {
+  guildId: string;
+  teamOffer: ImmortalityHubResponse["teamOffer"];
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function requestOffers() {
+    setLoading(true); setError(null);
+    try { await siteApi.immortalityGetTeamOffers(guildId); await onSaved(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not generate franchise offers."); }
+    finally { setLoading(false); }
+  }
+
+  if (!teamOffer) {
+    return (
+      <section className="rise-card">
+        <h2>Choose Your Franchise</h2>
+        <p className="site-muted">
+          Once both players and your owner are finished, your owner is offered 4 random
+          still-available franchises to purchase.
+        </p>
+        <button type="button" className="site-btn site-btn-primary" disabled={loading} onClick={() => void requestOffers()}>
+          {loading ? "Checking…" : "See my franchise offers"}
+        </button>
+      </section>
+    );
+  }
+
+  if (teamOffer.chosenTeamId) {
+    const chosen = teamOffer.offered.find((team) => team.teamId === teamOffer.chosenTeamId);
+    const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
+    return (
+      <section className="rise-card">
+        <h2>Your Franchise</h2>
+        <p>Your owner purchased the <strong>{label}</strong>. Your two Origins players are on the roster.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rise-card">
+      <h2>Choose Your Franchise</h2>
+      <p className="site-muted">Your owner is deciding between these four franchises. Pick one — this is final.</p>
+      <div className="wizard-team-grid">
+        {teamOffer.offered.map((team) => (
+          <button key={team.teamId} type="button" className="wizard-team-card" disabled={busy}
+            onClick={async () => {
+              setBusy(true); setError(null);
+              try { await siteApi.immortalityChooseTeam({ guildId, teamId: team.teamId }); await onSaved(); }
+              catch (err) { setError(err instanceof Error ? err.message : "Could not choose that franchise."); }
+              finally { setBusy(false); }
+            }}>
+            <strong>{team.city ?? ""} {team.name ?? team.abbreviation}</strong>
+            {team.abbreviation ? <span className="site-muted">{team.abbreviation}</span> : null}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

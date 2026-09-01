@@ -211,7 +211,12 @@ async function monitorCapturingJob(job: any) {
     await updateJob(job.id, { last_probe_at: new Date().toISOString() });
     try {
       const mediaUrl = await resolveMediaUrl(job.stream_url);
-      const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-i", mediaUrl, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
+      // PNG, not mjpeg: some streams' HLS encode is full-range YUV, which ffmpeg's mjpeg
+      // encoder rejects outright ("Non full-range YUV is non-standard") without the caller
+      // negotiating -strict unofficial -- confirmed live in rec_stream_capture_jobs.last_error
+      // ("Could not open encoder before EOF"), silently producing zero probe bytes and burning
+      // that minute's check. PNG has no such colorspace restriction and sharp decodes it the same.
+      const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-i", mediaUrl, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
       const meta = await sharp(frame).metadata();
       const parsed = await parseScorebugFrameAuto(frame);
       // The region calibration (docs/scorebug-ocr-regions.md) was built against 1920x1080
@@ -734,7 +739,9 @@ async function processRecap(job: any) {
 async function postRecapToHighlightReel(job: any, media: { uid: string; playbackUrl: string }): Promise<void> {
   const league = await supabase.from("rec_leagues").select("name,owner_user_id").eq("id", job.league_id).maybeSingle();
   if (league.error || !league.data?.owner_user_id) {
-    console.error("[WARN] Could not attribute weekly recap highlight post (missing league owner, non-fatal):", league.error);
+    const message = `Recap rendered (${media.uid}) but could not post to the Highlight Reel: missing league owner. ${league.error?.message ?? ""}`.trim();
+    console.error("[WARN] Could not attribute weekly recap highlight post (non-fatal):", league.error);
+    await supabase.from("rec_weekly_recap_jobs").update({ last_error: message, updated_at: new Date().toISOString() }).eq("id", job.id);
     return;
   }
   const stage = String(job.season_stage ?? "regular_season");
@@ -749,7 +756,19 @@ async function postRecapToHighlightReel(job: any, media: { uid: string; playback
     cloudflare_stream_uid: media.uid, storage_provider: "cloudflare_stream", media_status: "ready",
     playback_url: media.playbackUrl, hub_visible: true, created_at: now, updated_at: now,
   });
-  if (inserted.error) console.error("[WARN] Failed to post weekly recap to the Highlight Reel (non-fatal):", inserted.error);
+  if (inserted.error) {
+    // Previously swallowed with only a console.error -- the recap video itself (and its
+    // rec_weekly_recap_jobs row) still exists and plays fine on Cloudflare, but this was the
+    // only step that puts it somewhere a league member would actually see it, and its failure
+    // left zero trace anywhere queryable. Recording it here made a real, otherwise-invisible
+    // production incident (Aug 2026: a fully rendered recap never reached the Highlight Reel)
+    // diagnosable without pulling deploy logs from the exact minute it happened.
+    console.error("[WARN] Failed to post weekly recap to the Highlight Reel (non-fatal):", inserted.error);
+    await supabase.from("rec_weekly_recap_jobs").update({
+      last_error: `Recap rendered (${media.uid}) but the Highlight Reel post failed: ${inserted.error.message}`,
+      updated_at: new Date().toISOString(),
+    }).eq("id", job.id);
+  }
 }
 
 export async function runStreamAutoclipSweep() {

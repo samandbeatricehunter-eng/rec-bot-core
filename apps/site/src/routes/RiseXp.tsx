@@ -113,7 +113,7 @@ export function RiseXpPage() {
                 setBusy(true); setError(null); setResult(null);
                 try {
                   const next = await siteApi.immortalitySpendXp({ guildId, side, attributeCode });
-                  setResult(`${next.attributeCode} is now ${next.nextValue}. Cost ${next.cost} XP. OVR ${next.estimatedOvr}. ${next.playerXp} XP remaining.`);
+                  setResult(`${next.attributeCode} is now ${next.nextValue}. Cost ${next.cost} XP. Real OVR ${next.currentOvr} (from the latest import). ${next.playerXp} XP remaining.`);
                   await reload();
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Could not spend Player XP.");

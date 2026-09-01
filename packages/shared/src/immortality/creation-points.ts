@@ -1,8 +1,22 @@
-import { FORMULA_VERSIONS, type AttributeMap, type ImmortalityDevTrait } from "./types.js";
+import { FORMULA_VERSIONS, type AttributeMap, type ImmortalityDevTrait, type ImmortalityPosition } from "./types.js";
 import type { CharacteristicModifiers } from "./characteristics.js";
 
 export const DEFAULT_CREATION_POINT_BUDGET = 60;
 export const CREATION_POINT_CALIBRATION_BUDGETS = [45, 50, 55, 60, 65] as const;
+
+/** Historical real-NFL max height per position, in inches. A prospect can go taller, but each
+ * inch over costs HEIGHT_OVERAGE_CP_COST_PER_INCH out of the Creation Point budget -- these are
+ * a first-pass estimate, not sourced from real positional height data yet; adjust freely. */
+export const IMMORTALITY_POSITION_MAX_HEIGHT_INCHES: Record<ImmortalityPosition, number> = {
+  QB: 76, HB: 74, WR: 77, TE: 79,
+  CB: 75, FS: 75, SS: 76, MIKE: 76,
+};
+export const HEIGHT_OVERAGE_CP_COST_PER_INCH = 20;
+
+export function heightOverageCreationPointCost(position: ImmortalityPosition, heightInches: number): number {
+  const max = IMMORTALITY_POSITION_MAX_HEIGHT_INCHES[position];
+  return Math.max(0, heightInches - max) * HEIGHT_OVERAGE_CP_COST_PER_INCH;
+}
 
 export function creationPointCostForValue(nextValue: number): number {
   if (nextValue < 70) return 1;

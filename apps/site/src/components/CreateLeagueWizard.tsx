@@ -533,8 +533,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   // component state (collectConfig) and is sent in one shot at the end, so abandoning the
   // wizard at any earlier step leaves nothing behind in the database.
   async function finishWizard() {
-    if (!game || !name.trim() || (!isRise && !selectedTeamId)) {
-      setError(isRise ? "Name the league before creating it." : "Choose your team before creating the league.");
+    if (!game || !name.trim() || !selectedTeamId) {
+      setError("Choose your team before creating the league.");
       return;
     }
     setBusy(true);
@@ -561,7 +561,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         await Promise.all(uploads);
         if (uploads.length) setImmortalityTeamLogoFiles({});
       }
-      if (!isRise && leagueId && selectedTeamId && createdId) {
+      // Uses createdId (this call's freshly-created league, if any), not the leagueId state
+      // variable -- setLeagueId above won't be visible on this closure until the next render,
+      // so checking leagueId here would skip team assignment entirely on the very first click.
+      if (selectedTeamId && createdId) {
         const open = await siteApi.listOpenLeagueTeams(createdId);
         const team = open.teams.find((t) => t.abbreviation === selectedTeamId);
         if (!team) throw new Error("That team is no longer available in this league. Try assigning a team again.");
@@ -1386,9 +1389,32 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                             </label>
                           ))}
                           <span className="site-muted">Colors</span>
-                          <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
-                          <input className="site-input" placeholder="#Secondary" pattern="#[0-9A-Fa-f]{6}" value={slot.secondaryColor} onChange={(event) => update({ secondaryColor: event.target.value })} />
-                          <input className="site-input" placeholder="#Tertiary" pattern="#[0-9A-Fa-f]{6}" value={slot.tertiaryColor} onChange={(event) => update({ tertiaryColor: event.target.value })} />
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
+                            <EyeDropperButton onPick={(hex) => update({ primaryColor: hex })} />
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input className="site-input" placeholder="#Secondary" pattern="#[0-9A-Fa-f]{6}" value={slot.secondaryColor} onChange={(event) => update({ secondaryColor: event.target.value })} />
+                            <EyeDropperButton onPick={(hex) => update({ secondaryColor: hex })} />
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input className="site-input" placeholder="#Tertiary" pattern="#[0-9A-Fa-f]{6}" value={slot.tertiaryColor} onChange={(event) => update({ tertiaryColor: event.target.value })} />
+                            <EyeDropperButton onPick={(hex) => update({ tertiaryColor: hex })} />
+                          </div>
+                          {(() => {
+                            const primaryFile = immortalityTeamLogoFiles[team.abbreviation]?.primary;
+                            const previewSrc = primaryFile ? URL.createObjectURL(primaryFile) : (slot.primaryLogoUrl.trim() || null);
+                            if (!previewSrc) return null;
+                            return (
+                              <>
+                                <span className="site-muted">Preview</span>
+                                <div style={{ gridColumn: "span 3" }}>
+                                  <img src={previewSrc} alt="" style={{ maxHeight: 64, maxWidth: 120, background: "#222", borderRadius: 6 }} />
+                                  <span className="site-muted" style={{ marginLeft: 8, fontSize: "0.85em" }}>Click "Pick" above, then click a pixel on this logo.</span>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -1412,26 +1438,30 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   </div>
                 </div>
               </Section>
-            ) : (
-              <Section title="Team Assignment">
-                <p className="site-muted">Pick your team. You will be assigned as the head commissioner for this team.</p>
-                <div className="wizard-team-grid">
-                  {teamOptions.map((team) => (
-                    <button key={team.id} type="button"
-                      className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
-                      onClick={() => setSelectedTeamId(team.id)}>
-                      <strong>{team.name}</strong>
-                      {team.mascot && <span className="site-muted">{team.mascot}</span>}
-                      {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
-                    </button>
-                  ))}
-                </div>
-              </Section>
-            )}
+            ) : null}
+            <Section title="Team Assignment">
+              <p className="site-muted">
+                {isRise
+                  ? "Pick your franchise. You're the only one who chooses directly, since you need a team set up in-game to run the league — everyone else creates their players and an owner first, then gets 4 random franchises to choose from once they're done."
+                  : "Pick your team. You will be assigned as the head commissioner for this team."}
+                {isRise && immortalityTeamPool === "custom_32" ? " If a custom identity replaces this slot, the franchise will show its custom name once the league is created." : null}
+              </p>
+              <div className="wizard-team-grid">
+                {teamOptions.map((team) => (
+                  <button key={team.id} type="button"
+                    className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
+                    onClick={() => setSelectedTeamId(team.id)}>
+                    <strong>{team.name}</strong>
+                    {team.mascot && <span className="site-muted">{team.mascot}</span>}
+                    {team.abbreviation && <span className="site-muted">{team.abbreviation}</span>}
+                  </button>
+                ))}
+              </div>
+            </Section>
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy || (!isRise && !selectedTeamId)} onClick={() => void finishWizard()}>
-                {busy ? "Finishing..." : isRise ? "Create League" : "Assign Team & Finish"}
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
+                {busy ? "Finishing..." : "Assign Team & Finish"}
               </button>
             </div>
           </>
@@ -1441,7 +1471,8 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           <>
             <Section title="Your League is Ready">
               <p className="site-muted">
-                <strong>{name || "Your league"}</strong> was created{isRise ? ". Users register into a pool, then the virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU." : selectedTeamId ? ` and you were assigned the ${selectedTeamId}` : ""}. You can manage settings, add users, and assign teams anytime from the league hub.
+                <strong>{name || "Your league"}</strong> was created{selectedTeamId ? ` and you were assigned the ${selectedTeamId}` : ""}
+                {isRise ? ". Everyone else creates their players and an owner, then gets 4 random franchises to choose from once they're done. Unused teams stay CPU." : ""}. You can manage settings, add users, and assign teams anytime from the league hub.
               </p>
             </Section>
 
@@ -1618,6 +1649,34 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
       </section>
     </div>,
     document.body,
+  );
+}
+
+type EyeDropperResult = { sRGBHex: string };
+type EyeDropperInstance = { open: () => Promise<EyeDropperResult> };
+declare global {
+  interface Window { EyeDropper?: new () => EyeDropperInstance; }
+}
+
+/** Samples a color from anywhere on screen (Chrome/Edge's native EyeDropper API) -- pair with
+ * an on-page logo preview so a commissioner can pick a hex value straight off the uploaded
+ * artwork instead of guessing. Hidden on browsers without the API (Firefox, Safari) rather than
+ * showing a button that would just throw when clicked. */
+function EyeDropperButton({ onPick }: { onPick: (hex: string) => void }) {
+  const supported = typeof window !== "undefined" && Boolean(window.EyeDropper);
+  if (!supported) return null;
+  return (
+    <button type="button" className="site-btn site-btn-secondary site-btn-sm" title="Pick a color from anywhere on screen"
+      onClick={async () => {
+        try {
+          const result = await new window.EyeDropper!().open();
+          onPick(result.sRGBHex);
+        } catch {
+          // User pressed Escape to cancel the pick -- not an error.
+        }
+      }}>
+      🎨 Pick
+    </button>
   );
 }
 

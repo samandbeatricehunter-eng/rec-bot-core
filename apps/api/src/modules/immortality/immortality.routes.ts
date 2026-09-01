@@ -4,24 +4,29 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
   castHallVote,
+  chooseImmortalityTeam,
   convertXp,
   evaluateCreationBuild,
   getImmortalityHub,
+  getOrGenerateTeamOffers,
   installImmortalityCustomTeams,
+  markImmortalityIntroVideoWatched,
   publicCharacteristicCatalog,
   selectCharacteristics,
-  solveRookieDraft,
+  setImmortalityIntroVideo,
   startIqAttempt,
   submitIqAnswer,
+  submitOwnerPersona,
   submitPersona,
   submitPlaystyle,
   spendPlayerXp,
   transitionImmortalityState,
+  upsertOwnerIdentity,
   upsertProspectIdentity,
   selectImmortalityAbility,
   removeImmortalityAbility,
 } from "./immortality.service.js";
-import { IMMORTALITY_STATES } from "@rec/shared";
+import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
 const GuildBody = z.object({ guildId: z.string().min(1) });
 const SideBody = GuildBody.extend({ side: z.enum(["offense", "defense"]) });
@@ -46,12 +51,11 @@ export async function immortalityRoutes(app: FastifyInstance) {
         identity: z.object({
           firstName: z.string().trim().min(1).max(40),
           lastName: z.string().trim().min(1).max(40),
-          age: z.number().int().min(18).max(22),
           hometown: z.string().trim().max(80).optional(),
           hometownState: z.string().trim().max(40).optional(),
           college: z.string().trim().max(80).optional().nullable(),
           jerseyNumber: z.number().int().min(0).max(99),
-          heightInches: z.number().int().min(60).max(84),
+          heightInches: z.number().int().min(60).max(90),
           weightLbs: z.number().int().min(140).max(400),
           bodyType: z.string().trim().max(40).optional(),
         }),
@@ -74,7 +78,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
   app.post("/v1/immortality/iq/answer", async (request, reply) => {
     try {
       const body = SideBody.extend({
-        questionNumber: z.number().int().min(1).max(12),
+        questionNumber: z.number().int().min(1).max(IQ_QUESTION_COUNT),
         selectedPresentedIndex: z.number().int().min(0).max(3).nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
@@ -159,6 +163,68 @@ export async function immortalityRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  app.post("/v1/immortality/intro-video/set", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ url: z.string().trim().url().nullable() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Setting the intro video requires a website session.");
+      return reply.send(await setImmortalityIntroVideo({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/intro-video/watched", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await markImmortalityIntroVideoWatched({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner/identity", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        identity: z.object({
+          firstName: z.string().trim().min(1).max(40),
+          lastName: z.string().trim().min(1).max(40),
+          headshotUrl: z.string().trim().url().optional().nullable(),
+        }),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Origins is website-only.");
+      return reply.send(await upsertOwnerIdentity({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner/persona", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(3) })).min(1).max(5),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
+      return reply.send(await submitOwnerPersona({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/team-offers", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Franchise offers are website-only.");
+      return reply.send(await getOrGenerateTeamOffers({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/team-offers/choose", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ teamId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Choosing a franchise is website-only.");
+      return reply.send(await chooseImmortalityTeam({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/immortality/teams/custom", async (request, reply) => {
     try {
       const body = GuildBody.extend({
@@ -178,15 +244,6 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Custom team install requires a website session.");
       return reply.send(await installImmortalityCustomTeams({ guildId: body.guildId, discordId: auth.discordId, slots: body.slots }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/immortality/draft/solve", async (request, reply) => {
-    try {
-      const body = GuildBody.parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
-      if (auth.mode !== "user") throw new ApiError(400, "Draft solving requires a website session.");
-      return reply.send(await solveRookieDraft(body.guildId, auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 

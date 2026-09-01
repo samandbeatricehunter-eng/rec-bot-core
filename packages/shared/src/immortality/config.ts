@@ -72,6 +72,27 @@ export function personaQuestionsForSide(side: ImmortalitySide): PersonaQuestion[
     }));
 }
 
+/** Same 6-dimension Persona engine as the player interview, distinct owner-flavored questions. */
+export function personaQuestionsForOwner(): PersonaQuestion[] {
+  const raw = personaJson.owner as unknown as RawPersonaQuestion[];
+  return raw.map((item) => ({
+    number: item.number,
+    question: item.question,
+    options: item.options.map((option) => ({
+      text: option.text,
+      dnaPoints: option.dna_points,
+    })),
+  }));
+}
+
+export function publicPersonaQuestionsForOwner() {
+  return personaQuestionsForOwner().map(({ number, question, options }) => ({
+    number,
+    question,
+    options: options.map((option) => ({ text: option.text })),
+  }));
+}
+
 type RawPlaystyleOption = { text: string; primary_archetype: string };
 type RawPlaystyleQuestion = { number: number; question: string; options: RawPlaystyleOption[] };
 

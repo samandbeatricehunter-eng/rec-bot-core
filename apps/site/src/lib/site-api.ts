@@ -446,9 +446,24 @@ export type ImmortalityHubResponse = {
     mine: { offense: ImmortalityDraftGrade | null; defense: ImmortalityDraftGrade | null };
   };
   abilities?: Record<string, ImmortalityAbilityState>;
+  introVideo?: { url: string | null; watched: boolean };
+  owner?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    headshotUrl: string | null;
+    originsStep: "identity" | "persona" | "complete";
+    personaLabel: string | null;
+    personaPrimary: string | null;
+    personaSecondary: string | null;
+  } | null;
+  teamOffer?: {
+    offered: Array<{ teamId: string; name: string | null; city: string | null; abbreviation: string | null }>;
+    chosenTeamId: string | null;
+  } | null;
   catalogs: {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
-    persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
+    persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[]; owner: ImmortalityInterviewQuestion[] };
     playstyle: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
   };
 };
@@ -456,7 +471,6 @@ export type ImmortalityHubResponse = {
 export type ImmortalityIdentityInput = {
   firstName: string;
   lastName: string;
-  age: number;
   hometown?: string;
   hometownState?: string;
   college?: string | null;
@@ -1145,20 +1159,29 @@ export const siteApi = {
       draftGrade?: { gradeLabel?: string; classRank?: number; classSize?: number; projectedRound?: number; stock?: string } | null;
     }>("/v1/immortality/creation/evaluate", input);
   },
+  immortalitySetIntroVideo(input: { guildId: string; url: string | null }) {
+    return request<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", input);
+  },
+  immortalityMarkIntroVideoWatched(guildId: string) {
+    return request<{ ok: boolean }>("/v1/immortality/intro-video/watched", { guildId });
+  },
+  immortalitySaveOwnerIdentity(input: { guildId: string; identity: { firstName: string; lastName: string; headshotUrl?: string | null } }) {
+    return request<Record<string, unknown>>("/v1/immortality/owner/identity", input);
+  },
+  immortalitySubmitOwnerPersona(input: { guildId: string; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
+    return request<{ label: string; primary: string; secondary: string; scores: Record<string, number> }>("/v1/immortality/owner/persona", input);
+  },
+  immortalityGetTeamOffers(guildId: string) {
+    return request<{ offeredTeamIds: string[]; chosenTeamId: string | null }>("/v1/immortality/team-offers", { guildId });
+  },
+  immortalityChooseTeam(input: { guildId: string; teamId: string }) {
+    return request<{ teamId: string }>("/v1/immortality/team-offers/choose", input);
+  },
   immortalityTransitionState(input: { guildId: string; toState: string }) {
     return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);
   },
-  immortalitySolveDraft(guildId: string) {
-    return request<{
-      assignments?: unknown[];
-      linked?: unknown[];
-      linkFailures?: unknown[];
-      readyPairCount?: number;
-      skippedIncompletePairs?: number;
-    }>("/v1/immortality/draft/solve", { guildId });
-  },
   immortalitySpendXp(input: { guildId: string; side: "offense" | "defense"; attributeCode: string }) {
-    return request<{ attributeCode: string; nextValue: number; cost: number; estimatedOvr: number; playerXp: number }>("/v1/immortality/xp/spend", input);
+    return request<{ attributeCode: string; nextValue: number; cost: number; currentOvr: number; playerXp: number }>("/v1/immortality/xp/spend", input);
   },
   immortalitySelectAbility(input: { guildId: string; side: "offense" | "defense"; abilityId: string }) {
     return request<{ equipped?: unknown; tier?: string }>("/v1/immortality/abilities/select", input);
