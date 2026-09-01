@@ -600,7 +600,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
   return createPortal(
     <div className="site-modal site-modal-wizard" role="presentation" onMouseDown={dismiss}>
       <section
-        className="site-modal-wide site-modal-wizard-panel"
+        className={`site-modal-wide site-modal-wizard-panel ${step === 0 ? "site-modal-wizard-panel-compact" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-league-title"
