@@ -1,11 +1,15 @@
 import { FORMULA_VERSIONS } from "./types.js";
 
-export const IQ_QUESTION_COUNT = 12;
-export const IQ_START = 80;
+export const IQ_QUESTION_COUNT = 10;
+export const IQ_START = 90;
 export const IQ_MAX = 140;
 export const IQ_POINTS_PER_CORRECT = 5;
 export const IQ_SECONDS_PER_QUESTION = 25;
 export const IQ_MAX_TEST_POINTS = IQ_QUESTION_COUNT * IQ_POINTS_PER_CORRECT;
+
+export const AWARENESS_BASELINE = 50;
+export const AWARENESS_MAX_IQ_BONUS = 49;
+export const PLAY_RECOGNITION_BASELINE = 35;
 
 export type IqPublicQuestion = {
   number: number;
@@ -56,8 +60,8 @@ export function scoreIqAttempt(input: {
   }
   const testPoints = Math.min(IQ_MAX_TEST_POINTS, correctCount * IQ_POINTS_PER_CORRECT);
   const iqScore = Math.min(IQ_MAX, IQ_START + testPoints);
-  const awareness = 40 + Math.round((59 * testPoints) / IQ_MAX_TEST_POINTS);
-  const playRecognition = 40 + Math.round((45 * testPoints) / IQ_MAX_TEST_POINTS);
+  const awareness = AWARENESS_BASELINE + Math.min(AWARENESS_MAX_IQ_BONUS, testPoints);
+  const playRecognition = PLAY_RECOGNITION_BASELINE + testPoints;
   return {
     correctCount,
     testPoints,

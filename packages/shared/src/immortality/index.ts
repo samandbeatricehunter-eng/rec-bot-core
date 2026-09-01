@@ -4,6 +4,8 @@ export * from "./state-machine.js";
 export * from "./iq.js";
 export * from "./persona.js";
 export * from "./playstyle.js";
+export * from "./persona-dna.js";
+export * from "./player-traits.js";
 export * from "./characteristics.js";
 export * from "./creation-points.js";
 export * from "./baseline.js";

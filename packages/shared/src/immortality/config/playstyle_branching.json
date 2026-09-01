@@ -1,0 +1,236 @@
+{
+  "groups": {
+    "QB": {
+      "archetypes": ["Field General", "Strong Arm", "Improviser", "Scrambler"],
+      "q1": {
+        "question": "How would you describe your playstyle as a quarterback?",
+        "options": [
+          { "text": "Field General — I'm accurate, aware, and always on time with my reads.", "archetype": "Field General" },
+          { "text": "Strong Arm — I trust my arm to fit the ball into windows other guys can't.", "archetype": "Strong Arm" },
+          { "text": "Improviser — I create when the play breaks down, not just when it works.", "archetype": "Improviser" },
+          { "text": "Scrambler — my legs are a weapon defenses have to account for.", "archetype": "Scrambler" }
+        ]
+      },
+      "q2_question": "Which of the other styles do you think influences you as well?",
+      "banks": {
+        "Field General": {
+          "q3": {
+            "question": "How often do you take the checkdown instead of forcing a bigger play?",
+            "options": [
+              { "text": "Every time it's there — I don't force anything.", "deltas": [{ "code": "SAC", "floor": 3, "ceiling": 3 }, { "code": "MAC", "floor": 3, "ceiling": 3 }] },
+              { "text": "Usually, unless I really trust the matchup downfield.", "deltas": [{ "code": "MAC", "floor": 2, "ceiling": 2 }] },
+              { "text": "Rarely — I'll live with a covered window over a checkdown.", "deltas": [{ "code": "TUP", "floor": 1, "ceiling": 1 }] },
+              { "text": "Almost never — I trust my arm over the safe throw.", "deltas": [{ "code": "DAC", "floor": 1, "ceiling": 1 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that anticipation actually come from?",
+            "options": [
+              { "text": "I grew up running a pro-style, progression-based offense.", "deltas": [{ "code": "SAC", "floor": 3, "ceiling": 4 }, { "code": "MAC", "floor": 3, "ceiling": 4 }] },
+              { "text": "Film study — I just outwork everyone in the room.", "deltas": [{ "code": "PAC", "floor": 2, "ceiling": 3 }] },
+              { "text": "I'm accurate, I just don't always see it before the snap.", "deltas": [{ "code": "SAC", "floor": 2, "ceiling": 2 }] },
+              { "text": "Honestly it's instinct more than study.", "deltas": [{ "code": "TUP", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "When the pocket holds up and you have a clean look, what do you do with it?",
+            "options": [
+              { "text": "Go through my full progression, no matter how long it takes.", "deltas": [{ "code": "MAC", "floor": 2, "ceiling": 2 }, { "code": "DAC", "floor": 2, "ceiling": 2 }] },
+              { "text": "Take the first clean throw and move on.", "deltas": [{ "code": "SAC", "floor": 3, "ceiling": 3 }] },
+              { "text": "Look off the safety first, then throw.", "deltas": [{ "code": "PAC", "floor": 3, "ceiling": 3 }] },
+              { "text": "Trust my arm to fit it into a tight window late.", "deltas": [{ "code": "THP", "floor": 1, "ceiling": 1 }] }
+            ]
+          }
+        },
+        "Strong Arm": {
+          "q3": {
+            "question": "How often are you taking a shot down the field?",
+            "options": [
+              { "text": "Any time I've got even a step of separation.", "deltas": [{ "code": "DAC", "floor": 3, "ceiling": 4 }, { "code": "THP", "floor": 2, "ceiling": 2 }] },
+              { "text": "When the matchup is clearly in our favor.", "deltas": [{ "code": "DAC", "floor": 2, "ceiling": 2 }] },
+              { "text": "Only on schemed shot plays.", "deltas": [{ "code": "THP", "floor": 1, "ceiling": 1 }] },
+              { "text": "I'd rather take the easy completion.", "deltas": [{ "code": "SAC", "floor": 1, "ceiling": 1 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that arm strength come from?",
+            "options": [
+              { "text": "I grew up throwing other sports — baseball, javelin, whatever had a throwing motion.", "deltas": [{ "code": "THP", "floor": 3, "ceiling": 4 }] },
+              { "text": "I've just always had a cannon, no real backstory.", "deltas": [{ "code": "THP", "floor": 2, "ceiling": 3 }] },
+              { "text": "I built it in the weight room more than anything natural.", "deltas": [{ "code": "THP", "floor": 2, "ceiling": 2 }] },
+              { "text": "It's more velocity on shorter throws than a real deep arm.", "deltas": [{ "code": "SAC", "floor": 2, "ceiling": 2 }, { "code": "MAC", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "Your receiver is bracketed by two defenders deep. What do you do?",
+            "options": [
+              { "text": "Rip it in there anyway — I trust the velocity to win.", "deltas": [{ "code": "DAC", "floor": 3, "ceiling": 3 }, { "code": "THP", "floor": 1, "ceiling": 1 }] },
+              { "text": "Only if it's my top target.", "deltas": [{ "code": "DAC", "floor": 2, "ceiling": 2 }] },
+              { "text": "I'll take the checkdown instead.", "deltas": [{ "code": "TUP", "floor": 1, "ceiling": 1 }] },
+              { "text": "I'll throw my guy open with placement, not just arm strength.", "deltas": [{ "code": "MAC", "floor": 2, "ceiling": 2 }] }
+            ]
+          }
+        },
+        "Improviser": {
+          "q3": {
+            "question": "How often does a play actually go off-script for you?",
+            "options": [
+              { "text": "Constantly — I basically expect the play to break down.", "deltas": [{ "code": "TOR", "floor": 3, "ceiling": 3 }] },
+              { "text": "Whenever my first two reads are covered.", "deltas": [{ "code": "TUP", "floor": 2, "ceiling": 2 }] },
+              { "text": "Only when I'm truly out of options.", "deltas": [{ "code": "BSK", "floor": 2, "ceiling": 2 }] },
+              { "text": "Rarely — I trust the play design.", "deltas": [{ "code": "AGI", "floor": 1, "ceiling": 1 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that improvisational instinct come from?",
+            "options": [
+              { "text": "Playground ball — structure was never really the point.", "deltas": [{ "code": "AGI", "floor": 3, "ceiling": 4 }, { "code": "COD", "floor": 3, "ceiling": 4 }] },
+              { "text": "I just have a feel for pressure most guys don't.", "deltas": [{ "code": "TUP", "floor": 3, "ceiling": 3 }] },
+              { "text": "Athletic background outside of a traditional QB path.", "deltas": [{ "code": "AGI", "floor": 2, "ceiling": 2 }] },
+              { "text": "I've just learned to buy time out of necessity.", "deltas": [{ "code": "BSK", "floor": 2, "ceiling": 3 }] }
+            ]
+          },
+          "q5": {
+            "question": "You're flushed from the pocket with a receiver still working downfield. What happens?",
+            "options": [
+              { "text": "I keep my eyes up the entire way, looking to throw.", "deltas": [{ "code": "TOR", "floor": 3, "ceiling": 3 }] },
+              { "text": "I extend it as long as I can before tucking it.", "deltas": [{ "code": "COD", "floor": 2, "ceiling": 2 }] },
+              { "text": "I take off the moment I see a running lane.", "deltas": [{ "code": "SPD", "floor": 1, "ceiling": 1 }] },
+              { "text": "I'll throw it away before forcing anything off-platform.", "deltas": [{ "code": "TUP", "floor": 1, "ceiling": 1 }] }
+            ]
+          }
+        },
+        "Scrambler": {
+          "q3": {
+            "question": "How often do you look to tuck it and run?",
+            "options": [
+              { "text": "Every chance I get, even with a clean pocket — running is my first instinct.", "deltas": [{ "code": "SPD", "floor": 2, "ceiling": 3 }, { "code": "ACC", "floor": 2, "ceiling": 3 }, { "code": "BCV", "floor": 2, "ceiling": 3 }] },
+              { "text": "Whenever my first read isn't immediately open.", "deltas": [{ "code": "SPD", "floor": 1, "ceiling": 1 }, { "code": "PAC", "floor": 1, "ceiling": 1 }] },
+              { "text": "Mainly once the pocket actually breaks down.", "deltas": [{ "code": "TUP", "floor": 1, "ceiling": 1 }] },
+              { "text": "Only as an absolute last resort.", "deltas": [{ "code": "TUP", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that speed actually come from?",
+            "options": [
+              { "text": "I ran track — sprints or hurdles — before I ever focused on football.", "deltas": [{ "code": "SPD", "floor": 3, "ceiling": 4 }, { "code": "ACC", "floor": 3, "ceiling": 4 }] },
+              { "text": "I've just always been the fastest guy on every roster I've been on.", "deltas": [{ "code": "SPD", "floor": 2, "ceiling": 2 }, { "code": "ACC", "floor": 2, "ceiling": 2 }] },
+              { "text": "I'm quick enough to be dangerous, but I'm not a track guy.", "deltas": [{ "code": "AGI", "floor": 2, "ceiling": 2 }, { "code": "COD", "floor": 2, "ceiling": 2 }] },
+              { "text": "Straight-line speed was never really my calling card — I get by on instinct.", "deltas": [{ "code": "BCV", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "When you do take off, what are you actually looking to do?",
+            "options": [
+              { "text": "Make the first guy miss in space and turn it into a chunk play.", "deltas": [{ "code": "JKM", "floor": 2, "ceiling": 2 }, { "code": "SPM", "floor": 2, "ceiling": 2 }] },
+              { "text": "Get upfield fast, take what's there, and get down before contact.", "deltas": [{ "code": "CAR", "floor": 2, "ceiling": 1 }] },
+              { "text": "Keep my eyes downfield the whole time — I'll only pull it all the way down if nothing's open.", "deltas": [{ "code": "TOR", "floor": 3, "ceiling": 3 }] },
+              { "text": "Lower my shoulder and fight for every extra yard.", "deltas": [{ "code": "TRK", "floor": 2, "ceiling": 2 }, { "code": "STR", "floor": 2, "ceiling": 2 }] }
+            ]
+          }
+        }
+      }
+    },
+    "MIKE": {
+      "archetypes": ["Field General", "Pass Coverage", "Run Stopper"],
+      "q1": {
+        "question": "How would you describe your playstyle as a linebacker?",
+        "options": [
+          { "text": "Field General — I'm the one getting everyone lined up and making the calls.", "archetype": "Field General" },
+          { "text": "Pass Coverage — I match up with backs and tight ends all over the field.", "archetype": "Pass Coverage" },
+          { "text": "Run Stopper — I live downhill, taking on blocks and finishing tackles.", "archetype": "Run Stopper" }
+        ]
+      },
+      "q2_question": "Which of the other styles do you think influences you as well?",
+      "banks": {
+        "Field General": {
+          "q3": {
+            "question": "How often are you the one making the pre-snap defensive call?",
+            "options": [
+              { "text": "Every snap — that's my job before it's anyone else's.", "deltas": [{ "code": "PUR", "floor": 2, "ceiling": 3 }] },
+              { "text": "Most of the time, unless the coordinator sends it in.", "deltas": [{ "code": "ZCV", "floor": 1, "ceiling": 2 }] },
+              { "text": "Only on base downs.", "deltas": [{ "code": "TAK", "floor": 1, "ceiling": 1 }] },
+              { "text": "I'm more of a play-it-as-it-comes guy.", "deltas": [{ "code": "MCV", "floor": 1, "ceiling": 1 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that recognition come from?",
+            "options": [
+              { "text": "I grew up studying film like a coach's kid.", "deltas": [{ "code": "ZCV", "floor": 3, "ceiling": 4 }, { "code": "PUR", "floor": 1, "ceiling": 1 }] },
+              { "text": "I've just always processed the game faster than everyone else.", "deltas": [{ "code": "PUR", "floor": 3, "ceiling": 3 }] },
+              { "text": "I'm a good communicator more than a natural diagnoser.", "deltas": [{ "code": "MCV", "floor": 2, "ceiling": 2 }] },
+              { "text": "Reps — I wasn't a film guy, I just played a lot of snaps.", "deltas": [{ "code": "TAK", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "The offense shows a formation you weren't expecting. What's your reaction?",
+            "options": [
+              { "text": "I'm already adjusting the call before the snap.", "deltas": [{ "code": "ZCV", "floor": 3, "ceiling": 3 }] },
+              { "text": "I trust my rules and react in real time.", "deltas": [{ "code": "PUR", "floor": 2, "ceiling": 2 }] },
+              { "text": "I get the front adjusted, coverage handles itself.", "deltas": [{ "code": "TAK", "floor": 2, "ceiling": 2 }] },
+              { "text": "I just play fast and figure it out after the snap.", "deltas": [{ "code": "MCV", "floor": 1, "ceiling": 1 }] }
+            ]
+          }
+        },
+        "Pass Coverage": {
+          "q3": {
+            "question": "How often are you matched up in man coverage on a back or tight end?",
+            "options": [
+              { "text": "Every chance I get — I want that matchup.", "deltas": [{ "code": "MCV", "floor": 3, "ceiling": 3 }] },
+              { "text": "Whenever the call asks for it.", "deltas": [{ "code": "ZCV", "floor": 2, "ceiling": 2 }] },
+              { "text": "Only in obvious passing situations.", "deltas": [{ "code": "PRS", "floor": 1, "ceiling": 1 }] },
+              { "text": "I'd rather stay in a zone drop.", "deltas": [{ "code": "ZCV", "floor": 1, "ceiling": 1 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that coverage instinct come from?",
+            "options": [
+              { "text": "I actually played some DB growing up before moving to linebacker.", "deltas": [{ "code": "MCV", "floor": 3, "ceiling": 4 }, { "code": "SPD", "floor": 1, "ceiling": 1 }] },
+              { "text": "I've just got natural hips and change of direction for the position.", "deltas": [{ "code": "AGI", "floor": 2, "ceiling": 3 }, { "code": "COD", "floor": 2, "ceiling": 3 }] },
+              { "text": "I studied route concepts more than I trained pure coverage skill.", "deltas": [{ "code": "ZCV", "floor": 3, "ceiling": 3 }] },
+              { "text": "Honestly it's more physical tools than technique.", "deltas": [{ "code": "SPD", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "A tight end runs a seam route right at you. What's your answer?",
+            "options": [
+              { "text": "I'm running the route with him, step for step.", "deltas": [{ "code": "MCV", "floor": 3, "ceiling": 3 }] },
+              { "text": "I pattern-match and stay in phase from depth.", "deltas": [{ "code": "ZCV", "floor": 2, "ceiling": 2 }] },
+              { "text": "I get physical at the line first.", "deltas": [{ "code": "PRS", "floor": 3, "ceiling": 3 }] },
+              { "text": "I pass him off and stay in my drop.", "deltas": [{ "code": "ZCV", "floor": 1, "ceiling": 1 }] }
+            ]
+          }
+        },
+        "Run Stopper": {
+          "q3": {
+            "question": "How often are you taking on a lead blocker instead of avoiding him?",
+            "options": [
+              { "text": "Every time — I want that collision.", "deltas": [{ "code": "BSH", "floor": 3, "ceiling": 3 }] },
+              { "text": "Whenever my gap forces it.", "deltas": [{ "code": "TAK", "floor": 2, "ceiling": 2 }] },
+              { "text": "I'd rather work around it if I can.", "deltas": [{ "code": "PUR", "floor": 1, "ceiling": 1 }] },
+              { "text": "I avoid it when possible and finish in space instead.", "deltas": [{ "code": "PUR", "floor": 1, "ceiling": 2 }] }
+            ]
+          },
+          "q4": {
+            "question": "Where does that physicality come from?",
+            "options": [
+              { "text": "I grew up wrestling or playing a contact sport before football.", "deltas": [{ "code": "STR", "floor": 3, "ceiling": 4 }] },
+              { "text": "I've just always been the strongest guy on the field.", "deltas": [{ "code": "STR", "floor": 3, "ceiling": 3 }] },
+              { "text": "It's technique more than raw strength.", "deltas": [{ "code": "BSH", "floor": 3, "ceiling": 3 }] },
+              { "text": "Honestly I'm more of a finesse linebacker than a bruiser.", "deltas": [{ "code": "PUR", "floor": 2, "ceiling": 2 }] }
+            ]
+          },
+          "q5": {
+            "question": "Ball carrier lowers his shoulder right at you. What happens?",
+            "options": [
+              { "text": "I'm putting him on his back.", "deltas": [{ "code": "POW", "floor": 3, "ceiling": 3 }] },
+              { "text": "I wrap up and finish the tackle, nothing fancy.", "deltas": [{ "code": "TAK", "floor": 3, "ceiling": 3 }] },
+              { "text": "I get the ball out if I can.", "deltas": [{ "code": "TAK", "floor": 1, "ceiling": 1 }] },
+              { "text": "I get low and win the leverage battle.", "deltas": [{ "code": "STR", "floor": 2, "ceiling": 2 }] }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

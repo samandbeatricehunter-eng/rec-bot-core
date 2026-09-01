@@ -1,0 +1,153 @@
+{
+  "shared": [
+    { "name": "Showboat", "definition": "Players with this trait will be able to use Celebration Loco on breakaways." },
+    { "name": "Cannonball", "definition": "Players with this trait will be able to do Celebration Dives into the endzone." },
+    { "name": "Steering Clear", "definition": "Players with this trait will attempt to avoid hits by performing slides, give-ups, or running out of bounds." },
+    { "name": "Run Over", "definition": "Players with this trait will have a higher tendency to attempt a truck, and if they are a QB, they are less likely to slide." },
+    { "name": "Stiff Arm Tendency", "definition": "Players with this trait will have a higher tendency to attempt a stiff arm, and if they are a QB, they are less likely to slide." },
+    { "name": "Whirlwind", "definition": "Players with this trait will have a higher tendency to attempt a spin move." },
+    { "name": "Elusive Instinct", "definition": "Players with this trait will have a higher tendency to attempt a juke move." },
+    { "name": "Cover Ball", "definition": "Players with this trait will attempt to cover the ball on all big hits." },
+    { "name": "Undisciplined", "definition": "Players with this trait will have a higher tendency to commit penalties." },
+    { "name": "Disciplined", "definition": "Players with this trait will have a lower tendency to commit penalties." }
+  ],
+  "QB": [
+    { "name": "Look For Stars", "definition": "QBs with this trait will look to throw to their star receivers more." },
+    { "name": "Risk Taker", "definition": "QBs with this trait will tend to force the ball downfield and throw it into tight windows." },
+    { "name": "Conservative", "definition": "QBs with this trait will tend to throw shorter passes and avoid forcing passes into tight windows." },
+    { "name": "Cannon", "definition": "QBs with this trait will have a higher tendency to throw bullet passes." },
+    { "name": "Up And Over", "definition": "QBs with this trait will have a higher tendency to throw lob passes." },
+    { "name": "Snap Mischief", "definition": "QBs with this trait often perform fake hikes, especially on late downs in short-yardage situations." },
+    { "name": "Seeing Ghosts", "definition": "After a sack, QBs with this trait will tend to force a pass to their first read for the next three plays, resetting at the end of a drive." },
+    { "name": "Quick Trigger", "definition": "QBs with this trait will quickly attempt throws to their check down, not waiting for the play to develop." },
+    { "name": "Throw Away", "definition": "QBs with this trait will have a higher tendency to throw the ball away when facing pressure." },
+    { "name": "Panic Button", "definition": "QBs with this trait will have a higher tendency to force passes when facing pressure." },
+    { "name": "28-3", "definition": "QBs with this trait will have a higher tendency to force passes in the 4th quarter." },
+    { "name": "Double Back", "definition": "QBs with this trait can scramble away from the sideline to keep the play alive." },
+    { "name": "Eyes Up", "definition": "QBs with this trait will keep their eyes up when moving towards the LOS, waiting longer for plays to develop before scrambling." },
+    { "name": "Hero Ball", "definition": "QBs with this trait will attempt to scramble for yards if they think they can get the first down." },
+    { "name": "Quick Clock", "definition": "QBs with this trait will tend to escape the pocket after making their first read." },
+    { "name": "Happy Feet", "definition": "QBs with this trait will almost always be moving in the pocket." },
+    { "name": "Paranoid", "definition": "QBs with this trait react more to nearby defenders, feeling pressured even in less intense situations." },
+    { "name": "Oblivious", "definition": "QBs with this trait remain calm near defenders, feeling less pressure even in intense situations." },
+    { "name": "Throw It Up", "definition": "QBs with this trait will have a higher tendency to target outside receivers on deep or contested throws." },
+    { "name": "Anchored", "definition": "QBs with this trait will have a lower tendency to leave the pocket or scramble for yards." },
+    { "name": "Fortifier", "definition": "QBs with this trait will have a higher tendency to audible into Max Protection against potential pressure." },
+    { "name": "Traveling Showmen", "definition": "QBs with this trait will tend to throw deeper passes and force passes when the stadium pulse is high." },
+    { "name": "Frozen Solid", "definition": "QBs with this trait will tend to play more conservatively when cold." },
+    { "name": "Snow Ball", "definition": "QBs with this trait will tend to play more aggressively when cold." },
+    { "name": "Invincible", "definition": "QBs with this trait will tend to play more aggressively when hot." },
+    { "name": "Free Play Finder", "definition": "QBs with this trait will identify when they have a free play and attempt riskier throws." }
+  ],
+  "MIKE": [
+    { "name": "Big Hitter", "definition": "Players with this trait will have a higher tendency to attempt Hit Sticks." },
+    { "name": "Safe Tackler", "definition": "Players with this trait will have a higher tendency to attempt Conservative tackles." },
+    { "name": "Punch It Out", "definition": "Players with this trait will have a higher tendency to attempt Strip tackles." },
+    { "name": "Undercut", "definition": "Players with this trait will have a higher tendency to attempt Cut Sticks." },
+    { "name": "Nose Dive", "definition": "Players with this trait will focus on the dive or run option for both Option plays and RPOs and the pitch option for pitch plays." }
+  ],
+  "questions": {
+    "QB": [
+      {
+        "number": 26,
+        "question": "When your first read isn't there and the pocket is still clean, what's your instinct?",
+        "options": [
+          { "text": "Stay in the pocket, keep scanning.", "trait": "Anchored" },
+          { "text": "Start moving immediately, even with time left.", "trait": "Happy Feet" },
+          { "text": "Give it one more beat before I think about leaving.", "trait": "Eyes Up" },
+          { "text": "I'm already thinking about running.", "trait": "Quick Clock" }
+        ]
+      },
+      {
+        "number": 27,
+        "question": "A free rusher is in your face. What actually happens?",
+        "options": [
+          { "text": "I throw it away — live for the next down.", "trait": "Throw Away" },
+          { "text": "I force it to my guy anyway.", "trait": "Panic Button" },
+          { "text": "Honestly, I barely notice him.", "trait": "Oblivious" },
+          { "text": "Every free rusher feels like the whole pass rush.", "trait": "Paranoid" }
+        ]
+      },
+      {
+        "number": 28,
+        "question": "You've got a one-on-one shot deep. How do you deliver it?",
+        "options": [
+          { "text": "A frozen rope — I trust my velocity.", "trait": "Cannon" },
+          { "text": "Touch it over the top, let him run under it.", "trait": "Up And Over" },
+          { "text": "I only take that shot to my star guy.", "trait": "Look For Stars" },
+          { "text": "I'll take that shot with whoever's out there, star or not.", "trait": "Throw It Up" }
+        ]
+      },
+      {
+        "number": 29,
+        "question": "You just got sacked hard. What's the next few snaps look like?",
+        "options": [
+          { "text": "I get us into max protection until I trust the pocket again.", "trait": "Fortifier" },
+          { "text": "I lock onto my first read no matter what for a few plays.", "trait": "Seeing Ghosts" },
+          { "text": "Doesn't change anything for me.", "trait": "Anchored" },
+          { "text": "I'm looking to get the ball out of my hands fast.", "trait": "Quick Trigger" }
+        ]
+      },
+      {
+        "number": 30,
+        "question": "Fourth quarter, freezing cold, the crowd is deafening. How do you play?",
+        "options": [
+          { "text": "More aggressive than ever — moments like this are why I play.", "trait": "Invincible" },
+          { "text": "I tighten up and play it safe in bad weather.", "trait": "Frozen Solid" },
+          { "text": "The cold doesn't slow me down at all.", "trait": "Snow Ball" },
+          { "text": "The louder it gets, the more I want to push the ball down the field.", "trait": "Traveling Showmen" }
+        ]
+      },
+      {
+        "number": 31,
+        "question": "Late in a short-yardage game, what's a trick you'd actually use?",
+        "options": [
+          { "text": "A fake hike to draw them offside.", "trait": "Snap Mischief" },
+          { "text": "I know exactly when I've got a free play and I take my shot.", "trait": "Free Play Finder" },
+          { "text": "I'll scramble toward the sideline just to buy an extra second.", "trait": "Double Back" },
+          { "text": "I'll take a shot downfield even into a tight window.", "trait": "Risk Taker" }
+        ]
+      }
+    ],
+    "MIKE": [
+      {
+        "number": 26,
+        "question": "Ball carrier in the open field, one-on-one. What's your approach?",
+        "options": [
+          { "text": "I'm putting him on his back.", "trait": "Big Hitter" },
+          { "text": "Wrap up, get him down, don't get cute.", "trait": "Safe Tackler" },
+          { "text": "I'm going for the ball, not just the tackle.", "trait": "Punch It Out" },
+          { "text": "I'll cut him down at the legs before he plants.", "trait": "Undercut" }
+        ]
+      },
+      {
+        "number": 27,
+        "question": "You see an option play developing your way. What's your read?",
+        "options": [
+          { "text": "I crash down on the dive/run every time.", "trait": "Nose Dive" },
+          { "text": "I stay disciplined to my assignment regardless of what I see.", "trait": "Disciplined" },
+          { "text": "I'll gamble on a jump if I think I've got the read.", "trait": "Undisciplined" }
+        ]
+      },
+      {
+        "number": 28,
+        "question": "You just intercepted a pass with the whole field in front of you. What happens?",
+        "options": [
+          { "text": "I'm trucking through the first guy who shows up.", "trait": "Run Over" },
+          { "text": "I'm putting a move on him — juke or spin, whatever's there.", "trait": "Elusive Instinct" },
+          { "text": "I protect the ball and take what's there.", "trait": "Cover Ball" },
+          { "text": "If I get to the end zone, I'm celebrating.", "trait": "Showboat" }
+        ]
+      },
+      {
+        "number": 29,
+        "question": "A receiver just talked trash after beating you on a route. What's your response, physically, next play?",
+        "options": [
+          { "text": "Nothing changes — I play my technique the same way.", "trait": "Disciplined" },
+          { "text": "I get a little more physical than I probably should.", "trait": "Undisciplined" },
+          { "text": "I'm looking to make him pay with a big hit.", "trait": "Big Hitter" }
+        ]
+      }
+    ]
+  }
+}

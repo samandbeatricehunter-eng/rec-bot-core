@@ -1,0 +1,123 @@
+{
+  "max_equipped": 5,
+  "traits": [
+    { "name": "Team First", "definition": "Chooses team fit over personal gain." },
+    { "name": "Win At All Costs", "definition": "Will take risks to secure a win." },
+    { "name": "Particular", "definition": "Wants attention, status, and special treatment." },
+    { "name": "Family Focused", "definition": "Prioritizes family needs and stability." },
+    { "name": "Mentor", "definition": "Cares about legacy and helping teammates." },
+    { "name": "Student Of The Game", "definition": "Focused on improving skills and knowledge." },
+    { "name": "Accountable", "definition": "Takes responsibility and expects clear roles and trust." },
+    { "name": "Aggressive", "definition": "Pushes hard for the best deal and quick results." },
+    { "name": "Ambitious", "definition": "Wants to grow fast and chase bigger opportunities." },
+    { "name": "Approachable", "definition": "Easy to talk to and open during negotiations." },
+    { "name": "Assertive", "definition": "Clearly says what he wants and stands firm." },
+    { "name": "Calculated", "definition": "Thinks through risks before making decisions." },
+    { "name": "Cerebral", "definition": "Focuses on long-term plans over emotions." },
+    { "name": "Charismatic", "definition": "Uses personality to influence teams and deals." },
+    { "name": "Collaborative", "definition": "Looks for win-win deals with the team." },
+    { "name": "Overly Competitive", "definition": "Needs to win negotiations at all costs." },
+    { "name": "Composed", "definition": "Stays calm and avoids rash decisions." },
+    { "name": "Confident", "definition": "Believes in his value and won't settle." },
+    { "name": "Conscientious", "definition": "Pays close attention to contract details." },
+    { "name": "Contract Minded", "definition": "Cares most about money, terms, and structure." },
+    { "name": "Curious", "definition": "Interested in exploring different options." },
+    { "name": "Demanding", "definition": "Expects strong offers and big concessions." },
+    { "name": "Diplomatic", "definition": "Keeps relationships intact during talks." },
+    { "name": "Disciplined", "definition": "Sticks to a plan and avoids impulsive moves." },
+    { "name": "Emotional", "definition": "Decisions are influenced by feelings and mood." },
+    { "name": "Empathetic", "definition": "Considers how decisions affect others." },
+    { "name": "Expressive", "definition": "Openly shares thoughts and intentions." },
+    { "name": "Flexible", "definition": "Willing to adjust terms and plans." },
+    { "name": "Focused", "definition": "Blocks out distractions and stays locked in." },
+    { "name": "Frugal", "definition": "Prefers security and saving over flashy deals." },
+    { "name": "Grounded", "definition": "Makes level-headed, realistic choices." },
+    { "name": "Guarded", "definition": "Keeps information private and trusts slowly." },
+    { "name": "Headstrong", "definition": "Resists pressure and rarely backs down." },
+    { "name": "Independent", "definition": "Values freedom and control over his career." },
+    { "name": "Inquisitive", "definition": "Asks questions and digs into offers." },
+    { "name": "Intense", "definition": "Brings urgency and pressure to negotiations." },
+    { "name": "Leader", "definition": "Considers team impact and leadership role." },
+    { "name": "Mindful", "definition": "Thinks carefully about long-term effects." },
+    { "name": "Observant", "definition": "Picks up on details others miss." },
+    { "name": "Opportunistic", "definition": "Acts fast when a good chance appears." },
+    { "name": "Outspoken", "definition": "Public opinions can shape negotiations." },
+    { "name": "Passionate", "definition": "Driven by emotion and love for the game." },
+    { "name": "Patient", "definition": "Willing to wait for the right offer." },
+    { "name": "Pragmatic", "definition": "Chooses realistic and practical options." },
+    { "name": "Principled", "definition": "Sticks to values and won't cross lines." },
+    { "name": "Private", "definition": "Prefers quiet, behind-the-scenes negotiations." },
+    { "name": "Reliable", "definition": "Values trust and keeping promises." },
+    { "name": "Reserved", "definition": "Keeps goals private and reveals little." },
+    { "name": "Resilient", "definition": "Bounces back and stays firm after setbacks." },
+    { "name": "Respectful", "definition": "Responds well to professional treatment." },
+    { "name": "Savvy", "definition": "Understands the market and timing." },
+    { "name": "Sensitive", "definition": "Strongly reacts to tone and criticism." },
+    { "name": "Serious", "definition": "Treats negotiations strictly as business." },
+    { "name": "Stoic", "definition": "Keeps emotions out of decisions." },
+    { "name": "Strategic", "definition": "Plans moves to support long-term goals." },
+    { "name": "Stubborn", "definition": "Very hard to change his mind." },
+    { "name": "Transparent", "definition": "Clearly shares intentions and goals." },
+    { "name": "Uncompromising", "definition": "Refuses to bend on key demands." },
+    { "name": "Unpredictable", "definition": "Can change decisions suddenly." },
+    { "name": "Wary", "definition": "Cautious and needs proof before trusting." }
+  ],
+  "mindset_focus_options": [
+    { "name": "Financial", "definition": "Cares about making the most money and having opportunities outside of football fame." },
+    { "name": "Personal Accolades", "definition": "Cares about being the best they can be and wants opportunities to prove that." },
+    { "name": "Love Of The Game", "definition": "Loves the sport of football and will do anything to keep playing the sport they love." },
+    { "name": "Winning", "definition": "Cares about winning and being part of an organization that constantly tries to field contending teams." }
+  ],
+  "questions": [
+    {
+      "number": 11,
+      "question": "Your team is deciding who gets the final roster spot at your position. What's your gut reaction?",
+      "options": [
+        { "text": "Whoever helps the team most, full stop.", "trait": "Team First" },
+        { "text": "I go coach the younger guy up myself.", "trait": "Mentor" },
+        { "text": "I make sure the room knows where I stand on it.", "trait": "Leader" },
+        { "text": "Not my call to make noise about.", "trait": "Reserved" }
+      ]
+    },
+    {
+      "number": 12,
+      "question": "Extension talks open. What's your approach at the table?",
+      "options": [
+        { "text": "Every clause matters to me — structure, terms, all of it.", "trait": "Contract Minded" },
+        { "text": "I push hard and fast for the number I want.", "trait": "Aggressive" },
+        { "text": "I can wait as long as it takes for the right deal.", "trait": "Patient" },
+        { "text": "I'd rather take less and know it's guaranteed.", "trait": "Frugal" }
+      ]
+    },
+    {
+      "number": 13,
+      "question": "You just had the worst game of your career, publicly. How do you handle the next 48 hours?",
+      "options": [
+        { "text": "I'm back to normal fast — it doesn't linger.", "trait": "Resilient" },
+        { "text": "It stays with me longer than it should.", "trait": "Emotional" },
+        { "text": "I don't let it show either way.", "trait": "Stoic" },
+        { "text": "The criticism actually gets to me.", "trait": "Sensitive" }
+      ]
+    },
+    {
+      "number": 14,
+      "question": "What's actually pulling you out of bed for a 5 a.m. lift?",
+      "options": [
+        { "text": "Getting to the next level, faster than people expect.", "trait": "Ambitious" },
+        { "text": "Doing it the right way, even when no one's watching.", "trait": "Principled" },
+        { "text": "I genuinely just love this.", "trait": "Passionate" },
+        { "text": "Staying realistic about what's actually in front of me.", "trait": "Pragmatic" }
+      ]
+    },
+    {
+      "number": 15,
+      "question": "A reporter asks you a pointed question about your future with the team. What comes out?",
+      "options": [
+        { "text": "Whatever I'm actually thinking — no filter.", "trait": "Outspoken" },
+        { "text": "Something that keeps everyone happy.", "trait": "Diplomatic" },
+        { "text": "As little as possible.", "trait": "Private" },
+        { "text": "Exactly what I mean, plainly.", "trait": "Transparent" }
+      ]
+    }
+  ]
+}

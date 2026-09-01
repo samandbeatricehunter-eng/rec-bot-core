@@ -2,6 +2,9 @@ import coreConfigJson from "./config/core_config.json" with { type: "json" };
 import iqTestsJson from "./config/iq_tests.json" with { type: "json" };
 import personaJson from "./config/persona_interview.json" with { type: "json" };
 import playstyleJson from "./config/playstyle_interview.json" with { type: "json" };
+import playstyleBranchingJson from "./config/playstyle_branching.json" with { type: "json" };
+import personaDnaJson from "./config/persona_dna.json" with { type: "json" };
+import playerTraitsJson from "./config/player_traits.json" with { type: "json" };
 import qbJson from "./config/characteristics_QB.json" with { type: "json" };
 import hbJson from "./config/characteristics_HB.json" with { type: "json" };
 import wrTeJson from "./config/characteristics_WR_TE.json" with { type: "json" };
@@ -20,6 +23,9 @@ import {
 import type { IqBankQuestion } from "./iq.js";
 import type { PersonaQuestion } from "./persona.js";
 import type { PlaystyleQuestion } from "./playstyle.js";
+import { personaDnaKey, type PersonaDnaTrait, type MindsetFocusOption, type PersonaDnaQuestion } from "./persona-dna.js";
+import { playerTraitKey, type PlayerTraitDefinition, type PlayerTraitPositionGroup, type PlayerTraitQuestion } from "./player-traits.js";
+import type { BranchingPlaystyleGroup } from "./playstyle.js";
 import type { ImmortalityPositionGroup, ImmortalitySide } from "./types.js";
 import { FORMULA_VERSIONS } from "./types.js";
 
@@ -143,4 +149,61 @@ export function publicPlaystyleQuestions(group: ImmortalityPositionGroup) {
 
 export function publicIqQuestions(side: ImmortalitySide): Array<{ number: number; question: string; options: string[] }> {
   return iqBankForSide(side).map(({ number, question, options }) => ({ number, question, options }));
+}
+
+type RawPersonaDnaOption = { text: string; trait: string };
+type RawPersonaDnaQuestion = { number: number; question: string; options: RawPersonaDnaOption[] };
+
+export function personaDnaCatalog(): PersonaDnaTrait[] {
+  return personaDnaJson.traits.map((item) => ({ key: personaDnaKey(item.name), name: item.name, definition: item.definition }));
+}
+
+export function mindsetFocusCatalog(): MindsetFocusOption[] {
+  return personaDnaJson.mindset_focus_options.map((item) => ({ key: personaDnaKey(item.name), name: item.name, definition: item.definition }));
+}
+
+export function personaDnaQuestions(): PersonaDnaQuestion[] {
+  return (personaDnaJson.questions as RawPersonaDnaQuestion[]).map((item) => ({
+    number: item.number,
+    question: item.question,
+    options: item.options.map((option) => ({ text: option.text, traitKey: personaDnaKey(option.trait) })),
+  }));
+}
+
+export function publicPersonaDnaQuestions() {
+  return personaDnaQuestions().map(({ number, question, options }) => ({ number, question, options: options.map((option) => ({ text: option.text })) }));
+}
+
+type RawPlayerTraitOption = { text: string; trait: string };
+type RawPlayerTraitQuestion = { number: number; question: string; options: RawPlayerTraitOption[] };
+
+export function playerTraitCatalog(group: PlayerTraitPositionGroup): PlayerTraitDefinition[] {
+  const specific = (group === "QB" ? playerTraitsJson.QB : playerTraitsJson.MIKE) as Array<{ name: string; definition: string }>;
+  const shared = playerTraitsJson.shared as Array<{ name: string; definition: string }>;
+  return [...specific, ...shared].map((item) => ({ key: playerTraitKey(item.name), name: item.name, definition: item.definition }));
+}
+
+export function playerTraitQuestions(group: PlayerTraitPositionGroup): PlayerTraitQuestion[] {
+  const raw = (group === "QB" ? playerTraitsJson.questions.QB : playerTraitsJson.questions.MIKE) as RawPlayerTraitQuestion[];
+  return raw.map((item) => ({
+    number: item.number,
+    question: item.question,
+    options: item.options.map((option) => ({ text: option.text, traitKey: playerTraitKey(option.trait) })),
+  }));
+}
+
+export function publicPlayerTraitQuestions(group: PlayerTraitPositionGroup) {
+  return playerTraitQuestions(group).map(({ number, question, options }) => ({ number, question, options: options.map((option) => ({ text: option.text })) }));
+}
+
+export type BranchingPlaystylePositionGroup = "QB" | "MIKE";
+
+export function branchingPlaystyleGroup(group: BranchingPlaystylePositionGroup): BranchingPlaystyleGroup {
+  const raw = playstyleBranchingJson.groups[group];
+  return {
+    archetypes: raw.archetypes,
+    q1: raw.q1,
+    q2Question: raw.q2_question,
+    banks: raw.banks as BranchingPlaystyleGroup["banks"],
+  };
 }

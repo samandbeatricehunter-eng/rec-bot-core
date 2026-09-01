@@ -66,6 +66,9 @@ export const FORMULA_VERSIONS = {
   contracts: "immortality-contracts-v1",
   careerScore: "immortality-career-score-v1",
   abilities: "immortality-abilities-m27-ovr-gates-v2",
+  personaDna: "immortality-persona-dna-v1",
+  playerTraits: "immortality-player-traits-v1",
+  playstyleBranching: "immortality-playstyle-branching-v1",
 } as const;
 
 export type AttributeCode = string;
