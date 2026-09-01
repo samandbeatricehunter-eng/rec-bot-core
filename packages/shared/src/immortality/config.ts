@@ -13,7 +13,9 @@ import contractsJson from "./config/contracts_v1.json" with { type: "json" };
 import {
   characteristicKey,
   modifiersFromDefinition,
+  DEFAULT_XP_COST_BY_SLOT,
   type CharacteristicDefinition,
+  type CharacteristicTier,
 } from "./characteristics.js";
 import type { IqBankQuestion } from "./iq.js";
 import type { PersonaQuestion } from "./persona.js";
@@ -87,6 +89,8 @@ type RawCharacteristic = {
   why_it_costs_that?: string;
   tags?: string;
   synergy?: unknown[];
+  tier?: CharacteristicTier;
+  xp_cost?: number;
 };
 
 function catalogFrom(raw: { position_group: string; characteristics: RawCharacteristic[] }): CharacteristicDefinition[] {
@@ -100,6 +104,8 @@ function catalogFrom(raw: { position_group: string; characteristics: RawCharacte
     tags: String(item.tags ?? "").split(/[,\s]+/).filter(Boolean),
     modifiers: modifiersFromDefinition({ name: item.name, effect: item.effect }),
     configurationVersion: FORMULA_VERSIONS.characteristics,
+    tier: item.tier ?? 1,
+    xpCost: item.xp_cost ?? DEFAULT_XP_COST_BY_SLOT[item.slot_cost] ?? item.slot_cost * 40,
   }));
 }
 

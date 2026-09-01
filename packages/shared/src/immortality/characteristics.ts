@@ -5,6 +5,11 @@ export const MAX_ATTRIBUTE_DISCOUNT = 0.3;
 export const SECOND_OVERLAP_EFFECTIVENESS = 0.5;
 export const THIRD_OVERLAP_EFFECTIVENESS = 0.25;
 
+export type CharacteristicTier = 1 | 2 | 3;
+
+export const DEFAULT_XP_COST_BY_SLOT: Record<number, number> = { 1: 40, 2: 70, 3: 110 };
+export const ALL_ATTRIBUTES_DISCOUNT_CODE = "ALL";
+
 export type CharacteristicModifiers = {
   creationDiscounts: Record<string, number>;
   xpDiscounts: Record<string, number>;
@@ -15,6 +20,7 @@ export type CharacteristicModifiers = {
   knownCommodityFloor: boolean;
   startDevStar: boolean;
   weeklySweepBonusXp: number;
+  devTraitPurchaseUnlocked: boolean;
 };
 
 export type CharacteristicDefinition = {
@@ -26,6 +32,8 @@ export type CharacteristicDefinition = {
   tags: string[];
   modifiers: CharacteristicModifiers;
   configurationVersion: typeof FORMULA_VERSIONS.characteristics;
+  tier: CharacteristicTier;
+  xpCost: number;
 };
 
 export type CharacteristicSelectionError =
@@ -33,6 +41,14 @@ export type CharacteristicSelectionError =
   | "unknown_characteristic"
   | "duplicate_characteristic"
   | "wrong_position_group";
+
+export type CharacteristicPurchaseError =
+  | "unknown_characteristic"
+  | "wrong_position_group"
+  | "already_owned"
+  | "tier_locked"
+  | "slot_budget_exceeded"
+  | "insufficient_xp";
 
 export function characteristicKey(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -49,6 +65,7 @@ export function emptyModifiers(): CharacteristicModifiers {
     knownCommodityFloor: false,
     startDevStar: false,
     weeklySweepBonusXp: 0,
+    devTraitPurchaseUnlocked: false,
   };
 }
 
@@ -97,10 +114,21 @@ export function modifiersFromDefinition(input: {
     case "competitive_drive":
       modifiers.weeklySweepBonusXp = 2;
       break;
+    case "self_made":
+      modifiers.devTraitPurchaseUnlocked = true;
+      break;
     default:
       break;
   }
   return modifiers;
+}
+
+export function xpDiscountForAttribute(modifiers: CharacteristicModifiers, attributeCode: string): number {
+  return stackDiscounts([modifiers.xpDiscounts[attributeCode] ?? 0, modifiers.xpDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
+}
+
+export function creationDiscountForAttribute(modifiers: CharacteristicModifiers, attributeCode: string): number {
+  return stackDiscounts([modifiers.creationDiscounts[attributeCode] ?? 0, modifiers.creationDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
 }
 
 export function stackDiscounts(rates: number[]): number {
@@ -127,6 +155,7 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.knownCommodityFloor = combined.knownCommodityFloor || item.modifiers.knownCommodityFloor;
     combined.startDevStar = combined.startDevStar || item.modifiers.startDevStar;
     combined.weeklySweepBonusXp += item.modifiers.weeklySweepBonusXp;
+    combined.devTraitPurchaseUnlocked = combined.devTraitPurchaseUnlocked || item.modifiers.devTraitPurchaseUnlocked;
     for (const [code, rate] of Object.entries(item.modifiers.creationDiscounts)) {
       (creationRates[code] ??= []).push(rate);
     }
@@ -162,4 +191,31 @@ export function validateCharacteristicSelection(input: {
   }
   if (slotCost > CHARACTERISTIC_SLOT_BUDGET) return { ok: false, error: "slot_budget_exceeded" };
   return { ok: true, selected, slotCost };
+}
+
+export function purchaseCharacteristic(input: {
+  positionGroup: ImmortalityPositionGroup;
+  catalog: CharacteristicDefinition[];
+  ownedKeys: string[];
+  key: string;
+  availableXp: number;
+}): { ok: true; xpCost: number; slotCost: number } | { ok: false; error: CharacteristicPurchaseError } {
+  const definition = input.catalog.find((item) => item.key === input.key);
+  if (!definition) return { ok: false, error: "unknown_characteristic" };
+  if (definition.positionGroup !== input.positionGroup) return { ok: false, error: "wrong_position_group" };
+  if (input.ownedKeys.includes(input.key)) return { ok: false, error: "already_owned" };
+
+  const owned = input.catalog.filter((item) => input.ownedKeys.includes(item.key));
+  if (definition.tier === 2 && owned.filter((item) => item.tier === 1).length < 2) {
+    return { ok: false, error: "tier_locked" };
+  }
+  if (definition.tier === 3 && !owned.some((item) => item.tier === 2)) {
+    return { ok: false, error: "tier_locked" };
+  }
+
+  const usedSlots = owned.reduce((sum, item) => sum + item.slotCost, 0);
+  if (usedSlots + definition.slotCost > CHARACTERISTIC_SLOT_BUDGET) return { ok: false, error: "slot_budget_exceeded" };
+  if (input.availableXp < definition.xpCost) return { ok: false, error: "insufficient_xp" };
+
+  return { ok: true, xpCost: definition.xpCost, slotCost: definition.slotCost };
 }

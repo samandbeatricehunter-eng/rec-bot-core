@@ -86,4 +86,18 @@ export function promotionPath(current: ImmortalityDevTrait): ImmortalityDevTrait
   return null;
 }
 
+export const DEV_TRAIT_PROMOTION_XP_COST = 250;
+
+export function purchaseDevTraitPromotion(input: {
+  currentDevTrait: ImmortalityDevTrait;
+  availableXp: number;
+  devTraitPurchaseUnlocked: boolean;
+}): { ok: true; nextDevTrait: ImmortalityDevTrait; cost: number } | { ok: false; error: string } {
+  if (!input.devTraitPurchaseUnlocked) return { ok: false, error: "Purchase the Self-Made Progression Tree perk before buying a dev-trait promotion." };
+  const nextDevTrait = promotionPath(input.currentDevTrait);
+  if (!nextDevTrait) return { ok: false, error: "Already at X-Factor — nothing left to promote." };
+  if (input.availableXp < DEV_TRAIT_PROMOTION_XP_COST) return { ok: false, error: `Need ${DEV_TRAIT_PROMOTION_XP_COST} Player XP.` };
+  return { ok: true, nextDevTrait, cost: DEV_TRAIT_PROMOTION_XP_COST };
+}
+
 export const XP_FORMULA_VERSION = FORMULA_VERSIONS.xp;

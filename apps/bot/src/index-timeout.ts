@@ -152,7 +152,7 @@ import {
   handleAvailabilityWizardTimezoneOtherModal,
   handleAvailabilityWizardTimezoneSelect,
 } from "./flows/availability-wizard.js";
-import { handleRulesSlash, handleRulesSelect, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
+import { handleRulesSlash, handleRulesCategorySelect, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import {
   AVAILABILITY_BOARD_CUSTOM_IDS,
   handleBoardSetAvailability, handleBoardSetTimezone, handleBoardThisWeek,
@@ -736,7 +736,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
     if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesSelect(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesCategorySelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);

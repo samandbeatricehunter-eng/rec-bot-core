@@ -57,7 +57,7 @@ export async function handleRulesSlash(interaction: ChatInputCommandInteraction)
   }
 }
 
-export async function handleRulesSelect(interaction: StringSelectMenuInteraction) {
+export async function handleRulesCategorySelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.inCachedGuild()) return;
   const index = Number(interaction.values[0]);
   try {

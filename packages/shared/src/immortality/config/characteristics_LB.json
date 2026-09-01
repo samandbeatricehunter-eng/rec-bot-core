@@ -201,6 +201,26 @@
       "why_it_costs_that": "A major career-long ceiling advantage.",
       "tags": "dev",
       "synergy": []
+    },
+    {
+      "name": "Complete Package",
+      "slot_cost": 2,
+      "effect": "ALL attributes cost 5% less Player XP.",
+      "why_it_costs_that": "Broad, unconditional discount across every rating; Progression Tree Tier 2, requires owning 2 Tier 1 perks first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 150
+    },
+    {
+      "name": "Self-Made",
+      "slot_cost": 2,
+      "effect": "Unlocks a direct Player-XP purchase that forces the next development-trait promotion, bypassing the usual performance challenge check.",
+      "why_it_costs_that": "The single biggest lever in the career economy; Progression Tree Tier 3, requires owning Complete Package first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 250
     }
   ]
 }
