@@ -193,7 +193,7 @@ const ORIGINS_STEPS = ["identity", "iq", "persona", "playstyle", "characteristic
 // Cloudflare Stream direct-download URL for the RTI intro video (uid 2b3a896893abc70e280844d7929601eb),
 // uploaded 2026-09-01. Every new RTI league starts with this set; the commissioner can still
 // change or clear it later from Origins' Commissioner panel.
-const DEFAULT_RTI_INTRO_VIDEO_URL = "PLACEHOLDER_SET_AFTER_DOWNLOAD_URL_READY";
+const DEFAULT_RTI_INTRO_VIDEO_URL = "https://customer-9rnlzt96rd7anlvm.cloudflarestream.com/2b3a896893abc70e280844d7929601eb/downloads/default.mp4";
 
 async function bumpOriginsStep(prospectId: string, current: unknown, next: (typeof ORIGINS_STEPS)[number]) {
   const from = ORIGINS_STEPS.indexOf(String(current ?? "identity") as (typeof ORIGINS_STEPS)[number]);
