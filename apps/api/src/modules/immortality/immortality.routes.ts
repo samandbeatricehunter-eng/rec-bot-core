@@ -16,6 +16,7 @@ import {
   setImmortalityIntroVideo,
   startIqAttempt,
   submitIqAnswer,
+  submitBranchingPlaystyle,
   submitOwnerPersona,
   submitPersona,
   submitPlaystyle,
@@ -106,6 +107,23 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
       return reply.send(await submitPlaystyle({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/playstyle-branching", async (request, reply) => {
+    try {
+      const body = SideBody.extend({
+        answers: z.object({
+          q1ArchetypeIndex: z.number().int().min(0),
+          q2ArchetypeIndex: z.number().int().min(0).nullable(),
+          q3OptionIndex: z.number().int().min(0),
+          q4OptionIndex: z.number().int().min(0),
+          q5OptionIndex: z.number().int().min(0),
+        }),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
+      return reply.send(await submitBranchingPlaystyle({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

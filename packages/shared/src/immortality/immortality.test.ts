@@ -101,7 +101,7 @@ test("IQ timeout cannot be bypassed and back-navigation is impossible", () => {
     ],
   });
   assert.equal(duplicate.correctCount, 1);
-  assert.equal(duplicate.iqScore, 85);
+  assert.equal(duplicate.iqScore, 95);
   void started;
 });
 

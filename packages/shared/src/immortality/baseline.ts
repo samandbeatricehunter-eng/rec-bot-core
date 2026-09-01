@@ -107,6 +107,56 @@ export function deriveBaselineTemplate(input: {
   };
 }
 
+/**
+ * Permanent, hand-set starting attributes for QB and MIKE, read directly off real Madden 27
+ * create-a-player screens (source images in apps/qb1-4.jpg, apps/mike1-4.jpg). Replaces the
+ * old live median-of-real-roster-players lookup for these two positions -- deliberately not a
+ * formula, not derived from any dataset that could change under it. AWR and PRC are excluded
+ * on purpose; both come from the IQ test overlay (applyIqOverlay), never from this table.
+ */
+export const FIXED_RTI_BASELINES: Partial<Record<ImmortalityPosition, AttributeMap>> = {
+  QB: {
+    SPD: 82, ACC: 84, AGI: 85, STR: 60, CAR: 65, BCV: 85, BTK: 75, TRK: 40, SFA: 65, COD: 80,
+    SPM: 70, JKM: 75, CTH: 60, CIT: 26, SPC: 31, SRR: 39, MRR: 29, DRR: 19, RLS: 23, JMP: 84,
+    THP: 86, SAC: 78, MAC: 75, DAC: 72, RUN: 81, TUP: 79, BSK: 78, PAC: 81,
+    PBK: 20, PBP: 15, PBF: 15, RBK: 28, RBP: 20, RBF: 20, LBK: 29, IBL: 43,
+    TAK: 28, POW: 25, BSH: 25, FMV: 10, PMV: 10, PUR: 35, MCV: 10, ZCV: 24, PRS: 10,
+    RET: 10, KPW: 37, KAC: 35, STA: 74, TOU: 90, INJ: 79,
+  },
+  MIKE: {
+    SPD: 83, ACC: 85, AGI: 83, STR: 75, CAR: 67, BCV: 65, BTK: 46, TRK: 56, SFA: 63, COD: 75,
+    SPM: 49, JKM: 61, CTH: 64, CIT: 50, SPC: 50, SRR: 25, MRR: 20, DRR: 15, RLS: 18, JMP: 84,
+    THP: 24, SAC: 6, MAC: 6, DAC: 6, RUN: 6, TUP: 10, BSK: 16, PAC: 6,
+    PBK: 45, PBP: 45, PBF: 45, RBK: 42, RBP: 52, RBF: 53, LBK: 28, IBL: 75,
+    TAK: 78, POW: 78, BSH: 75, FMV: 55, PMV: 55, PUR: 80, MCV: 65, ZCV: 65, PRS: 46,
+    RET: 14, KPW: 14, KAC: 13, STA: 80, TOU: 90, INJ: 82,
+  },
+};
+
+export function hasFixedRtiBaseline(position: ImmortalityPosition): boolean {
+  return position in FIXED_RTI_BASELINES;
+}
+
+/**
+ * Branching Playstyle's Q3-5 answers accumulate a floor/ceiling delta per attribute (see
+ * scoreBranchingPlaystyleInterview) -- not an additive bonus, a literal band: the fixed
+ * baseline value is pulled up to the delta-adjusted floor or down to the delta-adjusted
+ * ceiling if it would otherwise fall outside that band, and left alone if it already fits.
+ */
+export function applyBranchingDeltas(
+  baseline: AttributeMap,
+  deltas: Record<string, { floor: number; ceiling: number }>,
+): AttributeMap {
+  const next = { ...baseline };
+  for (const [code, { floor, ceiling }] of Object.entries(deltas)) {
+    const current = next[code] ?? 0;
+    const effectiveFloor = current + floor;
+    const effectiveCeiling = current + ceiling;
+    next[code] = Math.min(Math.max(current, effectiveFloor), Math.max(effectiveFloor, effectiveCeiling));
+  }
+  return next;
+}
+
 export function applyIqOverlay(input: {
   position: ImmortalityPosition;
   attributes: AttributeMap;

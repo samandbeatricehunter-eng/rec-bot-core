@@ -465,7 +465,19 @@ export type ImmortalityHubResponse = {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
     persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[]; owner: ImmortalityInterviewQuestion[] };
     playstyle: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
+    playstyleBranching: { offense: ImmortalityBranchingPlaystyleGroup | null; defense: ImmortalityBranchingPlaystyleGroup | null };
   };
+};
+
+export type ImmortalityBranchingPlaystyleGroup = {
+  archetypes: string[];
+  q1: { question: string; options: Array<{ text: string; archetype: string }> };
+  q2Question: string;
+  banks: Record<string, {
+    q3: { question: string; options: Array<{ text: string; deltas: Array<{ code: string; floor: number; ceiling: number }> }> };
+    q4: { question: string; options: Array<{ text: string; deltas: Array<{ code: string; floor: number; ceiling: number }> }> };
+    q5: { question: string; options: Array<{ text: string; deltas: Array<{ code: string; floor: number; ceiling: number }> }> };
+  }>;
 };
 
 export type ImmortalityIdentityInput = {
@@ -1145,6 +1157,12 @@ export const siteApi = {
   },
   immortalitySubmitPlaystyle(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
     return request<{ primaryArchetype: string; secondaryArchetype: string; blend: { kind: string } }>("/v1/immortality/interview/playstyle", input);
+  },
+  immortalitySubmitBranchingPlaystyle(input: {
+    guildId: string; side: "offense" | "defense";
+    answers: { q1ArchetypeIndex: number; q2ArchetypeIndex: number | null; q3OptionIndex: number; q4OptionIndex: number; q5OptionIndex: number };
+  }) {
+    return request<{ primaryArchetype: string; secondaryArchetype: string | null; blend: { kind: string } }>("/v1/immortality/interview/playstyle-branching", input);
   },
   immortalitySelectCharacteristics(input: { guildId: string; side: "offense" | "defense"; keys: string[] }) {
     return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);

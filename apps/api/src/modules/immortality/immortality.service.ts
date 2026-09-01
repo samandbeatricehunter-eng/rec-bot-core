@@ -1,7 +1,9 @@
 import {
   allCharacteristicCatalogs,
+  applyBranchingDeltas,
   applyIqOverlay,
   applyRiseToImmortalityLockedSettings,
+  branchingPlaystyleGroup,
   canAdvanceIqQuestion,
   canConvertToTeamXp,
   canTransition,
@@ -11,6 +13,8 @@ import {
   convertPlayerXpToTeamXp,
   DEFAULT_CREATION_POINT_BUDGET,
   DEV_OVR_CEILING,
+  FIXED_RTI_BASELINES,
+  hasFixedRtiBaseline,
   ledgerXpBalance,
   draftValueFromProfile,
   FORMULA_VERSIONS,
@@ -51,6 +55,7 @@ import {
   MAX_EQUIPPED_ABILITIES,
   scoreIqAttempt,
   scorePersonaInterview,
+  scoreBranchingPlaystyleInterview,
   scorePlaystyleInterview,
   scorePerformanceContract,
   shouldApplyRiseToImmortality,
@@ -569,6 +574,12 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
         offense: publicPlaystyleQuestions(positionGroupFor(league.offense_position as ImmortalityPosition)),
         defense: publicPlaystyleQuestions(positionGroupFor(league.defense_position as ImmortalityPosition)),
       },
+      playstyleBranching: {
+        offense: hasFixedRtiBaseline(league.offense_position as ImmortalityPosition)
+          ? branchingPlaystyleGroup(league.offense_position as "QB" | "MIKE") : null,
+        defense: hasFixedRtiBaseline(league.defense_position as ImmortalityPosition)
+          ? branchingPlaystyleGroup(league.defense_position as "QB" | "MIKE") : null,
+      },
     },
   };
 }
@@ -840,6 +851,38 @@ export async function submitPlaystyle(input: {
   return result;
 }
 
+/** QB and MIKE only -- Q1/Q2 lock the archetype directly instead of voting, Q3-5 accumulate
+ * attribute floor/ceiling deltas applied on top of the fixed baseline in evaluateCreationBuild. */
+export async function submitBranchingPlaystyle(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  answers: { q1ArchetypeIndex: number; q2ArchetypeIndex: number | null; q3OptionIndex: number; q4OptionIndex: number; q5OptionIndex: number };
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const position = prospect.position as ImmortalityPosition;
+  if (!hasFixedRtiBaseline(position)) throw new ApiError(400, "Branching Playstyle is only available for QB and MIKE right now.");
+  const group = branchingPlaystyleGroup(position as "QB" | "MIKE");
+  const result = scoreBranchingPlaystyleInterview({ group, answers: input.answers });
+  const saved = await supabase.from("rec_immortality_branching_playstyle_results").upsert({
+    prospect_id: prospect.id,
+    primary_archetype: result.primaryArchetype,
+    secondary_archetype: result.secondaryArchetype,
+    blend: result.blend,
+    attribute_deltas: result.attributeDeltas,
+    answers: input.answers,
+    formula_version: result.formulaVersion,
+  }, { onConflict: "prospect_id" }).select("*").single();
+  if (saved.error) throw new ApiError(500, "Could not save the playstyle interview.", saved.error);
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "playstyle");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  return result;
+}
+
 export async function selectCharacteristics(input: {
   guildId: string;
   discordId: string;
@@ -891,60 +934,69 @@ export async function evaluateCreationBuild(input: {
   const userId = await recUserIdFromDiscordId(input.discordId);
   const prospect = await loadProspectForUser(league.id, userId, input.side);
   if (!prospect) throw new ApiError(400, "Save identity first.");
-  const [iq, playstyle, traits] = await Promise.all([
+  const position = prospect.position as ImmortalityPosition;
+  const usesFixedBaseline = hasFixedRtiBaseline(position);
+  const [iq, playstyle, branchingPlaystyle, traits] = await Promise.all([
     supabase.from("rec_immortality_iq_attempts").select("*").eq("prospect_id", prospect.id).maybeSingle(),
-    supabase.from("rec_immortality_playstyle_results").select("*").eq("prospect_id", prospect.id).maybeSingle(),
+    usesFixedBaseline ? Promise.resolve({ data: null }) : supabase.from("rec_immortality_playstyle_results").select("*").eq("prospect_id", prospect.id).maybeSingle(),
+    usesFixedBaseline ? supabase.from("rec_immortality_branching_playstyle_results").select("*").eq("prospect_id", prospect.id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
   ]);
   if (!iq.data?.completed_at) throw new ApiError(400, "Finish the IQ test first.");
-  if (!playstyle.data) throw new ApiError(400, "Finish the playstyle interview first.");
-  const group = positionGroupFor(prospect.position as ImmortalityPosition);
+  if (usesFixedBaseline ? !branchingPlaystyle.data : !playstyle.data) throw new ApiError(400, "Finish the playstyle interview first.");
+  const group = positionGroupFor(position);
   const catalog = characteristicCatalog(group);
   const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
   const modifiers = combinedModifiers(selected);
-  const dataset = await supabase.from("rec_madden_roster_datasets").select("id").eq("game_title", "madden_27").eq("is_active", true).maybeSingle();
   let baseline: Record<string, number> = {};
-  if (dataset.data?.id) {
-    const players = await supabase
-      .from("rec_madden_baseline_players")
-      .select("*")
-      .eq("dataset_id", dataset.data.id)
-      .eq("position", prospect.position === "MIKE" ? "MLB" : prospect.position)
-      .gte("overall_rating", 68)
-      .lte("overall_rating", 72)
-      .limit(400);
-    const pool = (players.data ?? []).map((row) => ({
-      position: String(row.position),
-      archetype: row.archetype ? String(row.archetype) : null,
-      overallRating: typeof row.overall_rating === "number" ? row.overall_rating : null,
-      attributes: rosterAttributesToCodes(row as Record<string, unknown>),
-    }));
-    const { deriveBaselineTemplate } = await import("@rec/shared");
-    const primary = deriveBaselineTemplate({
-      position: prospect.position as ImmortalityPosition,
-      archetype: String(playstyle.data.primary_archetype),
-      pool,
-    });
-    const secondary = deriveBaselineTemplate({
-      position: prospect.position as ImmortalityPosition,
-      archetype: String(playstyle.data.secondary_archetype),
-      pool,
-    });
-    baseline = hybridBaseline({
-      primary: primary.template,
-      secondary: secondary.template,
-      blend: playstyle.data.blend as { primaryWeight: number; secondaryWeight: number; kind: "dominant" | "clear" | "near_tie" },
+  if (usesFixedBaseline) {
+    // QB and MIKE use a permanent, hand-set baseline (see baseline.ts) instead of a live lookup
+    // against real roster data -- Branching Playstyle's Q3-5 answers then pull specific
+    // attributes up to a floor or down to a ceiling relative to that fixed starting point.
+    const fixedBase = FIXED_RTI_BASELINES[position]!;
+    const deltas = (branchingPlaystyle.data!.attribute_deltas ?? {}) as Record<string, { floor: number; ceiling: number }>;
+    baseline = applyIqOverlay({
+      position,
+      attributes: applyBranchingDeltas(fixedBase, deltas),
       awareness: Number(iq.data.awareness_result),
       playRecognition: Number(iq.data.play_recognition_result),
-      position: prospect.position as ImmortalityPosition,
     });
   } else {
-    baseline = applyIqOverlay({
-      position: prospect.position as ImmortalityPosition,
-      attributes: { SPD: 82, ACC: 82, AGI: 80, AWR: Number(iq.data.awareness_result) },
-      awareness: Number(iq.data.awareness_result),
-      playRecognition: Number(iq.data.play_recognition_result),
-    });
+    const dataset = await supabase.from("rec_madden_roster_datasets").select("id").eq("game_title", "madden_27").eq("is_active", true).maybeSingle();
+    if (dataset.data?.id) {
+      const players = await supabase
+        .from("rec_madden_baseline_players")
+        .select("*")
+        .eq("dataset_id", dataset.data.id)
+        .eq("position", position)
+        .gte("overall_rating", 68)
+        .lte("overall_rating", 72)
+        .limit(400);
+      const pool = (players.data ?? []).map((row) => ({
+        position: String(row.position),
+        archetype: row.archetype ? String(row.archetype) : null,
+        overallRating: typeof row.overall_rating === "number" ? row.overall_rating : null,
+        attributes: rosterAttributesToCodes(row as Record<string, unknown>),
+      }));
+      const { deriveBaselineTemplate } = await import("@rec/shared");
+      const primary = deriveBaselineTemplate({ position, archetype: String(playstyle.data!.primary_archetype), pool });
+      const secondary = deriveBaselineTemplate({ position, archetype: String(playstyle.data!.secondary_archetype), pool });
+      baseline = hybridBaseline({
+        primary: primary.template,
+        secondary: secondary.template,
+        blend: playstyle.data!.blend as { primaryWeight: number; secondaryWeight: number; kind: "dominant" | "clear" | "near_tie" },
+        awareness: Number(iq.data.awareness_result),
+        playRecognition: Number(iq.data.play_recognition_result),
+        position,
+      });
+    } else {
+      baseline = applyIqOverlay({
+        position,
+        attributes: { SPD: 82, ACC: 82, AGI: 80, AWR: Number(iq.data.awareness_result) },
+        awareness: Number(iq.data.awareness_result),
+        playRecognition: Number(iq.data.play_recognition_result),
+      });
+    }
   }
   const heightCost = heightOverageCreationPointCost(prospect.position as ImmortalityPosition, Number(prospect.height_inches ?? 0));
   const totalBudget = Number(league.creation_point_budget ?? DEFAULT_CREATION_POINT_BUDGET);

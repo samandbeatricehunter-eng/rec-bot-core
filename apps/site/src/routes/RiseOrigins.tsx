@@ -4,6 +4,7 @@ import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
+  type ImmortalityBranchingPlaystyleGroup,
   type ImmortalityDraftGrade,
   type ImmortalityHubResponse,
   type ImmortalityIqState,
@@ -169,12 +170,17 @@ export function RiseOriginsPage() {
               }} setError={setError} />
           ) : null}
           {stage === "playstyle" ? (
-            <InterviewPanel key={`${side}-playstyle`} title="Playstyle interview" questions={hub.catalogs.playstyle[side]}
-              onSubmit={async (answers) => {
-                const result = await siteApi.immortalitySubmitPlaystyle({ guildId, side, answers });
-                await reload();
-                return `${result.primaryArchetype} / ${result.secondaryArchetype} (${result.blend.kind})`;
-              }} setError={setError} />
+            hub.catalogs.playstyleBranching[side] ? (
+              <BranchingPlaystylePanel key={`${side}-playstyle-branching`} guildId={guildId} side={side}
+                group={hub.catalogs.playstyleBranching[side]!} onSaved={reload} setError={setError} />
+            ) : (
+              <InterviewPanel key={`${side}-playstyle`} title="Playstyle interview" questions={hub.catalogs.playstyle[side]}
+                onSubmit={async (answers) => {
+                  const result = await siteApi.immortalitySubmitPlaystyle({ guildId, side, answers });
+                  await reload();
+                  return `${result.primaryArchetype} / ${result.secondaryArchetype} (${result.blend.kind})`;
+                }} setError={setError} />
+            )
           ) : null}
           {stage === "characteristics" ? (
             <CharacteristicsPanel key={side} guildId={guildId} side={side} catalog={hub.catalogs.characteristics[side]}
@@ -481,6 +487,91 @@ function InterviewPanel({
           try {
             const answers = questions.map((question) => ({ questionNumber: question.number, optionIndex: picks[question.number]! }));
             setResult(await onSubmit(answers));
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not save the interview.");
+          } finally { setBusy(false); }
+        }}>Save interview</button>
+      {result ? <p>{result}</p> : null}
+    </section>
+  );
+}
+
+/** QB/MIKE only. Q1 locks the primary archetype, Q2 optionally locks a secondary (blend),
+ * then Q3-5 (drawn from that primary archetype's own bank) each nudge specific attributes'
+ * floor/ceiling on top of the fixed baseline -- so Q3-5 can't render until Q1 is answered. */
+function BranchingPlaystylePanel({
+  guildId, side, group, onSaved, setError,
+}: {
+  guildId: string;
+  side: Side;
+  group: ImmortalityBranchingPlaystyleGroup;
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const [q1, setQ1] = useState<number | null>(null);
+  const [q2, setQ2] = useState<number | null>(null);
+  const [skipQ2, setSkipQ2] = useState(false);
+  const [q3, setQ3] = useState<number | null>(null);
+  const [q4, setQ4] = useState<number | null>(null);
+  const [q5, setQ5] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const primaryArchetype = q1 != null ? group.q1.options[q1]?.archetype : null;
+  const remainingArchetypes = group.archetypes.filter((a) => a !== primaryArchetype);
+  const bank = primaryArchetype ? group.banks[primaryArchetype] : null;
+  const ready = q1 != null && (skipQ2 || q2 != null) && bank && q3 != null && q4 != null && q5 != null;
+
+  return (
+    <section className="rise-card">
+      <h2>Playstyle</h2>
+      <div className="rise-question">
+        <p>1. {group.q1.question}</p>
+        <div className="rise-options">
+          {group.q1.options.map((option, index) => (
+            <button key={option.text} type="button" className={`site-btn ${q1 === index ? "site-btn-primary" : "site-btn-ghost"}`}
+              onClick={() => { setQ1(index); setQ2(null); setSkipQ2(false); setQ3(null); setQ4(null); setQ5(null); }}>{option.text}</button>
+          ))}
+        </div>
+      </div>
+      {q1 != null ? (
+        <div className="rise-question">
+          <p>2. {group.q2Question}</p>
+          <div className="rise-options">
+            {remainingArchetypes.map((archetype, index) => (
+              <button key={archetype} type="button" className={`site-btn ${!skipQ2 && q2 === index ? "site-btn-primary" : "site-btn-ghost"}`}
+                onClick={() => { setQ2(index); setSkipQ2(false); }}>{archetype}</button>
+            ))}
+            <button type="button" className={`site-btn ${skipQ2 ? "site-btn-primary" : "site-btn-ghost"}`}
+              onClick={() => { setSkipQ2(true); setQ2(null); }}>Pure {primaryArchetype} — no secondary</button>
+          </div>
+        </div>
+      ) : null}
+      {bank ? (
+        <>
+          {([["3", bank.q3, q3, setQ3], ["4", bank.q4, q4, setQ4], ["5", bank.q5, q5, setQ5]] as const).map(([label, drill, picked, setPicked]) => (
+            <div key={label} className="rise-question">
+              <p>{label}. {drill.question}</p>
+              <div className="rise-options">
+                {drill.options.map((option, index) => (
+                  <button key={option.text} type="button" className={`site-btn ${picked === index ? "site-btn-primary" : "site-btn-ghost"}`}
+                    onClick={() => setPicked(index)}>{option.text}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      ) : null}
+      <button type="button" className="site-btn site-btn-primary" disabled={!ready || busy}
+        onClick={async () => {
+          setBusy(true); setError(null);
+          try {
+            const result = await siteApi.immortalitySubmitBranchingPlaystyle({
+              guildId, side,
+              answers: { q1ArchetypeIndex: q1!, q2ArchetypeIndex: skipQ2 ? null : q2, q3OptionIndex: q3!, q4OptionIndex: q4!, q5OptionIndex: q5! },
+            });
+            await onSaved();
+            setResult(`${result.primaryArchetype}${result.secondaryArchetype ? ` / ${result.secondaryArchetype}` : ""} (${result.blend.kind})`);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Could not save the interview.");
           } finally { setBusy(false); }
