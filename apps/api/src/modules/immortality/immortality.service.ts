@@ -1163,7 +1163,7 @@ export async function evaluateCreationBuild(input: {
   if (saved.error) throw new ApiError(500, "Could not save creation build.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "creation");
   await submitProspectForReview({
-    leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
+    guildId: input.guildId, leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
     finalAttributes: spent.attributes, startingDev: startingDevTrait(modifiers),
   }).catch((err) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, err));
   // The commissioner already has a franchise (picked outright at league creation) before their
@@ -1409,14 +1409,19 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
   }
 }
 
-/** Fires once, right after Creation Points is submitted (the last real build step) -- drops a
- * rec_commissioners_inbox row (queue_type "immortality_prospect") with the full build so a
+/** Fires every time Creation Points is (re-)submitted -- upserts a rec_commissioners_inbox row
+ * (queue_type "immortality_prospect", keyed on the table's existing
+ * (guild_id, queue_type, source_table, source_id) unique index) with the full build so a
  * commissioner can review it from League Mgmt's Pending Items, same flow custom players already
- * go through. Attributes are listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching
- * CreationPanel's own field order) since that's the in-game attribute order. Best-effort --
- * never blocks Creation Points itself from succeeding. */
+ * go through. Upserting rather than inserting means re-evaluating a build before it's been
+ * reviewed just refreshes the same card instead of spamming a duplicate, and resets the
+ * prospect's review_status back to pending_review so a build edited after a rejection (or even
+ * after approval) always gets a fresh look instead of being permanently stuck. Attributes are
+ * listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching CreationPanel's own field
+ * order) since that's the in-game attribute order. Best-effort -- never blocks Creation Points
+ * itself from succeeding. */
 async function submitProspectForReview(input: {
-  leagueId: string; immortalityLeagueId: string; prospect: Record<string, any>; userId: string;
+  guildId: string; leagueId: string; immortalityLeagueId: string; prospect: Record<string, any>; userId: string;
   finalAttributes: Record<string, number>; startingDev: string;
 }): Promise<void> {
   const { prospect } = input;
@@ -1469,7 +1474,8 @@ async function submitProspectForReview(input: {
     attributeLines.map((attr) => `${attr.code} ${attr.name}: ${attr.value}`).join("\n") || "—",
   ].filter((line): line is string => line != null).join("\n");
 
-  const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
+  const inboxUpsert = await supabase.from("rec_commissioners_inbox").upsert({
+    guild_id: input.guildId,
     league_id: input.leagueId,
     queue_type: "immortality_prospect",
     status: "pending",
@@ -1480,6 +1486,9 @@ async function submitProspectForReview(input: {
     requester_discord_id: discordId,
     source_table: "rec_immortality_prospects",
     source_id: prospect.id,
+    reviewed_by_discord_id: null,
+    reviewed_at: null,
+    review_reason: null,
     payload: {
       prospectId: prospect.id, side: prospect.side, position, name,
       age: prospect.age, heightInches: prospect.height_inches, weightLbs: prospect.weight_lbs, bodyType: prospect.body_type,
@@ -1489,8 +1498,16 @@ async function submitProspectForReview(input: {
       personaDnaTraits: personaDnaNames, playerTraits: playerTraitNames, characteristics: characteristicNames,
       attributes: attributeLines,
     },
-  });
-  if (inboxInsert.error) throw new ApiError(500, "Failed to submit prospect for review.", inboxInsert.error);
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "guild_id,queue_type,source_table,source_id" });
+  if (inboxUpsert.error) throw new ApiError(500, "Failed to submit prospect for review.", inboxUpsert.error);
+
+  // A build submitted (or re-submitted) always needs a fresh look, even if the commissioner
+  // already approved or rejected an earlier version of it.
+  await supabase.from("rec_immortality_prospects").update({
+    review_status: "pending_review", review_reason: null, reviewed_by_discord_id: null, reviewed_at: null,
+  }).eq("id", prospect.id);
+
   await notifyLeagueCommissionersOfPendingItem(input.leagueId);
 }
 
