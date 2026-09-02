@@ -245,6 +245,8 @@ export async function immortalityRoutes(app: FastifyInstance) {
         prospectId: z.string().uuid(),
         action: z.enum(["approve", "reject"]),
         note: z.string().max(1000).optional(),
+        firstName: z.string().trim().min(1).max(50).optional(),
+        lastName: z.string().trim().min(1).max(50).optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");

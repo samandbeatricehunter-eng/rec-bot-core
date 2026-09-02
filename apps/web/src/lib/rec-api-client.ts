@@ -1153,7 +1153,7 @@ export const recApi = {
     adjustments?: Record<string, unknown>;
     replacementPlayerId?: string | null;
   }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
-  reviewImmortalityProspect: (input: { guildId: string; prospectId: string; action: "approve" | "reject"; note?: string }) =>
+  reviewImmortalityProspect: (input: { guildId: string; prospectId: string; action: "approve" | "reject"; note?: string; firstName?: string; lastName?: string }) =>
     recApiFetch<any>("/v1/immortality/prospect/review", { method: "POST", body: JSON.stringify(input) }),
   reviewImmortalityXpRequest: (input: { guildId: string; requestId: string; action: "approve" | "reject"; note?: string }) =>
     recApiFetch<any>("/v1/immortality/xp/review", { method: "POST", body: JSON.stringify(input) }),

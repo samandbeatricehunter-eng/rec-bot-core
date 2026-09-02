@@ -10,6 +10,8 @@ type ProspectReviewPayload = {
   side: "offense" | "defense";
   position: string;
   name: string;
+  firstName: string;
+  lastName: string;
   age: number | null;
   heightInches: number | null;
   weightLbs: number | null;
@@ -48,14 +50,21 @@ export function ImmortalityProspectReviewModal({
 }) {
   const data = notification.payload as unknown as ProspectReviewPayload;
   const [note, setNote] = useState("");
+  const [firstName, setFirstName] = useState(data.firstName ?? "");
+  const [lastName, setLastName] = useState(data.lastName ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const nameChanged = firstName.trim() !== (data.firstName ?? "") || lastName.trim() !== (data.lastName ?? "");
 
   async function review(action: "approve" | "reject") {
     if (action === "reject" && !note.trim()) { setMessage("A rejection reason is required."); return; }
+    if (!firstName.trim() || !lastName.trim()) { setMessage("First and last name can't be blank."); return; }
     setBusy(true); setMessage(null);
     try {
-      await recApi.reviewImmortalityProspect({ guildId, prospectId: data.prospectId, action, note: note.trim() || undefined });
+      await recApi.reviewImmortalityProspect({
+        guildId, prospectId: data.prospectId, action, note: note.trim() || undefined,
+        firstName: firstName.trim() || undefined, lastName: lastName.trim() || undefined,
+      });
       onResolved();
       onClose();
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); setBusy(false); }
@@ -66,6 +75,20 @@ export function ImmortalityProspectReviewModal({
       {message && <ErrorState message={message} />}
       <div className="settings-review-row">
         <h3 style={{ margin: 0 }}>{data.name} — {data.position}</h3>
+        <p className="form-hint" style={{ margin: "4px 0 8px" }}>
+          If Madden's in-game name filter is blocking this name as vulgar, fix it here before approving — it updates everywhere, including an already-posted player card.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <label className="form-field" style={{ flex: 1 }}>
+            <span className="form-label">First name</span>
+            <input className="form-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </label>
+          <label className="form-field" style={{ flex: 1 }}>
+            <span className="form-label">Last name</span>
+            <input className="form-input" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </label>
+        </div>
+        {nameChanged && <p className="form-hint" style={{ margin: "0 0 12px", color: "var(--warning, #b8860b)" }}>Renaming to "{firstName.trim()} {lastName.trim()}" — applied when you Approve or Reject.</p>}
         <p className="form-hint" style={{ margin: "4px 0 12px" }}>
           Age {data.age ?? "?"} · {formatHeight(data.heightInches)} · {data.weightLbs ?? "?"} lbs · {data.bodyType ?? "—"} · Jersey #{data.jerseyNumber ?? "?"}
           <br />

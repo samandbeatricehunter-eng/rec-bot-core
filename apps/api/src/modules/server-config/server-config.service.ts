@@ -130,6 +130,16 @@ export async function setServerConfig(input: SetServerConfigInput) {
     syncAvailabilityBoard(input.guildId, { announceLinked: true }).catch((error) => console.error("[ERROR] Failed to post availability board after channel assignment (non-fatal):", error));
   }
 
+  // Rise to Immortality: post the NFL record book the moment a commissioner assigns (or
+  // changes) the Record Holders channel -- the most intuitive trigger for "I just linked this
+  // channel," rather than only firing on EA-franchise-link/import for a league that may have
+  // linked its franchise long before this channel existed. No-ops instantly for non-RTI
+  // leagues and is idempotent (a no-op once the league's board is already seeded).
+  if (input.recordHoldersChannelId && input.recordHoldersChannelId !== (existing.data as any)?.record_holders_channel_id) {
+    const { ensureNflRecordBaselinePosted } = await import("../immortality/nfl-record-holders.service.js");
+    ensureNflRecordBaselinePosted(context.leagueId).catch((error) => console.error("[ERROR] Failed to post RTI NFL record baseline after channel assignment (non-fatal):", error));
+  }
+
   return {
     server: context.rec_discord_servers,
     league: context.rec_leagues,

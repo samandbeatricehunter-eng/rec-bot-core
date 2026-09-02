@@ -1382,6 +1382,21 @@ async function postProspectCardToDiscord(input: {
  * data (most importantly the real OVR, which only exists post-import -- see
  * getProspectCardRenderData) without reposting and spamming the pros channels. No-ops instantly
  * for non-RTI leagues and for any prospect that was never actually posted. */
+async function refreshSingleProspectCard(prospectId: string, cardChannelId: string, cardMessageId: string): Promise<void> {
+  try {
+    const data = await getProspectCardRenderData(prospectId);
+    const png = await renderProspectCardPng(prospectId);
+    await editDiscordMessageWithFile(
+      cardChannelId,
+      cardMessageId,
+      { embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }] },
+      { buffer: png, name: "prospect-card.png", contentType: "image/png" },
+    );
+  } catch (err) {
+    console.error(`[ERROR] Failed to refresh prospect card ${prospectId} (non-fatal):`, err);
+  }
+}
+
 export async function refreshImmortalityProspectCardsForLeague(leagueId: string): Promise<void> {
   const immortalityLeague = await loadImmortalityLeague(leagueId);
   if (!immortalityLeague) return;
@@ -1394,18 +1409,7 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
 
   for (const row of posted.data as Array<{ id: string; card_channel_id: string | null; card_message_id: string | null }>) {
     if (!row.card_channel_id || !row.card_message_id) continue;
-    try {
-      const data = await getProspectCardRenderData(row.id);
-      const png = await renderProspectCardPng(row.id);
-      await editDiscordMessageWithFile(
-        row.card_channel_id,
-        row.card_message_id,
-        { embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }] },
-        { buffer: png, name: "prospect-card.png", contentType: "image/png" },
-      );
-    } catch (err) {
-      console.error(`[ERROR] Failed to refresh prospect card ${row.id} (non-fatal):`, err);
-    }
+    await refreshSingleProspectCard(row.id, row.card_channel_id, row.card_message_id);
   }
 }
 
@@ -1491,6 +1495,7 @@ async function submitProspectForReview(input: {
     review_reason: null,
     payload: {
       prospectId: prospect.id, side: prospect.side, position, name,
+      firstName: prospect.first_name ?? "", lastName: prospect.last_name ?? "",
       age: prospect.age, heightInches: prospect.height_inches, weightLbs: prospect.weight_lbs, bodyType: prospect.body_type,
       hometown: prospect.hometown, hometownState: prospect.hometown_state, college: prospect.college,
       jerseyNumber: prospect.jersey_number, startingDev: input.startingDev, throwingMotionKey: prospect.throwing_motion_key ?? null,
@@ -1515,20 +1520,36 @@ async function submitProspectForReview(input: {
  * was already fully built by Creation Points, there's nothing left to "apply." Rejecting
  * requires a reason so the member knows what to fix; nothing currently lets them resubmit the
  * same prospect automatically, so a rejected build needs the commissioner to follow up directly. */
+/** Approve/reject a pending prospect build. A commissioner can correct the first/last name
+ * here before approving -- Madden's in-game name filter sometimes blocks a name as vulgar even
+ * when it isn't, and this is the point where that becomes visible. A rename is applied to the
+ * prospect immediately and propagates everywhere the name is read from live (identity form,
+ * franchise headline, future prospect-card renders); if this prospect was already materialized
+ * onto a roster (rec_players) and/or already has a posted Discord card, those get updated and
+ * the card re-rendered in place too, so a rename after the fact doesn't leave a stale name on
+ * an already-published Discord embed. */
 export async function reviewImmortalityProspect(input: {
   guildId: string; prospectId: string; action: "approve" | "reject"; reviewerDiscordId: string; note?: string;
+  firstName?: string; lastName?: string;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
-  const prospect = await supabase.from("rec_immortality_prospects").select("id,review_status").eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
+  const prospect = await supabase.from("rec_immortality_prospects")
+    .select("id,review_status,first_name,last_name,player_id,card_channel_id,card_message_id")
+    .eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
   if (prospect.error || !prospect.data) throw new ApiError(404, "Prospect not found in this league.");
   if (prospect.data.review_status !== "pending_review") throw new ApiError(409, `Prospect is already ${prospect.data.review_status}.`);
   if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A rejection reason is required.");
+
+  const nextFirstName = input.firstName?.trim() || prospect.data.first_name;
+  const nextLastName = input.lastName?.trim() || prospect.data.last_name;
+  const renamed = nextFirstName !== prospect.data.first_name || nextLastName !== prospect.data.last_name;
 
   const nextStatus = input.action === "approve" ? "approved" : "rejected";
   const updated = await supabase.from("rec_immortality_prospects").update({
     review_status: nextStatus, review_reason: input.note?.trim() ?? null,
     reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
+    first_name: nextFirstName, last_name: nextLastName,
   }).eq("id", input.prospectId).select("*").single();
   if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
 
@@ -1537,6 +1558,18 @@ export async function reviewImmortalityProspect(input: {
     reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
     review_reason: input.note?.trim() ?? null,
   }).eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId);
+
+  if (renamed) {
+    const fullName = `${nextFirstName ?? ""} ${nextLastName ?? ""}`.trim();
+    if (prospect.data.player_id) {
+      await supabase.from("rec_players").update({
+        first_name: nextFirstName, last_name: nextLastName, full_name: fullName, updated_at: new Date().toISOString(),
+      }).eq("id", prospect.data.player_id);
+    }
+    if (prospect.data.card_channel_id && prospect.data.card_message_id) {
+      await refreshSingleProspectCard(input.prospectId, prospect.data.card_channel_id, prospect.data.card_message_id);
+    }
+  }
 
   return updated.data;
 }
