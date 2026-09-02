@@ -792,13 +792,12 @@ export function LeaguesPage() {
     setRequestSent(false);
     setRequestJoinedPool(false);
     setRequestPendingTeamId(null);
-    if (league.rosterType === "rise_to_immortality") return;
     setRequestBusy(true);
     try {
       const result = await siteApi.listOpenLeagueTeams(league.id);
       setRequestTeams(result.teams);
       setRequestPendingTeamId(result.pendingTeamId);
-      if (!result.pendingTeamId && result.teams[0]) setRequestTeamId(result.teams[0].id);
+      if (league.rosterType !== "rise_to_immortality" && !result.pendingTeamId && result.teams[0]) setRequestTeamId(result.teams[0].id);
     } catch (err) {
       setRequestError(err instanceof Error ? err.message : "Could not load open teams.");
     } finally {
@@ -1147,12 +1146,20 @@ export function LeaguesPage() {
             {requestLeague.rosterType === "rise_to_immortality" ? (
               <>
                 <p className="site-muted">
-                  You join a registration pool — no team yet. After the virtual rookie draft you are linked to a franchise on the site and Discord automatically.
+                  You join a registration pool — no team yet. After the virtual rookie draft you are linked to a franchise on the site and Discord automatically. You can't pick a team here; this just shows which ones are still open.
                 </p>
+                {requestBusy && requestTeams.length === 0 ? <p>Loading open teams…</p> : null}
+                {requestTeams.length ? (
+                  <ul className="site-open-teams-list">
+                    {requestTeams.map((team) => (
+                      <li key={team.id}>{team.name}{team.mascot && !team.name.includes(team.mascot) ? ` ${team.mascot}` : ""}</li>
+                    ))}
+                  </ul>
+                ) : !requestBusy ? <p className="site-auth-error">No open teams left in this league.</p> : null}
                 {requestJoinedPool ? (
                   <p className="site-success">You are in the pool. Open the league to complete Origins.</p>
                 ) : (
-                  <button type="button" className="site-btn site-btn-primary" disabled={requestBusy} onClick={() => void submitPoolJoin()}>
+                  <button type="button" className="site-btn site-btn-primary" disabled={requestBusy || requestTeams.length === 0} onClick={() => void submitPoolJoin()}>
                     {requestBusy ? "Joining…" : "Join the pool"}
                   </button>
                 )}

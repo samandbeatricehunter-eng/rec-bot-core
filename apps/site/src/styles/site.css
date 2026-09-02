@@ -624,6 +624,21 @@ h1, h2, h3, .site-wordmark {
   color: var(--error);
   font-size: 14px;
 }
+.site-open-teams-list {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-1);
+}
+.site-open-teams-list li {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  font-size: 14px;
+}
 .site-auth-success {
   margin: 0;
   padding: var(--space-3) var(--space-4);

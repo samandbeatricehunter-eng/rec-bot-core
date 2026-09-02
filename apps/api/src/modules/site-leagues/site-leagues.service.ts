@@ -632,6 +632,24 @@ export async function joinRiseToImmortalityPool(input: {
     if (Number(counts.rows[0]?.member_count ?? 0) >= Number(row.max_members)) {
       throw new ApiError(409, "This league's registration pool is full.");
     }
+    // Same underlying availability normal leagues gate team requests on -- once every real team
+    // has an active assignment, there's nowhere left for a new pool member's franchise to land.
+    const openTeams = await client.query(
+      `
+        select count(*)::int as open_team_count
+        from rec_teams t
+        where t.league_id = $1
+          and not exists (
+            select 1 from rec_team_assignments ta
+            where ta.league_id = t.league_id and ta.team_id = t.id
+              and ta.assignment_status = 'active' and ta.ended_at is null
+          )
+      `,
+      [input.leagueId],
+    );
+    if (Number(openTeams.rows[0]?.open_team_count ?? 0) <= 0) {
+      throw new ApiError(409, "There are no open teams left in this league.");
+    }
 
     await client.query(
       `
