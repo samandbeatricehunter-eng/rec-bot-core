@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   CONFERENCE_ORDER, FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DEFINITIONS,
@@ -29,7 +29,7 @@ import {
 } from "./wizard/options.js";
 import { useLeagueWizardState } from "./wizard/useLeagueWizardState.js";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (leagueId: string) => void }) {
   const [step, setStep] = useState<Step>(0);
@@ -327,6 +327,22 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [expandedTeamAbbr, setExpandedTeamAbbr] = useState<string | null>(null);
+
+  const assignmentTeamOptions = useMemo(() => {
+    if (!(isRise && immortalityTeamPool === "custom_32")) return teamOptions;
+    return teamOptions.map((team) => {
+      const custom = immortalityCustomTeams[team.id];
+      if (!custom?.city.trim() || !custom.nick.trim()) {
+        return custom?.abbreviation.trim() ? { ...team, abbreviation: custom.abbreviation.trim().toUpperCase() } : team;
+      }
+      return {
+        ...team,
+        name: `${custom.city.trim()} ${custom.nick.trim()}`,
+        abbreviation: custom.abbreviation.trim() ? custom.abbreviation.trim().toUpperCase() : team.abbreviation,
+      };
+    });
+  }, [teamOptions, isRise, immortalityTeamPool, immortalityCustomTeams]);
 
   // Madden 27 is the only game leagues can be created for now (game state defaults to it), so
   // apply its recommended template immediately instead of waiting on a game-picker click that
@@ -585,7 +601,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
         if (!team) throw new Error("That team is no longer available in this league. Try assigning a team again.");
         await siteApi.completeWizard({ leagueId: createdId, teamId: team.id });
       }
-      setStep(8);
+      setStep(9);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the league.");
     } finally {
@@ -1320,7 +1336,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(5)}>Back</button>
-              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(7)}>Next</button>
+              <button type="button" className="site-btn site-btn-primary" onClick={() => setStep(isRise ? 7 : 8)}>Next</button>
             </div>
           </>
         )}
@@ -1347,14 +1363,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                   </button>
                 </div>
                 {immortalityTeamPool === "custom_32" ? (
-                  <p className="site-muted">Conference, division, schedules, imports, rosters, and stats remain attached to the NFL slot shown on the left.</p>
+                  <p className="site-muted">Conference, division, schedules, imports, rosters, and stats remain attached to the NFL slot shown on the left. Click a team below to edit it — only one is open at a time to keep this readable.</p>
                 ) : null}
                 {immortalityTeamPool === "custom_32" ? (
-                  <div className="wizard-custom-team-list" style={{ marginTop: 16, display: "grid", gap: 8, maxHeight: 360, overflow: "auto" }}>
+                  <div className="wizard-custom-team-list" style={{ marginTop: 16, display: "grid", gap: 6, maxHeight: 420, overflow: "auto" }}>
                     {NFL_TEAMS.map((team) => {
                       const slot = immortalityCustomTeams[team.abbreviation] ?? {
                         city: "", nick: "", abbreviation: "", primaryLogoUrl: "", secondaryLogoUrl: "",
-                        wordmarkUrl: "", primaryColor: "", secondaryColor: "", tertiaryColor: "",
+                        wordmarkUrl: "", primaryColor: "", secondaryColor: "",
                       };
                       const update = (patch: Partial<typeof slot>) => setImmortalityCustomTeams((current) => ({
                         ...current,
@@ -1362,61 +1378,95 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       }));
                       const primaryFile = immortalityTeamLogoFiles[team.abbreviation]?.primary;
                       const previewSrc = primaryFile ? URL.createObjectURL(primaryFile) : null;
+                      const isCustomized = Boolean(slot.city.trim() || slot.nick.trim() || slot.abbreviation.trim() || primaryFile);
+                      const expanded = expandedTeamAbbr === team.abbreviation;
                       return (
-                        <div key={team.abbreviation} className="site-field" style={{ display: "grid", gridTemplateColumns: "8rem repeat(3, minmax(7rem, 1fr))", gap: 8, alignItems: "center", padding: 12, border: "1px solid var(--site-border)", borderRadius: 10 }}>
-                          <span><strong>{team.abbreviation}</strong><small className="site-muted" style={{ display: "block" }}>{team.conference} {team.division}</small></span>
-                          <input className="site-input" placeholder="City" value={slot.city} onChange={(event) => update({ city: event.target.value })} />
-                          <input className="site-input" placeholder="Nickname" value={slot.nick} onChange={(event) => update({ nick: event.target.value })} />
-                          <input className="site-input" placeholder="Abbr" maxLength={5} value={slot.abbreviation} onChange={(event) => update({ abbreviation: event.target.value })} />
-                          <span className="site-muted">Logo</span>
-                          <label className="site-btn site-btn-secondary site-btn-sm" style={{ overflow: "hidden" }}>
-                            {immortalityTeamLogoFiles[team.abbreviation]?.primary?.name ?? "Upload logo image"}
-                            <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              if (!file) return;
-                              setImmortalityTeamLogoFiles((current) => ({
-                                ...current,
-                                [team.abbreviation]: { ...current[team.abbreviation], primary: file },
-                              }));
-                            }} />
-                          </label>
-                          {previewSrc ? <img src={previewSrc} alt="" style={{ maxHeight: 32, maxWidth: 60, background: "#222", borderRadius: 4 }} /> : <span />}
-                          <span />
-                          <span className="site-muted">Colors</span>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
-                            <EyeDropperButton onPick={(hex) => update({ primaryColor: hex })} />
-                          </div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <input className="site-input" placeholder="#Secondary" pattern="#[0-9A-Fa-f]{6}" value={slot.secondaryColor} onChange={(event) => update({ secondaryColor: event.target.value })} />
-                            <EyeDropperButton onPick={(hex) => update({ secondaryColor: hex })} />
-                          </div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <input className="site-input" placeholder="#Tertiary" pattern="#[0-9A-Fa-f]{6}" value={slot.tertiaryColor} onChange={(event) => update({ tertiaryColor: event.target.value })} />
-                            <EyeDropperButton onPick={(hex) => update({ tertiaryColor: hex })} />
-                          </div>
-                          {previewSrc ? <p className="site-muted" style={{ gridColumn: "span 4", margin: 0, fontSize: "0.85em" }}>Click "Pick" above, then click a pixel on the logo preview to sample its color.</p> : null}
+                        <div key={team.abbreviation} className="site-field" style={{ border: "1px solid var(--site-border)", borderRadius: 10, padding: 12 }}>
+                          <button type="button" onClick={() => setExpandedTeamAbbr(expanded ? null : team.abbreviation)}
+                            style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit" }}>
+                            <span>
+                              <strong>{team.abbreviation}</strong>{" "}
+                              <span className="site-muted">{team.conference} {team.division}</span>
+                              {isCustomized ? (
+                                <span className="site-muted"> — {slot.city.trim() || slot.nick.trim() ? `${slot.city.trim()} ${slot.nick.trim()}`.trim() : "logo/colors set"}{slot.abbreviation.trim() ? ` (${slot.abbreviation.trim().toUpperCase()})` : ""}</span>
+                              ) : null}
+                            </span>
+                            <span className="site-muted">{expanded ? "▲ Close" : "▼ Edit"}</span>
+                          </button>
+                          {expanded ? (
+                            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(7rem, 1fr))", gap: 8 }}>
+                                <input className="site-input" placeholder="City" value={slot.city} onChange={(event) => update({ city: event.target.value })} />
+                                <input className="site-input" placeholder="Nickname" value={slot.nick} onChange={(event) => update({ nick: event.target.value })} />
+                                <input className="site-input" placeholder="Abbr" maxLength={5} value={slot.abbreviation} onChange={(event) => update({ abbreviation: event.target.value })} />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <label className="site-btn site-btn-secondary site-btn-sm" style={{ overflow: "hidden" }}>
+                                  {immortalityTeamLogoFiles[team.abbreviation]?.primary?.name ?? "Upload logo image"}
+                                  <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    if (!file) return;
+                                    setImmortalityTeamLogoFiles((current) => ({
+                                      ...current,
+                                      [team.abbreviation]: { ...current[team.abbreviation], primary: file },
+                                    }));
+                                  }} />
+                                </label>
+                                {previewSrc ? <img src={previewSrc} alt="" style={{ maxHeight: 32, maxWidth: 60, background: "#222", borderRadius: 4 }} /> : null}
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  <span className="site-muted" style={{ minWidth: 60 }}>Primary</span>
+                                  <input className="site-input" placeholder="#Primary" pattern="#[0-9A-Fa-f]{6}" value={slot.primaryColor} onChange={(event) => update({ primaryColor: event.target.value })} />
+                                  <EyeDropperButton onPick={(hex) => update({ primaryColor: hex })} />
+                                </div>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  <span className="site-muted" style={{ minWidth: 60 }}>Secondary</span>
+                                  <input className="site-input" placeholder="#Secondary" pattern="#[0-9A-Fa-f]{6}" value={slot.secondaryColor} onChange={(event) => update({ secondaryColor: event.target.value })} />
+                                  <EyeDropperButton onPick={(hex) => update({ secondaryColor: hex })} />
+                                </div>
+                              </div>
+                              {previewSrc ? (
+                                <LogoSampleCanvas imageSrc={previewSrc}
+                                  onSample={(hex, target) => update(target === "primary" ? { primaryColor: hex } : { secondaryColor: hex })} />
+                              ) : (
+                                <p className="site-muted" style={{ margin: 0, fontSize: "0.85em" }}>Upload a logo to sample colors directly from it, or type a hex code above.</p>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}
                   </div>
                 ) : null}
-                <div style={{ marginTop: 16 }}>
-                  <strong>Final division preview</strong>
-                  <div className="wizard-team-grid" style={{ marginTop: 8 }}>
-                    {(["AFC", "NFC"] as const).flatMap((conference) => ["East", "North", "South", "West"].map((division) => (
-                      <div key={`${conference}-${division}`} className="wizard-team-card" style={{ cursor: "default" }}>
-                        <strong>{conference} {division}</strong>
-                        {NFL_TEAMS.filter((team) => team.conference === conference && team.division === division).map((team) => {
-                          const custom = immortalityCustomTeams[team.abbreviation];
-                          const display = custom?.city.trim() && custom?.nick.trim()
-                            ? `${custom.city.trim()} ${custom.nick.trim()}`
-                            : team.name;
-                          return <span key={team.abbreviation} className="site-muted">{display} ({custom?.abbreviation.trim().toUpperCase() || team.abbreviation})</span>;
-                        })}
-                      </div>
-                    )))}
-                  </div>
+              </Section>
+            ) : null}
+            <div className="site-modal-actions">
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
+              {isRise ? (
+                <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => setStep(8)}>Next</button>
+              ) : null}
+            </div>
+          </>
+        )}
+
+        {step === 8 && (
+          <>
+            {isRise && immortalityTeamPool === "custom_32" ? (
+              <Section title="Final division preview">
+                <div className="wizard-team-grid">
+                  {(["AFC", "NFC"] as const).flatMap((conference) => ["East", "North", "South", "West"].map((division) => (
+                    <div key={`${conference}-${division}`} className="wizard-team-card" style={{ cursor: "default" }}>
+                      <strong>{conference} {division}</strong>
+                      {NFL_TEAMS.filter((team) => team.conference === conference && team.division === division).map((team) => {
+                        const custom = immortalityCustomTeams[team.abbreviation];
+                        const display = custom?.city.trim() && custom?.nick.trim()
+                          ? `${custom.city.trim()} ${custom.nick.trim()}`
+                          : team.name;
+                        return <span key={team.abbreviation} className="site-muted">{display} ({custom?.abbreviation.trim().toUpperCase() || team.abbreviation})</span>;
+                      })}
+                    </div>
+                  )))}
                 </div>
               </Section>
             ) : null}
@@ -1425,10 +1475,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 {isRise
                   ? "Pick your franchise. You're the only one who chooses directly, since you need a team set up in-game to run the league — everyone else creates their players and an owner first, then gets 4 random franchises to choose from once they're done."
                   : "Pick your team. You will be assigned as the head commissioner for this team."}
-                {isRise && immortalityTeamPool === "custom_32" ? " If a custom identity replaces this slot, the franchise will show its custom name once the league is created." : null}
+                {isRise && immortalityTeamPool === "custom_32" ? " Names below already reflect the identities you just set." : null}
               </p>
               <div className="wizard-team-grid">
-                {teamOptions.map((team) => (
+                {assignmentTeamOptions.map((team) => (
                   <button key={team.id} type="button"
                     className={`wizard-team-card ${selectedTeamId === team.id ? "wizard-team-card-active" : ""}`}
                     onClick={() => setSelectedTeamId(team.id)}>
@@ -1440,7 +1490,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </div>
             </Section>
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(6)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setStep(isRise ? 7 : 6)}>Back</button>
               <button type="button" className="site-btn site-btn-primary" disabled={busy || !selectedTeamId} onClick={() => void finishWizard()}>
                 {busy ? "Finishing..." : "Assign Team & Finish"}
               </button>
@@ -1448,7 +1498,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
           </>
         )}
 
-        {step === 8 && (
+        {step === 9 && (
           <>
             <Section title="Your League is Ready">
               <p className="site-muted">
@@ -1529,14 +1579,14 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <button type="button" className="site-btn site-btn-ghost" onClick={leaveWizard}>
                 {slidersAdjusted ? "Configure Sliders" : "Done"}
               </button>
-              <button type="button" className="site-btn site-btn-primary" disabled={!leagueId} onClick={() => setStep(9)}>
+              <button type="button" className="site-btn site-btn-primary" disabled={!leagueId} onClick={() => setStep(10)}>
                 Invite Friends
               </button>
             </div>
           </>
         )}
 
-        {step === 9 && (
+        {step === 10 && (
           <>
             <Section title="Invite Friends">
               <p className="site-muted">
@@ -1619,7 +1669,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
             </Section>
 
             <div className="site-modal-actions">
-              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(8)}>Back</button>
+              <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(9)}>Back</button>
               <button type="button" className="site-btn site-btn-primary" onClick={leaveWizard}>
                 {slidersAdjusted ? "Continue to Slider Settings" : "Done"}
               </button>
@@ -1658,6 +1708,56 @@ function EyeDropperButton({ onPick }: { onPick: (hex: string) => void }) {
       }}>
       🎨 Pick
     </button>
+  );
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Works in every browser (unlike the native EyeDropper API), and samples the actual uploaded
+ * logo instead of anywhere on screen: draws it to a canvas, reads the clicked pixel's color. */
+function LogoSampleCanvas({ imageSrc, onSample }: { imageSrc: string; onSample: (hex: string, target: "primary" | "secondary") => void }) {
+  const [target, setTarget] = useState<"primary" | "secondary">("primary");
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const image = new Image();
+    image.onload = () => {
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(image, 0, 0);
+      setReady(true);
+    };
+    image.src = imageSrc;
+  }, [imageSrc]);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <span className="site-muted" style={{ fontSize: "0.85em" }}>Click the logo to sample, targeting:</span>
+        <button type="button" className={`site-btn site-btn-sm ${target === "primary" ? "site-btn-primary" : "site-btn-secondary"}`} onClick={() => setTarget("primary")}>Primary</button>
+        <button type="button" className={`site-btn site-btn-sm ${target === "secondary" ? "site-btn-primary" : "site-btn-secondary"}`} onClick={() => setTarget("secondary")}>Secondary</button>
+      </div>
+      <canvas ref={canvasRef}
+        style={{ maxWidth: 160, maxHeight: 160, background: "#222", borderRadius: 6, cursor: ready ? "crosshair" : "default", imageRendering: "pixelated" }}
+        onClick={(event) => {
+          const canvas = canvasRef.current;
+          if (!canvas || !ready) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
+          const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
+          const ctx = canvas.getContext("2d");
+          const pixel = ctx?.getImageData(x, y, 1, 1).data;
+          if (!pixel) return;
+          onSample(rgbToHex(pixel[0], pixel[1], pixel[2]), target);
+        }} />
+    </div>
   );
 }
 

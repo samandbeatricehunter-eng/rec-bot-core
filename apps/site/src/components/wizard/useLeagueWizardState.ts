@@ -51,7 +51,6 @@ export function useLeagueWizardState() {
     wordmarkUrl: string;
     primaryColor: string;
     secondaryColor: string;
-    tertiaryColor: string;
   }>>({});
   const [immortalityTeamLogoFiles, setImmortalityTeamLogoFiles] = useState<Record<string, Partial<Record<"primary" | "secondary" | "wordmark", File>>>>({});
   const [name, setName] = useState("");
@@ -241,7 +240,6 @@ export function useLeagueWizardState() {
             wordmarkUrl: slot.wordmarkUrl.trim() || undefined,
             primaryColor: slot.primaryColor.trim() || undefined,
             secondaryColor: slot.secondaryColor.trim() || undefined,
-            tertiaryColor: slot.tertiaryColor.trim() || undefined,
           }];
         })
         : undefined,
@@ -388,8 +386,7 @@ export function useLeagueWizardState() {
               wordmarkUrl: slot.wordmarkUrl.trim() || undefined,
               primaryColor: slot.primaryColor.trim() || undefined,
               secondaryColor: slot.secondaryColor.trim() || undefined,
-              tertiaryColor: slot.tertiaryColor.trim() || undefined,
-            }];
+              }];
           })
           : undefined,
       };
