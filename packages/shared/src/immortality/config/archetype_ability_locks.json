@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "note": "REC-assigned mandatory ability identity per archetype -- two Superstar abilities plus one designated X-Factor. Where real Madden 27 gate data has no archetype-exclusive X-Factor for an archetype (QB Scrambler, MIKE Run Stopper), REC designates one from the closest thematic fit; this is a REC authoring decision, not a discovered Madden gate. Run Stopper's X-Factor (Reinforcement) is one such case -- its real gate only lists Field General at MIKE, but its description is the most tackle/run-stop-relevant X-Factor available, so REC extends it to Run Stopper too.",
+    "scramblerXfactorAlternate": "Truzz is an acceptable swap-in for First One Free if preferred -- both are ungated 'any archetype' X-Factors real Scramblers/HBs use."
+  },
+  "QB": {
+    "Field General": { "superstar": ["Inside Deadeye", "Pocket Deadeye"], "xfactor": "Pro Reads" },
+    "Strong Arm": { "superstar": ["Gunslinger", "Fearless"], "xfactor": "Bazooka" },
+    "Improviser": { "superstar": ["Dashing Deadeye", "Threat Detector"], "xfactor": "Run & Gun" },
+    "Scrambler": { "superstar": ["Juke Box", "Fastbreak"], "xfactor": "First One Free" }
+  },
+  "MIKE": {
+    "Field General": { "superstar": ["Under Pressure", "Demoralizer"], "xfactor": "Momentum Shift" },
+    "Pass Coverage": { "superstar": ["Lurker", "Outmatched"], "xfactor": "Shutdown" },
+    "Run Stopper": { "superstar": ["Inside Stuff", "Run Stopper"], "xfactor": "Reinforcement" }
+  }
+}

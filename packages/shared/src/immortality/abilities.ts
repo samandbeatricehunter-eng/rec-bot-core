@@ -1,5 +1,6 @@
 import abilitiesJson from "./config/abilities_m27.json" with { type: "json" };
-import type { ImmortalityPosition } from "./types.js";
+import archetypeAbilityLocksJson from "./config/archetype_ability_locks.json" with { type: "json" };
+import type { ImmortalityDevTrait, ImmortalityPosition } from "./types.js";
 import { FORMULA_VERSIONS } from "./types.js";
 
 export const ABILITY_FORMULA_VERSION = FORMULA_VERSIONS.abilities;
@@ -125,4 +126,68 @@ export function canSelectAbility(input: {
     return { ok: false, error: assignmentBlockReason(input), gate: null };
   }
   return { ok: true, gate };
+}
+
+// --- Archetype-locked mandatory abilities (Superstar/X-Factor identity) -------------------
+
+export type MandatoryAbilitySet = {
+  superstar: [string, string];
+  xfactor: string;
+};
+
+type ArchetypeAbilityLocks = Record<string, Record<string, MandatoryAbilitySet>>;
+
+const archetypeAbilityLocks = archetypeAbilityLocksJson as unknown as ArchetypeAbilityLocks & { _meta: unknown };
+
+export function mandatoryAbilitiesForArchetype(position: ImmortalityPosition, archetype: string): MandatoryAbilitySet | null {
+  return archetypeAbilityLocks[position]?.[archetype] ?? null;
+}
+
+/** True if `abilityName` is designated as one of `archetype`'s mandatory picks at `position` --
+ * this bypasses the ability's own real-Madden archetype gate for cases where REC assigns an
+ * ability to an archetype it wasn't originally gated for (e.g. Reinforcement -> Run Stopper). */
+export function isMandatoryAbilityAssignment(input: { position: ImmortalityPosition; archetype: string; abilityName: string }): boolean {
+  const locks = mandatoryAbilitiesForArchetype(input.position, input.archetype);
+  if (!locks) return false;
+  return locks.superstar.includes(input.abilityName) || locks.xfactor === input.abilityName;
+}
+
+// --- Ability slot progression (real Madden slot ceiling, gated by dev trait + OVR) --------
+//
+// Real Madden: Superstar dev players can hold up to 3 Superstar abilities (a 3rd unlocks at an
+// OVR gate); X-Factor dev players can hold up to 4 Superstar abilities plus their X-Factor.
+// REC's progression: the first two Superstar slots are always the archetype-mandatory pair,
+// unlocking in sequence rather than both at once; the 3rd and 4th slots are free-pick once
+// unlocked (pre-Ability-Mastery, still constrained by each ability's own gate). These OVR
+// thresholds reuse the same table already used for Ability Mastery/X-Factor Mastery -- flagged
+// for confirmation since real Madden's exact slot-unlock OVR isn't independently sourced here.
+export const SUPERSTAR_SLOT_1_OVR = 80;
+export const SUPERSTAR_SLOT_2_OVR = 84;
+export const SUPERSTAR_SLOT_3_OVR = 87;
+export const XFACTOR_SLOT_OVR = 87;
+
+export type AbilitySlotState = {
+  /** How many Superstar slots (0-4) are currently open, regardless of whether they're filled. */
+  superstarSlots: number;
+  /** How many of the open Superstar slots are still archetype-locked (mandatory pair), 0-2. */
+  lockedSuperstarSlots: number;
+  hasXFactorSlot: boolean;
+  xFactorLocked: boolean;
+};
+
+export function abilitySlotState(input: { devTrait: ImmortalityDevTrait; estimatedOvr: number }): AbilitySlotState {
+  const ovr = Number(input.estimatedOvr) || 0;
+  const isSuperstarOrAbove = input.devTrait === "superstar" || input.devTrait === "xfactor";
+  const isXFactor = input.devTrait === "xfactor";
+  if (!isSuperstarOrAbove) {
+    return { superstarSlots: 0, lockedSuperstarSlots: 0, hasXFactorSlot: false, xFactorLocked: false };
+  }
+  let superstarSlots = 0;
+  if (ovr >= SUPERSTAR_SLOT_1_OVR) superstarSlots = 1;
+  if (ovr >= SUPERSTAR_SLOT_2_OVR) superstarSlots = 2;
+  if (ovr >= SUPERSTAR_SLOT_3_OVR) superstarSlots = 3;
+  if (isXFactor && ovr >= XFACTOR_SLOT_OVR) superstarSlots = 4;
+  const lockedSuperstarSlots = Math.min(superstarSlots, 2);
+  const hasXFactorSlot = isXFactor && ovr >= XFACTOR_SLOT_OVR;
+  return { superstarSlots, lockedSuperstarSlots, hasXFactorSlot, xFactorLocked: hasXFactorSlot };
 }
