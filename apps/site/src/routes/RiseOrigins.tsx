@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
+import { cardBuildsForPosition, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { RiseContractSigning } from "../components/RiseContractSigning.js";
 import { HEADSHOT_ALLOWED_TYPES, readImageAsResizedBase64 } from "../lib/image-resize.js";
@@ -305,6 +305,8 @@ function IdentityForm({
   const [heightInches, setHeightInches] = useState(Number(prospect?.height_inches ?? 74));
   const [weightLbs, setWeightLbs] = useState(Number(prospect?.weight_lbs ?? 220));
   const [headshotUrl, setHeadshotUrl] = useState(String(prospect?.headshot_url ?? ""));
+  const allowedBodyTypes = cardBuildsForPosition(position);
+  const [bodyType, setBodyType] = useState(String(prospect?.body_type ?? allowedBodyTypes[0] ?? "standard"));
 
   useEffect(() => {
     setFirstName(String(prospect?.first_name ?? ""));
@@ -316,6 +318,8 @@ function IdentityForm({
     setHeightInches(Number(prospect?.height_inches ?? 74));
     setWeightLbs(Number(prospect?.weight_lbs ?? 220));
     setHeadshotUrl(String(prospect?.headshot_url ?? ""));
+    setBodyType(String(prospect?.body_type ?? cardBuildsForPosition(position)[0] ?? "standard"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prospect]);
 
   const maxHeight = IMMORTALITY_POSITION_MAX_HEIGHT_INCHES[position as keyof typeof IMMORTALITY_POSITION_MAX_HEIGHT_INCHES] ?? 76;
@@ -354,6 +358,13 @@ function IdentityForm({
           </div>
         </div>
         <label className="site-field"><span>Weight (lbs)</span><input className="site-input" type="number" min={140} max={400} value={weightLbs} onChange={(e) => setWeightLbs(Number(e.target.value))} /></label>
+        <label className="site-field"><span>Body type</span>
+          <select className="site-select" value={bodyType} onChange={(e) => setBodyType(e.target.value)}>
+            {allowedBodyTypes.map((build) => (
+              <option key={build} value={build}>{build[0]!.toUpperCase() + build.slice(1)}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <HeadshotPicker
         label={`${position || side} headshot`}
@@ -377,7 +388,7 @@ function IdentityForm({
               guildId, side,
               identity: {
                 firstName: firstName.trim(), lastName: lastName.trim(), hometown, hometownState,
-                college: college.trim() || null, jerseyNumber, heightInches, weightLbs,
+                college: college.trim() || null, jerseyNumber, heightInches, weightLbs, bodyType,
                 headshotUrl: headshotUrl || null,
               },
             });
