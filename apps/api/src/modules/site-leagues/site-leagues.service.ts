@@ -1,4 +1,4 @@
-import { CFB_27_TEAMS, isRiseToImmortalityLeagueType, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { CFB_27_TEAMS, gameplaySeasonStages, isRiseToImmortalityLeagueType, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
@@ -70,6 +70,9 @@ export type SiteLeagueSummary = {
   rosterType: string | null;
   riseChapterState: string | null;
   riseHubUnlocked: boolean;
+  rtiRostersUnlocked?: boolean;
+  rtiTradesUnlocked?: boolean;
+  rtiStoreUnlocked?: boolean;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -191,6 +194,9 @@ export async function listMySiteLeagues(input: {
       rosterType: null,
       riseChapterState: null,
       riseHubUnlocked: true,
+      rtiRostersUnlocked: true,
+      rtiTradesUnlocked: true,
+      rtiStoreUnlocked: true,
     };
   });
 
@@ -203,6 +209,14 @@ export async function listMySiteLeagues(input: {
           l.season_stage,
           l.current_week,
           l.game,
+          l.fantasy_draft_status,
+          exists (
+            select 1
+            from rec_players p
+            where p.league_id = l.id
+              and p.madden_player_id is not null
+              and p.madden_player_id not like 'rti:%'
+          ) as rti_rosters_imported,
           (
             select c.roster_type
             from rec_league_configuration c
@@ -293,9 +307,15 @@ export async function listMySiteLeagues(input: {
         const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";
         league.riseChapterState = chapter;
         league.riseHubUnlocked = riseHubUnlocked(chapter);
+        league.rtiStoreUnlocked = gameplaySeasonStages(game).has(stage);
+        league.rtiRostersUnlocked = String(row.fantasy_draft_status ?? "") === "concluded" && Boolean(row.rti_rosters_imported);
+        league.rtiTradesUnlocked = false;
       } else {
         league.riseChapterState = null;
         league.riseHubUnlocked = true;
+        league.rtiRostersUnlocked = true;
+        league.rtiTradesUnlocked = true;
+        league.rtiStoreUnlocked = true;
       }
       league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
       if (!stageHasScheduledGames(stage, game)) {
@@ -314,6 +334,29 @@ export async function listMySiteLeagues(input: {
         league.matchupKind = h2h ? "h2h" : "cpu";
         league.matchupLabel = `${isHome ? "vs" : "@"} ${opponent}`;
       }
+    }
+  }
+
+  const rtiIds = leagues.filter((league) => isRiseToImmortalityLeagueType(String(league.rosterType ?? ""))).map((league) => league.id);
+  if (rtiIds.length) {
+    const perks = await getPgPool().query(
+      `
+        select i.league_id, c.characteristic_key
+        from rec_immortality_prospects p
+        join rec_immortality_leagues i on i.id = p.immortality_league_id
+        join rec_immortality_prospect_characteristics c on c.prospect_id = p.id
+        where p.user_id = $1
+          and i.league_id = any($2::uuid[])
+      `,
+      [input.recUserId, rtiIds],
+    );
+    const trades = new Set(
+      (perks.rows as Array<{ league_id: string; characteristic_key: string }>)
+        .filter((row) => row.characteristic_key === "personnel_chief")
+        .map((row) => String(row.league_id)),
+    );
+    for (const league of leagues) {
+      if (trades.has(league.id)) league.rtiTradesUnlocked = true;
     }
   }
 

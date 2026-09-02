@@ -292,9 +292,10 @@ export function LeagueHubPage() {
   } | null>(() => (leagueId ? readCachedHubOpen(leagueId) : null));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !(leagueId && readCachedHubOpen(leagueId)));
-  const gameTheme = hub.selectedLeague?.game ?? null;
-  const isRise = hub.selectedLeague?.rosterType === "rise_to_immortality";
-  const riseHubUnlocked = hub.selectedLeague?.riseHubUnlocked === true;
+  const gameTheme = hub.leagues.find((league) => league.id === leagueId)?.game ?? hub.selectedLeague?.game ?? null;
+  const routeLeague = hub.leagues.find((league) => league.id === leagueId) ?? (hub.selectedLeague?.id === leagueId ? hub.selectedLeague : null);
+  const isRise = routeLeague?.rosterType === "rise_to_immortality";
+  const riseHubUnlocked = routeLeague?.riseHubUnlocked === true;
 
   useEffect(() => {
     if (!leagueId) return;
@@ -379,10 +380,6 @@ export function LeagueHubPage() {
     return <Navigate replace to={`/l/${leagueId}/rise`} />;
   }
 
-  if (isRise && (view === "store" || view === "trades")) {
-    return <Navigate replace to={`/l/${leagueId}/rise`} />;
-  }
-
   if (error || !context || !accessToken) {
     return (
       <div className="site-page site-auth-page">
@@ -410,6 +407,7 @@ export function LeagueHubPage() {
     <div className="site-hub-embed site-hub-inprocess">
       <div className="site-hub-inprocess-content">
         <InjectedAuthProvider
+          key={leagueId}
           discordId={context.discordId}
           guildId={context.guildId}
           accessToken={accessToken}
@@ -440,7 +438,7 @@ export function LeagueHubPage() {
                   ) : view === "career-stats" ? (
                     <LeagueCareerStatsHome />
                   ) : (
-                    <HubHomeBridge view={view} leagueId={leagueId} />
+                    <HubHomeBridge key={leagueId} view={view} leagueId={leagueId} />
                   )}
                 </HubErrorBoundary>
                 <ImportStatusDrawer />

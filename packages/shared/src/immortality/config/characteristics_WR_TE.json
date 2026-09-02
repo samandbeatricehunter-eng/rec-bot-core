@@ -203,6 +203,26 @@
       "why_it_costs_that": "A major career-long ceiling advantage.",
       "tags": "dev",
       "synergy": []
+    },
+    {
+      "name": "Personnel Chief",
+      "slot_cost": 2,
+      "effect": "Unlocks the Trade Center for this franchise after the perk is purchased from the Progression Tree.",
+      "why_it_costs_that": "Opens player movement that is otherwise locked in Rise to Immortality; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 150
+    },
+    {
+      "name": "Development Staff",
+      "slot_cost": 2,
+      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait.",
+      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 250
     }
   ]
 }

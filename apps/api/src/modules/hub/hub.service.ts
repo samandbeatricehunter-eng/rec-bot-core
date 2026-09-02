@@ -908,6 +908,13 @@ export async function getHub(guildId: string, discordId: string) {
       rosterType: (cfg as { roster_type?: string | null }).roster_type ?? null,
       riseChapterState,
       riseHubUnlocked: hubUnlocked,
+      rtiGates: isRise && userId ? await import("../immortality/xp-awards.service.js").then(({ loadRtiMemberGates }) => loadRtiMemberGates({
+        leagueId: context.leagueId,
+        userId,
+        seasonStage,
+        game: context.rec_leagues.game,
+        fantasyDraftStatus: context.rec_leagues.fantasy_draft_status ?? "not_applicable",
+      })).catch(() => null) : null,
     },
     canManageLeague,
     commissionerTier,

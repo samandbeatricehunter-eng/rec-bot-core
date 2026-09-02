@@ -36,6 +36,7 @@ import {
   reviewImmortalityXpRequest,
   submitThrowingMotion,
 } from "./immortality.service.js";
+import { signImmortalityContract } from "./contracts.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
 const GuildBody = z.object({ guildId: z.string().min(1) });
@@ -345,6 +346,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Choosing a franchise is website-only.");
       return reply.send(await chooseImmortalityTeam({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/contracts/sign", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ contractId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Signing a contract is website-only.");
+      return reply.send(await signImmortalityContract({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

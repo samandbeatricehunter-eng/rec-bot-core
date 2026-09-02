@@ -43,6 +43,7 @@ import {
   RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT,
   RISE_TO_IMMORTALITY_LEAGUE_TYPE,
   riseHubUnlocked,
+  hubUnlockStateFrom,
   rankDraftClass,
   completePairUserIds,
   type DraftGradeSnapshot,
@@ -98,7 +99,7 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 
-async function recUserIdFromDiscordId(discordId: string): Promise<string> {
+export async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   if (isSiteOnlyDiscordId(discordId)) {
     const userId = recUserIdFromSiteOnlyDiscordId(discordId);
     if (!userId) throw new ApiError(401, "Could not resolve your REC profile.");
@@ -364,7 +365,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
   const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
-  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, equippedAbilities, abilityGrants, personaDnaRows, playerTraitRows] = await Promise.all([
+  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, branchingPlaystyles, equippedAbilities, abilityGrants, personaDnaRows, playerTraitRows, contractRows] = await Promise.all([
     prospectIds.length
       ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
@@ -383,6 +384,9 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       ? supabase.from("rec_immortality_playstyle_results").select("prospect_id,primary_archetype,secondary_archetype").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
+      ? supabase.from("rec_immortality_branching_playstyle_results").select("prospect_id,primary_archetype,secondary_archetype").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
       ? supabase.from("rec_immortality_prospect_abilities").select("prospect_id,ability_id,ability_name,kind").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
@@ -393,6 +397,9 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
       ? supabase.from("rec_immortality_prospect_player_traits").select("prospect_id,trait_key").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_contracts").select("id,prospect_id,contract_number,start_season,end_season,coins_per_season,player_xp_payout,coins_payout,band,offer_status,signed_at").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const xpByProspect = new Map<string, { playerXp: number; teamXp: number }>();
@@ -435,6 +442,39 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     lastName: row.last_name ? String(row.last_name) : "",
     position: String(row.position ?? ""),
   }]));
+  const myFranchiseClaim = (allFranchiseClaims.data ?? []).find((row) => String(row.user_id) === userId);
+  const franchiseTeam = myFranchiseClaim
+    ? (teamIdentities.data ?? []).find((row) => String(row.team_id) === String(myFranchiseClaim.team_id))
+    : null;
+  const franchiseTeamName = franchiseTeam
+    ? `${franchiseTeam.display_city ?? franchiseTeam.default_city ?? ""} ${franchiseTeam.display_team_name ?? franchiseTeam.default_team_name ?? ""}`.trim()
+    : null;
+  const ownerDisplayName = ownerRow.data
+    ? `${ownerRow.data.first_name ?? ""} ${ownerRow.data.last_name ?? ""}`.trim() || null
+    : null;
+  const contractViews = (contractRows.data ?? []).map((row) => {
+    const prospect = (prospects.data ?? []).find((item) => String(item.id) === String(row.prospect_id));
+    return {
+      id: String(row.id),
+      prospectId: String(row.prospect_id),
+      side: prospect?.side ?? null,
+      playerName: `${prospect?.first_name ?? ""} ${prospect?.last_name ?? ""}`.trim(),
+      position: prospect?.position ?? null,
+      headshotUrl: prospect?.headshot_url ? String(prospect.headshot_url) : null,
+      ownerName: ownerDisplayName,
+      teamName: franchiseTeamName,
+      teamLogoUrl: franchiseTeam?.primary_logo_url ? String(franchiseTeam.primary_logo_url) : null,
+      teamAbbr: franchiseTeam ? String(franchiseTeam.display_abbreviation ?? franchiseTeam.default_abbreviation ?? "") || null : null,
+      contractNumber: Number(row.contract_number),
+      startSeason: Number(row.start_season),
+      endSeason: Number(row.end_season),
+      playerXp: Number(row.player_xp_payout ?? 0),
+      coins: Number(row.coins_payout ?? row.coins_per_season ?? 0),
+      band: row.band ? String(row.band) : null,
+      status: String(row.offer_status ?? "offered"),
+      signedAt: row.signed_at ? String(row.signed_at) : null,
+    };
+  });
   const publicGrades = (storedGrades.data ?? []).map((row) => {
     const name = nameByProspect.get(String(row.prospect_id));
     return {
@@ -544,12 +584,14 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     traits: traits.data ?? [],
     personaDna: personaDnaRows.data ?? [],
     playerTraits: playerTraitRows.data ?? [],
+    contracts: contractViews,
     hallNominees: hallNominees.data ?? [],
     draftStatus: draftClass.data?.status ?? null,
     abilities: Object.fromEntries((prospects.data ?? []).map((row) => {
       const id = String(row.id);
       const position = row.position as ImmortalityPosition;
-      const playstyle = (playstyles.data ?? []).find((item) => String(item.prospect_id) === id);
+      const playstyle = (branchingPlaystyles.data ?? []).find((item) => String(item.prospect_id) === id)
+        ?? (playstyles.data ?? []).find((item) => String(item.prospect_id) === id);
       const realOvr = row.player_id ? realOvrByPlayerId.get(String(row.player_id)) ?? null : null;
       const estimatedOvr = realOvr ?? 0; // null (not yet imported) -> 0, so every OVR-gated ability reads as locked.
       const archetypes = playerArchetypes(
@@ -1167,7 +1209,7 @@ export async function evaluateCreationBuild(input: {
   await submitProspectForReview({
     guildId: input.guildId, leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
     finalAttributes: spent.attributes, startingDev: startingDevTrait(modifiers),
-  }).catch((err) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, err));
+  });
   // The commissioner already has a franchise (picked outright at league creation) before their
   // own prospects finish Origins -- everyone else's team isn't known until they choose from
   // their post-Origins offers (chooseImmortalityTeam). Materialize immediately when a team is
@@ -1736,15 +1778,20 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   // First real franchise assignment opens the league hub for everyone (chapter_state is
   // league-wide, not per-member) -- mirrors the trigger point the old batch draft-solve used.
   const fromState = league.chapter_state as ImmortalityState;
-  if (canTransition(fromState, "ROOKIE_DRAFT_COMPLETE")) {
+  const unlockTo = hubUnlockStateFrom(fromState);
+  if (unlockTo) {
     await supabase.from("rec_immortality_leagues").update({
-      chapter_state: "ROOKIE_DRAFT_COMPLETE", updated_at: new Date().toISOString(),
+      chapter_state: unlockTo, updated_at: new Date().toISOString(),
     }).eq("id", league.id);
     await supabase.from("rec_immortality_state_history").insert({
-      immortality_league_id: league.id, from_state: fromState, to_state: "ROOKIE_DRAFT_COMPLETE",
+      immortality_league_id: league.id, from_state: fromState, to_state: unlockTo,
       actor_user_id: userId, note: "First franchise chosen",
     });
   }
+
+  await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
+    [offenseProspect, defenseProspect].filter(Boolean).map((row) => String(row!.id)),
+  )).catch((error) => console.error("[WARN] Could not create rookie contract offers (non-fatal):", error));
 
   return { teamId: input.teamId };
 }
@@ -1984,9 +2031,10 @@ export async function selectImmortalityAbility(input: {
   if (!prospect) throw new ApiError(400, "Prospect not found.");
   const ability = abilityById(input.abilityId);
   if (!ability) throw new ApiError(404, "Unknown Madden 27 ability.");
-  const [player, playstyle, equipped, grants] = await Promise.all([
+  const [player, playstyle, branchingPlaystyle, equipped, grants] = await Promise.all([
     prospect.player_id ? supabase.from("rec_players").select("overall_rating").eq("id", prospect.player_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_prospect_abilities").select("ability_id").eq("prospect_id", prospect.id),
     supabase.from("rec_immortality_ability_grants").select("slots").eq("prospect_id", prospect.id),
   ]);
@@ -1994,8 +2042,8 @@ export async function selectImmortalityAbility(input: {
   // OVR-gated is selectable until this prospect's franchise is live and has actually imported.
   const estimatedOvr = Number(player.data?.overall_rating ?? 0);
   const archetypes = playerArchetypes(
-    playstyle.data ? String(playstyle.data.primary_archetype) : null,
-    playstyle.data?.secondary_archetype ? String(playstyle.data.secondary_archetype) : null,
+    branchingPlaystyle.data?.primary_archetype ? String(branchingPlaystyle.data.primary_archetype) : playstyle.data ? String(playstyle.data.primary_archetype) : null,
+    branchingPlaystyle.data?.secondary_archetype ? String(branchingPlaystyle.data.secondary_archetype) : playstyle.data?.secondary_archetype ? String(playstyle.data.secondary_archetype) : null,
   );
   const earnedSlots = Math.min(MAX_EQUIPPED_ABILITIES, (grants.data ?? []).reduce((sum, row) => sum + Number(row.slots ?? 0), 0));
   if ((equipped.data ?? []).length >= earnedSlots) {

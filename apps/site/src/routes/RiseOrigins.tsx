@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
+import { RiseContractSigning } from "../components/RiseContractSigning.js";
 import {
   siteApi,
   type ImmortalityBranchingPlaystyleGroup,
@@ -35,7 +36,7 @@ function prospectFor(hub: ImmortalityHubResponse | null, side: Side) {
 export function RiseOriginsPage() {
   const { leagueId = "" } = useParams();
   const hubCtx = useHub();
-  const selected = hubCtx.selectedLeague;
+  const selected = hubCtx.leagues.find((league) => league.id === leagueId) ?? (hubCtx.selectedLeague?.id === leagueId ? hubCtx.selectedLeague : null);
   const isRise = selected?.rosterType === "rise_to_immortality";
   const guildId = selected?.guildId ?? "";
 
@@ -242,7 +243,7 @@ export function RiseOriginsPage() {
               onSaved={reload} setError={setError} />
           ) : null}
           {stage === "franchise" ? (
-            <FranchisePanel guildId={guildId} franchiseOptions={hub.franchiseOptions ?? null} onSaved={reload} setError={setError} />
+            <FranchisePanel guildId={guildId} franchiseOptions={hub.franchiseOptions ?? null} contracts={hub.contracts ?? []} onSaved={reload} setError={setError} />
           ) : null}
         </>
       )}
@@ -803,10 +804,11 @@ function OwnerPanel({
 }
 
 function FranchisePanel({
-  guildId, franchiseOptions, onSaved, setError,
+  guildId, franchiseOptions, contracts, onSaved, setError,
 }: {
   guildId: string;
   franchiseOptions: ImmortalityHubResponse["franchiseOptions"];
+  contracts: NonNullable<ImmortalityHubResponse["contracts"]>;
   onSaved: () => Promise<void>;
   setError: (value: string | null) => void;
 }) {
@@ -826,10 +828,15 @@ function FranchisePanel({
     const chosen = franchiseOptions.teams.find((team) => team.teamId === franchiseOptions.chosenTeamId);
     const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
     return (
-      <section className="rise-card">
-        <h2>Your Franchise</h2>
-        <p>Your owner purchased the <strong>{label}</strong>. Your two Origins players are on the roster.</p>
-      </section>
+      <>
+        <section className="rise-card">
+          <h2>Your Franchise</h2>
+          <p>Your owner purchased the <strong>{label}</strong>. Your two Origins players are on the roster.</p>
+        </section>
+        {contracts.length ? (
+          <RiseContractSigning guildId={guildId} contracts={contracts} onSigned={onSaved} setError={setError} />
+        ) : null}
+      </>
     );
   }
 

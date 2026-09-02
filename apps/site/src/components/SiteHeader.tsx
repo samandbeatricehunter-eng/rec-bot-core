@@ -41,7 +41,6 @@ function HeaderRow1() {
 function HeaderRow2() {
   const hub = useHub();
   const navigate = useNavigate();
-  const location = useLocation();
   const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
   const leagues = sortLeagues(hub.leagues);
   const selected = hub.selectedLeague;
@@ -49,7 +48,6 @@ function HeaderRow2() {
   function chooseLeague(league: SiteLeagueSummary) {
     setOpen(false);
     hub.selectLeague(league.id);
-    if (!location.pathname.startsWith(`/l/${league.id}`)) navigate(`/l/${league.id}/buzz`);
   }
 
   function chooseHome() {
@@ -135,7 +133,7 @@ export function SiteHeader() {
     <header className="site-header">
       <HeaderRow1 />
       <HeaderRow2 />
-      {isLeague && hub.selectedLeague ? <LeagueRow3 leagueId={hub.selectedLeague.id} isCommissioner={hub.selectedLeague.isCommissioner} rosterType={hub.selectedLeague.rosterType} riseHubUnlocked={hub.selectedLeague.riseHubUnlocked} /> : <HomeRow3 />}
+      {isLeague && hub.selectedLeague ? <LeagueRow3 leagueId={hub.selectedLeague.id} isCommissioner={hub.selectedLeague.isCommissioner} rosterType={hub.selectedLeague.rosterType} riseHubUnlocked={hub.selectedLeague.riseHubUnlocked} rtiRostersUnlocked={hub.selectedLeague.rtiRostersUnlocked} rtiTradesUnlocked={hub.selectedLeague.rtiTradesUnlocked} rtiStoreUnlocked={hub.selectedLeague.rtiStoreUnlocked} /> : <HomeRow3 />}
     </header>
   );
 }

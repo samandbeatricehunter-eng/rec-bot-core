@@ -11,6 +11,11 @@ import {
   spendAttributePlusOne,
   canTransition,
   riseHubUnlocked,
+  hubUnlockStateFrom,
+  challengeComplete,
+  issuedWeeklyChallenges,
+  rookieContractPayout,
+  performanceContractPayout,
   CHARACTERISTIC_SLOT_BUDGET,
   characteristicCatalog,
   discountedXpCost,
@@ -72,6 +77,8 @@ test("state machine only allows forward chapter transitions", () => {
   assert.equal(canTransition("ORIGINS", "ORIGINS_COMPLETE"), true);
   assert.equal(canTransition("ORIGINS", "FRANCHISE_ACTIVE"), false);
   assert.equal(canTransition("FRANCHISE_ACTIVE", "OFFSEASON"), true);
+  assert.equal(canTransition("REGISTRATION", "ROOKIE_DRAFT_COMPLETE"), true);
+  assert.equal(canTransition("ORIGINS", "ROOKIE_DRAFT_COMPLETE"), true);
   assert.equal(canTransition("ORIGINS_COMPLETE", "ROOKIE_DRAFT_COMPLETE"), true);
   assert.equal(canTransition("ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_COMPLETE"), true);
   assert.equal(canTransition("ROOKIE_DRAFT_LIVE", "ROOKIE_DRAFT_COMPLETE"), true);
@@ -374,5 +381,33 @@ test("NFL career records match the confirmed tackle numbers and gate correctly",
   assert.equal(NFL_CAREER_RECORDS.tackles_solo.value, 1568);
   assert.equal(isCareerRecordBroken("tackles_combined", 2059), false);
   assert.equal(isCareerRecordBroken("tackles_combined", 2060), true);
+});
+
+test("franchise pick can unlock the hub from registration or origins", () => {
+  assert.equal(hubUnlockStateFrom("REGISTRATION"), "ROOKIE_DRAFT_COMPLETE");
+  assert.equal(hubUnlockStateFrom("ORIGINS"), "ROOKIE_DRAFT_COMPLETE");
+  assert.equal(hubUnlockStateFrom("ROOKIE_DRAFT_COMPLETE"), null);
+  assert.equal(hubUnlockStateFrom("FRANCHISE_ACTIVE"), null);
+});
+
+test("weekly challenge strings evaluate against canonical stat keys", () => {
+  assert.equal(challengeComplete("250 passing yards", { pass_yards: 250 }), true);
+  assert.equal(challengeComplete("250 passing yards", { pass_yards: 249 }), false);
+  assert.equal(challengeComplete("65% completion on 20+ attempts", { completion_pct: 70, pass_attempts: 25 }), true);
+  assert.equal(challengeComplete("300 passing yards + 2 TD", { pass_yards: 310, pass_tds: 2 }), true);
+  const weekly = issuedWeeklyChallenges({ position: "QB", seed: "league:week:prospect", stats: { pass_yards: 400, pass_tds: 4, pass_attempts: 30, completion_pct: 70 } });
+  assert.equal(weekly.length, 3);
+  assert.deepEqual(weekly.map((row) => row.tier), ["bronze", "silver", "gold"]);
+});
+
+test("rookie contract payouts are one-time ranges seeded by prospect id", () => {
+  const a = rookieContractPayout("11111111-1111-1111-1111-111111111111");
+  const b = rookieContractPayout("11111111-1111-1111-1111-111111111111");
+  assert.deepEqual(a, b);
+  assert.ok(a.playerXp >= 2 && a.playerXp <= 5);
+  assert.ok(a.coins >= 2000 && a.coins <= 5000);
+  const floor = performanceContractPayout({ contractNumber: 2, percentile: 0, negotiatorMultiplier: 1, knownCommodityFloor: true });
+  assert.ok(floor.playerXp >= 4);
+  assert.ok(floor.coins >= 5000);
 });
 

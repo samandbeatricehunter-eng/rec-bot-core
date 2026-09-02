@@ -4,8 +4,8 @@ const STATE_SET = new Set<string>(IMMORTALITY_STATES);
 
 const TRANSITIONS: Record<ImmortalityState, readonly ImmortalityState[]> = {
   SETUP: ["REGISTRATION"],
-  REGISTRATION: ["ORIGINS"],
-  ORIGINS: ["ORIGINS_COMPLETE"],
+  REGISTRATION: ["ORIGINS", "ROOKIE_DRAFT_COMPLETE"],
+  ORIGINS: ["ORIGINS_COMPLETE", "ROOKIE_DRAFT_COMPLETE"],
   ORIGINS_COMPLETE: ["ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_COMPLETE"],
   ROOKIE_DRAFT_PREP: ["ROOKIE_DRAFT_LIVE", "ROOKIE_DRAFT_COMPLETE"],
   ROOKIE_DRAFT_LIVE: ["ROOKIE_DRAFT_COMPLETE"],
@@ -85,7 +85,12 @@ export function hallVotingOpen(state: ImmortalityState): boolean {
   return state === "IMMORTALITY_VOTING";
 }
 
-/** Full league hub (matchups, My Team, schedule) after the virtual rookie draft assigns franchises. */
+/** First franchise pick jumps here from Origins so the league hub opens without a commissioner chapter click. */
+export function hubUnlockStateFrom(from: ImmortalityState): ImmortalityState | null {
+  if (riseHubUnlocked(from)) return null;
+  return canTransition(from, "ROOKIE_DRAFT_COMPLETE") ? "ROOKIE_DRAFT_COMPLETE" : null;
+}
+
 export function riseHubUnlocked(state: ImmortalityState): boolean {
   return state === "ROOKIE_DRAFT_COMPLETE"
     || state === "TEAM_DRAFT"

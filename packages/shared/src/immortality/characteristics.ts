@@ -21,6 +21,8 @@ export type CharacteristicModifiers = {
   startDevStar: boolean;
   weeklySweepBonusXp: number;
   devTraitPurchaseUnlocked: boolean;
+  teammateDevPurchaseUnlocked: boolean;
+  tradeAccess: boolean;
 };
 
 export type CharacteristicDefinition = {
@@ -66,6 +68,8 @@ export function emptyModifiers(): CharacteristicModifiers {
     startDevStar: false,
     weeklySweepBonusXp: 0,
     devTraitPurchaseUnlocked: false,
+    teammateDevPurchaseUnlocked: false,
+    tradeAccess: false,
   };
 }
 
@@ -115,7 +119,13 @@ export function modifiersFromDefinition(input: {
       modifiers.weeklySweepBonusXp = 2;
       break;
     case "self_made":
-      modifiers.devTraitPurchaseUnlocked = true;
+      modifiers.teammateDevPurchaseUnlocked = true;
+      break;
+    case "development_staff":
+      modifiers.teammateDevPurchaseUnlocked = true;
+      break;
+    case "personnel_chief":
+      modifiers.tradeAccess = true;
       break;
     default:
       break;
@@ -156,6 +166,8 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.startDevStar = combined.startDevStar || item.modifiers.startDevStar;
     combined.weeklySweepBonusXp += item.modifiers.weeklySweepBonusXp;
     combined.devTraitPurchaseUnlocked = combined.devTraitPurchaseUnlocked || item.modifiers.devTraitPurchaseUnlocked;
+    combined.teammateDevPurchaseUnlocked = combined.teammateDevPurchaseUnlocked || item.modifiers.teammateDevPurchaseUnlocked;
+    combined.tradeAccess = combined.tradeAccess || item.modifiers.tradeAccess;
     for (const [code, rate] of Object.entries(item.modifiers.creationDiscounts)) {
       (creationRates[code] ??= []).push(rate);
     }

@@ -289,6 +289,12 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
             description: next.data.body,
             color: 0x1d9bf0,
           }],
+        }).then(async (posted) => {
+          if (!posted) {
+            await supabase.from("rec_immortality_tweet_queue")
+              .update({ status: "pending", posted_at: null }).eq("id", String(next.data.id));
+            console.error(`[ERROR] Discord returned null posting RTI tweet for league ${leagueId} (will retry)`);
+          }
         });
       } catch (err) {
         // A Discord outage must not permanently consume the queue entry.

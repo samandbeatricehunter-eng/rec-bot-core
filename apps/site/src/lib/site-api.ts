@@ -359,6 +359,9 @@ export type SiteLeagueSummary = {
   rosterType?: string | null;
   riseChapterState?: string | null;
   riseHubUnlocked?: boolean;
+  rtiRostersUnlocked?: boolean;
+  rtiTradesUnlocked?: boolean;
+  rtiStoreUnlocked?: boolean;
 };
 
 export type ImmortalityInterviewQuestion = {
@@ -399,6 +402,27 @@ export type ImmortalityDraftGrade = {
   draftValue: number;
   ready: boolean;
   mine: boolean;
+};
+
+export type ImmortalityContractView = {
+  id: string;
+  prospectId: string;
+  side: string | null;
+  playerName: string;
+  position: string | null;
+  headshotUrl: string | null;
+  ownerName: string | null;
+  teamName: string | null;
+  teamLogoUrl: string | null;
+  teamAbbr: string | null;
+  contractNumber: number;
+  startSeason: number;
+  endSeason: number;
+  playerXp: number;
+  coins: number;
+  band: string | null;
+  status: string;
+  signedAt: string | null;
 };
 
 export type ImmortalityAbilityCard = {
@@ -480,6 +504,7 @@ export type ImmortalityHubResponse = {
       conference: string | null; division: string | null; logoUrl: string | null; open: boolean;
     }>;
   } | null;
+  contracts?: ImmortalityContractView[];
   personaDna?: Array<{ prospect_id: string; trait_key: string }>;
   playerTraits?: Array<{ prospect_id: string; trait_key: string }>;
   catalogs: {
@@ -1259,6 +1284,9 @@ export const siteApi = {
   },
   immortalityChooseTeam(input: { guildId: string; teamId: string }) {
     return request<{ teamId: string }>("/v1/immortality/team-offers/choose", input);
+  },
+  immortalitySignContract(input: { guildId: string; contractId: string }) {
+    return request<{ ok: boolean; alreadySigned?: boolean; playerXp?: number; coins?: number }>("/v1/immortality/contracts/sign", input);
   },
   immortalityTransitionState(input: { guildId: string; toState: string }) {
     return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);

@@ -221,6 +221,16 @@
       "synergy": [],
       "tier": 3,
       "xp_cost": 250
+    },
+    {
+      "name": "Personnel Chief",
+      "slot_cost": 2,
+      "effect": "Unlocks the Trade Center for this franchise after the perk is purchased from the Progression Tree.",
+      "why_it_costs_that": "Opens player movement that is otherwise locked in Rise to Immortality; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 150
     }
   ]
 }

@@ -81,6 +81,10 @@ async function awardOneWinner(input: {
   });
   if (inserted.error) throw new ApiError(500, "Failed to record a Player of the Week award.", inserted.error);
 
+  await import("../immortality/xp-awards.service.js").then(({ grantAbilitySlotForPlayerOfWeek }) =>
+    grantAbilitySlotForPlayerOfWeek(winner.playerId, `${seasonNumber}:${weekNumber}:${winner.side}`),
+  ).catch((err) => console.error("[ERROR] RTI Player of the Week ability slot failed (non-fatal):", err));
+
   if (userId && coinsAwarded > 0) {
     await creditOrBacklog({
       leagueId, seasonNumber, userId, amount: coinsAwarded,

@@ -1018,6 +1018,21 @@ export async function completeAdvanceWeek(input: {
   const { refreshHofMilestonesForLeague } = await import("../immortality/hof-milestones.service.js");
   await refreshHofMilestonesForLeague(context.leagueId).catch((err) => console.error("[ERROR] HOF Milestones refresh failed after advance (non-fatal):", err));
 
+  const { awardImmortalityChallengesAfterAdvance } = await import("../immortality/xp-awards.service.js");
+  await awardImmortalityChallengesAfterAdvance({
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: currentWeek,
+    seasonStage: currentStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] RTI challenge XP awards failed after advance (non-fatal):", err));
+
+  const { offerDuePerformanceContracts } = await import("../immortality/contracts.service.js");
+  await offerDuePerformanceContracts({
+    leagueId: context.leagueId,
+    seasonNumber: Number((advanceResult.league as { season_number?: number } | null)?.season_number ?? seasonNumber),
+  }).catch((err) => console.error("[ERROR] RTI contract offers failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

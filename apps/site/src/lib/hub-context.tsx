@@ -122,6 +122,17 @@ export function HubProvider({ children }: { children: ReactNode }) {
     // Treating it as "left the hub" here would drop league scope in the instant before
     // that redirect runs, so the redirect's own scope.leagueId fallback reads "main" and
     // falls through to hub.leagues[0] -- silently landing on a different league entirely.
+    const match = location.pathname.match(/^\/l\/([^/]+)/);
+    if (match) {
+      const urlLeagueId = match[1];
+      if (scope.kind !== "league" || scope.leagueId !== urlLeagueId) {
+        const next: HubScope = { kind: "league", leagueId: urlLeagueId };
+        setScope(next);
+        persistScope(next);
+      }
+      setTheme("app");
+      return;
+    }
     const onLeagueHubPage = location.pathname.startsWith("/l/") || location.pathname.startsWith("/league-mgmt");
     if (scope.kind === "league" && selectedLeague && onLeagueHubPage) {
       // Universal Platinum chrome for every league (CFB + Madden share one face).
@@ -183,9 +194,9 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const next: HubScope = { kind: "league", leagueId };
     setScope(next);
     persistScope(next);
-    // Theme applies via the effect once we land on /l/:id.
     setTheme("app");
-    navigate(`/l/${leagueId}/buzz`);
+    const dest = league?.rosterType === "rise_to_immortality" && !league.riseHubUnlocked ? "rise" : "buzz";
+    navigate(`/l/${leagueId}/${dest}`);
   }
 
   function ensureLeagueScope(leagueId: string) {

@@ -23,3 +23,4 @@ export * from "./nfl-records.js";
 export * from "./backstory.js";
 export * from "./throwing-motions.js";
 export * from "./headshots.js";
+export * from "./challenges.js";

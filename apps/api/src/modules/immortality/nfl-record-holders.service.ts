@@ -7,8 +7,8 @@
 // after each import and lets league players climb into (or off of) the top 5 automatically.
 // Only unseating rank 1 in any scope -- an actual broken record -- posts an announcement, tags
 // the breaker, and (if they're an RTI-created prospect, not a baseline NFL fill player) credits
-// RECORD_BREAK_XP_REWARD Player XP.
-import { NFL_CAREER_RECORDS_TOP5, NFL_SINGLE_SEASON_RECORDS_TOP5, NFL_SINGLE_GAME_RECORDS_TOP5, FORMULA_VERSIONS, type NflRecordCategory, type NflRecordTop5Entry } from "@rec/shared";
+// a record-break Player XP award through the points loop.
+import { NFL_CAREER_RECORDS_TOP5, NFL_SINGLE_SEASON_RECORDS_TOP5, NFL_SINGLE_GAME_RECORDS_TOP5, type NflRecordCategory, type NflRecordTop5Entry } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
@@ -21,7 +21,6 @@ const SCOPE_DATASET: Record<RecordScope, Record<NflRecordCategory, NflRecordTop5
   game: NFL_SINGLE_GAME_RECORDS_TOP5, season: NFL_SINGLE_SEASON_RECORDS_TOP5, career: NFL_CAREER_RECORDS_TOP5,
 };
 const SCOPE_LABELS: Record<RecordScope, string> = { game: "Single-Game", season: "Single-Season", career: "Career" };
-const RECORD_BREAK_XP_REWARD = 5000;
 
 // Maps a record category to the canonical player-stat key league-stats.service.ts's `leaders`
 // object (and getSingleGameLeadersForLeague) is keyed by (see
@@ -131,22 +130,15 @@ async function postRecordBoard(
 }
 
 /** Credits an RTI-created prospect (identified by their materialized rec_players row's
- * madden_player_id prefix "rti:") RECORD_BREAK_XP_REWARD Player XP for breaking a #1 record.
+ * madden_player_id prefix "rti:") a record-break Player XP award for breaking a #1 record.
  * No-ops for a baseline NFL fill player (nothing to credit) or a player without a resolvable
  * RTI prospect id. Idempotent per (prospect, scope, category) via the ledger's source-id guard. */
 async function awardRecordBreakXp(playerId: string, maddenPlayerId: string | null, scope: RecordScope, category: NflRecordCategory): Promise<void> {
   if (!maddenPlayerId?.startsWith("rti:")) return;
   const prospectId = maddenPlayerId.slice("rti:".length);
   const sourceId = `record:${scope}:${category}:${prospectId}`;
-  const credited = await supabase.rpc("rec_immortality_spend_xp", {
-    p_prospect_id: prospectId,
-    p_event_type: "nfl_record_broken",
-    p_source_id: sourceId,
-    p_player_xp_delta: RECORD_BREAK_XP_REWARD,
-    p_team_xp_delta: 0,
-    p_formula_version: FORMULA_VERSIONS.xp,
-  });
-  if (credited.error) console.error(`[ERROR] Could not credit record-break XP for prospect ${prospectId} (non-fatal):`, credited.error);
+  const { awardRecordBreakPoints } = await import("./xp-awards.service.js");
+  await awardRecordBreakPoints(prospectId, sourceId);
 }
 
 /** Seeds rec_immortality_nfl_records with the real NFL top-5 boards and posts them, once per
@@ -198,7 +190,7 @@ export async function ensureNflRecordBaselinePosted(
       ));
       await postRecordBoard(
         immortalityLeague.id, scope, channelId, embeds,
-        `📖 **The ${SCOPE_LABELS[scope]} Record Book** — Rise to Immortality tracks the NFL's all-time top 5 in each category. Climb into the top 5 automatically as your totals grow; unseat #1 and you get the headline plus ${RECORD_BREAK_XP_REWARD.toLocaleString()} Player XP.`,
+        `📖 **The ${SCOPE_LABELS[scope]} Record Book** — Rise to Immortality tracks the NFL's all-time top 5 in each category. Climb into the top 5 automatically as your totals grow; unseat #1 and you get the headline plus a record-break Player XP award.`,
       );
     }
   } catch (err) {
@@ -322,7 +314,7 @@ export async function checkNflRecordsAfterImport(leagueId: string): Promise<void
         ));
         await postRecordBoard(
           immortalityLeague.id, scope, channelId, embeds,
-          `📖 **The ${SCOPE_LABELS[scope]} Record Book** — live RTI standings. Break #1 to earn ${RECORD_BREAK_XP_REWARD.toLocaleString()} Player XP.`,
+          `📖 **The ${SCOPE_LABELS[scope]} Record Book** — live RTI standings. Break #1 to earn a record-break Player XP award.`,
         );
       }
     }

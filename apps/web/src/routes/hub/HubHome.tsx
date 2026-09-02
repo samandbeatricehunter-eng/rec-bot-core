@@ -1386,6 +1386,7 @@ export function HubHome() {
   const boxScoreMode = hubChrome.currentLeague?.dataMode === "box_scores";
   const isRise = hub.league.rosterType === "rise_to_immortality";
   const riseHubUnlocked = !isRise || hub.league.riseHubUnlocked === true;
+  const rtiGates = hub.league.rtiGates ?? null;
   const headlines = hub.headlines ?? [];
   const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
@@ -1519,7 +1520,7 @@ export function HubHome() {
           <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
         )}
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked. Self-dev, legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on the Player XP page. Teammate development purchases unlock from the Progression Tree. Self-dev, legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1752,7 +1753,40 @@ export function HubHome() {
                 onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
                 onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
               />}
-            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
+              {isRise && rtiGates?.weeklyChallenges?.length ? (
+                <div className="hub-rti-challenges">
+                  {rtiGates.weeklyChallenges.map((player) => (
+                    <article key={player.prospectId}>
+                      <strong>{player.name || player.position} · {player.position}</strong>
+                      <ul>
+                        {player.challenges.map((challenge) => (
+                          <li key={challenge.id} className={challenge.complete ? "is-complete" : undefined}>
+                            <span>{challenge.tier}</span> {challenge.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span>
+              {isRise && rtiGates?.weeklyChallenges?.length ? (
+                <div className="hub-rti-challenges" style={{ marginTop: 12, textAlign: "left" }}>
+                  {rtiGates.weeklyChallenges.map((player) => (
+                    <article key={player.prospectId}>
+                      <strong>{player.name || player.position} · {player.position}</strong>
+                      <ul>
+                        {player.challenges.map((challenge) => (
+                          <li key={challenge.id} className={challenge.complete ? "is-complete" : undefined}>
+                            <span>{challenge.tier}</span> {challenge.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>}
 
             <section className="hub-season-snapshot">
               <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
@@ -1769,11 +1803,14 @@ export function HubHome() {
                 {isRise ? (
                   <>
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Origins</strong><span>Class &amp; builds</span></button>
-                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Player XP</strong><span>Attribute upgrades</span></button> : null}
+                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Player XP</strong><span>Attribute upgrades</span></button>
+                    {rtiGates?.pendingContracts ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Contracts</strong><span>{rtiGates.pendingContracts} waiting to sign</span></button> : null}
                     <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Media desk</span></button>
                     {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button> : null}
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button> : null}
+                    <button type="button" className={`hub-my-team-btn${rtiGates?.rostersUnlocked === false ? " is-locked" : ""}`} disabled={rtiGates?.rostersUnlocked === false} title={rtiGates?.rostersUnlocked === false ? "Rosters unlock after the fantasy draft import." : undefined} onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
+                    <button type="button" className={`hub-my-team-btn${rtiGates?.tradesUnlocked ? "" : " is-locked"}`} disabled={!rtiGates?.tradesUnlocked} title={rtiGates?.tradesUnlocked ? undefined : "Unlock Trade Center from the Progression Tree."} onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
+                    <button type="button" className={`hub-my-team-btn${rtiGates?.storeUnlocked ? "" : " is-locked"}`} disabled={!rtiGates?.storeUnlocked} title={rtiGates?.storeUnlocked ? undefined : "The XP store unlocks in Week 1 of the regular season."} onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>XP marketplace</span></button>
                     {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button> : null}
                   </>
                 ) : (
