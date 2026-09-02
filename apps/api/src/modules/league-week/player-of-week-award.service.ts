@@ -121,7 +121,9 @@ async function postPlayerOfWeekHeadline(input: {
   // even if Chromium/Discord posting fails.
   try {
     const routes = await findServerRoutesForLeague(input.leagueId);
-    const channelId = routes?.routes?.headlines_channel_id as string | null | undefined;
+    // Prefer the dedicated Player of the Week channel (RTI leagues especially); fall back to
+    // headlines for leagues that haven't set it up, so this keeps working either way.
+    const channelId = (routes?.routes?.player_of_the_week_channel_id ?? routes?.routes?.headlines_channel_id) as string | null | undefined;
     if (!channelId) return;
     const { renderPlayerOfWeekPng } = await import("../../lib/player-of-week-render.js");
     const png = await renderPlayerOfWeekPng(inserted.data.id);

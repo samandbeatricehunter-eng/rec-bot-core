@@ -33,10 +33,15 @@ function splitBodyIntoChunks(body: string, maxLen = EMBED_DESC_LIMIT): string[] 
   return chunks;
 }
 
-export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews" }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
-    const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+    const headlinesChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+    const interviewsChannelId = linked?.routes?.interviews_channel_id as string | null | undefined;
+    // Interviews get their own dedicated channel when a league has one configured (RTI
+    // leagues especially); everything else, and any league that hasn't set that channel up,
+    // still goes to headlines.
+    const channelId: string | null | undefined = input.channelKey === "interviews" ? (interviewsChannelId ?? headlinesChannelId) : headlinesChannelId;
     if (!channelId) return;
     const chunks = splitBodyIntoChunks(input.body);
     const embeds = chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
@@ -229,7 +234,11 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "We couldn't publish that scheduled media story. Please try again.", result.error);
-  await postGeneratedHeadlineToDiscord({ leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body, image_url: submission.image_url ?? undefined });
+  await postGeneratedHeadlineToDiscord({
+    leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body,
+    image_url: submission.image_url ?? undefined,
+    channelKey: submission.submission_type === "interview" ? "interviews" : "headlines",
+  });
   return result.data.id as string;
 }
 
