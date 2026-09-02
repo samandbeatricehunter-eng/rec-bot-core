@@ -1932,6 +1932,8 @@ export type ProspectCardRenderData = {
   bodyType: string | null;
   headshotUrl: string | null;
   backstory: string;
+  overallRating: number | null;
+  attributes: Array<{ code: string; name: string; value: number }>;
   teamName: string;
   teamAbbr: string | null;
   teamLogoUrl: string | null;

@@ -16,6 +16,8 @@ export type ProspectCardData = {
   bodyType: string | null;
   headshotUrl: string | null;
   backstory: string;
+  overallRating: number | null;
+  attributes: Array<{ code: string; name: string; value: number }>;
   teamName: string;
   teamAbbr: string | null;
   teamLogoUrl: string | null;
@@ -42,6 +44,7 @@ export function ProspectCard({ data }: { data: ProspectCardData }) {
     <div className="prospect-card" data-prospect-card-render>
       <header className={`prospect-card-header ${data.side}`}>
         <span className="prospect-card-position">{data.position}</span>
+        {data.overallRating != null ? <span className="prospect-card-overall">{data.overallRating} <small>OVR</small></span> : null}
         <span className="prospect-card-side">{data.side === "offense" ? "Offense" : "Defense"}</span>
       </header>
       <div className="prospect-card-body">
@@ -64,6 +67,17 @@ export function ProspectCard({ data }: { data: ProspectCardData }) {
         </div>
         <TeamLogo abbreviation={data.teamAbbr} logoUrl={data.teamLogoUrl} alt={data.teamName} className="prospect-card-team-logo" priority />
       </div>
+      {data.attributes.length ? (
+        <div className="prospect-card-attributes">
+          {data.attributes.map((attr) => (
+            <div key={attr.code} className="prospect-card-attribute">
+              <span className="prospect-card-attribute-name">{attr.name}</span>
+              <div className="prospect-card-attribute-bar"><div className="prospect-card-attribute-fill" style={{ width: `${Math.min(100, attr.value)}%` }} /></div>
+              <span className="prospect-card-attribute-value">{attr.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <p className="prospect-card-backstory">{data.backstory}</p>
       <footer className="prospect-card-footer">{data.teamName}</footer>
     </div>

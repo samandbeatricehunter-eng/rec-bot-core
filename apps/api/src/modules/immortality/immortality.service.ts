@@ -65,6 +65,9 @@ import {
   toPublicIqQuestion,
   validateCharacteristicSelection,
   MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY,
+  MADDEN_ATTRIBUTE_BY_CODE,
+  rosterAttributeValueForCode,
+  type MaddenAttributeCode,
   matchupInterviewPool,
   selectMatchupInterviewQuestion,
   scoreMatchupInterviewAnswer,
@@ -1205,6 +1208,19 @@ async function materializeProspectToPlayer(prospect: Record<string, any>, teamId
   }).eq("id", prospect.id);
 }
 
+// The 5 most position-relevant ratings to headline on the "get to know the player" card --
+// full attribute sheets belong in the roster page, not a one-time introduction post.
+const PROSPECT_CARD_HEADLINE_ATTRIBUTES: Record<string, MaddenAttributeCode[]> = {
+  QB: ["AWR", "THP", "SAC", "MAC", "SPD"],
+  HB: ["SPD", "AGI", "TRK", "CAR", "BCV"],
+  WR: ["SPD", "CTH", "SRR", "RLS", "AGI"],
+  TE: ["CTH", "RBK", "SPD", "AWR", "STR"],
+  CB: ["SPD", "MCV", "ZCV", "PRS", "AWR"],
+  FS: ["SPD", "ZCV", "PRC", "AWR", "TAK"],
+  SS: ["TAK", "ZCV", "POW", "PRC", "SPD"],
+  MIKE: ["TAK", "PRC", "POW", "PUR", "SPD"],
+};
+
 /** Backs the chromeless /render/prospect-card/:prospectId site route (Playwright screenshot
  * pipeline) and the Discord post itself -- pulls a fresh copy of the prospect row so it reflects
  * the player_id materializeProspectToPlayer just set, even though the in-memory prospect object
@@ -1221,7 +1237,7 @@ export async function getProspectCardRenderData(prospectId: string) {
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype").eq("prospect_id", prospectId).maybeSingle(),
     supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospectId),
     row.player_id
-      ? supabase.from("rec_players").select("team_id").eq("id", row.player_id).maybeSingle()
+      ? supabase.from("rec_players").select("team_id,overall_rating,attributes").eq("id", row.player_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -1244,6 +1260,16 @@ export async function getProspectCardRenderData(prospectId: string) {
     playstyleArchetype, traitNames, seed: prospectId,
   });
 
+  const rosterAttributes = (player.data as { attributes?: Record<string, number | null> } | null)?.attributes ?? null;
+  const headlineCodes = PROSPECT_CARD_HEADLINE_ATTRIBUTES[String(row.position ?? "").toUpperCase()] ?? [];
+  const attributes = headlineCodes
+    .map((code) => ({
+      code,
+      name: MADDEN_ATTRIBUTE_BY_CODE.get(code)?.name ?? code,
+      value: rosterAttributeValueForCode(rosterAttributes, code),
+    }))
+    .filter((attr): attr is { code: MaddenAttributeCode; name: string; value: number } => attr.value != null);
+
   return {
     firstName: row.first_name ?? "", lastName: row.last_name ?? "",
     position: row.position, side: row.side,
@@ -1251,6 +1277,8 @@ export async function getProspectCardRenderData(prospectId: string) {
     hometown: row.hometown, hometownState: row.hometown_state, college: row.college,
     heightInches: row.height_inches, weightLbs: row.weight_lbs, bodyType: row.body_type,
     headshotUrl: row.headshot_url, backstory,
+    overallRating: (player.data as { overall_rating?: number | null } | null)?.overall_rating ?? null,
+    attributes,
     teamName: team.data ? (formatTeamDisplayName(team.data) ?? team.data.name ?? "Team") : "Free Agent",
     teamAbbr: team.data?.display_abbr ?? team.data?.abbreviation ?? null,
     teamLogoUrl: team.data?.logo_url ?? null,

@@ -3971,6 +3971,14 @@ button.poty:disabled {
 .prospect-card-origin { color: var(--text-muted); font-size: 13px; display: flex; gap: 8px; }
 .prospect-card-dot { opacity: .6; }
 .prospect-card-team-logo { flex-shrink: 0; width: 64px; height: 64px; object-fit: contain; }
+.prospect-card-overall { font-family: var(--font-display); font-size: 22px; font-weight: 900; color: var(--accent, #d9a521); }
+.prospect-card-overall small { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--text-muted); margin-left: 2px; }
+.prospect-card-attributes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; padding: 0 24px 18px; }
+.prospect-card-attribute { display: flex; flex-direction: column; gap: 4px; }
+.prospect-card-attribute-name { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prospect-card-attribute-bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.prospect-card-attribute-fill { height: 100%; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent, #d9a521)); border-radius: 999px; }
+.prospect-card-attribute-value { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: #fff; }
 .prospect-card-backstory { margin: 0; padding: 0 24px 20px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
 .prospect-card-footer { padding: 12px 24px; text-align: center; color: var(--text-muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: color-mix(in srgb, var(--accent) 8%, transparent); border-top: 1px solid var(--border); }
 
