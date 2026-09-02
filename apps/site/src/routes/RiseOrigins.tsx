@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { cardBuildsForPosition, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
+import { CFB_27_TEAMS, cardBuildsForPosition, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { RiseContractSigning } from "../components/RiseContractSigning.js";
 import { HEADSHOT_ALLOWED_TYPES, readImageAsResizedBase64 } from "../lib/image-resize.js";
@@ -15,6 +15,10 @@ import {
 function randomFrom<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)]!;
 }
+
+// Alphabetical CFB 27 school catalog for the College autocomplete -- excludes the schedule-only
+// "FCS TEAM" placeholder, which isn't a real school.
+const CFB_COLLEGE_OPTIONS = CFB_27_TEAMS.filter((t) => !t.isSchedulePlaceholder).map((t) => t.name).sort();
 
 /** Small 🎲 button that fills a name field with a random pick from the same corpus custom
  * players already use (packages/shared/src/player-builder/name-corpus.ts). Purely client-side. */
@@ -345,7 +349,12 @@ function IdentityForm({
         <label className="site-field"><span>Jersey</span><input className="site-input" type="number" min={0} max={99} value={jerseyNumber} onChange={(e) => setJerseyNumber(Number(e.target.value))} /></label>
         <label className="site-field"><span>Hometown</span><input className="site-input" value={hometown} onChange={(e) => setHometown(e.target.value)} /></label>
         <label className="site-field"><span>State</span><input className="site-input" value={hometownState} onChange={(e) => setHometownState(e.target.value)} /></label>
-        <label className="site-field"><span>College</span><input className="site-input" value={college} onChange={(e) => setCollege(e.target.value)} /></label>
+        <label className="site-field"><span>College</span>
+          <input className="site-input" list="rise-college-options" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="Start typing a school…" />
+          <datalist id="rise-college-options">
+            {CFB_COLLEGE_OPTIONS.map((name) => <option key={name} value={name} />)}
+          </datalist>
+        </label>
         <div className="site-field">
           <span>Height — {position || side} max is {Math.floor(maxHeight / 12)}'{maxHeight % 12}" before it costs Creation Points</span>
           <div className="rise-height-inputs">
