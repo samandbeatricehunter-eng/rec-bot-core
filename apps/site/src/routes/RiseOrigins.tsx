@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { CFB_27_TEAMS, cardBuildsForPosition, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
+import { CFB_27_TEAMS, cardBuildsForPosition, citiesForState, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, US_STATES, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { RiseContractSigning } from "../components/RiseContractSigning.js";
 import { HEADSHOT_ALLOWED_TYPES, readImageAsResizedBase64 } from "../lib/image-resize.js";
@@ -347,8 +347,19 @@ function IdentityForm({
           </div>
         </label>
         <label className="site-field"><span>Jersey</span><input className="site-input" type="number" min={0} max={99} value={jerseyNumber} onChange={(e) => setJerseyNumber(Number(e.target.value))} /></label>
-        <label className="site-field"><span>Hometown</span><input className="site-input" value={hometown} onChange={(e) => setHometown(e.target.value)} /></label>
-        <label className="site-field"><span>State</span><input className="site-input" value={hometownState} onChange={(e) => setHometownState(e.target.value)} /></label>
+        <label className="site-field"><span>State</span>
+          <select className="site-select" value={hometownState} onChange={(e) => setHometownState(e.target.value)}>
+            <option value="">Select a state</option>
+            {US_STATES.map((state) => <option key={state.code} value={state.code}>{state.name} ({state.code})</option>)}
+          </select>
+        </label>
+        <label className="site-field"><span>Hometown</span>
+          <input className="site-input" list="rise-hometown-options" value={hometown} onChange={(e) => setHometown(e.target.value)}
+            placeholder={hometownState ? "Start typing a city…" : "Pick a state first for suggestions"} />
+          <datalist id="rise-hometown-options">
+            {citiesForState(hometownState).map((city) => <option key={city} value={city} />)}
+          </datalist>
+        </label>
         <label className="site-field"><span>College</span>
           <input className="site-input" list="rise-college-options" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="Start typing a school…" />
           <datalist id="rise-college-options">
