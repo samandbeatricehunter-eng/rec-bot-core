@@ -1920,6 +1920,27 @@ export const siteApi = {
   getProTrackerRenderData(userId: string, leagueId: string, weekNumber: string, token: string) {
     return publicRequest<ProTrackerRenderData>(`/v1/render/pro-tracker/${userId}/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
   },
+  getLeagueLeadersRenderData(leagueId: string, weekNumber: string, token: string) {
+    return publicRequest<LeagueLeadersRenderData>(`/v1/render/league-leaders/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
+  },
+};
+
+export type LeagueLeaderEntry = {
+  playerId: string;
+  playerName: string;
+  position: string | null;
+  photoUrl: string | null;
+  teamName: string | null;
+  teamAbbr: string | null;
+  teamLogoUrl: string | null;
+  value: number;
+};
+
+export type LeagueLeadersRenderData = {
+  leagueName: string;
+  seasonNumber: number;
+  weekNumber: number;
+  categories: Array<{ key: string; label: string; entries: LeagueLeaderEntry[] }>;
 };
 
 export type ProspectCardRenderData = {

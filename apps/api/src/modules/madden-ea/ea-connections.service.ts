@@ -552,6 +552,12 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
       [direct.id, String(eaLeagueId)],
     );
   }
+
+  // Rise to Immortality: post the NFL record book the moment a league first links an EA
+  // franchise. No-ops instantly for non-RTI leagues and for a league that's already seeded.
+  const { ensureNflRecordBaselinePosted } = await import("../immortality/nfl-record-holders.service.js");
+  ensureNflRecordBaselinePosted(leagueId).catch((err) => console.error(`[ERROR] RTI NFL record baseline post failed for league ${leagueId} (non-fatal):`, err));
+
   return toSummary(result.rows[0]);
 }
 
@@ -1158,6 +1164,10 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       if (notes.length) await notifyCommissionersOfAutoImport(row.league_id, notes);
       const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
       await refreshImmortalityProspectCardsForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${row.league_id} (non-fatal):`, err));
+      const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
+      await postRosterMovementForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${row.league_id} (non-fatal):`, err));
+      const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
+      await checkNflRecordsAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${row.league_id} (non-fatal):`, err));
       succeeded += 1;
     } catch (error) {
       failed += 1;

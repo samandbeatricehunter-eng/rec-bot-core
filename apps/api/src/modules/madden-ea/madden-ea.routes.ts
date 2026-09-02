@@ -157,6 +157,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         const imports = await importEaDatasets(body.connection_id, body.league_id, options);
         const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
         await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+        const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
+        await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
+        const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
+        await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
         return reply.send({ imports });
       } catch (importError) {
         await recordEaImportError(body.connection_id, importError);
@@ -190,6 +194,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       importEaDatasetsWithProgress(body.connection_id, body.league_id, options).then(async () => {
         const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
         await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+        const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
+        await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
+        const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
+        await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
       }).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });

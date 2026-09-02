@@ -1003,6 +1003,16 @@ export async function completeAdvanceWeek(input: {
     game: context.rec_leagues.game,
   }).catch((err) => console.error("[ERROR] Immortality tweet queue generation failed after advance (non-fatal):", err));
 
+  // Rise to Immortality League Leaders board -- top 5 at each marquee stat category, rendered
+  // as an image and posted to league_leaders_channel_id. Same no-op guards as Pro Tracker above.
+  const { postLeagueLeadersForAdvance } = await import("../immortality/league-leaders.service.js");
+  await postLeagueLeadersForAdvance({
+    leagueId: context.leagueId,
+    weekNumber: currentWeek,
+    seasonStage: currentStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] League Leaders post failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

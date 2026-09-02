@@ -33,7 +33,7 @@ function splitBodyIntoChunks(body: string, maxLen = EMBED_DESC_LIMIT): string[] 
   return chunks;
 }
 
-export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews" }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews"; mentionDiscordId?: string }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const headlinesChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
@@ -57,7 +57,7 @@ export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; 
       return embed;
     });
     const sent = await postDiscordChannelMessage(channelId, {
-      content: "@everyone",
+      content: input.mentionDiscordId ? `<@${input.mentionDiscordId}> @everyone` : "@everyone",
       embeds,
     });
     if (sent?.id) {

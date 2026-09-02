@@ -109,7 +109,7 @@ async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   return String(account.data.user_id);
 }
 
-async function discordIdForRecUser(userId: string): Promise<string> {
+export async function discordIdForRecUser(userId: string): Promise<string> {
   const accounts = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", userId);
   const real = (accounts.data ?? []).find((row) => row.discord_id && !isSiteOnlyDiscordId(String(row.discord_id)));
   if (real?.discord_id) return String(real.discord_id);
@@ -1669,6 +1669,13 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
           side: prospect.side as "offense" | "defense", discordId: cardDiscordId,
         });
       }
+    }
+    if (offenseProspect && defenseProspect) {
+      void import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
+        guildId: input.guildId, recLeagueId: context.leagueId, immortalityLeagueId: league.id,
+        userId, discordId: cardDiscordId, teamId: input.teamId,
+        offenseProspectId: offenseProspect.id, defenseProspectId: defenseProspect.id,
+      })).catch((error) => console.error("[WARN] Could not queue RTI franchise headline (non-fatal):", error));
     }
   }
 
