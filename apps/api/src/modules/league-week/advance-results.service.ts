@@ -991,6 +991,18 @@ export async function completeAdvanceWeek(input: {
     game: context.rec_leagues.game,
   }).catch((err) => console.error("[ERROR] Pro Tracker update failed after advance (non-fatal):", err));
 
+  // Rise to Immortality tweet queue -- generates up to 10 candidates from this week's stats,
+  // drained on a separate 4-hour drip (see tweet-generation.service.ts). No-ops for non-RTI
+  // leagues and for preseason/offseason, same as Pro Tracker above.
+  const { queueImmortalityTweetsAfterAdvance } = await import("../immortality/tweet-generation.service.js");
+  await queueImmortalityTweetsAfterAdvance({
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: currentWeek,
+    seasonStage: currentStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] Immortality tweet queue generation failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

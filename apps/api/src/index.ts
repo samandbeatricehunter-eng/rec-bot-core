@@ -18,6 +18,7 @@ import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.j
 import { runTournamentLotterySweep } from "./modules/tournaments/tournament-lottery.service.js";
 import { runTournamentRegistrationAnnounceSweep } from "./modules/tournaments/tournament-discord.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
+import { sweepImmortalityTweetQueue } from "./modules/immortality/tweet-generation.service.js";
 import { supabase } from "./lib/supabase.js";
 
 const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
@@ -125,6 +126,13 @@ function runEaAutoImportSweep() {
 }
 runEaAutoImportSweep();
 setInterval(runEaAutoImportSweep, 4 * 60 * 60_000).unref();
+
+// Rise to Immortality tweet queue: drains one pending tweet per league every 4 hours (the
+// per-league cutoff lives inside the sweep itself via each league's own last posted_at, not
+// this interval), so 15-minute polling gives comfortable precision without hammering the DB.
+setInterval(() => {
+  sweepImmortalityTweetQueue().catch((error) => app.log.error({ err: error }, "Immortality tweet queue sweep failed"));
+}, 15 * 60_000).unref();
 
 // One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
 // were written directly in Supabase), backfill open-league embeds once on boot.
