@@ -16,7 +16,15 @@ async function getScheduler(): Promise<Tesseract.Scheduler> {
   _schedulerInitializing = (async () => {
     const scheduler = Tesseract.createScheduler();
     const workers = await Promise.all(
-      Array.from({ length: Math.max(1, OCR_POOL_SIZE) }, () => Tesseract.createWorker("eng")),
+      Array.from({ length: Math.max(1, OCR_POOL_SIZE) }, async () => {
+        const worker = await Tesseract.createWorker("eng");
+        // LSTM-only skips the "Legacy" engine's Otsu-thresholding pass, which is where
+        // Leptonica prints raw debug histogram stats (quartiles/median/SD) straight to stdout
+        // via native printf, bypassing tesseract.js's logger hook entirely -- the source of the
+        // constant log spam flooding Railway. Same fix as scorebug-tesseract-pool.ts.
+        await worker.setParameters({ tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY });
+        return worker;
+      }),
     );
     for (const worker of workers) scheduler.addWorker(worker);
     _scheduler = scheduler;
