@@ -722,13 +722,14 @@ function CharacteristicsPanel({
           const atCap = !selected && keys.length >= MAX_EQUIPPED_CHARACTERISTICS;
           const disabled = overlaps || atCap;
           return (
-            <label key={item.key} className={`wizard-option-card ${selected ? "wizard-option-card-active" : ""}`} aria-disabled={disabled} style={disabled ? { opacity: 0.45 } : undefined}>
+            <label key={item.key} className={`rise-trait-option ${selected ? "rise-trait-option-active" : ""}`} aria-disabled={disabled} style={disabled ? { opacity: 0.45 } : undefined}>
               <input type="checkbox" checked={selected} disabled={disabled} onChange={() => {
                 setKeys((prev) => selected ? prev.filter((key) => key !== item.key) : [...prev, item.key]);
               }} />
-              <strong>{item.displayName}</strong> <span className="site-muted">({item.slotCost} slot{item.slotCost === 1 ? "" : "s"})</span>
-              <span className="site-muted">{item.effect}</span>
-              {overlaps ? <span className="site-muted"> — conflicts with an equipped trait</span> : null}
+              <span className="rise-trait-option-body">
+                <strong>{item.displayName}</strong>
+                <span className="site-muted">{item.effect}{overlaps ? " — conflicts with an equipped trait" : ""}</span>
+              </span>
             </label>
           );
         })}

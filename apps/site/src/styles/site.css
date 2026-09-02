@@ -4271,6 +4271,13 @@ h1, h2, h3, .site-wordmark {
 .rise-height-inputs { display: flex; align-items: center; gap: 6px; }
 .rise-height-inputs input { width: 64px; flex: 0 0 auto; }
 .rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.rise-trait-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: var(--card-border); border-radius: var(--radius-md); background: var(--card-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--card-bevel); color: var(--text); cursor: pointer; transition: border-color 0.15s; }
+.rise-trait-option:hover { border-color: var(--gold, #d4a843); }
+.rise-trait-option-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
+.rise-trait-option input[type="checkbox"] { flex: 0 0 auto; margin-top: 3px; width: auto; }
+.rise-trait-option-body { display: flex; flex-direction: column; gap: 2px; }
+.rise-trait-option-body strong { font-size: 14px; color: var(--text); }
+.rise-trait-option-body .site-muted { font-size: 12px; }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .rise-grade-card { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }
