@@ -49,6 +49,11 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
         <NavLink to={`${base}/rise`} className={["site-header-row3-btn", isActive(path, `${base}/rise`) ? "is-active" : ""].filter(Boolean).join(" ")}>
           <IconTeam /><span>Origins</span>
         </NavLink>
+        {isCommissioner ? (
+          <NavLink to={`${base}/mgmt`} className={["site-header-row3-btn", isActive(path, `${base}/mgmt`) ? "is-active" : ""].filter(Boolean).join(" ")}>
+            <IconMgmt /><span>League Mgmt</span>
+          </NavLink>
+        ) : null}
       </nav>
     );
   }

@@ -4244,10 +4244,10 @@ h1, h2, h3, .site-wordmark {
    surfaces), but this page's background art is busy enough that it bled straight through the
    cards and made body text hard to read -- these need a solid, high-contrast surface of their
    own instead of the shared token. */
-.rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: var(--card-border); border-radius: var(--radius-lg); background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); }
+.rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: var(--card-border); border-radius: var(--radius-lg); background: rgba(8, 8, 10, 0.97); backdrop-filter: blur(6px); }
 .rise-side-tabs, .rise-actions, .rise-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .rise-stage-nav { display: flex; flex-wrap: wrap; gap: 4px; }
-.rise-stage-nav button { border: var(--card-border); background: rgba(10, 10, 12, 0.92); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
+.rise-stage-nav button { border: var(--card-border); background: rgba(8, 8, 10, 0.97); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
 .rise-stage-nav button.is-active { border-color: var(--gold, #d4a843); }
 .rise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
 .rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
