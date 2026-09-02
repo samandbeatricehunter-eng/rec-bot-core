@@ -1909,6 +1909,55 @@ export const siteApi = {
   getWeeklyMatchupBoardRenderData(leagueId: string, weekNumber: string, token: string) {
     return publicRequest<WeeklyMatchupBoardRenderData>(`/v1/render/weekly-matchup-board/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
   },
+  getProspectCardRenderData(prospectId: string, token: string) {
+    return publicRequest<ProspectCardRenderData>(`/v1/render/prospect-card/${prospectId}?token=${encodeURIComponent(token)}`);
+  },
+  getProTrackerRenderData(userId: string, leagueId: string, weekNumber: string, token: string) {
+    return publicRequest<ProTrackerRenderData>(`/v1/render/pro-tracker/${userId}/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
+  },
+};
+
+export type ProspectCardRenderData = {
+  firstName: string;
+  lastName: string;
+  position: string;
+  side: "offense" | "defense";
+  jerseyNumber: number | null;
+  age: number | null;
+  hometown: string | null;
+  hometownState: string | null;
+  college: string | null;
+  heightInches: number | null;
+  weightLbs: number | null;
+  bodyType: string | null;
+  headshotUrl: string | null;
+  backstory: string;
+  teamName: string;
+  teamAbbr: string | null;
+  teamLogoUrl: string | null;
+};
+
+export type ProTrackerPlayerLineData = {
+  playerId: string;
+  playerName: string;
+  position: string | null;
+  headshotUrl: string | null;
+  teamName: string;
+  teamAbbr: string | null;
+  teamLogoUrl: string | null;
+  teamPrimaryColor: string | null;
+  teamSecondaryColor: string | null;
+  weekLines: string[];
+  seasonLines: string[];
+  positionRank: number | null;
+  positionCount: number | null;
+};
+
+export type ProTrackerRenderData = {
+  seasonNumber: number;
+  weekNumber: number;
+  offense: ProTrackerPlayerLineData | null;
+  defense: ProTrackerPlayerLineData | null;
 };
 
 export type PlayerOfWeekStatLine = {

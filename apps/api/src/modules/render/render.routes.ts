@@ -6,10 +6,17 @@ import { renderMatchupCardPng } from "../../lib/matchup-render.js";
 import { renderPlayerOfWeekPng } from "../../lib/player-of-week-render.js";
 import { renderNflPlayoffBracketPng } from "../../lib/nfl-playoff-bracket-render.js";
 import { renderWeeklyMatchupBoardPng } from "../../lib/weekly-matchup-board-render.js";
-import { verifyMatchupRenderToken, verifyNflPlayoffBracketRenderToken, verifyPlayerOfWeekRenderToken, verifyWeeklyMatchupBoardRenderToken } from "../../lib/render-token.js";
+import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
+import { renderProTrackerPng } from "../../lib/pro-tracker-render.js";
+import {
+  verifyMatchupRenderToken, verifyNflPlayoffBracketRenderToken, verifyPlayerOfWeekRenderToken,
+  verifyWeeklyMatchupBoardRenderToken, verifyProspectCardRenderToken, verifyProTrackerRenderToken,
+} from "../../lib/render-token.js";
 import { getMatchupCardRenderData, getWeeklyMatchupBoardRenderData } from "../hub/hub.service.js";
 import { getPlayerOfWeekRenderData } from "../league-week/player-of-week-award.service.js";
 import { getNflPlayoffBracketRenderData } from "../standings/nfl-bracket.service.js";
+import { getProspectCardRenderData } from "../immortality/immortality.service.js";
+import { getProTrackerRenderData } from "../league-week/pro-tracker.service.js";
 
 // Unauthenticated (token-gated, 60s expiry) -- backs apps/site's chromeless
 // /render/matchup/:gameId route, which the Playwright screenshot pipeline
@@ -96,6 +103,46 @@ export async function renderRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const params = z.object({ leagueId: z.string().min(1), weekNumber: z.coerce.number().int() }).parse(request.params);
       const png = await renderWeeklyMatchupBoardPng(params.leagueId, params.weekNumber);
+      return reply.header("content-type", "image/png").send(png);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/prospect-card/:prospectId", async (request, reply) => {
+    try {
+      const params = z.object({ prospectId: z.string().min(1) }).parse(request.params);
+      const query = z.object({ token: z.string().min(1) }).parse(request.query);
+      if (!verifyProspectCardRenderToken(params.prospectId, query.token)) {
+        return reply.code(403).send({ error: "Invalid or expired render token." });
+      }
+      return reply.send(await getProspectCardRenderData(params.prospectId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/prospect-card/:prospectId/debug-png", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const params = z.object({ prospectId: z.string().min(1) }).parse(request.params);
+      const png = await renderProspectCardPng(params.prospectId);
+      return reply.header("content-type", "image/png").send(png);
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/pro-tracker/:userId/:leagueId/:weekNumber", async (request, reply) => {
+    try {
+      const params = z.object({ userId: z.string().min(1), leagueId: z.string().min(1), weekNumber: z.coerce.number().int() }).parse(request.params);
+      const query = z.object({ token: z.string().min(1) }).parse(request.query);
+      if (!verifyProTrackerRenderToken(params.userId, params.leagueId, params.weekNumber, query.token)) {
+        return reply.code(403).send({ error: "Invalid or expired render token." });
+      }
+      return reply.send(await getProTrackerRenderData(params.userId, params.leagueId, params.weekNumber));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/render/pro-tracker/:userId/:leagueId/:weekNumber/debug-png", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const params = z.object({ userId: z.string().min(1), leagueId: z.string().min(1), weekNumber: z.coerce.number().int() }).parse(request.params);
+      const png = await renderProTrackerPng(params.userId, params.leagueId, params.weekNumber);
       return reply.header("content-type", "image/png").send(png);
     } catch (error) { return sendError(reply, error); }
   });

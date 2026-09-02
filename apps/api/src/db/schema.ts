@@ -389,7 +389,11 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   finalizedTradesChannelId: text("finalized_trades_channel_id"),
   leagueLeadersChannelId: text("league_leaders_channel_id"),
   recordHoldersChannelId: text("record_holders_channel_id"),
-  ownersChatChannelId: text("owners_chat_channel_id")
+  ownersChatChannelId: text("owners_chat_channel_id"),
+  offensiveProsChannelId: text("offensive_pros_channel_id"),
+  defensiveProsChannelId: text("defensive_pros_channel_id"),
+  hofMilestonesChannelId: text("hof_milestones_channel_id"),
+  proTrackerChannelId: text("pro_tracker_channel_id")
 });
 
 export const recServerAdminRoles = pgTable("rec_server_admin_roles", {

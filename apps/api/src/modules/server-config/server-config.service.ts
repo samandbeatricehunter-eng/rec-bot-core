@@ -28,6 +28,10 @@ type SetServerConfigInput = {
   leagueLeadersChannelId?: string | null;
   recordHoldersChannelId?: string | null;
   ownersChatChannelId?: string | null;
+  offensiveProsChannelId?: string | null;
+  defensiveProsChannelId?: string | null;
+  hofMilestonesChannelId?: string | null;
+  proTrackerChannelId?: string | null;
 };
 
 function compactDefined(input: Record<string, unknown>) {

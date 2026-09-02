@@ -3953,6 +3953,49 @@ button.poty:disabled {
   .potw-grid { grid-template-columns: 1fr; }
 }
 
+/* —— Rise to Immortality prospect "player card" (Discord render target on team pick) —— */
+.prospect-card { width: 1100px; background: rgba(5, 7, 10, .92); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; font-family: var(--font-sans); }
+.prospect-card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: color-mix(in srgb, var(--accent) 14%, transparent); border-bottom: 1px solid var(--border); }
+.prospect-card-position { font-family: var(--font-display); font-size: 20px; font-weight: 900; letter-spacing: .04em; color: #fff; }
+.prospect-card-side { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+.prospect-card-header.defense .prospect-card-side { color: #ea4a58; }
+.prospect-card-header.offense .prospect-card-side { color: #3f6fd6; }
+.prospect-card-body { display: flex; align-items: center; gap: 20px; padding: 22px 24px; }
+.prospect-card-photo, .prospect-card-photo-fallback { flex-shrink: 0; width: 120px; height: 120px; border-radius: 12px; object-fit: cover; background: rgba(255,255,255,.06); }
+.prospect-card-photo-fallback { display: grid; place-items: center; font-family: var(--font-display); font-size: 40px; font-weight: 900; color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 60%, #222), #111); }
+.prospect-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.prospect-card-info h2 { margin: 0; font-family: var(--font-display); font-size: 28px; text-transform: uppercase; color: #fff; display: flex; align-items: baseline; gap: 10px; }
+.prospect-card-jersey { font-size: 18px; color: var(--text-muted); }
+.prospect-card-details { color: var(--text-secondary); font-size: 14px; font-weight: 600; }
+.prospect-card-origin { color: var(--text-muted); font-size: 13px; display: flex; gap: 8px; }
+.prospect-card-dot { opacity: .6; }
+.prospect-card-team-logo { flex-shrink: 0; width: 64px; height: 64px; object-fit: contain; }
+.prospect-card-backstory { margin: 0; padding: 0 24px 20px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.prospect-card-footer { padding: 12px 24px; text-align: center; color: var(--text-muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: color-mix(in srgb, var(--accent) 8%, transparent); border-top: 1px solid var(--border); }
+
+/* —— Rise to Immortality Pro Tracker weekly recap (Discord render target, per advance) —— */
+.protracker-card { width: 1300px; background: rgba(5, 7, 10, .92); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; font-family: var(--font-sans); }
+.protracker-header { padding: 12px 20px; text-align: center; font-family: var(--font-display); font-size: 16px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: color-mix(in srgb, var(--accent) 14%, transparent); border-bottom: 1px solid var(--border); }
+.protracker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+.protracker-panel { padding: 18px 20px; background: linear-gradient(160deg, color-mix(in srgb, var(--protracker-primary, #333) 30%, rgba(5,7,10,.9)), rgba(5,7,10,.92)); border-top: 3px solid var(--protracker-secondary, var(--accent)); }
+.protracker-panel-empty { display: grid; place-items: center; color: var(--text-muted); font-size: 13px; min-height: 160px; }
+.protracker-panel-head { display: flex; align-items: center; gap: 12px; }
+.protracker-photo, .protracker-photo-fallback { flex-shrink: 0; width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: rgba(255,255,255,.08); }
+.protracker-photo-fallback { display: grid; place-items: center; font-family: var(--font-display); font-size: 22px; font-weight: 900; color: #fff; }
+.protracker-panel-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.protracker-panel-name small { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.protracker-panel-name strong { font-family: var(--font-display); font-size: 18px; text-transform: uppercase; color: #fff; }
+.protracker-team-name { color: var(--text-secondary); font-size: 12px; }
+.protracker-team-logo { flex-shrink: 0; width: 40px; height: 40px; object-fit: contain; }
+.protracker-panel-stats { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.protracker-stat-block h4 { margin: 0 0 4px; color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.protracker-stat-block { display: flex; flex-direction: column; }
+.protracker-stat-block span { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.protracker-rank { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.1); color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+@media (max-width: 700px) {
+  .protracker-grid { grid-template-columns: 1fr; }
+}
+
 .hub-hero-action-area { display: grid; gap: 8px; }
 .hub-hero-action-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .hub-hero-action-pills button { min-height: 38px; padding: 8px 15px; border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border-strong)); border-radius: 999px; background: rgba(7, 9, 13, .68); color: var(--text-primary); font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast); }

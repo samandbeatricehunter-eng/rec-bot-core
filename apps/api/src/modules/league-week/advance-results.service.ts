@@ -981,6 +981,16 @@ export async function completeAdvanceWeek(input: {
     game: context.rec_leagues.game,
   }).catch((err) => console.error("[ERROR] Player of the Week award failed after advance (non-fatal):", err));
 
+  // Rise to Immortality Pro Tracker -- no-ops immediately for every non-RTI league
+  // (loadImmortalityLeague returns null), so this is safe to call unconditionally here.
+  const { postWeeklyProTrackerUpdates } = await import("./pro-tracker.service.js");
+  await postWeeklyProTrackerUpdates({
+    leagueId: context.leagueId,
+    weekNumber: currentWeek,
+    seasonStage: currentStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => console.error("[ERROR] Pro Tracker update failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

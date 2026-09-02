@@ -17,6 +17,8 @@ export { HeroMatchupBreakdown } from "../../../apps/web/src/components/hub/HeroM
 export { TeamLogo } from "../../../apps/web/src/components/ui/TeamLogo.js";
 export type { MatchupPreview, NflPlayoffPicture } from "../../../apps/web/src/types/api.js";
 export { PlayerOfWeekCard, type PlayerOfWeekCardWinner } from "../../../apps/web/src/components/hub/PlayerOfWeekCard.js";
+export { ProspectCard, type ProspectCardData } from "../../../apps/web/src/components/hub/ProspectCard.js";
+export { ProTrackerCard, type ProTrackerPlayerLine } from "../../../apps/web/src/components/hub/ProTrackerCard.js";
 export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";

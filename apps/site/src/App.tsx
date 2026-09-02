@@ -54,6 +54,8 @@ const RenderMatchup = lazy(() => import("./routes/render/RenderMatchup.js").then
 const RenderPlayerOfWeek = lazy(() => import("./routes/render/RenderPlayerOfWeek.js").then((m) => ({ default: m.RenderPlayerOfWeek })));
 const RenderNflPlayoffBracket = lazy(() => import("./routes/render/RenderNflPlayoffBracket.js").then((m) => ({ default: m.RenderNflPlayoffBracket })));
 const RenderWeeklyMatchupBoard = lazy(() => import("./routes/render/RenderWeeklyMatchupBoard.js").then((m) => ({ default: m.RenderWeeklyMatchupBoard })));
+const RenderProspectCard = lazy(() => import("./routes/render/RenderProspectCard.js").then((m) => ({ default: m.RenderProspectCard })));
+const RenderProTracker = lazy(() => import("./routes/render/RenderProTracker.js").then((m) => ({ default: m.RenderProTracker })));
 import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
@@ -254,6 +256,8 @@ function Routed() {
       <Route path="/render/player-of-week/:storyId" element={<RenderPlayerOfWeek />} />
       <Route path="/render/nfl-playoff-bracket/:leagueId" element={<RenderNflPlayoffBracket />} />
       <Route path="/render/weekly-matchup-board/:leagueId/:weekNumber" element={<RenderWeeklyMatchupBoard />} />
+      <Route path="/render/prospect-card/:prospectId" element={<RenderProspectCard />} />
+      <Route path="/render/pro-tracker/:userId/:leagueId/:weekNumber" element={<RenderProTracker />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

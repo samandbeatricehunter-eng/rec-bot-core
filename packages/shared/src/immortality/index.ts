@@ -20,3 +20,4 @@ export * from "./ability-mastery.js";
 export * from "./team-offers.js";
 export * from "./matchup-interview.js";
 export * from "./nfl-records.js";
+export * from "./backstory.js";

@@ -83,12 +83,16 @@ import {
   type ImmortalityState,
   type ImmortalityPosition,
   type RiseToImmortalityTeamPool,
+  buildProspectBackstory,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId } from "../league-context/league-context.service.js";
+import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
+import { postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 
 async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   if (isSiteOnlyDiscordId(discordId)) {
@@ -1202,6 +1206,86 @@ async function materializeProspectToPlayer(prospect: Record<string, any>, teamId
   }).eq("id", prospect.id);
 }
 
+/** Backs the chromeless /render/prospect-card/:prospectId site route (Playwright screenshot
+ * pipeline) and the Discord post itself -- pulls a fresh copy of the prospect row so it reflects
+ * the player_id materializeProspectToPlayer just set, even though the in-memory prospect object
+ * chooseImmortalityTeam is holding is stale by that point. */
+export async function getProspectCardRenderData(prospectId: string) {
+  const prospect = await supabase.from("rec_immortality_prospects").select("*").eq("id", prospectId).maybeSingle();
+  if (prospect.error) throw new ApiError(500, "Could not load this prospect.", prospect.error);
+  if (!prospect.data) throw new ApiError(404, "Prospect not found.");
+  const row = prospect.data as Record<string, any>;
+
+  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, player] = await Promise.all([
+    supabase.from("rec_immortality_persona_results").select("label").eq("prospect_id", prospectId).maybeSingle(),
+    supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype").eq("prospect_id", prospectId).maybeSingle(),
+    supabase.from("rec_immortality_playstyle_results").select("primary_archetype").eq("prospect_id", prospectId).maybeSingle(),
+    supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospectId),
+    row.player_id
+      ? supabase.from("rec_players").select("team_id").eq("id", row.player_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const teamId = (player.data as { team_id?: string } | null)?.team_id ?? null;
+  const team = teamId
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated,abbreviation,display_abbr,logo_url").eq("id", teamId).maybeSingle()
+    : { data: null as any };
+
+  const traitCatalog = personaDnaCatalog();
+  const traitNames = (personaDnaTraits.data ?? [])
+    .map((t) => traitCatalog.find((c) => c.key === t.trait_key)?.name)
+    .filter((name): name is string => Boolean(name));
+
+  const playstyleArchetype = (branchingPlaystyle.data?.primary_archetype ?? flatPlaystyle.data?.primary_archetype ?? null) as string | null;
+
+  const backstory = buildProspectBackstory({
+    firstName: row.first_name ?? "", lastName: row.last_name ?? "",
+    hometown: row.hometown, hometownState: row.hometown_state, college: row.college,
+    personaLabel: personaResult.data?.label ?? null,
+    playstyleArchetype, traitNames, seed: prospectId,
+  });
+
+  return {
+    firstName: row.first_name ?? "", lastName: row.last_name ?? "",
+    position: row.position, side: row.side,
+    jerseyNumber: row.jersey_number, age: row.age,
+    hometown: row.hometown, hometownState: row.hometown_state, college: row.college,
+    heightInches: row.height_inches, weightLbs: row.weight_lbs, bodyType: row.body_type,
+    headshotUrl: row.headshot_url, backstory,
+    teamName: team.data ? (formatTeamDisplayName(team.data) ?? team.data.name ?? "Team") : "Free Agent",
+    teamAbbr: team.data?.display_abbr ?? team.data?.abbreviation ?? null,
+    teamLogoUrl: team.data?.logo_url ?? null,
+  };
+}
+
+// Best-effort Discord post for a prospect's "player card" -- fires once, right after a user's
+// franchise choice materializes both prospects into rec_players (chooseImmortalityTeam). Renders
+// the same ProspectCard component the site would show, screenshot via Playwright (same pattern
+// as the Player of the Week post), and tags the claiming user + team in the message content.
+async function postProspectCardToDiscord(input: {
+  leagueId: string; prospectId: string; side: "offense" | "defense"; discordId: string;
+}): Promise<void> {
+  try {
+    const routes = await findServerRoutesForLeague(input.leagueId);
+    const channelId = (input.side === "offense"
+      ? routes?.routes?.offensive_pros_channel_id
+      : routes?.routes?.defensive_pros_channel_id) as string | null | undefined;
+    if (!channelId) return;
+    const data = await getProspectCardRenderData(input.prospectId);
+    const png = await renderProspectCardPng(input.prospectId);
+    await postDiscordChannelMessageWithFile(
+      channelId,
+      {
+        content: `<@${input.discordId}> · ${data.teamName}`,
+        embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }],
+      },
+      { buffer: png, name: "prospect-card.png", contentType: "image/png" },
+    );
+  } catch (err) {
+    console.error("[ERROR] Failed to post prospect card to Discord (non-fatal):", err);
+  }
+}
+
 export async function setImmortalityIntroVideo(input: { guildId: string; discordId: string; url: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
@@ -1362,6 +1446,18 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   ]);
   for (const prospect of [offenseProspect, defenseProspect]) {
     if (prospect) await materializeProspectToPlayer(prospect, input.teamId, context.leagueId);
+  }
+
+  const cardDiscordId = await discordIdForRecUser(userId).catch(() => null);
+  if (cardDiscordId) {
+    for (const prospect of [offenseProspect, defenseProspect]) {
+      if (prospect) {
+        void postProspectCardToDiscord({
+          leagueId: context.leagueId, prospectId: prospect.id,
+          side: prospect.side as "offense" | "defense", discordId: cardDiscordId,
+        });
+      }
+    }
   }
 
   // First real franchise assignment opens the league hub for everyone (chapter_state is

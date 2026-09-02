@@ -144,6 +144,34 @@ export const REC_ROUTE_CHANNELS = {
     dbField: "owners_chat_channel_id",
     rti_only: true,
   },
+  offensive_pros: {
+    label: "Offensive Pros (Rise to Immortality)",
+    defaultName: "offensive-pros",
+    inputField: "offensiveProsChannelId",
+    dbField: "offensive_pros_channel_id",
+    rti_only: true,
+  },
+  defensive_pros: {
+    label: "Defensive Pros (Rise to Immortality)",
+    defaultName: "defensive-pros",
+    inputField: "defensiveProsChannelId",
+    dbField: "defensive_pros_channel_id",
+    rti_only: true,
+  },
+  hof_milestones: {
+    label: "HOF Milestones (Rise to Immortality)",
+    defaultName: "hof-milestones",
+    inputField: "hofMilestonesChannelId",
+    dbField: "hof_milestones_channel_id",
+    rti_only: true,
+  },
+  pro_tracker: {
+    label: "Pro Tracker (Rise to Immortality)",
+    defaultName: "pro-tracker",
+    inputField: "proTrackerChannelId",
+    dbField: "pro_tracker_channel_id",
+    rti_only: true,
+  },
 } as const;
 
 export type RecRouteChannelKey = keyof typeof REC_ROUTE_CHANNELS;
