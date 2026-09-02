@@ -24,6 +24,8 @@ import {
   submitBranchingPlaystyle,
   submitOwnerPersona,
   submitPersona,
+  submitPersonaDna,
+  submitPlayerTraits,
   submitPlaystyle,
   spendPlayerXp,
   transitionImmortalityState,
@@ -129,6 +131,28 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
       return reply.send(await submitBranchingPlaystyle({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/persona-dna", async (request, reply) => {
+    try {
+      const body = SideBody.extend({
+        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(3) })).min(1).max(5),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
+      return reply.send(await submitPersonaDna({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/player-traits", async (request, reply) => {
+    try {
+      const body = SideBody.extend({
+        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(3) })).min(1).max(6),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
+      return reply.send(await submitPlayerTraits({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -375,6 +375,12 @@ export type ImmortalityCharacteristic = {
   tags: string[];
 };
 
+export type ImmortalityTraitDefinition = {
+  key: string;
+  name: string;
+  definition: string;
+};
+
 export type ImmortalityDraftGrade = {
   prospectId: string;
   userId: string;
@@ -468,11 +474,18 @@ export type ImmortalityHubResponse = {
     offered: Array<{ teamId: string; name: string | null; city: string | null; abbreviation: string | null }>;
     chosenTeamId: string | null;
   } | null;
+  personaDna?: Array<{ prospect_id: string; trait_key: string }>;
+  playerTraits?: Array<{ prospect_id: string; trait_key: string }>;
   catalogs: {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
     persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[]; owner: ImmortalityInterviewQuestion[] };
     playstyle: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[] };
     playstyleBranching: { offense: ImmortalityBranchingPlaystyleGroup | null; defense: ImmortalityBranchingPlaystyleGroup | null };
+    personaDna: { questions: ImmortalityInterviewQuestion[]; catalog: ImmortalityTraitDefinition[]; mindsetFocus: ImmortalityTraitDefinition[] };
+    playerTraits: {
+      offense: { questions: ImmortalityInterviewQuestion[]; catalog: ImmortalityTraitDefinition[] } | null;
+      defense: { questions: ImmortalityInterviewQuestion[]; catalog: ImmortalityTraitDefinition[] } | null;
+    };
   };
 };
 
@@ -1170,6 +1183,12 @@ export const siteApi = {
     answers: { q1ArchetypeIndex: number; q2ArchetypeIndex: number | null; q3OptionIndex: number; q4OptionIndex: number; q5OptionIndex: number };
   }) {
     return request<{ primaryArchetype: string; secondaryArchetype: string | null; blend: { kind: string } }>("/v1/immortality/interview/playstyle-branching", input);
+  },
+  immortalitySubmitPersonaDna(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
+    return request<{ equippedTraitKeys: string[] }>("/v1/immortality/interview/persona-dna", input);
+  },
+  immortalitySubmitPlayerTraits(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
+    return request<{ equippedTraitKeys: string[] }>("/v1/immortality/interview/player-traits", input);
   },
   immortalitySelectCharacteristics(input: { guildId: string; side: "offense" | "defense"; keys: string[] }) {
     return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);

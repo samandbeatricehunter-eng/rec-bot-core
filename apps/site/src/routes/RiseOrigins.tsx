@@ -12,13 +12,15 @@ import {
 } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
-type Stage = "identity" | "iq" | "persona" | "playstyle" | "characteristics" | "creation" | "owner" | "franchise";
+type Stage = "identity" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
 
 const STAGES: { id: Stage; label: string }[] = [
   { id: "identity", label: "Identity" },
   { id: "iq", label: "IQ Test" },
   { id: "persona", label: "Persona" },
   { id: "playstyle", label: "Playstyle" },
+  { id: "persona_dna", label: "Persona DNA" },
+  { id: "player_traits", label: "Player Traits" },
   { id: "characteristics", label: "Traits" },
   { id: "creation", label: "Creation Points" },
   { id: "owner", label: "Owner" },
@@ -180,6 +182,29 @@ export function RiseOriginsPage() {
                   await reload();
                   return `${result.primaryArchetype} / ${result.secondaryArchetype} (${result.blend.kind})`;
                 }} setError={setError} />
+            )
+          ) : null}
+          {stage === "persona_dna" ? (
+            <InterviewPanel key={`${side}-persona-dna`} title="Persona DNA" questions={hub.catalogs.personaDna.questions}
+              onSubmit={async (answers) => {
+                const result = await siteApi.immortalitySubmitPersonaDna({ guildId, side, answers });
+                await reload();
+                return `Equipped: ${result.equippedTraitKeys.join(", ") || "none"}`;
+              }} setError={setError} />
+          ) : null}
+          {stage === "player_traits" ? (
+            hub.catalogs.playerTraits[side] ? (
+              <InterviewPanel key={`${side}-player-traits`} title="Player Traits" questions={hub.catalogs.playerTraits[side]!.questions}
+                onSubmit={async (answers) => {
+                  const result = await siteApi.immortalitySubmitPlayerTraits({ guildId, side, answers });
+                  await reload();
+                  return `Equipped: ${result.equippedTraitKeys.join(", ") || "none"}`;
+                }} setError={setError} />
+            ) : (
+              <section className="rise-card">
+                <h2>Player Traits</h2>
+                <p className="site-muted">Player Traits are only catalogued for QB and MIKE right now — not available for {position || "this position"}.</p>
+              </section>
             )
           ) : null}
           {stage === "characteristics" ? (

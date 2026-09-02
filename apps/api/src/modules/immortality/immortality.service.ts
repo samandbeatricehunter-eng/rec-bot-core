@@ -68,6 +68,16 @@ import {
   matchupInterviewPool,
   selectMatchupInterviewQuestion,
   scoreMatchupInterviewAnswer,
+  personaDnaQuestions,
+  personaDnaCatalog,
+  mindsetFocusCatalog,
+  publicPersonaDnaQuestions,
+  scorePersonaDnaInterview,
+  playerTraitQuestions,
+  playerTraitCatalog,
+  publicPlayerTraitQuestions,
+  scorePlayerTraitInterview,
+  type PlayerTraitPositionGroup,
   type ImmortalityDefensePosition,
   type ImmortalityOffensePosition,
   type ImmortalityState,
@@ -196,7 +206,7 @@ async function loadProspectForUser(immortalityLeagueId: string, userId: string, 
   return row.data;
 }
 
-const ORIGINS_STEPS = ["identity", "iq", "persona", "playstyle", "characteristics", "creation"] as const;
+const ORIGINS_STEPS = ["identity", "iq", "persona", "playstyle", "persona_dna", "player_traits", "characteristics", "creation"] as const;
 
 // Cloudflare Stream direct-download URL for the RTI intro video (uid 2b3a896893abc70e280844d7929601eb),
 // uploaded 2026-09-01. Every new RTI league starts with this set; the commissioner can still
@@ -347,7 +357,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
   const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
-  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, equippedAbilities, abilityGrants] = await Promise.all([
+  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, equippedAbilities, abilityGrants, personaDnaRows, playerTraitRows] = await Promise.all([
     prospectIds.length
       ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
@@ -370,6 +380,12 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
       ? supabase.from("rec_immortality_ability_grants").select("prospect_id,slots").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_prospect_persona_dna").select("prospect_id,trait_key").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_prospect_player_traits").select("prospect_id,trait_key").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const xpByProspect = new Map<string, { playerXp: number; teamXp: number }>();
@@ -494,6 +510,8 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     builds: builds.data ?? [],
     xp: Object.fromEntries(prospectIds.map((id) => [id, xpByProspect.get(id) ?? { playerXp: 0, teamXp: 0 }])),
     traits: traits.data ?? [],
+    personaDna: personaDnaRows.data ?? [],
+    playerTraits: playerTraitRows.data ?? [],
     hallNominees: hallNominees.data ?? [],
     draftStatus: draftClass.data?.status ?? null,
     abilities: Object.fromEntries((prospects.data ?? []).map((row) => {
@@ -582,6 +600,19 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
           ? branchingPlaystyleGroup(league.offense_position as "QB" | "MIKE") : null,
         defense: hasFixedRtiBaseline(league.defense_position as ImmortalityPosition)
           ? branchingPlaystyleGroup(league.defense_position as "QB" | "MIKE") : null,
+      },
+      personaDna: {
+        questions: publicPersonaDnaQuestions(),
+        catalog: personaDnaCatalog(),
+        mindsetFocus: mindsetFocusCatalog(),
+      },
+      playerTraits: {
+        offense: hasFixedRtiBaseline(league.offense_position as ImmortalityPosition)
+          ? { questions: publicPlayerTraitQuestions(league.offense_position as PlayerTraitPositionGroup), catalog: playerTraitCatalog(league.offense_position as PlayerTraitPositionGroup) }
+          : null,
+        defense: hasFixedRtiBaseline(league.defense_position as ImmortalityPosition)
+          ? { questions: publicPlayerTraitQuestions(league.defense_position as PlayerTraitPositionGroup), catalog: playerTraitCatalog(league.defense_position as PlayerTraitPositionGroup) }
+          : null,
       },
     },
   };
@@ -882,6 +913,60 @@ export async function submitBranchingPlaystyle(input: {
   }, { onConflict: "prospect_id" }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save the playstyle interview.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "playstyle");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  return result;
+}
+
+export async function submitPersonaDna(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  answers: Array<{ questionNumber: number; optionIndex: number }>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const questions = personaDnaQuestions();
+  const result = scorePersonaDnaInterview({ questions, answers: input.answers });
+  await supabase.from("rec_immortality_prospect_persona_dna").delete().eq("prospect_id", prospect.id);
+  if (result.equippedTraitKeys.length) {
+    const inserted = await supabase.from("rec_immortality_prospect_persona_dna").insert(
+      result.equippedTraitKeys.map((traitKey) => ({ prospect_id: prospect.id, trait_key: traitKey })),
+    );
+    if (inserted.error) throw new ApiError(500, "Could not save Persona DNA.", inserted.error);
+  }
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "persona_dna");
+  await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  return result;
+}
+
+/** QB and MIKE only -- the only two positions with a transcribed Player Traits catalog. */
+export async function submitPlayerTraits(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  answers: Array<{ questionNumber: number; optionIndex: number }>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const position = prospect.position as ImmortalityPosition;
+  if (!hasFixedRtiBaseline(position)) throw new ApiError(400, "Player Traits are only available for QB and MIKE right now.");
+  const group = position as PlayerTraitPositionGroup;
+  const questions = playerTraitQuestions(group);
+  const result = scorePlayerTraitInterview({ positionGroup: group, questions, answers: input.answers });
+  await supabase.from("rec_immortality_prospect_player_traits").delete().eq("prospect_id", prospect.id);
+  if (result.equippedTraitKeys.length) {
+    const inserted = await supabase.from("rec_immortality_prospect_player_traits").insert(
+      result.equippedTraitKeys.map((traitKey) => ({ prospect_id: prospect.id, trait_key: traitKey, position_group: group })),
+    );
+    if (inserted.error) throw new ApiError(500, "Could not save Player Traits.", inserted.error);
+  }
+  await bumpOriginsStep(String(prospect.id), prospect.origins_step, "player_traits");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result;
 }

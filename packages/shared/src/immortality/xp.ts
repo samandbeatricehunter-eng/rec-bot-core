@@ -104,9 +104,14 @@ export function promotionPath(current: ImmortalityDevTrait): ImmortalityDevTrait
   return null;
 }
 
-// TODO: recalibrate against the real ~20-25 XP/season scale above (250 XP would take over
-// ten seasons of saving every point to afford) -- not touched yet, flagging rather than guessing.
-export const DEV_TRAIT_PROMOTION_XP_COST = 250;
+// Cost of the NEXT promotion, keyed by the player's CURRENT dev trait -- calibrated against the
+// real ~20-25 XP/season scale above (a great season), not the old flat 250 (over a decade to afford).
+export const DEV_TRAIT_PROMOTION_XP_COST: Record<ImmortalityDevTrait, number> = {
+  normal: 10,
+  star: 30,
+  superstar: 150,
+  xfactor: 0,
+};
 
 export function purchaseDevTraitPromotion(input: {
   currentDevTrait: ImmortalityDevTrait;
@@ -116,8 +121,9 @@ export function purchaseDevTraitPromotion(input: {
   if (!input.devTraitPurchaseUnlocked) return { ok: false, error: "Purchase the Self-Made Progression Tree perk before buying a dev-trait promotion." };
   const nextDevTrait = promotionPath(input.currentDevTrait);
   if (!nextDevTrait) return { ok: false, error: "Already at X-Factor — nothing left to promote." };
-  if (input.availableXp < DEV_TRAIT_PROMOTION_XP_COST) return { ok: false, error: `Need ${DEV_TRAIT_PROMOTION_XP_COST} Player XP.` };
-  return { ok: true, nextDevTrait, cost: DEV_TRAIT_PROMOTION_XP_COST };
+  const cost = DEV_TRAIT_PROMOTION_XP_COST[input.currentDevTrait];
+  if (input.availableXp < cost) return { ok: false, error: `Need ${cost} Player XP.` };
+  return { ok: true, nextDevTrait, cost };
 }
 
 export const XP_FORMULA_VERSION = FORMULA_VERSIONS.xp;
