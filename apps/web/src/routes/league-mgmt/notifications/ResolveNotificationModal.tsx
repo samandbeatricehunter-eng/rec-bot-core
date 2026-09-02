@@ -331,6 +331,9 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "info", message: "This award poll is missing its poll reference — resolve it from Discord instead." };
     case "force_win_request":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve Force Win", denyLabel: "Deny" };
+    case "immortality_xp_spend":
+    case "immortality_xp_conversion":
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "autopilot_request":
     case "matchup_issue_report":
     case "ea_auto_import":
@@ -385,6 +388,9 @@ async function resolveAction(
       return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
       return recApi.reviewForceWinRequest({ guildId, inboxId: notification.id, decision: action, reason: reason || undefined });
+    case "immortality_xp_spend":
+    case "immortality_xp_conversion":
+      return recApi.reviewImmortalityXpRequest({ guildId, requestId: notification.id, action: action === "approve" ? "approve" : "reject", note: reason || undefined });
     case "custom_team":
       return recApi.reviewCustomTeamIdentity({ guildId, inboxId: notification.id, action, deniedReason: reason || undefined });
     case "autopilot_request":

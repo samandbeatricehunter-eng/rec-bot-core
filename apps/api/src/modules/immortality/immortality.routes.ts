@@ -33,6 +33,7 @@ import {
   selectImmortalityAbility,
   removeImmortalityAbility,
   reviewImmortalityProspect,
+  reviewImmortalityXpRequest,
   submitThrowingMotion,
 } from "./immortality.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
@@ -248,6 +249,19 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");
       return reply.send(await reviewImmortalityProspect({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/xp/review", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        requestId: z.string().uuid(),
+        action: z.enum(["approve", "reject"]),
+        note: z.string().max(1000).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "XP purchase review requires a website session.");
+      return reply.send(await reviewImmortalityXpRequest({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

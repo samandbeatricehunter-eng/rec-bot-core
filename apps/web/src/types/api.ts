@@ -256,7 +256,9 @@ export type CommissionerNotificationType =
   | "autopilot_request"
   | "matchup_issue_report"
   | "trade"
-  | "immortality_prospect";
+  | "immortality_prospect"
+  | "immortality_xp_spend"
+  | "immortality_xp_conversion";
 
 export type CommissionerNotification = {
   id: string;

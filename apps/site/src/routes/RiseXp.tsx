@@ -112,16 +112,15 @@ export function RiseXpPage() {
               onClick={async () => {
                 setBusy(true); setError(null); setResult(null);
                 try {
-                  const next = await siteApi.immortalitySpendXp({ guildId, side, attributeCode });
-                  setResult(`${next.attributeCode} is now ${next.nextValue}. Cost ${next.cost} XP. Real OVR ${next.currentOvr} (from the latest import). ${next.playerXp} XP remaining.`);
-                  await reload();
+                  await siteApi.immortalitySpendXp({ guildId, side, attributeCode });
+                  setResult(`Submitted a +1 upgrade request for ${attributeCode} to your commissioner for review.`);
                 } catch (err) {
-                  setError(err instanceof Error ? err.message : "Could not spend Player XP.");
+                  setError(err instanceof Error ? err.message : "Could not submit that upgrade request.");
                 } finally { setBusy(false); }
               }}>
-              {busy ? "Spending…" : `Spend XP on ${attributeCode}`}
+              {busy ? "Submitting…" : `Request XP Spend on ${attributeCode}`}
             </button>
-            {result ? <p>{result}</p> : null}
+            {result ? <p className="site-muted">{result}</p> : null}
           </>
         )}
       </section>

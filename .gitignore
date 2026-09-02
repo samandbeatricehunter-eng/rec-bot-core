@@ -35,6 +35,7 @@ apps/api/scripts/data/madden27/ea/
 # packages/shared/src/immortality/throwing-motions.ts. The clips themselves aren't source.
 apps/QB Throwing Motions/
 
-# Raw owner-headshot source renders -- uploaded to the Cloudflare headshot catalog once that
-# upload script exists, same pattern as the throwing-motion clips above. Not source.
+# Raw owner/player-headshot source renders -- uploaded to the Cloudflare headshot catalog once
+# that upload script exists, same pattern as the throwing-motion clips above. Not source.
 apps/Owner Headshots/
+apps/generic player headshots/
