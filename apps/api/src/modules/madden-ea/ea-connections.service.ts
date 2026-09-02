@@ -1156,6 +1156,8 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       const after = await snapshotImportState(row.league_id);
       const notes = describeImportChanges(before, after);
       if (notes.length) await notifyCommissionersOfAutoImport(row.league_id, notes);
+      const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+      await refreshImmortalityProspectCardsForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${row.league_id} (non-fatal):`, err));
       succeeded += 1;
     } catch (error) {
       failed += 1;

@@ -93,7 +93,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
-import { postDiscordChannelMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 
@@ -1231,7 +1231,7 @@ export async function getProspectCardRenderData(prospectId: string) {
   if (!prospect.data) throw new ApiError(404, "Prospect not found.");
   const row = prospect.data as Record<string, any>;
 
-  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, player] = await Promise.all([
+  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, player, hasImportedStats] = await Promise.all([
     supabase.from("rec_immortality_persona_results").select("label").eq("prospect_id", prospectId).maybeSingle(),
     supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype").eq("prospect_id", prospectId).maybeSingle(),
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype").eq("prospect_id", prospectId).maybeSingle(),
@@ -1239,6 +1239,14 @@ export async function getProspectCardRenderData(prospectId: string) {
     row.player_id
       ? supabase.from("rec_players").select("team_id,overall_rating,attributes").eq("id", row.player_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    // OVR on rec_players is set from the Creation Points estimate at materialization time --
+    // real, EA-calculated OVR only exists once the league's actually imported data for this
+    // player at least once. Attribute levels are shown regardless (those are the member's own
+    // build choices, already "real" the moment Creation Points is submitted), only the OVR
+    // badge is gated on this.
+    row.player_id
+      ? supabase.from("rec_player_weekly_stats").select("id", { count: "exact", head: true }).eq("player_id", row.player_id)
+      : Promise.resolve({ count: 0 }),
   ]);
 
   const teamId = (player.data as { team_id?: string } | null)?.team_id ?? null;
@@ -1277,7 +1285,9 @@ export async function getProspectCardRenderData(prospectId: string) {
     hometown: row.hometown, hometownState: row.hometown_state, college: row.college,
     heightInches: row.height_inches, weightLbs: row.weight_lbs, bodyType: row.body_type,
     headshotUrl: row.headshot_url, backstory,
-    overallRating: (player.data as { overall_rating?: number | null } | null)?.overall_rating ?? null,
+    overallRating: (hasImportedStats as { count?: number | null }).count
+      ? (player.data as { overall_rating?: number | null } | null)?.overall_rating ?? null
+      : null,
     attributes,
     teamName: team.data ? (formatTeamDisplayName(team.data) ?? team.data.name ?? "Team") : "Free Agent",
     teamAbbr: team.data?.display_abbr ?? team.data?.abbreviation ?? null,
@@ -1289,6 +1299,9 @@ export async function getProspectCardRenderData(prospectId: string) {
 // franchise choice materializes both prospects into rec_players (chooseImmortalityTeam). Renders
 // the same ProspectCard component the site would show, screenshot via Playwright (same pattern
 // as the Player of the Week post), and tags the claiming user + team in the message content.
+// Records which message it posted as (card_channel_id/card_message_id) so later data --
+// especially the real OVR that only exists after the league's first import -- can update this
+// same post in place instead of spamming a new one (see refreshImmortalityProspectCardsForLeague).
 async function postProspectCardToDiscord(input: {
   leagueId: string; prospectId: string; side: "offense" | "defense"; discordId: string;
 }): Promise<void> {
@@ -1300,7 +1313,7 @@ async function postProspectCardToDiscord(input: {
     if (!channelId) return;
     const data = await getProspectCardRenderData(input.prospectId);
     const png = await renderProspectCardPng(input.prospectId);
-    await postDiscordChannelMessageWithFile(
+    const posted = await postDiscordChannelMessageWithFile(
       channelId,
       {
         content: `<@${input.discordId}> · ${data.teamName}`,
@@ -1308,8 +1321,46 @@ async function postProspectCardToDiscord(input: {
       },
       { buffer: png, name: "prospect-card.png", contentType: "image/png" },
     );
+    if (posted?.id) {
+      await supabase.from("rec_immortality_prospects").update({
+        card_channel_id: channelId, card_message_id: posted.id,
+      }).eq("id", input.prospectId);
+    }
   } catch (err) {
     console.error("[ERROR] Failed to post prospect card to Discord (non-fatal):", err);
+  }
+}
+
+/** Re-renders and edits every already-posted prospect card for a league in place -- called
+ * best-effort after an EA import completes (see the three importEaDatasets* call sites in
+ * ea-connections.service.ts/madden-ea.routes.ts) so a prospect's card picks up newly-imported
+ * data (most importantly the real OVR, which only exists post-import -- see
+ * getProspectCardRenderData) without reposting and spamming the pros channels. No-ops instantly
+ * for non-RTI leagues and for any prospect that was never actually posted. */
+export async function refreshImmortalityProspectCardsForLeague(leagueId: string): Promise<void> {
+  const immortalityLeague = await loadImmortalityLeague(leagueId);
+  if (!immortalityLeague) return;
+
+  const posted = await supabase.from("rec_immortality_prospects")
+    .select("id,card_channel_id,card_message_id")
+    .eq("immortality_league_id", immortalityLeague.id)
+    .not("card_message_id", "is", null);
+  if (posted.error || !posted.data?.length) return;
+
+  for (const row of posted.data as Array<{ id: string; card_channel_id: string | null; card_message_id: string | null }>) {
+    if (!row.card_channel_id || !row.card_message_id) continue;
+    try {
+      const data = await getProspectCardRenderData(row.id);
+      const png = await renderProspectCardPng(row.id);
+      await editDiscordMessageWithFile(
+        row.card_channel_id,
+        row.card_message_id,
+        { embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }] },
+        { buffer: png, name: "prospect-card.png", contentType: "image/png" },
+      );
+    } catch (err) {
+      console.error(`[ERROR] Failed to refresh prospect card ${row.id} (non-fatal):`, err);
+    }
   }
 }
 

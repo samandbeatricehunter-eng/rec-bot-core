@@ -154,7 +154,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       const options = weekOptionsFromBody(body);
       try {
-        return reply.send({ imports: await importEaDatasets(body.connection_id, body.league_id, options) });
+        const imports = await importEaDatasets(body.connection_id, body.league_id, options);
+        const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+        await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+        return reply.send({ imports });
       } catch (importError) {
         await recordEaImportError(body.connection_id, importError);
         throw importError;
@@ -184,7 +187,10 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       beginImportProgress(body.league_id, "manual");
 
       // Fire and forget — the import runs in the background
-      importEaDatasetsWithProgress(body.connection_id, body.league_id, options).catch((error) => {
+      importEaDatasetsWithProgress(body.connection_id, body.league_id, options).then(async () => {
+        const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+        await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+      }).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });
         void recordEaImportError(body.connection_id, error);
