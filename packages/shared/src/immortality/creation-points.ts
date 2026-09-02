@@ -26,8 +26,19 @@ export function creationPointCostForValue(nextValue: number): number {
   return 6;
 }
 
-export function discountedCreationCost(nextValue: number, discount: number): number {
-  const raw = creationPointCostForValue(nextValue);
+/** Speed, Acceleration, Agility, and Change of Direction cost more per point than the rest of
+ * the curve above -- these are the attributes most build-warping at creation time, so they carry
+ * a flat surcharge on top of the normal value-based cost rather than their own separate curve. */
+export const SPEED_ATTRIBUTE_CODES = ["SPD", "ACC", "AGI", "COD"] as const;
+export const SPEED_ATTRIBUTE_CP_SURCHARGE = 1;
+
+export function creationPointCostForAttribute(code: string, nextValue: number): number {
+  const base = creationPointCostForValue(nextValue);
+  return SPEED_ATTRIBUTE_CODES.includes(code as (typeof SPEED_ATTRIBUTE_CODES)[number]) ? base + SPEED_ATTRIBUTE_CP_SURCHARGE : base;
+}
+
+export function discountedCreationCost(nextValue: number, discount: number, code?: string): number {
+  const raw = code ? creationPointCostForAttribute(code, nextValue) : creationPointCostForValue(nextValue);
   return Math.max(1, Math.round(raw * (1 - Math.min(0.3, Math.max(0, discount)))));
 }
 
@@ -49,7 +60,7 @@ export function spendCreationPoints(input: {
     if (target > 99) return { ok: false, error: `${code} cannot exceed 99.` };
     const discount = input.discounts?.[code] ?? 0;
     for (let value = baseline + 1; value <= target; value += 1) {
-      spentPoints += discountedCreationCost(value, discount);
+      spentPoints += discountedCreationCost(value, discount, code);
     }
     attributes[code] = target;
   }

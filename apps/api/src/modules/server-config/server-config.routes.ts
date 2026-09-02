@@ -31,7 +31,15 @@ const SetConfigSchema = z.object({
   mainChatChannelId: z.string().optional().nullable(),
   headlinesChannelId: z.string().optional().nullable(),
   schedulingChannelId: z.string().optional().nullable(),
-  matchupsChannelId: z.string().optional().nullable()
+  matchupsChannelId: z.string().optional().nullable(),
+  interviewsChannelId: z.string().optional().nullable(),
+  tweetsChannelId: z.string().optional().nullable(),
+  playerOfTheWeekChannelId: z.string().optional().nullable(),
+  rosterMovementChannelId: z.string().optional().nullable(),
+  finalizedTradesChannelId: z.string().optional().nullable(),
+  leagueLeadersChannelId: z.string().optional().nullable(),
+  recordHoldersChannelId: z.string().optional().nullable(),
+  ownersChatChannelId: z.string().optional().nullable()
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {

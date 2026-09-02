@@ -19,8 +19,11 @@ export function ChannelSettings() {
   const [busy, setBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isCfb, setIsCfb] = useState(false);
+  const [isRise, setIsRise] = useState(false);
 
-  const CONFIGURABLE_ROUTES = ALL_ROUTES.filter(([, route]) => !("madden_only" in route && route.madden_only && isCfb));
+  const CONFIGURABLE_ROUTES = ALL_ROUTES.filter(([, route]) =>
+    !("madden_only" in route && route.madden_only && isCfb) &&
+    !("rti_only" in route && route.rti_only && !isRise));
 
   const load = () => Promise.all([
     recApi.getServerChannels(guildId),
@@ -32,6 +35,7 @@ export function ChannelSettings() {
       String(result.routes[route.dbField] ?? ""),
     ])));
     setIsCfb(header?.league.game === "cfb_27");
+    setIsRise(header?.league.rosterType === "rise_to_immortality");
   }).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load channels."));
 
   useEffect(() => { void load(); }, [guildId]);

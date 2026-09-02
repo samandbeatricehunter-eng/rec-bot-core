@@ -20,6 +20,14 @@ type SetServerConfigInput = {
   votingPollsChannelId?: string | null;
   schedulingChannelId?: string | null;
   matchupsChannelId?: string | null;
+  interviewsChannelId?: string | null;
+  tweetsChannelId?: string | null;
+  playerOfTheWeekChannelId?: string | null;
+  rosterMovementChannelId?: string | null;
+  finalizedTradesChannelId?: string | null;
+  leagueLeadersChannelId?: string | null;
+  recordHoldersChannelId?: string | null;
+  ownersChatChannelId?: string | null;
 };
 
 function compactDefined(input: Record<string, unknown>) {

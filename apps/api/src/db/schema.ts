@@ -381,7 +381,15 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   powerRankingsChannelId: text("power_rankings_channel_id"),
   headlinesChannelId: text("headlines_channel_id"),
   tradeBlockChannelId: text("trade_block_channel_id"),
-  votingPollsChannelId: text("voting_polls_channel_id")
+  votingPollsChannelId: text("voting_polls_channel_id"),
+  interviewsChannelId: text("interviews_channel_id"),
+  tweetsChannelId: text("tweets_channel_id"),
+  playerOfTheWeekChannelId: text("player_of_the_week_channel_id"),
+  rosterMovementChannelId: text("roster_movement_channel_id"),
+  finalizedTradesChannelId: text("finalized_trades_channel_id"),
+  leagueLeadersChannelId: text("league_leaders_channel_id"),
+  recordHoldersChannelId: text("record_holders_channel_id"),
+  ownersChatChannelId: text("owners_chat_channel_id")
 });
 
 export const recServerAdminRoles = pgTable("rec_server_admin_roles", {
