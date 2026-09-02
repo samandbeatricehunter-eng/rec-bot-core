@@ -1174,9 +1174,13 @@ export async function completeAdvanceWeek(input: {
     console.error("[ERROR] purchase-deadline reminder failed after advance (non-fatal):", err);
   });
 
+  // RTI leagues get their own Power Rankings channel (rti_only route) instead of the shared
+  // Announcements channel every other league posts this to -- only ever populated for RTI
+  // leagues in the first place, so this is a plain preference-with-fallback, not a roster-type
+  // branch.
   await publishPowerRankingsToDiscord({
     guildId: input.guildId,
-    announcementsChannelId: context.routes?.announcements_channel_id as string | null | undefined,
+    announcementsChannelId: (context.routes?.power_rankings_channel_id ?? context.routes?.announcements_channel_id) as string | null | undefined,
     completedWeekNumber: currentWeek,
   }).catch((err) => {
     console.error("[ERROR] publishPowerRankingsToDiscord failed after advance (non-fatal):", err);

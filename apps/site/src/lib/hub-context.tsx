@@ -115,8 +115,14 @@ export function HubProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     // Game theme is only for /l/:id hub surfaces. Site chrome (leagues list, home,
     // account, etc.) always stays on the app carbon theme — otherwise selecting a
-    // league re-skinned the whole website.
-    const onLeagueHubPage = location.pathname.startsWith("/l/");
+    // league re-skinned the whole website. /league-mgmt/* counts too -- it's the legacy
+    // leagueId-less path a handful of hub-ui buttons still navigate to (Settings,
+    // Notifications, Publishing, the playoff-bracket mgmt link), which App.tsx's
+    // LegacyLeagueMgmtRedirect immediately maps onto the real /l/:leagueId/mgmt/* route.
+    // Treating it as "left the hub" here would drop league scope in the instant before
+    // that redirect runs, so the redirect's own scope.leagueId fallback reads "main" and
+    // falls through to hub.leagues[0] -- silently landing on a different league entirely.
+    const onLeagueHubPage = location.pathname.startsWith("/l/") || location.pathname.startsWith("/league-mgmt");
     if (scope.kind === "league" && selectedLeague && onLeagueHubPage) {
       // Universal Platinum chrome for every league (CFB + Madden share one face).
       setTheme("app");
